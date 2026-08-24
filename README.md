@@ -58,6 +58,15 @@ The algorithm selects the expected lightness direction from the local substrate,
 └── README.md
 ```
 
+## Review workbench
+
+The `web/` directory contains a local web app for reviewing run results across iterations. Write each run into `web/data/runs/<run-name>`, then browse runs, per-image counts, and interactive detection overlays:
+
+```bash
+uv run vitroflow tests/fixtures/images -o web/data/runs/<run-name>
+cd web && bun install && bun run dev
+```
+
 ## Development
 
 ```bash
