@@ -49,7 +49,7 @@ class CountResult:
     detections: list[SeedDetection]
     dish_center: tuple[float, float]
     dish_radius: float
-    threshold: float
+    score_threshold: float
     quality: QualityReport
     overlay_bgr: np.ndarray
     debug_bgr: np.ndarray
@@ -71,7 +71,7 @@ class CountResult:
                 "center_y": round(self.dish_center[1], 2),
                 "radius": round(self.dish_radius, 2),
             },
-            "score_threshold": round(self.threshold, 4),
+            "score_threshold": round(self.score_threshold, 4),
             "config": self.config.to_dict(),
             "detections": [seed.to_dict() for seed in self.detections],
         }

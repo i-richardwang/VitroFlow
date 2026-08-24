@@ -19,15 +19,14 @@ class DetectionResult:
 
 
 def _body_mask(
-    features: FeatureMaps,
+    body_score: np.ndarray,
     measurement_mask: np.ndarray,
     dish_radius: float,
     config: PipelineConfig,
 ) -> np.ndarray:
-    binary = (
-        measurement_mask
-        & (features.seed_score >= features.threshold * config.body_threshold_fraction)
-    ).astype(np.uint8)
+    binary = (measurement_mask & (body_score >= config.body_score_threshold)).astype(
+        np.uint8
+    )
     radius = max(1, round(dish_radius * config.morphology_radius_fraction))
     kernel = cv2.getStructuringElement(
         cv2.MORPH_ELLIPSE, (radius * 2 + 1, radius * 2 + 1)
@@ -52,15 +51,74 @@ def _center_mask(
     )
     centers = (
         measurement_mask
-        & (features.seed_score >= features.threshold)
+        & (features.seed_score >= features.seed_score_threshold)
         & (features.seed_score == local_maximum)
+        & (features.blob_isotropy >= config.minimum_blob_isotropy)
+        & (features.line_coherence <= config.maximum_line_coherence)
     )
-    if features.foreground_polarity < 0:
-        red_yellow_ratio = features.red_contrast / np.maximum(
-            features.yellow_contrast, 1e-6
-        )
-        centers &= red_yellow_ratio >= config.minimum_light_background_red_yellow_ratio
     return centers
+
+
+def _suppress_line_components(
+    body_mask: np.ndarray,
+    center_mask: np.ndarray,
+    line_coherence: np.ndarray,
+    dish_radius: float,
+    config: PipelineConfig,
+) -> np.ndarray:
+    _, components, stats, _ = cv2.connectedComponentsWithStats(
+        body_mask.astype(np.uint8), connectivity=8
+    )
+    filtered = center_mask.copy()
+    component_centers: dict[int, list[tuple[int, int]]] = {}
+    for center_y, center_x in zip(*np.where(center_mask), strict=True):
+        component_id = int(components[center_y, center_x])
+        if component_id == 0:
+            y_min = max(0, center_y - 1)
+            y_max = min(components.shape[0], center_y + 2)
+            x_min = max(0, center_x - 1)
+            x_max = min(components.shape[1], center_x + 2)
+            nearby = components[y_min:y_max, x_min:x_max]
+            nearby = nearby[nearby > 0]
+            if nearby.size:
+                component_id = int(np.argmax(np.bincount(nearby)))
+        if component_id > 0:
+            component_centers.setdefault(component_id, []).append((center_y, center_x))
+
+    for component_id, centers in component_centers.items():
+        x_min, y_min, width, height, area = (
+            int(value) for value in stats[component_id]
+        )
+        if area < 3:
+            continue
+        component_crop = components[y_min : y_min + height, x_min : x_min + width]
+        component_pixels = component_crop == component_id
+        y_coordinates, x_coordinates = np.where(component_pixels)
+        covariance = np.cov(
+            np.column_stack((x_coordinates, y_coordinates)), rowvar=False
+        )
+        eigenvalues = np.linalg.eigvalsh(covariance)
+        body_isotropy = float(eigenvalues[0] / max(eigenvalues[1], 1e-6))
+        if body_isotropy < config.minimum_body_isotropy:
+            for center_y, center_x in centers:
+                filtered[center_y, center_x] = False
+            continue
+
+        if max(width, height) > dish_radius * config.large_body_extent_fraction:
+            for center_y, center_x in centers:
+                if (
+                    line_coherence[center_y, center_x]
+                    > config.maximum_large_body_line_coherence
+                ):
+                    filtered[center_y, center_x] = False
+    return filtered
+
+
+def _include_center_support(
+    body_mask: np.ndarray, center_mask: np.ndarray
+) -> np.ndarray:
+    support = cv2.dilate(center_mask.astype(np.uint8), np.ones((3, 3), dtype=np.uint8))
+    return body_mask | support.astype(bool)
 
 
 def _partition_bodies(
@@ -111,11 +169,16 @@ def detect_seeds(
     dish_radius: float,
     config: PipelineConfig,
 ) -> DetectionResult:
-    body_mask = _body_mask(features, measurement_mask, dish_radius, config)
+    body_mask = _body_mask(features.body_score, measurement_mask, dish_radius, config)
     center_mask = _center_mask(features, measurement_mask, dish_radius, config)
-    body_mask |= cv2.dilate(
-        center_mask.astype(np.uint8), np.ones((3, 3), np.uint8)
-    ).astype(bool)
+    center_mask = _suppress_line_components(
+        body_mask,
+        center_mask,
+        features.line_coherence,
+        dish_radius,
+        config,
+    )
+    body_mask = _include_center_support(body_mask, center_mask)
     partitioned, centers = _partition_bodies(body_mask, center_mask)
 
     labels = np.zeros_like(partitioned, dtype=np.int32)

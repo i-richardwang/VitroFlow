@@ -11,12 +11,12 @@ from .config import PipelineConfig
 @dataclass(frozen=True)
 class FeatureMaps:
     brightness_contrast: np.ndarray
-    red_contrast: np.ndarray
-    yellow_contrast: np.ndarray
     seed_color_contrast: np.ndarray
+    blob_isotropy: np.ndarray
+    line_coherence: np.ndarray
+    body_score: np.ndarray
     seed_score: np.ndarray
-    threshold: float
-    foreground_polarity: int
+    seed_score_threshold: float
     clipped_fraction: float
     focus_score: float
 
@@ -50,15 +50,9 @@ def compute_feature_maps(
         )
         normalized_channels.append((residual[:, :, channel] - location) / scale)
 
-    sampled_lightness = lab[:, :, 0][measurement_mask][::8]
-    background_lightness = float(np.median(sampled_lightness))
-    foreground_polarity = (
-        -1 if background_lightness >= config.light_background_threshold else 1
-    )
-
     support_sigma = max(1.5, dish_radius * config.support_sigma_fraction)
     brightness = cv2.GaussianBlur(
-        np.maximum(foreground_polarity * normalized_channels[0], 0.0),
+        np.abs(normalized_channels[0]),
         (0, 0),
         support_sigma,
     )
@@ -72,19 +66,52 @@ def compute_feature_maps(
         (0, 0),
         support_sigma,
     )
-    seed_color = np.sqrt(red * yellow)
-    score = np.cbrt(brightness * red * yellow)
+    seed_color = np.maximum(red, yellow)
+    body_score = np.sqrt(brightness * seed_color)
+
+    # The Hessian determinant is positive at compact two-dimensional extrema and
+    # near zero along long edges. The eigenvalue ratio is scale-free.
+    blob_sigma = max(2.0, dish_radius * config.blob_sigma_fraction)
+    blob_lightness = cv2.GaussianBlur(normalized_channels[0], (0, 0), blob_sigma)
+    derivative_scale = blob_sigma**2 / 4.0
+    dxx = cv2.Sobel(blob_lightness, cv2.CV_32F, 2, 0, ksize=3, scale=derivative_scale)
+    dyy = cv2.Sobel(blob_lightness, cv2.CV_32F, 0, 2, ksize=3, scale=derivative_scale)
+    dxy = cv2.Sobel(blob_lightness, cv2.CV_32F, 1, 1, ksize=3, scale=derivative_scale)
+    determinant = dxx * dyy - dxy * dxy
+    blob_response = np.sqrt(np.maximum(determinant, 0.0))
+
+    discriminant = np.sqrt(np.maximum((dxx - dyy) ** 2 + 4.0 * dxy**2, 0.0))
+    first_eigenvalue = (dxx + dyy + discriminant) * 0.5
+    second_eigenvalue = (dxx + dyy - discriminant) * 0.5
+    maximum_magnitude = np.maximum(np.abs(first_eigenvalue), np.abs(second_eigenvalue))
+    blob_isotropy = np.minimum(
+        np.abs(first_eigenvalue), np.abs(second_eigenvalue)
+    ) / np.maximum(maximum_magnitude, 1e-6)
+
+    gradient_x = cv2.Sobel(blob_lightness, cv2.CV_32F, 1, 0, ksize=3)
+    gradient_y = cv2.Sobel(blob_lightness, cv2.CV_32F, 0, 1, ksize=3)
+    line_sigma = max(blob_sigma, dish_radius * config.line_sigma_fraction)
+    gradient_xx = cv2.GaussianBlur(gradient_x * gradient_x, (0, 0), line_sigma)
+    gradient_yy = cv2.GaussianBlur(gradient_y * gradient_y, (0, 0), line_sigma)
+    gradient_xy = cv2.GaussianBlur(gradient_x * gradient_y, (0, 0), line_sigma)
+    line_coherence = np.sqrt(
+        (gradient_xx - gradient_yy) ** 2 + 4.0 * gradient_xy**2
+    ) / np.maximum(gradient_xx + gradient_yy, 1e-6)
+
+    score = np.cbrt(brightness * seed_color * blob_response)
     score = cv2.GaussianBlur(
         score,
         (0, 0),
-        max(1.0, dish_radius * config.score_smoothing_fraction),
+        max(1.0, dish_radius * config.seed_score_smoothing_fraction),
     )
 
     score_values = score[measurement_mask][::8]
-    reference = float(np.percentile(score_values, config.score_reference_percentile))
-    threshold = max(
-        config.minimum_score_threshold,
-        reference * config.score_reference_fraction,
+    reference = float(
+        np.percentile(score_values, config.seed_score_reference_percentile)
+    )
+    seed_score_threshold = max(
+        config.minimum_seed_score_threshold,
+        reference * config.seed_score_reference_fraction,
     )
 
     valid_lightness = lab[:, :, 0][measurement_mask]
@@ -96,12 +123,12 @@ def compute_feature_maps(
 
     return FeatureMaps(
         brightness_contrast=brightness,
-        red_contrast=red,
-        yellow_contrast=yellow,
         seed_color_contrast=seed_color,
+        blob_isotropy=blob_isotropy,
+        line_coherence=line_coherence,
+        body_score=body_score,
         seed_score=score,
-        threshold=threshold,
-        foreground_polarity=foreground_polarity,
+        seed_score_threshold=seed_score_threshold,
         clipped_fraction=clipped_fraction,
         focus_score=float(np.var(focus_values)),
     )

@@ -22,8 +22,9 @@ Results are written to `output/` by default. Each image produces:
 Dish detection
 → Measurement region
 → Local Lab background normalization
-→ Foreground polarity selection
-→ Seed appearance evidence
+→ Polarity-invariant lightness contrast
+→ Soft warm-color evidence
+→ Seed-scale blob and edge analysis
 → Scale-aware center detection
 → Marker-based body partitioning
 → Counting, quality checks, and rendering
@@ -31,7 +32,7 @@ Dish detection
 
 Measurements are limited to the central 60% of the detected dish radius by default, keeping labels, dish walls, reflections, and support edges outside the counting area. Keep all seeds inside the blue circle shown in the overlay.
 
-The algorithm selects the expected lightness direction from the local substrate, then requires lightness, red, and yellow evidence to occur at seed scale. Geometric and photometric scales are derived from the detected dish radius.
+The algorithm detects compact lightness extrema supported by local warm-color contrast. A seed-scale Hessian response and line-coherence analysis suppress seams, fibers, and support edges. Geometric and photometric scales are derived from the detected dish radius.
 
 ## Project layout
 

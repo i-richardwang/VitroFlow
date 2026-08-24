@@ -16,16 +16,23 @@ class PipelineConfig:
     input_smoothing_fraction: float = 0.00075
     background_sigma_fraction: float = 0.010
     support_sigma_fraction: float = 0.00125
-    score_smoothing_fraction: float = 0.00060
-    light_background_threshold: float = 100.0
-    score_reference_percentile: float = 99.5
-    score_reference_fraction: float = 0.75
-    minimum_score_threshold: float = 1.5
-    minimum_light_background_red_yellow_ratio: float = 0.02
+    body_score_threshold: float = 0.70
+
+    # Seed-center evidence and artifact suppression.
+    blob_sigma_fraction: float = 0.005
+    line_sigma_fraction: float = 0.015
+    seed_score_smoothing_fraction: float = 0.00050
+    seed_score_reference_percentile: float = 99.5
+    seed_score_reference_fraction: float = 0.65
+    minimum_seed_score_threshold: float = 2.0
+    minimum_blob_isotropy: float = 0.20
+    minimum_body_isotropy: float = 0.005
+    maximum_line_coherence: float = 0.70
+    large_body_extent_fraction: float = 0.25
+    maximum_large_body_line_coherence: float = 0.50
 
     # Center detection and label rendering relative to the detected dish.
     center_distance_fraction: float = 0.0075
-    body_threshold_fraction: float = 0.35
     label_window_fraction: float = 0.020
     morphology_radius_fraction: float = 0.00055
 
