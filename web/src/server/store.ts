@@ -1,10 +1,17 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-import { resultSchema, type SeedResult } from '../schemas'
+import {
+  calibrationSchema,
+  resultSchema,
+  type Calibration,
+  type CalibrationEdit,
+  type SeedResult,
+} from '../schemas'
 
-const RUNS_DIR = path.join(process.cwd(), 'data', 'runs')
 const REPO_ROOT = path.resolve(process.cwd(), '..')
+const RUNS_DIR = path.join(REPO_ROOT, 'data', 'runs')
+const CALIBRATION_DIR = path.join(REPO_ROOT, 'data', 'calibration')
 
 const CONTENT_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -14,14 +21,14 @@ const CONTENT_TYPES: Record<string, string> = {
   '.tiff': 'image/tiff',
 }
 
-/** Joins a path inside the runs directory, rejecting segments that could escape it. */
-function runPath(runId: string, ...segments: string[]): string {
-  for (const segment of [runId, ...segments]) {
+/** Joins a path under a data root, rejecting segments that could escape it. */
+function safeJoin(root: string, ...segments: string[]): string {
+  for (const segment of segments) {
     if (segment !== path.basename(segment)) {
       throw new Error(`Invalid path segment: ${segment}`)
     }
   }
-  return path.join(RUNS_DIR, runId, ...segments)
+  return path.join(root, ...segments)
 }
 
 export function listRunIds(): string[] {
@@ -37,15 +44,53 @@ export function listRunIds(): string[] {
 
 export function listStems(runId: string): string[] {
   return fs
-    .readdirSync(runPath(runId))
+    .readdirSync(safeJoin(RUNS_DIR, runId))
     .filter((name) => name.endsWith('.json'))
     .map((name) => name.slice(0, -'.json'.length))
     .sort()
 }
 
 export function readResult(runId: string, stem: string): SeedResult {
-  const raw = fs.readFileSync(runPath(runId, `${stem}.json`), 'utf-8')
+  const raw = fs.readFileSync(safeJoin(RUNS_DIR, runId, `${stem}.json`), 'utf-8')
   return resultSchema.parse(JSON.parse(raw))
+}
+
+export function readCalibration(runId: string, stem: string): Calibration | null {
+  const filePath = safeJoin(CALIBRATION_DIR, runId, `${stem}.json`)
+  if (!fs.existsSync(filePath)) {
+    return null
+  }
+  return calibrationSchema.parse(JSON.parse(fs.readFileSync(filePath, 'utf-8')))
+}
+
+export function writeCalibration(runId: string, stem: string, edit: CalibrationEdit): void {
+  const filePath = safeJoin(CALIBRATION_DIR, runId, `${stem}.json`)
+  if (edit.removed.length === 0 && edit.added.length === 0) {
+    fs.rmSync(filePath, { force: true })
+    return
+  }
+
+  const result = readResult(runId, stem)
+  const detections = new Map(result.detections.map((detection) => [detection.id, detection]))
+  const calibration: Calibration = {
+    image: result.source,
+    run: runId,
+    count: {
+      algorithm: result.count,
+      calibrated: result.count - edit.removed.length + edit.added.length,
+    },
+    removed: edit.removed.map((id) => {
+      const detection = detections.get(id)
+      if (!detection) {
+        throw new Error(`Unknown detection: ${id}`)
+      }
+      return { id, x: detection.x, y: detection.y }
+    }),
+    added: edit.added,
+  }
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, `${JSON.stringify(calibration, null, 2)}\n`)
 }
 
 export const IMAGE_KINDS = ['source', 'overlay', 'debug'] as const
@@ -60,7 +105,7 @@ export function readRunImage(
   const filePath =
     kind === 'source'
       ? path.resolve(REPO_ROOT, readResult(runId, stem).source)
-      : runPath(runId, `${stem}_${kind}.jpg`)
+      : safeJoin(RUNS_DIR, runId, `${stem}_${kind}.jpg`)
   if (!fs.existsSync(filePath)) {
     return null
   }

@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import type { CalibrationState } from '../hooks/useCalibration'
 import type { SeedResult } from '../schemas'
+import { DetectionsTable } from './DetectionsTable'
 
 const BASES = [
   { key: 'source', label: 'Source' },
@@ -15,6 +17,8 @@ const LAYERS = [
   { key: 'measurement', label: 'Measurement', dot: '#3b82f6' },
 ] as const
 
+const CLICK_SLOP = 3
+
 type BaseKey = (typeof BASES)[number]['key']
 type LayerKey = (typeof LAYERS)[number]['key']
 
@@ -26,6 +30,8 @@ interface Transform {
 
 interface DragOrigin {
   pointerId: number
+  startX: number
+  startY: number
   originX: number
   originY: number
 }
@@ -34,10 +40,12 @@ export function ImageViewer({
   runId,
   stem,
   result,
+  calibration,
 }: {
   runId: string
   stem: string
   result: SeedResult
+  calibration: CalibrationState
 }) {
   const [base, setBase] = useState<BaseKey>('source')
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
@@ -50,6 +58,8 @@ export function ImageViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const [transform, setTransform] = useState<Transform>({ scale: 1, x: 0, y: 0 })
   const [drag, setDrag] = useState<DragOrigin | null>(null)
+  const draggedRef = useRef(false)
+  const pressedMarkerRef = useRef<Element | null>(null)
 
   const { width, height } = result.image
   const markerRadius = result.dish.radius * result.config.label_window_fraction
@@ -88,7 +98,27 @@ export function ImageViewer({
     return () => container.removeEventListener('wheel', onWheel)
   }, [])
 
-  const endDrag = () => setDrag(null)
+  // Pointer capture retargets click to the container, so the tap is resolved on
+  // pointerup against the element that was actually pressed.
+  const calibrateAt = (event: React.PointerEvent) => {
+    const marker = pressedMarkerRef.current
+    const detectionId = marker?.getAttribute('data-detection-id')
+    if (detectionId) {
+      calibration.toggleDetection(Number(detectionId))
+      return
+    }
+    const addedIndex = marker?.getAttribute('data-added-index')
+    if (addedIndex) {
+      calibration.removePoint(Number(addedIndex))
+      return
+    }
+    const rect = containerRef.current!.getBoundingClientRect()
+    const x = (event.clientX - rect.left - transform.x) / transform.scale
+    const y = (event.clientY - rect.top - transform.y) / transform.scale
+    if (x >= 0 && x <= width && y >= 0 && y <= height) {
+      calibration.addPoint({ x, y })
+    }
+  }
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -96,8 +126,14 @@ export function ImageViewer({
         ref={containerRef}
         className={`relative flex-1 overflow-hidden bg-neutral-950 ${drag ? 'cursor-grabbing' : ''}`}
         onPointerDown={(event) => {
+          draggedRef.current = false
+          pressedMarkerRef.current = (event.target as Element).closest(
+            '[data-detection-id], [data-added-index]',
+          )
           setDrag({
             pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
             originX: event.clientX - transform.x,
             originY: event.clientY - transform.y,
           })
@@ -105,6 +141,9 @@ export function ImageViewer({
         }}
         onPointerMove={(event) => {
           if (drag?.pointerId === event.pointerId) {
+            if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > CLICK_SLOP) {
+              draggedRef.current = true
+            }
             setTransform((previous) => ({
               ...previous,
               x: event.clientX - drag.originX,
@@ -112,11 +151,16 @@ export function ImageViewer({
             }))
           }
         }}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerUp={(event) => {
+          if (!draggedRef.current) {
+            calibrateAt(event)
+          }
+          setDrag(null)
+        }}
+        onPointerCancel={() => setDrag(null)}
       >
         <div
-          className={`absolute top-0 left-0 origin-top-left ${drag ? 'cursor-grabbing' : 'cursor-grab'}`}
+          className={`absolute top-0 left-0 origin-top-left ${drag ? 'cursor-grabbing' : 'cursor-crosshair'}`}
           style={{
             width,
             height,
@@ -155,19 +199,41 @@ export function ImageViewer({
               />
             )}
             {layers.detections &&
-              result.detections.map((detection) => (
+              result.detections.map((detection) => {
+                const removed = calibration.edit.removed.includes(detection.id)
+                return (
+                  <circle
+                    key={detection.id}
+                    cx={detection.x}
+                    cy={detection.y}
+                    r={markerRadius}
+                    fill="transparent"
+                    stroke={removed ? '#ef4444' : '#22c55e'}
+                    strokeWidth={1.5}
+                    strokeDasharray={removed ? '4 3' : undefined}
+                    vectorEffect="non-scaling-stroke"
+                    className="cursor-pointer"
+                    data-detection-id={detection.id}
+                  >
+                    <title>{`#${detection.id} · score ${detection.score}`}</title>
+                  </circle>
+                )
+              })}
+            {layers.detections &&
+              calibration.edit.added.map((point, index) => (
                 <circle
-                  key={detection.id}
-                  cx={detection.x}
-                  cy={detection.y}
+                  key={`${point.x}:${point.y}`}
+                  cx={point.x}
+                  cy={point.y}
                   r={markerRadius}
-                  fill="none"
+                  fill="#22c55e"
+                  fillOpacity={0.35}
                   stroke="#22c55e"
                   strokeWidth={1.5}
                   vectorEffect="non-scaling-stroke"
-                >
-                  <title>{`#${detection.id} · score ${detection.score}`}</title>
-                </circle>
+                  className="cursor-pointer"
+                  data-added-index={index}
+                />
               ))}
             {layers.ids &&
               result.detections.map((detection) => (
@@ -234,7 +300,7 @@ export function ImageViewer({
 
         <Section title="Metrics">
           <dl className="space-y-1.5">
-            <MetricRow label="Count" value={String(result.count)} />
+            <MetricRow label="Algorithm count" value={String(result.count)} />
             <MetricRow label="Score threshold" value={String(result.score_threshold)} />
             <MetricRow label="Focus score" value={String(result.quality.focus_score)} />
             <MetricRow label="Clipped fraction" value={result.quality.clipped_fraction.toFixed(4)} />
@@ -242,33 +308,7 @@ export function ImageViewer({
           </dl>
         </Section>
 
-        <section className="flex min-h-0 flex-1 flex-col">
-          <h2 className="px-5 pt-4 pb-2 text-[11px] font-medium tracking-wider text-neutral-400 uppercase">
-            Detections
-          </h2>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-white">
-                <tr className="text-left text-neutral-400">
-                  <th className="py-1.5 font-medium">#</th>
-                  <th className="py-1.5 text-right font-medium">x</th>
-                  <th className="py-1.5 text-right font-medium">y</th>
-                  <th className="py-1.5 text-right font-medium">score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100 font-mono tabular-nums">
-                {result.detections.map((detection) => (
-                  <tr key={detection.id} className="hover:bg-neutral-50">
-                    <td className="py-1.5 text-neutral-400">{detection.id}</td>
-                    <td className="py-1.5 text-right">{detection.x.toFixed(0)}</td>
-                    <td className="py-1.5 text-right">{detection.y.toFixed(0)}</td>
-                    <td className="py-1.5 text-right">{detection.score.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <DetectionsTable detections={result.detections} edit={calibration.edit} />
       </aside>
     </div>
   )

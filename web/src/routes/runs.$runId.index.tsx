@@ -1,6 +1,8 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 
+import { CountCell } from '../components/CountCell'
 import { QualityWarnings } from '../components/QualityWarnings'
+import { formatDelta } from '../format'
 import { getRun } from '../server/runs'
 
 export const Route = createFileRoute('/runs/$runId/')({
@@ -8,12 +10,13 @@ export const Route = createFileRoute('/runs/$runId/')({
   component: RunPage,
 })
 
-const COLUMNS = 'grid grid-cols-[minmax(0,1fr)_6rem_14rem] items-center px-5'
+const COLUMNS = 'grid grid-cols-[minmax(0,1fr)_8rem_14rem] items-center px-5'
 
 function RunPage() {
   const { runId } = Route.useParams()
   const images = Route.useLoaderData()
   const totalCount = images.reduce((sum, image) => sum + image.count, 0)
+  const totalDelta = images.reduce((sum, image) => sum + image.delta, 0)
 
   return (
     <main className="mx-auto max-w-3xl px-8 py-10">
@@ -28,8 +31,8 @@ function RunPage() {
       <header className="mt-3 flex items-end justify-between">
         <h1 className="font-mono text-xl font-semibold tracking-tight">{runId}</h1>
         <dl className="flex gap-8 text-right">
-          <Stat label="Images" value={String(images.length)} />
-          <Stat label="Total" value={String(totalCount)} />
+          <Stat label="Images" value={images.length} />
+          <Stat label="Total" value={totalCount} delta={totalDelta} />
         </dl>
       </header>
 
@@ -50,7 +53,7 @@ function RunPage() {
                 className={`${COLUMNS} py-3 hover:bg-neutral-50`}
               >
                 <span className="truncate font-mono font-medium">{image.stem}</span>
-                <span className="text-right font-mono tabular-nums">{image.count}</span>
+                <CountCell count={image.count} delta={image.delta} />
                 <span className="pl-8">
                   {image.quality.status === 'ok' ? (
                     <span className="text-neutral-300">—</span>
@@ -67,11 +70,16 @@ function RunPage() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, delta = 0 }: { label: string; value: number; delta?: number }) {
   return (
     <div>
       <dt className="text-[11px] tracking-wider text-neutral-400 uppercase">{label}</dt>
-      <dd className="mt-0.5 font-mono text-lg font-semibold tabular-nums">{value}</dd>
+      <dd className="mt-0.5 font-mono text-lg font-semibold tabular-nums">
+        {value}
+        {delta !== 0 && (
+          <span className="pl-1.5 text-sm font-normal text-neutral-400">{formatDelta(delta)}</span>
+        )}
+      </dd>
     </div>
   )
 }

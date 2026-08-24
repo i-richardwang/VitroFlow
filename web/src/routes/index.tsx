@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 
+import { CountCell } from '../components/CountCell'
 import { listRuns } from '../server/runs'
 
 export const Route = createFileRoute('/')({
@@ -7,7 +8,7 @@ export const Route = createFileRoute('/')({
   component: RunsPage,
 })
 
-const COLUMNS = 'grid grid-cols-[minmax(0,1fr)_5rem_6rem_7rem] items-center px-5'
+const COLUMNS = 'grid grid-cols-[minmax(0,1fr)_5rem_8rem_7rem] items-center px-5'
 
 function RunsPage() {
   const runs = Route.useLoaderData()
@@ -23,7 +24,7 @@ function RunsPage() {
             Generate one from the repository root, then reload this page:
           </p>
           <code className="mt-4 inline-block rounded-md bg-neutral-100 px-3 py-2 font-mono text-xs">
-            uv run vitroflow tests/fixtures/images -o web/data/runs/&lt;run-name&gt;
+            uv run vitroflow tests/fixtures/images -o data/runs/&lt;run-name&gt;
           </code>
         </div>
       ) : (
@@ -48,7 +49,7 @@ function RunsPage() {
                   <span className="text-right font-mono tabular-nums text-neutral-500">
                     {run.imageCount}
                   </span>
-                  <span className="text-right font-mono tabular-nums">{run.totalCount}</span>
+                  <CountCell count={run.totalCount} delta={run.delta} />
                   {run.flaggedCount > 0 ? (
                     <span className="text-right font-mono tabular-nums text-amber-600">
                       {run.flaggedCount}

@@ -51,8 +51,9 @@ The algorithm selects the expected lightness direction from the local substrate,
 │   │   ├── README.md     # Local fixture setup
 │   │   └── images/       # Git-ignored images and manifest
 │   ├── test_config.py
-│   ├── test_pipeline.py    # Pipeline tests
-│   └── test_regression.py  # Local image fixtures
+│   ├── test_pipeline.py
+│   └── test_regression.py  # Runs against local image fixtures
+├── web/                    # Local review workbench
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
@@ -60,12 +61,14 @@ The algorithm selects the expected lightness direction from the local substrate,
 
 ## Review workbench
 
-The `web/` directory contains a local web app for reviewing run results across iterations. Write each run into `web/data/runs/<run-name>`, then browse runs, per-image counts, and interactive detection overlays:
+The `web/` directory contains a local web app for reviewing run results across iterations. Write each run into `data/runs/<run-name>`, then browse runs, per-image counts, and interactive detection overlays:
 
 ```bash
-uv run vitroflow tests/fixtures/images -o web/data/runs/<run-name>
+uv run vitroflow tests/fixtures/images -o data/runs/<run-name>
 cd web && bun install && bun run dev
 ```
+
+Clicking a detection drops it from the count; clicking anywhere else marks a seed the algorithm missed. Each calibrated image is written to `data/calibration/<run-name>/<image>.json` with the corrected count and the coordinates of every removed and added point.
 
 ## Development
 
