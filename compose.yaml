@@ -1,6 +1,8 @@
 services:
   workbench:
     build: ./web
+    environment:
+      VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
     ports:
       - "3000:3000"
     volumes:

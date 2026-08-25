@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import type { ReactNode } from "react";
 
-import { Link, RouterProvider } from "@heroui/react";
+import { Button, Link, RouterProvider } from "@heroui/react";
 import {
   HeadContent,
   Outlet,
@@ -10,6 +10,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 
+import { getSession } from "../server/auth";
 import appCss from "../styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -21,11 +22,13 @@ export const Route = createRootRoute({
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
+  loader: () => getSession(),
   component: RootComponent,
 });
 
 function RootComponent() {
   const navigate = useNavigate();
+  const { signedIn } = Route.useLoaderData();
   return (
     <RootDocument>
       <RouterProvider navigate={(href) => navigate({ to: href })}>
@@ -37,6 +40,13 @@ function RootComponent() {
             VitroFlow
           </Link>
           <span className="text-xs text-muted">Annotation workbench</span>
+          {signedIn && (
+            <form method="post" action="/logout" className="ml-auto">
+              <Button type="submit" variant="ghost" size="sm">
+                Sign out
+              </Button>
+            </form>
+          )}
         </header>
         <div className="min-h-0 flex-1 overflow-auto">
           <Outlet />

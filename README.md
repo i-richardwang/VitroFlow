@@ -79,7 +79,7 @@ The workbench reads the data directory from `VITROFLOW_DATA_ROOT` (default: `../
 docker compose up --build
 ```
 
-`compose.yaml` mounts `./data` at `/data` and serves the workbench on port 3000. Detection runs on any machine with the Python package; drop the run directory into `data/runs/` and it appears on the next page load. Without Docker, `bun run build && bun run start` in `web/` serves the same production build.
+`compose.yaml` mounts `./data` at `/data` and serves the workbench on port 3000. Set `VITROFLOW_PASSWORD` to require a password before any page, image, or save request is served; sessions last 30 days and end with the header's Sign out button. Leave it unset for a local workbench that needs no sign-in. Detection runs on any machine with the Python package; drop the run directory into `data/runs/` and it appears on the next page load. Without Docker, `bun run build && bun run start` in `web/` serves the same production build.
 
 ## Model fitting
 
