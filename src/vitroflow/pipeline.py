@@ -2,63 +2,77 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import cv2
 import numpy as np
 
+from .candidates import describe_candidates
 from .config import PipelineConfig
-from .detection import detect_seeds
-from .features import FeatureMaps, compute_feature_maps
+from .detection import DetectionResult, detect_seeds
 from .geometry import DishGeometry, estimate_geometry
+from .image_io import read_image
 from .models import CountResult, QualityReport
+from .normalization import NormalizedImage, normalize_image
+from .proposals import propose_seed_centers
+from .regions import render_regions
 from .rendering import render_debug, render_overlay
-
-
-def _read_image(path: Path) -> np.ndarray:
-    data = np.fromfile(path, dtype=np.uint8)
-    image = cv2.imdecode(data, cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError(f"Unable to read image: {path}")
-    return image
+from .scoring import DEFAULT_MODEL, CandidateModel
 
 
 def _assess_quality(
     geometry: DishGeometry,
-    features: FeatureMaps,
+    normalized: NormalizedImage,
     config: PipelineConfig,
 ) -> QualityReport:
     warnings: list[str] = []
     if geometry.used_fallback:
         warnings.append("dish_detection_failed")
-    if features.clipped_fraction > config.maximum_clipped_fraction:
+    if normalized.clipped_fraction > config.quality.maximum_clipped_fraction:
         warnings.append("exposure_clipping")
-    if features.focus_score < config.minimum_focus_score:
+    if normalized.focus_score < config.quality.minimum_focus_score:
         warnings.append("low_focus")
     return QualityReport(
         status="review_required" if warnings else "ok",
         warnings=tuple(warnings),
-        clipped_fraction=features.clipped_fraction,
-        focus_score=features.focus_score,
+        clipped_fraction=normalized.clipped_fraction,
+        focus_score=normalized.focus_score,
     )
 
 
-def count_seeds(path: str | Path, config: PipelineConfig | None = None) -> CountResult:
+def _center_mask(shape: tuple[int, int], detection: DetectionResult) -> np.ndarray:
+    mask = np.zeros(shape, dtype=bool)
+    for seed in detection.detections:
+        mask[round(seed.y), round(seed.x)] = True
+    return mask
+
+
+def count_seeds(
+    path: str | Path,
+    config: PipelineConfig | None = None,
+    model: CandidateModel = DEFAULT_MODEL,
+) -> CountResult:
     source = Path(path)
     config = config or PipelineConfig()
-    image = _read_image(source)
+    image = read_image(source)
 
     geometry = estimate_geometry(image, config)
-    features = compute_feature_maps(
-        image,
-        geometry.measurement_mask,
+    normalized = normalize_image(image, geometry.reference_mask, geometry.radius)
+    proposals = propose_seed_centers(
+        normalized,
+        geometry.reference_mask,
+        geometry.search_mask,
         geometry.radius,
-        config,
+        config.proposals,
     )
-    detection = detect_seeds(
-        features,
-        geometry.measurement_mask,
+    evidence = describe_candidates(
+        normalized,
+        proposals,
+        geometry.center,
         geometry.radius,
-        config,
     )
+    detection = detect_seeds(proposals, evidence, model, config.decision)
+    window_radius = max(
+        3, round(geometry.radius * config.rendering.region_radius_fraction)
+    )
+    labels = render_regions(image.shape[:2], detection.detections, window_radius)
 
     return CountResult(
         source=source,
@@ -67,15 +81,18 @@ def count_seeds(path: str | Path, config: PipelineConfig | None = None) -> Count
         detections=detection.detections,
         dish_center=geometry.center,
         dish_radius=geometry.radius,
-        score_threshold=features.seed_score_threshold,
-        quality=_assess_quality(geometry, features, config),
-        overlay_bgr=render_overlay(image, geometry, detection),
-        debug_bgr=render_debug(image, geometry, features, detection),
+        confidence_threshold=config.decision.confidence_threshold,
+        model_name=model.name,
+        model_fingerprint=model.fingerprint,
+        quality=_assess_quality(geometry, normalized, config),
+        overlay_bgr=render_overlay(image, geometry, detection, labels),
+        debug_bgr=render_debug(image, geometry, normalized, detection, labels),
         masks={
-            "measurement_region": geometry.measurement_mask,
-            "bodies": detection.body_mask,
-            "centers": detection.center_mask,
-            "labels": detection.labels,
+            "dish": geometry.dish_mask,
+            "reference_region": geometry.reference_mask,
+            "search_region": geometry.search_mask,
+            "centers": _center_mask(image.shape[:2], detection),
+            "regions": labels,
         },
         config=config,
     )

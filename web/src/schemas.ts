@@ -15,16 +15,24 @@ export const resultSchema = z.object({
     center_y: z.number(),
     radius: z.number(),
   }),
-  score_threshold: z.number(),
+  confidence_threshold: z.number(),
+  model: z.object({
+    name: z.string(),
+    fingerprint: z.string(),
+  }),
   config: z.object({
-    measurement_radius_fraction: z.number(),
-    label_window_fraction: z.number(),
+    geometry: z.object({
+      reference_radius_fraction: z.number(),
+      search_radius_fraction: z.number(),
+    }),
+    rendering: z.object({ region_radius_fraction: z.number() }),
   }),
   detections: z.array(
     z.object({
       id: z.number(),
       x: z.number(),
       y: z.number(),
+      scale: z.number(),
       score: z.number(),
     }),
   ),

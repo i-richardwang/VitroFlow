@@ -19,7 +19,9 @@ class CircleDetection:
 class DishGeometry:
     center: tuple[float, float]
     radius: float
-    measurement_mask: np.ndarray
+    dish_mask: np.ndarray
+    reference_mask: np.ndarray
+    search_mask: np.ndarray
     used_fallback: bool
 
 
@@ -39,8 +41,6 @@ def circle_mask(
 
 
 def detect_dish(image: np.ndarray) -> CircleDetection:
-    """Detect the dominant circular dish on a reduced copy of the image."""
-
     height, width = image.shape[:2]
     scale = min(1.0, 1200.0 / max(height, width))
     small = cv2.resize(
@@ -85,15 +85,20 @@ def detect_dish(image: np.ndarray) -> CircleDetection:
 
 def estimate_geometry(image: np.ndarray, config: PipelineConfig) -> DishGeometry:
     detection = detect_dish(image)
-    measurement_mask = circle_mask(
-        image.shape[:2],
-        detection.center,
-        detection.radius * config.measurement_radius_fraction,
-    )
-
+    shape = image.shape[:2]
     return DishGeometry(
         center=detection.center,
         radius=detection.radius,
-        measurement_mask=measurement_mask,
+        dish_mask=circle_mask(shape, detection.center, detection.radius),
+        reference_mask=circle_mask(
+            shape,
+            detection.center,
+            detection.radius * config.geometry.reference_radius_fraction,
+        ),
+        search_mask=circle_mask(
+            shape,
+            detection.center,
+            detection.radius * config.geometry.search_radius_fraction,
+        ),
         used_fallback=detection.used_fallback,
     )

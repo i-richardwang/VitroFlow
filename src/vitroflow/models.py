@@ -14,6 +14,7 @@ class SeedDetection:
     detection_id: int
     x: float
     y: float
+    scale: float
     score: float
 
     def to_dict(self) -> dict[str, int | float]:
@@ -21,6 +22,7 @@ class SeedDetection:
             "id": self.detection_id,
             "x": round(self.x, 2),
             "y": round(self.y, 2),
+            "scale": round(self.scale, 2),
             "score": round(self.score, 3),
         }
 
@@ -49,7 +51,9 @@ class CountResult:
     detections: list[SeedDetection]
     dish_center: tuple[float, float]
     dish_radius: float
-    score_threshold: float
+    confidence_threshold: float
+    model_name: str
+    model_fingerprint: str
     quality: QualityReport
     overlay_bgr: np.ndarray
     debug_bgr: np.ndarray
@@ -71,7 +75,11 @@ class CountResult:
                 "center_y": round(self.dish_center[1], 2),
                 "radius": round(self.dish_radius, 2),
             },
-            "score_threshold": round(self.score_threshold, 4),
+            "confidence_threshold": round(self.confidence_threshold, 4),
+            "model": {
+                "name": self.model_name,
+                "fingerprint": self.model_fingerprint,
+            },
             "config": self.config.to_dict(),
             "detections": [seed.to_dict() for seed in self.detections],
         }

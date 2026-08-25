@@ -4,124 +4,106 @@ import cv2
 import numpy as np
 
 from vitroflow import count_seeds
-from vitroflow.config import PipelineConfig
+from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
+from vitroflow.config import DecisionConfig, PipelineConfig
 from vitroflow.detection import detect_seeds
-from vitroflow.features import FeatureMaps, compute_feature_maps
 from vitroflow.geometry import circle_mask
+from vitroflow.normalization import NormalizedImage, normalize_image
+from vitroflow.proposals import SeedProposal, propose_seed_centers
+from vitroflow.scoring import CandidateModel
 
 
-def test_same_seed_is_detected_across_exposure_changes() -> None:
-    config = PipelineConfig()
-    image = np.full((800, 800, 3), 190, dtype=np.uint8)
-    cv2.ellipse(image, (400, 400), (3, 5), 20, 0, 360, (20, 90, 170), -1)
-    measurement_mask = circle_mask(image.shape[:2], (400, 400), 300)
-
-    counts = []
-    for gain in (0.55, 0.8, 1.0, 1.25, 1.6):
-        exposed = np.clip(image.astype(np.float32) * gain, 0, 255).astype(np.uint8)
-        features = compute_feature_maps(exposed, measurement_mask, 300, config)
-        result = detect_seeds(features, measurement_mask, 300, config)
-        counts.append(len(result.detections))
-
-    assert counts == [1, 1, 1, 1, 1]
-
-
-def test_neutral_highlight_is_not_a_seed() -> None:
-    config = PipelineConfig()
-    image = np.full((800, 800, 3), 170, dtype=np.uint8)
-    cv2.ellipse(image, (330, 400), (3, 5), 25, 0, 360, (25, 85, 165), -1)
-    cv2.circle(image, (500, 400), 7, (245, 245, 245), -1)
-    measurement_mask = circle_mask(image.shape[:2], (400, 400), 300)
-
-    features = compute_feature_maps(image, measurement_mask, 300, config)
-    result = detect_seeds(features, measurement_mask, 300, config)
-
-    assert len(result.detections) == 1
-    assert abs(result.detections[0].x - 330) < 5
+def _evidence(response: float) -> CandidateEvidence:
+    return CandidateEvidence(
+        response=response,
+        contrast=0.0,
+        chroma=0.0,
+        support=0.0,
+        finite_support=0.0,
+        continuation=2.0,
+        texture=2.0,
+        surface_distance=2.0,
+        elongation=1.0,
+        persistence=0.0,
+        rim_clearance=0.0,
+    )
 
 
-def test_touching_seeds_have_separate_centers() -> None:
-    config = PipelineConfig()
-    image = np.full((800, 800, 3), 180, dtype=np.uint8)
-    cv2.ellipse(image, (394, 400), (2, 4), -25, 0, 360, (20, 80, 165), -1)
-    cv2.ellipse(image, (406, 400), (2, 4), 25, 0, 360, (20, 80, 165), -1)
-    measurement_mask = circle_mask(image.shape[:2], (400, 400), 300)
-
-    features = compute_feature_maps(image, measurement_mask, 300, config)
-    result = detect_seeds(features, measurement_mask, 300, config)
-
-    assert len(result.detections) == 2
+def _response_model() -> CandidateModel:
+    return CandidateModel(
+        name="test",
+        feature_names=FEATURE_NAMES,
+        means=(0.0,) * len(FEATURE_NAMES),
+        scales=(1.0,) * len(FEATURE_NAMES),
+        weights=(1.0,) + (0.0,) * (len(FEATURE_NAMES) - 1),
+        bias=0.0,
+    )
 
 
-def test_seed_is_detected_on_a_dark_background() -> None:
-    config = PipelineConfig()
-    image = np.full((800, 800, 3), 45, dtype=np.uint8)
-    cv2.ellipse(image, (400, 400), (3, 5), 20, 0, 360, (30, 100, 180), -1)
-    measurement_mask = circle_mask(image.shape[:2], (400, 400), 300)
+def test_normalization_uses_reference_region_statistics() -> None:
+    image = np.full((500, 500, 3), 170, dtype=np.uint8)
+    reference = circle_mask(image.shape[:2], (250, 250), 120)
+    changed = image.copy()
+    changed[~reference] = (20, 240, 20)
 
-    features = compute_feature_maps(image, measurement_mask, 300, config)
-    result = detect_seeds(features, measurement_mask, 300, config)
+    original = normalize_image(image, reference, 200)
+    modified = normalize_image(changed, reference, 200)
 
-    assert len(result.detections) == 1
-
-
-def test_bright_and_dark_seeds_are_detected_in_the_same_image() -> None:
-    config = PipelineConfig()
-    image = np.full((800, 800, 3), 170, dtype=np.uint8)
-    cv2.ellipse(image, (330, 400), (3, 5), 20, 0, 360, (20, 80, 165), -1)
-    cv2.ellipse(image, (470, 400), (3, 5), -20, 0, 360, (180, 220, 245), -1)
-    measurement_mask = circle_mask(image.shape[:2], (400, 400), 300)
-
-    features = compute_feature_maps(image, measurement_mask, 300, config)
-    result = detect_seeds(features, measurement_mask, 300, config)
-
-    assert len(result.detections) == 2
+    inner = circle_mask(image.shape[:2], (250, 250), 80)
+    assert np.allclose(original.lightness[inner], modified.lightness[inner])
+    assert np.allclose(original.warm_chroma[inner], modified.warm_chroma[inner])
 
 
-def test_long_warm_edge_is_not_a_seed() -> None:
-    config = PipelineConfig()
-    image = np.full((800, 800, 3), 170, dtype=np.uint8)
-    cv2.line(image, (400, 280), (400, 520), (20, 80, 165), 5)
-    measurement_mask = circle_mask(image.shape[:2], (400, 400), 300)
-
-    features = compute_feature_maps(image, measurement_mask, 300, config)
-    result = detect_seeds(features, measurement_mask, 300, config)
-
-    assert len(result.detections) == 0
-
-
-def test_rejected_center_does_not_expand_body_mask() -> None:
-    shape = (41, 41)
-    body_score = np.zeros(shape, dtype=np.float32)
-    body_score[5:36, 18:21] = 1.0
-    seed_score = np.zeros(shape, dtype=np.float32)
-    seed_score[20, 21] = 3.0
-    blob_isotropy = np.zeros(shape, dtype=np.float32)
-    blob_isotropy[20, 21] = 1.0
-    features = FeatureMaps(
-        brightness_contrast=np.zeros(shape, dtype=np.float32),
-        seed_color_contrast=np.zeros(shape, dtype=np.float32),
-        blob_isotropy=blob_isotropy,
-        line_coherence=np.zeros(shape, dtype=np.float32),
-        body_score=body_score,
-        seed_score=seed_score,
-        seed_score_threshold=2.0,
+def test_proposals_cover_the_search_region() -> None:
+    shape = (400, 400)
+    lightness = np.zeros(shape, dtype=np.float32)
+    cv2.circle(lightness, (200, 200), 6, 8.0, -1)
+    cv2.circle(lightness, (320, 200), 6, 8.0, -1)
+    normalized = NormalizedImage(
+        lightness=lightness,
+        red=np.zeros(shape, dtype=np.float32),
+        yellow=np.zeros(shape, dtype=np.float32),
+        surface_distance=np.zeros(shape, dtype=np.float32),
         clipped_fraction=0.0,
         focus_score=100.0,
     )
-    config = PipelineConfig(minimum_body_isotropy=0.2)
+    reference = circle_mask(shape, (200, 200), 100)
+    search = circle_mask(shape, (200, 200), 150)
 
-    result = detect_seeds(
-        features,
-        np.ones(shape, dtype=bool),
-        dish_radius=100,
-        config=config,
+    proposals = propose_seed_centers(
+        normalized,
+        reference,
+        search,
+        170,
+        PipelineConfig().proposals,
     )
 
-    assert not result.detections
-    assert not np.any(result.center_mask)
-    assert result.body_mask[20, 19]
-    assert not result.body_mask[20, 21]
+    assert any(np.hypot(item.x - 320, item.y - 200) < 10 for item in proposals)
+
+
+def test_confidence_threshold_selects_candidates() -> None:
+    proposals = [SeedProposal(10, 10, 5, 1, 1), SeedProposal(30, 10, 5, 1, 1)]
+    result = detect_seeds(
+        proposals,
+        [_evidence(2.0), _evidence(-2.0)],
+        _response_model(),
+        DecisionConfig(confidence_threshold=0.7),
+    )
+
+    assert [(seed.x, seed.y) for seed in result.detections] == [(10, 10)]
+
+
+def test_scale_aware_nms_keeps_the_stronger_nearby_candidate() -> None:
+    proposals = [SeedProposal(10, 10, 5, 1, 1), SeedProposal(14, 10, 5, 1, 1)]
+    result = detect_seeds(
+        proposals,
+        [_evidence(3.0), _evidence(2.0)],
+        _response_model(),
+        DecisionConfig(confidence_threshold=0.5, nms_distance_scale=2.0),
+    )
+
+    assert len(result.detections) == 1
+    assert (result.detections[0].x, result.detections[0].y) == (10, 10)
 
 
 def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
@@ -132,12 +114,15 @@ def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     payload = result.to_dict()
 
     assert result.count == 0
-    assert payload["score_threshold"] == round(result.score_threshold, 4)
+    assert payload["confidence_threshold"] == round(result.confidence_threshold, 4)
+    assert payload["model"]["name"] == result.model_name
+    assert payload["model"]["fingerprint"] == result.model_fingerprint
     assert result.quality.status == "review_required"
     assert "dish_detection_failed" in result.quality.warnings
     assert set(result.masks) == {
-        "measurement_region",
-        "bodies",
+        "dish",
+        "reference_region",
+        "search_region",
         "centers",
-        "labels",
+        "regions",
     }

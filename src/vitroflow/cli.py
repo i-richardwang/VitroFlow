@@ -6,23 +6,12 @@ import json
 import sys
 from pathlib import Path
 
-import cv2
-import numpy as np
-
 from .config import PipelineConfig
+from .image_io import write_image
 from .models import CountResult
 from .pipeline import count_seeds
 
 SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
-
-
-def _write_image(path: Path, image: np.ndarray) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    suffix = path.suffix or ".jpg"
-    ok, encoded = cv2.imencode(suffix, image)
-    if not ok:
-        raise ValueError(f"Unable to encode image: {path}")
-    encoded.tofile(path)
 
 
 def _write_result(result: CountResult, output_dir: Path) -> None:
@@ -32,8 +21,8 @@ def _write_result(result: CountResult, output_dir: Path) -> None:
         json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    _write_image(output_dir / f"{stem}_overlay.jpg", result.overlay_bgr)
-    _write_image(output_dir / f"{stem}_debug.jpg", result.debug_bgr)
+    write_image(output_dir / f"{stem}_overlay.jpg", result.overlay_bgr)
+    write_image(output_dir / f"{stem}_debug.jpg", result.debug_bgr)
 
 
 def _collect_inputs(paths: list[str]) -> list[Path]:
@@ -88,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
             writer.writeheader()
             writer.writerows(rows)
         return 0
-    except (FileNotFoundError, ValueError) as error:
+    except (FileNotFoundError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
