@@ -40,37 +40,11 @@ export const resultSchema = z.object({
   ),
 });
 
-const pointSchema = z.object({ x: z.number(), y: z.number() });
-
-// A correction records how a detection result differs from the seeds a reviewer sees.
-// Each one consumes some detection ids and asserts some seed positions; the calibrated
-// count and the training annotations are both derived from that.
-export const correctionSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("remove"), id: z.number() }),
-  z.object({ type: z.literal("add"), point: pointSchema }),
-  z.object({
-    type: z.literal("merge"),
-    ids: z.array(z.number()).min(2),
-    point: pointSchema,
-  }),
-  z.object({
-    type: z.literal("split"),
-    id: z.number(),
-    points: z.array(pointSchema).min(2),
-  }),
-]);
-
-export const calibrationSchema = z.object({
-  image: z.string(),
-  run: z.string(),
-  count: z.object({ algorithm: z.number(), calibrated: z.number() }),
-  corrections: z.array(correctionSchema),
-});
-
 export type SeedResult = z.infer<typeof resultSchema>;
 export type SeedDetection = SeedResult["detections"][number];
 export type SeedQuality = SeedResult["quality"];
 export type SeedWarning = SeedQuality["warnings"][number];
-export type Point = z.infer<typeof pointSchema>;
-export type Correction = z.infer<typeof correctionSchema>;
-export type Calibration = z.infer<typeof calibrationSchema>;
+
+/** Image artifacts the pipeline writes for every processed image. */
+export const IMAGE_KINDS = ["source", "overlay", "debug"] as const;
+export type ImageKind = (typeof IMAGE_KINDS)[number];

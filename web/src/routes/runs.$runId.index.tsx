@@ -1,85 +1,117 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import {
+  Breadcrumbs,
+  EmptyState,
+  Table,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 
-import { CountCell } from '../components/CountCell'
-import { QualityWarnings } from '../components/QualityWarnings'
-import { formatDelta } from '../format'
-import { getRun } from '../server/runs'
+import { REVIEW_STATES, type ReviewState } from "../annotation/schema";
+import { QualityWarnings } from "../components/QualityWarnings";
+import { ReviewStatusChip, reviewStateLabel } from "../components/ReviewStatus";
+import { getRun } from "../server/runs";
 
-export const Route = createFileRoute('/runs/$runId/')({
+export const Route = createFileRoute("/runs/$runId/")({
   loader: ({ params }) => getRun({ data: { runId: params.runId } }),
   component: RunPage,
-})
+});
 
-const COLUMNS = 'grid grid-cols-[minmax(0,1fr)_8rem_14rem] items-center px-5'
+type Filter = ReviewState | "all";
 
 function RunPage() {
-  const { runId } = Route.useParams()
-  const images = Route.useLoaderData()
-  const totalCount = images.reduce((sum, image) => sum + image.count, 0)
-  const totalDelta = images.reduce((sum, image) => sum + image.delta, 0)
+  const { runId } = Route.useParams();
+  const images = Route.useLoaderData();
+  const [filter, setFilter] = useState<Filter>("all");
+
+  const visible =
+    filter === "all"
+      ? images
+      : images.filter((image) => image.review === filter);
+  const countOf = (state: Filter) =>
+    state === "all"
+      ? images.length
+      : images.filter((image) => image.review === state).length;
 
   return (
     <main className="mx-auto max-w-3xl px-8 py-10">
-      <nav className="text-neutral-400">
-        <Link to="/" className="hover:text-neutral-900">
-          Runs
-        </Link>
-        <span className="mx-1.5">/</span>
-        <span className="text-neutral-900">{runId}</span>
-      </nav>
+      <Breadcrumbs>
+        <Breadcrumbs.Item href="/">Runs</Breadcrumbs.Item>
+        <Breadcrumbs.Item>{runId}</Breadcrumbs.Item>
+      </Breadcrumbs>
+      <h1 className="mt-3 truncate font-mono text-xl font-semibold tracking-tight">
+        {runId}
+      </h1>
 
-      <header className="mt-3 flex items-end justify-between">
-        <h1 className="font-mono text-xl font-semibold tracking-tight">{runId}</h1>
-        <dl className="flex gap-8 text-right">
-          <Stat label="Images" value={images.length} />
-          <Stat label="Total" value={totalCount} delta={totalDelta} />
-        </dl>
-      </header>
+      <ToggleButtonGroup
+        className="mt-6"
+        aria-label="Review status"
+        size="sm"
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={new Set([filter])}
+        onSelectionChange={(keys) => setFilter([...keys][0] as Filter)}
+      >
+        {(["all", ...REVIEW_STATES] as const).map((state) => (
+          <ToggleButton key={state} id={state}>
+            {state === "all" ? "All" : reviewStateLabel(state)}
+            <span className="ml-1.5 font-mono tabular-nums text-muted">
+              {countOf(state)}
+            </span>
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
 
-      <div className="mt-8 overflow-hidden rounded-[10px] border border-neutral-200 bg-white">
-        <div
-          className={`${COLUMNS} border-b border-neutral-200 py-2.5 text-[11px] tracking-wider text-neutral-400 uppercase`}
-        >
-          <span>Image</span>
-          <span className="text-right">Count</span>
-          <span className="pl-8">Quality</span>
-        </div>
-        <ul className="divide-y divide-neutral-100">
-          {images.map((image) => (
-            <li key={image.stem}>
-              <Link
-                to="/runs/$runId/$stem"
-                params={{ runId, stem: image.stem }}
-                className={`${COLUMNS} py-3 hover:bg-neutral-50`}
-              >
-                <span className="truncate font-mono font-medium">{image.stem}</span>
-                <CountCell count={image.count} delta={image.delta} />
-                <span className="pl-8">
-                  {image.quality.status === 'ok' ? (
-                    <span className="text-neutral-300">—</span>
-                  ) : (
-                    <QualityWarnings quality={image.quality} />
-                  )}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <Table className="mt-4">
+        <Table.ScrollContainer>
+          <Table.Content aria-label={`Images in ${runId}`}>
+            <Table.Header>
+              <Table.Column isRowHeader>Image</Table.Column>
+              <Table.Column className="text-right">Instances</Table.Column>
+              <Table.Column>Review</Table.Column>
+              <Table.Column>Quality</Table.Column>
+            </Table.Header>
+            <Table.Body
+              renderEmptyState={() => (
+                <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
+                  <span className="font-medium">No images in this state</span>
+                  <span className="text-xs text-muted">
+                    Choose another filter to see images
+                  </span>
+                </EmptyState>
+              )}
+            >
+              {visible.map((image) => (
+                <Table.Row
+                  key={image.stem}
+                  href={`/runs/${runId}/${image.stem}`}
+                  className="cursor-(--cursor-interactive)"
+                >
+                  <Table.Cell className="font-mono font-medium">
+                    {image.stem}
+                  </Table.Cell>
+                  <Table.Cell className="text-right font-mono tabular-nums">
+                    {image.instanceCount ?? (
+                      <span className="text-muted">—</span>
+                    )}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <ReviewStatusChip state={image.review} />
+                  </Table.Cell>
+                  <Table.Cell>
+                    {image.quality.status === "ok" ? (
+                      <span className="text-muted">—</span>
+                    ) : (
+                      <QualityWarnings quality={image.quality} />
+                    )}
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
     </main>
-  )
-}
-
-function Stat({ label, value, delta = 0 }: { label: string; value: number; delta?: number }) {
-  return (
-    <div>
-      <dt className="text-[11px] tracking-wider text-neutral-400 uppercase">{label}</dt>
-      <dd className="mt-0.5 font-mono text-lg font-semibold tabular-nums">
-        {value}
-        {delta !== 0 && (
-          <span className="pl-1.5 text-sm font-normal text-neutral-400">{formatDelta(delta)}</span>
-        )}
-      </dd>
-    </div>
-  )
+  );
 }

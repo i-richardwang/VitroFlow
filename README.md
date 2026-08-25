@@ -43,9 +43,9 @@ All geometric scales are fractions of the detected dish radius. Runtime paramete
 
 Pass the file with `--config path/to/config.json`.
 
-## Review workbench
+## Annotation workbench
 
-The local web app compares runs and records detection corrections:
+The local web app turns run results into reviewed box annotations:
 
 ```bash
 uv run vitroflow tests/fixtures/images -o data/runs/<run-name>
@@ -54,16 +54,9 @@ bun install
 bun run dev
 ```
 
-Each review records a list of corrections against the run result:
+Each image gets one annotation document under `data/labels/<stem>.json` holding the list of seed instances as axis-aligned boxes in source-image pixels. Detections seed the initial boxes; every box is reviewed by hand with the Select, Add box, and Pan tools. An image counts as training data only after the reviewer marks it `complete`; editing a completed image sends it back to `in_progress`. Images that should not be used can be marked `excluded`.
 
-| Case | Gesture | Correction |
-| --- | --- | --- |
-| False detection | Click the detection | `remove` |
-| Missed seed | Click the seed | `add` |
-| One seed detected twice | Drag one detection onto the other | `merge` |
-| Touching seeds detected once | ⌥-click each extra seed inside the detection | `split` |
-
-Clicking any correction reverts it. Reviews are stored under `data/calibration/<run-name>/`.
+Run `bun test` in `web/` for the geometry, pre-labeling, and review-status tests.
 
 ## Model fitting
 

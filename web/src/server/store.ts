@@ -1,18 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { calibratedCount, consumedIds } from "../calibration";
 import {
-  calibrationSchema,
   resultSchema,
-  type Calibration,
-  type Correction,
+  type ImageKind,
   type SeedResult,
-} from "../schemas";
+} from "../detection/schema";
+import { REPO_ROOT, safeJoin } from "./paths";
 
-const REPO_ROOT = path.resolve(process.cwd(), "..");
 const RUNS_DIR = path.join(REPO_ROOT, "data", "runs");
-const CALIBRATION_DIR = path.join(REPO_ROOT, "data", "calibration");
 
 const CONTENT_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -21,16 +17,6 @@ const CONTENT_TYPES: Record<string, string> = {
   ".tif": "image/tiff",
   ".tiff": "image/tiff",
 };
-
-/** Joins a path under a data root, rejecting segments that could escape it. */
-function safeJoin(root: string, ...segments: string[]): string {
-  for (const segment of segments) {
-    if (segment !== path.basename(segment)) {
-      throw new Error(`Invalid path segment: ${segment}`);
-    }
-  }
-  return path.join(root, ...segments);
-}
 
 export function listRunIds(): string[] {
   if (!fs.existsSync(RUNS_DIR)) {
@@ -58,61 +44,6 @@ export function readResult(runId: string, stem: string): SeedResult {
   );
   return resultSchema.parse(JSON.parse(raw));
 }
-
-export function readCalibration(
-  runId: string,
-  stem: string,
-): Calibration | null {
-  const filePath = safeJoin(CALIBRATION_DIR, runId, `${stem}.json`);
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  return calibrationSchema.parse(
-    JSON.parse(fs.readFileSync(filePath, "utf-8")),
-  );
-}
-
-export function writeCalibration(
-  runId: string,
-  stem: string,
-  corrections: Correction[],
-): void {
-  const filePath = safeJoin(CALIBRATION_DIR, runId, `${stem}.json`);
-  if (corrections.length === 0) {
-    fs.rmSync(filePath, { force: true });
-    return;
-  }
-
-  const result = readResult(runId, stem);
-  const known = new Set(result.detections.map((detection) => detection.id));
-  const consumed = new Set<number>();
-  for (const id of corrections.flatMap(consumedIds)) {
-    if (!known.has(id)) {
-      throw new Error(`Unknown detection: ${id}`);
-    }
-    if (consumed.has(id)) {
-      throw new Error(`Detection corrected twice: ${id}`);
-    }
-    consumed.add(id);
-  }
-
-  const calibration: Calibration = {
-    image: result.source,
-    run: runId,
-    count: {
-      algorithm: result.count,
-      calibrated: calibratedCount(result.count, corrections),
-    },
-    corrections,
-  };
-
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(calibration, null, 2)}\n`);
-}
-
-export const IMAGE_KINDS = ["source", "overlay", "debug"] as const;
-
-type ImageKind = (typeof IMAGE_KINDS)[number];
 
 export function readRunImage(
   runId: string,
