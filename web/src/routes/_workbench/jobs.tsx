@@ -3,10 +3,10 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { z } from "zod";
 
-import type { JobStatus } from "../jobs/schema";
-import { getJobs } from "../server/jobs";
+import type { JobStatus } from "../../jobs/schema";
+import { getJobs } from "../../server/jobs";
 
-export const Route = createFileRoute("/jobs")({
+export const Route = createFileRoute("/_workbench/jobs")({
   validateSearch: z.object({
     created: z.string().optional(),
     retried: z.string().optional(),

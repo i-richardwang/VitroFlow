@@ -1,9 +1,9 @@
 import { Card, EmptyState, Link, Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { listRuns } from "../server/runs";
+import { listRuns } from "../../server/runs";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_workbench/")({
   loader: () => listRuns(),
   component: RunsPage,
 });

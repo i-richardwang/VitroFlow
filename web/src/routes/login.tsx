@@ -10,22 +10,20 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { isAuthenticated, signIn } from "../server/session";
+import { BrandIcon } from "../components/icons";
+import { isAuthenticated, redirect, signIn } from "../server/session";
 
 export const Route = createFileRoute("/login")({
   validateSearch: z.object({ rejected: z.boolean().optional() }),
   server: {
     handlers: {
       GET: ({ request, next }) =>
-        isAuthenticated(request)
-          ? Response.redirect(new URL("/", request.url), 303)
-          : next(),
+        isAuthenticated(request) ? redirect(new URL("/", request.url)) : next(),
       POST: async ({ request }) => {
         const form = await request.formData();
         const accepted = signIn(String(form.get("password") ?? ""));
-        return Response.redirect(
+        return redirect(
           new URL(accepted ? "/" : "/login?rejected=true", request.url),
-          303,
         );
       },
     },
@@ -37,36 +35,48 @@ function LoginPage() {
   const { rejected } = Route.useSearch();
 
   return (
-    <main className="flex flex-1 items-center justify-center px-8 py-10">
-      <Card className="w-full max-w-sm">
-        <Form method="post" action="/login">
-          <Card.Header>
-            <Card.Title>Sign in</Card.Title>
+    <main className="flex flex-1 flex-col items-center justify-center bg-surface-secondary p-6 md:p-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <div className="flex items-center gap-2 self-center font-medium">
+          <div className="flex size-6 items-center justify-center rounded-md bg-accent text-accent-foreground">
+            <BrandIcon />
+          </div>
+          VitroFlow
+        </div>
+        <Card className="gap-6 p-6">
+          <Card.Header className="gap-2">
+            <Card.Title className="text-base font-semibold leading-none">
+              Sign in
+            </Card.Title>
             <Card.Description>
               Enter the workbench password to continue.
             </Card.Description>
           </Card.Header>
           <Card.Content>
-            <TextField
-              name="password"
-              type="password"
-              isRequired
-              autoFocus
-              isInvalid={rejected}
-              fullWidth
+            <Form
+              method="post"
+              action="/login"
+              className="flex w-full flex-col gap-7"
             >
-              <Label>Password</Label>
-              <Input autoComplete="current-password" />
-              <FieldError>Incorrect password.</FieldError>
-            </TextField>
+              <TextField
+                fullWidth
+                isInvalid={rejected}
+                isRequired
+                autoFocus
+                name="password"
+                type="password"
+              >
+                <Label>Password</Label>
+                <Input autoComplete="current-password" />
+                <FieldError>Incorrect password.</FieldError>
+              </TextField>
+              <Button type="submit" variant="primary" fullWidth>
+                Sign in
+              </Button>
+            </Form>
           </Card.Content>
-          <Card.Footer>
-            <Button type="submit" variant="primary" fullWidth>
-              Sign in
-            </Button>
-          </Card.Footer>
-        </Form>
-      </Card>
+        </Card>
+      </div>
     </main>
   );
 }

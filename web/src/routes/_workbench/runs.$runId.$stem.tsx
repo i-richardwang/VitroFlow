@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ImageWorkbench } from "../components/workbench/ImageWorkbench";
-import { getImage } from "../server/runs";
+import { ImageWorkbench } from "../../components/workbench/ImageWorkbench";
+import { getImage } from "../../server/runs";
 
-export const Route = createFileRoute("/runs/$runId/$stem")({
+export const Route = createFileRoute("/_workbench/runs/$runId/$stem")({
   loader: ({ params }) =>
     getImage({ data: { runId: params.runId, stem: params.stem } }),
   component: ImagePage,

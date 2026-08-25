@@ -50,6 +50,13 @@ export function signOut(): void {
   deleteCookie(COOKIE, { path: "/" });
 }
 
+export function redirect(to: string | URL): Response {
+  return new Response(null, {
+    status: 303,
+    headers: { Location: String(to) },
+  });
+}
+
 export function hasSession(): boolean {
   return password() !== undefined && getCookie(COOKIE) !== undefined;
 }

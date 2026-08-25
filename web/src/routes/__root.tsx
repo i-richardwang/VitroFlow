@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import type { ReactNode } from "react";
 
-import { Button, Link, RouterProvider } from "@heroui/react";
+import { Link, RouterProvider } from "@heroui/react";
 import {
   HeadContent,
   Outlet,
@@ -10,7 +10,6 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 
-import { getSession } from "../server/auth";
 import appCss from "../styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -22,38 +21,16 @@ export const Route = createRootRoute({
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
-  loader: () => getSession(),
   component: RootComponent,
   notFoundComponent: NotFoundPage,
 });
 
 function RootComponent() {
   const navigate = useNavigate();
-  const { signedIn } = Route.useLoaderData();
   return (
     <RootDocument>
       <RouterProvider navigate={(href) => navigate({ to: href })}>
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-separator bg-surface px-6">
-          <Link
-            href="/"
-            className="text-sm font-semibold tracking-tight text-foreground"
-          >
-            VitroFlow
-          </Link>
-          <span className="text-xs text-muted">Seed annotation workbench</span>
-          <nav className="ml-4 flex items-center gap-3 text-xs">
-            <Link href="/">Runs</Link>
-            <Link href="/jobs">Jobs</Link>
-          </nav>
-          {signedIn && (
-            <form method="post" action="/logout" className="ml-auto">
-              <Button type="submit" variant="ghost" size="sm">
-                Sign out
-              </Button>
-            </form>
-          )}
-        </header>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col">
           <Outlet />
         </div>
       </RouterProvider>

@@ -8,12 +8,15 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { REVIEW_STATES, type ReviewState } from "../annotation/schema";
-import { QualityWarnings } from "../components/QualityWarnings";
-import { ReviewStatusChip, reviewStateLabel } from "../components/ReviewStatus";
-import { getRun } from "../server/runs";
+import { REVIEW_STATES, type ReviewState } from "../../annotation/schema";
+import { QualityWarnings } from "../../components/QualityWarnings";
+import {
+  ReviewStatusChip,
+  reviewStateLabel,
+} from "../../components/ReviewStatus";
+import { getRun } from "../../server/runs";
 
-export const Route = createFileRoute("/runs/$runId/")({
+export const Route = createFileRoute("/_workbench/runs/$runId/")({
   loader: ({ params }) => getRun({ data: { runId: params.runId } }),
   component: RunPage,
 });
