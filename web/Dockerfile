@@ -9,6 +9,8 @@ FROM oven/bun:1-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV VITROFLOW_DATA_ROOT=/data
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
 COPY --from=build /app/dist ./dist
 COPY server.ts ./
 EXPOSE 3000
