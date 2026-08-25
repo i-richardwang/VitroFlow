@@ -4,12 +4,16 @@ import { z } from "zod";
 import { documentFromResult } from "../annotation/prelabel";
 import { annotationSchema, type ReviewState } from "../annotation/schema";
 import { createLabel, readLabel, updateLabel } from "./labels";
+import { imageKey } from "./paths";
 import { listRunIds, listStems, readResult } from "./store";
+
+const imageRef = z.object({ runId: z.string(), stem: z.string() });
+export type ImageRef = z.infer<typeof imageRef>;
 
 function summarize(runId: string) {
   return listStems(runId).map((stem) => {
     const result = readResult(runId, stem);
-    const label = readLabel(stem);
+    const label = readLabel(imageKey(result.source));
     return {
       stem,
       review: (label?.status ?? "uninitialized") as ReviewState,
@@ -39,21 +43,25 @@ export const getRun = createServerFn({ method: "GET" })
   .handler(({ data }) => summarize(data.runId));
 
 export const getImage = createServerFn({ method: "GET" })
-  .validator(z.object({ runId: z.string(), stem: z.string() }))
-  .handler(({ data }) => ({
-    result: readResult(data.runId, data.stem),
-    label: readLabel(data.stem),
-  }));
+  .validator(imageRef)
+  .handler(({ data }) => {
+    const result = readResult(data.runId, data.stem);
+    return { result, label: readLabel(imageKey(result.source)) };
+  });
 
 export const initializeLabel = createServerFn({ method: "POST" })
-  .validator(z.object({ runId: z.string(), stem: z.string() }))
-  .handler(({ data }) =>
-    createLabel(
-      data.stem,
-      documentFromResult(readResult(data.runId, data.stem), data.runId),
-    ),
-  );
+  .validator(imageRef)
+  .handler(({ data }) => {
+    const result = readResult(data.runId, data.stem);
+    return createLabel(
+      imageKey(result.source),
+      documentFromResult(result, data.runId),
+    );
+  });
 
 export const saveLabel = createServerFn({ method: "POST" })
-  .validator(z.object({ stem: z.string(), document: annotationSchema }))
-  .handler(({ data }) => updateLabel(data.stem, data.document));
+  .validator(z.object({ image: imageRef, document: annotationSchema }))
+  .handler(({ data }) => {
+    const result = readResult(data.image.runId, data.image.stem);
+    return updateLabel(imageKey(result.source), data.document);
+  });

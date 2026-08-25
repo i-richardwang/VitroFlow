@@ -48,3 +48,21 @@ export function ChevronDownIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function UndoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 4.5L3 7.5l3 3" />
+      <path d="M3 7.5h6a3.5 3.5 0 010 7H7" />
+    </Icon>
+  );
+}
+
+export function RedoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M10 4.5l3 3-3 3" />
+      <path d="M13 7.5H7a3.5 3.5 0 000 7h2" />
+    </Icon>
+  );
+}

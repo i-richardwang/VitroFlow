@@ -5,37 +5,39 @@ import {
   annotationSchema,
   type AnnotationDocument,
 } from "../annotation/schema";
-import { REPO_ROOT, safeJoin } from "./paths";
+import { LABELS_DIR, resolveWithin } from "./paths";
 
-const LABELS_DIR = path.join(REPO_ROOT, "data", "labels");
-
-function labelPath(stem: string): string {
-  return safeJoin(LABELS_DIR, `${stem}.json`);
+function labelPath(key: string): string {
+  return resolveWithin(LABELS_DIR, `${key}.json`);
 }
 
-export function readLabel(stem: string): AnnotationDocument | null {
-  const filePath = labelPath(stem);
+export function readLabel(key: string): AnnotationDocument | null {
+  const filePath = labelPath(key);
   if (!fs.existsSync(filePath)) {
     return null;
   }
   return annotationSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf-8")));
 }
 
-function persist(stem: string, document: AnnotationDocument): void {
-  fs.mkdirSync(LABELS_DIR, { recursive: true });
-  fs.writeFileSync(labelPath(stem), `${JSON.stringify(document, null, 2)}\n`);
+/** Writes the whole document to a sibling file, then renames it into place. */
+function persist(key: string, document: AnnotationDocument): void {
+  const filePath = labelPath(key);
+  const tempPath = `${filePath}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(tempPath, `${JSON.stringify(document, null, 2)}\n`);
+  fs.renameSync(tempPath, filePath);
 }
 
 /** Creates the label for an image that has none. */
 export function createLabel(
-  stem: string,
+  key: string,
   document: AnnotationDocument,
 ): AnnotationDocument {
-  if (fs.existsSync(labelPath(stem))) {
-    throw new Error(`Label already exists for ${stem}`);
+  if (fs.existsSync(labelPath(key))) {
+    throw new Error(`Label already exists for ${key}`);
   }
   const created = annotationSchema.parse({ ...document, revision: 0 });
-  persist(stem, created);
+  persist(key, created);
   return created;
 }
 
@@ -45,12 +47,12 @@ export function createLabel(
  * saves cannot overwrite each other.
  */
 export function updateLabel(
-  stem: string,
+  key: string,
   document: AnnotationDocument,
 ): AnnotationDocument {
-  const current = readLabel(stem);
+  const current = readLabel(key);
   if (!current) {
-    throw new Error(`No label exists for ${stem}`);
+    throw new Error(`No label exists for ${key}`);
   }
   if (document.revision !== current.revision) {
     throw new Error(
@@ -62,6 +64,6 @@ export function updateLabel(
     image: current.image,
     revision: current.revision + 1,
   });
-  persist(stem, next);
+  persist(key, next);
   return next;
 }

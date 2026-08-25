@@ -1,10 +1,11 @@
+import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { AnnotationDocument, SeedInstance } from "../annotation/schema";
 import { transition, type ReviewEvent } from "../annotation/status";
-import { saveLabel } from "../server/runs";
+import { saveLabel, type ImageRef } from "../server/runs";
 
-export type SaveState = "saved" | "pending" | "saving" | "failed";
+export type SaveState = "saved" | "saving" | "failed";
 
 interface AnnotationState {
   annotation: AnnotationDocument;
@@ -15,14 +16,23 @@ interface AnnotationState {
   retry: () => void;
 }
 
+const RETRY_DELAYS_MS = [500, 2000, 5000];
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Owns the annotation document for one image. Every change is written
- * through a single serial save queue: a save carries the last acknowledged
- * revision, and further edits made while it is in flight are flushed in one
- * follow-up save once it returns.
+ * Owns the annotation document for one image and persists every change.
+ *
+ * Saves run through a single serial queue: each save carries the last
+ * acknowledged revision, and edits made while one is in flight are flushed
+ * in a single follow-up save. A failed save is retried with backoff before
+ * it is reported. While anything is unsaved, in-app navigation waits for the
+ * queue and page unload asks for confirmation.
  */
 export function useAnnotation(
-  stem: string,
+  image: ImageRef,
   initial: AnnotationDocument,
 ): AnnotationState {
   const [annotation, setAnnotation] = useState(initial);
@@ -31,58 +41,72 @@ export function useAnnotation(
 
   const latest = useRef(initial);
   const acknowledgedRevision = useRef(initial.revision);
-  const inFlight = useRef(false);
-  const dirty = useRef(false);
+  const unsaved = useRef(false);
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
-  const flush = useCallback(async () => {
-    if (inFlight.current || !dirty.current) {
-      return;
-    }
-    inFlight.current = true;
-    dirty.current = false;
-    setSaveState("saving");
-    try {
-      const saved = await saveLabel({
-        data: {
-          stem,
-          document: {
-            ...latest.current,
-            revision: acknowledgedRevision.current,
+  const save = useCallback(async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const saved = await saveLabel({
+          data: {
+            image,
+            document: {
+              ...latest.current,
+              revision: acknowledgedRevision.current,
+            },
           },
-        },
-      });
-      acknowledgedRevision.current = saved.revision;
-      latest.current = { ...latest.current, revision: saved.revision };
-      setAnnotation(latest.current);
-      setError(null);
-      inFlight.current = false;
-      if (dirty.current) {
-        void flush();
-      } else {
-        setSaveState("saved");
+        });
+        acknowledgedRevision.current = saved.revision;
+        latest.current = { ...latest.current, revision: saved.revision };
+        setAnnotation(latest.current);
+        return true;
+      } catch (cause) {
+        if (attempt === RETRY_DELAYS_MS.length) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+          return false;
+        }
+        await delay(RETRY_DELAYS_MS[attempt]);
       }
-    } catch (cause) {
-      inFlight.current = false;
-      dirty.current = true;
-      setError(cause instanceof Error ? cause.message : String(cause));
-      setSaveState("failed");
     }
-  }, [stem]);
+  }, [image]);
+
+  const flush = useCallback(() => {
+    setSaveState("saving");
+    queue.current = queue.current.then(async () => {
+      if (!unsaved.current) {
+        return;
+      }
+      unsaved.current = false;
+      if (await save()) {
+        setError(null);
+        setSaveState((state) => (unsaved.current ? state : "saved"));
+      } else {
+        unsaved.current = true;
+        setSaveState("failed");
+      }
+    });
+  }, [save]);
 
   const commit = useCallback(
     (next: AnnotationDocument) => {
       latest.current = next;
-      dirty.current = true;
+      unsaved.current = true;
       setAnnotation(next);
-      setSaveState((state) => (state === "saving" ? state : "pending"));
-      void flush();
+      flush();
     },
     [flush],
   );
 
+  useBlocker({
+    shouldBlockFn: async () => {
+      await queue.current;
+      return unsaved.current;
+    },
+  });
+
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
-      if (dirty.current || inFlight.current) {
+      if (unsaved.current) {
         event.preventDefault();
       }
     };
@@ -97,9 +121,6 @@ export function useAnnotation(
     setInstances: (instances) =>
       commit(transition({ ...latest.current, instances }, { type: "edit" })),
     review: (event) => commit(transition(latest.current, event)),
-    retry: () => {
-      dirty.current = true;
-      void flush();
-    },
+    retry: flush,
   };
 }

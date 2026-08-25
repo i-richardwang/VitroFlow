@@ -1,0 +1,7 @@
+services:
+  workbench:
+    build: ./web
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data

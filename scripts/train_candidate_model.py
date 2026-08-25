@@ -143,6 +143,12 @@ def main() -> None:
         type=Path,
         default=Path("src/vitroflow/candidate_model.json"),
     )
+    parser.add_argument(
+        "--data-root",
+        type=Path,
+        default=Path("."),
+        help="Directory that result source paths are relative to",
+    )
     args = parser.parse_args()
     calibration_paths = sorted(args.calibration_dir.glob("*.json"))
     if not calibration_paths:
@@ -156,7 +162,7 @@ def main() -> None:
         if not result_path.is_file():
             parser.error(f"Missing run result: {result_path}")
         review = load_review(calibration_path, result_path)
-        image = read_image(review.image_path)
+        image = read_image(args.data_root / review.image_path)
         geometry = estimate_geometry(image, config)
         normalized = normalize_image(image, geometry.reference_mask, geometry.radius)
         proposals = propose_seed_centers(

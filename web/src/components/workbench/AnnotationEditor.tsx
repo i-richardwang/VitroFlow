@@ -1,5 +1,7 @@
 import {
+  Button,
   Kbd,
+  Separator,
   ToggleButton,
   ToggleButtonGroup,
   Toolbar,
@@ -7,13 +9,18 @@ import {
 } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
 
-import type { AnnotationDocument } from "../../annotation/schema";
+import type {
+  AnnotationDocument,
+  SeedInstance,
+} from "../../annotation/schema";
 import {
   IMAGE_KINDS,
   type ImageKind,
   type SeedResult,
 } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
+import { useHistory } from "../../hooks/useHistory";
+import { RedoIcon, UndoIcon } from "../icons";
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import {
   isEditableView,
@@ -42,7 +49,8 @@ export function AnnotationEditor({
   label: AnnotationDocument;
 }) {
   const { annotation, saveState, error, setInstances, review, retry } =
-    useAnnotation(stem, label);
+    useAnnotation({ runId, stem }, label);
+  const history = useHistory<SeedInstance[]>();
   const [view, setView] = useState<ImageKind>("source");
   const [tool, setTool] = useState<Tool>("select");
   const [panning, setPanning] = useState(false);
@@ -54,15 +62,35 @@ export function AnnotationEditor({
   const selected =
     annotation.instances.find((instance) => instance.id === selectedId) ?? null;
 
+  const editInstances = useCallback(
+    (instances: SeedInstance[]) => {
+      history.record(annotation.instances);
+      setInstances(instances);
+    },
+    [history, annotation.instances, setInstances],
+  );
+  const undo = useCallback(() => {
+    const previous = history.undo(annotation.instances);
+    if (previous) {
+      setInstances(previous);
+    }
+  }, [history, annotation.instances, setInstances]);
+  const redo = useCallback(() => {
+    const next = history.redo(annotation.instances);
+    if (next) {
+      setInstances(next);
+    }
+  }, [history, annotation.instances, setInstances]);
+
   const deleteSelected = useCallback(() => {
     if (!selectedId) {
       return;
     }
-    setInstances(
+    editInstances(
       annotation.instances.filter((instance) => instance.id !== selectedId),
     );
     setSelectedId(null);
-  }, [annotation.instances, selectedId, setInstances]);
+  }, [annotation.instances, selectedId, editInstances]);
 
   const clearSelection = useCallback(() => {
     setSelectedId(null);
@@ -74,6 +102,8 @@ export function AnnotationEditor({
     onToolChange: setTool,
     onEscape: clearSelection,
     onDelete: deleteSelected,
+    onUndo: undo,
+    onRedo: redo,
   });
 
   const editable = isEditableView(view);
@@ -120,7 +150,7 @@ export function AnnotationEditor({
             layers={layers}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onInstancesChange={setInstances}
+            onInstancesChange={editInstances}
             onDrawEnd={() => setTool("select")}
           />
           {editable && (
@@ -140,19 +170,40 @@ export function AnnotationEditor({
                 {TOOLS.map((id, index) => {
                   const { label: name, shortcut, icon: Icon } = TOOL_SPECS[id];
                   return (
-                    <Tooltip key={id} delay={0}>
+                    <ShortcutTooltip key={id} label={name} shortcut={shortcut}>
                       <ToggleButton id={id} isIconOnly aria-label={name}>
                         {index > 0 && <ToggleButtonGroup.Separator />}
                         <Icon />
                       </ToggleButton>
-                      <Tooltip.Content className="flex items-center gap-2">
-                        {name}
-                        <Kbd>{shortcut}</Kbd>
-                      </Tooltip.Content>
-                    </Tooltip>
+                    </ShortcutTooltip>
                   );
                 })}
               </ToggleButtonGroup>
+              <Separator orientation="vertical" className="mx-1 h-5" />
+              <ShortcutTooltip label="Undo" shortcut="⌘Z">
+                <Button
+                  variant="tertiary"
+                  size="sm"
+                  isIconOnly
+                  aria-label="Undo"
+                  isDisabled={!history.canUndo}
+                  onPress={undo}
+                >
+                  <UndoIcon />
+                </Button>
+              </ShortcutTooltip>
+              <ShortcutTooltip label="Redo" shortcut="⇧⌘Z">
+                <Button
+                  variant="tertiary"
+                  size="sm"
+                  isIconOnly
+                  aria-label="Redo"
+                  isDisabled={!history.canRedo}
+                  onPress={redo}
+                >
+                  <RedoIcon />
+                </Button>
+              </ShortcutTooltip>
             </Toolbar>
           )}
         </div>
@@ -171,6 +222,26 @@ export function AnnotationEditor({
   );
 }
 
+function ShortcutTooltip({
+  label,
+  shortcut,
+  children,
+}: {
+  label: string;
+  shortcut: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip delay={0}>
+      {children}
+      <Tooltip.Content className="flex items-center gap-2">
+        {label}
+        <Kbd>{shortcut}</Kbd>
+      </Tooltip.Content>
+    </Tooltip>
+  );
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
@@ -185,20 +256,26 @@ function useShortcuts({
   onToolChange,
   onEscape,
   onDelete,
+  onUndo,
+  onRedo,
 }: {
   onPanChange: (panning: boolean) => void;
   onToolChange: (tool: Tool) => void;
   onEscape: () => void;
   onDelete: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
 }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        isTypingTarget(event.target) ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey
-      ) {
+      if (isTypingTarget(event.target) || event.altKey) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey) {
+        if (event.key.toLowerCase() === "z") {
+          event.preventDefault();
+          (event.shiftKey ? onRedo : onUndo)();
+        }
         return;
       }
       if (event.key === " ") {
@@ -231,5 +308,5 @@ function useShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [onPanChange, onToolChange, onEscape, onDelete]);
+  }, [onPanChange, onToolChange, onEscape, onDelete, onUndo, onRedo]);
 }

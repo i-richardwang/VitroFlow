@@ -11,6 +11,8 @@ uv run vitroflow /path/to/images
 
 Each image produces a JSON result, an annotated overlay, and a four-panel diagnostic image. A batch also produces `counts.csv`. The default output directory is `output/`; use `--output` to select another directory.
 
+Results reference their source image by a path relative to `--data-root` (default: the current directory), so a run stays valid wherever the data directory is mounted. Images must live under the data root.
+
 ## Detection pipeline
 
 ```text
@@ -45,18 +47,39 @@ Pass the file with `--config path/to/config.json`.
 
 ## Annotation workbench
 
-The local web app turns run results into reviewed box annotations:
+The web app turns run results into reviewed box annotations. Everything it reads and writes lives in one data directory:
+
+```text
+data/
+├── images/<dataset>/<file>.jpg   source photographs
+├── runs/<run-id>/                detection results and rendered views
+└── labels/<dataset>/<stem>.json  reviewed box annotations
+```
+
+An image is identified by its path under `images/`, so a photograph keeps one label across every run that processes it. Generate a run and start the workbench:
 
 ```bash
-uv run vitroflow tests/fixtures/images -o data/runs/<run-name>
+uv run vitroflow data/images/<dataset> --data-root data -o data/runs/<run-name>
 cd web
 bun install
 bun run dev
 ```
 
-Each image gets one annotation document under `data/labels/<stem>.json` holding the list of seed instances as axis-aligned boxes in source-image pixels. Detections seed the initial boxes; every box is reviewed by hand with the Select, Add box, and Pan tools. An image counts as training data only after the reviewer marks it `complete`; editing a completed image sends it back to `in_progress`. Images that should not be used can be marked `excluded`.
+Each annotation document holds the list of seed instances as axis-aligned boxes in source-image pixels. Detections seed the initial boxes; every box is reviewed by hand with the Select, Add box, and Pan tools, and box edits can be undone with `⌘Z` / `⇧⌘Z`. An image counts as training data only after the reviewer marks it `complete`; editing a completed image sends it back to `in_progress`. Images that should not be used can be marked `excluded`.
+
+Edits are saved as they are made. A save that fails is retried before it is reported, and leaving an image waits for pending saves.
 
 Run `bun test` in `web/` for the geometry, pre-labeling, and review-status tests.
+
+### Deployment
+
+The workbench reads the data directory from `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`). Build the image and mount the data directory:
+
+```bash
+docker compose up --build
+```
+
+`compose.yaml` mounts `./data` at `/data` and serves the workbench on port 3000. Detection runs on any machine with the Python package; drop the run directory into `data/runs/` and it appears on the next page load. Without Docker, `bun run build && bun run start` in `web/` serves the same production build.
 
 ## Model fitting
 
@@ -65,7 +88,8 @@ Fit seedness calibration from review corrections while keeping each image intact
 ```bash
 uv run python scripts/train_candidate_model.py \
   data/runs/<run-name> \
-  data/calibration/<run-name>
+  data/calibration/<run-name> \
+  --data-root data
 ```
 
 The report includes proposal recall, leave-one-image-out seedness precision and recall, per-image candidate stability, and the selected calibration parameters. The fitted model is written to `src/vitroflow/candidate_model.json`.

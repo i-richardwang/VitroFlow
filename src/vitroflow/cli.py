@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from .config import PipelineConfig
@@ -12,6 +14,14 @@ from .models import CountResult
 from .pipeline import count_seeds
 
 SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+
+
+def _relative_source(image_path: Path, data_root: Path) -> Path:
+    """Locates the image within the data root so results stay portable."""
+    try:
+        return Path(os.path.abspath(image_path)).relative_to(os.path.abspath(data_root))
+    except ValueError:
+        raise ValueError(f"{image_path} is outside the data root {data_root}") from None
 
 
 def _write_result(result: CountResult, output_dir: Path) -> None:
@@ -50,6 +60,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("inputs", nargs="+", help="Image files or directories")
     parser.add_argument("-o", "--output", default="output", help="Output directory")
     parser.add_argument("--config", help="JSON file overriding pipeline parameters")
+    parser.add_argument(
+        "--data-root",
+        default=".",
+        help="Directory that result source paths are recorded relative to",
+    )
     return parser
 
 
@@ -63,9 +78,11 @@ def main(argv: list[str] | None = None) -> int:
             PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
         )
         output_dir = Path(args.output)
+        data_root = Path(args.data_root)
         rows: list[dict[str, str | int]] = []
         for image_path in inputs:
-            result = count_seeds(image_path, config)
+            source = _relative_source(image_path, data_root)
+            result = replace(count_seeds(image_path, config), source=source)
             _write_result(result, output_dir)
             rows.append({"image": str(image_path), "count": result.count})
             print(f"{image_path}: {result.count}")

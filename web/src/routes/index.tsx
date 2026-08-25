@@ -24,8 +24,8 @@ function RunsPage() {
                 Generate one from the repository root, then reload this page.
               </span>
               <code className="mt-3 rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs">
-                uv run vitroflow tests/fixtures/images -o
-                data/runs/&lt;run-name&gt;
+                uv run vitroflow data/images/&lt;dataset&gt; --data-root data
+                -o data/runs/&lt;run-name&gt;
               </code>
             </EmptyState>
           </Card.Content>

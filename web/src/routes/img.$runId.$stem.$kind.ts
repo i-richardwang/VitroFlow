@@ -13,7 +13,10 @@ export const Route = createFileRoute("/img/$runId/$stem/$kind")({
           return new Response("Not found", { status: 404 });
         }
         return new Response(image.body, {
-          headers: { "Content-Type": image.contentType },
+          headers: {
+            "Content-Type": image.contentType,
+            "Cache-Control": "public, max-age=31536000, immutable",
+          },
         });
       },
     },
