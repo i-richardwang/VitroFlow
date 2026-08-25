@@ -54,7 +54,16 @@ bun install
 bun run dev
 ```
 
-Click a detection to remove it from the calibrated count. Click an unmarked seed to add it. Reviews are stored under `data/calibration/<run-name>/`.
+Each review records a list of corrections against the run result:
+
+| Case | Gesture | Correction |
+| --- | --- | --- |
+| False detection | Click the detection | `remove` |
+| Missed seed | Click the seed | `add` |
+| One seed detected twice | Drag one detection onto the other | `merge` |
+| Touching seeds detected once | ⌥-click each extra seed inside the detection | `split` |
+
+Clicking any correction reverts it. Reviews are stored under `data/calibration/<run-name>/`.
 
 ## Model fitting
 

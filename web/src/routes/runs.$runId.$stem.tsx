@@ -10,7 +10,7 @@ export const Route = createFileRoute('/runs/$runId/$stem')({
 
 function ImagePage() {
   const { runId, stem } = Route.useParams()
-  const { result, calibration } = Route.useLoaderData()
+  const { result, corrections } = Route.useLoaderData()
 
   return (
     <ImageReview
@@ -18,7 +18,7 @@ function ImagePage() {
       runId={runId}
       stem={stem}
       result={result}
-      calibration={calibration}
+      corrections={corrections}
     />
   )
 }

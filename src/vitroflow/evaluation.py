@@ -43,9 +43,34 @@ def load_annotations(path: str | Path) -> ImageAnnotations:
     )
 
 
+def _consumed_ids(correction: dict[str, object]) -> list[int]:
+    """Detection ids a review correction consumes."""
+    kind = correction["type"]
+    if kind == "remove" or kind == "split":
+        return [int(correction["id"])]
+    if kind == "merge":
+        return [int(value) for value in correction["ids"]]
+    if kind == "add":
+        return []
+    raise ValueError(f"Unknown correction type: {kind}")
+
+
+def _asserted_seeds(correction: dict[str, object]) -> list[dict[str, float]]:
+    """Seed positions a review correction asserts in place of what it consumes."""
+    kind = correction["type"]
+    if kind == "add" or kind == "merge":
+        points = [correction["point"]]
+    elif kind == "split":
+        points = correction["points"]
+    else:
+        points = []
+    return [{"x": float(point["x"]), "y": float(point["y"])} for point in points]
+
+
 def prepare_annotation(
     calibration_path: str | Path, result_path: str | Path
 ) -> dict[str, object]:
+    """Turns review corrections into positive and negative point labels."""
     calibration_path = Path(calibration_path)
     result_path = Path(result_path)
     calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
@@ -55,29 +80,34 @@ def prepare_annotation(
     if int(calibration["count"]["algorithm"]) != int(result["count"]):
         raise ValueError(f"Count mismatch between {calibration_path} and {result_path}")
 
-    removed_ids = {int(item["id"]) for item in calibration["removed"]}
-    detection_ids = {int(item["id"]) for item in result["detections"]}
-    unknown_ids = removed_ids - detection_ids
-    if unknown_ids:
-        unknown = ", ".join(str(value) for value in sorted(unknown_ids))
-        raise ValueError(f"Unknown detection ids in {calibration_path}: {unknown}")
+    detections = {int(item["id"]): item for item in result["detections"]}
+    corrections = calibration["corrections"]
+    consumed: dict[int, str] = {}
+    for correction in corrections:
+        for detection_id in _consumed_ids(correction):
+            if detection_id not in detections:
+                raise ValueError(
+                    f"Unknown detection id {detection_id} in {calibration_path}"
+                )
+            if detection_id in consumed:
+                raise ValueError(
+                    f"Detection {detection_id} corrected twice in {calibration_path}"
+                )
+            consumed[detection_id] = str(correction["type"])
 
     positives = [
         {"x": float(item["x"]), "y": float(item["y"])}
-        for item in result["detections"]
-        if int(item["id"]) not in removed_ids
+        for detection_id, item in detections.items()
+        if detection_id not in consumed
     ]
-    positives.extend(
-        {"x": float(item["x"]), "y": float(item["y"])} for item in calibration["added"]
-    )
-    return {
-        "image": calibration["image"],
-        "positives": positives,
-        "negatives": [
-            {"x": float(item["x"]), "y": float(item["y"])}
-            for item in calibration["removed"]
-        ],
-    }
+    for correction in corrections:
+        positives.extend(_asserted_seeds(correction))
+    negatives = [
+        {"x": float(detections[detection_id]["x"]), "y": float(detections[detection_id]["y"])}
+        for detection_id, kind in consumed.items()
+        if kind == "remove"
+    ]
+    return {"image": calibration["image"], "positives": positives, "negatives": negatives}
 
 
 def label_candidates(

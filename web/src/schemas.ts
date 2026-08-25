@@ -1,12 +1,14 @@
-import { z } from 'zod'
+import { z } from "zod";
 
 export const resultSchema = z.object({
   source: z.string(),
   image: z.object({ width: z.number(), height: z.number() }),
   count: z.number(),
   quality: z.object({
-    status: z.enum(['ok', 'review_required']),
-    warnings: z.array(z.enum(['dish_detection_failed', 'exposure_clipping', 'low_focus'])),
+    status: z.enum(["ok", "review_required"]),
+    warnings: z.array(
+      z.enum(["dish_detection_failed", "exposure_clipping", "low_focus"]),
+    ),
     clipped_fraction: z.number(),
     focus_score: z.number(),
   }),
@@ -36,26 +38,39 @@ export const resultSchema = z.object({
       score: z.number(),
     }),
   ),
-})
+});
 
-const pointSchema = z.object({ x: z.number(), y: z.number() })
+const pointSchema = z.object({ x: z.number(), y: z.number() });
 
-export const calibrationEditSchema = z.object({
-  removed: z.array(z.number()),
-  added: z.array(pointSchema),
-})
+// A correction records how a detection result differs from the seeds a reviewer sees.
+// Each one consumes some detection ids and asserts some seed positions; the calibrated
+// count and the training annotations are both derived from that.
+export const correctionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("remove"), id: z.number() }),
+  z.object({ type: z.literal("add"), point: pointSchema }),
+  z.object({
+    type: z.literal("merge"),
+    ids: z.array(z.number()).min(2),
+    point: pointSchema,
+  }),
+  z.object({
+    type: z.literal("split"),
+    id: z.number(),
+    points: z.array(pointSchema).min(2),
+  }),
+]);
 
 export const calibrationSchema = z.object({
   image: z.string(),
   run: z.string(),
   count: z.object({ algorithm: z.number(), calibrated: z.number() }),
-  removed: z.array(pointSchema.extend({ id: z.number() })),
-  added: z.array(pointSchema),
-})
+  corrections: z.array(correctionSchema),
+});
 
-export type SeedResult = z.infer<typeof resultSchema>
-export type SeedQuality = SeedResult['quality']
-export type SeedWarning = SeedQuality['warnings'][number]
-export type Point = z.infer<typeof pointSchema>
-export type Calibration = z.infer<typeof calibrationSchema>
-export type CalibrationEdit = z.infer<typeof calibrationEditSchema>
+export type SeedResult = z.infer<typeof resultSchema>;
+export type SeedDetection = SeedResult["detections"][number];
+export type SeedQuality = SeedResult["quality"];
+export type SeedWarning = SeedQuality["warnings"][number];
+export type Point = z.infer<typeof pointSchema>;
+export type Correction = z.infer<typeof correctionSchema>;
+export type Calibration = z.infer<typeof calibrationSchema>;
