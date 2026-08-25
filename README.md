@@ -18,14 +18,14 @@ Dish geometry
 → Reference-region Lab normalization
 → Multi-scale center proposals
 → Candidate-local evidence
-→ Calibrated confidence scoring
-→ Scale-aware non-maximum suppression
+→ Review-calibrated seedness scoring
+→ Scale-aware response deduplication
 → Counting and rendering
 ```
 
 The reference region defines image statistics. The larger search region defines where candidates are generated.
 
-Each candidate is described by local contrast, chroma, finite support, directional continuation, texture, surface compatibility, scale persistence, shape, and rim clearance. A calibrated logistic model converts this evidence to confidence. Each JSON result records the model identity. Detected regions are generated after counting for visualization.
+Each candidate is described by local contrast, chroma, finite support, directional continuation, texture, surface compatibility, scale persistence, shape, and rim clearance. Seedness combines a global evidence model with a locally regularized calibration learned from reviews. Nearby responses are deduplicated before counting. Each JSON result records the model identity. Detected regions are generated after counting for visualization.
 
 All geometric scales are fractions of the detected dish radius. Runtime parameters are grouped by responsibility in `PipelineConfig` and can be overridden with a nested JSON file:
 
@@ -60,18 +60,15 @@ Run `bun test` in `web/` for the geometry, pre-labeling, and review-status tests
 
 ## Model fitting
 
-Convert Web reviews into point annotations, then fit the candidate model while keeping each image intact across validation folds:
+Fit seedness calibration from review corrections while keeping each image intact across validation folds:
 
 ```bash
-uv run python scripts/prepare_annotations.py \
-  data/runs/<run-name> \
-  data/calibration/<run-name> \
-  data/annotations
 uv run python scripts/train_candidate_model.py \
-  data/annotations
+  data/runs/<run-name> \
+  data/calibration/<run-name>
 ```
 
-The report includes proposal recall, the leave-one-image-out confidence threshold, and the fitted model parameters.
+The report includes proposal recall, leave-one-image-out seedness precision and recall, per-image candidate stability, and the selected calibration parameters. The fitted model is written to `src/vitroflow/candidate_model.json`.
 
 ## Project layout
 
@@ -81,12 +78,12 @@ src/vitroflow/
 ├── normalization.py  Reference-based image normalization
 ├── proposals.py      Multi-scale candidate generation
 ├── candidates.py     Candidate-local evidence
-├── scoring.py        Candidate confidence scoring
-├── detection.py      Confidence selection and scale-aware NMS
+├── scoring.py        Seedness model and review calibration
+├── detection.py      Confidence selection and response deduplication
 ├── regions.py        Detection-region rendering
 ├── rendering.py      Overlay and diagnostic images
 ├── image_io.py       Image decoding and encoding
-├── evaluation.py     Annotation labeling and model fitting
+├── evaluation.py     Review supervision and model fitting
 ├── models.py         Result data structures
 ├── pipeline.py       Single-image orchestration
 └── cli.py            Batch command-line interface

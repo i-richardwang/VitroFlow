@@ -32,13 +32,13 @@ class ProposalConfig:
 @dataclass(frozen=True)
 class DecisionConfig:
     confidence_threshold: float = 0.889313
-    nms_distance_scale: float = 2.0
+    duplicate_distance_scale: float = 1.5
 
     def __post_init__(self) -> None:
         if not 0 <= self.confidence_threshold <= 1:
             raise ValueError("Decision confidence_threshold must be between 0 and 1")
-        if self.nms_distance_scale <= 0:
-            raise ValueError("Decision nms_distance_scale must be positive")
+        if self.duplicate_distance_scale <= 0:
+            raise ValueError("Decision duplicate_distance_scale must be positive")
 
 
 @dataclass(frozen=True)

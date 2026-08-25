@@ -24,15 +24,19 @@ class DetectionResult:
     detections: list[SeedDetection]
 
 
-def _scale_aware_nms(
+def _deduplicate(
     candidates: list[ScoredCandidate], config: DecisionConfig
 ) -> list[ScoredCandidate]:
     accepted: list[ScoredCandidate] = []
     for candidate in sorted(candidates, key=lambda item: item.confidence, reverse=True):
         proposal = candidate.proposal
         overlaps = any(
-            (proposal.x - other.proposal.x) ** 2 + (proposal.y - other.proposal.y) ** 2
-            < (config.nms_distance_scale * min(proposal.scale, other.proposal.scale))
+            (proposal.x - other.proposal.x) ** 2
+            + (proposal.y - other.proposal.y) ** 2
+            < (
+                config.duplicate_distance_scale
+                * min(proposal.scale, other.proposal.scale)
+            )
             ** 2
             for other in accepted
         )
@@ -60,7 +64,7 @@ def detect_seeds(
         if candidate.confidence >= config.confidence_threshold
         and np.isfinite(candidate.confidence)
     ]
-    accepted = _scale_aware_nms(eligible, config)
+    accepted = _deduplicate(eligible, config)
     detections = [
         SeedDetection(
             detection_id=index,

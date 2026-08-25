@@ -68,7 +68,12 @@ def count_seeds(
         geometry.center,
         geometry.radius,
     )
-    detection = detect_seeds(proposals, evidence, model, config.decision)
+    detection = detect_seeds(
+        proposals,
+        evidence,
+        model,
+        config.decision,
+    )
     window_radius = max(
         3, round(geometry.radius * config.rendering.region_radius_fraction)
     )

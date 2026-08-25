@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -17,6 +18,9 @@ class CandidateModel:
     scales: tuple[float, ...]
     weights: tuple[float, ...]
     bias: float
+    calibration_centers: tuple[tuple[float, ...], ...] = ()
+    calibration_weights: tuple[float, ...] = ()
+    calibration_bandwidth: float = 1.0
 
     def __post_init__(self) -> None:
         size = len(self.feature_names)
@@ -24,6 +28,12 @@ class CandidateModel:
             raise ValueError("Candidate model feature schema does not match runtime")
         if not (len(self.means) == len(self.scales) == len(self.weights) == size):
             raise ValueError("Candidate model vectors must match the feature schema")
+        if len(self.calibration_centers) != len(self.calibration_weights):
+            raise ValueError("Calibration centers and weights must have equal length")
+        if any(len(center) != size for center in self.calibration_centers):
+            raise ValueError("Calibration centers must match the feature schema")
+        if self.calibration_bandwidth <= 0:
+            raise ValueError("Calibration bandwidth must be positive")
 
     def score(self, evidence: list[CandidateEvidence]) -> np.ndarray:
         if not evidence:
@@ -34,8 +44,24 @@ class CandidateModel:
     def score_features(self, matrix: np.ndarray) -> np.ndarray:
         if matrix.ndim != 2 or matrix.shape[1] != len(self.feature_names):
             raise ValueError("Candidate matrix does not match the feature schema")
-        normalized = (matrix - np.asarray(self.means)) / np.asarray(self.scales)
+        normalized = np.clip(
+            (matrix - np.asarray(self.means)) / np.asarray(self.scales),
+            -6.0,
+            6.0,
+        )
         logits = normalized @ np.asarray(self.weights) + self.bias
+        if self.calibration_centers:
+            centers = np.asarray(self.calibration_centers)
+            squared_distance = np.maximum(
+                np.sum(np.square(normalized), axis=1)[:, None]
+                + np.sum(np.square(centers), axis=1)[None, :]
+                - 2.0 * normalized @ centers.T,
+                0.0,
+            )
+            similarity = np.exp(
+                -squared_distance / (2.0 * self.calibration_bandwidth**2)
+            )
+            logits += similarity @ np.asarray(self.calibration_weights)
         logits = np.clip(logits, -30.0, 30.0)
         return 1.0 / (1.0 + np.exp(-logits))
 
@@ -47,6 +73,9 @@ class CandidateModel:
             "scales": self.scales,
             "weights": self.weights,
             "bias": self.bias,
+            "calibration_centers": self.calibration_centers,
+            "calibration_weights": self.calibration_weights,
+            "calibration_bandwidth": self.calibration_bandwidth,
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(encoded).hexdigest()
@@ -60,11 +89,33 @@ class CandidateModel:
             "scales": list(self.scales),
             "weights": list(self.weights),
             "bias": self.bias,
+            "calibration_centers": [list(center) for center in self.calibration_centers],
+            "calibration_weights": list(self.calibration_weights),
+            "calibration_bandwidth": self.calibration_bandwidth,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> CandidateModel:
+        return cls(
+            name=str(data["name"]),
+            feature_names=tuple(str(value) for value in data["feature_names"]),
+            means=tuple(float(value) for value in data["means"]),
+            scales=tuple(float(value) for value in data["scales"]),
+            weights=tuple(float(value) for value in data["weights"]),
+            bias=float(data["bias"]),
+            calibration_centers=tuple(
+                tuple(float(value) for value in center)
+                for center in data.get("calibration_centers", [])
+            ),
+            calibration_weights=tuple(
+                float(value) for value in data.get("calibration_weights", [])
+            ),
+            calibration_bandwidth=float(data.get("calibration_bandwidth", 1.0)),
+        )
 
-DEFAULT_MODEL = CandidateModel(
-    name="candidate-logistic",
+
+BASE_MODEL = CandidateModel(
+    name="candidate-seedness-base",
     feature_names=FEATURE_NAMES,
     means=(
         1.6554071211297479,
@@ -106,4 +157,10 @@ DEFAULT_MODEL = CandidateModel(
         0.9248117416581225,
     ),
     bias=-3.871444673260778,
+)
+
+
+_MODEL_PATH = Path(__file__).with_name("candidate_model.json")
+DEFAULT_MODEL = CandidateModel.from_dict(
+    json.loads(_MODEL_PATH.read_text(encoding="utf-8"))
 )

@@ -93,19 +93,17 @@ def test_confidence_threshold_selects_candidates() -> None:
     assert [(seed.x, seed.y) for seed in result.detections] == [(10, 10)]
 
 
-def test_scale_aware_nms_keeps_the_stronger_nearby_candidate() -> None:
+def test_duplicate_response_keeps_the_stronger_candidate() -> None:
     proposals = [SeedProposal(10, 10, 5, 1, 1), SeedProposal(14, 10, 5, 1, 1)]
     result = detect_seeds(
         proposals,
         [_evidence(3.0), _evidence(2.0)],
         _response_model(),
-        DecisionConfig(confidence_threshold=0.5, nms_distance_scale=2.0),
+        DecisionConfig(confidence_threshold=0.5, duplicate_distance_scale=1.5),
     )
 
     assert len(result.detections) == 1
     assert (result.detections[0].x, result.detections[0].y) == (10, 10)
-
-
 def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     path = tmp_path / "blank.jpg"
     cv2.imwrite(str(path), np.zeros((400, 600, 3), dtype=np.uint8))

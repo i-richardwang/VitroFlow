@@ -4,8 +4,26 @@ from pathlib import Path
 
 import numpy as np
 
-from vitroflow.evaluation import load_annotations, prepare_annotation
-from vitroflow.scoring import DEFAULT_MODEL
+from vitroflow.candidates import CandidateEvidence
+from vitroflow.evaluation import label_review_candidates, load_review
+from vitroflow.proposals import SeedProposal
+from vitroflow.scoring import DEFAULT_MODEL, CandidateModel
+
+
+def _evidence(response: float) -> CandidateEvidence:
+    return CandidateEvidence(
+        response=response,
+        contrast=0.0,
+        chroma=0.0,
+        support=0.0,
+        finite_support=0.0,
+        continuation=0.0,
+        texture=0.0,
+        surface_distance=0.0,
+        elongation=0.0,
+        persistence=0.0,
+        rim_clearance=0.0,
+    )
 
 
 def test_model_fingerprint_is_content_addressed() -> None:
@@ -16,29 +34,19 @@ def test_model_fingerprint_is_content_addressed() -> None:
     assert different_parameters.fingerprint != DEFAULT_MODEL.fingerprint
 
 
-def test_load_annotations_preserves_empty_point_sets(tmp_path: Path) -> None:
-    path = tmp_path / "sample.json"
-    path.write_text(
-        json.dumps(
-            {
-                "image": "images/sample.jpg",
-                "positives": [{"x": 10, "y": 20}],
-                "negatives": [],
-            }
-        ),
-        encoding="utf-8",
+def test_model_serialization_preserves_scores() -> None:
+    restored = CandidateModel.from_dict(DEFAULT_MODEL.to_dict())
+    features = np.zeros((2, len(DEFAULT_MODEL.feature_names)), dtype=np.float64)
+
+    assert restored.fingerprint == DEFAULT_MODEL.fingerprint
+    assert np.array_equal(
+        restored.score_features(features),
+        DEFAULT_MODEL.score_features(features),
     )
 
-    annotations = load_annotations(path)
 
-    assert annotations.image_path == Path("images/sample.jpg")
-    assert annotations.image_key == "sample"
-    assert np.array_equal(annotations.positives, [[10.0, 20.0]])
-    assert annotations.negatives.shape == (0, 2)
-
-
-def test_prepare_annotation_applies_review_corrections(tmp_path: Path) -> None:
-    result_path = tmp_path / "sample.json"
+def test_review_preserves_explicit_labels_and_instance_relations(tmp_path: Path) -> None:
+    result_path = tmp_path / "result.json"
     calibration_path = tmp_path / "review.json"
     result_path.write_text(
         json.dumps(
@@ -76,16 +84,26 @@ def test_prepare_annotation_applies_review_corrections(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    annotation = prepare_annotation(calibration_path, result_path)
+    review = load_review(calibration_path, result_path)
 
-    assert annotation == {
-        "image": "images/sample.jpg",
-        "positives": [
-            {"x": 10.0, "y": 20.0},
-            {"x": 50.0, "y": 60.0},
-            {"x": 105.0, "y": 100.0},
-            {"x": 200.0, "y": 200.0},
-            {"x": 215.0, "y": 200.0},
-        ],
-        "negatives": [{"x": 30.0, "y": 40.0}],
-    }
+    assert np.array_equal(
+        review.seeds,
+        [[50, 60], [200, 200], [215, 200]],
+    )
+    assert np.array_equal(review.background, [[30, 40]])
+    assert len(review.same_instances) == 1
+    assert len(review.distinct_instances) == 1
+
+
+def test_candidate_matching_is_one_to_one() -> None:
+    review = type("Review", (), {})()
+    review.seeds = np.asarray([[10.0, 10.0], [12.0, 10.0]])
+    review.background = np.empty((0, 2))
+    review.image_key = "sample"
+    proposals = [SeedProposal(11, 10, 5, 1, 1)]
+
+    labeled = label_review_candidates(proposals, [_evidence(1.0)], review)
+
+    assert labeled.matched_seeds == 1
+    assert labeled.seed_count == 2
+    assert labeled.proposal_recall == 0.5
