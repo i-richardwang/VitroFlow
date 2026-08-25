@@ -2,33 +2,33 @@ import { z } from "zod";
 
 const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
-/** Every state an image can be in, including having no label file yet. */
 export const REVIEW_STATES = ["uninitialized", ...REVIEW_STATUSES] as const;
 export type ReviewState = (typeof REVIEW_STATES)[number];
 
-const boundingBoxSchema = z.object({
+const boundingBoxSchema = z.strictObject({
   x: z.number().finite(),
   y: z.number().finite(),
   width: z.number().positive(),
   height: z.number().positive(),
 });
 
-const seedInstanceSchema = z.object({
+const seedInstanceSchema = z.strictObject({
   id: z.string().min(1),
   class: z.literal("seed"),
   bbox: boundingBoxSchema,
 });
 
 export const annotationSchema = z
-  .object({
-    image: z.object({
+  .strictObject({
+    image: z.strictObject({
       path: z.string().min(1),
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
-    source: z.object({
+    source: z.strictObject({
       runId: z.string().min(1),
-      modelFingerprint: z.string().min(1),
+      pipelineFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      modelFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     }),
     status: z.enum(REVIEW_STATUSES),
     excludedReason: z.string().optional(),
@@ -36,6 +36,13 @@ export const annotationSchema = z
     instances: z.array(seedInstanceSchema),
   })
   .superRefine((document, context) => {
+    if (document.status !== "excluded" && document.excludedReason !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["excludedReason"],
+        message: "Only excluded images can have an exclusion reason",
+      });
+    }
     const ids = new Set<string>();
     document.instances.forEach((instance, index) => {
       if (ids.has(instance.id)) {

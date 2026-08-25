@@ -24,6 +24,7 @@ export const Route = createRootRoute({
   }),
   loader: () => getSession(),
   component: RootComponent,
+  notFoundComponent: NotFoundPage,
 });
 
 function RootComponent() {
@@ -39,7 +40,11 @@ function RootComponent() {
           >
             VitroFlow
           </Link>
-          <span className="text-xs text-muted">Annotation workbench</span>
+          <span className="text-xs text-muted">Seed annotation workbench</span>
+          <nav className="ml-4 flex items-center gap-3 text-xs">
+            <Link href="/">Runs</Link>
+            <Link href="/jobs">Jobs</Link>
+          </nav>
           {signedIn && (
             <form method="post" action="/logout" className="ml-auto">
               <Button type="submit" variant="ghost" size="sm">
@@ -53,6 +58,23 @@ function RootComponent() {
         </div>
       </RouterProvider>
     </RootDocument>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <main className="mx-auto flex min-h-full max-w-lg flex-col items-center justify-center px-8 text-center">
+      <p className="font-mono text-xs text-muted">404</p>
+      <h1 className="mt-2 text-xl font-semibold tracking-tight">
+        Page not found
+      </h1>
+      <p className="mt-2 text-sm text-muted">
+        The requested page does not exist in this workbench.
+      </p>
+      <Link href="/" className="mt-5 text-sm font-medium">
+        Return to runs
+      </Link>
+    </main>
   );
 }
 

@@ -128,7 +128,10 @@ function instanceMetrics(
 function diagnosticMetrics(result: SeedResult): Metric[] {
   return [
     { label: "Detections", value: String(result.count) },
-    { label: "Threshold", value: String(result.confidence_threshold) },
+    {
+      label: "Threshold",
+      value: String(result.config.decision.confidence_threshold),
+    },
     { label: "Model", value: result.model.name },
     { label: "Focus score", value: String(result.quality.focus_score) },
     { label: "Clipped", value: result.quality.clipped_fraction.toFixed(4) },

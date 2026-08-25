@@ -45,7 +45,11 @@ export function documentFromResult(
   }
   return {
     image: { path: result.source, width: image.width, height: image.height },
-    source: { runId, modelFingerprint: result.model.fingerprint },
+    source: {
+      runId,
+      pipelineFingerprint: result.pipeline.fingerprint,
+      modelFingerprint: result.model.fingerprint,
+    },
     status: "in_progress",
     revision: 0,
     instances,

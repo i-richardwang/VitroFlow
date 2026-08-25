@@ -51,7 +51,8 @@ class CountResult:
     detections: list[SeedDetection]
     dish_center: tuple[float, float]
     dish_radius: float
-    confidence_threshold: float
+    pipeline_name: str
+    pipeline_fingerprint: str
     model_name: str
     model_fingerprint: str
     quality: QualityReport
@@ -75,7 +76,10 @@ class CountResult:
                 "center_y": round(self.dish_center[1], 2),
                 "radius": round(self.dish_radius, 2),
             },
-            "confidence_threshold": round(self.confidence_threshold, 4),
+            "pipeline": {
+                "name": self.pipeline_name,
+                "fingerprint": self.pipeline_fingerprint,
+            },
             "model": {
                 "name": self.model_name,
                 "fingerprint": self.model_fingerprint,

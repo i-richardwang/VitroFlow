@@ -1,4 +1,4 @@
-import { Card, EmptyState, Table } from "@heroui/react";
+import { Card, EmptyState, Link, Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { listRuns } from "../server/runs";
@@ -21,12 +21,14 @@ function RunsPage() {
             <EmptyState className="flex flex-col items-center justify-center gap-1 text-center">
               <span className="font-medium">No runs yet</span>
               <span className="text-xs text-muted">
-                Generate one from the repository root, then reload this page.
+                Create a recognition job and keep a Worker connected.
               </span>
-              <code className="mt-3 rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs">
-                uv run vitroflow data/images/&lt;dataset&gt; --data-root data
-                -o data/runs/&lt;run-name&gt;
-              </code>
+              <Link
+                href="/jobs"
+                className="mt-3 rounded-lg bg-surface-secondary px-3 py-2 text-xs font-medium text-foreground"
+              >
+                Create job
+              </Link>
             </EmptyState>
           </Card.Content>
         </Card>

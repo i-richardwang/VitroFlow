@@ -45,21 +45,22 @@ All geometric scales are fractions of the detected dish radius. Runtime paramete
 
 Pass the file with `--config path/to/config.json`.
 
-## Annotation workbench
+## Recognition and annotation
 
-The web app turns run results into reviewed box annotations. Everything it reads and writes lives in one data directory:
+The Web app accepts image batches, queues recognition jobs, and turns Worker results into reviewed box annotations. Everything the service owns lives in one data directory:
 
 ```text
 data/
 ├── images/<dataset>/<file>.jpg   source photographs
+├── jobs/<job-id>.json            recognition job state
 ├── runs/<run-id>/                detection results and rendered views
-└── labels/<dataset>/<stem>.json  reviewed box annotations
+├── labels/<dataset>/<stem>.json  reviewed box annotations
+└── staging/<job-id>/             unpublished Worker results
 ```
 
-An image is identified by its path under `images/`, so a photograph keeps one label across every run that processes it. Generate a run and start the workbench:
+An image is identified by its path under `images/`, so a photograph keeps one label across every run that processes it. Completed documents under `labels/` are the canonical reviewed instances used to build training datasets. Start the workbench and open the Jobs page to upload a batch:
 
 ```bash
-uv run vitroflow data/images/<dataset> --data-root data -o data/runs/<run-name>
 cd web
 bun install
 bun run dev
@@ -69,9 +70,9 @@ Each annotation document holds the list of seed instances as axis-aligned boxes 
 
 Edits are saved as they are made. A save that fails is retried before it is reported, and leaving an image waits for pending saves.
 
-Run `bun test` in `web/` for the geometry, pre-labeling, and review-status tests.
+Run `bun test` in `web/` for the annotation, job lifecycle, and authentication tests.
 
-### Deployment
+### Web deployment
 
 The workbench reads the data directory from `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`). Build the image and mount the data directory:
 
@@ -79,20 +80,19 @@ The workbench reads the data directory from `VITROFLOW_DATA_ROOT` (default: `../
 docker compose up --build
 ```
 
-`compose.yaml` mounts `./data` at `/data` and serves the workbench on port 3000. Set `VITROFLOW_PASSWORD` to require a password before any page, image, or save request is served; sessions last 30 days and end with the header's Sign out button. Leave it unset for a local workbench that needs no sign-in. Detection runs on any machine with the Python package; drop the run directory into `data/runs/` and it appears on the next page load. Without Docker, `bun run build && bun run start` in `web/` serves the same production build.
+`compose.yaml` mounts `./data` at `/data` and serves the workbench on port 3000. Set `VITROFLOW_PASSWORD` to require a password before any page, image, or save request is served; sessions last 30 days and end with the header's Sign out button. Leave it unset for a local workbench that needs no sign-in. Set `VITROFLOW_WORKER_TOKEN` to a separate random secret used only by the Worker. A job accepts up to 100 images, 64 MiB per image, and 512 MiB in total. Without Docker, `bun run build && bun run start` in `web/` serves the same production build.
 
-## Model fitting
+### Local Worker
 
-Fit seedness calibration from review corrections while keeping each image intact across validation folds:
+Run the Worker on a computer with the desired compute resources:
 
 ```bash
-uv run python scripts/train_candidate_model.py \
-  data/runs/<run-name> \
-  data/calibration/<run-name> \
-  --data-root data
+export VITROFLOW_SERVER_URL=https://vitroflow.example.com
+export VITROFLOW_WORKER_TOKEN=<same-worker-secret-as-the-server>
+uv run vitroflow-worker
 ```
 
-The report includes proposal recall, leave-one-image-out seedness precision and recall, per-image candidate stability, and the selected calibration parameters. The fitted model is written to `src/vitroflow/candidate_model.json`.
+Run one Worker instance for each workbench. It processes one job at a time, downloads each source image through the authenticated API, runs the recognition pipeline locally, and uploads the result JSON, overlay, and diagnostic image through the API. Interrupted work is resumed when the Worker starts again. Every result in a run must share one pipeline, model, and configuration identity. A run becomes visible to the annotation workbench only after every result has been validated and published. Use `--once` to process at most one job and exit.
 
 ## Project layout
 
@@ -107,10 +107,12 @@ src/vitroflow/
 ├── regions.py        Detection-region rendering
 ├── rendering.py      Overlay and diagnostic images
 ├── image_io.py       Image decoding and encoding
-├── evaluation.py     Review supervision and model fitting
+├── identity.py       Recognition pipeline identity
+├── artifacts.py      Recognition result serialization
 ├── models.py         Result data structures
 ├── pipeline.py       Single-image orchestration
-└── cli.py            Batch command-line interface
+├── cli.py            Local batch command-line interface
+└── worker.py         Remote job execution
 ```
 
 ## Development

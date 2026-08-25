@@ -3,6 +3,7 @@ services:
     build: ./web
     environment:
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
+      VITROFLOW_WORKER_TOKEN: ${VITROFLOW_WORKER_TOKEN:-}
     ports:
       - "3000:3000"
     volumes:

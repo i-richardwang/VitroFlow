@@ -4,8 +4,10 @@ import * as path from "node:path";
  * Root of everything the workbench reads and writes:
  *
  *   images/<dataset>/<file>   source photographs
+ *   jobs/<job-id>.json        recognition task state
  *   runs/<run-id>/            detection results and rendered views
  *   labels/<dataset>/<stem>   reviewed box annotations
+ *   staging/<job-id>/         unpublished worker results
  *
  * Run results reference images by path relative to this root, so the whole
  * tree can be mounted anywhere.
@@ -14,14 +16,15 @@ export const DATA_ROOT =
   process.env.VITROFLOW_DATA_ROOT ?? path.resolve(process.cwd(), "..", "data");
 
 export const IMAGES_DIR = path.join(DATA_ROOT, "images");
+export const JOBS_DIR = path.join(DATA_ROOT, "jobs");
 export const RUNS_DIR = path.join(DATA_ROOT, "runs");
 export const LABELS_DIR = path.join(DATA_ROOT, "labels");
+export const STAGING_DIR = path.join(DATA_ROOT, "staging");
 
-/** Resolves a relative path under a root, rejecting anything that escapes it. */
-export function resolveWithin(root: string, relative: string): string {
-  const resolved = path.resolve(root, relative);
+export function resolveWithin(root: string, ...segments: string[]): string {
+  const resolved = path.resolve(root, ...segments);
   if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-    throw new Error(`Path escapes ${root}: ${relative}`);
+    throw new Error(`Path escapes ${root}: ${segments.join(path.sep)}`);
   }
   return resolved;
 }

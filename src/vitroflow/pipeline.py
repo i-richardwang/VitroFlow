@@ -8,6 +8,7 @@ from .candidates import describe_candidates
 from .config import PipelineConfig
 from .detection import DetectionResult, detect_seeds
 from .geometry import DishGeometry, estimate_geometry
+from .identity import PIPELINE_NAME, pipeline_fingerprint
 from .image_io import read_image
 from .models import CountResult, QualityReport
 from .normalization import NormalizedImage, normalize_image
@@ -86,7 +87,8 @@ def count_seeds(
         detections=detection.detections,
         dish_center=geometry.center,
         dish_radius=geometry.radius,
-        confidence_threshold=config.decision.confidence_threshold,
+        pipeline_name=PIPELINE_NAME,
+        pipeline_fingerprint=pipeline_fingerprint(),
         model_name=model.name,
         model_fingerprint=model.fingerprint,
         quality=_assess_quality(geometry, normalized, config),

@@ -45,7 +45,8 @@ describe("documentFromResult", () => {
     expect(document.revision).toBe(0);
     expect(document.source).toEqual({
       runId: "run-a",
-      modelFingerprint: "abc",
+      pipelineFingerprint: "a".repeat(64),
+      modelFingerprint: "b".repeat(64),
     });
     expect(document.instances).toHaveLength(2);
     expect(

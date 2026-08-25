@@ -96,7 +96,21 @@ class CandidateModel:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> CandidateModel:
-        return cls(
+        fields = {
+            "name",
+            "fingerprint",
+            "feature_names",
+            "means",
+            "scales",
+            "weights",
+            "bias",
+            "calibration_centers",
+            "calibration_weights",
+            "calibration_bandwidth",
+        }
+        if set(data) != fields:
+            raise ValueError("Candidate model fields do not match the schema")
+        model = cls(
             name=str(data["name"]),
             feature_names=tuple(str(value) for value in data["feature_names"]),
             means=tuple(float(value) for value in data["means"]),
@@ -105,13 +119,16 @@ class CandidateModel:
             bias=float(data["bias"]),
             calibration_centers=tuple(
                 tuple(float(value) for value in center)
-                for center in data.get("calibration_centers", [])
+                for center in data["calibration_centers"]
             ),
             calibration_weights=tuple(
-                float(value) for value in data.get("calibration_weights", [])
+                float(value) for value in data["calibration_weights"]
             ),
-            calibration_bandwidth=float(data.get("calibration_bandwidth", 1.0)),
+            calibration_bandwidth=float(data["calibration_bandwidth"]),
         )
+        if data["fingerprint"] != model.fingerprint:
+            raise ValueError("Candidate model fingerprint does not match its contents")
+        return model
 
 
 BASE_MODEL = CandidateModel(

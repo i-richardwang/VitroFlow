@@ -1,10 +1,12 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 
 import {
   deleteCookie,
   getCookie,
   setCookie,
 } from "@tanstack/react-start/server";
+
+import { secretsEqual } from "./secrets";
 
 const COOKIE = "vitroflow_session";
 const SESSION_DAYS = 30;
@@ -17,12 +19,6 @@ function sessionToken(secret: string): string {
   return createHmac("sha256", secret).update("session").digest("hex");
 }
 
-function equal(a: string, b: string): boolean {
-  return (
-    a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
-  );
-}
-
 export function isAuthenticated(request: Request): boolean {
   const secret = password();
   if (secret === undefined) {
@@ -33,12 +29,12 @@ export function isAuthenticated(request: Request): boolean {
     .split(";")
     .map((pair) => pair.trim().split("="))
     .find(([name]) => name === COOKIE)?.[1];
-  return token !== undefined && equal(token, sessionToken(secret));
+  return token !== undefined && secretsEqual(token, sessionToken(secret));
 }
 
 export function signIn(candidate: string): boolean {
   const secret = password();
-  if (secret === undefined || !equal(candidate, secret)) {
+  if (secret === undefined || !secretsEqual(candidate, secret)) {
     return false;
   }
   setCookie(COOKIE, sessionToken(secret), {

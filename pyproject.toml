@@ -6,12 +6,14 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
+  "httpx>=0.27",
   "numpy>=2.0",
   "opencv-python-headless>=4.10",
 ]
 
 [project.scripts]
 vitroflow = "vitroflow.cli:main"
+vitroflow-worker = "vitroflow.worker:main"
 
 [project.urls]
 Repository = "https://github.com/i-richardwang/VitroFlow"

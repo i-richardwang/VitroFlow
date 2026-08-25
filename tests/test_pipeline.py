@@ -2,6 +2,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 
 from vitroflow import count_seeds
 from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
@@ -10,7 +11,7 @@ from vitroflow.detection import detect_seeds
 from vitroflow.geometry import circle_mask
 from vitroflow.normalization import NormalizedImage, normalize_image
 from vitroflow.proposals import SeedProposal, propose_seed_centers
-from vitroflow.scoring import CandidateModel
+from vitroflow.scoring import DEFAULT_MODEL, CandidateModel
 
 
 def _evidence(response: float) -> CandidateEvidence:
@@ -93,6 +94,15 @@ def test_confidence_threshold_selects_candidates() -> None:
     assert [(seed.x, seed.y) for seed in result.detections] == [(10, 10)]
 
 
+def test_candidate_model_requires_its_canonical_schema() -> None:
+    payload = DEFAULT_MODEL.to_dict()
+    assert CandidateModel.from_dict(payload) == DEFAULT_MODEL
+
+    payload.pop("calibration_bandwidth")
+    with pytest.raises(ValueError, match="schema"):
+        CandidateModel.from_dict(payload)
+
+
 def test_duplicate_response_keeps_the_stronger_candidate() -> None:
     proposals = [SeedProposal(10, 10, 5, 1, 1), SeedProposal(14, 10, 5, 1, 1)]
     result = detect_seeds(
@@ -104,6 +114,8 @@ def test_duplicate_response_keeps_the_stronger_candidate() -> None:
 
     assert len(result.detections) == 1
     assert (result.detections[0].x, result.detections[0].y) == (10, 10)
+
+
 def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     path = tmp_path / "blank.jpg"
     cv2.imwrite(str(path), np.zeros((400, 600, 3), dtype=np.uint8))
@@ -112,7 +124,9 @@ def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     payload = result.to_dict()
 
     assert result.count == 0
-    assert payload["confidence_threshold"] == round(result.confidence_threshold, 4)
+    assert payload["pipeline"]["name"] == result.pipeline_name
+    assert payload["pipeline"]["fingerprint"] == result.pipeline_fingerprint
+    assert len(result.pipeline_fingerprint) == 64
     assert payload["model"]["name"] == result.model_name
     assert payload["model"]["fingerprint"] == result.model_fingerprint
     assert result.quality.status == "review_required"
