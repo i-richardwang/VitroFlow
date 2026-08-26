@@ -13,6 +13,8 @@ import cv2
 import httpx
 
 from .artifacts import create_image_artifacts
+from .config import PipelineConfig
+from .scoring import DEFAULT_MODEL, CandidateModel, load_candidate_model
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 
@@ -101,8 +103,7 @@ class WorkerClient:
 
     def download(self, job: WorkerJob, image: WorkerImage) -> bytes:
         response = self._request(
-            "GET",
-            f"api/worker/jobs/{job.job_id}/images/{image.image_id}"
+            "GET", f"api/worker/jobs/{job.job_id}/images/{image.image_id}"
         )
         response.raise_for_status()
         return response.content
@@ -139,14 +140,25 @@ class WorkerClient:
         response.raise_for_status()
 
 
-def process_job(client: WorkerClient, job: WorkerJob, work_dir: Path) -> None:
+def process_job(
+    client: WorkerClient,
+    job: WorkerJob,
+    work_dir: Path,
+    config: PipelineConfig,
+    model: CandidateModel,
+) -> None:
     work_dir.mkdir(parents=True, exist_ok=True)
     try:
         for image in job.images:
             suffix = Path(image.source).suffix.lower() or ".jpg"
             image_path = work_dir / f"{image.image_id}{suffix}"
             image_path.write_bytes(client.download(job, image))
-            artifacts = create_image_artifacts(image_path, image.source)
+            artifacts = create_image_artifacts(
+                image_path,
+                image.source,
+                config=config,
+                model=model,
+            )
             client.upload(
                 job,
                 image,
@@ -159,17 +171,27 @@ def process_job(client: WorkerClient, job: WorkerJob, work_dir: Path) -> None:
         try:
             client.fail(job, str(error))
         except WORKER_ERRORS as report_error:
-            print(f"unable to report failed job {job.job_id}: {report_error}", file=sys.stderr)
+            print(
+                f"unable to report failed job {job.job_id}: {report_error}",
+                file=sys.stderr,
+            )
         raise
 
 
-def run_once(client: WorkerClient, work_root: Path) -> bool:
+def run_once(
+    client: WorkerClient,
+    work_root: Path,
+    config: PipelineConfig,
+    model: CandidateModel,
+) -> bool:
     job = client.claim()
     if job is None:
         return False
     print(f"claimed {job.run_id} ({len(job.images)} images)", flush=True)
-    with tempfile.TemporaryDirectory(prefix=f"vitroflow-{job.job_id}-", dir=work_root) as temporary:
-        process_job(client, job, Path(temporary))
+    with tempfile.TemporaryDirectory(
+        prefix=f"vitroflow-{job.job_id}-", dir=work_root
+    ) as temporary:
+        process_job(client, job, Path(temporary), config, model)
     print(f"completed {job.run_id}", flush=True)
     return True
 
@@ -195,6 +217,8 @@ def _parser() -> argparse.ArgumentParser:
         default=Path(os.environ.get("VITROFLOW_WORK_DIR", tempfile.gettempdir())),
     )
     parser.add_argument("--poll-seconds", type=float, default=5.0)
+    parser.add_argument("--config", help="JSON file overriding pipeline parameters")
+    parser.add_argument("--model", help="Candidate model JSON")
     parser.add_argument("--once", action="store_true")
     return parser
 
@@ -211,12 +235,20 @@ def main(argv: list[str] | None = None) -> int:
         print("error: poll interval must be positive", file=sys.stderr)
         return 2
 
-    args.work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        args.work_dir.mkdir(parents=True, exist_ok=True)
+        config = (
+            PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
+        )
+        model = load_candidate_model(args.model) if args.model else DEFAULT_MODEL
+    except (OSError, TypeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
     client = WorkerClient(args.server, args.token)
     try:
         while True:
             try:
-                processed = run_once(client, args.work_dir)
+                processed = run_once(client, args.work_dir, config, model)
             except WORKER_ERRORS as error:
                 print(f"worker error: {error}", file=sys.stderr, flush=True)
                 processed = False

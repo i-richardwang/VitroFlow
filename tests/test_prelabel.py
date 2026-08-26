@@ -1,0 +1,116 @@
+from pathlib import Path
+
+import numpy as np
+
+from vitroflow.annotations import BoundingBox, ReviewedImage
+from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
+from vitroflow.config import DecisionConfig, PipelineConfig
+from vitroflow.prelabel import (
+    PreparedImage,
+    evaluate_candidate_model,
+    label_candidates,
+    match_boxes,
+    train_candidate_model,
+)
+from vitroflow.proposals import SeedProposal
+from vitroflow.scoring import CandidateModel
+
+
+def _evidence(response: float) -> CandidateEvidence:
+    return CandidateEvidence(
+        response=response,
+        contrast=0.0,
+        chroma=0.0,
+        support=0.0,
+        finite_support=0.0,
+        continuation=0.0,
+        texture=0.0,
+        surface_distance=0.0,
+        elongation=0.0,
+        persistence=0.0,
+        rim_clearance=0.0,
+    )
+
+
+def _prior() -> CandidateModel:
+    return CandidateModel(
+        name="prior",
+        feature_names=FEATURE_NAMES,
+        means=(0.0,) * len(FEATURE_NAMES),
+        scales=(1.0,) * len(FEATURE_NAMES),
+        weights=(0.0,) * len(FEATURE_NAMES),
+        bias=0.0,
+    )
+
+
+def _image(index: int) -> PreparedImage:
+    annotation = ReviewedImage(
+        source=Path(f"images/batch/{index}.jpg"),
+        width=100,
+        height=100,
+        run_id="run",
+        pipeline_fingerprint="a" * 64,
+        model_fingerprint="b" * 64,
+        status="complete",
+        revision=1,
+        boxes=(BoundingBox(5, 5, 10, 10),),
+    )
+    return PreparedImage(
+        annotation=annotation,
+        proposals=(
+            SeedProposal(10, 10, 4, 1, 1),
+            SeedProposal(50, 50, 4, 1, 1),
+        ),
+        evidence=(_evidence(2.0), _evidence(-2.0)),
+        labels=np.asarray([1, 0], dtype=np.int64),
+        matched_boxes=1,
+    )
+
+
+def test_box_matching_is_one_to_one() -> None:
+    boxes = [BoundingBox(0, 0, 10, 10), BoundingBox(4, 0, 10, 10)]
+    assignments = match_boxes(boxes, [(6, 5)])
+    assert len(assignments) == 1
+    assert set(assignments.values()) == {0}
+
+
+def test_box_matching_maximizes_the_number_of_instances() -> None:
+    boxes = [BoundingBox(0, 0, 10, 10), BoundingBox(4, 4, 2, 2)]
+    assignments = match_boxes(boxes, [(5, 5), (1, 1)])
+    assert assignments == {0: 1, 1: 0}
+
+
+def test_every_candidate_inside_an_instance_is_positive() -> None:
+    proposals = [
+        SeedProposal(4, 5, 2, 1, 1),
+        SeedProposal(6, 5, 4, 1, 1),
+        SeedProposal(20, 20, 2, 1, 1),
+    ]
+    labels = label_candidates([BoundingBox(0, 0, 10, 10)], proposals)
+    assert labels.tolist() == [1, 1, 0]
+
+
+def test_training_selects_a_model_that_reduces_prelabel_corrections() -> None:
+    images = [_image(index) for index in range(3)]
+    config = PipelineConfig(
+        decision=DecisionConfig(
+            confidence_threshold=0.5,
+            duplicate_distance_scale=1.0,
+        )
+    )
+    baseline = evaluate_candidate_model(_prior(), images, config)
+
+    trained = train_candidate_model(
+        images,
+        _prior(),
+        config,
+        bandwidths=(1.0, 2.0),
+        regularizations=(0.3, 3.0),
+    )
+
+    assert baseline.false_positive == 3
+    assert trained.report.cross_validation.false_positive == 0
+    assert trained.report.cross_validation.false_negative == 0
+    assert trained.report.training.corrections_per_instance == 0
+    assert trained.model.calibration_centers
+    assert trained.model.fingerprint != _prior().fingerprint

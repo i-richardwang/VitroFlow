@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from .candidates import describe_candidates
+from .candidates import CandidateEvidence, describe_candidates
 from .config import PipelineConfig
 from .detection import DetectionResult, detect_seeds
 from .geometry import DishGeometry, estimate_geometry
@@ -12,10 +13,49 @@ from .identity import PIPELINE_NAME, pipeline_fingerprint
 from .image_io import read_image
 from .models import CountResult, QualityReport
 from .normalization import NormalizedImage, normalize_image
-from .proposals import propose_seed_centers
+from .proposals import SeedProposal, propose_seed_centers
 from .regions import render_regions
 from .rendering import render_debug, render_overlay
 from .scoring import DEFAULT_MODEL, CandidateModel
+
+
+@dataclass(frozen=True)
+class CandidateAnalysis:
+    image: np.ndarray
+    geometry: DishGeometry
+    normalized: NormalizedImage
+    proposals: list[SeedProposal]
+    evidence: list[CandidateEvidence]
+
+
+def analyze_candidates(
+    path: str | Path,
+    config: PipelineConfig | None = None,
+) -> CandidateAnalysis:
+    config = config or PipelineConfig()
+    image = read_image(path)
+    geometry = estimate_geometry(image, config)
+    normalized = normalize_image(image, geometry.reference_mask, geometry.radius)
+    proposals = propose_seed_centers(
+        normalized,
+        geometry.reference_mask,
+        geometry.search_mask,
+        geometry.radius,
+        config.proposals,
+    )
+    evidence = describe_candidates(
+        normalized,
+        proposals,
+        geometry.center,
+        geometry.radius,
+    )
+    return CandidateAnalysis(
+        image=image,
+        geometry=geometry,
+        normalized=normalized,
+        proposals=proposals,
+        evidence=evidence,
+    )
 
 
 def _assess_quality(
@@ -46,32 +86,20 @@ def _center_mask(shape: tuple[int, int], detection: DetectionResult) -> np.ndarr
 
 
 def count_seeds(
-    path: str | Path,
+    image_path: str | Path,
+    *,
+    source: str | Path | None = None,
     config: PipelineConfig | None = None,
     model: CandidateModel = DEFAULT_MODEL,
 ) -> CountResult:
-    source = Path(path)
     config = config or PipelineConfig()
-    image = read_image(source)
-
-    geometry = estimate_geometry(image, config)
-    normalized = normalize_image(image, geometry.reference_mask, geometry.radius)
-    proposals = propose_seed_centers(
-        normalized,
-        geometry.reference_mask,
-        geometry.search_mask,
-        geometry.radius,
-        config.proposals,
-    )
-    evidence = describe_candidates(
-        normalized,
-        proposals,
-        geometry.center,
-        geometry.radius,
-    )
+    analysis = analyze_candidates(image_path, config)
+    image = analysis.image
+    geometry = analysis.geometry
+    normalized = analysis.normalized
     detection = detect_seeds(
-        proposals,
-        evidence,
+        analysis.proposals,
+        analysis.evidence,
         model,
         config.decision,
     )
@@ -81,7 +109,7 @@ def count_seeds(
     labels = render_regions(image.shape[:2], detection.detections, window_radius)
 
     return CountResult(
-        source=source,
+        source=Path(source) if source is not None else Path(image_path),
         width=image.shape[1],
         height=image.shape[0],
         detections=detection.detections,

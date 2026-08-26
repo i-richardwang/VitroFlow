@@ -31,7 +31,7 @@ export const annotationSchema = z
       modelFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     }),
     status: z.enum(REVIEW_STATUSES),
-    excludedReason: z.string().optional(),
+    excludedReason: z.string().min(1).optional(),
     revision: z.number().int().nonnegative(),
     instances: z.array(seedInstanceSchema),
   })

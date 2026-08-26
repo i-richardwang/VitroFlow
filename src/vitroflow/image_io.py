@@ -13,13 +13,3 @@ def read_image(path: str | Path) -> np.ndarray:
     if image is None:
         raise ValueError(f"Unable to read image: {source}")
     return image
-
-
-def write_image(path: str | Path, image: np.ndarray) -> None:
-    destination = Path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    suffix = destination.suffix or ".jpg"
-    ok, encoded = cv2.imencode(suffix, image)
-    if not ok:
-        raise ValueError(f"Unable to encode image: {destination}")
-    encoded.tofile(destination)

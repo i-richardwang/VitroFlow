@@ -31,8 +31,7 @@ def _deduplicate(
     for candidate in sorted(candidates, key=lambda item: item.confidence, reverse=True):
         proposal = candidate.proposal
         overlaps = any(
-            (proposal.x - other.proposal.x) ** 2
-            + (proposal.y - other.proposal.y) ** 2
+            (proposal.x - other.proposal.x) ** 2 + (proposal.y - other.proposal.y) ** 2
             < (
                 config.duplicate_distance_scale
                 * min(proposal.scale, other.proposal.scale)

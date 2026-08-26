@@ -11,7 +11,12 @@ from vitroflow.detection import detect_seeds
 from vitroflow.geometry import circle_mask
 from vitroflow.normalization import NormalizedImage, normalize_image
 from vitroflow.proposals import SeedProposal, propose_seed_centers
-from vitroflow.scoring import DEFAULT_MODEL, CandidateModel
+from vitroflow.scoring import (
+    DEFAULT_MODEL,
+    CandidateModel,
+    load_candidate_model,
+    write_candidate_model,
+)
 
 
 def _evidence(response: float) -> CandidateEvidence:
@@ -101,6 +106,33 @@ def test_candidate_model_requires_its_canonical_schema() -> None:
     payload.pop("calibration_bandwidth")
     with pytest.raises(ValueError, match="schema"):
         CandidateModel.from_dict(payload)
+
+    payload = DEFAULT_MODEL.to_dict()
+    payload["weights"] = "invalid"
+    with pytest.raises(TypeError, match="weights must be an array"):
+        CandidateModel.from_dict(payload)
+
+    payload = DEFAULT_MODEL.to_dict()
+    payload["weights"][0] = "1.0"
+    with pytest.raises(TypeError, match="weights must be numeric"):
+        CandidateModel.from_dict(payload)
+
+
+def test_candidate_model_file_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "model.json"
+    write_candidate_model(DEFAULT_MODEL, path)
+
+    assert load_candidate_model(path) == DEFAULT_MODEL
+
+
+def test_count_seeds_records_the_logical_source(tmp_path: Path) -> None:
+    path = tmp_path / "downloaded.jpg"
+    cv2.imwrite(str(path), np.zeros((400, 600, 3), dtype=np.uint8))
+
+    result = count_seeds(path, source="images/batch/original.jpg")
+
+    assert result.source == Path("images/batch/original.jpg")
+    assert list(tmp_path.iterdir()) == [path]
 
 
 def test_duplicate_response_keeps_the_stronger_candidate() -> None:

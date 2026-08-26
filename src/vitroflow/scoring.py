@@ -8,6 +8,19 @@ from pathlib import Path
 import numpy as np
 
 from .candidates import FEATURE_NAMES, CandidateEvidence
+from .files import write_text_atomically
+
+
+def _number(value: object, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"Candidate model {field} must be numeric")
+    return float(value)
+
+
+def _number_array(value: object, field: str) -> tuple[float, ...]:
+    if not isinstance(value, list):
+        raise TypeError(f"Candidate model {field} must be an array")
+    return tuple(_number(item, field) for item in value)
 
 
 @dataclass(frozen=True)
@@ -24,16 +37,30 @@ class CandidateModel:
 
     def __post_init__(self) -> None:
         size = len(self.feature_names)
+        if not self.name:
+            raise ValueError("Candidate model name cannot be empty")
         if self.feature_names != FEATURE_NAMES:
             raise ValueError("Candidate model feature schema does not match runtime")
         if not (len(self.means) == len(self.scales) == len(self.weights) == size):
             raise ValueError("Candidate model vectors must match the feature schema")
+        values = (*self.means, *self.scales, *self.weights, self.bias)
+        if not all(np.isfinite(value) for value in values):
+            raise ValueError("Candidate model parameters must be finite")
+        if any(scale <= 0 for scale in self.scales):
+            raise ValueError("Candidate model scales must be positive")
         if len(self.calibration_centers) != len(self.calibration_weights):
             raise ValueError("Calibration centers and weights must have equal length")
         if any(len(center) != size for center in self.calibration_centers):
             raise ValueError("Calibration centers must match the feature schema")
         if self.calibration_bandwidth <= 0:
             raise ValueError("Calibration bandwidth must be positive")
+        calibration_values = (
+            *(value for center in self.calibration_centers for value in center),
+            *self.calibration_weights,
+            self.calibration_bandwidth,
+        )
+        if not all(np.isfinite(value) for value in calibration_values):
+            raise ValueError("Candidate model calibration must be finite")
 
     def score(self, evidence: list[CandidateEvidence]) -> np.ndarray:
         if not evidence:
@@ -89,7 +116,9 @@ class CandidateModel:
             "scales": list(self.scales),
             "weights": list(self.weights),
             "bias": self.bias,
-            "calibration_centers": [list(center) for center in self.calibration_centers],
+            "calibration_centers": [
+                list(center) for center in self.calibration_centers
+            ],
             "calibration_weights": list(self.calibration_weights),
             "calibration_bandwidth": self.calibration_bandwidth,
         }
@@ -110,74 +139,55 @@ class CandidateModel:
         }
         if set(data) != fields:
             raise ValueError("Candidate model fields do not match the schema")
+        if not isinstance(data["name"], str):
+            raise TypeError("Candidate model name must be a string")
+        if not isinstance(data["fingerprint"], str):
+            raise TypeError("Candidate model fingerprint must be a string")
+        feature_names = data["feature_names"]
+        if not isinstance(feature_names, list) or not all(
+            isinstance(value, str) for value in feature_names
+        ):
+            raise TypeError("Candidate model feature_names must be an array of strings")
+        calibration_centers = data["calibration_centers"]
+        if not isinstance(calibration_centers, list) or any(
+            not isinstance(center, list) for center in calibration_centers
+        ):
+            raise TypeError("Candidate model calibration centers must be arrays")
         model = cls(
-            name=str(data["name"]),
-            feature_names=tuple(str(value) for value in data["feature_names"]),
-            means=tuple(float(value) for value in data["means"]),
-            scales=tuple(float(value) for value in data["scales"]),
-            weights=tuple(float(value) for value in data["weights"]),
-            bias=float(data["bias"]),
+            name=data["name"],
+            feature_names=tuple(feature_names),
+            means=_number_array(data["means"], "means"),
+            scales=_number_array(data["scales"], "scales"),
+            weights=_number_array(data["weights"], "weights"),
+            bias=_number(data["bias"], "bias"),
             calibration_centers=tuple(
-                tuple(float(value) for value in center)
-                for center in data["calibration_centers"]
+                _number_array(center, "calibration_centers")
+                for center in calibration_centers
             ),
-            calibration_weights=tuple(
-                float(value) for value in data["calibration_weights"]
+            calibration_weights=_number_array(
+                data["calibration_weights"], "calibration_weights"
             ),
-            calibration_bandwidth=float(data["calibration_bandwidth"]),
+            calibration_bandwidth=_number(
+                data["calibration_bandwidth"], "calibration_bandwidth"
+            ),
         )
         if data["fingerprint"] != model.fingerprint:
             raise ValueError("Candidate model fingerprint does not match its contents")
         return model
 
 
-BASE_MODEL = CandidateModel(
-    name="candidate-seedness-base",
-    feature_names=FEATURE_NAMES,
-    means=(
-        1.6554071211297479,
-        0.6990465338665968,
-        0.5429474684635723,
-        0.37734105671439044,
-        0.025807183065559416,
-        1.0287143560714727,
-        0.10702426245758198,
-        2.753053397080707,
-        0.4043779733137044,
-        0.34121282469573394,
-        0.23769675322869716,
-    ),
-    scales=(
-        0.5462185736984315,
-        3.1560740940280345,
-        3.0310935131664754,
-        0.25491765489060825,
-        0.20661777423191327,
-        0.18195533608718628,
-        0.19179423954118685,
-        1.9317730816903294,
-        0.21579552122048093,
-        0.19965617196326363,
-        0.1292934724016839,
-    ),
-    weights=(
-        0.47179337388400006,
-        -0.22087919030194084,
-        0.14042252350708748,
-        0.4169066375732485,
-        0.5838284845083074,
-        -0.1318210180739564,
-        0.2093952694632646,
-        -0.36246248160769734,
-        0.027370073620117293,
-        0.5052634238730905,
-        0.9248117416581225,
-    ),
-    bias=-3.871444673260778,
-)
-
-
 _MODEL_PATH = Path(__file__).with_name("candidate_model.json")
-DEFAULT_MODEL = CandidateModel.from_dict(
-    json.loads(_MODEL_PATH.read_text(encoding="utf-8"))
-)
+
+
+def load_candidate_model(path: str | Path) -> CandidateModel:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError("Candidate model must be a JSON object")
+    return CandidateModel.from_dict(payload)
+
+
+def write_candidate_model(model: CandidateModel, path: str | Path) -> None:
+    write_text_atomically(path, json.dumps(model.to_dict(), indent=2) + "\n")
+
+
+DEFAULT_MODEL = load_candidate_model(_MODEL_PATH)

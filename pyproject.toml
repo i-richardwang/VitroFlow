@@ -22,6 +22,7 @@ Issues = "https://github.com/i-richardwang/VitroFlow/issues"
 [dependency-groups]
 dev = [
   "pytest>=8.0",
+  "ruff>=0.12",
 ]
 
 [build-system]
@@ -30,3 +31,16 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vitroflow"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/LICENSE",
+  "/README.md",
+  "/pyproject.toml",
+  "/src/vitroflow",
+  "/tests",
+  "/uv.lock",
+]
