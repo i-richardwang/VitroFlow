@@ -1,0 +1,8 @@
+*
+!Dockerfile.worker
+!LICENSE
+!README.md
+!pyproject.toml
+!src/
+!src/**
+!uv.lock

@@ -7,7 +7,13 @@ import pytest
 
 from vitroflow.config import PipelineConfig
 from vitroflow.scoring import DEFAULT_MODEL
-from vitroflow.worker import WorkerClient, WorkerImage, WorkerJob, process_job
+from vitroflow.worker import (
+    WorkerClient,
+    WorkerImage,
+    WorkerJob,
+    _health_server,
+    process_job,
+)
 
 
 class FakeClient:
@@ -37,6 +43,16 @@ class FakeClient:
 
     def fail(self, job: WorkerJob, error: str) -> None:
         self.failure = error
+
+
+def test_health_server_reports_liveness() -> None:
+    with _health_server(0) as port:
+        response = httpx.get(f"http://127.0.0.1:{port}/healthz")
+        missing = httpx.get(f"http://127.0.0.1:{port}/missing")
+
+    assert response.status_code == 200
+    assert response.text == "ok\n"
+    assert missing.status_code == 404
 
 
 def test_worker_job_validates_the_claim_payload() -> None:

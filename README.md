@@ -78,6 +78,15 @@ docker compose up --build
 
 `compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench; `VITROFLOW_WORKER_TOKEN` is the separate Worker credential. A job accepts up to 100 images, 64 MiB per image, and 512 MiB in total.
 
+To deploy the Worker on Zeabur, create another GitHub service from this repository and name the service `worker`. Zeabur selects `Dockerfile.worker` by service name. Configure one replica with:
+
+```env
+VITROFLOW_SERVER_URL=https://vitroflow.example.com
+VITROFLOW_WORKER_TOKEN=<worker-secret>
+```
+
+The container serves `/healthz` on Zeabur's `PORT`. Keep the Worker private; its only application traffic is outbound to the workbench API.
+
 ## Prelabel workflow
 
 The prelabel pipeline generates candidate centers and candidate-local evidence. Its candidate model combines a regularized global classifier with bounded local calibration. Scale-aware deduplication turns the scored candidates into the initial boxes shown in the workbench.

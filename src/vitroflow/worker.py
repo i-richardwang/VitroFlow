@@ -4,8 +4,13 @@ import argparse
 import os
 import sys
 import tempfile
+import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +22,42 @@ from .config import PipelineConfig
 from .scoring import DEFAULT_MODEL, CandidateModel, load_candidate_model
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path != "/healthz":
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        body = b"ok\n"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass
+
+
+@contextmanager
+def _health_server(port: int | None) -> Iterator[int | None]:
+    if port is None:
+        yield None
+        return
+    server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
+    thread = threading.Thread(
+        target=server.serve_forever,
+        name="vitroflow-health",
+        daemon=True,
+    )
+    thread.start()
+    try:
+        yield server.server_port
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
 
 
 @dataclass(frozen=True)
@@ -217,6 +258,12 @@ def _parser() -> argparse.ArgumentParser:
         default=Path(os.environ.get("VITROFLOW_WORK_DIR", tempfile.gettempdir())),
     )
     parser.add_argument("--poll-seconds", type=float, default=5.0)
+    parser.add_argument(
+        "--health-port",
+        type=int,
+        default=os.environ.get("PORT"),
+        help="Health endpoint port (or PORT)",
+    )
     parser.add_argument("--config", help="JSON file overriding pipeline parameters")
     parser.add_argument("--model", help="Candidate model JSON")
     parser.add_argument("--once", action="store_true")
@@ -234,6 +281,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.poll_seconds <= 0:
         print("error: poll interval must be positive", file=sys.stderr)
         return 2
+    if args.health_port is not None and not 1 <= args.health_port <= 65535:
+        print("error: health port must be between 1 and 65535", file=sys.stderr)
+        return 2
 
     try:
         args.work_dir.mkdir(parents=True, exist_ok=True)
@@ -246,18 +296,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     client = WorkerClient(args.server, args.token)
     try:
-        while True:
-            try:
-                processed = run_once(client, args.work_dir, config, model)
-            except WORKER_ERRORS as error:
-                print(f"worker error: {error}", file=sys.stderr, flush=True)
-                processed = False
+        with _health_server(args.health_port):
+            while True:
+                try:
+                    processed = run_once(client, args.work_dir, config, model)
+                except WORKER_ERRORS as error:
+                    print(f"worker error: {error}", file=sys.stderr, flush=True)
+                    processed = False
+                    if args.once:
+                        return 1
                 if args.once:
-                    return 1
-            if args.once:
-                return 0
-            if not processed:
-                time.sleep(args.poll_seconds)
+                    return 0
+                if not processed:
+                    time.sleep(args.poll_seconds)
     except KeyboardInterrupt:
         return 0
     finally:
