@@ -178,8 +178,11 @@ function JobsPage() {
 function CreateJobForm() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{
+    loaded: number;
+    total: number;
+  } | null>(null);
 
   return (
     <Card className="p-6">
@@ -191,10 +194,19 @@ function CreateJobForm() {
             setError("Select at least one image");
             return;
           }
-          setBusy(true);
+          const form = event.currentTarget;
           setError(null);
-          void createJob(event.currentTarget, files)
+          setProgress({
+            loaded: 0,
+            total: files.reduce((sum, file) => sum + file.size, 0),
+          });
+          void createJob(form, files, (loaded, total) => {
+            setProgress({ loaded, total });
+          })
             .then(async (search) => {
+              if (search.created) {
+                setFiles([]);
+              }
               await router.navigate({ to: "/jobs", search });
               await router.invalidate();
             })
@@ -202,7 +214,7 @@ function CreateJobForm() {
               setError(cause instanceof Error ? cause.message : String(cause));
             })
             .finally(() => {
-              setBusy(false);
+              setProgress(null);
             });
         }}
       >
@@ -216,6 +228,7 @@ function CreateJobForm() {
             <TextField
               fullWidth
               isRequired
+              isDisabled={progress != null}
               name="dataset"
               pattern={IDENTIFIER}
               autoFocus
@@ -227,6 +240,7 @@ function CreateJobForm() {
             <TextField
               fullWidth
               isRequired
+              isDisabled={progress != null}
               name="runId"
               pattern={IDENTIFIER}
             >
@@ -240,7 +254,11 @@ function CreateJobForm() {
           </Fieldset.Group>
           <div className="flex w-full flex-col gap-1">
             <Label isRequired>Images</Label>
-            <ImageDropZone files={files} onChange={setFiles} />
+            <ImageDropZone
+              files={files}
+              onChange={setFiles}
+              progress={progress}
+            />
             {error && <p className="text-xs text-danger">{error}</p>}
           </div>
           <Fieldset.Actions>
@@ -248,9 +266,13 @@ function CreateJobForm() {
               type="submit"
               variant="primary"
               size="sm"
-              isDisabled={busy || files.length === 0}
+              isDisabled={progress != null || files.length === 0}
             >
-              {busy ? "Creating…" : "Create job"}
+              {progress == null
+                ? "Create job"
+                : progress.loaded < progress.total
+                  ? "Uploading…"
+                  : "Creating…"}
             </Button>
           </Fieldset.Actions>
         </Fieldset>
@@ -259,15 +281,39 @@ function CreateJobForm() {
   );
 }
 
-async function createJob(form: HTMLFormElement, files: File[]) {
+function createJob(
+  form: HTMLFormElement,
+  files: File[],
+  onProgress: (loaded: number, total: number) => void,
+) {
   const data = new FormData(form);
   for (const file of files) {
     data.append("images", file);
   }
-  const response = await fetch("/api/jobs", { method: "POST", body: data });
-  const url = new URL(response.url);
-  return {
-    created: url.searchParams.get("created") ?? undefined,
-    error: url.searchParams.get("error") ?? undefined,
-  };
+  return new Promise<{ created?: string; error?: string }>(
+    (resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open("POST", "/api/jobs");
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          onProgress(event.loaded, event.total);
+        }
+      };
+      request.onload = () => {
+        if (request.status >= 400) {
+          reject(new Error(`Upload failed (${request.status})`));
+          return;
+        }
+        const url = new URL(request.responseURL, window.location.origin);
+        resolve({
+          created: url.searchParams.get("created") ?? undefined,
+          error: url.searchParams.get("error") ?? undefined,
+        });
+      };
+      request.onerror = () => {
+        reject(new Error("Upload failed"));
+      };
+      request.send(data);
+    },
+  );
 }

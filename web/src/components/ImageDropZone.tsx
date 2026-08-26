@@ -7,9 +7,11 @@ const ACCEPT_SET = new Set<string>(ACCEPT);
 export function ImageDropZone({
   files,
   onChange,
+  progress,
 }: {
   files: File[];
   onChange: (files: File[]) => void;
+  progress: { loaded: number; total: number } | null;
 }) {
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -27,6 +29,7 @@ export function ImageDropZone({
   return (
     <DropZone className="w-full">
       <DropZone.Area
+        isDisabled={progress != null}
         onDrop={async (event) => {
           const dropped: File[] = [];
           for (const item of event.items) {
@@ -42,10 +45,13 @@ export function ImageDropZone({
         <DropZone.Description>
           JPEG, PNG, or TIFF. Up to 100 files, 64 MiB each and 512 MiB total.
         </DropZone.Description>
-        <DropZone.Trigger>Select images</DropZone.Trigger>
+        <DropZone.Trigger isDisabled={progress != null}>
+          Select images
+        </DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
         accept={ACCEPT.join(",")}
+        disabled={progress != null}
         multiple
         onSelect={(list) => addFiles(Array.from(list))}
       />
@@ -56,7 +62,7 @@ export function ImageDropZone({
             return (
               <DropZone.FileItem
                 key={`${file.name}:${file.size}`}
-                status="complete"
+                status={progress != null ? "uploading" : undefined}
               >
                 <DropZone.FileFormatIcon
                   color={ext === "tif" || ext === "tiff" ? "purple" : "green"}
@@ -66,16 +72,33 @@ export function ImageDropZone({
                   <DropZone.FileName>{file.name}</DropZone.FileName>
                   <DropZone.FileMeta>{formatSize(file.size)}</DropZone.FileMeta>
                 </DropZone.FileInfo>
-                <DropZone.FileRemoveTrigger
-                  aria-label={`Remove ${file.name}`}
-                  onPress={() =>
-                    onChange(files.filter((item) => item !== file))
-                  }
-                />
+                {progress == null && (
+                  <DropZone.FileRemoveTrigger
+                    aria-label={`Remove ${file.name}`}
+                    onPress={() =>
+                      onChange(files.filter((item) => item !== file))
+                    }
+                  />
+                )}
               </DropZone.FileItem>
             );
           })}
         </DropZone.FileList>
+      )}
+      {progress && (
+        <DropZone.FileProgress
+          className="gap-1"
+          maxValue={progress.total}
+          minValue={0}
+          value={progress.loaded}
+        >
+          <DropZone.FileProgressTrack>
+            <DropZone.FileProgressFill />
+          </DropZone.FileProgressTrack>
+          <span className="text-xs tabular-nums text-muted">
+            {formatSize(progress.loaded)} / {formatSize(progress.total)}
+          </span>
+        </DropZone.FileProgress>
       )}
     </DropZone>
   );
