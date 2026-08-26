@@ -131,6 +131,65 @@ uv run vitroflow dataset export-yolo \
 
 The export contains copied source images, normalized YOLO labels, `dataset.yaml`, and a manifest recording source paths, revisions, and train/validation assignments. Recognition runs, training artifacts, and dataset exports are published atomically to new directories.
 
+## YOLO26 fine-tuning
+
+Until complete human-reviewed labels are available, build a temporary dataset from
+a dataset's prelabels. During this bootstrap phase they are treated as training
+targets, so validation metrics measure agreement with the traditional algorithm
+rather than final real-world accuracy. Failure documents are skipped, and the
+output stays outside `data/labels`:
+
+```bash
+uv run python scripts/build_yolo_prelabels.py \
+  --prelabels data/prelabels/<dataset> \
+  --data-root data \
+  --output output/yolo/prelabels-smoke \
+  --seed 42
+```
+
+Install the separate training dependencies and run the documented small-dataset
+fine-tuning recipe through the Ultralytics Python API:
+
+```bash
+uv sync --group train
+
+uv run --group train python scripts/train_yolo.py \
+  --data output/yolo/prelabels-smoke/dataset.yaml \
+  --output output/yolo/train-seed-small \
+  --model yolo26n.pt \
+  --config configs/yolo26/seed-small.yaml \
+  --device mps
+```
+
+The checked-in recipe follows Ultralytics' YOLO26 guidance for datasets with fewer
+than 1,000 images: AdamW at `lr0=0.001`, 50 epochs, and early stopping with
+`patience=20`. Mosaic is disabled using the guide's very-small-dataset fallback:
+each dish already contains hundreds of tiny targets, and combining four dishes
+made MPS target assignment pathologically expensive. The recipe deliberately
+leaves Ultralytics' gradient accumulation and three-epoch warmup unchanged. It uses
+`imgsz=1024` because a seed box is only about five pixels wide at the default 640;
+Ultralytics also recommends increasing resolution for small-object datasets. The
+M5 Pro recipe uses `batch=8` as a conservative fixed size for the available 24 GB
+unified memory; it remains a runtime override for machines with different capacity.
+
+After training, the script verifies `best.pt`, runs a full validation pass with
+YOLO26's one-to-many head, and writes `inference.json` beside the weights. That file
+records the validation metrics and the confidence calibrated from Ultralytics'
+public F1-confidence curve together with `imgsz`, `max_det`, and head mode. A run
+whose validation F1 is still zero is recorded as `ready: false` with no confidence,
+rather than publishing an unsafe zero threshold. This
+keeps deployment settings out of training hyperparameters and avoids treating the
+default end-to-end head's 300 detections as the seed-counting ceiling. Recalibrate
+against reviewed labels when they are ready by using the regular
+`dataset export-yolo` output with the same config and training script.
+
+References: [YOLO26 training recipe](https://docs.ultralytics.com/guides/yolo26-training-recipe/),
+[fine-tuning guide](https://docs.ultralytics.com/guides/finetuning-guide/), and
+[YOLO26 dual-head behavior](https://docs.ultralytics.com/models/yolo26/).
+
+Ultralytics YOLO26 is offered under AGPL-3.0 and Enterprise licenses. Resolve the
+appropriate license before integrating its runtime into a production Worker.
+
 ## Recognition pipeline
 
 ```text
@@ -177,7 +236,10 @@ src/vitroflow/
 │   ├── data.py       Candidate labels from reviewed boxes
 │   ├── evaluation.py Proposal and detection metrics
 │   └── training.py   Model and threshold selection
-├── yolo.py           YOLO dataset export
+├── yolo/
+│   ├── dataset.py    Canonical reviewed-label export
+│   ├── bootstrap.py  Prelabel bootstrap adapter
+│   └── training.py   Ultralytics training and validation
 ├── cli.py            Local workflows
 └── worker.py         Remote recognition execution
 

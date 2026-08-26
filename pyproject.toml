@@ -24,6 +24,9 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.12",
 ]
+train = [
+  "ultralytics>=8.4,<8.5",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,9 +40,11 @@ packages = ["src/vitroflow"]
 
 [tool.hatch.build.targets.sdist]
 include = [
+  "/configs/yolo26",
   "/LICENSE",
   "/README.md",
   "/pyproject.toml",
+  "/scripts",
   "/src/vitroflow",
   "/tests",
   "/uv.lock",

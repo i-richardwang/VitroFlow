@@ -1,0 +1,22 @@
+# YOLO26 fine-tuning recipe for the current small, single-class seed dataset.
+# Based on Ultralytics' official guidance for datasets with fewer than 1,000 images.
+epochs: 50
+patience: 20
+batch: 8
+imgsz: 1024
+
+optimizer: AdamW
+lr0: 0.001
+warmup_epochs: 3.0
+
+# Each source image already contains hundreds of tiny objects. Mosaic would combine
+# thousands of targets into one sample, so use the documented very-small-dataset
+# fallback instead of paying that assignment cost on MPS.
+mosaic: 0.0
+mixup: 0.0
+copy_paste: 0.0
+
+# Some dishes contain more than the default 300 detections.
+max_det: 500
+seed: 0
+deterministic: true
