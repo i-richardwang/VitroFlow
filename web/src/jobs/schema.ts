@@ -11,6 +11,7 @@ export const JOB_STATUSES = [
 ] as const;
 
 export const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
+export const RUN_ID = /^[a-f0-9]{12}$/;
 
 export const jobImageSchema = z
   .object({
@@ -22,8 +23,8 @@ export const jobImageSchema = z
 
 const baseJobSchema = z.strictObject({
   id: z.string().uuid(),
-  dataset: z.string().min(1),
-  runId: z.string().min(1),
+  dataset: z.string().regex(IDENTIFIER),
+  runId: z.string().regex(RUN_ID),
   images: z.array(jobImageSchema).min(1),
   completedImages: z.number().int().nonnegative(),
   createdAt: z.string().datetime(),

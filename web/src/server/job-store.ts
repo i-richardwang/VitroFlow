@@ -172,7 +172,7 @@ export function listJobs(): RecognitionJob[] {
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
-/** Opaque run identifier: 12 hex characters not used by any job or run. */
+/** Opaque `RUN_ID` not used by any job or run. */
 function newRunId(): string {
   const taken = new Set(listJobs().map((job) => job.runId));
   for (;;) {
