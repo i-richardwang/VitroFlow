@@ -78,7 +78,7 @@ docker compose up --build
 
 `compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench; `VITROFLOW_WORKER_TOKEN` is the separate Worker credential. A job accepts up to 100 images, 64 MiB per image, and 512 MiB in total.
 
-To deploy the Worker on Zeabur, create another GitHub service from this repository and name the service `worker`. Zeabur selects `Dockerfile.worker` by service name. Configure one replica with:
+To deploy the Worker to an arm64 Wonder Mesh server on Zeabur, create another GitHub service from this repository and name the service `worker`. Zeabur selects `Dockerfile.worker` by service name. Configure one replica with:
 
 ```env
 VITROFLOW_SERVER_URL=https://vitroflow.example.com
