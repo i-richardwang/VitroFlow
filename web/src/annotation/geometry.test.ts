@@ -1,12 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  boxAround,
-  boxFromCorners,
-  clipToImage,
-  moveBox,
-  resizeBox,
-} from "./geometry";
+import { boxAround, clipToImage, moveBox, resizeBox } from "./geometry";
 
 const image = { width: 100, height: 80 };
 
@@ -41,20 +35,12 @@ describe("clipToImage", () => {
   });
 });
 
-describe("boxAround / boxFromCorners", () => {
+describe("boxAround", () => {
   test("centers a square on the point", () => {
     expect(boxAround({ x: 50, y: 40 }, 10, image)).toEqual({
       x: 45,
       y: 35,
       width: 10,
-      height: 10,
-    });
-  });
-  test("normalizes reversed corners", () => {
-    expect(boxFromCorners({ x: 30, y: 30 }, { x: 10, y: 20 }, image)).toEqual({
-      x: 10,
-      y: 20,
-      width: 20,
       height: 10,
     });
   });

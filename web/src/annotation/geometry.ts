@@ -49,23 +49,6 @@ export function boxAround(
   );
 }
 
-/** Normalizes two drag corners into a clipped box. */
-export function boxFromCorners(
-  start: Point,
-  end: Point,
-  image: ImageSize,
-): BoundingBox | null {
-  return clipToImage(
-    {
-      x: Math.min(start.x, end.x),
-      y: Math.min(start.y, end.y),
-      width: Math.abs(end.x - start.x),
-      height: Math.abs(end.y - start.y),
-    },
-    image,
-  );
-}
-
 /** Translates a box, keeping its size and holding it inside the image. */
 export function moveBox(
   box: BoundingBox,

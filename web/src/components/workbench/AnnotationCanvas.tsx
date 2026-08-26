@@ -2,7 +2,7 @@ import { Button, Toolbar } from "@heroui/react";
 import { useRef, useState } from "react";
 
 import {
-  boxFromCorners,
+  boxAround,
   HANDLES,
   handlePositions,
   moveBox,
@@ -10,7 +10,7 @@ import {
   type Handle,
   type Point,
 } from "../../annotation/geometry";
-import { instanceFromBox } from "../../annotation/prelabel";
+import { initialBoxSide, instanceFromBox } from "../../annotation/prelabel";
 import type {
   AnnotationDocument,
   BoundingBox,
@@ -42,12 +42,10 @@ type Gesture =
       handle: Handle;
       start: Point;
       box: BoundingBox;
-    }
-  | { kind: "draw"; pointerId: number; start: Point; box: BoundingBox | null };
+    };
 
 const CLICK_SLOP = 3;
 const HANDLE_SCREEN_SIZE = 8;
-const MIN_DRAW_SCREEN_SIZE = 4;
 
 const HANDLE_CURSORS: Record<Handle, string> = {
   nw: "nwse-resize",
@@ -72,7 +70,7 @@ export function AnnotationCanvas({
   selectedId,
   onSelect,
   onInstancesChange,
-  onDrawEnd,
+  onAdded,
 }: {
   runId: string;
   stem: string;
@@ -86,7 +84,8 @@ export function AnnotationCanvas({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onInstancesChange: (instances: SeedInstance[]) => void;
-  onDrawEnd: () => void;
+  /** A standard box was placed by clicking with the add tool. */
+  onAdded: () => void;
 }) {
   const { containerRef, transform, fit, panTo, panOrigin, toImagePoint } =
     useViewport(annotation.image);
@@ -128,17 +127,8 @@ export function AnnotationCanvas({
       null;
     const instance = annotation.instances.find((item) => item.id === id);
 
-    if (panning || tool === "pan" || !editable) {
+    if (panning || tool === "pan" || tool === "add" || !editable) {
       setGesture(startPan(event));
-      return;
-    }
-    if (tool === "add") {
-      setGesture({
-        kind: "draw",
-        pointerId: event.pointerId,
-        start: point,
-        box: null,
-      });
       return;
     }
     if (handle && instance) {
@@ -186,13 +176,6 @@ export function AnnotationCanvas({
       x: point.x - gesture.start.x,
       y: point.y - gesture.start.y,
     };
-    if (gesture.kind === "draw") {
-      setGesture({
-        ...gesture,
-        box: boxFromCorners(gesture.start, point, annotation.image),
-      });
-      return;
-    }
     const box = annotation.instances.find(
       (item) => item.id === gesture.id,
     )?.bbox;
@@ -218,8 +201,12 @@ export function AnnotationCanvas({
     }
     setGesture(null);
     if (!press?.moved) {
-      if (gesture.kind === "pan" && tool === "select") {
-        onSelect(null);
+      if (gesture.kind === "pan" && editable && !panning) {
+        if (tool === "select") {
+          onSelect(null);
+        } else if (tool === "add") {
+          addBoxAt(toImagePoint(event));
+        }
       }
       return;
     }
@@ -229,24 +216,32 @@ export function AnnotationCanvas({
           item.id === gesture.id ? { ...item, bbox: gesture.box } : item,
         ),
       );
-    } else if (gesture.kind === "draw") {
-      const minimum = MIN_DRAW_SCREEN_SIZE / transform.scale;
-      if (
-        gesture.box &&
-        gesture.box.width >= minimum &&
-        gesture.box.height >= minimum
-      ) {
-        const instance = instanceFromBox(gesture.box);
-        onInstancesChange([...annotation.instances, instance]);
-        onSelect(instance.id);
-      }
-      onDrawEnd();
     }
   };
 
+  /**
+   * Places the same square the prelabel step builds around a detection, so
+   * added seeds share one box convention; the selection handles remain for
+   * the rare seed that the standard box does not contain.
+   */
+  const addBoxAt = (center: Point) => {
+    const box = boxAround(
+      center,
+      initialBoxSide(result.dish.radius),
+      annotation.image,
+    );
+    if (!box) {
+      return;
+    }
+    const instance = instanceFromBox(box);
+    onInstancesChange([...annotation.instances, instance]);
+    onSelect(instance.id);
+    onAdded();
+  };
+
   const draft =
-    gesture && gesture.kind !== "pan" && gesture.box
-      ? { id: "id" in gesture ? gesture.id : null, box: gesture.box }
+    gesture && gesture.kind !== "pan"
+      ? { id: gesture.id, box: gesture.box }
       : null;
   const handleSize = HANDLE_SCREEN_SIZE / transform.scale;
   const cursor =
@@ -375,21 +370,6 @@ export function AnnotationCanvas({
                   </g>
                 );
               })}
-            {draft && draft.id === null && (
-              <rect
-                x={draft.box.x}
-                y={draft.box.y}
-                width={draft.box.width}
-                height={draft.box.height}
-                fill={CANVAS_COLORS.selected}
-                fillOpacity={0.18}
-                stroke={CANVAS_COLORS.selected}
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                vectorEffect="non-scaling-stroke"
-                pointerEvents="none"
-              />
-            )}
           </svg>
         )}
       </div>

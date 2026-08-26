@@ -9,9 +9,11 @@ import {
 } from "./schema";
 
 /**
- * Initial box side as a fraction of the dish radius. Seeds occupy a roughly
- * constant fraction of the dish, whereas the detector's response scale does not
- * track seed extent, so the dish radius is the only stable size reference.
+ * Standard box side as a fraction of the dish radius, shared by prelabelled
+ * detections and boxes added in the workbench so every seed follows one box
+ * convention. Seeds occupy a roughly constant fraction of the dish, whereas the
+ * detector's response scale does not track seed extent, so the dish radius is
+ * the only stable size reference.
  */
 const BOX_SIDE_FRACTION = 0.025;
 

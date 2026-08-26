@@ -11,10 +11,7 @@ import { Resizable } from "@heroui-pro/react/resizable";
 import { Sheet } from "@heroui-pro/react/sheet";
 import { useCallback, useEffect, useState } from "react";
 
-import type {
-  AnnotationDocument,
-  SeedInstance,
-} from "../../annotation/schema";
+import type { AnnotationDocument, SeedInstance } from "../../annotation/schema";
 import {
   IMAGE_KINDS,
   type ImageKind,
@@ -126,7 +123,7 @@ export function AnnotationEditor({
       history={history}
       onSelect={setSelectedId}
       onInstancesChange={editInstances}
-      onDrawEnd={() => setTool("select")}
+      onAdded={() => setTool("select")}
       onToolChange={setTool}
       onUndo={undo}
       onRedo={redo}
@@ -240,7 +237,7 @@ function CanvasStage({
   history,
   onSelect,
   onInstancesChange,
-  onDrawEnd,
+  onAdded,
   onToolChange,
   onUndo,
   onRedo,
@@ -258,7 +255,7 @@ function CanvasStage({
   history: { canUndo: boolean; canRedo: boolean };
   onSelect: (id: string | null) => void;
   onInstancesChange: (instances: SeedInstance[]) => void;
-  onDrawEnd: () => void;
+  onAdded: () => void;
   onToolChange: (tool: Tool) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -277,7 +274,7 @@ function CanvasStage({
         selectedId={selectedId}
         onSelect={onSelect}
         onInstancesChange={onInstancesChange}
-        onDrawEnd={onDrawEnd}
+        onAdded={onAdded}
       />
       {editable && (
         <Toolbar
