@@ -49,9 +49,9 @@ export function ImageWorkbench({
         ) : (
           <Notice
             title="No annotation yet"
-            description={`Initialize boxes from the ${prelabel.count} detections, then review every seed before marking the image complete.`}
+            description={`Initialize boxes from the ${prelabel.instances.length} prelabels, then review every seed before marking the image complete.`}
             action={{
-              label: "Initialize from detections",
+              label: "Initialize from prelabels",
               run: () => initializeLabel({ data: image }),
             }}
           />

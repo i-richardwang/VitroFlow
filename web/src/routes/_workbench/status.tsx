@@ -100,8 +100,8 @@ function StatusPage() {
                     )}
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap font-mono text-muted">
-                    <span title={worker.execution.model.fingerprint}>
-                      {worker.execution.model.name}
+                    <span title={worker.prelabeler.fingerprint}>
+                      {worker.prelabeler.name}
                     </span>
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">

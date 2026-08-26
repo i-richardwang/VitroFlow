@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 
-import { makeResult } from "../annotation/testing";
 import {
   ONLINE_SECONDS,
   STALE_SECONDS,
@@ -9,11 +8,15 @@ import {
   workerPresence,
 } from "./worker-store";
 
-const { pipeline, model, config } = makeResult([]);
 const heartbeat = {
   workerId: "presence-worker",
   startedAt: "2026-01-01T00:00:00+00:00",
-  execution: { pipeline, model, config },
+  prelabeler: {
+    version_id: "traditional-test",
+    name: "Traditional test",
+    kind: "traditional",
+    fingerprint: "b".repeat(64),
+  },
   current: null,
 };
 

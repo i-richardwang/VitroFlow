@@ -6,8 +6,8 @@ import { ReviewTransitionError, transition } from "./status";
 const base: AnnotationDocument = {
   image: { path: "a.jpg", width: 100, height: 100 },
   source: {
-    pipelineFingerprint: "a".repeat(64),
-    modelFingerprint: "b".repeat(64),
+    prelabelerVersionId: "traditional-test",
+    prelabelerFingerprint: "b".repeat(64),
   },
   status: "in_progress",
   revision: 3,

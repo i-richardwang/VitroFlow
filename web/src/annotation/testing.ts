@@ -1,43 +1,43 @@
-import type { SeedResult } from "../detection/schema";
+import type { PrelabelResult } from "../detection/schema";
+import { boxAround } from "./geometry";
 
 export function makeResult(
   detections: { id: number; x: number; y: number }[],
   dishRadius = 2000,
-): SeedResult {
+): PrelabelResult {
+  const image = { width: 4000, height: 3000 };
+  const side = dishRadius * 0.025;
   return {
+    schema_version: 1,
     source: "images/a.jpg",
-    image: { width: 4000, height: 3000 },
-    count: detections.length,
-    quality: {
-      status: "ok",
-      warnings: [],
-      clipped_fraction: 0,
-      focus_score: 1,
+    image,
+    producer: {
+      version_id: "traditional-test",
+      name: "m",
+      kind: "traditional",
+      fingerprint: "b".repeat(64),
     },
-    dish: { center_x: 2000, center_y: 1500, radius: dishRadius },
-    pipeline: { name: "test-pipeline", fingerprint: "a".repeat(64) },
-    model: { name: "m", fingerprint: "b".repeat(64) },
-    config: {
-      geometry: { reference_radius_fraction: 0.6, search_radius_fraction: 0.9 },
-      proposals: {
-        minimum_scale_fraction: 0.0025,
-        maximum_scale_fraction: 0.008,
-        scale_levels: 6,
-      },
-      decision: {
+    quality: { status: "ok", warnings: [] },
+    diagnostics: {
+      dish: { center_x: 2000, center_y: 1500, radius: dishRadius },
+      metrics: {
         confidence_threshold: 0.5,
-        duplicate_distance_scale: 1.5,
-      },
-      rendering: { region_radius_fraction: 0.02 },
-      quality: {
-        maximum_clipped_fraction: 0.02,
-        minimum_focus_score: 12,
+        clipped_fraction: 0,
+        focus_score: 1,
       },
     },
-    detections: detections.map((detection) => ({
-      ...detection,
-      scale: 9,
-      score: 0.9,
-    })),
+    instances: detections.flatMap((detection) => {
+      const bbox = boxAround(detection, side, image);
+      return bbox
+        ? [
+            {
+              id: String(detection.id),
+              class: "seed" as const,
+              bbox,
+              score: 0.9,
+            },
+          ]
+        : [];
+    }),
   };
 }

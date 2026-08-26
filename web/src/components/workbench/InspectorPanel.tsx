@@ -8,7 +8,7 @@ import {
 } from "@heroui/react";
 
 import type { AnnotationDocument, SeedInstance } from "../../annotation/schema";
-import type { SeedResult } from "../../detection/schema";
+import type { PrelabelResult } from "../../detection/schema";
 import { LAYERS, type LayerKey } from "./controls";
 
 interface Metric {
@@ -24,7 +24,7 @@ export function InspectorPanel({
   selected,
   onDeleteSelected,
 }: {
-  result: SeedResult;
+  result: PrelabelResult;
   annotation: AnnotationDocument;
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
@@ -115,17 +115,28 @@ function instanceMetrics(
   ];
 }
 
-function diagnosticMetrics(result: SeedResult): Metric[] {
+function diagnosticMetrics(result: PrelabelResult): Metric[] {
+  const metrics = result.diagnostics?.metrics;
+  const dish = result.diagnostics?.dish;
   return [
-    { label: "Detections", value: String(result.count) },
+    { label: "Prelabels", value: String(result.instances.length) },
     {
       label: "Threshold",
-      value: String(result.config.decision.confidence_threshold),
+      value: String(metrics?.confidence_threshold ?? "—"),
     },
-    { label: "Model", value: result.model.name },
-    { label: "Focus score", value: String(result.quality.focus_score) },
-    { label: "Clipped", value: result.quality.clipped_fraction.toFixed(4) },
-    { label: "Dish radius", value: `${result.dish.radius.toFixed(0)} px` },
+    { label: "Model", value: result.producer.name },
+    { label: "Focus score", value: String(metrics?.focus_score ?? "—") },
+    {
+      label: "Clipped",
+      value:
+        metrics?.clipped_fraction === undefined
+          ? "—"
+          : metrics.clipped_fraction.toFixed(4),
+    },
+    {
+      label: "Dish radius",
+      value: dish ? `${dish.radius.toFixed(0)} px` : "—",
+    },
   ];
 }
 

@@ -14,8 +14,8 @@ def _annotation(source: str) -> ReviewedImage:
         source=Path(source),
         width=100,
         height=80,
-        pipeline_fingerprint="a" * 64,
-        model_fingerprint="b" * 64,
+        prelabeler_version_id="traditional-test",
+        prelabeler_fingerprint="b" * 64,
         status="complete",
         revision=2,
         boxes=(BoundingBox(10, 20, 20, 10),),
@@ -77,13 +77,36 @@ def test_yolo_export_discards_an_invalid_dataset(tmp_path: Path) -> None:
     assert not list(tmp_path.glob(".yolo-*"))
 
 
-def _prelabel_payload(source: str, *, x: float = 100, y: float = 200) -> dict:
+def _prelabel_payload(source: str) -> dict:
+    return {
+        "schema_version": 1,
+        "source": source,
+        "image": {"width": 1000, "height": 800},
+        "producer": {
+            "version_id": "traditional-test",
+            "name": "Traditional test",
+            "kind": "traditional",
+            "fingerprint": "b" * 64,
+        },
+        "instances": [
+            {
+                "id": "1",
+                "class": "seed",
+                "bbox": {"x": 96.25, "y": 196.25, "width": 7.5, "height": 7.5},
+                "score": 0.9,
+            }
+        ],
+        "quality": {"status": "ok", "warnings": []},
+    }
+
+
+def _legacy_prelabel_payload(source: str) -> dict:
     return {
         "source": source,
         "image": {"width": 1000, "height": 800},
         "count": 1,
         "dish": {"center_x": 500, "center_y": 400, "radius": 300},
-        "detections": [{"id": 1, "x": x, "y": y, "scale": 8, "score": 0.9}],
+        "detections": [{"id": 1, "x": 100, "y": 200, "scale": 8, "score": 0.9}],
     }
 
 
@@ -124,7 +147,7 @@ def test_prelabel_export_rejects_a_mismatched_count(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     prelabels = data_root / "prelabels" / "batch"
     prelabels.mkdir(parents=True)
-    payload = _prelabel_payload("images/batch/a.jpg")
+    payload = _legacy_prelabel_payload("images/batch/a.jpg")
     payload["count"] = 2
     for name in ("a", "b"):
         (prelabels / f"{name}.json").write_text(json.dumps(payload), encoding="utf-8")

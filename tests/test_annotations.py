@@ -12,8 +12,8 @@ def _payload(source: str, status: str = "complete") -> dict[str, object]:
     return {
         "image": {"path": source, "width": 100, "height": 80},
         "source": {
-            "pipelineFingerprint": "a" * 64,
-            "modelFingerprint": "b" * 64,
+            "prelabelerVersionId": "traditional-test",
+            "prelabelerFingerprint": "b" * 64,
         },
         "status": status,
         "revision": 3,
@@ -55,6 +55,22 @@ def test_shared_annotation_contract() -> None:
     assert annotation.source == Path("images/set/example.jpg")
     assert annotation.status == "complete"
     assert len(annotation.boxes) == 1
+
+
+def test_legacy_annotation_provenance_is_read_without_rewriting(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    label = data_root / "labels" / "legacy.json"
+    payload = _payload("images/legacy.jpg")
+    payload["source"] = {
+        "pipelineFingerprint": "a" * 64,
+        "modelFingerprint": "b" * 64,
+    }
+    _write(label, payload)
+
+    annotation = load_annotation(label, data_root)
+
+    assert annotation.prelabeler_version_id.startswith("traditional-legacy-")
+    assert len(annotation.prelabeler_fingerprint) == 64
 
 
 def test_annotation_schema_rejects_unknown_fields_and_escaping_paths(

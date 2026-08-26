@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 _FINGERPRINT = re.compile(r"^[a-f0-9]{64}$")
+_VERSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _STATUSES = {"in_progress", "complete", "excluded"}
 
 
@@ -34,8 +36,8 @@ class ReviewedImage:
     source: Path
     width: int
     height: int
-    pipeline_fingerprint: str
-    model_fingerprint: str
+    prelabeler_version_id: str
+    prelabeler_fingerprint: str
     status: str
     revision: int
     boxes: tuple[BoundingBox, ...]
@@ -152,19 +154,31 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         ) from None
 
     source = _object(payload["source"], "source")
-    _fields(
-        source,
-        {"pipelineFingerprint", "modelFingerprint"},
-        "source",
-    )
-    pipeline_fingerprint = _string(
-        source["pipelineFingerprint"], "source.pipelineFingerprint"
-    )
-    model_fingerprint = _string(source["modelFingerprint"], "source.modelFingerprint")
-    if not _FINGERPRINT.fullmatch(pipeline_fingerprint):
-        raise ValueError("source.pipelineFingerprint must be a SHA-256 fingerprint")
-    if not _FINGERPRINT.fullmatch(model_fingerprint):
-        raise ValueError("source.modelFingerprint must be a SHA-256 fingerprint")
+    if set(source) == {"pipelineFingerprint", "modelFingerprint"}:
+        pipeline = _string(source["pipelineFingerprint"], "source.pipelineFingerprint")
+        model = _string(source["modelFingerprint"], "source.modelFingerprint")
+        if not _FINGERPRINT.fullmatch(pipeline) or not _FINGERPRINT.fullmatch(model):
+            raise ValueError("Legacy source fingerprints must be SHA-256 digests")
+        prelabeler_fingerprint = hashlib.sha256(
+            f"{pipeline}\0{model}".encode()
+        ).hexdigest()
+        prelabeler_version_id = f"traditional-legacy-{prelabeler_fingerprint[:12]}"
+    else:
+        _fields(
+            source,
+            {"prelabelerVersionId", "prelabelerFingerprint"},
+            "source",
+        )
+        prelabeler_version_id = _string(
+            source["prelabelerVersionId"], "source.prelabelerVersionId"
+        )
+        prelabeler_fingerprint = _string(
+            source["prelabelerFingerprint"], "source.prelabelerFingerprint"
+        )
+    if not _VERSION_ID.fullmatch(prelabeler_version_id):
+        raise ValueError("source.prelabelerVersionId is invalid")
+    if not _FINGERPRINT.fullmatch(prelabeler_fingerprint):
+        raise ValueError("source.prelabelerFingerprint must be a SHA-256 fingerprint")
 
     status = _string(payload["status"], "status")
     if status not in _STATUSES:
@@ -194,8 +208,8 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         source=source_path,
         width=image_width,
         height=image_height,
-        pipeline_fingerprint=pipeline_fingerprint,
-        model_fingerprint=model_fingerprint,
+        prelabeler_version_id=prelabeler_version_id,
+        prelabeler_fingerprint=prelabeler_fingerprint,
         status=status,
         revision=_integer(payload["revision"], "revision"),
         boxes=tuple(boxes),

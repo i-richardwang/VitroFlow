@@ -1,174 +1,153 @@
 import { z } from "zod";
 
-export const pipelineSchema = z
-  .object({
-    name: z.string().min(1),
-    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  })
-  .strict();
+import { boundingBoxSchema } from "../annotation/schema";
 
-export const modelSchema = z
-  .object({
-    name: z.string().min(1),
-    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  })
-  .strict();
+const fingerprint = z.string().regex(/^[a-f0-9]{64}$/);
+const versionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
 
-export const pipelineConfigSchema = z
-  .object({
-    geometry: z
-      .object({
-        reference_radius_fraction: z.number().positive().max(1),
-        search_radius_fraction: z.number().positive().max(1),
-      })
-      .strict(),
-    proposals: z
-      .object({
-        minimum_scale_fraction: z.number().positive(),
-        maximum_scale_fraction: z.number().positive(),
-        scale_levels: z.number().int().min(2),
-      })
-      .strict(),
-    decision: z
-      .object({
-        confidence_threshold: z.number().min(0).max(1),
-        duplicate_distance_scale: z.number().positive(),
-      })
-      .strict(),
-    rendering: z
-      .object({ region_radius_fraction: z.number().positive() })
-      .strict(),
-    quality: z
-      .object({
-        maximum_clipped_fraction: z.number().min(0).max(1),
-        minimum_focus_score: z.number().nonnegative(),
-      })
-      .strict(),
-  })
-  .strict()
-  .superRefine((config, context) => {
-    if (
-      config.geometry.reference_radius_fraction >
-      config.geometry.search_radius_fraction
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["geometry"],
-        message: "Reference radius cannot exceed search radius",
-      });
-    }
-    if (
-      config.proposals.minimum_scale_fraction >
-      config.proposals.maximum_scale_fraction
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["proposals"],
-        message: "Minimum proposal scale cannot exceed maximum scale",
-      });
-    }
-  });
+export const prelabelerDescriptorSchema = z.strictObject({
+  version_id: versionId,
+  name: z.string().min(1),
+  kind: versionId,
+  fingerprint,
+});
 
-export const executionSchema = z
-  .object({
-    pipeline: pipelineSchema,
-    model: modelSchema,
-    config: pipelineConfigSchema,
-  })
-  .strict();
+export const seedQualitySchema = z.strictObject({
+  status: z.enum(["ok", "review_required"]),
+  warnings: z.array(
+    z.enum(["dish_detection_failed", "exposure_clipping", "low_focus"]),
+  ),
+});
+
+const prelabelInstanceSchema = z.strictObject({
+  id: z.string().min(1),
+  class: z.literal("seed"),
+  bbox: boundingBoxSchema,
+  score: z.number().finite(),
+});
+
+const dishSchema = z.strictObject({
+  center_x: z.number().finite(),
+  center_y: z.number().finite(),
+  radius: z.number().positive(),
+});
+
+const diagnosticsSchema = z.strictObject({
+  dish: dishSchema.optional(),
+  metrics: z.record(z.string(), z.number().finite()).optional(),
+});
 
 export const resultSchema = z
   .strictObject({
+    schema_version: z.literal(1),
     source: z.string().min(1),
     image: z.strictObject({
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
-    count: z.number().int().nonnegative(),
-    quality: z.strictObject({
-      status: z.enum(["ok", "review_required"]),
-      warnings: z.array(
-        z.enum(["dish_detection_failed", "exposure_clipping", "low_focus"]),
-      ),
-      clipped_fraction: z.number().min(0).max(1),
-      focus_score: z.number().nonnegative(),
-    }),
-    dish: z.strictObject({
-      center_x: z.number().finite(),
-      center_y: z.number().finite(),
-      radius: z.number().positive(),
-    }),
-    pipeline: pipelineSchema,
-    model: modelSchema,
-    config: pipelineConfigSchema,
-    detections: z.array(
-      z.strictObject({
-        id: z.number().int().nonnegative(),
-        x: z.number().finite(),
-        y: z.number().finite(),
-        scale: z.number().positive(),
-        score: z.number().finite(),
-      }),
-    ),
+    producer: prelabelerDescriptorSchema,
+    instances: z.array(prelabelInstanceSchema),
+    quality: seedQualitySchema,
+    diagnostics: diagnosticsSchema.optional(),
   })
   .superRefine((result, context) => {
-    if (result.count !== result.detections.length) {
-      context.addIssue({
-        code: "custom",
-        path: ["count"],
-        message: "Count must equal the number of detections",
-      });
-    }
-    const ids = new Set<number>();
-    result.detections.forEach((detection, index) => {
-      if (ids.has(detection.id)) {
+    const ids = new Set<string>();
+    result.instances.forEach((instance, index) => {
+      if (ids.has(instance.id)) {
         context.addIssue({
           code: "custom",
-          path: ["detections", index, "id"],
-          message: `Duplicate detection id: ${detection.id}`,
+          path: ["instances", index, "id"],
+          message: `Duplicate instance id: ${instance.id}`,
         });
       }
-      ids.add(detection.id);
+      ids.add(instance.id);
+      const { x, y, width, height } = instance.bbox;
       if (
-        detection.x < 0 ||
-        detection.y < 0 ||
-        detection.x >= result.image.width ||
-        detection.y >= result.image.height
+        x < 0 ||
+        y < 0 ||
+        x + width > result.image.width ||
+        y + height > result.image.height
       ) {
         context.addIssue({
           code: "custom",
-          path: ["detections", index],
-          message: "Detection center is outside the image",
+          path: ["instances", index, "bbox"],
+          message: "Prelabel bounding box exceeds image bounds",
         });
       }
     });
   });
 
-export type SeedResult = z.infer<typeof resultSchema>;
-export type SeedDetection = SeedResult["detections"][number];
-export type SeedQuality = SeedResult["quality"];
-export type SeedWarning = SeedQuality["warnings"][number];
-export type ExecutionIdentity = z.infer<typeof executionSchema>;
-
-/** What a worker records when the detector could not process an image. */
 export const failureSchema = z.strictObject({
+  schema_version: z.literal(1),
   source: z.string().min(1),
+  producer: prelabelerDescriptorSchema,
   error: z.string().min(1).max(2000),
-  pipeline: pipelineSchema,
-  model: modelSchema,
-  config: pipelineConfigSchema,
 });
 
-/**
- * The detector's output for one image, exactly as the worker produced it.
- * It is the version every review starts from and is kept unchanged once a
- * label exists.
- */
 export const prelabelSchema = z.union([resultSchema, failureSchema]);
 
+export type PrelabelerDescriptor = z.infer<typeof prelabelerDescriptorSchema>;
+export type PrelabelResult = z.infer<typeof resultSchema>;
+export type SeedQuality = z.infer<typeof seedQualitySchema>;
+export type SeedWarning = SeedQuality["warnings"][number];
 export type PrelabelFailure = z.infer<typeof failureSchema>;
 export type Prelabel = z.infer<typeof prelabelSchema>;
 
 export function isFailure(prelabel: Prelabel): prelabel is PrelabelFailure {
   return "error" in prelabel;
 }
+
+/* Read-only compatibility contract for prelabels written before schema v1. */
+const legacyPipelineSchema = z.strictObject({
+  name: z.string().min(1),
+  fingerprint,
+});
+
+const legacyModelSchema = z.strictObject({
+  name: z.string().min(1),
+  fingerprint,
+});
+
+const legacyConfigSchema = z.object({}).passthrough();
+
+const legacyBaseSchema = z.strictObject({
+  source: z.string().min(1),
+  pipeline: legacyPipelineSchema,
+  model: legacyModelSchema,
+  config: legacyConfigSchema,
+});
+
+export const legacyResultSchema = legacyBaseSchema.extend({
+  image: z.strictObject({
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  }),
+  count: z.number().int().nonnegative(),
+  quality: z.strictObject({
+    status: z.enum(["ok", "review_required"]),
+    warnings: seedQualitySchema.shape.warnings,
+    clipped_fraction: z.number().min(0).max(1),
+    focus_score: z.number().nonnegative(),
+  }),
+  dish: dishSchema,
+  detections: z.array(
+    z.strictObject({
+      id: z.number().int().nonnegative(),
+      x: z.number().finite(),
+      y: z.number().finite(),
+      scale: z.number().positive(),
+      score: z.number().finite(),
+    }),
+  ),
+});
+
+export const legacyFailureSchema = legacyBaseSchema.extend({
+  error: z.string().min(1).max(2000),
+});
+
+export const legacyPrelabelSchema = z.union([
+  legacyResultSchema,
+  legacyFailureSchema,
+]);
+
+export type LegacyPrelabel = z.infer<typeof legacyPrelabelSchema>;

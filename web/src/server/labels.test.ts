@@ -4,13 +4,13 @@ import * as path from "node:path";
 
 import type { AnnotationDocument } from "../annotation/schema";
 import { createLabel, readLabel, updateLabel } from "./labels";
-import { DATA_ROOT } from "./paths";
+import { DATA_ROOT, LABELS_DIR } from "./paths";
 
 const document: AnnotationDocument = {
   image: { path: "images/set/a.jpg", width: 100, height: 100 },
   source: {
-    pipelineFingerprint: "a".repeat(64),
-    modelFingerprint: "b".repeat(64),
+    prelabelerVersionId: "traditional-test",
+    prelabelerFingerprint: "b".repeat(64),
   },
   status: "in_progress",
   revision: 0,
@@ -43,5 +43,26 @@ describe("labels", () => {
 
   test("keeps label files inside the labels directory", () => {
     expect(() => readLabel({ dataset: "..", stem: "escape" })).toThrow();
+  });
+
+  test("reads legacy provenance through the current annotation contract", () => {
+    const directory = path.join(LABELS_DIR, "legacy");
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+      path.join(directory, "a.json"),
+      JSON.stringify({
+        ...document,
+        source: {
+          pipelineFingerprint: "a".repeat(64),
+          modelFingerprint: "b".repeat(64),
+        },
+      }),
+    );
+
+    const migrated = readLabel({ dataset: "legacy", stem: "a" });
+    expect(
+      migrated?.source.prelabelerVersionId.startsWith("traditional-legacy-"),
+    ).toBe(true);
+    expect(migrated?.source.prelabelerFingerprint.length).toBe(64);
   });
 });

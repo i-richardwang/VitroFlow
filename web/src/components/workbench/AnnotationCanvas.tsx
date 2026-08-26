@@ -17,7 +17,7 @@ import type {
   SeedInstance,
 } from "../../annotation/schema";
 import type { ImageRef } from "../../datasets/schema";
-import type { SeedResult } from "../../detection/schema";
+import type { PrelabelResult } from "../../detection/schema";
 import {
   CANVAS_COLORS,
   TOOL_SPECS,
@@ -70,7 +70,7 @@ export function AnnotationCanvas({
   onInstancesChange,
 }: {
   image: ImageRef;
-  result: SeedResult;
+  result: PrelabelResult;
   annotation: AnnotationDocument;
   tool: Tool;
   /** Space is held: every press pans regardless of the active tool. */
@@ -217,11 +217,7 @@ export function AnnotationCanvas({
    * standard box does not contain.
    */
   const addBoxAt = (center: Point) => {
-    const box = boxAround(
-      center,
-      initialBoxSide(result.dish.radius),
-      annotation.image,
-    );
+    const box = boxAround(center, initialBoxSide(result), annotation.image);
     if (!box) {
       return;
     }
@@ -272,11 +268,11 @@ export function AnnotationCanvas({
           viewBox={`0 0 ${width} ${height}`}
           className="absolute inset-0 h-full w-full overflow-visible"
         >
-          {layers.has("dish") && (
+          {layers.has("dish") && result.diagnostics?.dish && (
             <circle
-              cx={result.dish.center_x}
-              cy={result.dish.center_y}
-              r={result.dish.radius}
+              cx={result.diagnostics.dish.center_x}
+              cy={result.diagnostics.dish.center_y}
+              r={result.diagnostics.dish.radius}
               fill="none"
               stroke={CANVAS_COLORS.dish}
               strokeWidth={1.5}
@@ -285,16 +281,16 @@ export function AnnotationCanvas({
             />
           )}
           {layers.has("detections") &&
-            result.detections.map((detection) => (
+            result.instances.map((instance) => (
               <circle
-                key={detection.id}
-                cx={detection.x}
-                cy={detection.y}
+                key={instance.id}
+                cx={instance.bbox.x + instance.bbox.width / 2}
+                cy={instance.bbox.y + instance.bbox.height / 2}
                 r={3 / transform.scale}
                 fill={CANVAS_COLORS.detection}
                 pointerEvents="none"
               >
-                <title>{`detection #${detection.id} · score ${detection.score}`}</title>
+                <title>{`prelabel #${instance.id} · score ${instance.score}`}</title>
               </circle>
             ))}
           {layers.has("boxes") &&

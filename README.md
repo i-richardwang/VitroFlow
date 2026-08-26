@@ -24,7 +24,7 @@ data/
 └── workers/<worker-id>.json         latest heartbeat from each Worker
 ```
 
-A dataset is a directory of images that trains one model. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Prelabels of unlabelled images are replaced whenever a Worker with a different pipeline or model fingerprint processes them.
+A dataset is a directory of images that trains one logical model, which can have multiple executable versions. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Prelabels of unlabelled images are replaced whenever a Worker with a different prelabeler version or fingerprint processes them.
 
 An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
 
@@ -69,18 +69,18 @@ export VITROFLOW_WORKER_TOKEN=<worker-secret>
 uv run vitroflow-worker
 ```
 
-Use `--model` and `--config` to run a selected candidate model and pipeline configuration. They are loaded once at Worker startup, so every image handled by that process has a stable execution identity. `--once` runs a single pass over the pending images and exits.
+Use `--model` and `--config` to configure the built-in traditional prelabeler. They are loaded once at Worker startup and together determine its immutable version identity. The Worker itself depends only on the common box-first prelabeler contract, so a YOLO implementation can replace the traditional adapter without changing the review API. `--once` runs a single pass over the pending images and exits.
 
 The Worker protocol has four calls under the workbench URL, each authenticated with `Authorization: Bearer <token>`:
 
 | Call | Purpose |
 |---|---|
-| `POST api/worker/heartbeat` | worker id, start time, execution identity, and the image currently in progress |
-| `GET api/worker/pending?pipeline=<fp>&model=<fp>` | images with no prelabel, or whose prelabel came from other fingerprints, excluding labelled images |
+| `POST api/worker/heartbeat` | worker id, start time, prelabeler descriptor, and the image currently in progress |
+| `GET api/worker/pending?version_id=<id>&fingerprint=<fp>` | images with no prelabel, or whose prelabel came from another version, excluding labelled images |
 | `GET api/worker/images/<dataset>/<stem>` | source image bytes |
 | `PUT api/worker/prelabels/<dataset>/<stem>` | prelabel document; `409` when a label already exists and the Worker skips the image |
 
-Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. A detection error becomes a failure document (`source`, `error`, `pipeline`, `model`, `config`), the image shows as `failed`, and the pass continues; a failed image is processed again once its prelabel is discarded from the workbench or a Worker with other fingerprints arrives. Prelabels are JSON only; rendered views belong to local recognition.
+Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; traditional-only metrics and dish geometry live under optional diagnostics. A detection error becomes a failure document (`schema_version`, `source`, `producer`, `error`), the image shows as `failed`, and the pass continues; a failed image is processed again once its prelabel is discarded from the workbench or a Worker with another version arrives. Prelabels written before the box-first contract are converted at the storage boundary when read. Prelabels are JSON only; rendered views belong to local recognition.
 
 The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
 
@@ -103,7 +103,7 @@ The container serves `/healthz` on Zeabur's `PORT`. Keep the Worker private; its
 
 ## Prelabel workflow
 
-The prelabel pipeline generates candidate centers and candidate-local evidence. Its candidate model combines a regularized global classifier with bounded local calibration. Scale-aware deduplication turns the scored candidates into the initial boxes shown in the workbench.
+The traditional prelabeler generates candidate centers and candidate-local evidence. Its candidate model combines a regularized global classifier with bounded local calibration. The adapter turns scale-aware deduplicated centers into the same canonical seed boxes that future YOLO prelabelers will emit.
 
 Evaluate the current model on all complete annotations:
 
@@ -252,6 +252,9 @@ src/vitroflow/
 │   ├── data.py       Candidate labels from reviewed boxes
 │   ├── evaluation.py Proposal and detection metrics
 │   └── training.py   Model and threshold selection
+├── prelabelers/
+│   ├── contract.py   Shared box-first runtime boundary
+│   └── traditional.py Traditional-vision adapter
 ├── yolo/
 │   ├── dataset.py    Canonical reviewed-label export
 │   ├── bootstrap.py  Prelabel bootstrap adapter

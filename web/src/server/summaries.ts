@@ -37,7 +37,7 @@ export function summarizeImage(ref: ImageRef): ImageSummary {
     dataset: ref.dataset,
     stem: ref.stem,
     state,
-    detectionCount: detected?.count ?? null,
+    detectionCount: detected?.instances.length ?? null,
     instanceCount: label?.instances.length ?? null,
     quality: detected?.quality ?? null,
     error: prelabel && isFailure(prelabel) ? prelabel.error : null,

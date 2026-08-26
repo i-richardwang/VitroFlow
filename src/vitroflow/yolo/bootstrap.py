@@ -57,6 +57,39 @@ def _load_prelabel(path: Path) -> DatasetImage:
     image = _object(payload.get("image"), f"{path}.image")
     width = _positive_integer(image.get("width"), f"{path}.image.width")
     height = _positive_integer(image.get("height"), f"{path}.image.height")
+
+    if payload.get("schema_version") == 1:
+        instances = payload.get("instances")
+        if not isinstance(instances, list):
+            raise TypeError(f"{path}.instances must be an array")
+        boxes = []
+        for index, raw_instance in enumerate(instances):
+            context = f"{path}.instances[{index}]"
+            instance = _object(raw_instance, context)
+            if instance.get("class") != "seed":
+                raise ValueError(f"{context}.class must be seed")
+            raw_box = _object(instance.get("bbox"), f"{context}.bbox")
+            box = BoundingBox(
+                x=_number(raw_box.get("x"), f"{context}.bbox.x"),
+                y=_number(raw_box.get("y"), f"{context}.bbox.y"),
+                width=_number(
+                    raw_box.get("width"), f"{context}.bbox.width", positive=True
+                ),
+                height=_number(
+                    raw_box.get("height"), f"{context}.bbox.height", positive=True
+                ),
+            )
+            if (
+                box.x < 0
+                or box.y < 0
+                or box.x + box.width > width
+                or box.y + box.height > height
+            ):
+                raise ValueError(f"{context}.bbox exceeds image bounds")
+            boxes.append(box)
+        return DatasetImage(Path(source_value), width, height, tuple(boxes))
+
+    # Bootstrap data written before the canonical box-first prelabel contract.
     dish = _object(payload.get("dish"), f"{path}.dish")
     radius = _number(dish.get("radius"), f"{path}.dish.radius", positive=True)
 

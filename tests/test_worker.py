@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
+from pathlib import Path
 
 import httpx
 import pytest
 
-from vitroflow.config import PipelineConfig
-from vitroflow.scoring import DEFAULT_MODEL
+from vitroflow.annotations import BoundingBox
+from vitroflow.prelabelers import (
+    PrelabelerDescriptor,
+    PrelabelInstance,
+    PrelabelQuality,
+    PrelabelResult,
+)
 from vitroflow.worker import (
     PendingImage,
     WorkerClient,
@@ -16,8 +21,38 @@ from vitroflow.worker import (
     run_pass,
 )
 
-IDENTITY = WorkerIdentity.create("test-worker", PipelineConfig(), DEFAULT_MODEL)
-RESULT = {"source": "images/set/a.jpg", "count": 1, "detections": []}
+DESCRIPTOR = PrelabelerDescriptor(
+    version_id="traditional-test",
+    name="test prelabeler",
+    kind="traditional",
+    fingerprint="b" * 64,
+)
+
+
+class FakePrelabeler:
+    descriptor = DESCRIPTOR
+
+    def predict(self, image_path: Path, source: Path) -> PrelabelResult:
+        assert image_path.read_bytes() == b"source"
+        return PrelabelResult(
+            source=source,
+            width=100,
+            height=80,
+            producer=self.descriptor,
+            instances=(PrelabelInstance("1", BoundingBox(10, 20, 8, 6), 0.9),),
+            quality=PrelabelQuality("ok"),
+        )
+
+
+class FailingPrelabeler:
+    descriptor = DESCRIPTOR
+
+    def predict(self, image_path: Path, source: Path) -> PrelabelResult:
+        raise ValueError("dish not found")
+
+
+PRELABELER = FakePrelabeler()
+IDENTITY = WorkerIdentity.create("test-worker", PRELABELER)
 
 
 class Workbench:
@@ -63,15 +98,6 @@ class Workbench:
         ]
 
 
-def _count_seeds(image_path, *, source, config, model):
-    assert image_path.read_bytes() == b"source"
-    return SimpleNamespace(to_dict=lambda: {**RESULT, "source": source})
-
-
-def _failing_count_seeds(image_path, *, source, config, model):
-    raise ValueError("dish not found")
-
-
 PENDING = [
     {"dataset": "set", "stem": "a", "source": "images/set/a.jpg"},
     {"dataset": "set", "stem": "b", "source": "images/set/b.png"},
@@ -96,28 +122,21 @@ def test_pending_image_requires_every_field() -> None:
         PendingImage.from_dict({"dataset": "set", "stem": "a"})
 
 
-def test_worker_identity_reports_a_stable_execution() -> None:
+def test_worker_identity_reports_its_prelabeler() -> None:
     image = PendingImage("set", "a", "images/set/a.jpg")
     heartbeat = IDENTITY.heartbeat(image)
 
     assert heartbeat["workerId"] == "test-worker"
     assert heartbeat["current"] == {"dataset": "set", "stem": "a"}
-    execution = heartbeat["execution"]
-    assert isinstance(execution, dict)
-    assert execution["model"] == {
-        "name": DEFAULT_MODEL.name,
-        "fingerprint": DEFAULT_MODEL.fingerprint,
-    }
-    assert execution["config"] == PipelineConfig().to_dict()
+    assert heartbeat["prelabeler"] == DESCRIPTOR.to_dict()
     assert IDENTITY.heartbeat(None)["current"] is None
 
 
-def test_pass_prelabels_every_pending_image(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("vitroflow.worker.count_seeds", _count_seeds)
+def test_pass_prelabels_every_pending_image(tmp_path: Path) -> None:
     workbench = Workbench(PENDING)
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, PipelineConfig(), DEFAULT_MODEL) is True
+        assert run_pass(client, tmp_path, PRELABELER) is True
     finally:
         client.close()
 
@@ -134,44 +153,47 @@ def test_pass_prelabels_every_pending_image(tmp_path, monkeypatch) -> None:
     ]
     pending = workbench.requests[1]
     assert dict(pending.url.params) == {
-        "pipeline": IDENTITY.execution.pipeline_fingerprint,
-        "model": IDENTITY.execution.model_fingerprint,
+        "version_id": DESCRIPTOR.version_id,
+        "fingerprint": DESCRIPTOR.fingerprint,
     }
     assert json.loads(workbench.requests[2].read()) == IDENTITY.heartbeat(
         PendingImage.from_dict(PENDING[0])
     )
     assert json.loads(workbench.requests[8].read())["current"] is None
-    assert workbench.prelabel_bodies() == [
-        {**RESULT, "source": "images/set/a.jpg"},
-        {**RESULT, "source": "images/set/b.png"},
+    assert [body["source"] for body in workbench.prelabel_bodies()] == [
+        "images/set/a.jpg",
+        "images/set/b.png",
     ]
+    assert all(
+        body["producer"] == DESCRIPTOR.to_dict() for body in workbench.prelabel_bodies()
+    )
+    assert all(len(body["instances"]) == 1 for body in workbench.prelabel_bodies())
     assert list(tmp_path.iterdir()) == []
 
 
-def test_pass_records_a_failure_document(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("vitroflow.worker.count_seeds", _failing_count_seeds)
+def test_pass_records_a_failure_document(tmp_path: Path) -> None:
     workbench = Workbench(PENDING[:1])
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, PipelineConfig(), DEFAULT_MODEL) is True
+        assert run_pass(client, tmp_path, FailingPrelabeler()) is True
     finally:
         client.close()
 
     assert workbench.prelabel_bodies() == [
         {
+            "schema_version": 1,
             "source": "images/set/a.jpg",
+            "producer": DESCRIPTOR.to_dict(),
             "error": "dish not found",
-            **IDENTITY.execution.to_dict(),
         }
     ]
 
 
-def test_pass_skips_images_that_gained_a_label(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("vitroflow.worker.count_seeds", _count_seeds)
+def test_pass_skips_images_that_gained_a_label(tmp_path: Path) -> None:
     workbench = Workbench(PENDING, prelabel_status=409)
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, PipelineConfig(), DEFAULT_MODEL) is True
+        assert run_pass(client, tmp_path, PRELABELER) is True
     finally:
         client.close()
 
@@ -181,22 +203,21 @@ def test_pass_skips_images_that_gained_a_label(tmp_path, monkeypatch) -> None:
     ]
 
 
-def test_pass_propagates_http_errors(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("vitroflow.worker.count_seeds", _count_seeds)
+def test_pass_propagates_http_errors(tmp_path: Path) -> None:
     workbench = Workbench(PENDING[:1], prelabel_status=400)
     client = workbench.client()
     try:
         with pytest.raises(httpx.HTTPStatusError):
-            run_pass(client, tmp_path, PipelineConfig(), DEFAULT_MODEL)
+            run_pass(client, tmp_path, PRELABELER)
     finally:
         client.close()
 
 
-def test_pass_returns_false_when_nothing_is_pending(tmp_path) -> None:
+def test_pass_returns_false_when_nothing_is_pending(tmp_path: Path) -> None:
     workbench = Workbench([])
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, PipelineConfig(), DEFAULT_MODEL) is False
+        assert run_pass(client, tmp_path, PRELABELER) is False
     finally:
         client.close()
 

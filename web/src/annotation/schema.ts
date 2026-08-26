@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
-const boundingBoxSchema = z.strictObject({
+export const boundingBoxSchema = z.strictObject({
   x: z.number().finite(),
   y: z.number().finite(),
   width: z.number().positive(),
@@ -23,8 +23,10 @@ export const annotationSchema = z
       height: z.number().int().positive(),
     }),
     source: z.strictObject({
-      pipelineFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-      modelFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      prelabelerVersionId: z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
+      prelabelerFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     }),
     status: z.enum(REVIEW_STATUSES),
     excludedReason: z.string().min(1).optional(),

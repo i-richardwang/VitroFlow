@@ -6,7 +6,7 @@ import { Route as HeartbeatRoute } from "../routes/api.worker.heartbeat";
 import { Route as ImageRoute } from "../routes/api.worker.images.$dataset.$stem";
 import { Route as PendingRoute } from "../routes/api.worker.pending";
 import { Route as PrelabelRoute } from "../routes/api.worker.prelabels.$dataset.$stem";
-import { documentFromResult } from "../annotation/prelabel";
+import { documentFromPrelabel } from "../annotation/prelabel";
 import { createLabel } from "./labels";
 import { readPrelabel } from "./prelabels";
 import { readWorker } from "./worker-store";
@@ -26,7 +26,7 @@ function handler(
   return selected;
 }
 
-const { pipeline, model, config } = makeResult([]);
+const { producer } = makeResult([]);
 const ref = { dataset: "api", stem: "api" };
 
 test("worker HTTP routes carry an image from upload to prelabel", async () => {
@@ -54,7 +54,7 @@ test("worker HTTP routes carry an image from upload to prelabel", async () => {
       body: JSON.stringify({
         workerId: "api-worker",
         startedAt: "2026-01-01T00:00:00Z",
-        execution: { pipeline, model, config },
+        prelabeler: producer,
         current: ref,
       }),
     }),
@@ -62,7 +62,7 @@ test("worker HTTP routes carry an image from upload to prelabel", async () => {
   expect(heartbeatResponse.status).toBe(200);
   expect(readWorker("api-worker")?.current).toEqual(ref);
 
-  const pendingUrl = `http://localhost/api/worker/pending?pipeline=${pipeline.fingerprint}&model=${model.fingerprint}`;
+  const pendingUrl = `http://localhost/api/worker/pending?version_id=${producer.version_id}&fingerprint=${producer.fingerprint}`;
   const pendingResponse = await handler(
     PendingRoute,
     "GET",
@@ -111,6 +111,6 @@ test("worker HTTP routes carry an image from upload to prelabel", async () => {
   expect((await put(result)).status).toBe(200);
   expect(readPrelabel(ref)).toEqual(result);
 
-  createLabel(ref, documentFromResult(result));
+  createLabel(ref, documentFromPrelabel(result));
   expect((await put(result)).status).toBe(409);
 });

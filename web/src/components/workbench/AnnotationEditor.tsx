@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { AnnotationDocument, SeedInstance } from "../../annotation/schema";
 import type { ImageRef } from "../../datasets/schema";
-import type { SeedResult } from "../../detection/schema";
+import type { PrelabelResult } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
 import { useHistory } from "../../hooks/useHistory";
 import { PanelRightIcon, RedoIcon, UndoIcon } from "../icons";
@@ -37,7 +37,7 @@ export function AnnotationEditor({
   label,
 }: {
   image: ImageRef;
-  result: SeedResult;
+  result: PrelabelResult;
   label: AnnotationDocument;
 }) {
   const { annotation, saveState, error, setInstances, review, retry } =
@@ -209,7 +209,7 @@ function CanvasStage({
   onRedo,
 }: {
   image: ImageRef;
-  result: SeedResult;
+  result: PrelabelResult;
   annotation: AnnotationDocument;
   tool: Tool;
   panning: boolean;

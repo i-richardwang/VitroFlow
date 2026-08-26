@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { documentFromResult } from "../annotation/prelabel";
+import { documentFromPrelabel } from "../annotation/prelabel";
 import { annotationSchema } from "../annotation/schema";
 import { imageRefSchema } from "../datasets/schema";
 import { isFailure } from "../detection/schema";
@@ -35,7 +35,7 @@ export const initializeLabel = createServerFn({ method: "POST" })
     if (!prelabel || isFailure(prelabel)) {
       throw new Error("The image has no detections to start from");
     }
-    return createLabel(data, documentFromResult(prelabel));
+    return createLabel(data, documentFromPrelabel(prelabel));
   });
 
 export const saveLabel = createServerFn({ method: "POST" })

@@ -21,9 +21,8 @@ import cv2
 import httpx
 
 from .config import PipelineConfig
-from .identity import ExecutionIdentity
-from .pipeline import count_seeds
-from .scoring import DEFAULT_MODEL, CandidateModel, load_candidate_model
+from .prelabelers import Prelabeler, PrelabelerDescriptor, TraditionalPrelabeler
+from .scoring import DEFAULT_MODEL, load_candidate_model
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
@@ -95,23 +94,21 @@ class WorkerIdentity:
 
     worker_id: str
     started_at: str
-    execution: ExecutionIdentity
+    prelabeler: PrelabelerDescriptor
 
     @classmethod
-    def create(
-        cls, worker_id: str, config: PipelineConfig, model: CandidateModel
-    ) -> WorkerIdentity:
+    def create(cls, worker_id: str, prelabeler: Prelabeler) -> WorkerIdentity:
         return cls(
             worker_id,
             datetime.now(UTC).isoformat(),
-            ExecutionIdentity.create(config, model),
+            prelabeler.descriptor,
         )
 
     def heartbeat(self, current: PendingImage | None) -> dict[str, object]:
         return {
             "workerId": self.worker_id,
             "startedAt": self.started_at,
-            "execution": self.execution.to_dict(),
+            "prelabeler": self.prelabeler.to_dict(),
             "current": current.to_dict() if current else None,
         }
 
@@ -120,7 +117,8 @@ class WorkerIdentity:
         return {
             "source": image.source,
             "error": str(error)[:_ERROR_MESSAGE_LIMIT],
-            **self.execution.to_dict(),
+            "schema_version": 1,
+            "producer": self.prelabeler.to_dict(),
         }
 
 
@@ -168,13 +166,13 @@ class WorkerClient:
         response.raise_for_status()
 
     def pending(self) -> tuple[PendingImage, ...]:
-        execution = self.identity.execution
+        prelabeler = self.identity.prelabeler
         response = self._request(
             "GET",
             "api/worker/pending",
             params={
-                "pipeline": execution.pipeline_fingerprint,
-                "model": execution.model_fingerprint,
+                "version_id": prelabeler.version_id,
+                "fingerprint": prelabeler.fingerprint,
             },
         )
         response.raise_for_status()
@@ -215,13 +213,10 @@ def prelabel_document(
     image: PendingImage,
     image_path: Path,
     identity: WorkerIdentity,
-    config: PipelineConfig,
-    model: CandidateModel,
+    prelabeler: Prelabeler,
 ) -> dict[str, object]:
     try:
-        result = count_seeds(
-            image_path, source=image.source, config=config, model=model
-        )
+        result = prelabeler.predict(image_path, Path(image.source))
     except DETECTION_ERRORS as error:
         print(f"detection failed for {image.source}: {error}", file=sys.stderr)
         return identity.failure(image, error)
@@ -232,15 +227,14 @@ def process_image(
     client: WorkerClient,
     image: PendingImage,
     work_dir: Path,
-    config: PipelineConfig,
-    model: CandidateModel,
+    prelabeler: Prelabeler,
 ) -> None:
     report_heartbeat(client, image)
     suffix = Path(image.source).suffix.lower() or ".jpg"
     image_path = work_dir / f"{image.dataset}-{image.stem}{suffix}"
     image_path.write_bytes(client.download(image))
     try:
-        document = prelabel_document(image, image_path, client.identity, config, model)
+        document = prelabel_document(image, image_path, client.identity, prelabeler)
     finally:
         image_path.unlink(missing_ok=True)
     if client.put_prelabel(image, document):
@@ -250,8 +244,7 @@ def process_image(
 def run_pass(
     client: WorkerClient,
     work_root: Path,
-    config: PipelineConfig,
-    model: CandidateModel,
+    prelabeler: Prelabeler,
 ) -> bool:
     """Prelabel every pending image once; returns False when nothing was pending."""
     report_heartbeat(client, None)
@@ -261,7 +254,7 @@ def run_pass(
     print(f"{len(images)} pending images", flush=True)
     with tempfile.TemporaryDirectory(prefix="vitroflow-", dir=work_root) as temporary:
         for image in images:
-            process_image(client, image, Path(temporary), config, model)
+            process_image(client, image, Path(temporary), prelabeler)
     report_heartbeat(client, None)
     return True
 
@@ -331,19 +324,20 @@ def main(argv: list[str] | None = None) -> int:
             PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
         )
         model = load_candidate_model(args.model) if args.model else DEFAULT_MODEL
+        prelabeler = TraditionalPrelabeler(config, model)
     except (OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     client = WorkerClient(
         args.server,
         args.token,
-        WorkerIdentity.create(args.worker_id, config, model),
+        WorkerIdentity.create(args.worker_id, prelabeler),
     )
     try:
         with _health_server(args.health_port):
             while True:
                 try:
-                    processed = run_pass(client, args.work_dir, config, model)
+                    processed = run_pass(client, args.work_dir, prelabeler)
                 except WORKER_ERRORS as error:
                     print(f"worker error: {error}", file=sys.stderr, flush=True)
                     processed = False
