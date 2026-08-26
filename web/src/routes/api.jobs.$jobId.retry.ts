@@ -1,23 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { retryJob } from "../server/job-store";
-import { redirect } from "../server/session";
 
 export const Route = createFileRoute("/api/jobs/$jobId/retry")({
   server: {
     handlers: {
       POST: ({ params }) => {
-        const search = new URLSearchParams();
         try {
           retryJob(params.jobId);
-          search.set("retried", params.jobId);
+          return Response.json({ retried: params.jobId });
         } catch (error) {
-          search.set(
-            "error",
-            error instanceof Error ? error.message : String(error),
+          return Response.json(
+            { error: error instanceof Error ? error.message : String(error) },
+            { status: 400 },
           );
         }
-        return redirect(`/jobs?${search}`);
       },
     },
   },

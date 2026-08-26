@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import type { ReactNode } from "react";
 
-import { Link, RouterProvider } from "@heroui/react";
+import { Link, RouterProvider, Toast } from "@heroui/react";
 import {
   HeadContent,
   Outlet,
@@ -33,6 +33,7 @@ function RootComponent() {
         <div className="flex min-h-0 flex-1 flex-col">
           <Outlet />
         </div>
+        <Toast.Provider placement="bottom end" />
       </RouterProvider>
     </RootDocument>
   );

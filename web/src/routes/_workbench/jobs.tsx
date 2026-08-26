@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Card,
   Chip,
@@ -13,10 +12,10 @@ import {
   Link,
   Table,
   TextField,
+  toast,
 } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 
 import { ImageDropZone } from "../../components/ImageDropZone";
 import { Page } from "../../components/Page";
@@ -24,11 +23,6 @@ import type { JobStatus } from "../../jobs/schema";
 import { getJobs } from "../../server/jobs";
 
 export const Route = createFileRoute("/_workbench/jobs")({
-  validateSearch: z.object({
-    created: z.string().optional(),
-    retried: z.string().optional(),
-    error: z.string().optional(),
-  }),
   loader: () => getJobs(),
   component: JobsPage,
 });
@@ -48,7 +42,6 @@ const STATUS: Record<
 
 function JobsPage() {
   const jobs = Route.useLoaderData();
-  const search = Route.useSearch();
   const router = useRouter();
   const active = jobs.some(
     (job) =>
@@ -70,25 +63,6 @@ function JobsPage() {
       title="Jobs"
       description="Upload images here. A connected Worker will process them and publish a run for annotation."
     >
-      {search.error && (
-        <Alert status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{search.error}</Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-      {(search.created || search.retried) && (
-        <Alert status="success">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              {search.created ? "Job created." : "Job queued again."}
-            </Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-
       <CreateJobForm />
 
       <Table>
@@ -146,11 +120,7 @@ function JobsPage() {
                   </Table.Cell>
                   <Table.Cell>
                     {job.status === "failed" ? (
-                      <Form method="post" action={`/api/jobs/${job.id}/retry`}>
-                        <Button type="submit" variant="secondary" size="sm">
-                          Retry
-                        </Button>
-                      </Form>
+                      <RetryButton jobId={job.id} />
                     ) : job.status === "succeeded" ? (
                       <Link
                         href={`/runs/${job.runId}`}
@@ -175,7 +145,6 @@ function JobsPage() {
 function CreateJobForm() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{
     loaded: number;
     total: number;
@@ -187,12 +156,7 @@ function CreateJobForm() {
         className="w-full"
         onSubmit={(event) => {
           event.preventDefault();
-          if (files.length === 0) {
-            setError("Select at least one image");
-            return;
-          }
           const form = event.currentTarget;
-          setError(null);
           setProgress({
             loaded: 0,
             total: files.reduce((sum, file) => sum + file.size, 0),
@@ -200,15 +164,15 @@ function CreateJobForm() {
           void createJob(form, files, (loaded, total) => {
             setProgress({ loaded, total });
           })
-            .then(async (search) => {
-              if (search.created) {
-                setFiles([]);
-              }
-              await router.navigate({ to: "/jobs", search });
+            .then(async () => {
+              setFiles([]);
+              toast.success("Job created");
               await router.invalidate();
             })
-            .catch((cause) => {
-              setError(cause instanceof Error ? cause.message : String(cause));
+            .catch((cause: unknown) => {
+              toast.danger("Job not created", {
+                description: errorMessage(cause),
+              });
             })
             .finally(() => {
               setProgress(null);
@@ -241,7 +205,6 @@ function CreateJobForm() {
               onChange={setFiles}
               progress={progress}
             />
-            {error && <p className="text-xs text-danger">{error}</p>}
           </div>
           <Fieldset.Actions>
             <Button
@@ -263,6 +226,52 @@ function CreateJobForm() {
   );
 }
 
+function RetryButton({ jobId }: { jobId: string }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      isDisabled={pending}
+      onPress={() => {
+        setPending(true);
+        void retryJob(jobId)
+          .then(async () => {
+            toast.success("Job queued again");
+            await router.invalidate();
+          })
+          .catch((cause: unknown) => {
+            toast.danger("Job not queued", {
+              description: errorMessage(cause),
+            });
+          })
+          .finally(() => {
+            setPending(false);
+          });
+      }}
+    >
+      Retry
+    </Button>
+  );
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
+async function retryJob(jobId: string): Promise<void> {
+  const response = await fetch(`/api/jobs/${jobId}/retry`, { method: "POST" });
+  if (response.ok) {
+    return;
+  }
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+  throw new Error(body?.error ?? `Retry failed (${response.status})`);
+}
+
 function createJob(
   form: HTMLFormElement,
   files: File[],
@@ -272,39 +281,32 @@ function createJob(
   for (const file of files) {
     data.append("images", file);
   }
-  return new Promise<{ created?: string; error?: string }>(
-    (resolve, reject) => {
-      const request = new XMLHttpRequest();
-      request.open("POST", "/api/jobs");
-      request.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          onProgress(event.loaded, event.total);
-        }
-      };
-      request.onload = () => {
-        let body: { created?: string; error?: string };
-        try {
-          body = JSON.parse(request.responseText) as {
-            created?: string;
-            error?: string;
-          };
-        } catch {
-          reject(new Error("Upload failed"));
-          return;
-        }
-        if (request.status >= 400 && body.error == null) {
-          reject(new Error(`Upload failed (${request.status})`));
-          return;
-        }
-        resolve({
-          created: body.created,
-          error: body.error,
-        });
-      };
-      request.onerror = () => {
-        reject(new Error("Upload failed"));
-      };
-      request.send(data);
-    },
-  );
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/jobs");
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(event.loaded, event.total);
+      }
+    };
+    request.onload = () => {
+      let body: { error?: string } | null;
+      try {
+        body = JSON.parse(request.responseText) as { error?: string };
+      } catch {
+        body = null;
+      }
+      if (body?.error != null) {
+        reject(new Error(body.error));
+      } else if (request.status >= 400 || body == null) {
+        reject(new Error(`Upload failed (${request.status})`));
+      } else {
+        resolve();
+      }
+    };
+    request.onerror = () => {
+      reject(new Error("Upload failed"));
+    };
+    request.send(data);
+  });
 }
