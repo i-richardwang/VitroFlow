@@ -50,10 +50,8 @@ test("worker HTTP routes implement the recognition lifecycle", async () => {
       body: upload,
     }),
   } as never);
-  expect(createResponse.status).toBe(303);
-  const createdId = new URL(
-    createResponse.headers.get("location") ?? "",
-  ).searchParams.get("created");
+  expect(createResponse.status).toBe(200);
+  const createdId = (await createResponse.json()).created as string;
 
   const job = listJobs().find((candidate) => candidate.id === createdId);
   if (!job) {

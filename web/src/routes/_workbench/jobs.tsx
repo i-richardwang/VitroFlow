@@ -282,14 +282,23 @@ function createJob(
         }
       };
       request.onload = () => {
-        if (request.status >= 400) {
+        let body: { created?: string; error?: string };
+        try {
+          body = JSON.parse(request.responseText) as {
+            created?: string;
+            error?: string;
+          };
+        } catch {
+          reject(new Error("Upload failed"));
+          return;
+        }
+        if (request.status >= 400 && body.error == null) {
           reject(new Error(`Upload failed (${request.status})`));
           return;
         }
-        const url = new URL(request.responseURL, window.location.origin);
         resolve({
-          created: url.searchParams.get("created") ?? undefined,
-          error: url.searchParams.get("error") ?? undefined,
+          created: body.created,
+          error: body.error,
         });
       };
       request.onerror = () => {

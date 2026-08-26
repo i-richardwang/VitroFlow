@@ -5,18 +5,21 @@ import { retryJob } from "../server/job-store";
 export const Route = createFileRoute("/api/jobs/$jobId/retry")({
   server: {
     handlers: {
-      POST: ({ params, request }) => {
-        const url = new URL("/jobs", request.url);
+      POST: ({ params }) => {
+        const search = new URLSearchParams();
         try {
           retryJob(params.jobId);
-          url.searchParams.set("retried", params.jobId);
+          search.set("retried", params.jobId);
         } catch (error) {
-          url.searchParams.set(
+          search.set(
             "error",
             error instanceof Error ? error.message : String(error),
           );
         }
-        return Response.redirect(url, 303);
+        return new Response(null, {
+          status: 303,
+          headers: { Location: `/jobs?${search}` },
+        });
       },
     },
   },
