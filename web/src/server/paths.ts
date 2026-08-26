@@ -36,10 +36,7 @@ export function resolveWithin(root: string, ...segments: string[]): string {
  * directory without the extension, such as `fixtures/_DSF1687`.
  */
 export function imageKey(source: string): string {
-  const relative = path.relative(
-    IMAGES_DIR,
-    resolveWithin(DATA_ROOT, source),
-  );
+  const relative = path.relative(IMAGES_DIR, resolveWithin(DATA_ROOT, source));
   if (relative.startsWith("..")) {
     throw new Error(`Source is not under ${IMAGES_DIR}: ${source}`);
   }

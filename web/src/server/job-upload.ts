@@ -65,9 +65,10 @@ function collectCandidates(dataset: string, files: File[]): UploadCandidate[] {
   });
 }
 
-export async function createJobFromUpload(form: FormData): Promise<RecognitionJob> {
+export async function createJobFromUpload(
+  form: FormData,
+): Promise<RecognitionJob> {
   const dataset = String(form.get("dataset") ?? "").trim();
-  const runId = String(form.get("runId") ?? "").trim();
   const files = form
     .getAll("images")
     .filter((value): value is File => value instanceof File && value.size > 0);
@@ -99,7 +100,11 @@ export async function createJobFromUpload(form: FormData): Promise<RecognitionJo
         path.basename(candidate.filePath),
       );
       if (fs.existsSync(candidate.filePath)) {
-        if (!fs.readFileSync(candidate.filePath).equals(fs.readFileSync(stagedPath))) {
+        if (
+          !fs
+            .readFileSync(candidate.filePath)
+            .equals(fs.readFileSync(stagedPath))
+        ) {
           throw new Error(
             `Image content differs from existing source: ${candidate.source}`,
           );
@@ -112,7 +117,6 @@ export async function createJobFromUpload(form: FormData): Promise<RecognitionJo
     }
     return createJob(
       dataset,
-      runId,
       candidates.map(({ source, stem }) => ({ source, stem })),
     );
   } catch (error) {

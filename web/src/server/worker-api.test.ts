@@ -40,7 +40,6 @@ function handler(
 test("worker HTTP routes implement the recognition lifecycle", async () => {
   const upload = new FormData();
   upload.set("dataset", "api");
-  upload.set("runId", "api-run");
   upload.append("images", new File(["image"], "api.jpg"));
   const createResponse = await handler(
     CreateRoute,
@@ -52,8 +51,11 @@ test("worker HTTP routes implement the recognition lifecycle", async () => {
     }),
   } as never);
   expect(createResponse.status).toBe(303);
+  const createdId = new URL(
+    createResponse.headers.get("location") ?? "",
+  ).searchParams.get("created");
 
-  const job = listJobs().find((candidate) => candidate.runId === "api-run");
+  const job = listJobs().find((candidate) => candidate.id === createdId);
   if (!job) {
     throw new Error("Job route did not create a job");
   }

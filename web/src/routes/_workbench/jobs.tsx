@@ -146,10 +146,7 @@ function JobsPage() {
                   </Table.Cell>
                   <Table.Cell>
                     {job.status === "failed" ? (
-                      <Form
-                        method="post"
-                        action={`/api/jobs/${job.id}/retry`}
-                      >
+                      <Form method="post" action={`/api/jobs/${job.id}/retry`}>
                         <Button type="submit" variant="secondary" size="sm">
                           Retry
                         </Button>
@@ -221,10 +218,9 @@ function CreateJobForm() {
         <Fieldset>
           <Fieldset.Legend>New recognition job</Fieldset.Legend>
           <Description>
-            Dataset and run identifiers use letters, numbers, dots, dashes, and
-            underscores.
+            Dataset names use letters, numbers, dots, dashes, and underscores.
           </Description>
-          <Fieldset.Group className="grid gap-4 md:grid-cols-2">
+          <Fieldset.Group>
             <TextField
               fullWidth
               isRequired
@@ -235,20 +231,6 @@ function CreateJobForm() {
             >
               <Label>Dataset</Label>
               <Input className="font-mono" placeholder="seed-2026-08" />
-              <FieldError />
-            </TextField>
-            <TextField
-              fullWidth
-              isRequired
-              isDisabled={progress != null}
-              name="runId"
-              pattern={IDENTIFIER}
-            >
-              <Label>Run ID</Label>
-              <Input
-                className="font-mono"
-                placeholder="seed-2026-08-baseline"
-              />
               <FieldError />
             </TextField>
           </Fieldset.Group>

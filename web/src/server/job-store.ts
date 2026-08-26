@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -172,27 +172,30 @@ export function listJobs(): RecognitionJob[] {
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+/** Opaque run identifier: 12 hex characters not used by any job or run. */
+function newRunId(): string {
+  const taken = new Set(listJobs().map((job) => job.runId));
+  for (;;) {
+    const runId = randomBytes(6).toString("hex");
+    if (!taken.has(runId) && !fs.existsSync(runDir(runId))) {
+      return runId;
+    }
+  }
+}
+
 export function createJob(
   dataset: string,
-  runId: string,
   sources: Array<Omit<JobImage, "id">>,
 ): RecognitionJob {
   assertIdentifier(dataset, "Dataset");
-  assertIdentifier(runId, "Run ID");
   if (sources.length === 0) {
     throw new Error("A job must contain at least one image");
-  }
-  if (fs.existsSync(runDir(runId))) {
-    throw new Error(`Run already exists: ${runId}`);
-  }
-  if (listJobs().some((job) => job.runId === runId)) {
-    throw new Error(`Run already has a job: ${runId}`);
   }
 
   const job: QueuedJob = {
     id: randomUUID(),
     dataset,
-    runId,
+    runId: newRunId(),
     status: "queued",
     images: sources.map((source) => ({ id: randomUUID(), ...source })),
     completedImages: 0,

@@ -37,17 +37,16 @@ function resultArtifacts(source: string, pipeline = "a"): FormData {
   return artifacts;
 }
 
-async function createJob(dataset: string, runId: string, filename: string) {
+async function createJob(dataset: string, filename: string) {
   const upload = new FormData();
   upload.set("dataset", dataset);
-  upload.set("runId", runId);
   upload.append("images", new File(["image"], filename));
   return createJobFromUpload(upload);
 }
 
 describe("recognition jobs", () => {
   test("publishes complete results and completes idempotently", async () => {
-    const created = await createJob("batch", "run-a", "sample.jpg");
+    const created = await createJob("batch", "sample.jpg");
     expect(created.status).toBe("queued");
     expect(readJobImage(created.id, created.images[0].id).filename).toBe(
       "sample.jpg",
@@ -70,12 +69,12 @@ describe("recognition jobs", () => {
     expect(completed.status).toBe("succeeded");
     expect(completeJob(created.id)).toEqual(completed);
     expect(
-      fs.existsSync(path.join(DATA_ROOT, "runs", "run-a", "sample.json")),
+      fs.existsSync(path.join(DATA_ROOT, "runs", created.runId, "sample.json")),
     ).toBe(true);
   });
 
   test("recovers a publishing job after the result directory moved", async () => {
-    const created = await createJob("recovery", "run-recovery", "recover.jpg");
+    const created = await createJob("recovery", "recover.jpg");
     expect(claimNextJob("worker-a")?.id).toBe(created.id);
     await storeJobResult(
       created.id,
@@ -119,7 +118,6 @@ describe("recognition jobs", () => {
   test("rejects mixed execution identities", async () => {
     const upload = new FormData();
     upload.set("dataset", "identity");
-    upload.set("runId", "run-identity");
     upload.append("images", new File(["one"], "one.jpg"));
     upload.append("images", new File(["two"], "two.jpg"));
     const created = await createJobFromUpload(upload);
@@ -141,7 +139,7 @@ describe("recognition jobs", () => {
   });
 
   test("requeues failed work and removes partial results", async () => {
-    const created = await createJob("retry", "run-retry", "retry.jpg");
+    const created = await createJob("retry", "retry.jpg");
     expect(claimNextJob("worker-a")?.id).toBe(created.id);
     await storeJobResult(
       created.id,
@@ -160,17 +158,15 @@ describe("recognition jobs", () => {
   });
 
   test("reuses unchanged source images for a later run", async () => {
-    await createJob("shared", "shared-a", "shared.jpg");
+    await createJob("shared", "shared.jpg");
 
     const second = new FormData();
     second.set("dataset", "shared");
-    second.set("runId", "shared-b");
     second.append("images", new File(["image"], "shared.jpg"));
-    expect((await createJobFromUpload(second)).runId).toBe("shared-b");
+    expect((await createJobFromUpload(second)).dataset).toBe("shared");
 
     const changed = new FormData();
     changed.set("dataset", "shared");
-    changed.set("runId", "shared-c");
     changed.append("images", new File(["changed"], "shared.jpg"));
     await expect(createJobFromUpload(changed)).rejects.toThrow(
       /content differs/,
@@ -189,7 +185,7 @@ describe("recognition jobs", () => {
   });
 
   test("hands a running job to another worker only after its lease lapses", async () => {
-    const created = await createJob("lease", "run-lease", "lease.jpg");
+    const created = await createJob("lease", "lease.jpg");
     const heartbeat = {
       workerId: "worker-lease",
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -221,39 +217,9 @@ describe("recognition jobs", () => {
     failJob(created.id, "test complete");
   });
 
-  test("rolls back source ingestion when job creation fails", async () => {
-    const created = await createJob(
-      "transaction",
-      "run-transaction",
-      "first.jpg",
-    );
-    const duplicate = new FormData();
-    duplicate.set("dataset", "transaction");
-    duplicate.set("runId", "run-transaction");
-    duplicate.append("images", new File(["second"], "second.jpg"));
-
-    await expect(createJobFromUpload(duplicate)).rejects.toThrow(
-      /already has a job/,
-    );
-    expect(
-      fs.existsSync(
-        path.join(DATA_ROOT, "images", "transaction", "second.jpg"),
-      ),
-    ).toBe(false);
-    expect(
-      fs
-        .readdirSync(path.join(DATA_ROOT, "staging"))
-        .some((name) => name.startsWith("upload-")),
-    ).toBe(false);
-
-    expect(claimNextJob("worker-a")?.id).toBe(created.id);
-    failJob(created.id, "test complete");
-  });
-
   test("rejects batches beyond the public upload limit", async () => {
     const upload = new FormData();
     upload.set("dataset", "oversized");
-    upload.set("runId", "oversized");
     for (let index = 0; index < 101; index += 1) {
       upload.append("images", new File(["x"], `${index}.jpg`));
     }
@@ -261,11 +227,7 @@ describe("recognition jobs", () => {
   });
 
   test("rejects oversized Worker artifacts", async () => {
-    const created = await createJob(
-      "artifacts",
-      "run-artifacts",
-      "artifact.jpg",
-    );
+    const created = await createJob("artifacts", "artifact.jpg");
     expect(claimNextJob("worker-a")?.id).toBe(created.id);
     const artifacts = resultArtifacts(created.images[0].source);
     artifacts.set(
