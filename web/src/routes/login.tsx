@@ -18,13 +18,11 @@ export const Route = createFileRoute("/login")({
   server: {
     handlers: {
       GET: ({ request, next }) =>
-        isAuthenticated(request) ? redirect(new URL("/", request.url)) : next(),
+        isAuthenticated(request) ? redirect("/") : next(),
       POST: async ({ request }) => {
         const form = await request.formData();
         const accepted = signIn(String(form.get("password") ?? ""));
-        return redirect(
-          new URL(accepted ? "/" : "/login?rejected=true", request.url),
-        );
+        return redirect(accepted ? "/" : "/login?rejected=true");
       },
     },
   },

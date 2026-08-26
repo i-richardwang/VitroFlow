@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 
+import { redirect as routerRedirect } from "@tanstack/react-router";
 import {
   deleteCookie,
   getCookie,
@@ -50,11 +51,8 @@ export function signOut(): void {
   deleteCookie(COOKIE, { path: "/" });
 }
 
-export function redirect(to: string | URL): Response {
-  return new Response(null, {
-    status: 303,
-    headers: { Location: String(to) },
-  });
+export function redirect(to: string): Response {
+  return routerRedirect({ href: to, statusCode: 303 });
 }
 
 export function hasSession(): boolean {

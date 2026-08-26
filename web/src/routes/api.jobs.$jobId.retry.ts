@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { retryJob } from "../server/job-store";
+import { redirect } from "../server/session";
 
 export const Route = createFileRoute("/api/jobs/$jobId/retry")({
   server: {
@@ -16,10 +17,7 @@ export const Route = createFileRoute("/api/jobs/$jobId/retry")({
             error instanceof Error ? error.message : String(error),
           );
         }
-        return new Response(null, {
-          status: 303,
-          headers: { Location: `/jobs?${search}` },
-        });
+        return redirect(`/jobs?${search}`);
       },
     },
   },

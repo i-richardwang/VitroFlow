@@ -16,7 +16,7 @@ const requireSession = createMiddleware().server(
     if (handlerType === "serverFn") {
       return new Response("Unauthorized", { status: 401 });
     }
-    return redirect(new URL("/login", request.url));
+    return redirect("/login");
   },
 );
 

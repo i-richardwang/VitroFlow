@@ -5,9 +5,9 @@ import { redirect, signOut } from "../server/session";
 export const Route = createFileRoute("/logout")({
   server: {
     handlers: {
-      POST: ({ request }) => {
+      POST: () => {
         signOut();
-        return redirect(new URL("/login", request.url));
+        return redirect("/login");
       },
     },
   },
