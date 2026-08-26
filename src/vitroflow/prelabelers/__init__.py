@@ -16,6 +16,7 @@ from .documents import (
     parse_prelabel_document,
 )
 from .traditional import TraditionalPrelabeler
+from .yolo import YoloInferenceSettings, YoloPrelabeler, load_yolo_inference_settings
 
 __all__ = [
     "DishGeometry",
@@ -28,6 +29,9 @@ __all__ = [
     "Prelabeler",
     "PrelabelerDescriptor",
     "TraditionalPrelabeler",
+    "YoloInferenceSettings",
+    "YoloPrelabeler",
     "load_prelabel_document",
+    "load_yolo_inference_settings",
     "parse_prelabel_document",
 ]

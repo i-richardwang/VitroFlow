@@ -101,7 +101,7 @@ function StatusPage() {
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap font-mono text-muted">
                     <span title={worker.prelabeler.fingerprint}>
-                      {worker.prelabeler.name}
+                      {worker.modelId} / {worker.prelabeler.name}
                     </span>
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">

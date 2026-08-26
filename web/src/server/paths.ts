@@ -6,8 +6,9 @@ import * as path from "node:path";
  *   images/<dataset>/<stem>.<ext>     source photographs
  *   prelabels/<dataset>/<stem>.json   detector output, owned by workers
  *   labels/<dataset>/<stem>.json      reviewed box annotations
- *   datasets/<dataset>.json           dataset and logical-model definition
- *   prelabelers/<version-id>.json     immutable executable-version registry
+ *   datasets/<dataset>.json           dataset and selected model version
+ *   models/<model-id>.json            stable logical models
+ *   model-versions/<version-id>.json  immutable executable model versions
  *   workers/<worker-id>.json          latest heartbeat from each worker
  *
  * Documents reference images by path relative to this root, so the whole
@@ -20,7 +21,8 @@ export const IMAGES_DIR = path.join(DATA_ROOT, "images");
 export const PRELABELS_DIR = path.join(DATA_ROOT, "prelabels");
 export const LABELS_DIR = path.join(DATA_ROOT, "labels");
 export const DATASETS_DIR = path.join(DATA_ROOT, "datasets");
-export const PRELABELERS_DIR = path.join(DATA_ROOT, "prelabelers");
+export const MODELS_DIR = path.join(DATA_ROOT, "models");
+export const MODEL_VERSIONS_DIR = path.join(DATA_ROOT, "model-versions");
 export const WORKERS_DIR = path.join(DATA_ROOT, "workers");
 
 export function resolveWithin(root: string, ...segments: string[]): string {

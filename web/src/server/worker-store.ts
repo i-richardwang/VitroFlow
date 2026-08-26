@@ -8,7 +8,11 @@ import {
 } from "../workers/schema";
 import { writeAtomically } from "./files";
 import { WORKERS_DIR, resolveWithin } from "./paths";
-import { registerPrelabeler } from "./prelabeler-registry";
+import {
+  DEFAULT_MODEL,
+  ensureDefaultModel,
+  registerModelVersion,
+} from "./model-registry";
 
 /**
  * A worker heartbeats while polling for work and before every image it
@@ -34,7 +38,8 @@ export function recordHeartbeat(
     ...heartbeat,
     lastSeenAt: at.toISOString(),
   });
-  registerPrelabeler(worker.prelabeler);
+  if (worker.modelId === DEFAULT_MODEL.id) ensureDefaultModel();
+  registerModelVersion(worker.modelId, worker.prelabeler);
   writeAtomically(
     workerPath(worker.workerId),
     `${JSON.stringify(worker, null, 2)}\n`,

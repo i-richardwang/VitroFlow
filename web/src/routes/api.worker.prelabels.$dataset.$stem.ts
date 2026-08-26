@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { imageRefSchema } from "../datasets/schema";
 import {
   PrelabelFrozenError,
-  PrelabelVersionMismatchError,
+  ModelVersionMismatchError,
   writePrelabel,
 } from "../server/prelabels";
 
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/worker/prelabels/$dataset/$stem")({
         } catch (error) {
           if (
             error instanceof PrelabelFrozenError ||
-            error instanceof PrelabelVersionMismatchError
+            error instanceof ModelVersionMismatchError
           ) {
             return new Response(error.message, { status: 409 });
           }

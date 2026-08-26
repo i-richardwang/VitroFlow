@@ -11,7 +11,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
-RUN uv sync --locked --no-dev
+RUN uv sync --locked --no-dev --group train
 
 EXPOSE 8080
 

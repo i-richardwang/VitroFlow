@@ -9,6 +9,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from ..files import write_text_atomically
+from .runtime import load_yolo
 
 
 class ValidationMetrics(Protocol):
@@ -44,16 +45,6 @@ def best_f1_confidence(metrics: ValidationMetrics) -> float | None:
                 raise ValueError("Confidence returned by Ultralytics is outside [0, 1]")
             return value
     raise ValueError("Ultralytics validation did not produce an F1-confidence curve")
-
-
-def _load_yolo() -> type:
-    try:
-        from ultralytics import YOLO
-    except ImportError as error:
-        raise RuntimeError(
-            "Ultralytics is not installed; run `uv sync --group train` first"
-        ) from error
-    return YOLO
 
 
 def _model_source(model: str | Path, weights_dir: Path) -> str:
@@ -109,7 +100,7 @@ def train_yolo_detector(
     if device is not None:
         train_options["device"] = device
 
-    yolo = _load_yolo()
+    yolo = load_yolo()
     trainer_model = yolo(_model_source(model, output.parent / "weights"))
     trainer_model.train(**train_options)
     trainer = trainer_model.trainer

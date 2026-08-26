@@ -53,7 +53,7 @@ def test_training_publishes_validated_inference_settings(
             self.val_options = options
             return _Metrics()
 
-    monkeypatch.setattr(training, "_load_yolo", lambda: FakeYolo)
+    monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
     dataset = tmp_path / "dataset.yaml"
     dataset.write_text("train: images/train\nval: images/val\n")
     config = tmp_path / "train.yaml"

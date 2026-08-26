@@ -21,12 +21,13 @@ data/
 ├── images/<dataset>/<stem>.<ext>    source photographs; the stem identifies the image
 ├── prelabels/<dataset>/<stem>.json  Worker-owned detector output, untouched by humans
 ├── labels/<dataset>/<stem>.json     reviewed box annotations
-├── datasets/<dataset>.json          Dataset, logical Model, and selected prelabeler version
-├── prelabelers/<version-id>.json    immutable executable-version registry
+├── datasets/<dataset>.json          Dataset and selected ModelVersion
+├── models/<model-id>.json           stable logical Model definitions
+├── model-versions/<version-id>.json immutable executable ModelVersions
 └── workers/<worker-id>.json         latest heartbeat from each Worker
 ```
 
-A Dataset owns one stable logical Model and selects one immutable prelabeler version for that Model. Workers only receive images from Datasets that selected the exact version they provide; an online but unselected Worker cannot replace another version's results. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Changing a Dataset's selection makes its unlabelled images pending for the newly selected version.
+A Dataset belongs to one stable logical Model and selects one immutable ModelVersion. Each ModelVersion contains the shared prelabeler identity needed to execute it, whether its implementation is traditional vision or YOLO. Workers only receive images from Datasets that selected the exact version they provide; an online but unselected Worker cannot replace another version's results. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Changing a Dataset's selection makes its unlabelled images pending for the newly selected version.
 
 An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
 
@@ -71,13 +72,26 @@ export VITROFLOW_WORKER_TOKEN=<worker-secret>
 uv run vitroflow-worker
 ```
 
-Use `--model` and `--config` to configure the built-in traditional prelabeler. They are loaded once at Worker startup and determine its content fingerprint. `--version-id` names that immutable configuration and defaults to `traditional-v1`; the server rejects the same version id if it later appears with different contents. The Worker itself depends only on the common box-first prelabeler contract, so a YOLO implementation can replace the traditional adapter without changing the review API. `--once` runs a single pass over the pending images and exits.
+Use `--model` and `--config` to configure the built-in traditional prelabeler. They are loaded once at Worker startup and determine its content fingerprint. `--version-id` names that immutable configuration and defaults to `traditional-v1`; the server rejects the same version id if it later appears with different contents. `--model-id` identifies the stable logical Model and defaults to `seed-detector`.
+
+To serve a validated YOLO run, install the YOLO dependency group and point the same Worker at the run directory. Its `inference.json` fixes the weights, confidence, image size, detection limit, and YOLO26 head used during validation:
+
+```bash
+uv sync --group train
+uv run --group train vitroflow-worker \
+  --model-id seed-detector \
+  --version-id seed-yolo-v1 \
+  --yolo-run output/yolo/train-seed-small \
+  --device mps
+```
+
+The Worker depends only on the common box-first prelabeler contract, so both implementations use the same review API. `--once` runs a single pass over the pending images and exits.
 
 The Worker protocol has four calls under the workbench URL, each authenticated with `Authorization: Bearer <token>`:
 
 | Call | Purpose |
 |---|---|
-| `POST api/worker/heartbeat` | registers the immutable prelabeler version and reports Worker state |
+| `POST api/worker/heartbeat` | registers the immutable ModelVersion and reports Worker state |
 | `GET api/worker/pending?worker_id=<id>` | images assigned by Dataset selection to the version registered by that Worker |
 | `GET api/worker/images/<dataset>/<stem>` | source image bytes |
 | `PUT api/worker/prelabels/<dataset>/<stem>` | prelabel document; `409` when review owns the image or the Dataset selection changed |
@@ -257,16 +271,19 @@ src/vitroflow/
 ├── prelabelers/
 │   ├── contract.py   Shared box-first runtime boundary
 │   ├── documents.py  Strict persisted-document parser
-│   └── traditional.py Traditional-vision adapter
+│   ├── traditional.py Traditional-vision adapter
+│   └── yolo.py       Validated Ultralytics inference adapter
 ├── yolo/
 │   ├── dataset.py    Canonical reviewed-label export
 │   ├── bootstrap.py  Prelabel bootstrap adapter
+│   ├── runtime.py    Lazy Ultralytics runtime loading
 │   └── training.py   Ultralytics training and validation
 ├── cli.py            Local workflows
 └── worker.py         Remote prelabel execution
 
 web/src/
 ├── datasets/         Dataset and image identity, derived image states
+├── models/           Logical Model and immutable ModelVersion contracts
 ├── detection/        Prelabel document contract
 ├── prelabelers/      Executable-version identity contract
 ├── annotation/       Box annotation domain

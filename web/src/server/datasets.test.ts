@@ -10,12 +10,17 @@ import {
   listImages,
   readDataset,
   removeImage,
-  selectPrelabelerVersion,
+  selectModelVersion,
 } from "./datasets";
 import { summarizeImage } from "./summaries";
 import { createLabel } from "./labels";
 import { DATA_ROOT } from "./paths";
-import { registerPrelabeler } from "./prelabeler-registry";
+import {
+  DEFAULT_MODEL,
+  ensureDefaultModel,
+  registerModel,
+  registerModelVersion,
+} from "./model-registry";
 import {
   discardPrelabel,
   pendingImages,
@@ -43,7 +48,8 @@ function resultFor(source: string) {
 }
 
 function pending() {
-  registerPrelabeler(prelabeler);
+  ensureDefaultModel();
+  registerModelVersion(DEFAULT_MODEL.id, prelabeler);
   return pendingImages(prelabeler).map(
     (image) => `${image.dataset}/${image.stem}`,
   );
@@ -60,8 +66,8 @@ describe("uploads", () => {
     expect(readDataset("crop")).toEqual({
       schemaVersion: 1,
       id: "crop",
-      modelId: "crop",
-      selectedPrelabelerVersionId: "traditional-v1",
+      modelId: "seed-detector",
+      selectedModelVersionId: "traditional-v1",
     });
     expect(listImages("crop").map((image) => image.source)).toEqual([
       "images/crop/one.jpg",
@@ -96,8 +102,9 @@ describe("uploads", () => {
 
 describe("prelabels", () => {
   test("datasets assign work only to their selected version", async () => {
-    registerPrelabeler(prelabeler);
-    registerPrelabeler(nextPrelabeler);
+    ensureDefaultModel();
+    registerModelVersion(DEFAULT_MODEL.id, prelabeler);
+    registerModelVersion(DEFAULT_MODEL.id, nextPrelabeler);
     await addImages("pend", [
       new File(["a"], "a.jpg"),
       new File(["b"], "b.jpg"),
@@ -127,16 +134,17 @@ describe("prelabels", () => {
     expect(pendingImages(nextPrelabeler).map((i) => i.dataset)).not.toContain(
       "pend",
     );
-    selectPrelabelerVersion("pend", nextPrelabeler.version_id);
+    selectModelVersion("pend", nextPrelabeler.version_id);
     expect(pendingImages(nextPrelabeler).map((i) => i.stem)).toEqual(["a", "b"]);
     expect(pending()).not.toContain("pend/a");
     expect(() =>
       writePrelabel(b, resultFor("images/pend/b.jpg")),
-    ).toThrow(/assigned to another prelabeler version/);
+    ).toThrow(/assigned to another model version/);
   });
 
   test("rejects documents for unknown images or mismatched sources", async () => {
-    registerPrelabeler(prelabeler);
+    ensureDefaultModel();
+    registerModelVersion(DEFAULT_MODEL.id, prelabeler);
     await addImages("src", [new File(["a"], "a.jpg")]);
     expect(() =>
       writePrelabel(
@@ -152,16 +160,36 @@ describe("prelabels", () => {
     ).toThrow(/does not match/);
   });
 
+  test("rejects a version owned by another logical model", async () => {
+    await addImages("ownership", [new File(["a"], "a.jpg")]);
+    registerModel({
+      schemaVersion: 1,
+      id: "other-detector",
+      name: "Other detector",
+      task: "object_detection",
+      classes: ["seed"],
+    });
+    registerModelVersion("other-detector", {
+      ...nextPrelabeler,
+      version_id: "other-model-v1",
+    });
+
+    expect(() => selectModelVersion("ownership", "other-model-v1")).toThrow(
+      /belongs to other-detector/,
+    );
+  });
+
   test("freezes the prelabel once a label exists", async () => {
-    registerPrelabeler(prelabeler);
-    registerPrelabeler(nextPrelabeler);
+    ensureDefaultModel();
+    registerModelVersion(DEFAULT_MODEL.id, prelabeler);
+    registerModelVersion(DEFAULT_MODEL.id, nextPrelabeler);
     await addImages("frozen", [new File(["a"], "a.jpg")]);
     const ref = { dataset: "frozen", stem: "a" };
     const original = writePrelabel(ref, resultFor("images/frozen/a.jpg"));
     if ("error" in original) throw new Error("unexpected failure document");
     createLabel(ref, documentFromPrelabel(original));
 
-    selectPrelabelerVersion("frozen", nextPrelabeler.version_id);
+    selectModelVersion("frozen", nextPrelabeler.version_id);
     const replacement = {
       ...resultFor("images/frozen/a.jpg"),
       producer: nextPrelabeler,
@@ -178,7 +206,8 @@ describe("prelabels", () => {
 
 describe("removal", () => {
   test("deletes the image with its prelabel and label", async () => {
-    registerPrelabeler(prelabeler);
+    ensureDefaultModel();
+    registerModelVersion(DEFAULT_MODEL.id, prelabeler);
     await addImages("rm", [new File(["a"], "a.jpg")]);
     const ref = { dataset: "rm", stem: "a" };
     const prelabel = writePrelabel(ref, resultFor("images/rm/a.jpg"));

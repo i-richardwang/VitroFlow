@@ -26,6 +26,7 @@ from .prelabelers import (
     PrelabelerDescriptor,
     PrelabelFailure,
     TraditionalPrelabeler,
+    YoloPrelabeler,
 )
 from .scoring import DEFAULT_MODEL, load_candidate_model
 
@@ -99,13 +100,17 @@ class WorkerIdentity:
 
     worker_id: str
     started_at: str
+    model_id: str
     prelabeler: PrelabelerDescriptor
 
     @classmethod
-    def create(cls, worker_id: str, prelabeler: Prelabeler) -> WorkerIdentity:
+    def create(
+        cls, worker_id: str, model_id: str, prelabeler: Prelabeler
+    ) -> WorkerIdentity:
         return cls(
             worker_id,
             datetime.now(UTC).isoformat(),
+            model_id,
             prelabeler.descriptor,
         )
 
@@ -113,6 +118,7 @@ class WorkerIdentity:
         return {
             "workerId": self.worker_id,
             "startedAt": self.started_at,
+            "modelId": self.model_id,
             "prelabeler": self.prelabeler.to_dict(),
             "current": current.to_dict() if current else None,
         }
@@ -280,6 +286,11 @@ def _parser() -> argparse.ArgumentParser:
         default=Path(os.environ.get("VITROFLOW_WORK_DIR", tempfile.gettempdir())),
     )
     parser.add_argument(
+        "--model-id",
+        default=os.environ.get("VITROFLOW_MODEL_ID", "seed-detector"),
+        help="Logical model served by this Worker (or VITROFLOW_MODEL_ID)",
+    )
+    parser.add_argument(
         "--worker-id",
         default=os.environ.get("VITROFLOW_WORKER_ID") or socket.gethostname(),
         help="Identity shown on the workbench Status page (or VITROFLOW_WORKER_ID)",
@@ -294,12 +305,43 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", help="JSON file overriding pipeline parameters")
     parser.add_argument("--model", help="Candidate model JSON")
     parser.add_argument(
+        "--yolo-run",
+        type=Path,
+        default=os.environ.get("VITROFLOW_YOLO_RUN"),
+        help="Validated YOLO run containing inference.json (or VITROFLOW_YOLO_RUN)",
+    )
+    parser.add_argument(
+        "--device",
+        default=os.environ.get("VITROFLOW_DEVICE"),
+        help="Ultralytics inference device (or VITROFLOW_DEVICE)",
+    )
+    parser.add_argument(
         "--version-id",
-        default=os.environ.get("VITROFLOW_PRELABELER_VERSION_ID", "traditional-v1"),
+        default=os.environ.get("VITROFLOW_PRELABELER_VERSION_ID"),
         help="Immutable registered version id (or VITROFLOW_PRELABELER_VERSION_ID)",
     )
     parser.add_argument("--once", action="store_true", help="Run a single pass")
     return parser
+
+
+def _build_prelabeler(args: argparse.Namespace) -> Prelabeler:
+    if args.yolo_run:
+        if args.config or args.model:
+            raise ValueError(
+                "--config and --model only apply to traditional prelabelling"
+            )
+        if not args.version_id:
+            raise ValueError("--version-id is required with --yolo-run")
+        return YoloPrelabeler.from_run(
+            args.yolo_run,
+            version_id=args.version_id,
+            device=args.device,
+        )
+    if args.device:
+        raise ValueError("--device only applies to YOLO prelabelling")
+    config = PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
+    model = load_candidate_model(args.model) if args.model else DEFAULT_MODEL
+    return TraditionalPrelabeler(config, model, args.version_id or "traditional-v1")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -316,6 +358,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if not WORKER_ID.match(args.model_id):
+        print("error: invalid model id", file=sys.stderr)
+        return 2
     if args.poll_seconds <= 0:
         print("error: poll interval must be positive", file=sys.stderr)
         return 2
@@ -325,13 +370,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         args.work_dir.mkdir(parents=True, exist_ok=True)
-        config = (
-            PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
-        )
-        model = load_candidate_model(args.model) if args.model else DEFAULT_MODEL
-        prelabeler = TraditionalPrelabeler(config, model, args.version_id)
-        identity = WorkerIdentity.create(args.worker_id, prelabeler)
-    except (OSError, TypeError, ValueError) as error:
+        prelabeler = _build_prelabeler(args)
+        identity = WorkerIdentity.create(args.worker_id, args.model_id, prelabeler)
+    except (OSError, TypeError, ValueError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     client = WorkerClient(

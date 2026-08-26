@@ -54,6 +54,7 @@ test("worker HTTP routes carry an image from upload to prelabel", async () => {
       body: JSON.stringify({
         workerId: "api-worker",
         startedAt: "2026-01-01T00:00:00Z",
+        modelId: "seed-detector",
         prelabeler: producer,
         current: ref,
       }),

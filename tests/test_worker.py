@@ -52,7 +52,7 @@ class FailingPrelabeler:
 
 
 PRELABELER = FakePrelabeler()
-IDENTITY = WorkerIdentity.create("test-worker", PRELABELER)
+IDENTITY = WorkerIdentity.create("test-worker", "seed-detector", PRELABELER)
 
 
 class Workbench:
@@ -127,6 +127,7 @@ def test_worker_identity_reports_its_prelabeler() -> None:
     heartbeat = IDENTITY.heartbeat(image)
 
     assert heartbeat["workerId"] == "test-worker"
+    assert heartbeat["modelId"] == "seed-detector"
     assert heartbeat["current"] == {"dataset": "set", "stem": "a"}
     assert heartbeat["prelabeler"] == DESCRIPTOR.to_dict()
     assert IDENTITY.heartbeat(None)["current"] is None

@@ -10,7 +10,11 @@ import {
   type ImageRef,
 } from "../datasets/schema";
 import { createAtomically, writeAtomically } from "./files";
-import { readPrelabeler } from "./prelabeler-registry";
+import {
+  DEFAULT_MODEL,
+  ensureDefaultModel,
+  readModelVersion,
+} from "./model-registry";
 import {
   DATASETS_DIR,
   IMAGES_DIR,
@@ -19,8 +23,8 @@ import {
   resolveWithin,
 } from "./paths";
 
-export const DEFAULT_PRELABELER_VERSION_ID =
-  process.env.VITROFLOW_DEFAULT_PRELABELER_VERSION_ID ?? "traditional-v1";
+export const DEFAULT_MODEL_VERSION_ID =
+  process.env.VITROFLOW_DEFAULT_MODEL_VERSION_ID ?? "traditional-v1";
 
 export const CONTENT_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -65,11 +69,12 @@ export function readDataset(dataset: string): Dataset | null {
 }
 
 function createDataset(dataset: string): Dataset | null {
+  ensureDefaultModel();
   const record = datasetSchema.parse({
     schemaVersion: 1,
     id: dataset,
-    modelId: dataset,
-    selectedPrelabelerVersionId: DEFAULT_PRELABELER_VERSION_ID,
+    modelId: DEFAULT_MODEL.id,
+    selectedModelVersionId: DEFAULT_MODEL_VERSION_ID,
   });
   return createAtomically(
     datasetPath(dataset),
@@ -86,7 +91,7 @@ export function ensureDataset(dataset: string): boolean {
   return createDataset(dataset) !== null;
 }
 
-export function selectPrelabelerVersion(
+export function selectModelVersion(
   dataset: string,
   versionId: string,
 ): Dataset {
@@ -94,12 +99,18 @@ export function selectPrelabelerVersion(
   if (!current) {
     throw new Error(`Unknown dataset: ${dataset}`);
   }
-  if (!readPrelabeler(versionId)) {
-    throw new Error(`Unknown prelabeler version: ${versionId}`);
+  const version = readModelVersion(versionId);
+  if (!version) {
+    throw new Error(`Unknown model version: ${versionId}`);
+  }
+  if (version.modelId !== current.modelId) {
+    throw new Error(
+      `Model version ${versionId} belongs to ${version.modelId}, not ${current.modelId}`,
+    );
   }
   const next = datasetSchema.parse({
     ...current,
-    selectedPrelabelerVersionId: versionId,
+    selectedModelVersionId: versionId,
   });
   writeAtomically(datasetPath(dataset), `${JSON.stringify(next, null, 2)}\n`);
   return next;

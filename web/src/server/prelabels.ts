@@ -19,7 +19,7 @@ import {
 import { writeAtomically } from "./files";
 import { hasLabel } from "./labels";
 import { PRELABELS_DIR, resolveWithin } from "./paths";
-import { readPrelabeler } from "./prelabeler-registry";
+import { readModelVersion } from "./model-registry";
 
 /** Thrown when a worker tries to replace the prelabel a review started from. */
 export class PrelabelFrozenError extends Error {
@@ -29,9 +29,9 @@ export class PrelabelFrozenError extends Error {
 }
 
 /** Thrown when an upload no longer matches the version selected by a dataset. */
-export class PrelabelVersionMismatchError extends Error {
+export class ModelVersionMismatchError extends Error {
   constructor(ref: ImageRef) {
-    super(`${ref.dataset}/${ref.stem} is assigned to another prelabeler version`);
+    super(`${ref.dataset}/${ref.stem} is assigned to another model version`);
   }
 }
 
@@ -63,14 +63,15 @@ export function writePrelabel(ref: ImageRef, document: unknown): Prelabel {
     throw new PrelabelFrozenError(ref);
   }
   const dataset = readDataset(ref.dataset);
-  const registered = readPrelabeler(prelabel.producer.version_id);
+  const registered = readModelVersion(prelabel.producer.version_id);
   if (
     !dataset ||
-    dataset.selectedPrelabelerVersionId !== prelabel.producer.version_id ||
+    dataset.selectedModelVersionId !== prelabel.producer.version_id ||
     !registered ||
-    !samePrelabelerDescriptor(registered, prelabel.producer)
+    registered.modelId !== dataset.modelId ||
+    !samePrelabelerDescriptor(registered.prelabeler, prelabel.producer)
   ) {
-    throw new PrelabelVersionMismatchError(ref);
+    throw new ModelVersionMismatchError(ref);
   }
   writeAtomically(prelabelPath(ref), `${JSON.stringify(prelabel, null, 2)}\n`);
   return prelabel;
@@ -92,7 +93,14 @@ export function pendingImages(
 ): DatasetImage[] {
   return listDatasets().flatMap((datasetId) => {
     const dataset = readDataset(datasetId);
-    if (dataset?.selectedPrelabelerVersionId !== prelabeler.version_id) {
+    const version = readModelVersion(prelabeler.version_id);
+    if (
+      !dataset ||
+      !version ||
+      dataset.modelId !== version.modelId ||
+      dataset.selectedModelVersionId !== version.id ||
+      !samePrelabelerDescriptor(version.prelabeler, prelabeler)
+    ) {
       return [];
     }
     return listImages(datasetId).filter((image) => {

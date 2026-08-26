@@ -31,7 +31,7 @@ export const datasetSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: z.string().regex(DATASET_NAME),
   modelId: z.string().regex(DATASET_NAME),
-  selectedPrelabelerVersionId: versionIdSchema,
+  selectedModelVersionId: versionIdSchema,
 });
 
 export type Dataset = z.infer<typeof datasetSchema>;

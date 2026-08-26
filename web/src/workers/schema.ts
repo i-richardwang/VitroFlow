@@ -2,11 +2,13 @@ import { z } from "zod";
 
 import { DATASET_NAME, imageRefSchema } from "../datasets/schema";
 import { prelabelerDescriptorSchema } from "../prelabelers/schema";
+import { versionIdSchema } from "../prelabelers/schema";
 
 export const heartbeatSchema = z
   .object({
     workerId: z.string().regex(DATASET_NAME),
     startedAt: z.string().datetime({ offset: true }),
+    modelId: versionIdSchema,
     prelabeler: prelabelerDescriptorSchema,
     current: imageRefSchema.nullable(),
   })
