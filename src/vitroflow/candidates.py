@@ -55,6 +55,31 @@ def _crop(
     return array[y_min:y_max, x_min:x_max], xx - x, yy - y
 
 
+def _principal_direction(
+    dx: np.ndarray,
+    dy: np.ndarray,
+    weights: np.ndarray,
+) -> tuple[float, np.ndarray]:
+    flat_weights = weights.ravel()
+    total = float(flat_weights.sum())
+    if total <= 1e-6:
+        return 0.0, np.array([1.0, 0.0])
+
+    coordinates = np.column_stack((dx.ravel(), dy.ravel()))
+    center = np.sum(coordinates * flat_weights[:, None], axis=0) / total
+    centered = coordinates - center
+    covariance = (centered.T * flat_weights) @ centered / total
+    if not np.all(np.isfinite(covariance)):
+        return 0.0, np.array([1.0, 0.0])
+
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    principal_variance = float(eigenvalues[1])
+    if principal_variance <= 1e-6:
+        return 0.0, np.array([1.0, 0.0])
+    elongation = 1.0 - float(eigenvalues[0] / principal_variance)
+    return float(np.clip(elongation, 0.0, 1.0)), eigenvectors[:, 1]
+
+
 def _describe_candidate(
     brightness: np.ndarray,
     chroma: np.ndarray,
@@ -89,15 +114,7 @@ def _describe_candidate(
     weights = np.maximum(patch - annulus_level, 0.0) * (
         distance <= proposal.scale * 2.4
     )
-    if float(weights.sum()) > 1e-6:
-        coordinates = np.column_stack((dx.ravel(), dy.ravel()))
-        covariance = np.cov(coordinates, rowvar=False, aweights=weights.ravel())
-        eigenvalues, eigenvectors = np.linalg.eigh(covariance)
-        elongation = 1.0 - float(eigenvalues[0] / max(eigenvalues[1], 1e-6))
-        direction = eigenvectors[:, 1]
-    else:
-        elongation = 0.0
-        direction = np.array([1.0, 0.0])
+    elongation, direction = _principal_direction(dx, dy, weights)
 
     along = dx * direction[0] + dy * direction[1]
     across = -dx * direction[1] + dy * direction[0]

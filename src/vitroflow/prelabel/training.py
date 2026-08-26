@@ -1,30 +1,39 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
 from ..config import PipelineConfig
 from ..scoring import CandidateModel
 from .data import PreparedImage
-from .evaluation import DetectionMetrics, evaluate_candidate_model
+from .evaluation import (
+    DetectionMetrics,
+    ProposalMetrics,
+    evaluate_candidate_model,
+    evaluate_proposals,
+)
 
-_BANDWIDTHS = (1.0, 2.0, 3.0)
+_BANDWIDTHS: tuple[float | None, ...] = (None, 1.0, 2.0, 3.0)
 _REGULARIZATIONS = (0.3, 1.0, 3.0, 10.0, 30.0)
+_THRESHOLDS = tuple(float(value) for value in np.linspace(0.30, 0.95, 27))
 _MAXIMUM_CALIBRATION_CENTERS = 128
+_CALIBRATION_TARGET_LOGIT = 2.0
 
 
 @dataclass(frozen=True)
 class ModelSelection:
-    bandwidth: float
+    bandwidth: float | None
     regularization: float
+    threshold: float
     metrics: DetectionMetrics
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "bandwidth": self.bandwidth,
+            "calibration_bandwidth": self.bandwidth,
             "regularization": self.regularization,
+            "confidence_threshold": self.threshold,
             "metrics": self.metrics.to_dict(),
         }
 
@@ -32,33 +41,26 @@ class ModelSelection:
 @dataclass(frozen=True)
 class TrainingReport:
     image_count: int
-    proposal_truth: int
-    proposal_matched: int
+    proposal: ProposalMetrics
     baseline: DetectionMetrics
     cross_validation: DetectionMetrics
     training: DetectionMetrics
-    bandwidth: float
+    bandwidth: float | None
     regularization: float
+    threshold: float
     selections: tuple[ModelSelection, ...]
-
-    @property
-    def proposal_recall(self) -> float:
-        return self.proposal_matched / max(self.proposal_truth, 1)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "images": self.image_count,
-            "proposal": {
-                "truth": self.proposal_truth,
-                "matched": self.proposal_matched,
-                "recall": round(self.proposal_recall, 6),
-            },
+            "proposal": self.proposal.to_dict(),
             "baseline": self.baseline.to_dict(),
             "cross_validation": self.cross_validation.to_dict(),
             "training": self.training.to_dict(),
             "selected": {
-                "bandwidth": self.bandwidth,
+                "calibration_bandwidth": self.bandwidth,
                 "regularization": self.regularization,
+                "confidence_threshold": self.threshold,
             },
             "selections": [selection.to_dict() for selection in self.selections],
         }
@@ -67,6 +69,7 @@ class TrainingReport:
 @dataclass(frozen=True)
 class CandidateModelTraining:
     model: CandidateModel
+    config: PipelineConfig
     report: TrainingReport
 
 
@@ -114,8 +117,7 @@ def _calibration_indices(
 def _fit_candidate_model(
     images: Sequence[PreparedImage],
     prior: CandidateModel,
-    confidence_threshold: float,
-    bandwidth: float,
+    bandwidth: float | None,
     regularization: float,
 ) -> CandidateModel:
     features, labels = _training_arrays(images)
@@ -150,10 +152,23 @@ def _fit_candidate_model(
             break
         parameters = updated
 
+    if bandwidth is None:
+        return CandidateModel(
+            name="candidate-seedness",
+            feature_names=prior.feature_names,
+            means=prior.means,
+            scales=prior.scales,
+            weights=tuple(float(value) for value in parameters[:-1]),
+            bias=float(parameters[-1]),
+        )
+
     linear_logits = design @ parameters
-    boundary = np.log(confidence_threshold / (1.0 - confidence_threshold))
-    targets = np.where(labels == 1, boundary + 1.5, boundary - 1.5)
-    residuals = targets - linear_logits
+    target_logits = np.where(
+        labels == 1,
+        _CALIBRATION_TARGET_LOGIT,
+        -_CALIBRATION_TARGET_LOGIT,
+    )
+    residuals = target_logits - linear_logits
     center_indices = _calibration_indices(
         residuals,
         labels,
@@ -188,85 +203,135 @@ def _fit_candidate_model(
     )
 
 
+def _config_with_threshold(config: PipelineConfig, threshold: float) -> PipelineConfig:
+    return replace(
+        config,
+        decision=replace(config.decision, confidence_threshold=threshold),
+    )
+
+
+def _metrics_key(metrics: DetectionMetrics) -> tuple[float, ...]:
+    return (
+        metrics.corrections_per_instance,
+        -metrics.recall,
+        -metrics.precision,
+    )
+
+
+def _selection_key(selection: ModelSelection) -> tuple[float, ...]:
+    return (
+        *_metrics_key(selection.metrics),
+        float(selection.bandwidth is not None),
+        -(selection.bandwidth or 0.0),
+        -selection.regularization,
+    )
+
+
 def _cross_validate(
     images: Sequence[PreparedImage],
     prior: CandidateModel,
     config: PipelineConfig,
-    bandwidth: float,
+    bandwidth: float | None,
     regularization: float,
-) -> DetectionMetrics:
-    metrics = DetectionMetrics()
+    thresholds: Sequence[float],
+) -> ModelSelection:
+    metrics = {threshold: DetectionMetrics() for threshold in thresholds}
     for index, validation in enumerate(images):
         training = [image for offset, image in enumerate(images) if offset != index]
         model = _fit_candidate_model(
             training,
             prior,
-            config.decision.confidence_threshold,
             bandwidth,
             regularization,
         )
-        metrics += evaluate_candidate_model(model, [validation], config)
-    return metrics
+        for threshold in thresholds:
+            metrics[threshold] += evaluate_candidate_model(
+                model,
+                [validation],
+                _config_with_threshold(config, threshold),
+            )
+    selections = tuple(
+        ModelSelection(
+            bandwidth=bandwidth,
+            regularization=regularization,
+            threshold=threshold,
+            metrics=result,
+        )
+        for threshold, result in metrics.items()
+    )
+    best_metrics = min(_metrics_key(selection.metrics) for selection in selections)
+    best = [
+        selection
+        for selection in selections
+        if _metrics_key(selection.metrics) == best_metrics
+    ]
+    midpoint = (
+        min(selection.threshold for selection in best)
+        + max(selection.threshold for selection in best)
+    ) / 2.0
+    return min(
+        best,
+        key=lambda selection: (
+            abs(selection.threshold - midpoint),
+            selection.threshold,
+        ),
+    )
 
 
 def train_candidate_model(
     images: Sequence[PreparedImage],
     prior: CandidateModel,
     config: PipelineConfig,
-    bandwidths: Sequence[float] = _BANDWIDTHS,
+    bandwidths: Sequence[float | None] = _BANDWIDTHS,
     regularizations: Sequence[float] = _REGULARIZATIONS,
+    thresholds: Sequence[float] = _THRESHOLDS,
 ) -> CandidateModelTraining:
     if len(images) < 2:
         raise ValueError(
             "Candidate model selection requires at least two complete images"
         )
-    if not bandwidths or not regularizations:
+    if not bandwidths or not regularizations or not thresholds:
         raise ValueError("Candidate model selection requires parameter values")
-    if any(value <= 0 for value in bandwidths):
+    if any(value is not None and value <= 0 for value in bandwidths):
         raise ValueError("Calibration bandwidths must be positive")
     if any(value <= 0 for value in regularizations):
         raise ValueError("Regularization values must be positive")
+    if any(not 0 <= value <= 1 for value in thresholds):
+        raise ValueError("Confidence thresholds must be between 0 and 1")
+
     selections = tuple(
-        ModelSelection(
-            bandwidth=bandwidth,
-            regularization=regularization,
-            metrics=_cross_validate(
-                images,
-                prior,
-                config,
-                bandwidth,
-                regularization,
-            ),
+        _cross_validate(
+            images,
+            prior,
+            config,
+            bandwidth,
+            regularization,
+            thresholds,
         )
         for bandwidth in bandwidths
         for regularization in regularizations
     )
-    selected = min(
-        selections,
-        key=lambda item: (
-            item.metrics.corrections_per_instance,
-            -item.metrics.recall,
-            -item.metrics.precision,
-            item.bandwidth,
-            item.regularization,
-        ),
-    )
+    selected = min(selections, key=_selection_key)
+    selected_config = _config_with_threshold(config, selected.threshold)
     model = _fit_candidate_model(
         images,
         prior,
-        config.decision.confidence_threshold,
         selected.bandwidth,
         selected.regularization,
     )
     report = TrainingReport(
         image_count=len(images),
-        proposal_truth=sum(len(image.annotation.boxes) for image in images),
-        proposal_matched=sum(image.matched_boxes for image in images),
+        proposal=evaluate_proposals(images),
         baseline=evaluate_candidate_model(prior, images, config),
         cross_validation=selected.metrics,
-        training=evaluate_candidate_model(model, images, config),
+        training=evaluate_candidate_model(model, images, selected_config),
         bandwidth=selected.bandwidth,
         regularization=selected.regularization,
+        threshold=selected.threshold,
         selections=selections,
     )
-    return CandidateModelTraining(model=model, report=report)
+    return CandidateModelTraining(
+        model=model,
+        config=selected_config,
+        report=report,
+    )

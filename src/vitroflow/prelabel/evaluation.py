@@ -67,6 +67,39 @@ class DetectionMetrics:
         }
 
 
+@dataclass(frozen=True)
+class ProposalMetrics:
+    truth: int = 0
+    matched: int = 0
+
+    @property
+    def recall(self) -> float:
+        return self.matched / max(self.truth, 1)
+
+    def __add__(self, other: ProposalMetrics) -> ProposalMetrics:
+        return ProposalMetrics(
+            truth=self.truth + other.truth,
+            matched=self.matched + other.matched,
+        )
+
+    def to_dict(self) -> dict[str, int | float]:
+        return {
+            "truth": self.truth,
+            "matched": self.matched,
+            "recall": round(self.recall, 6),
+        }
+
+
+def evaluate_proposals(images: Sequence[PreparedImage]) -> ProposalMetrics:
+    metrics = ProposalMetrics()
+    for image in images:
+        metrics += ProposalMetrics(
+            truth=len(image.annotation.boxes),
+            matched=image.matched_boxes,
+        )
+    return metrics
+
+
 def evaluate_candidate_model(
     model: CandidateModel,
     images: Sequence[PreparedImage],

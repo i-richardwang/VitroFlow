@@ -14,6 +14,7 @@ from .files import atomic_directory
 from .prelabel import (
     PreparedImage,
     evaluate_candidate_model,
+    evaluate_proposals,
     prepare_images,
     train_candidate_model,
 )
@@ -112,15 +113,9 @@ def _evaluate_prelabel(args: argparse.Namespace) -> int:
     config = _pipeline_config(args.config)
     images = _prepared_images(args, config)
     model = _candidate_model(args.model)
-    truth = sum(len(image.annotation.boxes) for image in images)
-    matched = sum(image.matched_boxes for image in images)
     report = {
         "model": {"name": model.name, "fingerprint": model.fingerprint},
-        "proposal": {
-            "truth": truth,
-            "matched": matched,
-            "recall": round(matched / max(truth, 1), 6),
-        },
+        "proposal": evaluate_proposals(images).to_dict(),
         "detection": evaluate_candidate_model(model, images, config).to_dict(),
     }
     print(json.dumps(report, indent=2))
@@ -135,8 +130,13 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
     output = Path(args.output)
     with atomic_directory(output) as working:
         model_path = working / "model.json"
+        config_path = working / "config.json"
         report_path = working / "report.json"
         write_candidate_model(trained.model, model_path)
+        config_path.write_text(
+            json.dumps(trained.config.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
+        )
         report_path.write_text(
             json.dumps(
                 {
@@ -148,7 +148,7 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
                         "name": trained.model.name,
                         "fingerprint": trained.model.fingerprint,
                     },
-                    "config": config.to_dict(),
+                    "config": trained.config.to_dict(),
                     "training_set": [
                         {
                             "source": image.annotation.source.as_posix(),
@@ -169,6 +169,7 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
     print(output / "model.json")
+    print(output / "config.json")
     print(output / "report.json")
     return 0
 

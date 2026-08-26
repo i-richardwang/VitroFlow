@@ -104,13 +104,17 @@ def test_training_selects_a_model_that_reduces_prelabel_corrections() -> None:
         images,
         _prior(),
         config,
-        bandwidths=(1.0, 2.0),
+        bandwidths=(None, 1.0),
         regularizations=(0.3, 3.0),
+        thresholds=(0.3, 0.5, 0.7),
     )
 
     assert baseline.false_positive == 3
     assert trained.report.cross_validation.false_positive == 0
     assert trained.report.cross_validation.false_negative == 0
     assert trained.report.training.corrections_per_instance == 0
-    assert trained.model.calibration_centers
+    assert trained.config.decision.confidence_threshold == 0.5
+    assert trained.report.threshold == trained.config.decision.confidence_threshold
+    assert trained.report.bandwidth is None
+    assert not trained.model.calibration_centers
     assert trained.model.fingerprint != _prior().fingerprint

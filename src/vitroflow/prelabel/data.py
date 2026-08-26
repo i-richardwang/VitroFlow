@@ -79,7 +79,7 @@ def label_candidates(
     )
 
 
-def prepare_image(
+def _prepare_image(
     annotation: ReviewedImage,
     data_root: str | Path,
     config: PipelineConfig,
@@ -110,4 +110,4 @@ def prepare_images(
     data_root: str | Path,
     config: PipelineConfig,
 ) -> list[PreparedImage]:
-    return [prepare_image(annotation, data_root, config) for annotation in annotations]
+    return [_prepare_image(annotation, data_root, config) for annotation in annotations]

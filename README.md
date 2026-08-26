@@ -100,9 +100,9 @@ Evaluate the current model on all complete annotations:
 uv run vitroflow prelabel evaluate --data-root data
 ```
 
-The report separates proposal recall from final detection precision and recall. Proposal recall measures whether the candidate generator reaches each reviewed box; final metrics measure the corrections required after scoring and deduplication.
+The report separates proposal recall from final detection precision and recall. Proposal recall measures whether candidate generation reaches each reviewed box; final metrics measure the corrections required after scoring and deduplication.
 
-Train with leave-one-image-out selection of calibration bandwidth and regularization, then evaluate the resulting artifact:
+Train with leave-one-image-out selection of model form, regularization, and confidence threshold, then evaluate the resulting artifact:
 
 ```bash
 uv run vitroflow prelabel train \
@@ -111,10 +111,11 @@ uv run vitroflow prelabel train \
 
 uv run vitroflow prelabel evaluate \
   --data-root data \
-  --model output/models/candidate-seedness/model.json
+  --model output/models/candidate-seedness/model.json \
+  --config output/models/candidate-seedness/config.json
 ```
 
-Training publishes `model.json` and `report.json` together in a new artifact directory. Selecting a candidate model for recognition is an explicit deployment choice through `--model`.
+Training publishes `model.json`, its selected `config.json`, and `report.json` together in a new artifact directory. Selecting an artifact for recognition is explicit through `--model` and `--config`.
 
 ## YOLO dataset export
 
@@ -174,8 +175,8 @@ src/vitroflow/
 ├── annotations.py    Canonical reviewed-label loading
 ├── prelabel/
 │   ├── data.py       Candidate labels from reviewed boxes
-│   ├── evaluation.py Detection metrics
-│   └── training.py   Candidate-model selection and fitting
+│   ├── evaluation.py Proposal and detection metrics
+│   └── training.py   Model and threshold selection
 ├── yolo.py           YOLO dataset export
 ├── cli.py            Local workflows
 └── worker.py         Remote recognition execution

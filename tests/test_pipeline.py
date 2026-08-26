@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from vitroflow import count_seeds
-from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
+from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence, describe_candidates
 from vitroflow.config import DecisionConfig, PipelineConfig
 from vitroflow.detection import detect_seeds
 from vitroflow.geometry import circle_mask
@@ -85,6 +85,30 @@ def test_proposals_cover_the_search_region() -> None:
     )
 
     assert any(np.hypot(item.x - 320, item.y - 200) < 10 for item in proposals)
+
+
+def test_candidate_evidence_is_finite_for_degenerate_shape_support() -> None:
+    shape = (41, 41)
+    lightness = np.zeros(shape, dtype=np.float32)
+    lightness[20, 20] = 10.0
+    normalized = NormalizedImage(
+        lightness=lightness,
+        red=np.zeros(shape, dtype=np.float32),
+        yellow=np.zeros(shape, dtype=np.float32),
+        surface_distance=np.zeros(shape, dtype=np.float32),
+        clipped_fraction=0.0,
+        focus_score=100.0,
+    )
+
+    evidence = describe_candidates(
+        normalized,
+        [SeedProposal(20, 20, 4, 1, 1)],
+        (20, 20),
+        20,
+    )[0]
+
+    assert np.all(np.isfinite(evidence.to_array()))
+    assert evidence.elongation == 0.0
 
 
 def test_confidence_threshold_selects_candidates() -> None:
