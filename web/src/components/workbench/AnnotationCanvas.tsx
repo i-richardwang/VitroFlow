@@ -16,10 +16,10 @@ import type {
   BoundingBox,
   SeedInstance,
 } from "../../annotation/schema";
-import type { ImageKind, SeedResult } from "../../detection/schema";
+import type { ImageRef } from "../../datasets/schema";
+import type { SeedResult } from "../../detection/schema";
 import {
   CANVAS_COLORS,
-  isEditableView,
   TOOL_SPECS,
   type LayerKey,
   type Tool,
@@ -59,11 +59,9 @@ const HANDLE_CURSORS: Record<Handle, string> = {
 };
 
 export function AnnotationCanvas({
-  runId,
-  stem,
+  image,
   result,
   annotation,
-  view,
   tool,
   panning,
   layers,
@@ -71,11 +69,9 @@ export function AnnotationCanvas({
   onSelect,
   onInstancesChange,
 }: {
-  runId: string;
-  stem: string;
+  image: ImageRef;
   result: SeedResult;
   annotation: AnnotationDocument;
-  view: ImageKind;
   tool: Tool;
   /** Space is held: every press pans regardless of the active tool. */
   panning: boolean;
@@ -94,7 +90,6 @@ export function AnnotationCanvas({
   } | null>(null);
 
   const { width, height } = annotation.image;
-  const editable = isEditableView(view);
 
   const startPan = (event: React.PointerEvent): Gesture => {
     const origin = panOrigin(event.clientX, event.clientY);
@@ -116,7 +111,7 @@ export function AnnotationCanvas({
       clientY: event.clientY,
       moved: false,
     };
-    if (panning || tool === "add" || !editable) {
+    if (panning || tool === "add") {
       setGesture(startPan(event));
       return;
     }
@@ -197,7 +192,7 @@ export function AnnotationCanvas({
     }
     setGesture(null);
     if (!press?.moved) {
-      if (gesture.kind === "pan" && editable && !panning) {
+      if (gesture.kind === "pan" && !panning) {
         if (tool === "add") {
           addBoxAt(toImagePoint(event));
         } else {
@@ -243,7 +238,7 @@ export function AnnotationCanvas({
   const cursor =
     gesture?.kind === "pan"
       ? "grabbing"
-      : panning || !editable
+      : panning
         ? "grab"
         : TOOL_SPECS[tool].cursor;
 
@@ -266,108 +261,103 @@ export function AnnotationCanvas({
         }}
       >
         <img
-          src={`/img/${runId}/${stem}/${view}`}
-          alt={stem}
+          src={`/img/${image.dataset}/${image.stem}`}
+          alt={image.stem}
           width={width}
           height={height}
           draggable={false}
           className="block h-full w-full"
         />
-        {editable && (
-          <svg
-            viewBox={`0 0 ${width} ${height}`}
-            className="absolute inset-0 h-full w-full overflow-visible"
-          >
-            {layers.has("dish") && (
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="absolute inset-0 h-full w-full overflow-visible"
+        >
+          {layers.has("dish") && (
+            <circle
+              cx={result.dish.center_x}
+              cy={result.dish.center_y}
+              r={result.dish.radius}
+              fill="none"
+              stroke={CANVAS_COLORS.dish}
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          )}
+          {layers.has("detections") &&
+            result.detections.map((detection) => (
               <circle
-                cx={result.dish.center_x}
-                cy={result.dish.center_y}
-                r={result.dish.radius}
-                fill="none"
-                stroke={CANVAS_COLORS.dish}
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
+                key={detection.id}
+                cx={detection.x}
+                cy={detection.y}
+                r={3 / transform.scale}
+                fill={CANVAS_COLORS.detection}
                 pointerEvents="none"
-              />
-            )}
-            {layers.has("detections") &&
-              result.detections.map((detection) => (
-                <circle
-                  key={detection.id}
-                  cx={detection.x}
-                  cy={detection.y}
-                  r={3 / transform.scale}
-                  fill={CANVAS_COLORS.detection}
-                  pointerEvents="none"
-                >
-                  <title>{`detection #${detection.id} · score ${detection.score}`}</title>
-                </circle>
-              ))}
-            {layers.has("boxes") &&
-              annotation.instances.map((instance, index) => {
-                const box =
-                  draft?.id === instance.id ? draft.box : instance.bbox;
-                const selected = instance.id === selectedId;
-                return (
-                  <g key={instance.id} data-instance-id={instance.id}>
-                    <rect
+              >
+                <title>{`detection #${detection.id} · score ${detection.score}`}</title>
+              </circle>
+            ))}
+          {layers.has("boxes") &&
+            annotation.instances.map((instance, index) => {
+              const box = draft?.id === instance.id ? draft.box : instance.bbox;
+              const selected = instance.id === selectedId;
+              return (
+                <g key={instance.id} data-instance-id={instance.id}>
+                  <rect
+                    x={box.x}
+                    y={box.y}
+                    width={box.width}
+                    height={box.height}
+                    fill={selected ? CANVAS_COLORS.selected : CANVAS_COLORS.box}
+                    fillOpacity={selected ? 0.18 : 0.06}
+                    stroke={
+                      selected ? CANVAS_COLORS.selected : CANVAS_COLORS.box
+                    }
+                    strokeWidth={selected ? 2 : 1.5}
+                    vectorEffect="non-scaling-stroke"
+                    style={{
+                      cursor:
+                        tool === "select" && !panning ? "move" : undefined,
+                    }}
+                  />
+                  {layers.has("ids") && (
+                    <text
                       x={box.x}
-                      y={box.y}
-                      width={box.width}
-                      height={box.height}
+                      y={box.y - 3 / transform.scale}
+                      fontSize={11 / transform.scale}
                       fill={
                         selected ? CANVAS_COLORS.selected : CANVAS_COLORS.box
                       }
-                      fillOpacity={selected ? 0.18 : 0.06}
-                      stroke={
-                        selected ? CANVAS_COLORS.selected : CANVAS_COLORS.box
-                      }
-                      strokeWidth={selected ? 2 : 1.5}
-                      vectorEffect="non-scaling-stroke"
-                      style={{
-                        cursor:
-                          tool === "select" && !panning ? "move" : undefined,
-                      }}
-                    />
-                    {layers.has("ids") && (
-                      <text
-                        x={box.x}
-                        y={box.y - 3 / transform.scale}
-                        fontSize={11 / transform.scale}
-                        fill={
-                          selected ? CANVAS_COLORS.selected : CANVAS_COLORS.box
-                        }
-                        pointerEvents="none"
-                      >
-                        {index + 1}
-                      </text>
-                    )}
-                    {selected &&
-                      tool === "select" &&
-                      !panning &&
-                      HANDLES.map((handle) => {
-                        const position = handlePositions(box)[handle];
-                        return (
-                          <rect
-                            key={handle}
-                            data-handle={handle}
-                            x={position.x - handleSize / 2}
-                            y={position.y - handleSize / 2}
-                            width={handleSize}
-                            height={handleSize}
-                            fill={CANVAS_COLORS.handle}
-                            stroke={CANVAS_COLORS.selected}
-                            strokeWidth={1}
-                            vectorEffect="non-scaling-stroke"
-                            style={{ cursor: HANDLE_CURSORS[handle] }}
-                          />
-                        );
-                      })}
-                  </g>
-                );
-              })}
-          </svg>
-        )}
+                      pointerEvents="none"
+                    >
+                      {index + 1}
+                    </text>
+                  )}
+                  {selected &&
+                    tool === "select" &&
+                    !panning &&
+                    HANDLES.map((handle) => {
+                      const position = handlePositions(box)[handle];
+                      return (
+                        <rect
+                          key={handle}
+                          data-handle={handle}
+                          x={position.x - handleSize / 2}
+                          y={position.y - handleSize / 2}
+                          width={handleSize}
+                          height={handleSize}
+                          fill={CANVAS_COLORS.handle}
+                          stroke={CANVAS_COLORS.selected}
+                          strokeWidth={1}
+                          vectorEffect="non-scaling-stroke"
+                          style={{ cursor: HANDLE_CURSORS[handle] }}
+                        />
+                      );
+                    })}
+                </g>
+              );
+            })}
+        </svg>
       </div>
       <Toolbar
         isAttached

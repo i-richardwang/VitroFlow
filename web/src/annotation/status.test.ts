@@ -6,7 +6,6 @@ import { ReviewTransitionError, transition } from "./status";
 const base: AnnotationDocument = {
   image: { path: "a.jpg", width: 100, height: 100 },
   source: {
-    runId: "r",
     pipelineFingerprint: "a".repeat(64),
     modelFingerprint: "b".repeat(64),
   },

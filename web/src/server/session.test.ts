@@ -12,10 +12,7 @@ test("document redirects use a relative Location", () => {
 test("signed-in login GET does not copy the request origin into Location", () => {
   const handlers = LoginRoute.options.server?.handlers as
     | {
-        GET?: (context: {
-          request: Request;
-          next: () => Response;
-        }) => Response;
+        GET?: (context: { request: Request; next: () => Response }) => Response;
       }
     | undefined;
   const response = handlers?.GET?.({

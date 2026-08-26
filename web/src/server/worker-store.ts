@@ -10,11 +10,11 @@ import { writeAtomically } from "./files";
 import { WORKERS_DIR, resolveWithin } from "./paths";
 
 /**
- * A worker heartbeats while polling for work and after every processed
- * image. Presence and job leases are both derived from the heartbeat age.
+ * A worker heartbeats while polling for work and before every image it
+ * processes; presence is derived from the heartbeat age.
  */
 export const ONLINE_SECONDS = 30;
-export const LEASE_SECONDS = 90;
+export const STALE_SECONDS = 90;
 const FORGET_SECONDS = 7 * 24 * 60 * 60;
 
 function workerPath(workerId: string): string {
@@ -79,10 +79,5 @@ export function workerPresence(
   if (age <= ONLINE_SECONDS) {
     return "online";
   }
-  return age <= LEASE_SECONDS ? "stale" : "offline";
-}
-
-export function holdsLease(workerId: string, at: Date = new Date()): boolean {
-  const worker = readWorker(workerId);
-  return worker !== null && workerPresence(worker, at) !== "offline";
+  return age <= STALE_SECONDS ? "stale" : "offline";
 }

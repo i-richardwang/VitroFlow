@@ -4,45 +4,49 @@ import {
   annotationSchema,
   type AnnotationDocument,
 } from "../annotation/schema";
+import type { ImageRef } from "../datasets/schema";
 import { writeAtomically } from "./files";
 import { LABELS_DIR, resolveWithin } from "./paths";
 
-function labelPath(key: string): string {
-  return resolveWithin(LABELS_DIR, `${key}.json`);
+function labelPath({ dataset, stem }: ImageRef): string {
+  return resolveWithin(LABELS_DIR, dataset, `${stem}.json`);
 }
 
-export function readLabel(key: string): AnnotationDocument | null {
-  const filePath = labelPath(key);
+export function hasLabel(ref: ImageRef): boolean {
+  return fs.existsSync(labelPath(ref));
+}
+
+export function readLabel(ref: ImageRef): AnnotationDocument | null {
+  const filePath = labelPath(ref);
   if (!fs.existsSync(filePath)) {
     return null;
   }
   return annotationSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf-8")));
 }
 
-function persist(key: string, document: AnnotationDocument): void {
-  const filePath = labelPath(key);
-  writeAtomically(filePath, `${JSON.stringify(document, null, 2)}\n`);
+function persist(ref: ImageRef, document: AnnotationDocument): void {
+  writeAtomically(labelPath(ref), `${JSON.stringify(document, null, 2)}\n`);
 }
 
 export function createLabel(
-  key: string,
+  ref: ImageRef,
   document: AnnotationDocument,
 ): AnnotationDocument {
-  if (fs.existsSync(labelPath(key))) {
-    throw new Error(`Label already exists for ${key}`);
+  if (hasLabel(ref)) {
+    throw new Error(`Label already exists for ${ref.dataset}/${ref.stem}`);
   }
   const created = annotationSchema.parse({ ...document, revision: 0 });
-  persist(key, created);
+  persist(ref, created);
   return created;
 }
 
 export function updateLabel(
-  key: string,
+  ref: ImageRef,
   document: AnnotationDocument,
 ): AnnotationDocument {
-  const current = readLabel(key);
+  const current = readLabel(ref);
   if (!current) {
-    throw new Error(`No label exists for ${key}`);
+    throw new Error(`No label exists for ${ref.dataset}/${ref.stem}`);
   }
   if (document.revision !== current.revision) {
     throw new Error(
@@ -54,6 +58,6 @@ export function updateLabel(
     image: current.image,
     revision: current.revision + 1,
   });
-  persist(key, next);
+  persist(ref, next);
   return next;
 }

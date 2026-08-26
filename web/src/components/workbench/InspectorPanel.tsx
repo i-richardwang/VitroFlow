@@ -19,7 +19,6 @@ interface Metric {
 export function InspectorPanel({
   result,
   annotation,
-  editable,
   layers,
   onLayersChange,
   selected,
@@ -27,7 +26,6 @@ export function InspectorPanel({
 }: {
   result: SeedResult;
   annotation: AnnotationDocument;
-  editable: boolean;
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
   selected: SeedInstance | null;
@@ -45,53 +43,45 @@ export function InspectorPanel({
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col overflow-y-auto bg-surface">
-      {editable && (
-        <>
-          <Section title="Layers">
-            <SwitchGroup aria-label="Layers" className="gap-2">
-              {LAYERS.map((layer) => (
-                <Switch
-                  key={layer.key}
-                  size="sm"
-                  isSelected={layers.has(layer.key)}
-                  onChange={(on) => toggleLayer(layer.key, on)}
-                >
-                  <Switch.Content className="flex w-full items-center justify-between">
-                    <Label className="flex items-center gap-2">
-                      <span
-                        className="size-1.5 rounded-full"
-                        style={{ backgroundColor: layer.color }}
-                      />
-                      {layer.label}
-                    </Label>
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch.Content>
-                </Switch>
-              ))}
-            </SwitchGroup>
-          </Section>
+      <Section title="Layers">
+        <SwitchGroup aria-label="Layers" className="gap-2">
+          {LAYERS.map((layer) => (
+            <Switch
+              key={layer.key}
+              size="sm"
+              isSelected={layers.has(layer.key)}
+              onChange={(on) => toggleLayer(layer.key, on)}
+            >
+              <Switch.Content className="flex w-full items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <span
+                    className="size-1.5 rounded-full"
+                    style={{ backgroundColor: layer.color }}
+                  />
+                  {layer.label}
+                </Label>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Content>
+            </Switch>
+          ))}
+        </SwitchGroup>
+      </Section>
 
-          <Separator />
-          <Section
-            title="Instances"
-            trailing={
-              selected && (
-                <Button
-                  variant="danger-soft"
-                  size="sm"
-                  onPress={onDeleteSelected}
-                >
-                  Delete
-                </Button>
-              )
-            }
-          >
-            <Metrics rows={instanceMetrics(annotation, selected)} />
-          </Section>
-        </>
-      )}
+      <Separator />
+      <Section
+        title="Instances"
+        trailing={
+          selected && (
+            <Button variant="danger-soft" size="sm" onPress={onDeleteSelected}>
+              Delete
+            </Button>
+          )
+        }
+      >
+        <Metrics rows={instanceMetrics(annotation, selected)} />
+      </Section>
 
       <Separator />
       <Section title="Diagnostics">

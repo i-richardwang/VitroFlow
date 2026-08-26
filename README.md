@@ -5,9 +5,9 @@ VitroFlow turns petri-dish photographs into reviewed seed bounding boxes. It com
 ## System workflow
 
 ```text
-Upload images in the workbench
+Upload a dataset of images in the workbench
           ↓
-Worker creates initial detections
+Worker prelabels every pending image
           ↓
 Reviewer completes box annotations
           ├──→ retrain and evaluate candidate scoring
@@ -18,13 +18,13 @@ The data directory is the shared contract between these stages:
 
 ```text
 data/
-├── images/<dataset>/<file>.jpg   source photographs
-├── jobs/<job-id>.json            recognition job state
-├── runs/<run-id>/                detection results and rendered views
-├── labels/<dataset>/<stem>.json  reviewed box annotations
-├── staging/<job-id>/             Worker uploads awaiting publication
-└── workers/<worker-id>.json      latest heartbeat from each Worker
+├── images/<dataset>/<stem>.<ext>    source photographs; the stem identifies the image
+├── prelabels/<dataset>/<stem>.json  Worker-owned detector output, untouched by humans
+├── labels/<dataset>/<stem>.json     reviewed box annotations
+└── workers/<worker-id>.json         latest heartbeat from each Worker
 ```
+
+A dataset is a directory of images that trains one model. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Prelabels of unlabelled images are replaced whenever a Worker with a different pipeline or model fingerprint processes them.
 
 An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
 
@@ -36,7 +36,7 @@ Install the Python environment and recognize one image or a directory:
 uv sync
 uv run vitroflow recognize data/images/fixtures \
   --data-root data \
-  --output data/runs/local-review
+  --output output/local-review
 ```
 
 Each image produces a result JSON, an overlay, and a diagnostic image. The batch also produces `counts.csv`. `--data-root` controls the source paths recorded in result JSON, so images used by the workbench should be recognized with `data` as their root.
@@ -61,7 +61,7 @@ bun install
 bun run dev
 ```
 
-The Jobs page accepts image batches and queues recognition work. The Worker downloads source images through the authenticated API, runs the same recognition core used by the local command, and uploads validated artifacts through the API:
+Uploading images to a dataset is all it takes to request prelabels. The Worker polls the authenticated API for pending images, downloads each source image, runs the same recognition core used by the local command, and uploads the resulting prelabel JSON:
 
 ```bash
 export VITROFLOW_SERVER_URL=https://vitroflow.example.com
@@ -69,9 +69,20 @@ export VITROFLOW_WORKER_TOKEN=<worker-secret>
 uv run vitroflow-worker
 ```
 
-Use `--model` and `--config` to run a selected candidate model and pipeline configuration. They are loaded once at Worker startup, so every image handled by that process has a stable execution identity. `--once` processes at most one job and exits.
+Use `--model` and `--config` to run a selected candidate model and pipeline configuration. They are loaded once at Worker startup, so every image handled by that process has a stable execution identity. `--once` runs a single pass over the pending images and exits.
 
-The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_WORKER_ID`, and heartbeats while polling and after every processed image. The Status page lists each Worker with its presence, current job, and model. A running job stays leased to its Worker while heartbeats arrive; after 90 seconds of silence another Worker may claim it and continues from the images already uploaded.
+The Worker protocol has four calls under the workbench URL, each authenticated with `Authorization: Bearer <token>`:
+
+| Call | Purpose |
+|---|---|
+| `POST api/worker/heartbeat` | worker id, start time, execution identity, and the image currently in progress |
+| `GET api/worker/pending?pipeline=<fp>&model=<fp>` | images with no prelabel, or whose prelabel came from other fingerprints, excluding labelled images |
+| `GET api/worker/images/<dataset>/<stem>` | source image bytes |
+| `PUT api/worker/prelabels/<dataset>/<stem>` | prelabel document; `409` when a label already exists and the Worker skips the image |
+
+Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. A detection error becomes a failure document (`source`, `error`, `pipeline`, `model`, `config`), the image shows as `failed`, and the pass continues; a failed image is processed again once its prelabel is discarded from the workbench or a Worker with other fingerprints arrives. Prelabels are JSON only; rendered views belong to local recognition.
+
+The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
 
 The workbench reads `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`). For a container deployment:
 
@@ -79,7 +90,7 @@ The workbench reads `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`
 docker compose up --build
 ```
 
-`compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench; `VITROFLOW_WORKER_TOKEN` is the separate Worker credential. A job accepts up to 100 images, 64 MiB per image, and 512 MiB in total.
+`compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench; `VITROFLOW_WORKER_TOKEN` is the separate Worker credential.
 
 To deploy the Worker to an arm64 Wonder Mesh server on Zeabur, create another GitHub service from this repository and name the service `worker`. Zeabur selects `Dockerfile.worker` by service name. Configure one replica with:
 
@@ -129,7 +140,7 @@ uv run vitroflow dataset export-yolo \
   --seed 42
 ```
 
-The export contains copied source images, normalized YOLO labels, `dataset.yaml`, and a manifest recording source paths, revisions, and train/validation assignments. Recognition runs, training artifacts, and dataset exports are published atomically to new directories.
+The export contains copied source images, normalized YOLO labels, `dataset.yaml`, and a manifest recording source paths, revisions, and train/validation assignments. Training artifacts and dataset exports are published atomically to new directories.
 
 ## YOLO26 fine-tuning
 
@@ -222,6 +233,7 @@ Runtime parameters are grouped by responsibility in `PipelineConfig`. A nested J
 
 ```text
 src/vitroflow/
+├── image_io.py       Image decoding
 ├── geometry.py       Dish and analysis regions
 ├── normalization.py  Reference-based image normalization
 ├── proposals.py      Multi-scale candidate generation
@@ -229,7 +241,11 @@ src/vitroflow/
 ├── scoring.py        Candidate model schema and scoring
 ├── detection.py      Confidence selection and deduplication
 ├── pipeline.py       Shared recognition orchestration
-├── artifacts.py      Result serialization
+├── models.py         Result records and their JSON form
+├── identity.py       Pipeline, model, and configuration fingerprints
+├── regions.py        Seed regions for rendered views
+├── rendering.py      Overlay and diagnostic views
+├── artifacts.py      Result and view serialization
 ├── files.py          Atomic artifact publication
 ├── annotations.py    Canonical reviewed-label loading
 ├── prelabel/
@@ -241,13 +257,17 @@ src/vitroflow/
 │   ├── bootstrap.py  Prelabel bootstrap adapter
 │   └── training.py   Ultralytics training and validation
 ├── cli.py            Local workflows
-└── worker.py         Remote recognition execution
+└── worker.py         Remote prelabel execution
 
 web/src/
+├── datasets/         Dataset and image identity, derived image states
+├── detection/        Prelabel document contract
 ├── annotation/       Box annotation domain
+├── workers/          Worker heartbeat contract
 ├── components/       Review workbench UI
-├── detection/        Recognition result contract
-└── server/           Jobs, labels, runs, and Worker API
+├── hooks/            Annotation persistence and history
+├── routes/           Pages, image delivery, and Worker API
+└── server/           Datasets, prelabels, labels, and Worker presence
 ```
 
 ## Development

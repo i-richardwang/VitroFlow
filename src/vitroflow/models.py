@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 from .identity import ExecutionIdentity
 
 
@@ -53,9 +51,6 @@ class CountResult:
     dish_radius: float
     execution: ExecutionIdentity
     quality: QualityReport
-    overlay_bgr: np.ndarray
-    debug_bgr: np.ndarray
-    masks: dict[str, np.ndarray]
 
     @property
     def count(self) -> int:

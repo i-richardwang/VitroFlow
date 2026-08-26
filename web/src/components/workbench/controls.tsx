@@ -1,4 +1,3 @@
-import type { ImageKind } from "../../detection/schema";
 import { AddBoxIcon, CursorIcon } from "../icons";
 
 /** Colors shared by the canvas drawing and the layer legend. */
@@ -42,17 +41,6 @@ export function toolForShortcut(key: string): Tool | null {
       (tool) => TOOL_SPECS[tool].shortcut.toLowerCase() === key.toLowerCase(),
     ) ?? null
   );
-}
-
-export const VIEW_LABELS: Record<ImageKind, string> = {
-  source: "Source",
-  overlay: "Overlay",
-  debug: "Debug",
-};
-
-/** Only the source image carries annotations; the rendered views are read-only. */
-export function isEditableView(view: ImageKind): boolean {
-  return view === "source";
 }
 
 export const LAYERS = [

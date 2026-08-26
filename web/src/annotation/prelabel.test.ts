@@ -39,12 +39,11 @@ describe("documentFromResult", () => {
       { id: 1, x: 100, y: 100 },
       { id: 2, x: 300, y: 200 },
     ]);
-    const document = documentFromResult(result, "run-a");
+    const document = documentFromResult(result);
     expect(annotationSchema.safeParse(document).success).toBe(true);
     expect(document.status).toBe("in_progress");
     expect(document.revision).toBe(0);
     expect(document.source).toEqual({
-      runId: "run-a",
       pipelineFingerprint: "a".repeat(64),
       modelFingerprint: "b".repeat(64),
     });

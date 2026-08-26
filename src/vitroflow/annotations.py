@@ -34,7 +34,6 @@ class ReviewedImage:
     source: Path
     width: int
     height: int
-    run_id: str
     pipeline_fingerprint: str
     model_fingerprint: str
     status: str
@@ -155,7 +154,7 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
     source = _object(payload["source"], "source")
     _fields(
         source,
-        {"runId", "pipelineFingerprint", "modelFingerprint"},
+        {"pipelineFingerprint", "modelFingerprint"},
         "source",
     )
     pipeline_fingerprint = _string(
@@ -195,7 +194,6 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         source=source_path,
         width=image_width,
         height=image_height,
-        run_id=_string(source["runId"], "source.runId"),
         pipeline_fingerprint=pipeline_fingerprint,
         model_fingerprint=model_fingerprint,
         status=status,

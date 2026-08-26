@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { AnnotationDocument, SeedInstance } from "../annotation/schema";
 import { transition, type ReviewEvent } from "../annotation/status";
-import { saveLabel, type ImageRef } from "../server/runs";
+import type { ImageRef } from "../datasets/schema";
+import { saveLabel } from "../server/images";
 
 export type SaveState = "saved" | "saving" | "failed";
 

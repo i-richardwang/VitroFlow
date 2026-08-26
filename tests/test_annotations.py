@@ -12,7 +12,6 @@ def _payload(source: str, status: str = "complete") -> dict[str, object]:
     return {
         "image": {"path": source, "width": 100, "height": 80},
         "source": {
-            "runId": "run",
             "pipelineFingerprint": "a" * 64,
             "modelFingerprint": "b" * 64,
         },

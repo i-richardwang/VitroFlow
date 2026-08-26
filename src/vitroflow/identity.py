@@ -11,7 +11,6 @@ from .scoring import CandidateModel
 PIPELINE_NAME = "vitroflow-seed-counting"
 
 _PIPELINE_FILES = (
-    "artifacts.py",
     "candidates.py",
     "config.py",
     "detection.py",
@@ -22,8 +21,6 @@ _PIPELINE_FILES = (
     "normalization.py",
     "pipeline.py",
     "proposals.py",
-    "regions.py",
-    "rendering.py",
     "scoring.py",
 )
 

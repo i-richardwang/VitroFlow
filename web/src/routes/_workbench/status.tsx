@@ -34,13 +34,13 @@ function StatusPage() {
   return (
     <Page
       title="Status"
-      description="Workers report here while polling for jobs and after every processed image."
+      description="Workers report here while polling for pending images and before each one they process."
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatKpi label="Datasets" value={server.datasets} />
         <StatKpi label="Images" value={server.images} />
-        <StatKpi label="Runs" value={server.runs} />
+        <StatKpi label="Prelabels" value={server.prelabels} />
         <StatKpi label="Labels" value={server.labels} />
-        <StatKpi label="Queued jobs" value={server.queuedJobs} />
       </div>
 
       <Table>
@@ -50,7 +50,7 @@ function StatusPage() {
               <Table.Column isRowHeader>Worker</Table.Column>
               <Table.Column>Presence</Table.Column>
               <Table.Column className="whitespace-nowrap">
-                Current job
+                Processing
               </Table.Column>
               <Table.Column>Model</Table.Column>
               <Table.Column className="whitespace-nowrap text-right">
@@ -88,9 +88,12 @@ function StatusPage() {
                     </Chip>
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap font-mono">
-                    {worker.currentRunId ? (
-                      <Link href="/jobs" className="text-xs font-medium">
-                        {worker.currentRunId}
+                    {worker.current ? (
+                      <Link
+                        href={`/datasets/${worker.current.dataset}/${worker.current.stem}`}
+                        className="text-xs font-medium"
+                      >
+                        {worker.current.dataset}/{worker.current.stem}
                       </Link>
                     ) : (
                       <span className="text-muted">Idle</span>
@@ -103,7 +106,7 @@ function StatusPage() {
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
                     <span title={new Date(worker.lastSeenAt).toLocaleString()}>
-                      {formatAge(worker.lastSeenAt)}
+                      {formatAge(worker.lastSeenSeconds)}
                     </span>
                   </Table.Cell>
                 </Table.Row>
@@ -152,11 +155,7 @@ function StatKpi({ label, value }: { label: string; value: number }) {
   );
 }
 
-function formatAge(iso: string) {
-  const seconds = Math.max(
-    0,
-    Math.floor((Date.now() - Date.parse(iso)) / 1000),
-  );
+function formatAge(seconds: number) {
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;

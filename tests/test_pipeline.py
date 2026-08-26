@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
-from vitroflow import count_seeds
+from vitroflow import count_seeds, recognize
 from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence, describe_candidates
 from vitroflow.config import DecisionConfig, PipelineConfig
 from vitroflow.detection import detect_seeds
@@ -176,7 +176,8 @@ def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     path = tmp_path / "blank.jpg"
     cv2.imwrite(str(path), np.zeros((400, 600, 3), dtype=np.uint8))
 
-    result = count_seeds(path)
+    recognition = recognize(path)
+    result = recognition.result
     payload = result.to_dict()
 
     assert result.count == 0
@@ -187,10 +188,6 @@ def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     assert payload["model"]["fingerprint"] == result.execution.model_fingerprint
     assert result.quality.status == "review_required"
     assert "dish_detection_failed" in result.quality.warnings
-    assert set(result.masks) == {
-        "dish",
-        "reference_region",
-        "search_region",
-        "centers",
-        "regions",
-    }
+    assert recognition.geometry.dish_mask.shape == (400, 600)
+    assert recognition.regions.shape == (400, 600)
+    assert recognition.overlay().shape == (400, 600, 3)

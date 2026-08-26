@@ -67,19 +67,12 @@ export function RedoIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function RunsIcon(props: SVGProps<SVGSVGElement>) {
+export function DatasetsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
-      <path d="M3 4.5h10M3 8h10M3 11.5h6" />
-    </Icon>
-  );
-}
-
-export function JobsIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <rect x="2.5" y="3.5" width="11" height="9" rx="1.5" />
-      <path d="M5.5 3.5V3a1 1 0 011-1h3a1 1 0 011 1v.5" />
+      <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" />
+      <path d="M2.5 10.5l3-3 2.5 2.5 2-2 3.5 3.5" />
+      <circle cx="10.5" cy="5.5" r="1" />
     </Icon>
   );
 }

@@ -1,66 +1,75 @@
-import { EmptyState, Link, Table } from "@heroui/react";
+import { EmptyState, Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Count } from "../../components/Count";
 import { Page } from "../../components/Page";
-import { listRuns } from "../../server/runs";
+import { UploadCard } from "../../components/UploadCard";
+import { getDatasets } from "../../server/images";
 
 export const Route = createFileRoute("/_workbench/")({
-  loader: () => listRuns(),
-  component: RunsPage,
+  loader: () => getDatasets(),
+  component: DatasetsPage,
 });
 
-function RunsPage() {
-  const runs = Route.useLoaderData();
+function DatasetsPage() {
+  const datasets = Route.useLoaderData();
 
   return (
     <Page
-      title="Runs"
-      description="Open a published run to review and correct detections."
+      title="Datasets"
+      description="Each dataset is the training set for one model. Uploaded images are detected by a worker and then reviewed here."
     >
+      <UploadCard />
+
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="Runs">
+          <Table.Content aria-label="Datasets">
             <Table.Header>
-              <Table.Column isRowHeader>Run</Table.Column>
+              <Table.Column isRowHeader>Dataset</Table.Column>
               <Table.Column className="text-right">Images</Table.Column>
+              <Table.Column className="text-right">Pending</Table.Column>
+              <Table.Column className="whitespace-nowrap text-right">
+                To review
+              </Table.Column>
               <Table.Column className="text-right">Complete</Table.Column>
-              <Table.Column className="text-right">Flagged</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
-                <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-3 text-center">
-                  <span className="flex flex-col gap-1">
-                    <span className="font-medium">No runs yet</span>
-                    <span className="text-xs text-muted">
-                      Create a recognition job and keep a Worker connected.
-                    </span>
+                <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
+                  <span className="font-medium">No datasets yet</span>
+                  <span className="text-xs text-muted">
+                    Upload images above to create the first one.
                   </span>
-                  <Link href="/jobs">Create job</Link>
                 </EmptyState>
               )}
             >
-              {runs.map((run) => (
+              {datasets.map((dataset) => (
                 <Table.Row
-                  key={run.runId}
-                  href={`/runs/${run.runId}`}
+                  key={dataset.dataset}
+                  href={`/datasets/${dataset.dataset}`}
                   className="cursor-(--cursor-interactive)"
                 >
                   <Table.Cell className="font-mono font-medium">
-                    {run.runId}
+                    {dataset.dataset}
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                    {run.imageCount}
+                    {dataset.imageCount}
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    {run.completedCount}
-                    <span className="text-muted"> / {run.imageCount}</span>
+                    <Count
+                      value={dataset.counts.pending + dataset.counts.failed}
+                    />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    {run.flaggedCount > 0 ? (
-                      <span className="text-warning">{run.flaggedCount}</span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
+                    <Count
+                      value={
+                        dataset.counts.prelabeled + dataset.counts.in_progress
+                      }
+                    />
+                  </Table.Cell>
+                  <Table.Cell className="text-right font-mono tabular-nums">
+                    {dataset.counts.complete}
+                    <span className="text-muted"> / {dataset.imageCount}</span>
                   </Table.Cell>
                 </Table.Row>
               ))}

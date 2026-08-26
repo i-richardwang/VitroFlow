@@ -9,12 +9,14 @@ import numpy as np
 
 from .config import PipelineConfig
 from .models import CountResult
-from .pipeline import count_seeds
+from .pipeline import recognize
 from .scoring import DEFAULT_MODEL, CandidateModel
 
 
 @dataclass(frozen=True)
 class ImageArtifacts:
+    """What local recognition writes for one image: the result and its rendered views."""
+
     result: CountResult
     result_json: bytes
     overlay_jpeg: bytes
@@ -35,20 +37,16 @@ def create_image_artifacts(
     config: PipelineConfig | None = None,
     model: CandidateModel = DEFAULT_MODEL,
 ) -> ImageArtifacts:
-    result = count_seeds(
-        image_path,
-        source=source,
-        config=config,
-        model=model,
-    )
+    recognition = recognize(image_path, source=source, config=config, model=model)
+    result = recognition.result
     result_json = (
         json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n"
     ).encode("utf-8")
     return ImageArtifacts(
         result=result,
         result_json=result_json,
-        overlay_jpeg=_encode_jpeg(result.overlay_bgr),
-        debug_jpeg=_encode_jpeg(result.debug_bgr),
+        overlay_jpeg=_encode_jpeg(recognition.overlay()),
+        debug_jpeg=_encode_jpeg(recognition.debug()),
     )
 
 

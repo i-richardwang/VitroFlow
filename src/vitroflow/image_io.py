@@ -11,5 +11,5 @@ def read_image(path: str | Path) -> np.ndarray:
     data = np.fromfile(source, dtype=np.uint8)
     image = cv2.imdecode(data, cv2.IMREAD_COLOR)
     if image is None:
-        raise ValueError(f"Unable to read image: {source}")
+        raise ValueError(f"Unable to read image: {source.name}")
     return image

@@ -78,20 +78,33 @@ def _assess_quality(
     )
 
 
-def _center_mask(shape: tuple[int, int], detection: DetectionResult) -> np.ndarray:
-    mask = np.zeros(shape, dtype=bool)
-    for seed in detection.detections:
-        mask[round(seed.y), round(seed.x)] = True
-    return mask
+@dataclass(frozen=True)
+class Recognition:
+    """A counted image together with the intermediates its views are drawn from."""
+
+    result: CountResult
+    image: np.ndarray
+    geometry: DishGeometry
+    normalized: NormalizedImage
+    detection: DetectionResult
+    regions: np.ndarray
+
+    def overlay(self) -> np.ndarray:
+        return render_overlay(self.image, self.geometry, self.detection, self.regions)
+
+    def debug(self) -> np.ndarray:
+        return render_debug(
+            self.image, self.geometry, self.normalized, self.detection, self.regions
+        )
 
 
-def count_seeds(
+def recognize(
     image_path: str | Path,
     *,
     source: str | Path | None = None,
     config: PipelineConfig | None = None,
     model: CandidateModel = DEFAULT_MODEL,
-) -> CountResult:
+) -> Recognition:
     config = config or PipelineConfig()
     analysis = analyze_candidates(image_path, config)
     image = analysis.image
@@ -106,9 +119,8 @@ def count_seeds(
     window_radius = max(
         3, round(geometry.radius * config.rendering.region_radius_fraction)
     )
-    labels = render_regions(image.shape[:2], detection.detections, window_radius)
-
-    return CountResult(
+    regions = render_regions(image.shape[:2], detection.detections, window_radius)
+    result = CountResult(
         source=Path(source) if source is not None else Path(image_path),
         width=image.shape[1],
         height=image.shape[0],
@@ -117,13 +129,15 @@ def count_seeds(
         dish_radius=geometry.radius,
         execution=ExecutionIdentity.create(config, model),
         quality=_assess_quality(geometry, normalized, config),
-        overlay_bgr=render_overlay(image, geometry, detection, labels),
-        debug_bgr=render_debug(image, geometry, normalized, detection, labels),
-        masks={
-            "dish": geometry.dish_mask,
-            "reference_region": geometry.reference_mask,
-            "search_region": geometry.search_mask,
-            "centers": _center_mask(image.shape[:2], detection),
-            "regions": labels,
-        },
     )
+    return Recognition(result, image, geometry, normalized, detection, regions)
+
+
+def count_seeds(
+    image_path: str | Path,
+    *,
+    source: str | Path | None = None,
+    config: PipelineConfig | None = None,
+    model: CandidateModel = DEFAULT_MODEL,
+) -> CountResult:
+    return recognize(image_path, source=source, config=config, model=model).result

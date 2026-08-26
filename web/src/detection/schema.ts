@@ -1,14 +1,18 @@
 import { z } from "zod";
 
-export const pipelineSchema = z.object({
-  name: z.string().min(1),
-  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-}).strict();
+export const pipelineSchema = z
+  .object({
+    name: z.string().min(1),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 
-export const modelSchema = z.object({
-  name: z.string().min(1),
-  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-}).strict();
+export const modelSchema = z
+  .object({
+    name: z.string().min(1),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 
 export const pipelineConfigSchema = z
   .object({
@@ -65,11 +69,13 @@ export const pipelineConfigSchema = z
     }
   });
 
-export const executionSchema = z.object({
-  pipeline: pipelineSchema,
-  model: modelSchema,
-  config: pipelineConfigSchema,
-}).strict();
+export const executionSchema = z
+  .object({
+    pipeline: pipelineSchema,
+    model: modelSchema,
+    config: pipelineConfigSchema,
+  })
+  .strict();
 
 export const resultSchema = z
   .strictObject({
@@ -144,5 +150,25 @@ export type SeedQuality = SeedResult["quality"];
 export type SeedWarning = SeedQuality["warnings"][number];
 export type ExecutionIdentity = z.infer<typeof executionSchema>;
 
-export const IMAGE_KINDS = ["source", "overlay", "debug"] as const;
-export type ImageKind = (typeof IMAGE_KINDS)[number];
+/** What a worker records when the detector could not process an image. */
+export const failureSchema = z.strictObject({
+  source: z.string().min(1),
+  error: z.string().min(1).max(2000),
+  pipeline: pipelineSchema,
+  model: modelSchema,
+  config: pipelineConfigSchema,
+});
+
+/**
+ * The detector's output for one image, exactly as the worker produced it.
+ * It is the version every review starts from and is kept unchanged once a
+ * label exists.
+ */
+export const prelabelSchema = z.union([resultSchema, failureSchema]);
+
+export type PrelabelFailure = z.infer<typeof failureSchema>;
+export type Prelabel = z.infer<typeof prelabelSchema>;
+
+export function isFailure(prelabel: Prelabel): prelabel is PrelabelFailure {
+  return "error" in prelabel;
+}

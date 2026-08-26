@@ -20,13 +20,15 @@ from typing import Any
 import cv2
 import httpx
 
-from .artifacts import create_image_artifacts
 from .config import PipelineConfig
 from .identity import ExecutionIdentity
+from .pipeline import count_seeds
 from .scoring import DEFAULT_MODEL, CandidateModel, load_candidate_model
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
+DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
 WORKER_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
+_ERROR_MESSAGE_LIMIT = 2000
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -66,57 +68,25 @@ def _health_server(port: int | None) -> Iterator[int | None]:
 
 
 @dataclass(frozen=True)
-class WorkerImage:
-    image_id: str
+class PendingImage:
+    """An image the workbench wants a prelabel for."""
+
+    dataset: str
+    stem: str
     source: str
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WorkerImage:
-        image_id = data.get("id")
-        source = data.get("source")
-        if not isinstance(image_id, str) or not image_id:
-            raise ValueError("Job image is missing an id")
-        if not isinstance(source, str) or not source:
-            raise ValueError("Job image is missing a source")
-        return cls(image_id, source)
+    def from_dict(cls, data: dict[str, Any]) -> PendingImage:
+        values = []
+        for key in ("dataset", "stem", "source"):
+            value = data.get(key)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"Pending image is missing {key}")
+            values.append(value)
+        return cls(*values)
 
-
-@dataclass(frozen=True)
-class WorkerJob:
-    job_id: str
-    run_id: str
-    images: tuple[WorkerImage, ...]
-    completed_image_ids: frozenset[str]
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WorkerJob:
-        job_id = data.get("id")
-        run_id = data.get("runId")
-        raw_images = data.get("images")
-        raw_completed = data.get("completedImageIds")
-        if not isinstance(job_id, str) or not job_id:
-            raise ValueError("Job is missing an id")
-        if not isinstance(run_id, str) or not run_id:
-            raise ValueError("Job is missing a run id")
-        if not isinstance(raw_images, list) or not raw_images:
-            raise ValueError("Job has no images")
-        if not isinstance(raw_completed, list) or not all(
-            isinstance(item, str) for item in raw_completed
-        ):
-            raise ValueError("Job completed image ids must be strings")
-        return cls(
-            job_id,
-            run_id,
-            tuple(WorkerImage.from_dict(item) for item in raw_images),
-            frozenset(raw_completed),
-        )
-
-    def pending_images(self) -> tuple[WorkerImage, ...]:
-        return tuple(
-            image
-            for image in self.images
-            if image.image_id not in self.completed_image_ids
-        )
+    def to_dict(self) -> dict[str, str]:
+        return {"dataset": self.dataset, "stem": self.stem}
 
 
 @dataclass(frozen=True)
@@ -137,12 +107,20 @@ class WorkerIdentity:
             ExecutionIdentity.create(config, model),
         )
 
-    def heartbeat(self, current_job_id: str | None) -> dict[str, object]:
+    def heartbeat(self, current: PendingImage | None) -> dict[str, object]:
         return {
             "workerId": self.worker_id,
             "startedAt": self.started_at,
             "execution": self.execution.to_dict(),
-            "currentJobId": current_job_id,
+            "current": current.to_dict() if current else None,
+        }
+
+    def failure(self, image: PendingImage, error: Exception) -> dict[str, object]:
+        """The prelabel document recorded when detection cannot produce a result."""
+        return {
+            "source": image.source,
+            "error": str(error)[:_ERROR_MESSAGE_LIMIT],
+            **self.execution.to_dict(),
         }
 
 
@@ -183,136 +161,115 @@ class WorkerClient:
             time.sleep(0.5 * 2**attempt)
         raise RuntimeError("HTTP retry loop ended without a response")
 
-    def heartbeat(self, job: WorkerJob | None) -> None:
+    def heartbeat(self, current: PendingImage | None) -> None:
         response = self._request(
-            "POST",
-            "api/worker/heartbeat",
-            json=self.identity.heartbeat(job.job_id if job else None),
+            "POST", "api/worker/heartbeat", json=self.identity.heartbeat(current)
         )
         response.raise_for_status()
 
-    def claim(self) -> WorkerJob | None:
+    def pending(self) -> tuple[PendingImage, ...]:
+        execution = self.identity.execution
         response = self._request(
-            "POST",
-            "api/worker/jobs/claim",
-            json={"workerId": self.identity.worker_id},
+            "GET",
+            "api/worker/pending",
+            params={
+                "pipeline": execution.pipeline_fingerprint,
+                "model": execution.model_fingerprint,
+            },
         )
-        if response.status_code == 204:
-            return None
         response.raise_for_status()
-        return WorkerJob.from_dict(response.json())
+        images = response.json().get("images")
+        if not isinstance(images, list):
+            raise TypeError("Pending response must contain an images array")
+        return tuple(PendingImage.from_dict(item) for item in images)
 
-    def download(self, job: WorkerJob, image: WorkerImage) -> bytes:
+    def download(self, image: PendingImage) -> bytes:
         response = self._request(
-            "GET", f"api/worker/jobs/{job.job_id}/images/{image.image_id}"
+            "GET", f"api/worker/images/{image.dataset}/{image.stem}"
         )
         response.raise_for_status()
         return response.content
 
-    def upload(
-        self,
-        job: WorkerJob,
-        image: WorkerImage,
-        result_json: bytes,
-        overlay_jpeg: bytes,
-        debug_jpeg: bytes,
-    ) -> None:
+    def put_prelabel(self, image: PendingImage, document: dict[str, object]) -> bool:
+        """Store a prelabel; returns False when a label already owns the image."""
         response = self._request(
             "PUT",
-            f"api/worker/jobs/{job.job_id}/results/{image.image_id}",
-            files={
-                "result": ("result.json", result_json, "application/json"),
-                "overlay": ("overlay.jpg", overlay_jpeg, "image/jpeg"),
-                "debug": ("debug.jpg", debug_jpeg, "image/jpeg"),
-            },
+            f"api/worker/prelabels/{image.dataset}/{image.stem}",
+            json=document,
         )
+        if response.status_code == 409:
+            return False
         response.raise_for_status()
-
-    def complete(self, job: WorkerJob) -> None:
-        response = self._request("POST", f"api/worker/jobs/{job.job_id}/complete")
-        response.raise_for_status()
-
-    def fail(self, job: WorkerJob, error: str) -> None:
-        response = self._request(
-            "POST",
-            f"api/worker/jobs/{job.job_id}/fail",
-            json={"error": error[:2000]},
-        )
-        response.raise_for_status()
+        return True
 
 
-def report_heartbeat(client: WorkerClient, job: WorkerJob | None) -> None:
+def report_heartbeat(client: WorkerClient, current: PendingImage | None) -> None:
     """A missed heartbeat only delays the status shown in the workbench."""
     try:
-        client.heartbeat(job)
+        client.heartbeat(current)
     except WORKER_ERRORS as error:
         print(f"heartbeat failed: {error}", file=sys.stderr, flush=True)
 
 
-def process_job(
+def prelabel_document(
+    image: PendingImage,
+    image_path: Path,
+    identity: WorkerIdentity,
+    config: PipelineConfig,
+    model: CandidateModel,
+) -> dict[str, object]:
+    try:
+        result = count_seeds(
+            image_path, source=image.source, config=config, model=model
+        )
+    except DETECTION_ERRORS as error:
+        print(f"detection failed for {image.source}: {error}", file=sys.stderr)
+        return identity.failure(image, error)
+    return result.to_dict()
+
+
+def process_image(
     client: WorkerClient,
-    job: WorkerJob,
+    image: PendingImage,
     work_dir: Path,
     config: PipelineConfig,
     model: CandidateModel,
 ) -> None:
-    work_dir.mkdir(parents=True, exist_ok=True)
+    report_heartbeat(client, image)
+    suffix = Path(image.source).suffix.lower() or ".jpg"
+    image_path = work_dir / f"{image.dataset}-{image.stem}{suffix}"
+    image_path.write_bytes(client.download(image))
     try:
-        for image in job.pending_images():
-            report_heartbeat(client, job)
-            suffix = Path(image.source).suffix.lower() or ".jpg"
-            image_path = work_dir / f"{image.image_id}{suffix}"
-            image_path.write_bytes(client.download(job, image))
-            artifacts = create_image_artifacts(
-                image_path,
-                image.source,
-                config=config,
-                model=model,
-            )
-            client.upload(
-                job,
-                image,
-                artifacts.result_json,
-                artifacts.overlay_jpeg,
-                artifacts.debug_jpeg,
-            )
-        client.complete(job)
-    except Exception as error:
-        try:
-            client.fail(job, str(error))
-        except WORKER_ERRORS as report_error:
-            print(
-                f"unable to report failed job {job.job_id}: {report_error}",
-                file=sys.stderr,
-            )
-        raise
+        document = prelabel_document(image, image_path, client.identity, config, model)
+    finally:
+        image_path.unlink(missing_ok=True)
+    if client.put_prelabel(image, document):
+        print(f"prelabelled {image.source}", flush=True)
 
 
-def run_once(
+def run_pass(
     client: WorkerClient,
     work_root: Path,
     config: PipelineConfig,
     model: CandidateModel,
 ) -> bool:
+    """Prelabel every pending image once; returns False when nothing was pending."""
     report_heartbeat(client, None)
-    job = client.claim()
-    if job is None:
+    images = client.pending()
+    if not images:
         return False
-    pending = len(job.pending_images())
-    print(f"claimed {job.run_id} ({pending} of {len(job.images)} images)", flush=True)
-    with tempfile.TemporaryDirectory(
-        prefix=f"vitroflow-{job.job_id}-", dir=work_root
-    ) as temporary:
-        process_job(client, job, Path(temporary), config, model)
+    print(f"{len(images)} pending images", flush=True)
+    with tempfile.TemporaryDirectory(prefix="vitroflow-", dir=work_root) as temporary:
+        for image in images:
+            process_image(client, image, Path(temporary), config, model)
     report_heartbeat(client, None)
-    print(f"completed {job.run_id}", flush=True)
     return True
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vitroflow-worker",
-        description="Process recognition jobs from a VitroFlow workbench.",
+        description="Prelabel pending images of a VitroFlow workbench.",
     )
     parser.add_argument(
         "--server",
@@ -343,7 +300,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--config", help="JSON file overriding pipeline parameters")
     parser.add_argument("--model", help="Candidate model JSON")
-    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--once", action="store_true", help="Run a single pass")
     return parser
 
 
@@ -386,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
         with _health_server(args.health_port):
             while True:
                 try:
-                    processed = run_once(client, args.work_dir, config, model)
+                    processed = run_pass(client, args.work_dir, config, model)
                 except WORKER_ERRORS as error:
                     print(f"worker error: {error}", file=sys.stderr, flush=True)
                     processed = False

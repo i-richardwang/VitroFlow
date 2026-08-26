@@ -48,7 +48,6 @@ def _image(index: int) -> PreparedImage:
         source=Path(f"images/batch/{index}.jpg"),
         width=100,
         height=100,
-        run_id="run",
         pipeline_fingerprint="a" * 64,
         model_fingerprint="b" * 64,
         status="complete",

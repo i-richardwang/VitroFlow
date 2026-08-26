@@ -33,10 +33,7 @@ export function instanceFromBox(bbox: BoundingBox): SeedInstance {
   return { id: newInstanceId(), class: "seed", bbox };
 }
 
-export function documentFromResult(
-  result: SeedResult,
-  runId: string,
-): AnnotationDocument {
+export function documentFromResult(result: SeedResult): AnnotationDocument {
   const image = result.image;
   const instances: SeedInstance[] = [];
   for (const detection of result.detections) {
@@ -48,7 +45,6 @@ export function documentFromResult(
   return {
     image: { path: result.source, width: image.width, height: image.height },
     source: {
-      runId,
       pipelineFingerprint: result.pipeline.fingerprint,
       modelFingerprint: result.model.fingerprint,
     },

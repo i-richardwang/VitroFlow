@@ -45,7 +45,6 @@ def test_ultralytics_resolves_exported_dataset_from_its_yaml(tmp_path: Path) -> 
                 source=source,
                 width=100,
                 height=80,
-                run_id="run",
                 pipeline_fingerprint="a" * 64,
                 model_fingerprint="b" * 64,
                 status="complete",

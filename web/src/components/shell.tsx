@@ -5,17 +5,10 @@ import { Button } from "@heroui/react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import {
-  BrandIcon,
-  JobsIcon,
-  LogoutIcon,
-  RunsIcon,
-  StatusIcon,
-} from "./icons";
+import { BrandIcon, DatasetsIcon, LogoutIcon, StatusIcon } from "./icons";
 
 const NAV = [
-  { href: "/", label: "Runs", icon: RunsIcon, match: "runs" },
-  { href: "/jobs", label: "Jobs", icon: JobsIcon, match: "jobs" },
+  { href: "/", label: "Datasets", icon: DatasetsIcon, match: "datasets" },
   { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
 
@@ -69,7 +62,7 @@ function AppSidebar({
   pathname: string;
   signedIn: boolean;
 }) {
-  const section = pathname.split("/")[1] || "runs";
+  const section = pathname.split("/")[1] || "datasets";
 
   return (
     <>
@@ -107,9 +100,7 @@ function SidebarContents({
             <div className="truncate text-sm font-semibold text-foreground">
               VitroFlow
             </div>
-            <div className="truncate text-xs text-muted">
-              Seed annotation
-            </div>
+            <div className="truncate text-xs text-muted">Seed annotation</div>
           </div>
         </div>
       </Sidebar.Header>
@@ -157,10 +148,11 @@ function SidebarContents({
 
 function titleFor(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] === "runs" && parts[1]) {
-    return parts[parts.length - 1] ?? "Runs";
+  if (parts[0] === "datasets" && parts[1]) {
+    return parts[parts.length - 1] ?? "Datasets";
   }
   return (
-    NAV.find((item) => item.match === (parts[0] || "runs"))?.label ?? "Runs"
+    NAV.find((item) => item.match === (parts[0] || "datasets"))?.label ??
+    "Datasets"
   );
 }

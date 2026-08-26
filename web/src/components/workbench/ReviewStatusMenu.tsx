@@ -14,7 +14,7 @@ import {
   type ReviewEvent,
 } from "../../annotation/status";
 import { ChevronDownIcon } from "../icons";
-import { ReviewStatusDot, reviewStateLabel } from "../ReviewStatus";
+import { ImageStateDot, imageStateLabel } from "../ImageState";
 
 type Action = "complete" | "reopen" | "include" | "exclude";
 
@@ -62,8 +62,8 @@ export function ReviewStatusMenu({
       )}
       <Dropdown>
         <Button variant="secondary" size="sm">
-          <ReviewStatusDot state={annotation.status} />
-          {reviewStateLabel(annotation.status)}
+          <ImageStateDot state={annotation.status} />
+          {imageStateLabel(annotation.status)}
           <ChevronDownIcon className="size-3.5 text-muted" />
         </Button>
         <Dropdown.Popover placement="bottom end">

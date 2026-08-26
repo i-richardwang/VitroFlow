@@ -1,14 +1,14 @@
 import { z } from "zod";
 
+import { DATASET_NAME, imageRefSchema } from "../datasets/schema";
 import { executionSchema } from "../detection/schema";
-import { IDENTIFIER } from "../jobs/schema";
 
 export const heartbeatSchema = z
   .object({
-    workerId: z.string().regex(IDENTIFIER),
+    workerId: z.string().regex(DATASET_NAME),
     startedAt: z.string().datetime({ offset: true }),
     execution: executionSchema,
-    currentJobId: z.string().uuid().nullable(),
+    current: imageRefSchema.nullable(),
   })
   .strict();
 
