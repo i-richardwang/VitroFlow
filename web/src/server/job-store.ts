@@ -9,6 +9,7 @@ import {
   type ExecutionIdentity,
 } from "../detection/schema";
 import {
+  IDENTIFIER,
   jobSchema,
   type JobImage,
   type PublishingJob,
@@ -25,8 +26,7 @@ import {
   STAGING_DIR,
   resolveWithin,
 } from "./paths";
-
-const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
+import { holdsLease } from "./worker-store";
 const RESULT_SUFFIXES = [".json", "_overlay.jpg", "_debug.jpg"] as const;
 const MAX_RESULT_BYTES = 4 * 1024 * 1024;
 const MAX_RENDER_BYTES = 32 * 1024 * 1024;
@@ -37,7 +37,9 @@ function now(): string {
 
 function assertIdentifier(value: string, name: string): void {
   if (!IDENTIFIER.test(value)) {
-    throw new Error(`${name} must use letters, numbers, dots, dashes, or underscores`);
+    throw new Error(
+      `${name} must use letters, numbers, dots, dashes, or underscores`,
+    );
   }
 }
 
@@ -73,12 +75,25 @@ function jobFields(job: RecognitionJob) {
   };
 }
 
-function resultExecution(result: ReturnType<typeof resultSchema.parse>): ExecutionIdentity {
+function resultExecution(
+  result: ReturnType<typeof resultSchema.parse>,
+): ExecutionIdentity {
   return executionSchema.parse({
     pipeline: result.pipeline,
     model: result.model,
     config: result.config,
   });
+}
+
+function stagedImageIds(job: RunningJob): string[] {
+  const directory = stagingRunDir(job.id);
+  return job.images
+    .filter((image) =>
+      RESULT_SUFFIXES.every((suffix) =>
+        fs.existsSync(resolveWithin(directory, `${image.stem}${suffix}`)),
+      ),
+    )
+    .map((image) => image.id);
 }
 
 function readResultFile(directory: string, image: JobImage) {
@@ -89,19 +104,26 @@ function readResultFile(directory: string, image: JobImage) {
   return resultSchema.parse(JSON.parse(fs.readFileSync(resultPath, "utf-8")));
 }
 
-function validateResultSet(job: RunningJob | PublishingJob, directory: string): void {
+function validateResultSet(
+  job: RunningJob | PublishingJob,
+  directory: string,
+): void {
   if (!job.execution) {
     throw new Error(`Job ${job.id} has no execution identity`);
   }
   for (const image of job.images) {
     for (const suffix of RESULT_SUFFIXES) {
       if (!fs.existsSync(resolveWithin(directory, `${image.stem}${suffix}`))) {
-        throw new Error(`Missing result artifact for ${image.source}: ${suffix}`);
+        throw new Error(
+          `Missing result artifact for ${image.source}: ${suffix}`,
+        );
       }
     }
     const result = readResultFile(directory, image);
     if (result.source !== image.source) {
-      throw new Error(`Result source does not match job image: ${result.source}`);
+      throw new Error(
+        `Result source does not match job image: ${result.source}`,
+      );
     }
     if (!isDeepStrictEqual(resultExecution(result), job.execution)) {
       throw new Error(`Result execution identity differs for ${image.source}`);
@@ -180,7 +202,14 @@ export function createJob(
   return job;
 }
 
-export function claimNextJob(): RecognitionJob | null {
+export type JobClaim = RunningJob & { completedImageIds: string[] };
+
+/**
+ * Hands the worker its own running job first, then any running job whose
+ * holder stopped heartbeating, then the oldest queued job.
+ */
+export function claimNextJob(workerId: string): JobClaim | null {
+  assertIdentifier(workerId, "Worker ID");
   for (const job of listJobs()) {
     if (job.status === "publishing") {
       finalizePublishing(job);
@@ -189,9 +218,17 @@ export function claimNextJob(): RecognitionJob | null {
   const jobs = listJobs();
   const running = jobs
     .filter((job): job is RunningJob => job.status === "running")
-    .sort((left, right) => left.startedAt.localeCompare(right.startedAt))[0];
-  if (running) {
-    return running;
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+  const owned = running.find((job) => job.workerId === workerId);
+  const abandoned = running.find((job) => !holdsLease(job.workerId));
+  const resumed = owned ?? abandoned;
+  if (resumed) {
+    const claimed: RunningJob = { ...resumed, workerId };
+    persistJob(claimed);
+    return { ...claimed, completedImageIds: stagedImageIds(claimed) };
+  }
+  if (running.length > 0) {
+    return null;
   }
   const queued = jobs
     .filter((job): job is QueuedJob => job.status === "queued")
@@ -199,16 +236,20 @@ export function claimNextJob(): RecognitionJob | null {
   if (!queued) {
     return null;
   }
-  const runningJob: RunningJob = {
+  const claimed: RunningJob = {
     ...jobFields(queued),
     status: "running",
     startedAt: now(),
+    workerId,
   };
-  persistJob(runningJob);
-  return runningJob;
+  persistJob(claimed);
+  return { ...claimed, completedImageIds: [] };
 }
 
-export function readJobImage(jobId: string, imageId: string): {
+export function readJobImage(
+  jobId: string,
+  imageId: string,
+): {
   bytes: Uint8Array;
   contentType: string;
   filename: string;
@@ -284,16 +325,12 @@ export async function storeJobResult(
     new Uint8Array(await debugFile.arrayBuffer()),
   );
 
-  const completedImages = job.images.filter((candidate) =>
-    RESULT_SUFFIXES.every((suffix) =>
-      fs.existsSync(resolveWithin(directory, `${candidate.stem}${suffix}`)),
-    ),
-  ).length;
   const updated: RunningJob = {
     ...jobFields(job),
     status: "running",
     startedAt: job.startedAt,
-    completedImages,
+    workerId: job.workerId,
+    completedImages: stagedImageIds(job).length,
     execution,
   };
   persistJob(updated);

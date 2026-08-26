@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import httpx
@@ -9,19 +10,26 @@ from vitroflow.config import PipelineConfig
 from vitroflow.scoring import DEFAULT_MODEL
 from vitroflow.worker import (
     WorkerClient,
+    WorkerIdentity,
     WorkerImage,
     WorkerJob,
     _health_server,
     process_job,
 )
 
+IDENTITY = WorkerIdentity.create("test-worker", PipelineConfig(), DEFAULT_MODEL)
+
 
 class FakeClient:
     def __init__(self, *, fail_download: bool = False) -> None:
         self.fail_download = fail_download
         self.uploads: list[tuple[str, bytes, bytes, bytes]] = []
+        self.heartbeats: list[str | None] = []
         self.completed = False
         self.failure: str | None = None
+
+    def heartbeat(self, job: WorkerJob | None) -> None:
+        self.heartbeats.append(job.job_id if job else None)
 
     def download(self, job: WorkerJob, image: WorkerImage) -> bytes:
         if self.fail_download:
@@ -61,13 +69,56 @@ def test_worker_job_validates_the_claim_payload() -> None:
             "id": "job",
             "runId": "run",
             "images": [{"id": "image", "source": "images/set/a.jpg"}],
+            "completedImageIds": [],
         }
     )
 
     assert job.run_id == "run"
     assert job.images == (WorkerImage("image", "images/set/a.jpg"),)
+    assert job.pending_images() == job.images
     with pytest.raises(ValueError, match="no images"):
-        WorkerJob.from_dict({"id": "job", "runId": "run", "images": []})
+        WorkerJob.from_dict(
+            {"id": "job", "runId": "run", "images": [], "completedImageIds": []}
+        )
+    with pytest.raises(ValueError, match="completed image ids"):
+        WorkerJob.from_dict(
+            {
+                "id": "job",
+                "runId": "run",
+                "images": [{"id": "image", "source": "images/set/a.jpg"}],
+            }
+        )
+
+
+def test_worker_job_skips_images_the_workbench_already_holds() -> None:
+    job = WorkerJob.from_dict(
+        {
+            "id": "job",
+            "runId": "run",
+            "images": [
+                {"id": "done", "source": "images/set/a.jpg"},
+                {"id": "todo", "source": "images/set/b.jpg"},
+            ],
+            "completedImageIds": ["done"],
+        }
+    )
+
+    assert job.pending_images() == (WorkerImage("todo", "images/set/b.jpg"),)
+
+
+def test_worker_identity_reports_a_stable_execution() -> None:
+    heartbeat = IDENTITY.heartbeat("job")
+
+    assert heartbeat["workerId"] == "test-worker"
+    assert heartbeat["currentJobId"] == "job"
+    execution = heartbeat["execution"]
+    assert isinstance(execution, dict)
+    assert execution["model"] == {
+        "name": DEFAULT_MODEL.name,
+        "fingerprint": DEFAULT_MODEL.fingerprint,
+    }
+    assert execution["config"] == PipelineConfig().to_dict()
+    assert IDENTITY.heartbeat(None)["currentJobId"] is None
 
 
 def test_worker_client_uses_the_authenticated_http_contract() -> None:
@@ -77,13 +128,18 @@ def test_worker_client_uses_the_authenticated_http_contract() -> None:
         requests.append(request)
         assert request.headers["authorization"] == "Bearer secret"
         path = request.url.path
+        if path == "/api/worker/heartbeat":
+            assert json.loads(request.read()) == IDENTITY.heartbeat(None)
+            return httpx.Response(200, json={})
         if path == "/api/worker/jobs/claim":
+            assert request.read() == b'{"workerId":"test-worker"}'
             return httpx.Response(
                 200,
                 json={
                     "id": "job",
                     "runId": "run",
                     "images": [{"id": "image", "source": "images/set/a.jpg"}],
+                    "completedImageIds": [],
                 },
             )
         if path.endswith("/images/image"):
@@ -93,9 +149,11 @@ def test_worker_client_uses_the_authenticated_http_contract() -> None:
     client = WorkerClient(
         "https://example.test",
         "secret",
+        IDENTITY,
         transport=httpx.MockTransport(handle),
     )
     try:
+        client.heartbeat(None)
         job = client.claim()
         assert job is not None
         image = job.images[0]
@@ -108,12 +166,13 @@ def test_worker_client_uses_the_authenticated_http_contract() -> None:
 
     assert [request.method for request in requests] == [
         "POST",
+        "POST",
         "GET",
         "PUT",
         "POST",
         "POST",
     ]
-    upload = requests[2]
+    upload = requests[3]
     assert upload.url.path == "/api/worker/jobs/job/results/image"
     body = upload.read()
     assert b'name="result"' in body
@@ -135,11 +194,13 @@ def test_process_job_uploads_artifacts_and_completes(tmp_path, monkeypatch) -> N
         "job",
         "run",
         (WorkerImage("image", "images/set/a.jpg"),),
+        frozenset(),
     )
 
     process_job(client, job, tmp_path, PipelineConfig(), DEFAULT_MODEL)
 
     assert client.uploads == [("image", b"result", b"overlay", b"debug")]
+    assert client.heartbeats == ["job"]
     assert client.completed is True
     assert client.failure is None
 
@@ -150,6 +211,7 @@ def test_process_job_reports_failure(tmp_path) -> None:
         "job",
         "run",
         (WorkerImage("image", "images/set/a.jpg"),),
+        frozenset(),
     )
 
     with pytest.raises(OSError, match="download failed"):

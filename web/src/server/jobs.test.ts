@@ -14,6 +14,12 @@ import {
 } from "./job-store";
 import { createJobFromUpload } from "./job-upload";
 import { DATA_ROOT } from "./paths";
+import { LEASE_SECONDS, recordHeartbeat } from "./worker-store";
+
+function resultExecution() {
+  const { pipeline, model, config } = makeResult([]);
+  return { pipeline, model, config };
+}
 
 function resultArtifacts(source: string, pipeline = "a"): FormData {
   const result = makeResult([]);
@@ -47,10 +53,10 @@ describe("recognition jobs", () => {
       "sample.jpg",
     );
 
-    const claimed = claimNextJob();
+    const claimed = claimNextJob("worker-a");
     expect(claimed?.id).toBe(created.id);
     expect(claimed?.status).toBe("running");
-    expect(claimNextJob()?.id).toBe(created.id);
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
 
     const uploading = await storeJobResult(
       created.id,
@@ -70,7 +76,7 @@ describe("recognition jobs", () => {
 
   test("recovers a publishing job after the result directory moved", async () => {
     const created = await createJob("recovery", "run-recovery", "recover.jpg");
-    expect(claimNextJob()?.id).toBe(created.id);
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
     await storeJobResult(
       created.id,
       created.images[0].id,
@@ -85,7 +91,13 @@ describe("recognition jobs", () => {
       path.join(DATA_ROOT, "jobs", `${created.id}.json`),
       `${JSON.stringify(
         {
-          ...current,
+          id: current.id,
+          dataset: current.dataset,
+          runId: current.runId,
+          images: current.images,
+          createdAt: current.createdAt,
+          startedAt: current.startedAt,
+          execution: current.execution,
           status: "publishing",
           completedImages: current.images.length,
           publishingAt: new Date().toISOString(),
@@ -111,7 +123,7 @@ describe("recognition jobs", () => {
     upload.append("images", new File(["one"], "one.jpg"));
     upload.append("images", new File(["two"], "two.jpg"));
     const created = await createJobFromUpload(upload);
-    expect(claimNextJob()?.id).toBe(created.id);
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
 
     await storeJobResult(
       created.id,
@@ -130,7 +142,7 @@ describe("recognition jobs", () => {
 
   test("requeues failed work and removes partial results", async () => {
     const created = await createJob("retry", "run-retry", "retry.jpg");
-    expect(claimNextJob()?.id).toBe(created.id);
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
     await storeJobResult(
       created.id,
       created.images[0].id,
@@ -143,7 +155,7 @@ describe("recognition jobs", () => {
     expect(readJob(created.id).status).toBe("failed");
     expect(retryJob(created.id).status).toBe("queued");
     expect(fs.existsSync(staging)).toBe(false);
-    expect(claimNextJob()?.id).toBe(created.id);
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
     failJob(created.id, "test complete");
   });
 
@@ -160,28 +172,69 @@ describe("recognition jobs", () => {
     changed.set("dataset", "shared");
     changed.set("runId", "shared-c");
     changed.append("images", new File(["changed"], "shared.jpg"));
-    await expect(createJobFromUpload(changed)).rejects.toThrow(/content differs/);
+    await expect(createJobFromUpload(changed)).rejects.toThrow(
+      /content differs/,
+    );
 
-    const first = claimNextJob();
+    const first = claimNextJob("worker-a");
     if (!first || first.status !== "running") {
       throw new Error("Expected the first shared job to be running");
     }
     failJob(first.id, "test complete");
-    const secondJob = claimNextJob();
+    const secondJob = claimNextJob("worker-a");
     if (!secondJob || secondJob.status !== "running") {
       throw new Error("Expected the second shared job to be running");
     }
     failJob(secondJob.id, "test complete");
   });
 
+  test("hands a running job to another worker only after its lease lapses", async () => {
+    const created = await createJob("lease", "run-lease", "lease.jpg");
+    const heartbeat = {
+      workerId: "worker-lease",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      execution: resultExecution(),
+      currentJobId: null,
+    };
+    recordHeartbeat(heartbeat);
+    expect(claimNextJob("worker-lease")?.id).toBe(created.id);
+
+    expect(claimNextJob("worker-other")).toBeNull();
+
+    await storeJobResult(
+      created.id,
+      created.images[0].id,
+      resultArtifacts(created.images[0].source),
+    );
+    recordHeartbeat(
+      heartbeat,
+      new Date(Date.now() - (LEASE_SECONDS + 1) * 1000),
+    );
+    const resumed = claimNextJob("worker-other");
+    expect(resumed?.id).toBe(created.id);
+    expect(resumed?.workerId).toBe("worker-other");
+    expect(resumed?.completedImageIds).toEqual([created.images[0].id]);
+    expect(readJob(created.id)).toMatchObject({
+      status: "running",
+      workerId: "worker-other",
+    });
+    failJob(created.id, "test complete");
+  });
+
   test("rolls back source ingestion when job creation fails", async () => {
-    const created = await createJob("transaction", "run-transaction", "first.jpg");
+    const created = await createJob(
+      "transaction",
+      "run-transaction",
+      "first.jpg",
+    );
     const duplicate = new FormData();
     duplicate.set("dataset", "transaction");
     duplicate.set("runId", "run-transaction");
     duplicate.append("images", new File(["second"], "second.jpg"));
 
-    await expect(createJobFromUpload(duplicate)).rejects.toThrow(/already has a job/);
+    await expect(createJobFromUpload(duplicate)).rejects.toThrow(
+      /already has a job/,
+    );
     expect(
       fs.existsSync(
         path.join(DATA_ROOT, "images", "transaction", "second.jpg"),
@@ -193,7 +246,7 @@ describe("recognition jobs", () => {
         .some((name) => name.startsWith("upload-")),
     ).toBe(false);
 
-    expect(claimNextJob()?.id).toBe(created.id);
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
     failJob(created.id, "test complete");
   });
 
@@ -208,8 +261,12 @@ describe("recognition jobs", () => {
   });
 
   test("rejects oversized Worker artifacts", async () => {
-    const created = await createJob("artifacts", "run-artifacts", "artifact.jpg");
-    expect(claimNextJob()?.id).toBe(created.id);
+    const created = await createJob(
+      "artifacts",
+      "run-artifacts",
+      "artifact.jpg",
+    );
+    expect(claimNextJob("worker-a")?.id).toBe(created.id);
     const artifacts = resultArtifacts(created.images[0].source);
     artifacts.set(
       "result",

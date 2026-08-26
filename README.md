@@ -22,7 +22,8 @@ data/
 ├── jobs/<job-id>.json            recognition job state
 ├── runs/<run-id>/                detection results and rendered views
 ├── labels/<dataset>/<stem>.json  reviewed box annotations
-└── staging/<job-id>/             Worker uploads awaiting publication
+├── staging/<job-id>/             Worker uploads awaiting publication
+└── workers/<worker-id>.json      latest heartbeat from each Worker
 ```
 
 An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
@@ -69,6 +70,8 @@ uv run vitroflow-worker
 ```
 
 Use `--model` and `--config` to run a selected candidate model and pipeline configuration. They are loaded once at Worker startup, so every image handled by that process has a stable execution identity. `--once` processes at most one job and exits.
+
+The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_WORKER_ID`, and heartbeats while polling and after every processed image. The Status page lists each Worker with its presence, current job, and model. A running job stays leased to its Worker while heartbeats arrive; after 90 seconds of silence another Worker may claim it and continues from the images already uploaded.
 
 The workbench reads `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`). For a container deployment:
 

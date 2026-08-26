@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_workbench")({
 function WorkbenchLayout() {
   const { signedIn } = Route.useLoaderData();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const onJobs = pathname === "/jobs" || pathname.startsWith("/jobs/");
+  const section = pathname.split("/")[1];
 
   return (
     <>
@@ -28,11 +28,14 @@ function WorkbenchLayout() {
         </Link>
         <span className="text-xs text-muted">Seed annotation workbench</span>
         <nav className="ml-4 flex items-center gap-3 text-xs">
-          <NavLink href="/" current={!onJobs}>
+          <NavLink href="/" current={section === "" || section === "runs"}>
             Runs
           </NavLink>
-          <NavLink href="/jobs" current={onJobs}>
+          <NavLink href="/jobs" current={section === "jobs"}>
             Jobs
+          </NavLink>
+          <NavLink href="/status" current={section === "status"}>
+            Status
           </NavLink>
         </nav>
         {signedIn && (

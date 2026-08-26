@@ -8,6 +8,7 @@ import * as path from "node:path";
  *   runs/<run-id>/            detection results and rendered views
  *   labels/<dataset>/<stem>   reviewed box annotations
  *   staging/<job-id>/         unpublished worker results
+ *   workers/<worker-id>.json  latest heartbeat from each worker
  *
  * Run results reference images by path relative to this root, so the whole
  * tree can be mounted anywhere.
@@ -20,6 +21,7 @@ export const JOBS_DIR = path.join(DATA_ROOT, "jobs");
 export const RUNS_DIR = path.join(DATA_ROOT, "runs");
 export const LABELS_DIR = path.join(DATA_ROOT, "labels");
 export const STAGING_DIR = path.join(DATA_ROOT, "staging");
+export const WORKERS_DIR = path.join(DATA_ROOT, "workers");
 
 export function resolveWithin(root: string, ...segments: string[]): string {
   const resolved = path.resolve(root, ...segments);

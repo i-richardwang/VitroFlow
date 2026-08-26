@@ -9,7 +9,7 @@ from .candidates import CandidateEvidence, describe_candidates
 from .config import PipelineConfig
 from .detection import DetectionResult, detect_seeds
 from .geometry import DishGeometry, estimate_geometry
-from .identity import PIPELINE_NAME, pipeline_fingerprint
+from .identity import ExecutionIdentity
 from .image_io import read_image
 from .models import CountResult, QualityReport
 from .normalization import NormalizedImage, normalize_image
@@ -115,10 +115,7 @@ def count_seeds(
         detections=detection.detections,
         dish_center=geometry.center,
         dish_radius=geometry.radius,
-        pipeline_name=PIPELINE_NAME,
-        pipeline_fingerprint=pipeline_fingerprint(),
-        model_name=model.name,
-        model_fingerprint=model.fingerprint,
+        execution=ExecutionIdentity.create(config, model),
         quality=_assess_quality(geometry, normalized, config),
         overlay_bgr=render_overlay(image, geometry, detection, labels),
         debug_bgr=render_debug(image, geometry, normalized, detection, labels),
@@ -129,5 +126,4 @@ def count_seeds(
             "centers": _center_mask(image.shape[:2], detection),
             "regions": labels,
         },
-        config=config,
     )

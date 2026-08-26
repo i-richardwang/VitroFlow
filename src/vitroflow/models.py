@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from .config import PipelineConfig
+from .identity import ExecutionIdentity
 
 
 @dataclass(frozen=True)
@@ -51,15 +51,11 @@ class CountResult:
     detections: list[SeedDetection]
     dish_center: tuple[float, float]
     dish_radius: float
-    pipeline_name: str
-    pipeline_fingerprint: str
-    model_name: str
-    model_fingerprint: str
+    execution: ExecutionIdentity
     quality: QualityReport
     overlay_bgr: np.ndarray
     debug_bgr: np.ndarray
     masks: dict[str, np.ndarray]
-    config: PipelineConfig
 
     @property
     def count(self) -> int:
@@ -76,14 +72,6 @@ class CountResult:
                 "center_y": round(self.dish_center[1], 2),
                 "radius": round(self.dish_radius, 2),
             },
-            "pipeline": {
-                "name": self.pipeline_name,
-                "fingerprint": self.pipeline_fingerprint,
-            },
-            "model": {
-                "name": self.model_name,
-                "fingerprint": self.model_fingerprint,
-            },
-            "config": self.config.to_dict(),
+            **self.execution.to_dict(),
             "detections": [seed.to_dict() for seed in self.detections],
         }

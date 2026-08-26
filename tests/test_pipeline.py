@@ -156,11 +156,11 @@ def test_unrecognizable_dish_requires_review(tmp_path: Path) -> None:
     payload = result.to_dict()
 
     assert result.count == 0
-    assert payload["pipeline"]["name"] == result.pipeline_name
-    assert payload["pipeline"]["fingerprint"] == result.pipeline_fingerprint
-    assert len(result.pipeline_fingerprint) == 64
-    assert payload["model"]["name"] == result.model_name
-    assert payload["model"]["fingerprint"] == result.model_fingerprint
+    assert payload["pipeline"]["name"] == result.execution.pipeline_name
+    assert payload["pipeline"]["fingerprint"] == result.execution.pipeline_fingerprint
+    assert len(result.execution.pipeline_fingerprint) == 64
+    assert payload["model"]["name"] == result.execution.model_name
+    assert payload["model"]["fingerprint"] == result.execution.model_fingerprint
     assert result.quality.status == "review_required"
     assert "dish_detection_failed" in result.quality.warnings
     assert set(result.masks) == {

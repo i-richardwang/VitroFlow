@@ -10,11 +10,15 @@ export const JOB_STATUSES = [
   "failed",
 ] as const;
 
-export const jobImageSchema = z.object({
-  id: z.string().uuid(),
-  source: z.string().min(1),
-  stem: z.string().min(1),
-}).strict();
+export const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
+
+export const jobImageSchema = z
+  .object({
+    id: z.string().uuid(),
+    source: z.string().min(1),
+    stem: z.string().min(1),
+  })
+  .strict();
 
 const baseJobSchema = z.strictObject({
   id: z.string().uuid(),
@@ -28,31 +32,40 @@ const baseJobSchema = z.strictObject({
 export const jobSchema = z
   .discriminatedUnion("status", [
     baseJobSchema.extend({ status: z.literal("queued") }).strict(),
-    baseJobSchema.extend({
-      status: z.literal("running"),
-      startedAt: z.string().datetime(),
-      execution: executionSchema.optional(),
-    }).strict(),
-    baseJobSchema.extend({
-      status: z.literal("publishing"),
-      startedAt: z.string().datetime(),
-      publishingAt: z.string().datetime(),
-      execution: executionSchema,
-    }).strict(),
-    baseJobSchema.extend({
-      status: z.literal("succeeded"),
-      startedAt: z.string().datetime(),
-      publishingAt: z.string().datetime(),
-      finishedAt: z.string().datetime(),
-      execution: executionSchema,
-    }).strict(),
-    baseJobSchema.extend({
-      status: z.literal("failed"),
-      startedAt: z.string().datetime(),
-      finishedAt: z.string().datetime(),
-      error: z.string().min(1).max(2000),
-      execution: executionSchema.optional(),
-    }).strict(),
+    baseJobSchema
+      .extend({
+        status: z.literal("running"),
+        startedAt: z.string().datetime(),
+        workerId: z.string().regex(IDENTIFIER),
+        execution: executionSchema.optional(),
+      })
+      .strict(),
+    baseJobSchema
+      .extend({
+        status: z.literal("publishing"),
+        startedAt: z.string().datetime(),
+        publishingAt: z.string().datetime(),
+        execution: executionSchema,
+      })
+      .strict(),
+    baseJobSchema
+      .extend({
+        status: z.literal("succeeded"),
+        startedAt: z.string().datetime(),
+        publishingAt: z.string().datetime(),
+        finishedAt: z.string().datetime(),
+        execution: executionSchema,
+      })
+      .strict(),
+    baseJobSchema
+      .extend({
+        status: z.literal("failed"),
+        startedAt: z.string().datetime(),
+        finishedAt: z.string().datetime(),
+        error: z.string().min(1).max(2000),
+        execution: executionSchema.optional(),
+      })
+      .strict(),
   ])
   .superRefine((job, context) => {
     if (job.completedImages > job.images.length) {

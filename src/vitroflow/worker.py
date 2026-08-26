@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import socket
 import sys
 import tempfile
 import threading
@@ -9,6 +11,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,9 +22,11 @@ import httpx
 
 from .artifacts import create_image_artifacts
 from .config import PipelineConfig
+from .identity import ExecutionIdentity
 from .scoring import DEFAULT_MODEL, CandidateModel, load_candidate_model
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
+WORKER_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -81,23 +86,64 @@ class WorkerJob:
     job_id: str
     run_id: str
     images: tuple[WorkerImage, ...]
+    completed_image_ids: frozenset[str]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorkerJob:
         job_id = data.get("id")
         run_id = data.get("runId")
         raw_images = data.get("images")
+        raw_completed = data.get("completedImageIds")
         if not isinstance(job_id, str) or not job_id:
             raise ValueError("Job is missing an id")
         if not isinstance(run_id, str) or not run_id:
             raise ValueError("Job is missing a run id")
         if not isinstance(raw_images, list) or not raw_images:
             raise ValueError("Job has no images")
+        if not isinstance(raw_completed, list) or not all(
+            isinstance(item, str) for item in raw_completed
+        ):
+            raise ValueError("Job completed image ids must be strings")
         return cls(
             job_id,
             run_id,
             tuple(WorkerImage.from_dict(item) for item in raw_images),
+            frozenset(raw_completed),
         )
+
+    def pending_images(self) -> tuple[WorkerImage, ...]:
+        return tuple(
+            image
+            for image in self.images
+            if image.image_id not in self.completed_image_ids
+        )
+
+
+@dataclass(frozen=True)
+class WorkerIdentity:
+    """What a worker process reports about itself on every heartbeat."""
+
+    worker_id: str
+    started_at: str
+    execution: ExecutionIdentity
+
+    @classmethod
+    def create(
+        cls, worker_id: str, config: PipelineConfig, model: CandidateModel
+    ) -> WorkerIdentity:
+        return cls(
+            worker_id,
+            datetime.now(UTC).isoformat(),
+            ExecutionIdentity.create(config, model),
+        )
+
+    def heartbeat(self, current_job_id: str | None) -> dict[str, object]:
+        return {
+            "workerId": self.worker_id,
+            "startedAt": self.started_at,
+            "execution": self.execution.to_dict(),
+            "currentJobId": current_job_id,
+        }
 
 
 class WorkerClient:
@@ -105,9 +151,11 @@ class WorkerClient:
         self,
         server_url: str,
         token: str,
+        identity: WorkerIdentity,
         timeout: float = 120.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        self.identity = identity
         self._client = httpx.Client(
             base_url=server_url.rstrip("/") + "/",
             headers={"Authorization": f"Bearer {token}"},
@@ -135,8 +183,20 @@ class WorkerClient:
             time.sleep(0.5 * 2**attempt)
         raise RuntimeError("HTTP retry loop ended without a response")
 
+    def heartbeat(self, job: WorkerJob | None) -> None:
+        response = self._request(
+            "POST",
+            "api/worker/heartbeat",
+            json=self.identity.heartbeat(job.job_id if job else None),
+        )
+        response.raise_for_status()
+
     def claim(self) -> WorkerJob | None:
-        response = self._request("POST", "api/worker/jobs/claim")
+        response = self._request(
+            "POST",
+            "api/worker/jobs/claim",
+            json={"workerId": self.identity.worker_id},
+        )
         if response.status_code == 204:
             return None
         response.raise_for_status()
@@ -181,6 +241,14 @@ class WorkerClient:
         response.raise_for_status()
 
 
+def report_heartbeat(client: WorkerClient, job: WorkerJob | None) -> None:
+    """A missed heartbeat only delays the status shown in the workbench."""
+    try:
+        client.heartbeat(job)
+    except WORKER_ERRORS as error:
+        print(f"heartbeat failed: {error}", file=sys.stderr, flush=True)
+
+
 def process_job(
     client: WorkerClient,
     job: WorkerJob,
@@ -190,7 +258,8 @@ def process_job(
 ) -> None:
     work_dir.mkdir(parents=True, exist_ok=True)
     try:
-        for image in job.images:
+        for image in job.pending_images():
+            report_heartbeat(client, job)
             suffix = Path(image.source).suffix.lower() or ".jpg"
             image_path = work_dir / f"{image.image_id}{suffix}"
             image_path.write_bytes(client.download(job, image))
@@ -225,14 +294,17 @@ def run_once(
     config: PipelineConfig,
     model: CandidateModel,
 ) -> bool:
+    report_heartbeat(client, None)
     job = client.claim()
     if job is None:
         return False
-    print(f"claimed {job.run_id} ({len(job.images)} images)", flush=True)
+    pending = len(job.pending_images())
+    print(f"claimed {job.run_id} ({pending} of {len(job.images)} images)", flush=True)
     with tempfile.TemporaryDirectory(
         prefix=f"vitroflow-{job.job_id}-", dir=work_root
     ) as temporary:
         process_job(client, job, Path(temporary), config, model)
+    report_heartbeat(client, None)
     print(f"completed {job.run_id}", flush=True)
     return True
 
@@ -257,6 +329,11 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(os.environ.get("VITROFLOW_WORK_DIR", tempfile.gettempdir())),
     )
+    parser.add_argument(
+        "--worker-id",
+        default=os.environ.get("VITROFLOW_WORKER_ID") or socket.gethostname(),
+        help="Identity shown on the workbench Status page (or VITROFLOW_WORKER_ID)",
+    )
     parser.add_argument("--poll-seconds", type=float, default=5.0)
     parser.add_argument(
         "--health-port",
@@ -278,6 +355,12 @@ def main(argv: list[str] | None = None) -> int:
     if not args.token:
         print("error: worker token is required", file=sys.stderr)
         return 2
+    if not WORKER_ID.match(args.worker_id):
+        print(
+            "error: worker id must use letters, numbers, dots, dashes, or underscores",
+            file=sys.stderr,
+        )
+        return 2
     if args.poll_seconds <= 0:
         print("error: poll interval must be positive", file=sys.stderr)
         return 2
@@ -294,7 +377,11 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
-    client = WorkerClient(args.server, args.token)
+    client = WorkerClient(
+        args.server,
+        args.token,
+        WorkerIdentity.create(args.worker_id, config, model),
+    )
     try:
         with _health_server(args.health_port):
             while True:
