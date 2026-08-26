@@ -1,2 +1,14 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+@import "@heroui-pro/react/css";
+
+[data-app-layout].sidebar__provider,
+[data-app-layout][data-scroll-mode="content"] {
+  height: 100%;
+  min-height: 0;
+}
+
+[data-app-layout][data-scroll-mode="content"] .app-layout__main {
+  display: flex;
+  flex-direction: column;
+}

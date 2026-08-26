@@ -1,7 +1,12 @@
 FROM oven/bun:1 AS build
 WORKDIR /app
 COPY package.json bun.lock ./
+ARG HEROUI_KEY
+ENV CI=true
+ENV HEROUI_KEY=$HEROUI_KEY
+RUN test -n "$HEROUI_KEY"
 RUN bun install --frozen-lockfile
+RUN bunx hpsetup@latest react --auto
 COPY . .
 RUN bun run build
 

@@ -15,9 +15,10 @@ import {
   TextField,
 } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
+import { ImageDropZone } from "../../components/ImageDropZone";
 import { Page } from "../../components/Page";
 import type { JobStatus } from "../../jobs/schema";
 import { getJobs } from "../../server/jobs";
@@ -175,13 +176,35 @@ function JobsPage() {
 }
 
 function CreateJobForm() {
+  const router = useRouter();
+  const [files, setFiles] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   return (
     <Card className="p-6">
       <Form
-        method="post"
-        action="/api/jobs"
-        encType="multipart/form-data"
         className="w-full"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (files.length === 0) {
+            setError("Select at least one image");
+            return;
+          }
+          setBusy(true);
+          setError(null);
+          void createJob(event.currentTarget, files)
+            .then(async (search) => {
+              await router.navigate({ to: "/jobs", search });
+              await router.invalidate();
+            })
+            .catch((cause) => {
+              setError(cause instanceof Error ? cause.message : String(cause));
+            })
+            .finally(() => {
+              setBusy(false);
+            });
+        }}
       >
         <Fieldset>
           <Fieldset.Legend>New recognition job</Fieldset.Legend>
@@ -216,30 +239,35 @@ function CreateJobForm() {
             </TextField>
           </Fieldset.Group>
           <div className="flex w-full flex-col gap-1">
-            <Label htmlFor="job-images" isRequired>
-              Images
-            </Label>
-            <input
-              id="job-images"
-              name="images"
-              type="file"
-              accept=".jpg,.jpeg,.png,.tif,.tiff"
-              multiple
-              required
-              className="input input--full-width"
-            />
-            <Description>
-              JPEG, PNG, or TIFF. Up to 100 files, 64 MiB each and 512 MiB
-              total.
-            </Description>
+            <Label isRequired>Images</Label>
+            <ImageDropZone files={files} onChange={setFiles} />
+            {error && <p className="text-xs text-danger">{error}</p>}
           </div>
           <Fieldset.Actions>
-            <Button type="submit" variant="primary" size="sm">
-              Create job
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isDisabled={busy || files.length === 0}
+            >
+              {busy ? "Creating…" : "Create job"}
             </Button>
           </Fieldset.Actions>
         </Fieldset>
       </Form>
     </Card>
   );
+}
+
+async function createJob(form: HTMLFormElement, files: File[]) {
+  const data = new FormData(form);
+  for (const file of files) {
+    data.append("images", file);
+  }
+  const response = await fetch("/api/jobs", { method: "POST", body: data });
+  const url = new URL(response.url);
+  return {
+    created: url.searchParams.get("created") ?? undefined,
+    error: url.searchParams.get("error") ?? undefined,
+  };
 }

@@ -1,11 +1,6 @@
-import {
-  Card,
-  Chip,
-  Description,
-  EmptyState,
-  Link,
-  Table,
-} from "@heroui/react";
+import { KPI } from "@heroui-pro/react/kpi";
+import { Widget } from "@heroui-pro/react/widget";
+import { Chip, EmptyState, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
@@ -41,16 +36,26 @@ function StatusPage() {
       title="Status"
       description="Workers report here while polling for jobs and after every processed image."
     >
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatKpi label="Images" value={server.images} />
+        <StatKpi label="Runs" value={server.runs} />
+        <StatKpi label="Labels" value={server.labels} />
+        <StatKpi label="Queued jobs" value={server.queuedJobs} />
+      </div>
+
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label="Workers">
             <Table.Header>
               <Table.Column isRowHeader>Worker</Table.Column>
               <Table.Column>Presence</Table.Column>
-              <Table.Column>Current job</Table.Column>
+              <Table.Column className="whitespace-nowrap">
+                Current job
+              </Table.Column>
               <Table.Column>Model</Table.Column>
-              <Table.Column>Started</Table.Column>
-              <Table.Column>Last seen</Table.Column>
+              <Table.Column className="whitespace-nowrap text-right">
+                Last seen
+              </Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -67,8 +72,11 @@ function StatusPage() {
             >
               {workers.map((worker) => (
                 <Table.Row key={worker.workerId}>
-                  <Table.Cell className="font-mono font-medium">
+                  <Table.Cell className="break-all font-mono font-medium">
                     {worker.workerId}
+                    <span className="mt-1 block font-sans text-xs font-normal text-muted">
+                      Started {new Date(worker.startedAt).toLocaleString()}
+                    </span>
                   </Table.Cell>
                   <Table.Cell>
                     <Chip
@@ -79,7 +87,7 @@ function StatusPage() {
                       {PRESENCE[worker.presence].label}
                     </Chip>
                   </Table.Cell>
-                  <Table.Cell className="font-mono">
+                  <Table.Cell className="whitespace-nowrap font-mono">
                     {worker.currentRunId ? (
                       <Link href="/jobs" className="text-xs font-medium">
                         {worker.currentRunId}
@@ -88,16 +96,15 @@ function StatusPage() {
                       <span className="text-muted">Idle</span>
                     )}
                   </Table.Cell>
-                  <Table.Cell className="font-mono text-muted">
+                  <Table.Cell className="whitespace-nowrap font-mono text-muted">
                     <span title={worker.execution.model.fingerprint}>
                       {worker.execution.model.name}
                     </span>
                   </Table.Cell>
-                  <Table.Cell className="whitespace-nowrap text-muted">
-                    {new Date(worker.startedAt).toLocaleString()}
-                  </Table.Cell>
-                  <Table.Cell className="whitespace-nowrap text-muted">
-                    {new Date(worker.lastSeenAt).toLocaleString()}
+                  <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
+                    <span title={new Date(worker.lastSeenAt).toLocaleString()}>
+                      {formatAge(worker.lastSeenAt)}
+                    </span>
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -106,15 +113,15 @@ function StatusPage() {
         </Table.ScrollContainer>
       </Table>
 
-      <Card>
-        <Card.Header>
-          <Card.Title>Server</Card.Title>
-          <Card.Description>
+      <Widget>
+        <Widget.Header>
+          <Widget.Title>Server</Widget.Title>
+          <Widget.Description>
             Deployment facts a worker needs to connect and the data it publishes
             into.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content>
+          </Widget.Description>
+        </Widget.Header>
+        <Widget.Content>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
             <Fact label="Data root">
               <code className="font-mono">{server.dataRoot}</code>
@@ -125,15 +132,35 @@ function StatusPage() {
             <Fact label="Worker token">
               <Configured value={server.workerTokenConfigured} />
             </Fact>
-            <Fact label="Images">{server.images}</Fact>
-            <Fact label="Runs">{server.runs}</Fact>
-            <Fact label="Labels">{server.labels}</Fact>
-            <Fact label="Queued jobs">{server.queuedJobs}</Fact>
           </dl>
-        </Card.Content>
-      </Card>
+        </Widget.Content>
+      </Widget>
     </Page>
   );
+}
+
+function StatKpi({ label, value }: { label: string; value: number }) {
+  return (
+    <KPI>
+      <KPI.Header>
+        <KPI.Title>{label}</KPI.Title>
+      </KPI.Header>
+      <KPI.Content>
+        <KPI.Value maximumFractionDigits={0} value={value} />
+      </KPI.Content>
+    </KPI>
+  );
+}
+
+function formatAge(iso: string) {
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - Date.parse(iso)) / 1000),
+  );
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 function Fact({

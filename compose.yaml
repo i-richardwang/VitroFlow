@@ -1,6 +1,9 @@
 services:
   workbench:
-    build: ./web
+    build:
+      context: ./web
+      args:
+        HEROUI_KEY: ${HEROUI_KEY:?HEROUI_KEY is required to build the workbench}
     environment:
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
       VITROFLOW_WORKER_TOKEN: ${VITROFLOW_WORKER_TOKEN:-}

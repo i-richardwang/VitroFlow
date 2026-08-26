@@ -74,3 +74,46 @@ export function RedoIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function RunsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M3 4.5h10M3 8h10M3 11.5h6" />
+    </Icon>
+  );
+}
+
+export function JobsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="3.5" width="11" height="9" rx="1.5" />
+      <path d="M5.5 3.5V3a1 1 0 011-1h3a1 1 0 011 1v.5" />
+    </Icon>
+  );
+}
+
+export function StatusIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M3 12V8.5M8 12V4M13 12V6.5" />
+    </Icon>
+  );
+}
+
+export function LogoutIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M7 3H4.5A1.5 1.5 0 003 4.5v7A1.5 1.5 0 004.5 13H7" />
+      <path d="M7 8h6M10.5 5.5L13 8l-2.5 2.5" />
+    </Icon>
+  );
+}
+
+export function PanelRightIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
+      <path d="M10 3v10" />
+    </Icon>
+  );
+}

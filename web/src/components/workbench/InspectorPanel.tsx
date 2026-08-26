@@ -44,7 +44,7 @@ export function InspectorPanel({
   };
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-separator bg-surface">
+    <aside className="flex h-full min-h-0 w-full flex-col overflow-y-auto bg-surface">
       {editable && (
         <>
           <Section title="Layers">
