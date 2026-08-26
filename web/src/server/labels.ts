@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
 import * as fs from "node:fs";
-import { z } from "zod";
 
 import {
   annotationSchema,
@@ -9,16 +7,6 @@ import {
 import type { ImageRef } from "../datasets/schema";
 import { writeAtomically } from "./files";
 import { LABELS_DIR, resolveWithin } from "./paths";
-
-const fingerprint = z.string().regex(/^[a-f0-9]{64}$/);
-const legacyAnnotationSchema = z
-  .object({
-    source: z.strictObject({
-      pipelineFingerprint: fingerprint,
-      modelFingerprint: fingerprint,
-    }),
-  })
-  .passthrough();
 
 function labelPath({ dataset, stem }: ImageRef): string {
   return resolveWithin(LABELS_DIR, dataset, `${stem}.json`);
@@ -34,23 +22,7 @@ export function readLabel(ref: ImageRef): AnnotationDocument | null {
     return null;
   }
   const document: unknown = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  const current = annotationSchema.safeParse(document);
-  if (current.success) {
-    return current.data;
-  }
-  const legacy = legacyAnnotationSchema.parse(document);
-  const prelabelerFingerprint = createHash("sha256")
-    .update(legacy.source.pipelineFingerprint)
-    .update("\0")
-    .update(legacy.source.modelFingerprint)
-    .digest("hex");
-  return annotationSchema.parse({
-    ...legacy,
-    source: {
-      prelabelerVersionId: `traditional-legacy-${prelabelerFingerprint.slice(0, 12)}`,
-      prelabelerFingerprint,
-    },
-  });
+  return annotationSchema.parse(document);
 }
 
 function persist(ref: ImageRef, document: AnnotationDocument): void {

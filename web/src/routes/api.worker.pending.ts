@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { DATASET_NAME } from "../datasets/schema";
 import { pendingImages } from "../server/prelabels";
+import { readWorker } from "../server/worker-store";
 
-const fingerprint = z.string().regex(/^[a-f0-9]{64}$/);
 const querySchema = z.object({
-  version_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
-  fingerprint,
+  worker_id: z.string().regex(DATASET_NAME),
 });
 
 export const Route = createFileRoute("/api/worker/pending")({
@@ -17,13 +17,16 @@ export const Route = createFileRoute("/api/worker/pending")({
           Object.fromEntries(new URL(request.url).searchParams),
         );
         if (!query.success) {
-          return new Response(
-            "prelabeler version_id and fingerprint are required",
-            { status: 400 },
-          );
+          return new Response("worker_id is required", { status: 400 });
+        }
+        const worker = readWorker(query.data.worker_id);
+        if (!worker) {
+          return new Response("worker must heartbeat before requesting work", {
+            status: 409,
+          });
         }
         return Response.json({
-          images: pendingImages(query.data).map(
+          images: pendingImages(worker.prelabeler).map(
             ({ dataset, stem, source }) => ({
               dataset,
               stem,

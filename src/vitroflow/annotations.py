@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -136,8 +135,17 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         json.loads(annotation_path.read_text(encoding="utf-8")),
         str(annotation_path),
     )
-    required = {"image", "source", "status", "revision", "instances"}
+    required = {
+        "schemaVersion",
+        "image",
+        "source",
+        "status",
+        "revision",
+        "instances",
+    }
     _fields(payload, required, str(annotation_path), {"excludedReason"})
+    if isinstance(payload["schemaVersion"], bool) or payload["schemaVersion"] != 1:
+        raise ValueError("Unsupported annotation schemaVersion")
 
     image = _object(payload["image"], "image")
     _fields(image, {"path", "width", "height"}, "image")
@@ -154,27 +162,17 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         ) from None
 
     source = _object(payload["source"], "source")
-    if set(source) == {"pipelineFingerprint", "modelFingerprint"}:
-        pipeline = _string(source["pipelineFingerprint"], "source.pipelineFingerprint")
-        model = _string(source["modelFingerprint"], "source.modelFingerprint")
-        if not _FINGERPRINT.fullmatch(pipeline) or not _FINGERPRINT.fullmatch(model):
-            raise ValueError("Legacy source fingerprints must be SHA-256 digests")
-        prelabeler_fingerprint = hashlib.sha256(
-            f"{pipeline}\0{model}".encode()
-        ).hexdigest()
-        prelabeler_version_id = f"traditional-legacy-{prelabeler_fingerprint[:12]}"
-    else:
-        _fields(
-            source,
-            {"prelabelerVersionId", "prelabelerFingerprint"},
-            "source",
-        )
-        prelabeler_version_id = _string(
-            source["prelabelerVersionId"], "source.prelabelerVersionId"
-        )
-        prelabeler_fingerprint = _string(
-            source["prelabelerFingerprint"], "source.prelabelerFingerprint"
-        )
+    _fields(
+        source,
+        {"prelabelerVersionId", "prelabelerFingerprint"},
+        "source",
+    )
+    prelabeler_version_id = _string(
+        source["prelabelerVersionId"], "source.prelabelerVersionId"
+    )
+    prelabeler_fingerprint = _string(
+        source["prelabelerFingerprint"], "source.prelabelerFingerprint"
+    )
     if not _VERSION_ID.fullmatch(prelabeler_version_id):
         raise ValueError("source.prelabelerVersionId is invalid")
     if not _FINGERPRINT.fullmatch(prelabeler_fingerprint):

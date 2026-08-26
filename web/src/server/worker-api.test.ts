@@ -62,7 +62,8 @@ test("worker HTTP routes carry an image from upload to prelabel", async () => {
   expect(heartbeatResponse.status).toBe(200);
   expect(readWorker("api-worker")?.current).toEqual(ref);
 
-  const pendingUrl = `http://localhost/api/worker/pending?version_id=${producer.version_id}&fingerprint=${producer.fingerprint}`;
+  const pendingUrl =
+    "http://localhost/api/worker/pending?worker_id=api-worker";
   const pendingResponse = await handler(
     PendingRoute,
     "GET",
@@ -82,6 +83,18 @@ test("worker HTTP routes carry an image from upload to prelabel", async () => {
       } as never)
     ).status,
   ).toBe(400);
+  expect(
+    (
+      await handler(
+        PendingRoute,
+        "GET",
+      )({
+        request: new Request(
+          "http://localhost/api/worker/pending?worker_id=unknown-worker",
+        ),
+      } as never)
+    ).status,
+  ).toBe(409);
 
   const imageResponse = await handler(
     ImageRoute,

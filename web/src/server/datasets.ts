@@ -4,10 +4,23 @@ import * as path from "node:path";
 import {
   DATASET_NAME,
   IMAGE_STEM,
+  datasetSchema,
   imageRefSchema,
+  type Dataset,
   type ImageRef,
 } from "../datasets/schema";
-import { IMAGES_DIR, LABELS_DIR, PRELABELS_DIR, resolveWithin } from "./paths";
+import { createAtomically, writeAtomically } from "./files";
+import { readPrelabeler } from "./prelabeler-registry";
+import {
+  DATASETS_DIR,
+  IMAGES_DIR,
+  LABELS_DIR,
+  PRELABELS_DIR,
+  resolveWithin,
+} from "./paths";
+
+export const DEFAULT_PRELABELER_VERSION_ID =
+  process.env.VITROFLOW_DEFAULT_PRELABELER_VERSION_ID ?? "traditional-v1";
 
 export const CONTENT_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -30,6 +43,68 @@ function datasetDir(dataset: string): string {
   return resolveWithin(IMAGES_DIR, dataset);
 }
 
+function datasetPath(dataset: string): string {
+  if (!DATASET_NAME.test(dataset)) {
+    throw new Error(`Invalid dataset name: ${dataset}`);
+  }
+  return resolveWithin(DATASETS_DIR, `${dataset}.json`);
+}
+
+export function readDataset(dataset: string): Dataset | null {
+  const filePath = datasetPath(dataset);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const record = datasetSchema.parse(
+    JSON.parse(fs.readFileSync(filePath, "utf-8")),
+  );
+  if (record.id !== dataset) {
+    throw new Error(`Dataset record ${record.id} does not match ${dataset}`);
+  }
+  return record;
+}
+
+function createDataset(dataset: string): Dataset | null {
+  const record = datasetSchema.parse({
+    schemaVersion: 1,
+    id: dataset,
+    modelId: dataset,
+    selectedPrelabelerVersionId: DEFAULT_PRELABELER_VERSION_ID,
+  });
+  return createAtomically(
+    datasetPath(dataset),
+    `${JSON.stringify(record, null, 2)}\n`,
+  )
+    ? record
+    : null;
+}
+
+export function ensureDataset(dataset: string): boolean {
+  if (readDataset(dataset)) {
+    return false;
+  }
+  return createDataset(dataset) !== null;
+}
+
+export function selectPrelabelerVersion(
+  dataset: string,
+  versionId: string,
+): Dataset {
+  const current = readDataset(dataset);
+  if (!current) {
+    throw new Error(`Unknown dataset: ${dataset}`);
+  }
+  if (!readPrelabeler(versionId)) {
+    throw new Error(`Unknown prelabeler version: ${versionId}`);
+  }
+  const next = datasetSchema.parse({
+    ...current,
+    selectedPrelabelerVersionId: versionId,
+  });
+  writeAtomically(datasetPath(dataset), `${JSON.stringify(next, null, 2)}\n`);
+  return next;
+}
+
 function imageFromFilename(
   dataset: string,
   filename: string,
@@ -48,16 +123,17 @@ function imageFromFilename(
 }
 
 export function listDatasets(): string[] {
-  if (!fs.existsSync(IMAGES_DIR)) {
+  if (!fs.existsSync(DATASETS_DIR)) {
     return [];
   }
   return fs
-    .readdirSync(IMAGES_DIR)
+    .readdirSync(DATASETS_DIR)
     .filter(
       (name) =>
-        DATASET_NAME.test(name) &&
-        fs.statSync(path.join(IMAGES_DIR, name)).isDirectory(),
+        name.endsWith(".json") && DATASET_NAME.test(name.slice(0, -5)),
     )
+    .map((name) => name.slice(0, -5))
+    .filter((dataset) => readDataset(dataset) !== null)
     .sort();
 }
 

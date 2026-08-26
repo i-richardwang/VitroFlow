@@ -4,7 +4,8 @@ import type { AnnotationDocument } from "./schema";
 import { ReviewTransitionError, transition } from "./status";
 
 const base: AnnotationDocument = {
-  image: { path: "a.jpg", width: 100, height: 100 },
+  schemaVersion: 1,
+  image: { path: "images/set/a.jpg", width: 100, height: 100 },
   source: {
     prelabelerVersionId: "traditional-test",
     prelabelerFingerprint: "b".repeat(64),

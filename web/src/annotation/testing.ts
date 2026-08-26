@@ -12,7 +12,7 @@ export function makeResult(
     source: "images/a.jpg",
     image,
     producer: {
-      version_id: "traditional-test",
+      version_id: "traditional-v1",
       name: "m",
       kind: "traditional",
       fingerprint: "b".repeat(64),

@@ -1,6 +1,9 @@
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from vitroflow.annotations import BoundingBox
 from vitroflow.config import DecisionConfig, PipelineConfig
@@ -10,6 +13,8 @@ from vitroflow.prelabelers import (
     PrelabelQuality,
     PrelabelResult,
     TraditionalPrelabeler,
+    load_prelabel_document,
+    parse_prelabel_document,
 )
 from vitroflow.scoring import DEFAULT_MODEL
 
@@ -31,7 +36,17 @@ def test_shared_prelabel_contract() -> None:
         quality=PrelabelQuality("ok"),
     ).to_dict()
 
-    assert document == json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
+    fixture = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
+    assert document == fixture
+    assert load_prelabel_document(CONTRACT_FIXTURE).to_dict() == fixture
+
+
+def test_parser_rejects_unknown_contract_fields() -> None:
+    document = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
+    document["unexpected"] = True
+
+    with pytest.raises(ValueError, match="unknown unexpected"):
+        parse_prelabel_document(document)
 
 
 def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
@@ -84,5 +99,61 @@ def test_traditional_configuration_is_part_of_the_version_identity() -> None:
         DEFAULT_MODEL,
     )
 
-    assert changed.descriptor.version_id != baseline.descriptor.version_id
+    assert changed.descriptor.version_id == baseline.descriptor.version_id
     assert changed.descriptor.fingerprint != baseline.descriptor.fingerprint
+
+
+def test_explicit_traditional_version_id_is_preserved() -> None:
+    prelabeler = TraditionalPrelabeler(version_id="traditional-calibrated-v2")
+
+    assert prelabeler.descriptor.version_id == "traditional-calibrated-v2"
+
+
+@pytest.mark.parametrize(
+    ("factory", "message"),
+    [
+        (lambda: PrelabelQuality("unknown"), "quality status"),
+        (lambda: PrelabelQuality("ok", ("Not A Code",)), "warning code"),
+        (
+            lambda: PrelabelInstance("seed", BoundingBox(0, 0, 1, 1), math.inf),
+            "score must be finite",
+        ),
+        (
+            lambda: PrelabelInstance("seed", BoundingBox(0, 0, 1, 1), 1.1),
+            "between zero and one",
+        ),
+    ],
+)
+def test_contract_rejects_values_the_web_cannot_accept(factory, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        factory()
+
+
+def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
+    descriptor = PrelabelerDescriptor(
+        version_id="traditional-test",
+        name="Traditional test",
+        kind="traditional",
+        fingerprint="b" * 64,
+    )
+    instance = PrelabelInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
+    with pytest.raises(ValueError, match="exceeds image bounds"):
+        PrelabelResult(
+            source=Path("images/set/example.jpg"),
+            width=100,
+            height=80,
+            producer=descriptor,
+            instances=(instance,),
+            quality=PrelabelQuality("ok"),
+        )
+
+    instance = PrelabelInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9)
+    with pytest.raises(ValueError, match="Duplicate"):
+        PrelabelResult(
+            source=Path("images/set/example.jpg"),
+            width=100,
+            height=80,
+            producer=descriptor,
+            instances=(instance, instance),
+            quality=PrelabelQuality("ok"),
+        )

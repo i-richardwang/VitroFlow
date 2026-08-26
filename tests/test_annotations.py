@@ -10,6 +10,7 @@ CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "annotatio
 
 def _payload(source: str, status: str = "complete") -> dict[str, object]:
     return {
+        "schemaVersion": 1,
         "image": {"path": source, "width": 100, "height": 80},
         "source": {
             "prelabelerVersionId": "traditional-test",
@@ -57,20 +58,15 @@ def test_shared_annotation_contract() -> None:
     assert len(annotation.boxes) == 1
 
 
-def test_legacy_annotation_provenance_is_read_without_rewriting(tmp_path: Path) -> None:
+def test_unversioned_annotation_is_rejected(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
-    label = data_root / "labels" / "legacy.json"
-    payload = _payload("images/legacy.jpg")
-    payload["source"] = {
-        "pipelineFingerprint": "a" * 64,
-        "modelFingerprint": "b" * 64,
-    }
+    label = data_root / "labels" / "unversioned.json"
+    payload = _payload("images/unversioned.jpg")
+    del payload["schemaVersion"]
     _write(label, payload)
 
-    annotation = load_annotation(label, data_root)
-
-    assert annotation.prelabeler_version_id.startswith("traditional-legacy-")
-    assert len(annotation.prelabeler_fingerprint) == 64
+    with pytest.raises(ValueError, match="missing schemaVersion"):
+        load_annotation(label, data_root)
 
 
 def test_annotation_schema_rejects_unknown_fields_and_escaping_paths(

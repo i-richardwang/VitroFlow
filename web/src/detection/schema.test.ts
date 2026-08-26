@@ -34,4 +34,22 @@ describe("prelabel contract", () => {
 
     expect(prelabelSchema.safeParse(document).success).toBe(false);
   });
+
+  test("accepts implementation-specific warning codes", () => {
+    const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
+    document.quality.status = "review_required";
+    document.quality.warnings = ["low_model_confidence"];
+
+    expect(prelabelSchema.safeParse(document).success).toBe(true);
+  });
+
+  test("rejects invalid scores and traversing source paths", () => {
+    const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
+    document.instances[0].score = 1.1;
+    expect(prelabelSchema.safeParse(document).success).toBe(false);
+
+    document.instances[0].score = 0.9;
+    document.source = "../example.jpg";
+    expect(prelabelSchema.safeParse(document).success).toBe(false);
+  });
 });

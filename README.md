@@ -21,10 +21,12 @@ data/
 ├── images/<dataset>/<stem>.<ext>    source photographs; the stem identifies the image
 ├── prelabels/<dataset>/<stem>.json  Worker-owned detector output, untouched by humans
 ├── labels/<dataset>/<stem>.json     reviewed box annotations
+├── datasets/<dataset>.json          Dataset, logical Model, and selected prelabeler version
+├── prelabelers/<version-id>.json    immutable executable-version registry
 └── workers/<worker-id>.json         latest heartbeat from each Worker
 ```
 
-A dataset is a directory of images that trains one logical model, which can have multiple executable versions. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Prelabels of unlabelled images are replaced whenever a Worker with a different prelabeler version or fingerprint processes them.
+A Dataset owns one stable logical Model and selects one immutable prelabeler version for that Model. Workers only receive images from Datasets that selected the exact version they provide; an online but unselected Worker cannot replace another version's results. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Changing a Dataset's selection makes its unlabelled images pending for the newly selected version.
 
 An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
 
@@ -69,18 +71,18 @@ export VITROFLOW_WORKER_TOKEN=<worker-secret>
 uv run vitroflow-worker
 ```
 
-Use `--model` and `--config` to configure the built-in traditional prelabeler. They are loaded once at Worker startup and together determine its immutable version identity. The Worker itself depends only on the common box-first prelabeler contract, so a YOLO implementation can replace the traditional adapter without changing the review API. `--once` runs a single pass over the pending images and exits.
+Use `--model` and `--config` to configure the built-in traditional prelabeler. They are loaded once at Worker startup and determine its content fingerprint. `--version-id` names that immutable configuration and defaults to `traditional-v1`; the server rejects the same version id if it later appears with different contents. The Worker itself depends only on the common box-first prelabeler contract, so a YOLO implementation can replace the traditional adapter without changing the review API. `--once` runs a single pass over the pending images and exits.
 
 The Worker protocol has four calls under the workbench URL, each authenticated with `Authorization: Bearer <token>`:
 
 | Call | Purpose |
 |---|---|
-| `POST api/worker/heartbeat` | worker id, start time, prelabeler descriptor, and the image currently in progress |
-| `GET api/worker/pending?version_id=<id>&fingerprint=<fp>` | images with no prelabel, or whose prelabel came from another version, excluding labelled images |
+| `POST api/worker/heartbeat` | registers the immutable prelabeler version and reports Worker state |
+| `GET api/worker/pending?worker_id=<id>` | images assigned by Dataset selection to the version registered by that Worker |
 | `GET api/worker/images/<dataset>/<stem>` | source image bytes |
-| `PUT api/worker/prelabels/<dataset>/<stem>` | prelabel document; `409` when a label already exists and the Worker skips the image |
+| `PUT api/worker/prelabels/<dataset>/<stem>` | prelabel document; `409` when review owns the image or the Dataset selection changed |
 
-Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; traditional-only metrics and dish geometry live under optional diagnostics. A detection error becomes a failure document (`schema_version`, `source`, `producer`, `error`), the image shows as `failed`, and the pass continues; a failed image is processed again once its prelabel is discarded from the workbench or a Worker with another version arrives. Prelabels written before the box-first contract are converted at the storage boundary when read. Prelabels are JSON only; rendered views belong to local recognition.
+Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `source`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations have explicit schema versions and are parsed against one current contract rather than runtime compatibility fallbacks. Prelabels are JSON only; rendered views belong to local recognition.
 
 The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
 
@@ -254,6 +256,7 @@ src/vitroflow/
 │   └── training.py   Model and threshold selection
 ├── prelabelers/
 │   ├── contract.py   Shared box-first runtime boundary
+│   ├── documents.py  Strict persisted-document parser
 │   └── traditional.py Traditional-vision adapter
 ├── yolo/
 │   ├── dataset.py    Canonical reviewed-label export
@@ -265,6 +268,7 @@ src/vitroflow/
 web/src/
 ├── datasets/         Dataset and image identity, derived image states
 ├── detection/        Prelabel document contract
+├── prelabelers/      Executable-version identity contract
 ├── annotation/       Box annotation domain
 ├── workers/          Worker heartbeat contract
 ├── components/       Review workbench UI

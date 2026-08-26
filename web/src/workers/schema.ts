@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { DATASET_NAME, imageRefSchema } from "../datasets/schema";
-import { prelabelerDescriptorSchema } from "../detection/schema";
+import { prelabelerDescriptorSchema } from "../prelabelers/schema";
 
 export const heartbeatSchema = z
   .object({

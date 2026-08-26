@@ -32,6 +32,7 @@ export function documentFromPrelabel(
   result: PrelabelResult,
 ): AnnotationDocument {
   return {
+    schemaVersion: 1,
     image: {
       path: result.source,
       width: result.image.width,

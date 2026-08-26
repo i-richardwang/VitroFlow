@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { imageSourceSchema } from "../datasets/schema";
+
 const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
 export const boundingBoxSchema = z.strictObject({
@@ -17,8 +19,9 @@ const seedInstanceSchema = z.strictObject({
 
 export const annotationSchema = z
   .strictObject({
+    schemaVersion: z.literal(1),
     image: z.strictObject({
-      path: z.string().min(1),
+      path: imageSourceSchema,
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),

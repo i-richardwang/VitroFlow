@@ -100,16 +100,6 @@ def _prelabel_payload(source: str) -> dict:
     }
 
 
-def _legacy_prelabel_payload(source: str) -> dict:
-    return {
-        "source": source,
-        "image": {"width": 1000, "height": 800},
-        "count": 1,
-        "dish": {"center_x": 500, "center_y": 400, "radius": 300},
-        "detections": [{"id": 1, "x": 100, "y": 200, "scale": 8, "score": 0.9}],
-    }
-
-
 def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     prelabels = data_root / "prelabels" / "batch"
@@ -123,7 +113,14 @@ def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) ->
             json.dumps(_prelabel_payload(source)), encoding="utf-8"
         )
     (prelabels / "c.json").write_text(
-        json.dumps({"source": "images/batch/c.jpg", "error": "dish not found"}),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "source": "images/batch/c.jpg",
+                "producer": _prelabel_payload("images/batch/c.jpg")["producer"],
+                "error": "dish not found",
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -143,17 +140,17 @@ def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) ->
     ]
 
 
-def test_prelabel_export_rejects_a_mismatched_count(tmp_path: Path) -> None:
+def test_prelabel_export_rejects_an_unversioned_document(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     prelabels = data_root / "prelabels" / "batch"
     prelabels.mkdir(parents=True)
-    payload = _legacy_prelabel_payload("images/batch/a.jpg")
-    payload["count"] = 2
+    payload = _prelabel_payload("images/batch/a.jpg")
+    del payload["schema_version"]
     for name in ("a", "b"):
         (prelabels / f"{name}.json").write_text(json.dumps(payload), encoding="utf-8")
 
     output = tmp_path / "yolo"
-    with pytest.raises(ValueError, match="count must match"):
+    with pytest.raises(ValueError, match="schema_version must be 1"):
         export_prelabel_yolo_dataset(prelabels, data_root, output)
 
     assert not output.exists()

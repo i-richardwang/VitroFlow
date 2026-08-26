@@ -28,4 +28,11 @@ describe("annotation contract", () => {
 
     expect(annotationSchema.safeParse(document).success).toBe(false);
   });
+
+  test("requires an explicit schema version", () => {
+    const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
+    delete document.schemaVersion;
+
+    expect(annotationSchema.safeParse(document).success).toBe(false);
+  });
 });

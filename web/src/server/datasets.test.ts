@@ -4,10 +4,18 @@ import * as path from "node:path";
 
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
-import { findImage, listDatasets, listImages, removeImage } from "./datasets";
+import {
+  findImage,
+  listDatasets,
+  listImages,
+  readDataset,
+  removeImage,
+  selectPrelabelerVersion,
+} from "./datasets";
 import { summarizeImage } from "./summaries";
 import { createLabel } from "./labels";
 import { DATA_ROOT } from "./paths";
+import { registerPrelabeler } from "./prelabeler-registry";
 import {
   discardPrelabel,
   pendingImages,
@@ -17,8 +25,17 @@ import {
 import { addImages } from "./upload";
 
 const prelabeler = {
-  version_id: "traditional-test",
+  version_id: "traditional-v1",
+  name: "m",
+  kind: "traditional",
   fingerprint: "b".repeat(64),
+};
+
+const nextPrelabeler = {
+  ...prelabeler,
+  version_id: "traditional-next",
+  name: "next",
+  fingerprint: "c".repeat(64),
 };
 
 function resultFor(source: string) {
@@ -26,6 +43,7 @@ function resultFor(source: string) {
 }
 
 function pending() {
+  registerPrelabeler(prelabeler);
   return pendingImages(prelabeler).map(
     (image) => `${image.dataset}/${image.stem}`,
   );
@@ -39,6 +57,12 @@ describe("uploads", () => {
     ]);
     expect(added.map((image) => image.stem)).toEqual(["one", "two"]);
     expect(listDatasets()).toContain("crop");
+    expect(readDataset("crop")).toEqual({
+      schemaVersion: 1,
+      id: "crop",
+      modelId: "crop",
+      selectedPrelabelerVersionId: "traditional-v1",
+    });
     expect(listImages("crop").map((image) => image.source)).toEqual([
       "images/crop/one.jpg",
       "images/crop/two.PNG",
@@ -71,47 +95,9 @@ describe("uploads", () => {
 });
 
 describe("prelabels", () => {
-  test("reads legacy center detections through the canonical box contract", async () => {
-    await addImages("legacy", [new File(["a"], "a.jpg")]);
-    const directory = path.join(DATA_ROOT, "prelabels", "legacy");
-    fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(
-      path.join(directory, "a.json"),
-      JSON.stringify({
-        source: "images/legacy/a.jpg",
-        image: { width: 100, height: 80 },
-        count: 1,
-        quality: {
-          status: "ok",
-          warnings: [],
-          clipped_fraction: 0.01,
-          focus_score: 20,
-        },
-        dish: { center_x: 50, center_y: 40, radius: 200 },
-        pipeline: { name: "legacy", fingerprint: "a".repeat(64) },
-        model: { name: "legacy model", fingerprint: "b".repeat(64) },
-        config: { decision: { confidence_threshold: 0.5 } },
-        detections: [{ id: 7, x: 10, y: 12, scale: 4, score: 0.9 }],
-      }),
-    );
-
-    const prelabel = readPrelabel({ dataset: "legacy", stem: "a" });
-    if (!prelabel || "error" in prelabel) {
-      throw new Error("legacy result did not migrate");
-    }
-    expect(prelabel.schema_version).toBe(1);
-    expect(prelabel.producer.kind).toBe("traditional");
-    expect(prelabel.instances).toEqual([
-      {
-        id: "7",
-        class: "seed",
-        bbox: { x: 7.5, y: 9.5, width: 5, height: 5 },
-        score: 0.9,
-      },
-    ]);
-  });
-
-  test("pending covers unprocessed and outdated images until a label exists", async () => {
+  test("datasets assign work only to their selected version", async () => {
+    registerPrelabeler(prelabeler);
+    registerPrelabeler(nextPrelabeler);
     await addImages("pend", [
       new File(["a"], "a.jpg"),
       new File(["b"], "b.jpg"),
@@ -123,13 +109,6 @@ describe("prelabels", () => {
     writePrelabel(a, resultFor("images/pend/a.jpg"));
     expect(pending()).not.toContain("pend/a");
     expect(summarizeImage(a).state).toBe("prelabeled");
-
-    expect(
-      pendingImages({
-        version_id: "traditional-next",
-        fingerprint: "c".repeat(64),
-      }).map((i) => i.stem),
-    ).toContain("a");
 
     const { producer } = resultFor("images/pend/b.jpg");
     writePrelabel(b, {
@@ -144,9 +123,20 @@ describe("prelabels", () => {
 
     discardPrelabel(b);
     expect(pending()).toContain("pend/b");
+
+    expect(pendingImages(nextPrelabeler).map((i) => i.dataset)).not.toContain(
+      "pend",
+    );
+    selectPrelabelerVersion("pend", nextPrelabeler.version_id);
+    expect(pendingImages(nextPrelabeler).map((i) => i.stem)).toEqual(["a", "b"]);
+    expect(pending()).not.toContain("pend/a");
+    expect(() =>
+      writePrelabel(b, resultFor("images/pend/b.jpg")),
+    ).toThrow(/assigned to another prelabeler version/);
   });
 
   test("rejects documents for unknown images or mismatched sources", async () => {
+    registerPrelabeler(prelabeler);
     await addImages("src", [new File(["a"], "a.jpg")]);
     expect(() =>
       writePrelabel(
@@ -163,29 +153,24 @@ describe("prelabels", () => {
   });
 
   test("freezes the prelabel once a label exists", async () => {
+    registerPrelabeler(prelabeler);
+    registerPrelabeler(nextPrelabeler);
     await addImages("frozen", [new File(["a"], "a.jpg")]);
     const ref = { dataset: "frozen", stem: "a" };
     const original = writePrelabel(ref, resultFor("images/frozen/a.jpg"));
     if ("error" in original) throw new Error("unexpected failure document");
     createLabel(ref, documentFromPrelabel(original));
 
+    selectPrelabelerVersion("frozen", nextPrelabeler.version_id);
     const replacement = {
       ...resultFor("images/frozen/a.jpg"),
-      producer: {
-        version_id: "traditional-next",
-        name: "next",
-        kind: "traditional",
-        fingerprint: "c".repeat(64),
-      },
+      producer: nextPrelabeler,
     };
     expect(() => writePrelabel(ref, replacement)).toThrow(/frozen/);
     expect(() => discardPrelabel(ref)).toThrow(/frozen/);
     expect(readPrelabel(ref)).toEqual(original);
     expect(
-      pendingImages({
-        version_id: "traditional-next",
-        fingerprint: "c".repeat(64),
-      }).map((i) => i.dataset),
+      pendingImages(nextPrelabeler).map((i) => i.dataset),
     ).not.toContain("frozen");
     expect(summarizeImage(ref).state).toBe("in_progress");
   });
@@ -193,6 +178,7 @@ describe("prelabels", () => {
 
 describe("removal", () => {
   test("deletes the image with its prelabel and label", async () => {
+    registerPrelabeler(prelabeler);
     await addImages("rm", [new File(["a"], "a.jpg")]);
     const ref = { dataset: "rm", stem: "a" };
     const prelabel = writePrelabel(ref, resultFor("images/rm/a.jpg"));

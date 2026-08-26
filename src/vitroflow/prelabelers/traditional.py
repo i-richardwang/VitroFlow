@@ -11,6 +11,8 @@ from ..identity import ExecutionIdentity
 from ..pipeline import count_seeds
 from ..scoring import DEFAULT_MODEL, CandidateModel
 from .contract import (
+    DishGeometry,
+    PrelabelDiagnostics,
     PrelabelerDescriptor,
     PrelabelInstance,
     PrelabelQuality,
@@ -19,6 +21,7 @@ from .contract import (
 
 _BOX_SIDE_FRACTION = 0.025
 _MIN_BOX_SIZE = 2.0
+DEFAULT_TRADITIONAL_VERSION_ID = "traditional-v1"
 
 
 def _execution_fingerprint(execution: ExecutionIdentity) -> str:
@@ -64,13 +67,14 @@ class TraditionalPrelabeler:
 
     config: PipelineConfig = field(default_factory=PipelineConfig)
     model: CandidateModel = DEFAULT_MODEL
+    version_id: str = DEFAULT_TRADITIONAL_VERSION_ID
 
     @property
     def descriptor(self) -> PrelabelerDescriptor:
         execution = ExecutionIdentity.create(self.config, self.model)
         fingerprint = _execution_fingerprint(execution)
         return PrelabelerDescriptor(
-            version_id=f"traditional-{fingerprint[:12]}",
+            version_id=self.version_id,
             name=execution.model_name,
             kind="traditional",
             fingerprint=fingerprint,
@@ -111,16 +115,16 @@ class TraditionalPrelabeler:
                 status=result.quality.status,
                 warnings=result.quality.warnings,
             ),
-            diagnostics={
-                "dish": {
-                    "center_x": round(result.dish_center[0], 2),
-                    "center_y": round(result.dish_center[1], 2),
-                    "radius": round(result.dish_radius, 2),
-                },
-                "metrics": {
+            diagnostics=PrelabelDiagnostics(
+                dish=DishGeometry(
+                    center_x=result.dish_center[0],
+                    center_y=result.dish_center[1],
+                    radius=result.dish_radius,
+                ),
+                metrics={
                     "confidence_threshold": self.config.decision.confidence_threshold,
                     "clipped_fraction": round(result.quality.clipped_fraction, 6),
                     "focus_score": round(result.quality.focus_score, 3),
                 },
-            },
+            ),
         )

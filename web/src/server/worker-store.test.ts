@@ -45,3 +45,18 @@ test("listing forgets workers that have been silent for a week", () => {
   expect(ids(later(seen, 6 * 24 * 60 * 60))).toContain("forgotten-worker");
   expect(ids(later(seen, 8 * 24 * 60 * 60))).not.toContain("forgotten-worker");
 });
+
+test("an immutable version id cannot be reused for different contents", () => {
+  recordHeartbeat({ ...heartbeat, workerId: "immutable-version-worker" });
+
+  expect(() =>
+    recordHeartbeat({
+      ...heartbeat,
+      workerId: "conflicting-version-worker",
+      prelabeler: {
+        ...heartbeat.prelabeler,
+        fingerprint: "c".repeat(64),
+      },
+    }),
+  ).toThrow(/already registered with different contents/);
+});

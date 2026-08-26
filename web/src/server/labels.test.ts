@@ -4,9 +4,10 @@ import * as path from "node:path";
 
 import type { AnnotationDocument } from "../annotation/schema";
 import { createLabel, readLabel, updateLabel } from "./labels";
-import { DATA_ROOT, LABELS_DIR } from "./paths";
+import { DATA_ROOT } from "./paths";
 
 const document: AnnotationDocument = {
+  schemaVersion: 1,
   image: { path: "images/set/a.jpg", width: 100, height: 100 },
   source: {
     prelabelerVersionId: "traditional-test",
@@ -45,24 +46,12 @@ describe("labels", () => {
     expect(() => readLabel({ dataset: "..", stem: "escape" })).toThrow();
   });
 
-  test("reads legacy provenance through the current annotation contract", () => {
-    const directory = path.join(LABELS_DIR, "legacy");
-    fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(
-      path.join(directory, "a.json"),
-      JSON.stringify({
-        ...document,
-        source: {
-          pipelineFingerprint: "a".repeat(64),
-          modelFingerprint: "b".repeat(64),
-        },
-      }),
-    );
+  test("rejects documents without an explicit schema version", () => {
+    const filePath = path.join(DATA_ROOT, "labels", "invalid", "a.json");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const { schemaVersion: _, ...unversioned } = document;
+    fs.writeFileSync(filePath, JSON.stringify(unversioned));
 
-    const migrated = readLabel({ dataset: "legacy", stem: "a" });
-    expect(
-      migrated?.source.prelabelerVersionId.startsWith("traditional-legacy-"),
-    ).toBe(true);
-    expect(migrated?.source.prelabelerFingerprint.length).toBe(64);
+    expect(() => readLabel({ dataset: "invalid", stem: "a" })).toThrow();
   });
 });

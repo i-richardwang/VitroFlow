@@ -1,8 +1,8 @@
 import { Chip } from "@heroui/react";
 
-import type { SeedQuality, SeedWarning } from "../detection/schema";
+import type { SeedQuality } from "../detection/schema";
 
-const WARNING_LABELS: Record<SeedWarning, string> = {
+const WARNING_LABELS: Record<string, string> = {
   dish_detection_failed: "Dish not detected",
   exposure_clipping: "Exposure clipped",
   low_focus: "Low focus",
@@ -16,7 +16,7 @@ export function QualityWarnings({ quality }: { quality: SeedQuality }) {
     <span className="inline-flex flex-wrap gap-1">
       {quality.warnings.map((warning) => (
         <Chip key={warning} color="warning" variant="soft" size="sm">
-          {WARNING_LABELS[warning]}
+          {WARNING_LABELS[warning] ?? warning.replaceAll("_", " ")}
         </Chip>
       ))}
     </span>

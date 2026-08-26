@@ -2,9 +2,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { DATASET_NAME, IMAGE_STEM } from "../datasets/schema";
-import { CONTENT_TYPES, listImages, type DatasetImage } from "./datasets";
+import {
+  CONTENT_TYPES,
+  ensureDataset,
+  listImages,
+  type DatasetImage,
+} from "./datasets";
 import { writeAtomically } from "./files";
-import { IMAGES_DIR, resolveWithin } from "./paths";
+import { DATASETS_DIR, IMAGES_DIR, resolveWithin } from "./paths";
 
 const MAX_IMAGES_PER_UPLOAD = 100;
 const MAX_IMAGE_BYTES = 64 * 1024 * 1024;
@@ -68,6 +73,7 @@ export async function addImages(
   }
 
   const written: string[] = [];
+  const datasetCreated = ensureDataset(dataset);
   try {
     for (const file of files) {
       const filePath = resolveWithin(IMAGES_DIR, dataset, file.name);
@@ -77,6 +83,9 @@ export async function addImages(
   } catch (error) {
     for (const filePath of written) {
       fs.rmSync(filePath, { force: true });
+    }
+    if (datasetCreated) {
+      fs.rmSync(resolveWithin(DATASETS_DIR, `${dataset}.json`), { force: true });
     }
     throw error;
   }

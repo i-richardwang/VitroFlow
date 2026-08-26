@@ -152,10 +152,7 @@ def test_pass_prelabels_every_pending_image(tmp_path: Path) -> None:
         ("POST", "/api/worker/heartbeat"),
     ]
     pending = workbench.requests[1]
-    assert dict(pending.url.params) == {
-        "version_id": DESCRIPTOR.version_id,
-        "fingerprint": DESCRIPTOR.fingerprint,
-    }
+    assert dict(pending.url.params) == {"worker_id": "test-worker"}
     assert json.loads(workbench.requests[2].read()) == IDENTITY.heartbeat(
         PendingImage.from_dict(PENDING[0])
     )

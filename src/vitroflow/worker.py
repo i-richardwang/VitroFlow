@@ -21,7 +21,12 @@ import cv2
 import httpx
 
 from .config import PipelineConfig
-from .prelabelers import Prelabeler, PrelabelerDescriptor, TraditionalPrelabeler
+from .prelabelers import (
+    Prelabeler,
+    PrelabelerDescriptor,
+    PrelabelFailure,
+    TraditionalPrelabeler,
+)
 from .scoring import DEFAULT_MODEL, load_candidate_model
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
@@ -114,12 +119,11 @@ class WorkerIdentity:
 
     def failure(self, image: PendingImage, error: Exception) -> dict[str, object]:
         """The prelabel document recorded when detection cannot produce a result."""
-        return {
-            "source": image.source,
-            "error": str(error)[:_ERROR_MESSAGE_LIMIT],
-            "schema_version": 1,
-            "producer": self.prelabeler.to_dict(),
-        }
+        return PrelabelFailure(
+            source=Path(image.source),
+            producer=self.prelabeler,
+            error=str(error)[:_ERROR_MESSAGE_LIMIT],
+        ).to_dict()
 
 
 class WorkerClient:
@@ -166,14 +170,10 @@ class WorkerClient:
         response.raise_for_status()
 
     def pending(self) -> tuple[PendingImage, ...]:
-        prelabeler = self.identity.prelabeler
         response = self._request(
             "GET",
             "api/worker/pending",
-            params={
-                "version_id": prelabeler.version_id,
-                "fingerprint": prelabeler.fingerprint,
-            },
+            params={"worker_id": self.identity.worker_id},
         )
         response.raise_for_status()
         images = response.json().get("images")
@@ -189,7 +189,7 @@ class WorkerClient:
         return response.content
 
     def put_prelabel(self, image: PendingImage, document: dict[str, object]) -> bool:
-        """Store a prelabel; returns False when a label already owns the image."""
+        """Store a prelabel; False means review or a new version owns the image."""
         response = self._request(
             "PUT",
             f"api/worker/prelabels/{image.dataset}/{image.stem}",
@@ -293,6 +293,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--config", help="JSON file overriding pipeline parameters")
     parser.add_argument("--model", help="Candidate model JSON")
+    parser.add_argument(
+        "--version-id",
+        default=os.environ.get("VITROFLOW_PRELABELER_VERSION_ID", "traditional-v1"),
+        help="Immutable registered version id (or VITROFLOW_PRELABELER_VERSION_ID)",
+    )
     parser.add_argument("--once", action="store_true", help="Run a single pass")
     return parser
 
@@ -324,14 +329,15 @@ def main(argv: list[str] | None = None) -> int:
             PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
         )
         model = load_candidate_model(args.model) if args.model else DEFAULT_MODEL
-        prelabeler = TraditionalPrelabeler(config, model)
+        prelabeler = TraditionalPrelabeler(config, model, args.version_id)
+        identity = WorkerIdentity.create(args.worker_id, prelabeler)
     except (OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     client = WorkerClient(
         args.server,
         args.token,
-        WorkerIdentity.create(args.worker_id, prelabeler),
+        identity,
     )
     try:
         with _health_server(args.health_port):
