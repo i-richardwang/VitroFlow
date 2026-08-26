@@ -9,6 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { REVIEW_STATES, type ReviewState } from "../../annotation/schema";
+import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
 import {
   ReviewStatusChip,
@@ -38,17 +39,17 @@ function RunPage() {
       : images.filter((image) => image.review === state).length;
 
   return (
-    <main className="mx-auto max-w-3xl px-8 py-10">
-      <Breadcrumbs>
-        <Breadcrumbs.Item href="/">Runs</Breadcrumbs.Item>
-        <Breadcrumbs.Item>{runId}</Breadcrumbs.Item>
-      </Breadcrumbs>
-      <h1 className="mt-3 truncate font-mono text-xl font-semibold tracking-tight">
-        {runId}
-      </h1>
-
+    <Page
+      breadcrumbs={
+        <Breadcrumbs>
+          <Breadcrumbs.Item href="/">Runs</Breadcrumbs.Item>
+          <Breadcrumbs.Item>{runId}</Breadcrumbs.Item>
+        </Breadcrumbs>
+      }
+      title={runId}
+      titleClassName="truncate font-mono"
+    >
       <ToggleButtonGroup
-        className="mt-6"
         aria-label="Review status"
         size="sm"
         selectionMode="single"
@@ -66,7 +67,7 @@ function RunPage() {
         ))}
       </ToggleButtonGroup>
 
-      <Table className="mt-4">
+      <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label={`Images in ${runId}`}>
             <Table.Header>
@@ -115,6 +116,6 @@ function RunPage() {
           </Table.Content>
         </Table.ScrollContainer>
       </Table>
-    </main>
+    </Page>
   );
 }

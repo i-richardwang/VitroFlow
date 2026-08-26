@@ -43,21 +43,15 @@ function LoginPage() {
           </div>
           VitroFlow
         </div>
-        <Card className="gap-6 p-6">
-          <Card.Header className="gap-2">
-            <Card.Title className="text-base font-semibold leading-none">
-              Sign in
-            </Card.Title>
+        <Card className="w-full">
+          <Card.Header>
+            <Card.Title>Sign in</Card.Title>
             <Card.Description>
               Enter the workbench password to continue.
             </Card.Description>
           </Card.Header>
-          <Card.Content>
-            <Form
-              method="post"
-              action="/login"
-              className="flex w-full flex-col gap-7"
-            >
+          <Form method="post" action="/login">
+            <Card.Content>
               <TextField
                 fullWidth
                 isInvalid={rejected}
@@ -70,11 +64,13 @@ function LoginPage() {
                 <Input autoComplete="current-password" />
                 <FieldError>Incorrect password.</FieldError>
               </TextField>
+            </Card.Content>
+            <Card.Footer className="mt-4">
               <Button type="submit" variant="primary" fullWidth>
                 Sign in
               </Button>
-            </Form>
-          </Card.Content>
+            </Card.Footer>
+          </Form>
         </Card>
       </div>
     </main>
