@@ -93,7 +93,8 @@ export function AnnotationEditor({
     setSelectedId(null);
   }, [annotation.instances, selectedId, editInstances]);
 
-  const clearSelection = useCallback(() => {
+  /** Escape leaves the add tool and drops the selection in one press. */
+  const cancelEditing = useCallback(() => {
     setSelectedId(null);
     setTool("select");
   }, []);
@@ -101,7 +102,7 @@ export function AnnotationEditor({
   useShortcuts({
     onPanChange: setPanning,
     onToolChange: setTool,
-    onEscape: clearSelection,
+    onEscape: cancelEditing,
     onDelete: deleteSelected,
     onUndo: undo,
     onRedo: redo,
@@ -123,7 +124,6 @@ export function AnnotationEditor({
       history={history}
       onSelect={setSelectedId}
       onInstancesChange={editInstances}
-      onAdded={() => setTool("select")}
       onToolChange={setTool}
       onUndo={undo}
       onRedo={redo}
@@ -237,7 +237,6 @@ function CanvasStage({
   history,
   onSelect,
   onInstancesChange,
-  onAdded,
   onToolChange,
   onUndo,
   onRedo,
@@ -255,7 +254,6 @@ function CanvasStage({
   history: { canUndo: boolean; canRedo: boolean };
   onSelect: (id: string | null) => void;
   onInstancesChange: (instances: SeedInstance[]) => void;
-  onAdded: () => void;
   onToolChange: (tool: Tool) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -274,7 +272,6 @@ function CanvasStage({
         selectedId={selectedId}
         onSelect={onSelect}
         onInstancesChange={onInstancesChange}
-        onAdded={onAdded}
       />
       {editable && (
         <Toolbar

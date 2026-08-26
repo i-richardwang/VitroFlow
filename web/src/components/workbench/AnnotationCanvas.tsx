@@ -70,7 +70,6 @@ export function AnnotationCanvas({
   selectedId,
   onSelect,
   onInstancesChange,
-  onAdded,
 }: {
   runId: string;
   stem: string;
@@ -84,8 +83,6 @@ export function AnnotationCanvas({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onInstancesChange: (instances: SeedInstance[]) => void;
-  /** A standard box was placed by clicking with the add tool. */
-  onAdded: () => void;
 }) {
   const { containerRef, transform, fit, panTo, panOrigin, toImagePoint } =
     useViewport(annotation.image);
@@ -119,6 +116,10 @@ export function AnnotationCanvas({
       clientY: event.clientY,
       moved: false,
     };
+    if (panning || tool === "add" || !editable) {
+      setGesture(startPan(event));
+      return;
+    }
     const point = toImagePoint(event);
     const target = event.target as Element;
     const handle = target.getAttribute("data-handle") as Handle | null;
@@ -126,11 +127,6 @@ export function AnnotationCanvas({
       target.closest("[data-instance-id]")?.getAttribute("data-instance-id") ??
       null;
     const instance = annotation.instances.find((item) => item.id === id);
-
-    if (panning || tool === "pan" || tool === "add" || !editable) {
-      setGesture(startPan(event));
-      return;
-    }
     if (handle && instance) {
       setGesture({
         kind: "resize",
@@ -202,10 +198,10 @@ export function AnnotationCanvas({
     setGesture(null);
     if (!press?.moved) {
       if (gesture.kind === "pan" && editable && !panning) {
-        if (tool === "select") {
-          onSelect(null);
-        } else if (tool === "add") {
+        if (tool === "add") {
           addBoxAt(toImagePoint(event));
+        } else {
+          onSelect(null);
         }
       }
       return;
@@ -221,8 +217,9 @@ export function AnnotationCanvas({
 
   /**
    * Places the same square the prelabel step builds around a detection, so
-   * added seeds share one box convention; the selection handles remain for
-   * the rare seed that the standard box does not contain.
+   * added seeds share one box convention. The tool stays active for the next
+   * seed; switching to select exposes the handles for the rare seed the
+   * standard box does not contain.
    */
   const addBoxAt = (center: Point) => {
     const box = boxAround(
@@ -236,7 +233,6 @@ export function AnnotationCanvas({
     const instance = instanceFromBox(box);
     onInstancesChange([...annotation.instances, instance]);
     onSelect(instance.id);
-    onAdded();
   };
 
   const draft =

@@ -41,14 +41,6 @@ export function AddBoxIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function HandIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M5.5 8V3.5a1 1 0 012 0V7m0-4.5a1 1 0 012 0V7m0-3a1 1 0 012 0v5.5a4.5 4.5 0 01-9 0V5.5a1 1 0 012 0V8" />
-    </Icon>
-  );
-}
-
 export function ChevronDownIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

@@ -1,5 +1,5 @@
 import type { ImageKind } from "../../detection/schema";
-import { AddBoxIcon, CursorIcon, HandIcon } from "../icons";
+import { AddBoxIcon, CursorIcon } from "../icons";
 
 /** Colors shared by the canvas drawing and the layer legend. */
 export const CANVAS_COLORS = {
@@ -10,7 +10,7 @@ export const CANVAS_COLORS = {
   handle: "#ffffff",
 } as const;
 
-export const TOOLS = ["select", "add", "pan"] as const;
+export const TOOLS = ["select", "add"] as const;
 export type Tool = (typeof TOOLS)[number];
 
 export const TOOL_SPECS: Record<
@@ -34,7 +34,6 @@ export const TOOL_SPECS: Record<
     cursor: "crosshair",
     icon: AddBoxIcon,
   },
-  pan: { label: "Pan", shortcut: "H", cursor: "grab", icon: HandIcon },
 };
 
 export function toolForShortcut(key: string): Tool | null {
