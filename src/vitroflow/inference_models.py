@@ -58,17 +58,17 @@ def _inference_settings(value: Any, context: str) -> None:
 
 def _training_identity(value: Any, context: str) -> None:
     training = as_object(value, context)
-    expect_fields(training, {"baseModel", "configuration", "runtime"}, context)
+    expect_fields(training, {"baseModel", "parameters", "runtime"}, context)
 
     base_model = as_object(training["baseModel"], f"{context}.baseModel")
     expect_fields(base_model, {"reference", "digest"}, f"{context}.baseModel")
     as_string(base_model["reference"], f"{context}.baseModel.reference")
     as_digest(base_model["digest"], f"{context}.baseModel.digest")
 
-    configuration = as_object(training["configuration"], f"{context}.configuration")
-    expect_fields(configuration, {"name", "digest"}, f"{context}.configuration")
-    as_string(configuration["name"], f"{context}.configuration.name")
-    as_digest(configuration["digest"], f"{context}.configuration.digest")
+    parameters = as_object(training["parameters"], f"{context}.parameters")
+    for name, parameter in parameters.items():
+        if not isinstance(parameter, (bool, int, float, str)):
+            raise TypeError(f"{context}.parameters.{name} must be a scalar")
 
     runtime = as_object(training["runtime"], f"{context}.runtime")
     expect_fields(runtime, {"framework", "version"}, f"{context}.runtime")
@@ -230,7 +230,7 @@ class ModelStore:
                         "validation": artifact["validation"],
                         "training": {
                             "base_model": training["baseModel"],
-                            "configuration": training["configuration"],
+                            "parameters": training["parameters"],
                             "runtime": training["runtime"],
                         },
                     },

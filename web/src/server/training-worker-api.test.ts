@@ -4,6 +4,7 @@ import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
 import { Route as ClaimRoute } from "../routes/api.training.claim";
+import { Route as EpochsRoute } from "../routes/api.training.runs.$runId.epochs";
 import { Route as HeartbeatRoute } from "../routes/api.training.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.training.ready";
 import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$digest";
@@ -90,6 +91,34 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect(image.status).toBe(200);
   expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(digest);
 
+  const epoch = await handler(
+    EpochsRoute,
+    "POST",
+  )({
+    params: { runId: created.id },
+    request: new Request("http://localhost/epochs", {
+      method: "POST",
+      body: JSON.stringify({
+        workerId: "api-trainer",
+        epoch: 1,
+        train: { box: 1.2, cls: 2.4, dfl: 1.1 },
+        val: { box: 1.3, cls: 2.5, dfl: 1.2 },
+        precision: 0.5,
+        recall: 0.4,
+        map50: 0.45,
+        map5095: 0.2,
+        fitness: 0.225,
+        lr: 0.001,
+      }),
+    }),
+  } as never);
+  expect(epoch.status).toBe(200);
+  const reported = (await epoch.json()).state;
+  expect(reported.phase).toBe("training");
+  expect(reported.progress).toBeCloseTo(
+    1 / YOLO26_SEED_SMALL_RECIPE.parameters.epochs,
+  );
+
   const progress = await handler(
     ProgressRoute,
     "POST",
@@ -119,7 +148,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     validation: { "metrics/mAP50(B)": 0.8 },
     training: {
       base_model: YOLO26_SEED_SMALL_RECIPE.baseModel,
-      configuration: YOLO26_SEED_SMALL_RECIPE.configuration,
+      parameters: YOLO26_SEED_SMALL_RECIPE.parameters,
       runtime: YOLO26_SEED_SMALL_RECIPE.runtime,
     },
   };

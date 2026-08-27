@@ -7,20 +7,37 @@ import pytest
 
 from vitroflow.yolo import training
 from vitroflow.yolo.training import (
+    EpochReport,
     YoloTrainingInterruptedError,
     best_f1_confidence,
+    epoch_report,
     train_yolo_detector,
 )
 
+PARAMETERS = {"epochs": 3, "imgsz": 768, "batch": 4, "mosaic": 0.0}
 
-def test_seed_small_recipe_pins_its_configuration() -> None:
+
+def test_seed_small_recipe_fixes_every_training_argument() -> None:
     root = Path(__file__).resolve().parents[1]
     manifest = json.loads((root / "configs/yolo26/seed-small.recipe.json").read_text())
-    configuration = root / "configs/yolo26/seed-small.yaml"
     assert manifest["schemaVersion"] == 1
-    assert manifest["recipe"]["configuration"] == {
-        "name": configuration.name,
-        "digest": hashlib.sha256(configuration.read_bytes()).hexdigest(),
+    recipe = manifest["recipe"]
+    assert recipe["baseModel"]["reference"] == "yolo26n.pt"
+    assert recipe["runtime"] == {"framework": "ultralytics", "version": "8.4.129"}
+    assert recipe["parameters"] == {
+        "epochs": 50,
+        "patience": 20,
+        "batch": 8,
+        "imgsz": 1024,
+        "optimizer": "AdamW",
+        "lr0": 0.001,
+        "warmup_epochs": 3.0,
+        "mosaic": 0.0,
+        "mixup": 0.0,
+        "copy_paste": 0.0,
+        "max_det": 500,
+        "seed": 0,
+        "deterministic": True,
     }
 
 
@@ -41,6 +58,62 @@ def test_best_f1_confidence_rejects_a_model_without_validation_signal() -> None:
     assert best_f1_confidence(metrics) is None
 
 
+def _trainer_after_epoch(epoch: int) -> SimpleNamespace:
+    return SimpleNamespace(
+        epoch=epoch - 1,
+        tloss={"box_loss": 1.5, "cls_loss": 2.25, "dfl_loss": 1.0},
+        metrics={
+            "metrics/precision(B)": 0.5,
+            "metrics/recall(B)": 0.4,
+            "metrics/mAP50(B)": 0.45,
+            "metrics/mAP50-95(B)": 0.2,
+            "val/box_loss": 1.6,
+            "val/cls_loss": 2.4,
+            "val/dfl_loss": 1.1,
+            "fitness": 0.225,
+        },
+        fitness=0.225,
+        lr={"lr/pg0": 0.001, "lr/pg1": 0.001, "lr/pg2": 0.001},
+    )
+
+
+def test_epoch_report_reads_the_trainer_after_validation() -> None:
+    report = epoch_report(_trainer_after_epoch(7))
+
+    assert report == EpochReport(
+        epoch=7,
+        train={"box": 1.5, "cls": 2.25, "dfl": 1.0},
+        val={"box": 1.6, "cls": 2.4, "dfl": 1.1},
+        precision=0.5,
+        recall=0.4,
+        map50=0.45,
+        map5095=0.2,
+        fitness=0.225,
+        lr=0.001,
+    )
+    assert report.to_json()["train"] == {"box": 1.5, "cls": 2.25, "dfl": 1.0}
+
+
+def test_epoch_report_rejects_non_finite_values() -> None:
+    trainer = _trainer_after_epoch(1)
+    trainer.metrics["metrics/mAP50(B)"] = float("nan")
+
+    with pytest.raises(ValueError, match="non-finite mAP50"):
+        epoch_report(trainer)
+
+
+def _base_model(tmp_path: Path) -> tuple[Path, str]:
+    model = tmp_path / "base.pt"
+    model.write_bytes(b"base-weights")
+    return model, hashlib.sha256(model.read_bytes()).hexdigest()
+
+
+def _dataset(tmp_path: Path) -> Path:
+    dataset = tmp_path / "dataset.yaml"
+    dataset.write_text("train: images/train\nval: images/val\n")
+    return dataset
+
+
 def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None:
     class FakeYolo:
         def __init__(self, _source: str) -> None:
@@ -58,21 +131,15 @@ def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
     monkeypatch.setattr(training, "version", lambda _: "8.4.129")
-    dataset = tmp_path / "dataset.yaml"
-    dataset.write_text("train: images/train\nval: images/val\n")
-    config = tmp_path / "train.yaml"
-    config.write_text("epochs: 50\n")
-    model = tmp_path / "base.pt"
-    model.write_bytes(b"base-weights")
+    model, digest = _base_model(tmp_path)
 
     with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
         train_yolo_detector(
-            dataset,
+            _dataset(tmp_path),
             tmp_path / "run",
-            config=config,
+            parameters=PARAMETERS,
             model=model,
-            model_digest=hashlib.sha256(model.read_bytes()).hexdigest(),
-            config_digest=hashlib.sha256(config.read_bytes()).hexdigest(),
+            model_digest=digest,
             runtime_version="8.4.129",
             cancelled=lambda: True,
         )
@@ -113,21 +180,15 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
     monkeypatch.setattr(training, "version", lambda _: "8.4.129")
-    dataset = tmp_path / "dataset.yaml"
-    dataset.write_text("train: images/train\nval: images/val\n")
-    config = tmp_path / "train.yaml"
-    config.write_text("epochs: 50\n")
-    model = tmp_path / "base.pt"
-    model.write_bytes(b"base-weights")
+    model, digest = _base_model(tmp_path)
 
     with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
         train_yolo_detector(
-            dataset,
+            _dataset(tmp_path),
             tmp_path / "run",
-            config=config,
+            parameters=PARAMETERS,
             model=model,
-            model_digest=hashlib.sha256(model.read_bytes()).hexdigest(),
-            config_digest=hashlib.sha256(config.read_bytes()).hexdigest(),
+            model_digest=digest,
             runtime_version="8.4.129",
             cancelled=cancelled,
         )
@@ -135,7 +196,7 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
     assert len(instances) == 2
 
 
-def test_training_publishes_validated_inference_settings(
+def test_training_reports_epochs_and_publishes_validated_settings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     instances = []
@@ -144,9 +205,13 @@ def test_training_publishes_validated_inference_settings(
         def __init__(self, source: str) -> None:
             self.source = source
             self.trainer = None
+            self.callbacks: dict[str, object] = {}
             self.train_options: dict[str, object] | None = None
             self.val_options: dict[str, object] | None = None
             instances.append(self)
+
+        def add_callback(self, event: str, callback) -> None:
+            self.callbacks[event] = callback
 
         def train(self, **options: object) -> None:
             self.train_options = options
@@ -154,6 +219,8 @@ def test_training_publishes_validated_inference_settings(
             weights = save_dir / "weights"
             weights.mkdir(parents=True)
             (weights / "best.pt").write_bytes(b"weights")
+            for epoch in (1, 2):
+                self.callbacks["on_fit_epoch_end"](_trainer_after_epoch(epoch))
             self.trainer = SimpleNamespace(
                 save_dir=save_dir,
                 args=SimpleNamespace(imgsz=768, max_det=500, device="mps"),
@@ -165,39 +232,31 @@ def test_training_publishes_validated_inference_settings(
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
     monkeypatch.setattr(training, "version", lambda _: "8.4.129")
-    dataset = tmp_path / "dataset.yaml"
-    dataset.write_text("train: images/train\nval: images/val\n")
-    config = tmp_path / "train.yaml"
-    config.write_text("epochs: 50\n")
-    model = tmp_path / "base.pt"
-    model.write_bytes(b"base-weights")
+    model, digest = _base_model(tmp_path)
+    dataset = _dataset(tmp_path)
     output = tmp_path / "run"
+    reported: list[EpochReport] = []
 
     result = train_yolo_detector(
         dataset,
         output,
-        config=config,
+        parameters=PARAMETERS,
         model=model,
-        model_digest=hashlib.sha256(model.read_bytes()).hexdigest(),
-        config_digest=hashlib.sha256(config.read_bytes()).hexdigest(),
+        model_digest=digest,
         runtime_version="8.4.129",
         device="mps",
-        epochs=3,
-        image_size=768,
-        batch_size=4,
+        on_epoch=reported.append,
     )
 
+    assert [report.epoch for report in reported] == [1, 2]
     assert result.best_weights == output / "weights" / "best.pt"
     assert result.confidence == pytest.approx(0.2)
     assert instances[0].train_options == {
-        "cfg": str(config),
+        **PARAMETERS,
         "data": str(dataset),
         "project": str(tmp_path),
         "name": "run",
         "exist_ok": False,
-        "epochs": 3,
-        "imgsz": 768,
-        "batch": 4,
         "device": "mps",
     }
     assert instances[1].val_options["end2end"] is False
@@ -214,17 +273,8 @@ def test_training_publishes_validated_inference_settings(
         },
         "validation": {"metrics/mAP50(B)": 0.4, "fitness": 0.2},
         "training": {
-            "base_model": {
-                "reference": str(model),
-                "digest": hashlib.sha256(model.read_bytes()).hexdigest(),
-            },
-            "configuration": {
-                "name": "train.yaml",
-                "digest": hashlib.sha256(config.read_bytes()).hexdigest(),
-            },
-            "runtime": {
-                "framework": "ultralytics",
-                "version": "8.4.129",
-            },
+            "base_model": {"reference": str(model), "digest": digest},
+            "parameters": PARAMETERS,
+            "runtime": {"framework": "ultralytics", "version": "8.4.129"},
         },
     }

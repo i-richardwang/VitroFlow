@@ -4,6 +4,7 @@ import { validationMetric, versionSlug } from "../../models/schema";
 import type { VersionOverview } from "../../server/overview";
 import { Count } from "../Count";
 import { Timestamp } from "../Timestamp";
+import { Metric } from "../training/Metric";
 import { ModelKindChip } from "./ModelKindChip";
 import { SelectVersionDialog } from "./SelectVersionDialog";
 
@@ -74,13 +75,5 @@ export function VersionsTable({
         </Table.Content>
       </Table.ScrollContainer>
     </Table>
-  );
-}
-
-function Metric({ value }: { value: number | null }) {
-  return value === null ? (
-    <span className="text-muted">—</span>
-  ) : (
-    <>{value.toFixed(3)}</>
   );
 }

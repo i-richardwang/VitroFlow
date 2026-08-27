@@ -1,7 +1,6 @@
 import type { Dataset, ImageState } from "../datasets/schema";
 import type { ModelArtifact, ModelVersion } from "../models/schema";
-import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import type { TrainingRecipe, TrainingRun } from "../training/schema";
+import type { TrainingRun } from "../training/schema";
 import { readDatasetSnapshot, snapshotImageCounts } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
 import {
@@ -36,14 +35,13 @@ export interface VersionOverview {
   trainingImages: number | null;
 }
 
-export interface TrainingOverview {
-  /** Runs for the dataset's model, newest first. */
-  runs: TrainingRun[];
+/** Where the model's training stands, without the runs themselves. */
+export interface TrainingSummary {
+  runs: number;
   active: TrainingRun | null;
   /** Complete annotations the most recent run's snapshot does not contain. */
   reviewedSinceLastRun: number;
   workersOnline: number;
-  recipe: TrainingRecipe;
 }
 
 /** Everything the dataset page shows: images, candidate versions, and training. */
@@ -54,7 +52,7 @@ export interface DatasetOverview {
   versions: VersionOverview[];
   /** Inference workers able to execute the selected version, by presence. */
   inference: WorkerCount;
-  training: TrainingOverview;
+  training: TrainingSummary;
 }
 
 async function reviewedSinceLastRun(
@@ -89,6 +87,23 @@ async function inferenceWorkerCount(
   return count;
 }
 
+export async function trainingSummary(
+  modelId: string,
+  records: ImageRecord[],
+  runs: TrainingRun[],
+  at: Date,
+): Promise<TrainingSummary> {
+  const workers = await listTrainingWorkers(at);
+  return {
+    runs: runs.length,
+    active: await activeTrainingRun(modelId),
+    reviewedSinceLastRun: await reviewedSinceLastRun(records, runs[0]),
+    workersOnline: workers.filter(
+      (worker) => trainingWorkerPresence(worker, at) === "online",
+    ).length,
+  };
+}
+
 export async function datasetOverview(
   datasetId: string,
   at: Date = new Date(),
@@ -97,10 +112,9 @@ export async function datasetOverview(
   if (!dataset) return null;
   const records = await listImageRecords(datasetId);
   const summaries = records.map(summarize);
-  const [modelVersions, runs, trainingWorkers] = await Promise.all([
+  const [modelVersions, runs] = await Promise.all([
     listModelVersions(dataset.modelId),
     listTrainingRuns(dataset.modelId),
-    listTrainingWorkers(at),
   ]);
   const trainingImages = await snapshotImageCounts(
     modelVersions.flatMap((version) =>
@@ -126,14 +140,6 @@ export async function datasetOverview(
     inference: selected
       ? await inferenceWorkerCount(selected.version.artifact, at)
       : { online: 0, stale: 0 },
-    training: {
-      runs,
-      active: await activeTrainingRun(dataset.modelId),
-      reviewedSinceLastRun: await reviewedSinceLastRun(records, runs[0]),
-      workersOnline: trainingWorkers.filter(
-        (worker) => trainingWorkerPresence(worker, at) === "online",
-      ).length,
-      recipe: YOLO26_SEED_SMALL_RECIPE,
-    },
+    training: await trainingSummary(dataset.modelId, records, runs, at),
   };
 }

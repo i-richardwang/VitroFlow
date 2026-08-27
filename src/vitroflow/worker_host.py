@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 import httpx
 
 from .inference_worker import InferenceWorkerSettings, run_inference_worker
-from .training_configs import default_training_config_root
 from .training_worker import TrainingWorkerSettings, run_training_worker
 from .worker_launchd import service_loaded
 from .worker_profiles import WorkerProfile, load_profile, profile_directory
@@ -38,7 +37,6 @@ def _training_settings(name: str, profile: WorkerProfile) -> TrainingWorkerSetti
         worker_id=profile.worker_id,
         device=profile.device or "cpu",
         work_dir=profile_directory(name) / "work",
-        config_root=default_training_config_root(),
         poll_seconds=profile.poll_seconds,
     )
 
@@ -97,7 +95,6 @@ def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
     else:
         if not has_yolo:
             raise RuntimeError("YOLO runtime is missing; install vitroflow[yolo]")
-        checks.append(f"training configs: {default_training_config_root()}")
     _check_device(profile.device)
     if profile.device:
         checks.append(f"device: {profile.device}")

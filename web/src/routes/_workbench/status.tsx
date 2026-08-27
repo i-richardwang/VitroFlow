@@ -191,7 +191,7 @@ function StatusPage() {
                   <Table.Cell className="font-mono text-muted">
                     {worker.currentTrainingRunId && worker.dataset ? (
                       <Link
-                        href={`/datasets/${worker.dataset}`}
+                        href={`/datasets/${worker.dataset}/training/${worker.currentTrainingRunId}`}
                         className="text-xs font-medium"
                       >
                         {worker.dataset}

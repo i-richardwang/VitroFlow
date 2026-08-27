@@ -46,10 +46,7 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
                         "reference": "yolo26n.pt",
                         "digest": "a" * 64,
                     },
-                    "configuration": {
-                        "name": "seed-small.yaml",
-                        "digest": "b" * 64,
-                    },
+                    "parameters": {"epochs": 50, "imgsz": 1024, "batch": 8},
                     "runtime": {
                         "framework": "ultralytics",
                         "version": "8.4.129",
@@ -167,10 +164,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
                 "reference": "yolo26n.pt",
                 "digest": "a" * 64,
             },
-            "configuration": {
-                "name": "seed-small.yaml",
-                "digest": "b" * 64,
-            },
+            "parameters": {"epochs": 50, "imgsz": 1024, "batch": 8},
             "runtime": {
                 "framework": "ultralytics",
                 "version": "8.4.129",

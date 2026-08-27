@@ -2,13 +2,16 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gt, inArray, lte, or } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
-import { trainingRuns } from "../db/schema";
+import { trainingEpochs, trainingRuns } from "../db/schema";
 import {
   inferencePublicationSchema,
+  trainingEpochSchema,
   trainingRecipeSchema,
   trainingRunId,
   trainingRunSchema,
   type InferencePublication,
+  type TrainingEpoch,
+  type TrainingEpochReport,
   type TrainingPhase,
   type TrainingRecipe,
   type TrainingRun,
@@ -30,6 +33,7 @@ export class TrainingRunNotFoundError extends Error {}
 export class TrainingArtifactValidationError extends Error {}
 
 type Row = typeof trainingRuns.$inferSelect;
+type EpochRow = typeof trainingEpochs.$inferSelect;
 
 function stagingKey(runId: string, file: string): string {
   return `training-staging/${runId}/${file}`;
@@ -80,6 +84,26 @@ function toRun(row: Row): TrainingRun {
     attempt: row.attempt,
     recipe: row.recipe,
     state,
+  });
+}
+
+function toEpoch(row: EpochRow): TrainingEpoch {
+  return trainingEpochSchema.parse({
+    attempt: row.attempt,
+    epoch: row.epoch,
+    recordedAt: row.recordedAt.toISOString(),
+    train: {
+      box: row.trainBoxLoss,
+      cls: row.trainClsLoss,
+      dfl: row.trainDflLoss,
+    },
+    val: { box: row.valBoxLoss, cls: row.valClsLoss, dfl: row.valDflLoss },
+    precision: row.precision,
+    recall: row.recall,
+    map50: row.map50,
+    map5095: row.map5095,
+    fitness: row.fitness,
+    lr: row.lr,
   });
 }
 
@@ -407,6 +431,120 @@ export async function reportTrainingProgress(
   );
 }
 
+/**
+ * Records one finished epoch and carries the run's progress with it. A repeated
+ * report for the same epoch replaces the row, so a retried upload is harmless.
+ */
+export async function recordTrainingEpoch(
+  runId: string,
+  workerId: string,
+  report: TrainingEpochReport,
+  at: Date = new Date(),
+): Promise<TrainingRun> {
+  return transaction(async (tx) => {
+    const current = await ownedRunningRun(runId, workerId, tx);
+    const total = current.recipe.parameters.epochs;
+    if (report.epoch > total) {
+      throw new TrainingRunConflictError(
+        `Training run ${runId} has ${total} epochs, not ${report.epoch}`,
+      );
+    }
+    await tx
+      .insert(trainingEpochs)
+      .values({
+        runId,
+        attempt: current.attempt,
+        epoch: report.epoch,
+        recordedAt: at,
+        trainBoxLoss: report.train.box,
+        trainClsLoss: report.train.cls,
+        trainDflLoss: report.train.dfl,
+        valBoxLoss: report.val.box,
+        valClsLoss: report.val.cls,
+        valDflLoss: report.val.dfl,
+        precision: report.precision,
+        recall: report.recall,
+        map50: report.map50,
+        map5095: report.map5095,
+        fitness: report.fitness,
+        lr: report.lr,
+      })
+      .onConflictDoUpdate({
+        target: [
+          trainingEpochs.runId,
+          trainingEpochs.attempt,
+          trainingEpochs.epoch,
+        ],
+        set: {
+          recordedAt: at,
+          trainBoxLoss: report.train.box,
+          trainClsLoss: report.train.cls,
+          trainDflLoss: report.train.dfl,
+          valBoxLoss: report.val.box,
+          valClsLoss: report.val.cls,
+          valDflLoss: report.val.dfl,
+          precision: report.precision,
+          recall: report.recall,
+          map50: report.map50,
+          map5095: report.map5095,
+          fitness: report.fitness,
+          lr: report.lr,
+        },
+      });
+    return ownedTransition(
+      runId,
+      workerId,
+      {
+        status: "running",
+        workerId,
+        leaseExpiresAt: leaseFrom(at),
+        phase: "training",
+        progress: report.epoch / total,
+      },
+      tx,
+    );
+  });
+}
+
+/** Every recorded epoch of a run, oldest attempt first. */
+export async function listTrainingEpochs(
+  runId: string,
+): Promise<TrainingEpoch[]> {
+  const db = await database();
+  const rows = await db
+    .select()
+    .from(trainingEpochs)
+    .where(eq(trainingEpochs.runId, runId))
+    .orderBy(asc(trainingEpochs.attempt), asc(trainingEpochs.epoch));
+  return rows.map(toEpoch);
+}
+
+/** The latest attempt's epochs for each run, keyed by run id. */
+export async function latestAttemptEpochs(
+  runIds: string[],
+): Promise<Map<string, TrainingEpoch[]>> {
+  const result = new Map<string, TrainingEpoch[]>();
+  if (runIds.length === 0) return result;
+  const db = await database();
+  const rows = await db
+    .select({ epoch: trainingEpochs, attempt: trainingRuns.attempt })
+    .from(trainingEpochs)
+    .innerJoin(trainingRuns, eq(trainingRuns.id, trainingEpochs.runId))
+    .where(
+      and(
+        inArray(trainingEpochs.runId, runIds),
+        eq(trainingEpochs.attempt, trainingRuns.attempt),
+      ),
+    )
+    .orderBy(asc(trainingEpochs.epoch));
+  for (const { epoch } of rows) {
+    const epochs = result.get(epoch.runId) ?? [];
+    epochs.push(toEpoch(epoch));
+    result.set(epoch.runId, epochs);
+  }
+  return result;
+}
+
 export async function failTrainingRun(
   runId: string,
   workerId: string,
@@ -439,7 +577,7 @@ async function stageTrainingArtifact(
       canonical(publication.training) !==
       canonical({
         base_model: current.recipe.baseModel,
-        configuration: current.recipe.configuration,
+        parameters: current.recipe.parameters,
         runtime: current.recipe.runtime,
       })
     ) {
@@ -562,7 +700,7 @@ async function finalizeTrainingPublication(
               reference: publication.training.base_model.reference,
               digest: publication.training.base_model.digest,
             },
-            configuration: publication.training.configuration,
+            parameters: publication.training.parameters,
             runtime: publication.training.runtime,
           },
         },

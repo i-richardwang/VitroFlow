@@ -5,9 +5,20 @@
       "reference": "yolo26n.pt",
       "digest": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef"
     },
-    "configuration": {
-      "name": "seed-small.yaml",
-      "digest": "662a6e8c5d1aaeb00864c6bc4bae8f1d32f9afb3fb6f7733ab634e02552f81cc"
+    "parameters": {
+      "epochs": 50,
+      "patience": 20,
+      "batch": 8,
+      "imgsz": 1024,
+      "optimizer": "AdamW",
+      "lr0": 0.001,
+      "warmup_epochs": 3.0,
+      "mosaic": 0.0,
+      "mixup": 0.0,
+      "copy_paste": 0.0,
+      "max_det": 500,
+      "seed": 0,
+      "deterministic": true
     },
     "runtime": {
       "framework": "ultralytics",

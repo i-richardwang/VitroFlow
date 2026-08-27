@@ -39,9 +39,6 @@ testpaths = ["tests"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/vitroflow"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"configs/yolo26" = "vitroflow/resources/yolo26"
-
 [tool.hatch.build.targets.sdist]
 include = [
   "/configs",

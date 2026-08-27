@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -15,24 +16,22 @@ from vitroflow.yolo import export_yolo_dataset
 ultralytics = pytest.importorskip("ultralytics")
 
 
-def test_seed_finetune_config_follows_small_dataset_recipe() -> None:
-    from ultralytics.utils import YAML
+def test_seed_recipe_parameters_are_accepted_ultralytics_arguments() -> None:
+    from ultralytics.cfg import get_cfg
 
     project_root = Path(__file__).resolve().parents[1]
-    config = YAML.load(project_root / "configs" / "yolo26" / "seed-small.yaml")
+    manifest = json.loads(
+        (project_root / "configs/yolo26/seed-small.recipe.json").read_text()
+    )
+    parameters = manifest["recipe"]["parameters"]
 
-    assert config["epochs"] == 50
-    assert config["patience"] == 20
-    assert config["batch"] == 8
-    assert config["optimizer"] == "AdamW"
-    assert config["lr0"] == pytest.approx(0.001)
-    assert config["warmup_epochs"] == pytest.approx(3.0)
-    assert config["mosaic"] == pytest.approx(0.0)
-    assert config["mixup"] == pytest.approx(0.0)
-    assert config["copy_paste"] == pytest.approx(0.0)
-    assert config["max_det"] == 500
-    assert "nbs" not in config
-    assert "close_mosaic" not in config
+    cfg = get_cfg(overrides=dict(parameters))
+
+    for name, value in parameters.items():
+        assert getattr(cfg, name) == value
+    assert cfg.optimizer == "AdamW"
+    assert cfg.mosaic == pytest.approx(0.0)
+    assert cfg.max_det == 500
 
 
 def test_ultralytics_resolves_exported_dataset_from_its_yaml(tmp_path: Path) -> None:

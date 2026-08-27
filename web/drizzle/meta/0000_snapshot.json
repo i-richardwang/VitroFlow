@@ -1,5 +1,5 @@
 {
-  "id": "a10a32fb-86ab-4c13-9b41-ed293c236486",
+  "id": "0f815bdc-0579-4747-84c7-f3624e9ea842",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -61,8 +61,12 @@
           "name": "dataset_images_dataset_id_datasets_id_fk",
           "tableFrom": "dataset_images",
           "tableTo": "datasets",
-          "columnsFrom": ["dataset_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "dataset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -70,8 +74,12 @@
           "name": "dataset_images_image_id_images_id_fk",
           "tableFrom": "dataset_images",
           "tableTo": "images",
-          "columnsFrom": ["image_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -79,7 +87,10 @@
       "compositePrimaryKeys": {
         "dataset_images_dataset_id_image_id_pk": {
           "name": "dataset_images_dataset_id_image_id_pk",
-          "columns": ["dataset_id", "image_id"]
+          "columns": [
+            "dataset_id",
+            "image_id"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -143,8 +154,12 @@
           "name": "dataset_snapshot_images_snapshot_id_dataset_snapshots_id_fk",
           "tableFrom": "dataset_snapshot_images",
           "tableTo": "dataset_snapshots",
-          "columnsFrom": ["snapshot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "snapshot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -152,8 +167,12 @@
           "name": "dataset_snapshot_images_image_id_images_id_fk",
           "tableFrom": "dataset_snapshot_images",
           "tableTo": "images",
-          "columnsFrom": ["image_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -161,7 +180,10 @@
       "compositePrimaryKeys": {
         "dataset_snapshot_images_snapshot_id_image_id_pk": {
           "name": "dataset_snapshot_images_snapshot_id_image_id_pk",
-          "columns": ["snapshot_id", "image_id"]
+          "columns": [
+            "snapshot_id",
+            "image_id"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -229,8 +251,14 @@
           "name": "dataset_snapshots_dataset_id_model_id_datasets_id_model_id_fk",
           "tableFrom": "dataset_snapshots",
           "tableTo": "datasets",
-          "columnsFrom": ["dataset_id", "model_id"],
-          "columnsTo": ["id", "model_id"],
+          "columnsFrom": [
+            "dataset_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -240,7 +268,10 @@
         "dataset_snapshots_id_model": {
           "name": "dataset_snapshots_id_model",
           "nullsNotDistinct": false,
-          "columns": ["id", "model_id"]
+          "columns": [
+            "id",
+            "model_id"
+          ]
         }
       },
       "policies": {},
@@ -298,8 +329,12 @@
           "name": "datasets_model_id_models_id_fk",
           "tableFrom": "datasets",
           "tableTo": "models",
-          "columnsFrom": ["model_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -307,8 +342,14 @@
           "name": "datasets_selected_model_version_id_model_id_model_versions_id_model_id_fk",
           "tableFrom": "datasets",
           "tableTo": "model_versions",
-          "columnsFrom": ["selected_model_version_id", "model_id"],
-          "columnsTo": ["id", "model_id"],
+          "columnsFrom": [
+            "selected_model_version_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -318,12 +359,17 @@
         "datasets_model_id_unique": {
           "name": "datasets_model_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["model_id"]
+          "columns": [
+            "model_id"
+          ]
         },
         "datasets_id_model": {
           "name": "datasets_id_model",
           "nullsNotDistinct": false,
-          "columns": ["id", "model_id"]
+          "columns": [
+            "id",
+            "model_id"
+          ]
         }
       },
       "policies": {},
@@ -443,8 +489,12 @@
           "name": "inference_workers_loaded_model_version_id_model_versions_id_fk",
           "tableFrom": "inference_workers",
           "tableTo": "model_versions",
-          "columnsFrom": ["loaded_model_version_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "loaded_model_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -532,8 +582,14 @@
           "name": "labels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk",
           "tableFrom": "labels",
           "tableTo": "dataset_images",
-          "columnsFrom": ["dataset_id", "image_id"],
-          "columnsTo": ["dataset_id", "image_id"],
+          "columnsFrom": [
+            "dataset_id",
+            "image_id"
+          ],
+          "columnsTo": [
+            "dataset_id",
+            "image_id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -541,7 +597,10 @@
       "compositePrimaryKeys": {
         "labels_dataset_id_image_id_pk": {
           "name": "labels_dataset_id_image_id_pk",
-          "columns": ["dataset_id", "image_id"]
+          "columns": [
+            "dataset_id",
+            "image_id"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -641,8 +700,12 @@
           "name": "model_versions_model_id_models_id_fk",
           "tableFrom": "model_versions",
           "tableTo": "models",
-          "columnsFrom": ["model_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -652,12 +715,18 @@
         "model_versions_id_model": {
           "name": "model_versions_id_model",
           "nullsNotDistinct": false,
-          "columns": ["id", "model_id"]
+          "columns": [
+            "id",
+            "model_id"
+          ]
         },
         "model_versions_id_digest": {
           "name": "model_versions_id_digest",
           "nullsNotDistinct": false,
-          "columns": ["id", "artifact_digest"]
+          "columns": [
+            "id",
+            "artifact_digest"
+          ]
         }
       },
       "policies": {},
@@ -793,8 +862,12 @@
           "name": "prelabels_model_version_id_model_versions_id_fk",
           "tableFrom": "prelabels",
           "tableTo": "model_versions",
-          "columnsFrom": ["model_version_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "model_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -802,8 +875,14 @@
           "name": "prelabels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk",
           "tableFrom": "prelabels",
           "tableTo": "dataset_images",
-          "columnsFrom": ["dataset_id", "image_id"],
-          "columnsTo": ["dataset_id", "image_id"],
+          "columnsFrom": [
+            "dataset_id",
+            "image_id"
+          ],
+          "columnsTo": [
+            "dataset_id",
+            "image_id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -811,8 +890,14 @@
           "name": "prelabels_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
           "tableFrom": "prelabels",
           "tableTo": "model_versions",
-          "columnsFrom": ["model_version_id", "artifact_digest"],
-          "columnsTo": ["id", "artifact_digest"],
+          "columnsFrom": [
+            "model_version_id",
+            "artifact_digest"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_digest"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -820,7 +905,10 @@
       "compositePrimaryKeys": {
         "prelabels_dataset_id_image_id_pk": {
           "name": "prelabels_dataset_id_image_id_pk",
-          "columns": ["dataset_id", "image_id"]
+          "columns": [
+            "dataset_id",
+            "image_id"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -829,6 +917,143 @@
         "prelabels_image_check": {
           "name": "prelabels_image_check",
           "value": "document->'image'->>'digest' = \"prelabels\".\"image_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.training_epochs": {
+      "name": "training_epochs",
+      "schema": "",
+      "columns": {
+        "run_id": {
+          "name": "run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "epoch": {
+          "name": "epoch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "train_box_loss": {
+          "name": "train_box_loss",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "train_cls_loss": {
+          "name": "train_cls_loss",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "train_dfl_loss": {
+          "name": "train_dfl_loss",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "val_box_loss": {
+          "name": "val_box_loss",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "val_cls_loss": {
+          "name": "val_cls_loss",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "val_dfl_loss": {
+          "name": "val_dfl_loss",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precision": {
+          "name": "precision",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recall": {
+          "name": "recall",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "map50": {
+          "name": "map50",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "map50_95": {
+          "name": "map50_95",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fitness": {
+          "name": "fitness",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lr": {
+          "name": "lr",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "training_epochs_run_id_training_runs_id_fk": {
+          "name": "training_epochs_run_id_training_runs_id_fk",
+          "tableFrom": "training_epochs",
+          "tableTo": "training_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "training_epochs_run_id_attempt_epoch_pk": {
+          "name": "training_epochs_run_id_attempt_epoch_pk",
+          "columns": [
+            "run_id",
+            "attempt",
+            "epoch"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "training_epochs_order_check": {
+          "name": "training_epochs_order_check",
+          "value": "\"training_epochs\".\"attempt\" >= 1 and \"training_epochs\".\"epoch\" >= 1"
         }
       },
       "isRLSEnabled": false
@@ -976,8 +1201,12 @@
           "name": "training_runs_model_id_models_id_fk",
           "tableFrom": "training_runs",
           "tableTo": "models",
-          "columnsFrom": ["model_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -985,8 +1214,14 @@
           "name": "training_runs_dataset_snapshot_id_model_id_dataset_snapshots_id_model_id_fk",
           "tableFrom": "training_runs",
           "tableTo": "dataset_snapshots",
-          "columnsFrom": ["dataset_snapshot_id", "model_id"],
-          "columnsTo": ["id", "model_id"],
+          "columnsFrom": [
+            "dataset_snapshot_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -994,8 +1229,14 @@
           "name": "training_runs_model_version_id_model_id_model_versions_id_model_id_fk",
           "tableFrom": "training_runs",
           "tableTo": "model_versions",
-          "columnsFrom": ["model_version_id", "model_id"],
-          "columnsTo": ["id", "model_id"],
+          "columnsFrom": [
+            "model_version_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1072,8 +1313,12 @@
           "name": "training_workers_current_training_run_id_training_runs_id_fk",
           "tableFrom": "training_workers",
           "tableTo": "training_runs",
-          "columnsFrom": ["current_training_run_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "current_training_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }

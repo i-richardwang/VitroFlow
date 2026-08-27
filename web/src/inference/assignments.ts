@@ -1,13 +1,7 @@
 import { z } from "zod";
 
-import {
-  imageExtensionSchema,
-  imageRefSchema,
-} from "../datasets/schema";
-import {
-  modelArtifactSchema,
-  type ModelVersion,
-} from "../models/schema";
+import { imageExtensionSchema, imageRefSchema } from "../datasets/schema";
+import { modelArtifactSchema, type ModelVersion } from "../models/schema";
 import { versionIdSchema } from "./schema";
 
 /** The immutable inputs an Inference Worker needs to execute one version. */

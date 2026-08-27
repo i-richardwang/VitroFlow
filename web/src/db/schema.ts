@@ -7,6 +7,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  doublePrecision,
   real,
   text,
   timestamp,
@@ -349,6 +350,41 @@ export const trainingRuns = pgTable(
     index("training_runs_claimable_idx")
       .on(table.createdAt)
       .where(sql`${table.status} in ('queued', 'running')`),
+  ],
+);
+
+/**
+ * Ultralytics' per-epoch record, kept per attempt: a reclaimed run trains from
+ * scratch, and the earlier attempt's curve stays part of the run's history.
+ */
+export const trainingEpochs = pgTable(
+  "training_epochs",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => trainingRuns.id),
+    attempt: integer("attempt").notNull(),
+    epoch: integer("epoch").notNull(),
+    recordedAt: instant("recorded_at"),
+    trainBoxLoss: doublePrecision("train_box_loss").notNull(),
+    trainClsLoss: doublePrecision("train_cls_loss").notNull(),
+    trainDflLoss: doublePrecision("train_dfl_loss").notNull(),
+    valBoxLoss: doublePrecision("val_box_loss").notNull(),
+    valClsLoss: doublePrecision("val_cls_loss").notNull(),
+    valDflLoss: doublePrecision("val_dfl_loss").notNull(),
+    precision: doublePrecision("precision").notNull(),
+    recall: doublePrecision("recall").notNull(),
+    map50: doublePrecision("map50").notNull(),
+    map5095: doublePrecision("map50_95").notNull(),
+    fitness: doublePrecision("fitness").notNull(),
+    lr: doublePrecision("lr").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.attempt, table.epoch] }),
+    check(
+      "training_epochs_order_check",
+      sql`${table.attempt} >= 1 and ${table.epoch} >= 1`,
+    ),
   ],
 );
 

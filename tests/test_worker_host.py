@@ -34,7 +34,7 @@ def test_training_preflight_checks_authenticated_server_runtime(
 
     assert requests[0].url.path == "/api/training/ready"
     assert requests[0].headers["authorization"] == "Bearer training-secret"
-    assert any(check.startswith("training configs:") for check in checks)
+    assert checks[-1] == "device: cpu"
 
 
 def test_inference_preflight_reports_the_runtimes_it_will_advertise(

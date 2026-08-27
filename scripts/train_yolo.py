@@ -6,12 +6,9 @@ from pathlib import Path
 
 from vitroflow.yolo import train_yolo_detector
 
-DEFAULT_CONFIG = (
-    Path(__file__).resolve().parents[1] / "configs" / "yolo26" / "seed-small.yaml"
+DEFAULT_RECIPE_PATH = (
+    Path(__file__).resolve().parents[1] / "configs/yolo26/seed-small.recipe.json"
 )
-DEFAULT_RECIPE = json.loads(DEFAULT_CONFIG.with_suffix(".recipe.json").read_text())[
-    "recipe"
-]
 
 
 def _positive_integer(value: str) -> int:
@@ -27,21 +24,13 @@ def main() -> int:
     )
     parser.add_argument("--data", required=True, type=Path, help="YOLO dataset YAML")
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--model", default=DEFAULT_RECIPE["baseModel"]["reference"])
-    parser.add_argument("--model-digest", default=DEFAULT_RECIPE["baseModel"]["digest"])
     parser.add_argument(
-        "--config",
+        "--recipe",
         type=Path,
-        default=DEFAULT_CONFIG,
-        help="Ultralytics training configuration YAML",
+        default=DEFAULT_RECIPE_PATH,
+        help="Recipe manifest with base model, parameters, and runtime",
     )
     parser.add_argument("--epochs", type=_positive_integer)
-    parser.add_argument(
-        "--config-digest", default=DEFAULT_RECIPE["configuration"]["digest"]
-    )
-    parser.add_argument(
-        "--runtime-version", default=DEFAULT_RECIPE["runtime"]["version"]
-    )
     parser.add_argument("--imgsz", type=_positive_integer)
     parser.add_argument("--batch", type=_positive_integer)
     parser.add_argument(
@@ -50,18 +39,25 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    recipe = json.loads(args.recipe.read_text(encoding="utf-8"))["recipe"]
+    parameters = dict(recipe["parameters"])
+    for name in ("epochs", "imgsz", "batch"):
+        override = getattr(args, name)
+        if override is not None:
+            parameters[name] = override
+
     result = train_yolo_detector(
         args.data,
         args.output,
-        config=args.config,
-        model=args.model,
-        model_digest=args.model_digest,
-        config_digest=args.config_digest,
-        runtime_version=args.runtime_version,
+        parameters=parameters,
+        model=recipe["baseModel"]["reference"],
+        model_digest=recipe["baseModel"]["digest"],
+        runtime_version=recipe["runtime"]["version"],
         device=args.device,
-        epochs=args.epochs,
-        image_size=args.imgsz,
-        batch_size=args.batch,
+        on_epoch=lambda epoch: print(
+            f"epoch {epoch.epoch}/{parameters['epochs']}: "
+            f"mAP50 {epoch.map50:.4f} mAP50-95 {epoch.map5095:.4f}"
+        ),
     )
     print(f"best weights: {result.best_weights}")
     print(f"inference config: {result.summary}")

@@ -17,6 +17,7 @@ from .annotations import ReviewedImage, parse_annotation
 from .documents import (
     as_digest,
     as_extension,
+    as_integer,
     as_list,
     as_object,
     as_string,
@@ -29,6 +30,7 @@ from .manifest import as_split
 from .worker_runtime import shutdown_signals
 from .yolo import (
     DatasetImage,
+    EpochReport,
     YoloTrainingInterruptedError,
     export_dataset_images,
     train_yolo_detector,
@@ -55,7 +57,6 @@ class TrainingWorkerSettings:
     worker_id: str
     device: str
     work_dir: Path
-    config_root: Path
     poll_seconds: float = 10.0
 
     def __post_init__(self) -> None:
@@ -72,12 +73,54 @@ class TrainingWorkerSettings:
 
 
 @dataclass(frozen=True)
+class TrainingRecipe:
+    """The immutable training identity a run carries; verified before training."""
+
+    base_model: str
+    base_model_digest: str
+    parameters: dict[str, Any]
+    runtime_version: str
+
+    @property
+    def epochs(self) -> int:
+        return int(self.parameters["epochs"])
+
+
+def parse_training_recipe(value: Any, context: str = "recipe") -> TrainingRecipe:
+    recipe = as_object(value, context)
+    expect_fields(recipe, {"baseModel", "parameters", "runtime"}, context)
+    base_model = as_object(recipe["baseModel"], f"{context}.baseModel")
+    expect_fields(base_model, {"reference", "digest"}, f"{context}.baseModel")
+    parameters = as_object(recipe["parameters"], f"{context}.parameters")
+    for name, parameter in parameters.items():
+        if not isinstance(parameter, (bool, int, float, str)):
+            raise TypeError(f"{context}.parameters.{name} must be a scalar")
+    as_integer(parameters.get("epochs"), f"{context}.parameters.epochs", 1)
+    runtime = as_object(recipe["runtime"], f"{context}.runtime")
+    expect_fields(runtime, {"framework", "version"}, f"{context}.runtime")
+    if runtime["framework"] != "ultralytics":
+        raise ValueError(f"{context}.runtime.framework must be ultralytics")
+    return TrainingRecipe(
+        base_model=as_string(base_model["reference"], f"{context}.baseModel.reference"),
+        base_model_digest=as_digest(
+            base_model["digest"], f"{context}.baseModel.digest"
+        ),
+        parameters=dict(parameters),
+        runtime_version=as_string(runtime["version"], f"{context}.runtime.version"),
+    )
+
+
+@dataclass(frozen=True)
 class TrainingJob:
     run: dict[str, Any]
 
     @property
     def run_id(self) -> str:
         return str(self.run["id"])
+
+    @property
+    def recipe(self) -> TrainingRecipe:
+        return parse_training_recipe(self.run.get("recipe"))
 
 
 @dataclass(frozen=True)
@@ -231,6 +274,16 @@ class TrainingWorkerClient:
             raise TrainingLeaseLostError(response.text)
         response.raise_for_status()
 
+    def epoch(self, run_id: str, report: EpochReport) -> None:
+        response = self._request(
+            "POST",
+            f"api/training/runs/{run_id}/epochs",
+            json={"workerId": self.worker_id, **report.to_json()},
+        )
+        if response.status_code == 409:
+            raise TrainingLeaseLostError(response.text)
+        response.raise_for_status()
+
     def image(self, run_id: str, digest: str) -> bytes:
         response = self._request(
             "GET",
@@ -315,10 +368,11 @@ def _lease(
     client: TrainingWorkerClient,
     run_id: str,
     phase: str,
-    progress: float,
+    progress: Callable[[], float],
     *,
     cancelled: Callable[[], bool] | None = None,
 ):
+    """Keeps the run leased while a long phase runs, re-reporting its progress."""
     closed = threading.Event()
     lost = threading.Event()
     refresh_errors: list[Exception] = []
@@ -326,7 +380,7 @@ def _lease(
     def refresh() -> None:
         while not closed.wait(LEASE_REFRESH_SECONDS):
             try:
-                client.progress(run_id, phase, progress)
+                client.progress(run_id, phase, progress())
                 client.heartbeat()
             except WORKER_ERRORS as error:
                 refresh_errors.append(error)
@@ -336,7 +390,7 @@ def _lease(
     def should_stop() -> bool:
         return lost.is_set() or bool(cancelled and cancelled())
 
-    client.progress(run_id, phase, progress)
+    client.progress(run_id, phase, progress())
     thread = threading.Thread(target=refresh, name="training-lease", daemon=True)
     thread.start()
     try:
@@ -354,7 +408,6 @@ def process_training_job(
     client: TrainingWorkerClient,
     job: TrainingJob,
     work_root: Path,
-    config_root: Path,
     stopped: threading.Event | None = None,
 ) -> None:
     def ensure_running() -> None:
@@ -365,6 +418,7 @@ def process_training_job(
     client.heartbeat()
     publication_started = False
     try:
+        recipe = job.recipe
         with tempfile.TemporaryDirectory(
             prefix="vitroflow-training-", dir=work_root
         ) as temporary:
@@ -377,34 +431,33 @@ def process_training_job(
                 cancelled=stopped.is_set if stopped else None,
             )
             ensure_running()
-            recipe = job.run["recipe"]
-            config = (config_root / str(recipe["configuration"]["name"])).resolve()
-            try:
-                config.relative_to(config_root.resolve())
-            except ValueError:
-                raise ValueError(
-                    "Training config escapes the configured root"
-                ) from None
+            finished_epochs = 0
+
+            def progress() -> float:
+                return finished_epochs / recipe.epochs
+
+            def report(epoch: EpochReport) -> None:
+                nonlocal finished_epochs
+                client.epoch(job.run_id, epoch)
+                finished_epochs = epoch.epoch
+
             with _lease(
                 client,
                 job.run_id,
                 "training",
-                0.1,
+                progress,
                 cancelled=stopped.is_set if stopped else None,
             ) as cancelled:
                 result = train_yolo_detector(
                     dataset,
                     root / "run",
-                    config=config,
-                    model=str(recipe["baseModel"]["reference"]),
-                    model_digest=str(recipe["baseModel"]["digest"]),
-                    config_digest=str(recipe["configuration"]["digest"]),
-                    runtime_version=str(recipe["runtime"]["version"]),
+                    parameters=recipe.parameters,
+                    model=recipe.base_model,
+                    model_digest=recipe.base_model_digest,
+                    runtime_version=recipe.runtime_version,
                     device=client.device,
-                    epochs=recipe.get("epochs"),
-                    image_size=recipe.get("imageSize"),
-                    batch_size=recipe.get("batchSize"),
                     cancelled=cancelled,
+                    on_epoch=report,
                 )
             ensure_running()
             client.progress(job.run_id, "validating", 0.95)
@@ -434,8 +487,6 @@ def run_training_worker(
     on_ready: Callable[[], None] | None = None,
 ) -> int:
     settings.work_dir.mkdir(parents=True, exist_ok=True)
-    if not settings.config_root.is_dir():
-        raise FileNotFoundError(settings.config_root)
     client = TrainingWorkerClient(
         settings.server_url,
         settings.token,
@@ -455,11 +506,7 @@ def run_training_worker(
                     job = client.claim()
                     if job:
                         process_training_job(
-                            client,
-                            job,
-                            settings.work_dir,
-                            settings.config_root,
-                            stopped=stopped,
+                            client, job, settings.work_dir, stopped=stopped
                         )
                 except YoloTrainingInterruptedError:
                     LOGGER.info("training interrupted; lease will be recoverable")

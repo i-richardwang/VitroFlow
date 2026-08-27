@@ -99,6 +99,27 @@ CREATE TABLE "prelabels" (
 	CONSTRAINT "prelabels_image_check" CHECK (document->'image'->>'digest' = "prelabels"."image_id")
 );
 --> statement-breakpoint
+CREATE TABLE "training_epochs" (
+	"run_id" text NOT NULL,
+	"attempt" integer NOT NULL,
+	"epoch" integer NOT NULL,
+	"recorded_at" timestamp with time zone NOT NULL,
+	"train_box_loss" double precision NOT NULL,
+	"train_cls_loss" double precision NOT NULL,
+	"train_dfl_loss" double precision NOT NULL,
+	"val_box_loss" double precision NOT NULL,
+	"val_cls_loss" double precision NOT NULL,
+	"val_dfl_loss" double precision NOT NULL,
+	"precision" double precision NOT NULL,
+	"recall" double precision NOT NULL,
+	"map50" double precision NOT NULL,
+	"map50_95" double precision NOT NULL,
+	"fitness" double precision NOT NULL,
+	"lr" double precision NOT NULL,
+	CONSTRAINT "training_epochs_run_id_attempt_epoch_pk" PRIMARY KEY("run_id","attempt","epoch"),
+	CONSTRAINT "training_epochs_order_check" CHECK ("training_epochs"."attempt" >= 1 and "training_epochs"."epoch" >= 1)
+);
+--> statement-breakpoint
 CREATE TABLE "training_runs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"model_id" text NOT NULL,
@@ -145,6 +166,7 @@ ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_model_id_models_id_f
 ALTER TABLE "prelabels" ADD CONSTRAINT "prelabels_model_version_id_model_versions_id_fk" FOREIGN KEY ("model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prelabels" ADD CONSTRAINT "prelabels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk" FOREIGN KEY ("dataset_id","image_id") REFERENCES "public"."dataset_images"("dataset_id","image_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prelabels" ADD CONSTRAINT "prelabels_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk" FOREIGN KEY ("model_version_id","artifact_digest") REFERENCES "public"."model_versions"("id","artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "training_epochs" ADD CONSTRAINT "training_epochs_run_id_training_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."training_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_dataset_snapshot_id_model_id_dataset_snapshots_id_model_id_fk" FOREIGN KEY ("dataset_snapshot_id","model_id") REFERENCES "public"."dataset_snapshots"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

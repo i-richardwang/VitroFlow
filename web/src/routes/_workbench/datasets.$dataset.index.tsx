@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 import { Count } from "../../components/Count";
 import { DatasetOverview } from "../../components/dataset/DatasetOverview";
-import { ModelPanel } from "../../components/dataset/ModelPanel";
+import { VersionsPanel } from "../../components/dataset/VersionsPanel";
 import { PrelabelVersion } from "../../components/dataset/PrelabelVersion";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
@@ -64,7 +64,7 @@ function DatasetPage() {
       titleClassName="truncate font-mono"
     >
       <DatasetOverview overview={overview} />
-      <ModelPanel overview={overview} />
+      <VersionsPanel overview={overview} />
       <UploadCard dataset={dataset} />
 
       <ToggleButtonGroup

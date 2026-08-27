@@ -5,6 +5,7 @@ import {
   versionIdSchema,
   type RuntimeDescriptor,
 } from "../inference/schema";
+import { trainingParametersSchema } from "../training/parameters";
 
 export const modelSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -37,10 +38,7 @@ const trainingIdentitySchema = z.strictObject({
     reference: z.string().min(1),
     digest: fingerprintSchema,
   }),
-  configuration: z.strictObject({
-    name: z.string().min(1),
-    digest: fingerprintSchema,
-  }),
+  parameters: trainingParametersSchema,
   runtime: z.strictObject({
     framework: z.literal("ultralytics"),
     version: z.string().min(1),

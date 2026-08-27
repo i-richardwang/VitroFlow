@@ -59,12 +59,11 @@ test("the overview derives versions, serving workers, and training readiness", a
     { version, selected: true, trainingImages: null },
   ]);
   expect(overview.inference).toEqual({ online: 1, stale: 0 });
-  expect(overview.training).toMatchObject({
-    runs: [],
+  expect(overview.training).toEqual({
+    runs: 0,
     active: null,
     reviewedSinceLastRun: 2,
     workersOnline: 0,
-    recipe: YOLO26_SEED_SMALL_RECIPE,
   });
 
   const run = await createTrainingRun("overview", YOLO26_SEED_SMALL_RECIPE);

@@ -21,9 +21,20 @@
           "reference": "yolo26n.pt",
           "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         },
-        "configuration": {
-          "name": "seed-small.yaml",
-          "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        "parameters": {
+          "epochs": 50,
+          "patience": 20,
+          "batch": 8,
+          "imgsz": 1024,
+          "optimizer": "AdamW",
+          "lr0": 0.001,
+          "warmup_epochs": 3.0,
+          "mosaic": 0.0,
+          "mixup": 0.0,
+          "copy_paste": 0.0,
+          "max_det": 500,
+          "seed": 0,
+          "deterministic": true
         },
         "runtime": {
           "framework": "ultralytics",

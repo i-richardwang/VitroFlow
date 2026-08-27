@@ -13,10 +13,47 @@ import numpy as np
 from ..files import write_text_atomically
 from .runtime import load_yolo
 
+# Ultralytics keys for what one epoch's validation pass measured.
+LOSS_COMPONENTS = ("box", "cls", "dfl")
+METRIC_KEYS = {
+    "precision": "metrics/precision(B)",
+    "recall": "metrics/recall(B)",
+    "map50": "metrics/mAP50(B)",
+    "map5095": "metrics/mAP50-95(B)",
+}
+
 
 class ValidationMetrics(Protocol):
     results_dict: Mapping[str, float]
     curves_results: Sequence[Sequence[Any]]
+
+
+@dataclass(frozen=True)
+class EpochReport:
+    """What Ultralytics knows after one epoch's validation pass."""
+
+    epoch: int
+    train: dict[str, float]
+    val: dict[str, float]
+    precision: float
+    recall: float
+    map50: float
+    map5095: float
+    fitness: float
+    lr: float
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "epoch": self.epoch,
+            "train": dict(self.train),
+            "val": dict(self.val),
+            "precision": self.precision,
+            "recall": self.recall,
+            "map50": self.map50,
+            "map5095": self.map5095,
+            "fitness": self.fitness,
+            "lr": self.lr,
+        }
 
 
 @dataclass(frozen=True)
@@ -53,18 +90,42 @@ def best_f1_confidence(metrics: ValidationMetrics) -> float | None:
     raise ValueError("Ultralytics validation did not produce an F1-confidence curve")
 
 
+def _finite(value: Any, name: str) -> float:
+    number = float(value)
+    if not np.isfinite(number):
+        raise ValueError(f"Ultralytics reported a non-finite {name}")
+    return number
+
+
+def _losses(values: Mapping[str, Any], prefix: str) -> dict[str, float]:
+    return {
+        component: _finite(values[f"{prefix}{component}_loss"], f"{prefix}{component}")
+        for component in LOSS_COMPONENTS
+    }
+
+
+def epoch_report(trainer: Any) -> EpochReport:
+    """Read one finished epoch from an Ultralytics trainer after validation."""
+    metrics = trainer.metrics
+    return EpochReport(
+        epoch=int(trainer.epoch) + 1,
+        train=_losses(trainer.tloss, ""),
+        val=_losses(metrics, "val/"),
+        precision=_finite(metrics[METRIC_KEYS["precision"]], "precision"),
+        recall=_finite(metrics[METRIC_KEYS["recall"]], "recall"),
+        map50=_finite(metrics[METRIC_KEYS["map50"]], "mAP50"),
+        map5095=_finite(metrics[METRIC_KEYS["map5095"]], "mAP50-95"),
+        fitness=_finite(trainer.fitness, "fitness"),
+        lr=_finite(trainer.lr["lr/pg0"], "learning rate"),
+    )
+
+
 def _model_source(model: str | Path, weights_dir: Path) -> str:
     source = Path(model)
     if source.parent == Path() and not source.exists():
         weights_dir.mkdir(parents=True, exist_ok=True)
         source = weights_dir / source.name
     return str(source)
-
-
-def _positive_override(value: int | None, name: str) -> int | None:
-    if value is not None and value <= 0:
-        raise ValueError(f"{name} must be positive")
-    return value
 
 
 def _file_digest(path: Path) -> str:
@@ -79,26 +140,22 @@ def train_yolo_detector(
     dataset: str | Path,
     output_dir: str | Path,
     *,
-    config: str | Path,
+    parameters: Mapping[str, Any],
     model: str | Path = "yolo26n.pt",
     model_digest: str,
-    config_digest: str,
     runtime_version: str,
     device: str | None = None,
-    epochs: int | None = None,
-    image_size: int | None = None,
-    batch_size: int | None = None,
     cancelled: Callable[[], bool] | None = None,
+    on_epoch: Callable[[EpochReport], None] | None = None,
 ) -> YoloTrainingResult:
-    """Fine-tune, validate, and publish inference calibration for a YOLO detector."""
+    """Fine-tune, validate, and publish inference calibration for a YOLO detector.
+
+    `parameters` are the Ultralytics training arguments the run fixes; they are
+    recorded verbatim in the published summary.
+    """
     data_path = Path(dataset).resolve()
     if not data_path.is_file():
         raise FileNotFoundError(data_path)
-    config_path = Path(config).resolve()
-    if not config_path.is_file():
-        raise FileNotFoundError(config_path)
-    if _file_digest(config_path) != config_digest:
-        raise ValueError("Training configuration failed digest verification")
     installed_runtime_version = version("ultralytics")
     if installed_runtime_version != runtime_version:
         raise ValueError(
@@ -110,19 +167,13 @@ def train_yolo_detector(
         raise FileExistsError(f"Output directory already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    overrides = {
-        "epochs": _positive_override(epochs, "epochs"),
-        "imgsz": _positive_override(image_size, "image_size"),
-        "batch": _positive_override(batch_size, "batch_size"),
-    }
     train_options: dict[str, object] = {
-        "cfg": str(config_path),
+        **parameters,
         "data": str(data_path),
         "project": str(output.parent),
         "name": output.name,
         "exist_ok": False,
     }
-    train_options.update({key: value for key, value in overrides.items() if value})
     if device is not None:
         train_options["device"] = device
 
@@ -138,6 +189,12 @@ def train_yolo_detector(
                 trainer.stop = True
 
         trainer_model.add_callback("on_train_batch_end", stop_when_cancelled)
+    if on_epoch:
+
+        def report_epoch(trainer: Any) -> None:
+            on_epoch(epoch_report(trainer))
+
+        trainer_model.add_callback("on_fit_epoch_end", report_epoch)
     trainer_model.train(**train_options)
     if cancelled and cancelled():
         raise YoloTrainingInterruptedError("training interrupted")
@@ -190,10 +247,7 @@ def train_yolo_detector(
                 "reference": str(model),
                 "digest": model_digest,
             },
-            "configuration": {
-                "name": config_path.name,
-                "digest": config_digest,
-            },
+            "parameters": dict(parameters),
             "runtime": {
                 "framework": "ultralytics",
                 "version": installed_runtime_version,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { annotationSchema } from "../annotation/schema";
 import { imageDigestSchema, imageExtensionSchema } from "../datasets/schema";
 import { fingerprintSchema, versionIdSchema } from "../inference/schema";
+import { trainingParametersSchema } from "./parameters";
 
 /** A snapshot needs one training and one validation image. */
 export const MIN_SNAPSHOT_IMAGES = 2;
@@ -45,17 +46,37 @@ export const trainingRecipeSchema = z.strictObject({
     reference: z.string().min(1),
     digest: fingerprintSchema,
   }),
-  configuration: z.strictObject({
-    name: z.string().min(1),
-    digest: fingerprintSchema,
-  }),
+  parameters: trainingParametersSchema,
   runtime: z.strictObject({
     framework: z.literal("ultralytics"),
     version: z.string().min(1),
   }),
-  epochs: z.number().int().positive().optional(),
-  imageSize: z.number().int().positive().optional(),
-  batchSize: z.number().int().positive().optional(),
+});
+
+const lossSchema = z.strictObject({
+  box: z.number().finite(),
+  cls: z.number().finite(),
+  dfl: z.number().finite(),
+});
+
+const unit = z.number().finite().min(0).max(1);
+
+/** What Ultralytics knows after one epoch's validation pass. */
+export const trainingEpochReportSchema = z.strictObject({
+  epoch: z.number().int().positive(),
+  train: lossSchema,
+  val: lossSchema,
+  precision: unit,
+  recall: unit,
+  map50: unit,
+  map5095: unit,
+  fitness: z.number().finite(),
+  lr: z.number().finite().nonnegative(),
+});
+
+export const trainingEpochSchema = trainingEpochReportSchema.extend({
+  attempt: z.number().int().positive(),
+  recordedAt: z.string().datetime({ offset: true }),
 });
 
 const trainingRunStateSchema = z.discriminatedUnion("status", [
@@ -108,10 +129,7 @@ export const inferencePublicationSchema = z.strictObject({
       reference: z.string().min(1),
       digest: fingerprintSchema,
     }),
-    configuration: z.strictObject({
-      name: z.string().min(1),
-      digest: fingerprintSchema,
-    }),
+    parameters: trainingParametersSchema,
     runtime: z.strictObject({
       framework: z.literal("ultralytics"),
       version: z.string().min(1),
@@ -122,6 +140,8 @@ export const inferencePublicationSchema = z.strictObject({
 export type DatasetSnapshot = z.infer<typeof datasetSnapshotSchema>;
 export type TrainingRecipe = z.infer<typeof trainingRecipeSchema>;
 export type TrainingRun = z.infer<typeof trainingRunSchema>;
+export type TrainingEpochReport = z.infer<typeof trainingEpochReportSchema>;
+export type TrainingEpoch = z.infer<typeof trainingEpochSchema>;
 export type InferencePublication = z.infer<typeof inferencePublicationSchema>;
 
 const TRAINING_RUN_ID_PREFIX = "train-";

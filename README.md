@@ -30,6 +30,7 @@ Postgres holds every record the stages exchange; the data directory holds only b
 | `inference_workers`, `training_workers` | Workers | latest heartbeat per process |
 | `dataset_snapshots`, `dataset_snapshot_images` | Server | immutable sets of reviewed training inputs |
 | `training_runs` | Server | leased training state machines; a partial unique index allows one active run per model |
+| `training_epochs` | Training Worker | one row per finished epoch and attempt: losses, precision, recall, mAP, fitness, learning rate |
 
 ```text
 data/
@@ -38,7 +39,7 @@ data/
 └── model-artifacts/<version>/       server-published YOLO weights and settings
 ```
 
-A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions for prelabelling. The dataset page is that model's console: it lists every candidate version with its validation metrics and the Workers serving it, starts training from the reviewed annotations, follows each TrainingRun, and switches the selected version explicitly. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
+A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions for prelabelling. The dataset page lists every candidate version with its validation metrics and the Workers serving it, and switches the selected version explicitly. The dataset's training page starts runs from the reviewed annotations, shows the recipe, and opens each TrainingRun on its own page with per-epoch loss and metric curves, the parameters it fixed, and the version it published. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
 
 JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
 
@@ -153,9 +154,9 @@ The same Compose deployment can be used as a local acceptance Server with real W
 
 ## Training Worker
 
-The dataset page's Train action creates a TrainingRun from the `complete` annotations; one run per model is active at a time. The Server freezes the reviewed annotations into a DatasetSnapshot that references images by digest, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
+The training page's Train action creates a TrainingRun from the `complete` annotations with the recipe's parameters, of which epochs, image size, batch, patience, and learning rate can be changed per run; one run per model is active at a time. The Server freezes the reviewed annotations into a DatasetSnapshot that references images by digest, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
 
-Every TrainingRun pins the base-weight digest, training configuration digest, and Ultralytics version. The Worker verifies all three before training. It then uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. Only the Server publishes the resulting candidate ModelVersion; an interrupted `publishing` state is reconciled before the next claim, and publication never changes the Dataset selection automatically.
+Every TrainingRun pins the base-weight digest, the complete set of Ultralytics training arguments, and the Ultralytics version; the Worker verifies the weights and the version before training and records the arguments verbatim in the published manifest. After each epoch's validation pass the Worker posts Ultralytics' losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate to the run, which also carries the run's progress and renews its lease; a reclaimed run keeps the earlier attempt's epochs in its history. It then uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. Only the Server publishes the resulting candidate ModelVersion; an interrupted `publishing` state is reconciled before the next claim, and publication never changes the Dataset selection automatically.
 
 Training uses the native profile configured above; neither Worker requires the Server's filesystem. The V1 service host is macOS `launchd`, which preserves native MPS access. A Linux/CUDA deployment should add its own host adapter when it is actually required instead of introducing a second Worker execution interface now.
 
@@ -219,8 +220,8 @@ uv run python scripts/build_yolo_prelabels.py \
   --seed 42
 ```
 
-Install the separate training dependencies and run the documented small-dataset
-fine-tuning recipe through the Ultralytics Python API:
+Install the separate training dependencies and run the checked-in small-dataset
+recipe through the Ultralytics Python API:
 
 ```bash
 uv sync --extra yolo
@@ -228,12 +229,13 @@ uv sync --extra yolo
 uv run python scripts/train_yolo.py \
   --data output/yolo/prelabels-smoke/dataset.yaml \
   --output output/yolo/train-seed-small \
-  --model yolo26n.pt \
-  --config configs/yolo26/seed-small.yaml \
   --device mps
 ```
 
-The checked-in recipe follows Ultralytics' YOLO26 guidance for datasets with fewer
+`configs/yolo26/seed-small.recipe.json` is the single training recipe: base
+weights with their digest, every Ultralytics training argument the run fixes, and
+the Ultralytics version. The Web workbench offers the same recipe as defaults, and
+`--epochs`, `--imgsz`, and `--batch` override it locally. The recipe follows Ultralytics' YOLO26 guidance for datasets with fewer
 than 1,000 images: AdamW at `lr0=0.001`, 50 epochs, and early stopping with
 `patience=20`. Mosaic is disabled using the guide's very-small-dataset fallback:
 each dish already contains hundreds of tiny targets, and combining four dishes
@@ -327,8 +329,7 @@ src/vitroflow/
 ├── worker_command.py Native Worker management commands
 ├── inference_worker.py Inference protocol and execution
 ├── inference_models.py On-demand model loading and artifact cache
-├── training_worker.py  Training protocol and execution
-├── training_configs.py Packaged YOLO recipe discovery
+├── training_worker.py  Training protocol, epoch reporting, and execution
 ├── worker_profiles.py  Strict per-process native configuration
 ├── worker_host.py      Profile preflight, execution, status, and logs
 ├── worker_launchd.py   macOS LaunchAgent lifecycle
@@ -342,7 +343,7 @@ web/
     ├── models/       Logical Model and immutable ModelVersion contracts
     ├── detection/    Prelabel document contract
     ├── inference/    Runtime and inference heartbeat contracts
-    ├── training/     DatasetSnapshot and TrainingRun contracts
+    ├── training/     DatasetSnapshot, TrainingRun, parameter, and epoch contracts
     ├── annotation/   Box annotation domain
     ├── components/   Review workbench UI
     ├── hooks/        Annotation persistence and history

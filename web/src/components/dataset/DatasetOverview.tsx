@@ -1,4 +1,4 @@
-import { Card, ProgressBar } from "@heroui/react";
+import { Card, Link, ProgressBar } from "@heroui/react";
 
 import { versionSlug } from "../../models/schema";
 import type { DatasetOverview as Overview } from "../../server/overview";
@@ -7,7 +7,7 @@ import { ServingChip } from "./ServingChip";
 
 /** The dataset's identity, review progress, and the version doing its prelabelling. */
 export function DatasetOverview({ overview }: { overview: Overview }) {
-  const { counts, images, versions, inference, training } = overview;
+  const { dataset, counts, images, versions, inference, training } = overview;
   const selected = versions.find((entry) => entry.selected);
   const reviewed = counts.complete + counts.excluded;
 
@@ -57,11 +57,19 @@ export function DatasetOverview({ overview }: { overview: Overview }) {
           <span className="text-muted"> reviewed since last run</span>
         </span>
         <span className="text-xs text-muted">
-          {training.runs.length} {training.runs.length === 1 ? "run" : "runs"}
+          {training.active
+            ? "A run is in progress"
+            : `${training.runs} ${training.runs === 1 ? "run" : "runs"}`}
           {" · "}
           {training.workersOnline}{" "}
           {training.workersOnline === 1 ? "worker" : "workers"} online
         </span>
+        <Link
+          href={`/datasets/${dataset.id}/training`}
+          className="text-xs font-medium"
+        >
+          Open training
+        </Link>
       </Fact>
     </Card>
   );
