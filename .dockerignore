@@ -1,6 +1,7 @@
 *
 !Dockerfile.inference
 !Dockerfile.training
+!Dockerfile.web
 !LICENSE
 !README.md
 !pyproject.toml

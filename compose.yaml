@@ -2,7 +2,7 @@ services:
   workbench:
     build:
       context: .
-      dockerfile: web/Dockerfile
+      dockerfile: Dockerfile.web
       secrets:
         - heroui_key
     environment:
