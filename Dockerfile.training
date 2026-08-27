@@ -1,4 +1,5 @@
-FROM ghcr.io/astral-sh/uv:0.12.5-python3.12-trixie-slim
+ARG VITROFLOW_TRAINING_PLATFORM=linux/amd64
+FROM --platform=${VITROFLOW_TRAINING_PLATFORM} ghcr.io/astral-sh/uv:0.12.5-python3.12-trixie-slim
 
 WORKDIR /app
 

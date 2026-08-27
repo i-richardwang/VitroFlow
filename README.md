@@ -135,7 +135,8 @@ docker compose up --build
 
 `compose.yaml` runs Postgres 17, mounts `./data` at `/data`, and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench. `VITROFLOW_INFERENCE_WORKER_TOKEN` and `VITROFLOW_TRAINING_WORKER_TOKEN` are independent machine credentials for Workers. `VITROFLOW_EXPORT_TOKEN` is a developer/admin credential for `vitroflow dataset pull`; it is never given to a Worker. The workbench runs as a single replica; Workers scale independently because they only reach it over HTTP.
 
-Build inference deployments with `Dockerfile.inference` and configure:
+`Dockerfile.inference` targets `linux/arm64` by default for the Apple Silicon
+deployment. Build it and configure:
 
 ```env
 VITROFLOW_SERVER_URL=https://vitroflow.example.com
@@ -159,7 +160,19 @@ export VITROFLOW_TRAINING_WORKER_TOKEN=<training-secret>
 uv run --group yolo vitroflow-training-worker --device cuda:0
 ```
 
-Build a remote training deployment with `Dockerfile.training`. Training and inference devices are intentionally independent; neither Worker requires the Server's filesystem.
+Build a remote training deployment with `Dockerfile.training`. Its build
+platform is independent from inference and defaults to `linux/amd64`; set the
+Zeabur build variable `VITROFLOW_TRAINING_PLATFORM` when the training device
+uses another architecture. The equivalent local build is:
+
+```bash
+docker build \
+  --build-arg VITROFLOW_TRAINING_PLATFORM=linux/arm64 \
+  --file Dockerfile.training \
+  .
+```
+
+Neither Worker requires the Server's filesystem.
 
 ## Prelabel workflow
 
