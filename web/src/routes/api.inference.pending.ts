@@ -27,10 +27,10 @@ export const Route = createFileRoute("/api/inference/pending")({
         }
         return Response.json({
           images: (await pendingImages(worker.deployment)).map(
-            ({ dataset, stem, source }) => ({
+            ({ dataset, digest, extension }) => ({
               dataset,
-              stem,
-              source,
+              digest,
+              extension,
             }),
           ),
         });

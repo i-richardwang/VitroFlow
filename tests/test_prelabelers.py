@@ -14,7 +14,6 @@ from vitroflow.prelabelers import (
     PrelabelResult,
     RuntimeDescriptor,
     TraditionalPrelabeler,
-    load_prelabel_document,
     parse_prelabel_document,
 )
 from vitroflow.scoring import DEFAULT_MODEL
@@ -40,7 +39,7 @@ def test_traditional_manifest_matches_the_default_artifact() -> None:
 
 def test_shared_prelabel_contract() -> None:
     document = PrelabelResult(
-        source=Path("images/set/example.jpg"),
+        digest="c" * 64,
         width=100,
         height=80,
         producer=PRODUCER,
@@ -49,7 +48,7 @@ def test_shared_prelabel_contract() -> None:
     ).to_dict()
     fixture = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     assert document == fixture
-    assert load_prelabel_document(CONTRACT_FIXTURE).to_dict() == fixture
+    assert parse_prelabel_document(fixture).to_dict() == fixture
 
 
 def test_parser_rejects_unknown_contract_fields() -> None:
@@ -66,7 +65,6 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
         "set.traditional-v1", prelabeler.artifact_digest, prelabeler.runtime
     )
     result = SimpleNamespace(
-        source=Path("images/set/a.jpg"),
         width=100,
         height=80,
         dish_radius=200.0,
@@ -81,10 +79,10 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
         lambda *args, **kwargs: result,
     )
 
-    document = prelabeler.predict(
-        Path("a.jpg"), Path("images/set/a.jpg"), producer
-    ).to_dict()
+    document = prelabeler.predict(Path("a.jpg"), "c" * 64, producer).to_dict()
 
+    assert document["schema_version"] == 1
+    assert document["image"] == {"digest": "c" * 64, "width": 100, "height": 80}
     assert document["producer"] == producer.to_dict()
     assert document["instances"] == [
         {
@@ -134,11 +132,23 @@ def test_contract_rejects_values_the_web_cannot_accept(factory, message) -> None
         factory()
 
 
+def test_result_requires_a_content_digest() -> None:
+    with pytest.raises(ValueError, match="SHA-256"):
+        PrelabelResult(
+            "images/set/example.jpg",
+            100,
+            80,
+            PRODUCER,
+            (),
+            PrelabelQuality("ok"),
+        )
+
+
 def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
     outside = PrelabelInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="exceeds image bounds"):
         PrelabelResult(
-            Path("images/set/example.jpg"),
+            "c" * 64,
             100,
             80,
             PRODUCER,
@@ -149,7 +159,7 @@ def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
     instance = PrelabelInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="Duplicate"):
         PrelabelResult(
-            Path("images/set/example.jpg"),
+            "c" * 64,
             100,
             80,
             PRODUCER,

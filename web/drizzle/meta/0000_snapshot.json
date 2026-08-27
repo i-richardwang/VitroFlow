@@ -1,9 +1,205 @@
 {
-  "id": "d745c916-8166-4c88-b306-66d437176e6c",
+  "id": "c815f6ae-f60c-4cbd-a385-fef575a32348",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.dataset_images": {
+      "name": "dataset_images",
+      "schema": "",
+      "columns": {
+        "dataset_id": {
+          "name": "dataset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filename": {
+          "name": "filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "added_at": {
+          "name": "added_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "split": {
+          "name": "split",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "dataset_images_image_idx": {
+          "name": "dataset_images_image_idx",
+          "columns": [
+            {
+              "expression": "image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "dataset_images_dataset_id_datasets_id_fk": {
+          "name": "dataset_images_dataset_id_datasets_id_fk",
+          "tableFrom": "dataset_images",
+          "tableTo": "datasets",
+          "columnsFrom": [
+            "dataset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "dataset_images_image_id_images_id_fk": {
+          "name": "dataset_images_image_id_images_id_fk",
+          "tableFrom": "dataset_images",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "dataset_images_dataset_id_image_id_pk": {
+          "name": "dataset_images_dataset_id_image_id_pk",
+          "columns": [
+            "dataset_id",
+            "image_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "dataset_images_split_check": {
+          "name": "dataset_images_split_check",
+          "value": "\"dataset_images\".\"split\" is null or \"dataset_images\".\"split\" in ('train', 'val')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.dataset_snapshot_images": {
+      "name": "dataset_snapshot_images",
+      "schema": "",
+      "columns": {
+        "snapshot_id": {
+          "name": "snapshot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "split": {
+          "name": "split",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "annotation": {
+          "name": "annotation",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "dataset_snapshot_images_image_idx": {
+          "name": "dataset_snapshot_images_image_idx",
+          "columns": [
+            {
+              "expression": "image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "dataset_snapshot_images_snapshot_id_dataset_snapshots_id_fk": {
+          "name": "dataset_snapshot_images_snapshot_id_dataset_snapshots_id_fk",
+          "tableFrom": "dataset_snapshot_images",
+          "tableTo": "dataset_snapshots",
+          "columnsFrom": [
+            "snapshot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "dataset_snapshot_images_image_id_images_id_fk": {
+          "name": "dataset_snapshot_images_image_id_images_id_fk",
+          "tableFrom": "dataset_snapshot_images",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "dataset_snapshot_images_snapshot_id_image_id_pk": {
+          "name": "dataset_snapshot_images_snapshot_id_image_id_pk",
+          "columns": [
+            "snapshot_id",
+            "image_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "dataset_snapshot_images_split_check": {
+          "name": "dataset_snapshot_images_split_check",
+          "value": "\"dataset_snapshot_images\".\"split\" in ('train', 'val')"
+        },
+        "dataset_snapshot_images_annotation_check": {
+          "name": "dataset_snapshot_images_annotation_check",
+          "value": "annotation->'image'->>'digest' = \"dataset_snapshot_images\".\"image_id\" and annotation->>'status' = 'complete'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.dataset_snapshots": {
       "name": "dataset_snapshots",
       "schema": "",
@@ -31,12 +227,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "images": {
-          "name": "images",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
         }
       },
       "indexes": {
@@ -53,21 +243,6 @@
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
-          "with": {}
-        },
-        "dataset_snapshots_images_idx": {
-          "name": "dataset_snapshots_images_idx",
-          "columns": [
-            {
-              "expression": "images",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
           "with": {}
         }
       },
@@ -205,16 +380,10 @@
       "name": "images",
       "schema": "",
       "columns": {
-        "dataset_id": {
-          "name": "dataset_id",
+        "id": {
+          "name": "id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stem": {
-          "name": "stem",
-          "type": "text",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true
         },
         "extension": {
@@ -229,18 +398,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "digest": {
-          "name": "digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "split": {
-          "name": "split",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "uploaded_at": {
           "name": "uploaded_at",
           "type": "timestamp with time zone",
@@ -248,71 +405,23 @@
           "notNull": true
         }
       },
-      "indexes": {
-        "images_dataset_stem_ci": {
-          "name": "images_dataset_stem_ci",
-          "columns": [
-            {
-              "expression": "dataset_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "lower(\"stem\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "images_dataset_id_datasets_id_fk": {
-          "name": "images_dataset_id_datasets_id_fk",
-          "tableFrom": "images",
-          "tableTo": "datasets",
-          "columnsFrom": [
-            "dataset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "images_dataset_id_stem_pk": {
-          "name": "images_dataset_id_stem_pk",
-          "columns": [
-            "dataset_id",
-            "stem"
-          ]
-        }
-      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "images_id_check": {
+          "name": "images_id_check",
+          "value": "\"images\".\"id\" ~ '^[0-9a-f]{64}$'"
+        },
         "images_bytes_check": {
           "name": "images_bytes_check",
           "value": "\"images\".\"bytes\" > 0"
         },
-        "images_digest_check": {
-          "name": "images_digest_check",
-          "value": "\"images\".\"digest\" ~ '^[0-9a-f]{64}$'"
-        },
-        "images_split_check": {
-          "name": "images_split_check",
-          "value": "\"images\".\"split\" is null or \"images\".\"split\" in ('train', 'val')"
-        },
         "images_extension_check": {
           "name": "images_extension_check",
-          "value": "\"images\".\"extension\" in ('.jpg', '.jpeg', '.png', '.tif', '.tiff')"
+          "value": "\"images\".\"extension\" in ('.jpg', '.png', '.tif')"
         }
       },
       "isRLSEnabled": false
@@ -414,8 +523,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "stem": {
-          "name": "stem",
+        "image_id": {
+          "name": "image_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -477,28 +586,28 @@
         }
       },
       "foreignKeys": {
-        "labels_dataset_id_stem_images_dataset_id_stem_fk": {
-          "name": "labels_dataset_id_stem_images_dataset_id_stem_fk",
+        "labels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk": {
+          "name": "labels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk",
           "tableFrom": "labels",
-          "tableTo": "images",
+          "tableTo": "dataset_images",
           "columnsFrom": [
             "dataset_id",
-            "stem"
+            "image_id"
           ],
           "columnsTo": [
             "dataset_id",
-            "stem"
+            "image_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "labels_dataset_id_stem_pk": {
-          "name": "labels_dataset_id_stem_pk",
+        "labels_dataset_id_image_id_pk": {
+          "name": "labels_dataset_id_image_id_pk",
           "columns": [
             "dataset_id",
-            "stem"
+            "image_id"
           ]
         }
       },
@@ -512,6 +621,10 @@
         "labels_revision_check": {
           "name": "labels_revision_check",
           "value": "\"labels\".\"revision\" >= 0"
+        },
+        "labels_image_check": {
+          "name": "labels_image_check",
+          "value": "document->'image'->>'digest' = \"labels\".\"image_id\""
         }
       },
       "isRLSEnabled": false
@@ -680,8 +793,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "stem": {
-          "name": "stem",
+        "image_id": {
+          "name": "image_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -766,17 +879,17 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "prelabels_dataset_id_stem_images_dataset_id_stem_fk": {
-          "name": "prelabels_dataset_id_stem_images_dataset_id_stem_fk",
+        "prelabels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk": {
+          "name": "prelabels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk",
           "tableFrom": "prelabels",
-          "tableTo": "images",
+          "tableTo": "dataset_images",
           "columnsFrom": [
             "dataset_id",
-            "stem"
+            "image_id"
           ],
           "columnsTo": [
             "dataset_id",
-            "stem"
+            "image_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -798,17 +911,22 @@
         }
       },
       "compositePrimaryKeys": {
-        "prelabels_dataset_id_stem_pk": {
-          "name": "prelabels_dataset_id_stem_pk",
+        "prelabels_dataset_id_image_id_pk": {
+          "name": "prelabels_dataset_id_image_id_pk",
           "columns": [
             "dataset_id",
-            "stem"
+            "image_id"
           ]
         }
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "prelabels_image_check": {
+          "name": "prelabels_image_check",
+          "value": "document->'image'->>'digest' = \"prelabels\".\"image_id\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.training_runs": {

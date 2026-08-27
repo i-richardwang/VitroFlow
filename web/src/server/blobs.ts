@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -13,6 +14,11 @@ import * as path from "node:path";
  */
 export const DATA_ROOT =
   process.env.VITROFLOW_DATA_ROOT ?? path.resolve(process.cwd(), "..", "data");
+
+/** The SHA-256 digest that identifies content, as lower-case hex. */
+export function contentDigest(content: Uint8Array | string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
 
 export function imageBlobKey(digest: string): string {
   return `images/${digest.slice(0, 2)}/${digest}`;
@@ -45,6 +51,22 @@ export function writeBlob(key: string, contents: Uint8Array | string): void {
   } finally {
     fs.rmSync(tempPath, { force: true });
   }
+}
+
+/** Keys of the blobs under a directory, walked in full. */
+export function listBlobs(directory: string): string[] {
+  const root = blobPath(directory);
+  if (!fs.existsSync(root)) return [];
+  return fs
+    .readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      path
+        .relative(DATA_ROOT, path.join(entry.parentPath, entry.name))
+        .split(path.sep)
+        .join("/"),
+    )
+    .sort();
 }
 
 export function removeBlob(key: string): void {

@@ -117,12 +117,12 @@ function DatasetPage() {
             >
               {visible.map((image) => (
                 <Table.Row
-                  key={image.stem}
-                  href={`/datasets/${dataset}/${image.stem}`}
+                  key={image.digest}
+                  href={`/datasets/${dataset}/${image.digest}`}
                   className="cursor-(--cursor-interactive)"
                 >
                   <Table.Cell className="font-mono font-medium">
-                    {image.stem}
+                    {image.filename}
                     {image.error && (
                       <span
                         className="mt-1 block max-w-72 truncate font-sans text-xs font-normal text-danger"
@@ -155,7 +155,7 @@ function DatasetPage() {
                     />
                   </Table.Cell>
                   <Table.Cell className="text-right">
-                    <DeleteImageButton dataset={dataset} stem={image.stem} />
+                    <DeleteImageButton dataset={dataset} image={image} />
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -169,10 +169,10 @@ function DatasetPage() {
 
 function DeleteImageButton({
   dataset,
-  stem,
+  image,
 }: {
   dataset: string;
-  stem: string;
+  image: { digest: string; filename: string };
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -180,7 +180,7 @@ function DeleteImageButton({
   return (
     <AlertDialog>
       <Button variant="ghost" size="sm" isDisabled={busy}>
-        Delete
+        Remove
       </Button>
       <AlertDialog.Backdrop>
         <AlertDialog.Container size="sm">
@@ -189,11 +189,13 @@ function DeleteImageButton({
               <>
                 <AlertDialog.Header>
                   <AlertDialog.Icon />
-                  <AlertDialog.Heading>Delete {stem}?</AlertDialog.Heading>
+                  <AlertDialog.Heading>
+                    Remove {image.filename}?
+                  </AlertDialog.Heading>
                 </AlertDialog.Header>
                 <AlertDialog.Body>
-                  The photograph, its detections, and its annotation are removed
-                  from {dataset}.
+                  The image leaves {dataset} together with its detections and
+                  annotation.
                 </AlertDialog.Body>
                 <AlertDialog.Footer>
                   <Button variant="tertiary" size="sm" onPress={close}>
@@ -205,13 +207,15 @@ function DeleteImageButton({
                     isDisabled={busy}
                     onPress={() => {
                       setBusy(true);
-                      void deleteImage({ data: { dataset, stem } })
+                      void deleteImage({
+                        data: { dataset, digest: image.digest },
+                      })
                         .then(async () => {
                           close();
                           await router.invalidate();
                         })
                         .catch((cause: unknown) => {
-                          toast.danger("Image not deleted", {
+                          toast.danger("Image not removed", {
                             description:
                               cause instanceof Error
                                 ? cause.message
@@ -223,7 +227,7 @@ function DeleteImageButton({
                         });
                     }}
                   >
-                    Delete
+                    Remove
                   </Button>
                 </AlertDialog.Footer>
               </>

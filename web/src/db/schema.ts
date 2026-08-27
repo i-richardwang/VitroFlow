@@ -16,7 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
-import type { ImageRef } from "../datasets/schema";
+import { IMAGE_EXTENSIONS, type ImageRef } from "../datasets/schema";
 import type { Prelabel } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { ModelArtifact, ModelVersion } from "../models/schema";
@@ -24,7 +24,6 @@ import {
   IMAGE_SPLITS,
   TRAINING_PHASES,
   TRAINING_RUN_STATUSES,
-  type DatasetSnapshot,
   type TrainingRecipe,
 } from "../training/schema";
 
@@ -32,6 +31,8 @@ import {
  * Control plane and review state live in Postgres; photographs and model
  * weights are blobs addressed by relative key. Relationships between rows are
  * declared here so that no combination of rows the domain forbids can exist.
+ * Images are atomic assets that datasets and snapshots refer to by digest;
+ * the references, not the rows, keep an image alive.
  */
 
 const instant = (name: string) =>
@@ -95,47 +96,66 @@ export const datasets = pgTable(
   ],
 );
 
+/**
+ * A photograph, identified by the SHA-256 digest of its bytes. Images belong
+ * to no dataset; datasets, snapshots, and future experiments refer to them.
+ * Every column describes the bytes themselves.
+ */
 export const images = pgTable(
   "images",
   {
-    datasetId: text("dataset_id")
-      .notNull()
-      .references(() => datasets.id, { onDelete: "cascade" }),
-    stem: text("stem").notNull(),
+    id: text("id").primaryKey(),
+    /** The format the bytes declare. */
     extension: text("extension").notNull(),
     bytes: integer("bytes").notNull(),
-    digest: text("digest").notNull(),
-    /** Assigned the first time the image enters a snapshot; stable afterwards. */
-    split: text("split", { enum: IMAGE_SPLITS }),
     uploadedAt: instant("uploaded_at"),
   },
   (table) => [
-    primaryKey({ columns: [table.datasetId, table.stem] }),
-    uniqueIndex("images_dataset_stem_ci").on(
-      table.datasetId,
-      sql`lower(${table.stem})`,
-    ),
+    check("images_id_check", sql`${table.id} ~ '^[0-9a-f]{64}$'`),
     check("images_bytes_check", sql`${table.bytes} > 0`),
     check(
-      "images_digest_check",
-      sql`${table.digest} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      "images_split_check",
-      sql`${table.split} is null or ${table.split} in ('train', 'val')`,
-    ),
-    check(
       "images_extension_check",
-      sql`${table.extension} in ('.jpg', '.jpeg', '.png', '.tif', '.tiff')`,
+      sql`${table.extension} in (${sql.raw(
+        IMAGE_EXTENSIONS.map((extension) => `'${extension}'`).join(", "),
+      )})`,
     ),
   ],
 );
 
-/** Derived documents disappear together with their photograph. */
-function imageReference(table: { datasetId: AnyPgColumn; stem: AnyPgColumn }) {
+/** An image's membership in a dataset; review state hangs off this row. */
+export const datasetImages = pgTable(
+  "dataset_images",
+  {
+    datasetId: text("dataset_id")
+      .notNull()
+      .references(() => datasets.id, { onDelete: "cascade" }),
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id),
+    /** The name the image was added under; shown, never matched. */
+    filename: text("filename").notNull(),
+    addedAt: instant("added_at"),
+    /** Assigned the first time the image enters a snapshot; stable afterwards. */
+    split: text("split", { enum: IMAGE_SPLITS }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.datasetId, table.imageId] }),
+    index("dataset_images_image_idx").on(table.imageId),
+    check(
+      "dataset_images_split_check",
+      sql`${table.split} is null or ${table.split} in ('train', 'val')`,
+    ),
+  ],
+);
+
+/** Review documents disappear together with the membership they describe. */
+function membershipReference(table: {
+  datasetId: AnyPgColumn;
+  imageId: AnyPgColumn;
+}) {
   return foreignKey({
-    columns: [table.datasetId, table.stem],
-    foreignColumns: [images.datasetId, images.stem],
+    columns: [table.datasetId, table.imageId],
+    foreignColumns: [datasetImages.datasetId, datasetImages.imageId],
   }).onDelete("cascade");
 }
 
@@ -143,7 +163,7 @@ export const prelabels = pgTable(
   "prelabels",
   {
     datasetId: text("dataset_id").notNull(),
-    stem: text("stem").notNull(),
+    imageId: text("image_id").notNull(),
     document: jsonb("document").$type<Prelabel>().notNull(),
     createdAt: instant("created_at"),
     /** Projections of `document` the workbench queries by. */
@@ -157,8 +177,8 @@ export const prelabels = pgTable(
     error: text("error").generatedAlwaysAs(sql`document->>'error'`),
   },
   (table) => [
-    primaryKey({ columns: [table.datasetId, table.stem] }),
-    imageReference(table),
+    primaryKey({ columns: [table.datasetId, table.imageId] }),
+    membershipReference(table),
     foreignKey({
       columns: [table.modelVersionId, table.artifactDigest],
       foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
@@ -167,6 +187,11 @@ export const prelabels = pgTable(
       table.modelVersionId,
       table.artifactDigest,
     ),
+    /** The document describes the image it is stored under. */
+    check(
+      "prelabels_image_check",
+      sql`document->'image'->>'digest' = ${table.imageId}`,
+    ),
   ],
 );
 
@@ -174,7 +199,7 @@ export const labels = pgTable(
   "labels",
   {
     datasetId: text("dataset_id").notNull(),
-    stem: text("stem").notNull(),
+    imageId: text("image_id").notNull(),
     document: jsonb("document").$type<AnnotationDocument>().notNull(),
     updatedAt: instant("updated_at"),
     /** Projections of `document` the workbench queries by. */
@@ -186,14 +211,18 @@ export const labels = pgTable(
       .generatedAlwaysAs(sql`(document->>'revision')::integer`),
   },
   (table) => [
-    primaryKey({ columns: [table.datasetId, table.stem] }),
-    imageReference(table),
+    primaryKey({ columns: [table.datasetId, table.imageId] }),
+    membershipReference(table),
     index("labels_dataset_status_idx").on(table.datasetId, table.status),
     check(
       "labels_status_check",
       sql`${table.status} in ('in_progress', 'complete', 'excluded')`,
     ),
     check("labels_revision_check", sql`${table.revision} >= 0`),
+    check(
+      "labels_image_check",
+      sql`document->'image'->>'digest' = ${table.imageId}`,
+    ),
   ],
 );
 
@@ -224,7 +253,6 @@ export const datasetSnapshots = pgTable(
     datasetId: text("dataset_id").notNull(),
     modelId: text("model_id").notNull(),
     createdAt: instant("created_at"),
-    images: jsonb("images").$type<DatasetSnapshot["images"]>().notNull(),
   },
   (table) => [
     /** A snapshot's model is its dataset's model. */
@@ -234,8 +262,36 @@ export const datasetSnapshots = pgTable(
     }),
     unique("dataset_snapshots_id_model").on(table.id, table.modelId),
     index("dataset_snapshots_dataset_idx").on(table.datasetId),
-    /** Supports asking which snapshots still reference an image digest. */
-    index("dataset_snapshots_images_idx").using("gin", table.images),
+  ],
+);
+
+/**
+ * The reviewed images a snapshot froze, with the annotation as reviewed. The
+ * image reference keeps the bytes alive for as long as the snapshot exists.
+ */
+export const datasetSnapshotImages = pgTable(
+  "dataset_snapshot_images",
+  {
+    snapshotId: text("snapshot_id")
+      .notNull()
+      .references(() => datasetSnapshots.id, { onDelete: "cascade" }),
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id),
+    split: text("split", { enum: IMAGE_SPLITS }).notNull(),
+    annotation: jsonb("annotation").$type<AnnotationDocument>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.snapshotId, table.imageId] }),
+    index("dataset_snapshot_images_image_idx").on(table.imageId),
+    check(
+      "dataset_snapshot_images_split_check",
+      sql`${table.split} in ('train', 'val')`,
+    ),
+    check(
+      "dataset_snapshot_images_annotation_check",
+      sql`annotation->'image'->>'digest' = ${table.imageId} and annotation->>'status' = 'complete'`,
+    ),
   ],
 );
 

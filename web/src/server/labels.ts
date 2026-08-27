@@ -9,11 +9,8 @@ import { database, transaction, type Executor } from "../db/client";
 import { labels } from "../db/schema";
 import type { ImageRef } from "../datasets/schema";
 import { isFailure } from "../detection/schema";
+import { atRef, describeRef, notInDataset } from "./datasets";
 import { lockImageRecord } from "./summaries";
-
-function byRef({ dataset, stem }: ImageRef) {
-  return and(eq(labels.datasetId, dataset), eq(labels.stem, stem));
-}
 
 export async function readLabel(
   ref: ImageRef,
@@ -22,8 +19,8 @@ export async function readLabel(
   const [row] = await (db ?? (await database()))
     .select({ document: labels.document })
     .from(labels)
-    .where(byRef(ref));
-  return row ? annotationSchema.parse(row.document) : null;
+    .where(atRef(labels, ref));
+  return row?.document ?? null;
 }
 
 /** Starts a review; the image row lock freezes the prelabel it starts from. */
@@ -34,14 +31,13 @@ export async function createLabel(
   const created = annotationSchema.parse({ ...document, revision: 0 });
   return transaction(async (tx) => {
     const record = await lockImageRecord(ref, tx);
-    if (!record)
-      throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
+    if (!record) throw notInDataset(ref);
     if (record.label) {
-      throw new Error(`Label already exists for ${ref.dataset}/${ref.stem}`);
+      throw new Error(`Label already exists for ${describeRef(ref)}`);
     }
     await tx.insert(labels).values({
       datasetId: ref.dataset,
-      stem: ref.stem,
+      imageId: ref.digest,
       document: created,
       updatedAt: new Date(),
     });
@@ -55,10 +51,9 @@ export async function createLabelFromPrelabel(
 ): Promise<AnnotationDocument> {
   return transaction(async (tx) => {
     const record = await lockImageRecord(ref, tx);
-    if (!record)
-      throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
+    if (!record) throw notInDataset(ref);
     if (record.label) {
-      throw new Error(`Label already exists for ${ref.dataset}/${ref.stem}`);
+      throw new Error(`Label already exists for ${describeRef(ref)}`);
     }
     if (!record.prelabel || isFailure(record.prelabel)) {
       throw new Error("The image has no detections to start from");
@@ -69,7 +64,7 @@ export async function createLabelFromPrelabel(
     });
     await tx.insert(labels).values({
       datasetId: ref.dataset,
-      stem: ref.stem,
+      imageId: ref.digest,
       document: created,
       updatedAt: new Date(),
     });
@@ -85,7 +80,7 @@ export async function updateLabel(
   const db = await database();
   const current = await readLabel(ref, db);
   if (!current) {
-    throw new Error(`No label exists for ${ref.dataset}/${ref.stem}`);
+    throw new Error(`No label exists for ${describeRef(ref)}`);
   }
   const next = annotationSchema.parse({
     ...document,
@@ -95,7 +90,7 @@ export async function updateLabel(
   const updated = await db
     .update(labels)
     .set({ document: next, updatedAt: new Date() })
-    .where(and(byRef(ref), eq(labels.revision, document.revision)))
+    .where(and(atRef(labels, ref), eq(labels.revision, document.revision)))
     .returning({ revision: labels.revision });
   if (updated.length === 0) {
     throw new Error(

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { boundingBoxSchema } from "../annotation/schema";
-import { imageSourceSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../datasets/schema";
 import { predictionProducerSchema } from "../inference/schema";
 
 const warningCodeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
@@ -31,9 +31,9 @@ const diagnosticsSchema = z.strictObject({
 
 const resultSchema = z
   .strictObject({
-    schema_version: z.literal(2),
-    source: imageSourceSchema,
+    schema_version: z.literal(1),
     image: z.strictObject({
+      digest: imageDigestSchema,
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
@@ -70,8 +70,8 @@ const resultSchema = z
   });
 
 const failureSchema = z.strictObject({
-  schema_version: z.literal(2),
-  source: imageSourceSchema,
+  schema_version: z.literal(1),
+  image: z.strictObject({ digest: imageDigestSchema }),
   producer: predictionProducerSchema,
   error: z.string().min(1).max(2000),
 });

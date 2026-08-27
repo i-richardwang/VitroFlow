@@ -1,7 +1,7 @@
 {
-  "schema_version": 2,
-  "source": "images/set/example.jpg",
+  "schema_version": 1,
   "image": {
+    "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     "width": 100,
     "height": 80
   },

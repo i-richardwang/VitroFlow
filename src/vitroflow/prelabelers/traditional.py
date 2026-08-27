@@ -84,14 +84,9 @@ class TraditionalPrelabeler:
         )
 
     def predict(
-        self, image_path: Path, source: Path, producer: PredictionProducer
+        self, image_path: Path, digest: str, producer: PredictionProducer
     ) -> PrelabelResult:
-        result = count_seeds(
-            image_path,
-            source=source,
-            config=self.config,
-            model=self.model,
-        )
+        result = count_seeds(image_path, config=self.config, model=self.model)
         side = result.dish_radius * _BOX_SIDE_FRACTION
         instances = []
         for detection in result.detections:
@@ -111,7 +106,7 @@ class TraditionalPrelabeler:
                     )
                 )
         return PrelabelResult(
-            source=result.source,
+            digest=digest,
             width=result.width,
             height=result.height,
             producer=producer,

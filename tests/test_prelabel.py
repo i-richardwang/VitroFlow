@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 
 from vitroflow.annotations import BoundingBox, ReviewedImage
@@ -45,7 +43,7 @@ def _prior() -> CandidateModel:
 
 def _image(index: int) -> PreparedImage:
     annotation = ReviewedImage(
-        source=Path(f"images/batch/{index}.jpg"),
+        digest=f"{index:064x}",
         width=100,
         height=100,
         model_version_id="batch.traditional-v1",

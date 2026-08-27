@@ -7,10 +7,12 @@ import { QualityWarnings } from "../QualityWarnings";
 
 export function WorkbenchTopBar({
   image,
+  filename,
   quality,
   trailing,
 }: {
   image: ImageRef;
+  filename: string;
   quality: SeedQuality | null;
   trailing?: React.ReactNode;
 }) {
@@ -22,7 +24,7 @@ export function WorkbenchTopBar({
           <Breadcrumbs.Item href={`/datasets/${image.dataset}`}>
             {image.dataset}
           </Breadcrumbs.Item>
-          <Breadcrumbs.Item>{image.stem}</Breadcrumbs.Item>
+          <Breadcrumbs.Item>{filename}</Breadcrumbs.Item>
         </Breadcrumbs>
         {quality && <QualityWarnings quality={quality} />}
       </div>

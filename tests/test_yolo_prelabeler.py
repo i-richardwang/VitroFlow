@@ -90,9 +90,7 @@ def test_yolo_prelabeler_uses_published_inference_settings(
         "set.yolo-v1", prelabeler.artifact_digest, prelabeler.runtime
     )
 
-    result = prelabeler.predict(
-        tmp_path / "source.jpg", Path("images/set/source.jpg"), producer
-    )
+    result = prelabeler.predict(tmp_path / "source.jpg", "c" * 64, producer)
 
     assert prelabeler.runtime.adapter == "ultralytics"
     assert result.producer == producer

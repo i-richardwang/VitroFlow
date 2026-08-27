@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { annotationSchema } from "../annotation/schema";
-import { imageRefSchema, imageSourceSchema } from "../datasets/schema";
+import { imageDigestSchema, imageExtensionSchema } from "../datasets/schema";
 import { fingerprintSchema, versionIdSchema } from "../inference/schema";
 
 /** A snapshot needs one training and one validation image. */
@@ -22,10 +22,8 @@ export const TRAINING_RUN_STATUSES = [
 ] as const;
 
 const snapshotImageSchema = z.strictObject({
-  ref: imageRefSchema,
-  source: imageSourceSchema,
-  artifactPath: z.string().regex(/^images\/[0-9]+\.[A-Za-z0-9]+$/),
-  imageDigest: fingerprintSchema,
+  digest: imageDigestSchema,
+  extension: imageExtensionSchema,
   split: z.enum(IMAGE_SPLITS),
   annotation: annotationSchema.refine(
     (annotation) => annotation.status === "complete",

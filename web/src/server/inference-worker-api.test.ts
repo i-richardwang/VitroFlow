@@ -4,14 +4,15 @@ import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
 import { Route as UploadRoute } from "../routes/api.datasets.$dataset.images";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
-import { Route as ImageRoute } from "../routes/api.inference.images.$dataset.$stem";
+import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
-import { Route as PrelabelRoute } from "../routes/api.inference.prelabels.$dataset.$stem";
+import { Route as PrelabelRoute } from "../routes/api.inference.prelabels.$dataset.$digest";
 import { readDataset } from "./datasets";
 import { readInferenceWorker } from "./inference-worker-store";
 import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
 import { readPrelabel } from "./prelabels";
+import { imageBytes, imageDigest, imageFile } from "./testing";
 
 type Handler = (context: never) => Response | Promise<Response>;
 
@@ -26,11 +27,12 @@ function handler(
   return selected;
 }
 
-const ref = { dataset: "api", stem: "api" };
+const digest = imageDigest("image");
+const ref = { dataset: "api", digest };
 
 test("inference HTTP routes carry an image from upload to prelabel", async () => {
   const upload = new FormData();
-  upload.append("images", new File(["image"], "api.jpg"));
+  upload.append("images", imageFile("image", "api.jpg"));
   const uploadResponse = await handler(
     UploadRoute,
     "POST",
@@ -83,7 +85,7 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
   expect(pendingResponse.status).toBe(200);
   expect((await pendingResponse.json()).images).toContainEqual({
     ...ref,
-    source: "images/api/api.jpg",
+    extension: ".jpg",
   });
   expect(
     (
@@ -99,13 +101,15 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
   const imageResponse = await handler(
     ImageRoute,
     "GET",
-  )({ params: ref } as never);
+  )({ params: { digest } } as never);
   expect(imageResponse.headers.get("Content-Type")).toBe("image/jpeg");
-  expect(await imageResponse.text()).toBe("image");
+  expect(imageResponse.headers.get("Cache-Control")).toContain("immutable");
+  expect(new Uint8Array(await imageResponse.arrayBuffer())).toEqual(
+    imageBytes("image"),
+  );
 
   const result = {
-    ...makeResult([{ id: 0, x: 5, y: 5 }]),
-    source: "images/api/api.jpg",
+    ...makeResult([{ id: 0, x: 5, y: 5 }], { digest }),
     producer: {
       model_version_id: version.id,
       artifact_digest: version.artifact.digest,
@@ -119,13 +123,18 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
     )({
       params: ref,
       request: new Request(
-        "http://localhost/api/inference/prelabels/api/api?workerId=api-worker",
+        `http://localhost/api/inference/prelabels/api/${digest}?workerId=api-worker`,
         { method: "PUT", body: JSON.stringify(body) },
       ),
     } as never);
-  expect((await put({ ...result, source: "images/api/x.jpg" })).status).toBe(
-    400,
-  );
+  expect(
+    (
+      await put({
+        ...result,
+        image: { ...result.image, digest: "0".repeat(64) },
+      })
+    ).status,
+  ).toBe(400);
   expect((await put(result)).status).toBe(200);
   expect(await readPrelabel(ref)).toEqual(result);
 

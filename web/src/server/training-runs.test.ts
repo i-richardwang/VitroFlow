@@ -1,16 +1,12 @@
-import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
-import { makeResult } from "../annotation/testing";
 import { database } from "../db/client";
 import { trainingRuns } from "../db/schema";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { readBlob, writeBlob } from "./blobs";
-import { snapshotImage } from "./dataset-snapshots";
+import { contentDigest, imageBlobKey, readBlob, writeBlob } from "./blobs";
+import { readDatasetSnapshot } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
-import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
 import {
   claimTrainingRun,
@@ -22,35 +18,12 @@ import {
   reportTrainingProgress,
 } from "./training-runs";
 import { recordTrainingHeartbeat } from "./training-worker-store";
-import { addImages } from "./upload";
+import { imageDigest, reviewedDataset as reviewed } from "./testing";
+
+const CONTENTS = ["first-image", "second-image"];
 
 async function reviewedDataset(datasetId: string) {
-  await addImages(datasetId, [
-    new File(["first-image"], "a.jpg"),
-    new File(["second-image"], "b.jpg"),
-  ]);
-  const dataset = await readDataset(datasetId);
-  if (!dataset) throw new Error("missing dataset");
-  const version = await readModelVersion(dataset.selectedModelVersionId);
-  if (!version) throw new Error("missing version");
-  for (const stem of ["a", "b"]) {
-    const prelabel = {
-      ...makeResult([{ id: 0, x: 10, y: 10 }]),
-      source: `images/${datasetId}/${stem}.jpg`,
-      producer: {
-        model_version_id: version.id,
-        artifact_digest: version.artifact.digest,
-        runtime: {
-          adapter: "traditional" as const,
-          fingerprint: "b".repeat(64),
-        },
-      },
-    };
-    await createLabel(
-      { dataset: datasetId, stem },
-      { ...documentFromPrelabel(prelabel), status: "complete" },
-    );
-  }
+  const { dataset } = await reviewed(datasetId, CONTENTS);
   return dataset;
 }
 
@@ -129,17 +102,20 @@ test("a training run owns an immutable self-contained snapshot", async () => {
   expect(await claimTrainingRun("snapshot-trainer")).toEqual(claimed);
   if (!claimed) throw new Error("run was not claimed");
 
-  const image = await snapshotImage(claimed.datasetSnapshotId, 0);
-  if (!image) throw new Error("missing snapshot image");
-  const bytes = readBlob(image.key);
-  expect(createHash("sha256").update(bytes).digest("hex")).toBe(image.digest);
-  const contents = await Promise.all(
-    [0, 1].map(async (index) => {
-      const entry = await snapshotImage(claimed.datasetSnapshotId, index);
-      return entry ? new TextDecoder().decode(readBlob(entry.key)) : "missing";
-    }),
+  const snapshot = await readDatasetSnapshot(claimed.datasetSnapshotId);
+  if (!snapshot) throw new Error("missing snapshot");
+  expect(snapshot.images.map((image) => image.digest)).toEqual(
+    CONTENTS.map(imageDigest).sort(),
   );
-  expect(new Set(contents)).toEqual(new Set(["first-image", "second-image"]));
+  expect(new Set(snapshot.images.map((image) => image.split))).toEqual(
+    new Set(["train", "val"]),
+  );
+  for (const image of snapshot.images) {
+    expect(contentDigest(readBlob(imageBlobKey(image.digest)))).toBe(
+      image.digest,
+    );
+    expect(image.annotation.image.digest).toBe(image.digest);
+  }
   await expect(
     reportTrainingProgress(run.id, "another-trainer", "training", 0.5),
   ).rejects.toThrow(/not owned/);

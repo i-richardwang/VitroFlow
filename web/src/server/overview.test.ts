@@ -1,12 +1,11 @@
 import { expect, test } from "bun:test";
 
 import { documentFromPrelabel } from "../annotation/prelabel";
-import { makeResult } from "../annotation/testing";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { readDataset, selectModelVersion } from "./datasets";
+import { selectModelVersion } from "./datasets";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
 import { createLabel, readLabel, updateLabel } from "./labels";
-import { readModelVersion, registerModelVersion } from "./model-registry";
+import { registerModelVersion } from "./model-registry";
 import { datasetOverview } from "./overview";
 import { writePrelabel } from "./prelabels";
 import {
@@ -15,26 +14,20 @@ import {
   failTrainingRun,
 } from "./training-runs";
 import { recordTrainingHeartbeat } from "./training-worker-store";
-import { addImages } from "./upload";
+import {
+  TEST_RUNTIME as runtime,
+  imageDigest,
+  resultFor,
+  uploadTexts,
+} from "./testing";
 
-const runtime = {
-  adapter: "traditional" as const,
-  fingerprint: "b".repeat(64),
-};
 /** This test's clock; workers heartbeating at wall-clock time are offline here. */
 const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
 const OVERVIEW_AT = new Date(HEARTBEAT_AT.getTime() + 10_000);
 const LATER_AT = new Date(HEARTBEAT_AT.getTime() + 60 * 60 * 1000);
 
-async function datasetWithImages(datasetId: string, stems: string[]) {
-  await addImages(
-    datasetId,
-    stems.map((stem) => new File([stem], `${stem}.jpg`)),
-  );
-  const dataset = await readDataset(datasetId);
-  if (!dataset) throw new Error("missing dataset");
-  const version = await readModelVersion(dataset.selectedModelVersionId);
-  if (!version) throw new Error("missing version");
+async function datasetWithImages(datasetId: string, names: string[]) {
+  const { dataset, version } = await uploadTexts(datasetId, names);
   const worker = await recordInferenceHeartbeat(
     {
       workerId: `${datasetId}-worker`,
@@ -48,15 +41,7 @@ async function datasetWithImages(datasetId: string, stems: string[]) {
     },
     HEARTBEAT_AT,
   );
-  const prelabelFor = (stem: string) => ({
-    ...makeResult([{ id: 0, x: 10, y: 10 }]),
-    source: `images/${datasetId}/${stem}.jpg`,
-    producer: {
-      model_version_id: version.id,
-      artifact_digest: version.artifact.digest,
-      runtime,
-    },
-  });
+  const prelabelFor = (name: string) => resultFor(version, name);
   return { dataset, version, worker, prelabelFor };
 }
 
@@ -67,11 +52,11 @@ test("the overview derives versions, serving workers, and training readiness", a
     "b",
     "c",
   ]);
-  for (const stem of ["a", "b"]) {
-    const ref = { dataset: "overview", stem };
-    await writePrelabel(ref, prelabelFor(stem), worker);
+  for (const name of ["a", "b"]) {
+    const ref = { dataset: "overview", digest: imageDigest(name) };
+    await writePrelabel(ref, prelabelFor(name), worker);
     await createLabel(ref, {
-      ...documentFromPrelabel(prelabelFor(stem)),
+      ...documentFromPrelabel(prelabelFor(name)),
       status: "complete",
     });
   }
@@ -119,9 +104,10 @@ test("the overview derives versions, serving workers, and training readiness", a
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workersOnline).toBe(1);
 
-  const label = await readLabel({ dataset: "overview", stem: "a" });
+  const a = { dataset: "overview", digest: imageDigest("a") };
+  const label = await readLabel(a);
   if (!label) throw new Error("missing label");
-  await updateLabel({ dataset: "overview", stem: "a" }, label);
+  await updateLabel(a, label);
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);

@@ -108,10 +108,7 @@ export async function ensureDatasetModel(
   db: Executor,
 ): Promise<ModelVersion> {
   await registerModel(builtinModel(datasetId), db);
-  return registerModelVersion(
-    builtinTraditionalVersion(datasetId),
-    db,
-  );
+  return registerModelVersion(builtinTraditionalVersion(datasetId), db);
 }
 
 export async function readModelVersion(

@@ -1,43 +1,81 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, notExists, sql, type Column } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
-import { datasetSnapshots, datasets, images } from "../db/schema";
 import {
-  datasetSchema,
-  imageRefSchema,
-  type Dataset,
-  type ImageRef,
-} from "../datasets/schema";
+  datasetImages,
+  datasetSnapshotImages,
+  datasets,
+  images,
+} from "../db/schema";
+import { datasetSchema, type Dataset, type ImageRef } from "../datasets/schema";
 import type { ImageSplit } from "../training/schema";
-import { imageBlobKey, removeBlob } from "./blobs";
+import { imageBlobKey } from "./blobs";
 import { ensureDatasetModel, readModelVersion } from "./model-registry";
 
+/** An image as seen through its membership in one dataset. */
 export interface DatasetImage extends ImageRef {
-  /** The path documents reference the image by, relative to a data root. */
-  source: string;
-  /** Where the bytes live, by content digest. */
-  blobKey: string;
+  filename: string;
   extension: string;
   bytes: number;
-  digest: string;
+  /** Where the bytes live, by content digest. */
+  blobKey: string;
   split: ImageSplit | null;
 }
 
-function imageSource(ref: ImageRef, extension: string): string {
-  return `images/${ref.dataset}/${ref.stem}${extension}`;
+export type MembershipRow = {
+  membership: typeof datasetImages.$inferSelect;
+  image: typeof images.$inferSelect;
+};
+
+export function toDatasetImage({
+  membership,
+  image,
+}: MembershipRow): DatasetImage {
+  return {
+    dataset: membership.datasetId,
+    digest: image.id,
+    filename: membership.filename,
+    extension: image.extension,
+    bytes: image.bytes,
+    blobKey: imageBlobKey(image.id),
+    split: membership.split,
+  };
 }
 
-export function toDatasetImage(row: typeof images.$inferSelect): DatasetImage {
-  const ref = { dataset: row.datasetId, stem: row.stem };
-  return {
-    ...ref,
-    source: imageSource(ref, row.extension),
-    blobKey: imageBlobKey(row.digest),
-    extension: row.extension,
-    bytes: row.bytes,
-    digest: row.digest,
-    split: row.split,
-  };
+/** Memberships joined to their images. */
+export function membershipQuery(db: Executor) {
+  return db
+    .select({ membership: datasetImages, image: images })
+    .from(datasetImages)
+    .innerJoin(images, eq(images.id, datasetImages.imageId));
+}
+
+/** Upload order, then name within one upload. */
+export function membershipOrder() {
+  return [
+    asc(datasetImages.addedAt),
+    asc(datasetImages.filename),
+    asc(datasetImages.imageId),
+  ];
+}
+
+/** Every table keyed by a membership carries these two columns. */
+interface MembershipKeyed {
+  datasetId: Column;
+  imageId: Column;
+}
+
+/** The row of `table` that belongs to one membership. */
+export function atRef(table: MembershipKeyed, { dataset, digest }: ImageRef) {
+  return and(eq(table.datasetId, dataset), eq(table.imageId, digest));
+}
+
+export function describeRef({ dataset, digest }: ImageRef): string {
+  return `${dataset}/${digest}`;
+}
+
+export function notInDataset(ref: ImageRef): Error {
+  return new Error(`Image ${ref.digest} is not in dataset ${ref.dataset}`);
 }
 
 function toDataset(row: typeof datasets.$inferSelect): Dataset {
@@ -132,11 +170,9 @@ export async function listImages(
   datasetId: string,
   db?: Executor,
 ): Promise<DatasetImage[]> {
-  const rows = await (db ?? (await database()))
-    .select()
-    .from(images)
-    .where(eq(images.datasetId, datasetId))
-    .orderBy(asc(images.stem));
+  const rows = await membershipQuery(db ?? (await database()))
+    .where(eq(datasetImages.datasetId, datasetId))
+    .orderBy(...membershipOrder());
   return rows.map(toDatasetImage);
 }
 
@@ -144,40 +180,41 @@ export async function findImage(
   ref: ImageRef,
   db?: Executor,
 ): Promise<DatasetImage | null> {
-  const { dataset, stem } = imageRefSchema.parse(ref);
-  const [row] = await (db ?? (await database()))
-    .select()
-    .from(images)
-    .where(and(eq(images.datasetId, dataset), eq(images.stem, stem)));
+  const [row] = await membershipQuery(db ?? (await database())).where(
+    atRef(datasetImages, ref),
+  );
   return row ? toDatasetImage(row) : null;
 }
 
-/** Whether any image row or snapshot manifest still references the digest. */
-async function digestReferenced(
-  digest: string,
-  db: Executor,
-): Promise<boolean> {
-  const [row] = await db
-    .select({
-      referenced: sql<boolean>`exists (select 1 from ${images} where ${images.digest} = ${digest})
-        or exists (select 1 from ${datasetSnapshots} where ${datasetSnapshots.images} @> ${JSON.stringify([{ imageDigest: digest }])}::jsonb)`,
-    })
-    .from(sql`(select 1) as probe`);
-  return row?.referenced ?? true;
-}
-
 /**
- * Removes the photograph together with everything derived from it; the bytes
- * go once nothing else shares them.
+ * Removes the image from the dataset together with its review documents.
+ * The image row goes once no dataset or snapshot refers to it; the foreign
+ * keys make any other outcome impossible. Its bytes stay until
+ * `collectUnreferencedImages` runs.
  */
 export async function removeImage(ref: ImageRef): Promise<void> {
-  const orphaned = await transaction(async (tx) => {
-    const [row] = await tx
-      .delete(images)
-      .where(and(eq(images.datasetId, ref.dataset), eq(images.stem, ref.stem)))
-      .returning({ digest: images.digest });
-    if (!row) throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
-    return (await digestReferenced(row.digest, tx)) ? null : row.digest;
+  await transaction(async (tx) => {
+    const [membership] = await tx
+      .delete(datasetImages)
+      .where(atRef(datasetImages, ref))
+      .returning({ imageId: datasetImages.imageId });
+    if (!membership) throw notInDataset(ref);
+    await tx.delete(images).where(
+      and(
+        eq(images.id, membership.imageId),
+        notExists(
+          tx
+            .select({ one: sql`1` })
+            .from(datasetImages)
+            .where(eq(datasetImages.imageId, images.id)),
+        ),
+        notExists(
+          tx
+            .select({ one: sql`1` })
+            .from(datasetSnapshotImages)
+            .where(eq(datasetSnapshotImages.imageId, images.id)),
+        ),
+      ),
+    );
   });
-  if (orphaned) removeBlob(imageBlobKey(orphaned));
 }

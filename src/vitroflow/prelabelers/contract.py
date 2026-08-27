@@ -9,6 +9,8 @@ from typing import Protocol
 from ..annotations import BoundingBox
 from ..identifiers import FINGERPRINT, VERSION_ID, WARNING_CODE
 
+PRELABEL_SCHEMA_VERSION = 1
+
 _QUALITY_STATUSES = {"ok", "review_required"}
 _RUNTIME_ADAPTERS = {"traditional", "ultralytics"}
 
@@ -20,15 +22,9 @@ def _finite(value: float, context: str) -> None:
         raise ValueError(f"{context} must be finite")
 
 
-def _validate_source(source: Path) -> None:
-    if (
-        source.is_absolute()
-        or not source.parts
-        or source.parts[0] != "images"
-        or ".." in source.parts
-        or "\\" in source.as_posix()
-    ):
-        raise ValueError("Prelabel source must be a relative path under images")
+def _validate_digest(digest: str) -> None:
+    if not isinstance(digest, str) or not FINGERPRINT.fullmatch(digest):
+        raise ValueError("Prelabel image digest must be a SHA-256 digest")
 
 
 @dataclass(frozen=True)
@@ -170,7 +166,7 @@ class PrelabelDiagnostics:
 
 @dataclass(frozen=True)
 class PrelabelResult:
-    source: Path
+    digest: str
     width: int
     height: int
     producer: PredictionProducer
@@ -188,7 +184,7 @@ class PrelabelResult:
             or self.height <= 0
         ):
             raise ValueError("Prelabel image dimensions must be positive integers")
-        _validate_source(self.source)
+        _validate_digest(self.digest)
         identifiers: set[str] = set()
         for instance in self.instances:
             if instance.instance_id in identifiers:
@@ -204,9 +200,12 @@ class PrelabelResult:
 
     def to_dict(self) -> dict[str, object]:
         document: dict[str, object] = {
-            "schema_version": 2,
-            "source": self.source.as_posix(),
-            "image": {"width": self.width, "height": self.height},
+            "schema_version": PRELABEL_SCHEMA_VERSION,
+            "image": {
+                "digest": self.digest,
+                "width": self.width,
+                "height": self.height,
+            },
             "producer": self.producer.to_dict(),
             "instances": [instance.to_dict() for instance in self.instances],
             "quality": self.quality.to_dict(),
@@ -219,19 +218,19 @@ class PrelabelResult:
 
 @dataclass(frozen=True)
 class PrelabelFailure:
-    source: Path
+    digest: str
     producer: PredictionProducer
     error: str
 
     def __post_init__(self) -> None:
-        _validate_source(self.source)
+        _validate_digest(self.digest)
         if not self.error or len(self.error) > 2000:
             raise ValueError("Prelabel failure error must contain 1 to 2000 characters")
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema_version": 2,
-            "source": self.source.as_posix(),
+            "schema_version": PRELABEL_SCHEMA_VERSION,
+            "image": {"digest": self.digest},
             "producer": self.producer.to_dict(),
             "error": self.error,
         }
@@ -247,5 +246,5 @@ class Prelabeler(Protocol):
     def artifact_digest(self) -> str: ...
 
     def predict(
-        self, image_path: Path, source: Path, producer: PredictionProducer
+        self, image_path: Path, digest: str, producer: PredictionProducer
     ) -> PrelabelResult: ...

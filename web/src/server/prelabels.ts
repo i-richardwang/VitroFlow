@@ -2,8 +2,8 @@ import { and, asc, eq, isNull, ne, or } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
+  datasetImages,
   datasets,
-  images,
   labels,
   modelVersions,
   prelabels,
@@ -12,25 +12,28 @@ import type { ImageRef } from "../datasets/schema";
 import { prelabelSchema, type Prelabel } from "../detection/schema";
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
-import { toDatasetImage, type DatasetImage } from "./datasets";
-import { lockImageRecord } from "./summaries";
+import {
+  atRef,
+  describeRef,
+  membershipOrder,
+  notInDataset,
+  toDatasetImage,
+  type DatasetImage,
+} from "./datasets";
+import { lockImageRecord, recordQuery } from "./summaries";
 
 /** Thrown when a worker tries to replace the prelabel a review started from. */
 export class PrelabelFrozenError extends Error {
   constructor(ref: ImageRef) {
-    super(`${ref.dataset}/${ref.stem} is labelled; its prelabel is frozen`);
+    super(`${describeRef(ref)} is labelled; its prelabel is frozen`);
   }
 }
 
 /** Thrown when a prelabel comes from a version other than the one its dataset selects. */
 export class ModelVersionMismatchError extends Error {
   constructor(ref: ImageRef) {
-    super(`${ref.dataset}/${ref.stem} is assigned to another model version`);
+    super(`${describeRef(ref)} is assigned to another model version`);
   }
-}
-
-function byRef({ dataset, stem }: ImageRef) {
-  return and(eq(prelabels.datasetId, dataset), eq(prelabels.stem, stem));
 }
 
 export async function readPrelabel(
@@ -40,8 +43,8 @@ export async function readPrelabel(
   const [row] = await (db ?? (await database()))
     .select({ document: prelabels.document })
     .from(prelabels)
-    .where(byRef(ref));
-  return row ? prelabelSchema.parse(row.document) : null;
+    .where(atRef(prelabels, ref));
+  return row?.document ?? null;
 }
 
 export async function writePrelabel(
@@ -52,12 +55,10 @@ export async function writePrelabel(
   const prelabel = prelabelSchema.parse(document);
   return transaction(async (tx) => {
     const record = await lockImageRecord(ref, tx);
-    if (!record) {
-      throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
-    }
-    if (prelabel.source !== record.image.source) {
+    if (!record) throw notInDataset(ref);
+    if (prelabel.image.digest !== ref.digest) {
       throw new Error(
-        `Prelabel source ${prelabel.source} does not match ${record.image.source}`,
+        `Prelabel describes ${prelabel.image.digest}, not ${ref.digest}`,
       );
     }
     if (record.label) {
@@ -92,9 +93,9 @@ export async function writePrelabel(
     const row = { document: prelabel, createdAt: new Date() };
     await tx
       .insert(prelabels)
-      .values({ datasetId: ref.dataset, stem: ref.stem, ...row })
+      .values({ datasetId: ref.dataset, imageId: ref.digest, ...row })
       .onConflictDoUpdate({
-        target: [prelabels.datasetId, prelabels.stem],
+        target: [prelabels.datasetId, prelabels.imageId],
         set: row,
       });
     return prelabel;
@@ -107,7 +108,7 @@ export async function discardPrelabel(ref: ImageRef): Promise<void> {
     if ((await lockImageRecord(ref, tx))?.label) {
       throw new PrelabelFrozenError(ref);
     }
-    await tx.delete(prelabels).where(byRef(ref));
+    await tx.delete(prelabels).where(atRef(prelabels, ref));
   });
 }
 
@@ -120,10 +121,8 @@ export async function pendingImages(deployment: {
   artifactDigest: string;
 }): Promise<DatasetImage[]> {
   const db = await database();
-  const rows = await db
-    .select({ image: images })
-    .from(images)
-    .innerJoin(datasets, eq(datasets.id, images.datasetId))
+  const rows = await recordQuery(db)
+    .innerJoin(datasets, eq(datasets.id, datasetImages.datasetId))
     .innerJoin(
       modelVersions,
       and(
@@ -131,29 +130,18 @@ export async function pendingImages(deployment: {
         eq(modelVersions.modelId, datasets.modelId),
       ),
     )
-    .leftJoin(
-      labels,
-      and(eq(labels.datasetId, images.datasetId), eq(labels.stem, images.stem)),
-    )
-    .leftJoin(
-      prelabels,
-      and(
-        eq(prelabels.datasetId, images.datasetId),
-        eq(prelabels.stem, images.stem),
-      ),
-    )
     .where(
       and(
         eq(modelVersions.id, deployment.modelVersionId),
         eq(modelVersions.artifactDigest, deployment.artifactDigest),
-        isNull(labels.stem),
+        isNull(labels.imageId),
         or(
-          isNull(prelabels.stem),
+          isNull(prelabels.imageId),
           ne(prelabels.modelVersionId, deployment.modelVersionId),
           ne(prelabels.artifactDigest, deployment.artifactDigest),
         ),
       ),
     )
-    .orderBy(asc(images.datasetId), asc(images.stem));
-  return rows.map((row) => toDatasetImage(row.image));
+    .orderBy(asc(datasetImages.datasetId), ...membershipOrder());
+  return rows.map(toDatasetImage);
 }

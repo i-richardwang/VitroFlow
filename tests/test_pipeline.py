@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import cv2
@@ -149,13 +150,15 @@ def test_candidate_model_file_round_trip(tmp_path: Path) -> None:
     assert load_candidate_model(path) == DEFAULT_MODEL
 
 
-def test_count_seeds_records_the_logical_source(tmp_path: Path) -> None:
+def test_count_seeds_records_the_image_identity(tmp_path: Path) -> None:
     path = tmp_path / "downloaded.jpg"
     cv2.imwrite(str(path), np.zeros((400, 600, 3), dtype=np.uint8))
 
-    result = count_seeds(path, source="images/batch/original.jpg")
+    result = count_seeds(path)
 
-    assert result.source == Path("images/batch/original.jpg")
+    assert result.path == path
+    assert result.digest == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert result.to_dict()["image"]["digest"] == result.digest
     assert list(tmp_path.iterdir()) == [path]
 
 

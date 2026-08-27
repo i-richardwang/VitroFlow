@@ -4,10 +4,10 @@ import { useEffect } from "react";
 import { ImageWorkbench } from "../../components/workbench/ImageWorkbench";
 import { getImage } from "../../server/images";
 
-export const Route = createFileRoute("/_workbench/datasets/$dataset/$stem")({
+export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
   loader: ({ params }) =>
-    getImage({ data: { dataset: params.dataset, stem: params.stem } }),
-  // The editor owns the document while the page is open and the label file
+    getImage({ data: { dataset: params.dataset, digest: params.digest } }),
+  // The editor owns the document while the page is open and the label row
   // is the source of truth between visits, so a cached copy is never wanted.
   gcTime: 0,
   component: ImagePage,
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$stem")({
 
 function ImagePage() {
   const image = Route.useParams();
-  const { prelabel, label } = Route.useLoaderData();
+  const { summary, prelabel, label } = Route.useLoaderData();
   const router = useRouter();
 
   useEffect(() => {
@@ -28,8 +28,9 @@ function ImagePage() {
 
   return (
     <ImageWorkbench
-      key={`${image.dataset}/${image.stem}`}
+      key={`${image.dataset}/${image.digest}`}
       image={image}
+      filename={summary.filename}
       prelabel={prelabel}
       label={label}
     />

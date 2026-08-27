@@ -44,11 +44,9 @@ export function UploadCard({ dataset }: { dataset?: string }) {
           void uploadImages(target, files, (loaded, total) => {
             setProgress({ loaded, total });
           })
-            .then(async (added) => {
+            .then(async ({ added, existing }) => {
               setFiles([]);
-              toast.success(
-                `${added} ${added === 1 ? "image" : "images"} added to ${target}`,
-              );
+              toast.success(uploadSummary(target, added, existing));
               await router.invalidate();
             })
             .catch((cause: unknown) => {
@@ -110,11 +108,18 @@ export function UploadCard({ dataset }: { dataset?: string }) {
   );
 }
 
+function uploadSummary(target: string, added: number, existing: number) {
+  const count = (n: number) => `${n} ${n === 1 ? "image" : "images"}`;
+  if (added === 0) return `${count(existing)} already in ${target}`;
+  if (existing === 0) return `${count(added)} added to ${target}`;
+  return `${count(added)} added to ${target}, ${existing} already there`;
+}
+
 function uploadImages(
   dataset: string,
   files: File[],
   onProgress: (loaded: number, total: number) => void,
-): Promise<number> {
+): Promise<{ added: number; existing: number }> {
   const data = new FormData();
   for (const file of files) {
     data.append("images", file);
@@ -128,7 +133,11 @@ function uploadImages(
       }
     };
     request.onload = () => {
-      let body: { error?: string; added?: string[] } | null;
+      let body: {
+        error?: string;
+        added?: string[];
+        existing?: string[];
+      } | null;
       try {
         body = JSON.parse(request.responseText) as typeof body;
       } catch {
@@ -136,10 +145,14 @@ function uploadImages(
       }
       if (body?.error != null) {
         reject(new Error(body.error));
-      } else if (request.status >= 400 || body?.added == null) {
+      } else if (
+        request.status >= 400 ||
+        body?.added == null ||
+        body.existing == null
+      ) {
         reject(new Error(`Upload failed (${request.status})`));
       } else {
-        resolve(body.added.length);
+        resolve({ added: body.added.length, existing: body.existing.length });
       }
     };
     request.onerror = () => {

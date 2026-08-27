@@ -23,17 +23,17 @@ Postgres holds every record the stages exchange; the data directory holds only b
 | Table | Owner | Contents |
 |---|---|---|
 | `datasets`, `models`, `model_versions` | Server | a Dataset, its logical Model, and immutable executable ModelVersions |
-| `images` | Server | one row per photograph with digest and stable train/validation split |
-| `prelabels` | Inference Worker | detector output for an image, untouched by humans |
+| `images` | Server | one row per photograph, identified by the SHA-256 of its bytes |
+| `dataset_images` | Server | an image's membership in a dataset and its stable train/validation split |
+| `prelabels` | Inference Worker | detector output for an image in a dataset, untouched by humans |
 | `labels` | Reviewer | reviewed box annotations with a revision counter |
 | `inference_workers`, `training_workers` | Workers | latest heartbeat per process |
-| `dataset_snapshots` | Server | immutable manifests of reviewed training inputs |
+| `dataset_snapshots`, `dataset_snapshot_images` | Server | immutable sets of reviewed training inputs |
 | `training_runs` | Server | leased training state machines; a partial unique index allows one active run per model |
 
 ```text
 data/
 ├── images/<xx>/<sha256>             immutable source photographs, addressed by content
-├── dataset-snapshots/<snapshot>/    immutable copies of the images a snapshot trains on
 ├── training-staging/<run>/          uploaded but unpublished model artifacts
 └── model-artifacts/<version>/       server-published YOLO weights and settings
 ```
@@ -42,36 +42,35 @@ A Dataset owns one logical Model—the purpose of the model, not one artifact—
 
 JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
 
-An image's state follows from which rows exist for it. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
+An image is its bytes. Its format is read from the bytes (JPEG, PNG, or TIFF), the same photograph uploaded twice, under any names, is one image, and one image can belong to several datasets and snapshots at once; the name it was added under belongs to each membership and is shown, never matched. An upload reports which memberships it created and which already existed. A dataset removal drops the membership and its review documents; the image row goes once nothing refers to it, and its bytes stay on disk until `bun run images:collect` (in `web/`) removes the bytes of images no row refers to, deciding each digest under the same lock uploads take. Because a digest names immutable content, image URLs (`/img/<digest>`) are cached indefinitely.
 
-An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are kept in review state but omitted from training and from the YOLO export (`dataset export-yolo`); a dataset pull mirrors all review state, exclusions included.
+An image's state within a dataset follows from which rows exist for it there. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
+
+Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are kept in review state but omitted from training and from the YOLO export (`dataset export-yolo`); a dataset pull mirrors all review state, exclusions included.
 
 ## Local recognition
 
-Local commands read a pulled data directory: `images/<dataset>/<stem>.<ext>`, `prelabels/<dataset>/<stem>.json`, and `labels/<dataset>/<stem>.json`. Pull one from the workbench with the export credential:
+Local commands read a pulled data root: `blobs/<xx>/<sha256>` holds image bytes shared by every dataset, and `datasets/<dataset>.json` is the dataset's export document with each image's digest, filename, split, prelabel, and label. Pull one from the workbench with the export credential:
 
 ```bash
 export VITROFLOW_SERVER_URL=https://vitroflow.example.com
 export VITROFLOW_EXPORT_TOKEN=<export-secret>
-uv run vitroflow dataset pull fixtures --data-root data
+uv run vitroflow dataset pull --dataset fixtures --data-root data
 ```
 
-Every image is verified against its recorded digest before the dataset's local `images/`, `prelabels/`, and `labels/` trees are replaced, so a pull either mirrors the server exactly or leaves the previous copy untouched. Install the Python environment and recognize one image or a directory:
+Every local command verifies each blob it reads against its digest and refuses one that fails. A pull keeps the local blobs that verify, downloads the missing ones, repairs any blob that fails verification, and then replaces the dataset document in one rename, so a pull either mirrors the server exactly or leaves the previous copy untouched. Install the Python environment and recognize one image or a directory:
 
 ```bash
 uv sync
-uv run vitroflow recognize data/images/fixtures \
-  --data-root data \
-  --output output/local-review
+uv run vitroflow recognize photos/ --output output/local-review
 ```
 
-Each image produces a result JSON, an overlay, and a diagnostic image. The batch also produces `counts.csv`. `--data-root` controls the source paths recorded in result JSON, so images used by the workbench should be recognized with `data` as their root.
+Each image produces a result JSON, an overlay, and a diagnostic image. The batch also produces `counts.csv`. A result document records the input `path` it was computed from and identifies the image itself by its content digest.
 
 Pass a trained model or a pipeline configuration explicitly when needed:
 
 ```bash
-uv run vitroflow recognize data/images/fixtures \
-  --data-root data \
+uv run vitroflow recognize photos/ \
   --output output/review \
   --model output/models/candidate-seedness/model.json \
   --config config/pipeline.json
@@ -115,10 +114,10 @@ The inference protocol uses a dedicated credential:
 |---|---|
 | `POST api/inference/heartbeat` | verifies a published deployment and reports runtime state |
 | `GET api/inference/pending?workerId=<id>` | images assigned to that exact artifact |
-| `GET api/inference/images/<dataset>/<stem>` | source image bytes |
-| `PUT api/inference/prelabels/<dataset>/<stem>?workerId=<id>` | versioned prelabel document |
+| `GET api/inference/images/<digest>` | source image bytes |
+| `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document |
 
-Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `source`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations have explicit schema versions and are parsed against one current contract rather than runtime compatibility fallbacks. Prelabels are JSON only; rendered views belong to local recognition.
+Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
 
 The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_INFERENCE_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
 
@@ -149,7 +148,7 @@ The container serves `/healthz` on the platform `PORT`. It needs no shared data 
 
 ## Training Worker
 
-The dataset page's Train action creates a TrainingRun from the `complete` annotations; one run per model is active at a time. The Server copies images and annotations into a full-SHA-256 content-addressed DatasetSnapshot, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
+The dataset page's Train action creates a TrainingRun from the `complete` annotations; one run per model is active at a time. The Server freezes the reviewed annotations into a DatasetSnapshot that references images by digest, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
 
 Every TrainingRun pins the base-weight digest, training configuration digest, and Ultralytics version. The Worker verifies all three before training. It then uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. Only the Server publishes the resulting candidate ModelVersion; an interrupted `publishing` state is reconciled before the next claim, and publication never changes the Dataset selection automatically.
 
@@ -169,7 +168,7 @@ The traditional prelabeler generates candidate centers and candidate-local evide
 Evaluate the current model on all complete annotations:
 
 ```bash
-uv run vitroflow prelabel evaluate --data-root data
+uv run vitroflow prelabel evaluate --data-root data --dataset fixtures
 ```
 
 The report separates proposal recall from final detection precision and recall. Proposal recall measures whether candidate generation reaches each reviewed box; final metrics measure the corrections required after scoring and deduplication.
@@ -179,10 +178,12 @@ Train with leave-one-image-out selection of model form, regularization, and conf
 ```bash
 uv run vitroflow prelabel train \
   --data-root data \
+  --dataset fixtures \
   --output output/models/candidate-seedness
 
 uv run vitroflow prelabel evaluate \
   --data-root data \
+  --dataset fixtures \
   --model output/models/candidate-seedness/model.json \
   --config output/models/candidate-seedness/config.json
 ```
@@ -196,25 +197,25 @@ Export complete box annotations as a deterministic YOLO detection dataset:
 ```bash
 uv run vitroflow dataset export-yolo \
   --data-root data \
+  --dataset fixtures \
   --output output/datasets/seeds-v1 \
   --validation-fraction 0.2 \
   --seed 42
 ```
 
-The export contains copied source images, normalized YOLO labels, `dataset.yaml`, and a manifest recording source paths, revisions, and train/validation assignments. Training artifacts and dataset exports are published atomically to new directories.
+The export contains the source images named by digest, normalized YOLO labels, `dataset.yaml`, and a manifest recording digests, revisions, and train/validation assignments. An image keeps the stable split the server recorded for it in the dataset; only images without one are assigned locally from `--seed` and `--validation-fraction`. Training artifacts and dataset exports are published atomically to new directories.
 
 ## YOLO26 fine-tuning
 
 Until complete human-reviewed labels are available, build a temporary dataset from
 a dataset's prelabels. During this bootstrap phase they are treated as training
 targets, so validation metrics measure agreement with the traditional algorithm
-rather than final real-world accuracy. Failure documents are skipped, and the
-output stays outside `data/labels`. Pull the dataset first so the prelabels are
-on disk:
+rather than final real-world accuracy. Failure documents are skipped. Pull the
+dataset first so the prelabels are on disk:
 
 ```bash
 uv run python scripts/build_yolo_prelabels.py \
-  --prelabels data/prelabels/<dataset> \
+  --dataset <dataset> \
   --data-root data \
   --output output/yolo/prelabels-smoke \
   --seed 42
@@ -333,7 +334,7 @@ web/
 ├── drizzle/          Generated SQL migrations
 └── src/
     ├── db/           Drizzle schema and connection
-    ├── datasets/     Dataset and image identity, derived image states
+    ├── datasets/     Dataset identity, image references, derived image states
     ├── models/       Logical Model and immutable ModelVersion contracts
     ├── detection/    Prelabel document contract
     ├── inference/    Runtime and inference heartbeat contracts

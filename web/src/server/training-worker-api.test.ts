@@ -1,21 +1,18 @@
 import { expect, test } from "bun:test";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
-import { makeResult } from "../annotation/testing";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { Route as ManifestRoute } from "../routes/api.inference.model-versions.$versionId";
 import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
 import { Route as ClaimRoute } from "../routes/api.training.claim";
 import { Route as HeartbeatRoute } from "../routes/api.training.heartbeat";
-import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$index";
+import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$digest";
 import { Route as ProgressRoute } from "../routes/api.training.runs.$runId.progress";
 import { Route as SnapshotRoute } from "../routes/api.training.runs.$runId.snapshot";
+import { contentDigest } from "./blobs";
 import { readDataset } from "./datasets";
-import { createLabel } from "./labels";
-import { readModelVersion } from "./model-registry";
+import { reviewedDataset } from "./testing";
 import { createTrainingRun } from "./training-runs";
-import { addImages } from "./upload";
 
 type Handler = (context: never) => Response | Promise<Response>;
 
@@ -32,32 +29,10 @@ function handler(
 
 test("training HTTP routes publish one candidate version without selecting it", async () => {
   const datasetId = "training-api";
-  await addImages(datasetId, [
-    new File(["first"], "a.jpg"),
-    new File(["second"], "b.jpg"),
+  const { version: selected } = await reviewedDataset(datasetId, [
+    "first",
+    "second",
   ]);
-  const dataset = await readDataset(datasetId);
-  if (!dataset) throw new Error("missing dataset");
-  const selected = await readModelVersion(dataset.selectedModelVersionId);
-  if (!selected) throw new Error("missing model version");
-  for (const stem of ["a", "b"]) {
-    const result = {
-      ...makeResult([{ id: 0, x: 10, y: 10 }]),
-      source: `images/${datasetId}/${stem}.jpg`,
-      producer: {
-        model_version_id: selected.id,
-        artifact_digest: selected.artifact.digest,
-        runtime: {
-          adapter: "traditional" as const,
-          fingerprint: "b".repeat(64),
-        },
-      },
-    };
-    await createLabel(
-      { dataset: datasetId, stem },
-      { ...documentFromPrelabel(result), status: "complete" },
-    );
-  }
 
   const created = await createTrainingRun(datasetId, YOLO26_SEED_SMALL_RECIPE);
 
@@ -99,19 +74,21 @@ test("training HTTP routes publish one candidate version without selecting it", 
       `http://localhost/api/training/runs/${created.id}/snapshot?workerId=api-trainer`,
     ),
   } as never);
-  expect((await snapshot.json()).images).toHaveLength(2);
+  const snapshotImages = (await snapshot.json()).images;
+  expect(snapshotImages).toHaveLength(2);
+  const digest = snapshotImages[0].digest;
 
   const image = await handler(
     ImageRoute,
     "GET",
   )({
-    params: { runId: created.id, index: "0" },
+    params: { runId: created.id, digest },
     request: new Request(
-      `http://localhost/api/training/runs/${created.id}/images/0?workerId=api-trainer`,
+      `http://localhost/api/training/runs/${created.id}/images/${digest}?workerId=api-trainer`,
     ),
   } as never);
   expect(image.status).toBe(200);
-  expect(image.headers.get("X-Content-SHA256")).toBeTruthy();
+  expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(digest);
 
   const progress = await handler(
     ProgressRoute,

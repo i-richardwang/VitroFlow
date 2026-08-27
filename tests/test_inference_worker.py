@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -23,6 +24,9 @@ from vitroflow.prelabelers import (
 from vitroflow.worker_runtime import health_server
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
+IMAGE = b"source"
+DIGEST = hashlib.sha256(IMAGE).hexdigest()
+OTHER = hashlib.sha256(b"other").hexdigest()
 
 
 class FakePrelabeler:
@@ -30,11 +34,12 @@ class FakePrelabeler:
     runtime = RUNTIME
 
     def predict(
-        self, image_path: Path, source: Path, producer: PredictionProducer
+        self, image_path: Path, digest: str, producer: PredictionProducer
     ) -> PrelabelResult:
-        assert image_path.read_bytes() == b"source"
+        assert image_path.read_bytes() == IMAGE
+        assert image_path.name == f"{digest}{image_path.suffix}"
         return PrelabelResult(
-            source,
+            digest,
             100,
             80,
             producer,
@@ -45,7 +50,7 @@ class FakePrelabeler:
 
 class FailingPrelabeler(FakePrelabeler):
     def predict(
-        self, image_path: Path, source: Path, producer: PredictionProducer
+        self, image_path: Path, digest: str, producer: PredictionProducer
     ) -> PrelabelResult:
         raise ValueError("dish not found")
 
@@ -56,10 +61,15 @@ IDENTITY = WorkerIdentity.create("test-worker", "set.traditional-v1", PRELABELER
 
 class Workbench:
     def __init__(
-        self, pending: list[dict[str, str]], *, prelabel_status: int = 200
+        self,
+        pending: list[dict[str, str]],
+        *,
+        prelabel_status: int = 200,
+        image: bytes = IMAGE,
     ) -> None:
         self.pending = pending
         self.prelabel_status = prelabel_status
+        self.image = image
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -71,7 +81,7 @@ class Workbench:
         if path == "/api/inference/pending":
             return httpx.Response(200, json={"images": self.pending})
         if path.startswith("/api/inference/images/"):
-            return httpx.Response(200, content=b"source")
+            return httpx.Response(200, content=self.image)
         if path.startswith("/api/inference/prelabels/"):
             return httpx.Response(self.prelabel_status, json={})
         return httpx.Response(404)
@@ -96,8 +106,8 @@ class Workbench:
 
 
 PENDING = [
-    {"dataset": "set", "stem": "a", "source": "images/set/a.jpg"},
-    {"dataset": "set", "stem": "b", "source": "images/set/b.png"},
+    {"dataset": "set", "digest": DIGEST, "extension": ".jpg"},
+    {"dataset": "set", "digest": DIGEST, "extension": ".png"},
 ]
 
 
@@ -111,21 +121,25 @@ def test_health_server_reports_liveness() -> None:
 
 
 def test_pending_image_requires_every_field() -> None:
-    assert PendingImage.from_dict(PENDING[0]) == PendingImage(
-        "set", "a", "images/set/a.jpg"
-    )
-    with pytest.raises(ValueError, match="missing source"):
-        PendingImage.from_dict({"dataset": "set", "stem": "a"})
+    assert PendingImage.parse(PENDING[0]) == PendingImage("set", DIGEST, ".jpg")
+    with pytest.raises(ValueError, match="missing extension"):
+        PendingImage.parse({"dataset": "set", "digest": DIGEST})
+    with pytest.raises(ValueError, match="digest must be a SHA-256"):
+        PendingImage.parse(
+            {"dataset": "set", "digest": "images/set/a.jpg", "extension": ".jpg"}
+        )
+    with pytest.raises(ValueError, match="extension must be one of"):
+        PendingImage.parse({"dataset": "set", "digest": DIGEST, "extension": ".gif"})
 
 
 def test_worker_identity_separates_deployment_and_runtime() -> None:
-    heartbeat = IDENTITY.heartbeat(PendingImage("set", "a", "images/set/a.jpg"))
+    heartbeat = IDENTITY.heartbeat(PendingImage("set", DIGEST, ".jpg"))
     assert heartbeat["deployment"] == {
         "modelVersionId": "set.traditional-v1",
         "artifactDigest": "a" * 64,
     }
     assert heartbeat["runtime"] == RUNTIME.to_dict()
-    assert heartbeat["current"] == {"dataset": "set", "stem": "a"}
+    assert heartbeat["current"] == {"dataset": "set", "digest": DIGEST}
 
 
 def test_pass_prelabels_every_pending_image(tmp_path: Path) -> None:
@@ -140,20 +154,31 @@ def test_pass_prelabels_every_pending_image(tmp_path: Path) -> None:
         ("POST", "/api/inference/heartbeat"),
         ("GET", "/api/inference/pending"),
         ("POST", "/api/inference/heartbeat"),
-        ("GET", "/api/inference/images/set/a"),
-        ("PUT", "/api/inference/prelabels/set/a"),
+        ("GET", f"/api/inference/images/{DIGEST}"),
+        ("PUT", f"/api/inference/prelabels/set/{DIGEST}"),
         ("POST", "/api/inference/heartbeat"),
-        ("GET", "/api/inference/images/set/b"),
-        ("PUT", "/api/inference/prelabels/set/b"),
+        ("GET", f"/api/inference/images/{DIGEST}"),
+        ("PUT", f"/api/inference/prelabels/set/{DIGEST}"),
         ("POST", "/api/inference/heartbeat"),
     ]
     assert dict(workbench.requests[1].url.params) == {"workerId": "test-worker"}
     assert dict(workbench.requests[4].url.params) == {"workerId": "test-worker"}
-    assert all(
-        body["producer"] == IDENTITY.producer.to_dict()
-        for body in workbench.prelabel_bodies()
-    )
+    for body in workbench.prelabel_bodies():
+        assert body["schema_version"] == 1
+        assert body["image"] == {"digest": DIGEST, "width": 100, "height": 80}
+        assert body["producer"] == IDENTITY.producer.to_dict()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> None:
+    workbench = Workbench(PENDING[:1], image=b"tampered")
+    client = workbench.client()
+    try:
+        with pytest.raises(ValueError, match="digest verification"):
+            run_pass(client, tmp_path, PRELABELER)
+    finally:
+        client.close()
+    assert workbench.prelabel_bodies() == []
 
 
 def test_pass_records_a_failure_document(tmp_path: Path) -> None:
@@ -165,8 +190,8 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
         client.close()
     assert workbench.prelabel_bodies() == [
         {
-            "schema_version": 2,
-            "source": "images/set/a.jpg",
+            "schema_version": 1,
+            "image": {"digest": DIGEST},
             "producer": IDENTITY.producer.to_dict(),
             "error": "dish not found",
         }

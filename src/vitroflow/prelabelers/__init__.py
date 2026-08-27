@@ -11,11 +11,7 @@ from .contract import (
     PrelabelResult,
     RuntimeDescriptor,
 )
-from .documents import (
-    PrelabelDocument,
-    load_prelabel_document,
-    parse_prelabel_document,
-)
+from .documents import PrelabelDocument, parse_prelabel_document
 from .traditional import TraditionalPrelabeler
 from .yolo import YoloInferenceSettings, YoloPrelabeler, load_yolo_inference_settings
 
@@ -33,7 +29,6 @@ __all__ = [
     "TraditionalPrelabeler",
     "YoloInferenceSettings",
     "YoloPrelabeler",
-    "load_prelabel_document",
     "load_yolo_inference_settings",
     "parse_prelabel_document",
 ]

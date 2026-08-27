@@ -1,27 +1,41 @@
-import { imageRefSchema } from "../datasets/schema";
-import { readBlob } from "./blobs";
-import { findImage } from "./datasets";
+import { eq } from "drizzle-orm";
 
-export const CONTENT_TYPES: Record<string, string> = {
+import { database } from "../db/client";
+import { images } from "../db/schema";
+import {
+  imageDigestSchema,
+  imageExtensionSchema,
+  type ImageExtension,
+} from "../datasets/schema";
+import { imageBlobKey, readBlob } from "./blobs";
+
+const CONTENT_TYPES: Record<ImageExtension, string> = {
   ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".tif": "image/tiff",
-  ".tiff": "image/tiff",
 };
 
-/** Serves a photograph by reference; unknown references and images are 404. */
-export async function imageResponse(
-  params: unknown,
-  headers: Record<string, string> = {},
-): Promise<Response> {
-  const ref = imageRefSchema.safeParse(params);
-  const image = ref.success ? await findImage(ref.data) : null;
-  const contentType = image ? CONTENT_TYPES[image.extension] : undefined;
-  if (!image || !contentType) {
+/**
+ * Serves a photograph by digest. The bytes behind a digest never change, so
+ * every response may be cached indefinitely.
+ */
+export async function imageResponse(digest: unknown): Promise<Response> {
+  const parsed = imageDigestSchema.safeParse(digest);
+  const db = await database();
+  const [image] = parsed.success
+    ? await db
+        .select({ extension: images.extension })
+        .from(images)
+        .where(eq(images.id, parsed.data))
+    : [];
+  if (!parsed.success || !image) {
     return new Response("Not found", { status: 404 });
   }
-  return new Response(readBlob(image.blobKey), {
-    headers: { "Content-Type": contentType, ...headers },
+  return new Response(readBlob(imageBlobKey(parsed.data)), {
+    headers: {
+      "Content-Type":
+        CONTENT_TYPES[imageExtensionSchema.parse(image.extension)],
+      "Cache-Control": "private, max-age=31536000, immutable",
+    },
   });
 }

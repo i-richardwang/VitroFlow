@@ -6,6 +6,7 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import BinaryIO
 
 
 @contextmanager
@@ -23,20 +24,25 @@ def atomic_directory(destination: str | Path) -> Iterator[Path]:
             shutil.rmtree(working)
 
 
-def write_text_atomically(path: str | Path, content: str) -> None:
-    destination = Path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+@contextmanager
+def atomic_file(destination: str | Path) -> Iterator[BinaryIO]:
+    """Write a file that appears at ``destination`` complete or not at all."""
+    target = Path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{destination.name}-",
-        dir=destination.parent,
-        text=True,
+        prefix=f".{target.name}-", dir=target.parent
     )
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(content)
+        with os.fdopen(descriptor, "wb") as handle:
+            yield handle
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, destination)
+        os.replace(temporary, target)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def write_text_atomically(path: str | Path, content: str) -> None:
+    with atomic_file(path) as handle:
+        handle.write(content.encode("utf-8"))

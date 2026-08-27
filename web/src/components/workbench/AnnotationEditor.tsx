@@ -33,10 +33,12 @@ const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 
 export function AnnotationEditor({
   image,
+  filename,
   result,
   label,
 }: {
   image: ImageRef;
+  filename: string;
   result: PrelabelResult;
   label: AnnotationDocument;
 }) {
@@ -102,7 +104,7 @@ export function AnnotationEditor({
 
   const canvas = (
     <CanvasStage
-      image={image}
+      filename={filename}
       result={result}
       annotation={annotation}
       tool={tool}
@@ -132,6 +134,7 @@ export function AnnotationEditor({
     <>
       <WorkbenchTopBar
         image={image}
+        filename={filename}
         quality={result.quality}
         trailing={
           <>
@@ -194,7 +197,7 @@ export function AnnotationEditor({
 }
 
 function CanvasStage({
-  image,
+  filename,
   result,
   annotation,
   tool,
@@ -208,7 +211,7 @@ function CanvasStage({
   onUndo,
   onRedo,
 }: {
-  image: ImageRef;
+  filename: string;
   result: PrelabelResult;
   annotation: AnnotationDocument;
   tool: Tool;
@@ -225,7 +228,7 @@ function CanvasStage({
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1">
       <AnnotationCanvas
-        image={image}
+        filename={filename}
         result={result}
         annotation={annotation}
         tool={tool}

@@ -2,94 +2,97 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import annotation_document, manifest_entry, write_manifest
 
-from vitroflow.annotations import load_annotation, load_complete_annotations
+from vitroflow.annotations import (
+    load_annotations,
+    load_complete_annotations,
+    parse_annotation,
+)
 
 CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "annotation.json"
 
 
-def _payload(source: str, status: str = "complete") -> dict[str, object]:
-    return {
-        "schemaVersion": 2,
-        "image": {"path": source, "width": 100, "height": 80},
-        "source": {
-            "modelVersionId": "batch.traditional-v1",
-            "artifactDigest": "a" * 64,
-            "runtime": {
-                "adapter": "traditional",
-                "fingerprint": "b" * 64,
-            },
-        },
-        "status": status,
-        "revision": 3,
-        "instances": [
-            {
-                "id": "seed-1",
-                "class": "seed",
-                "bbox": {"x": 10, "y": 20, "width": 8, "height": 6},
-            }
-        ],
-    }
-
-
-def _write(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
 def test_complete_annotations_are_the_training_source(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
-    labels = data_root / "labels"
-    _write(labels / "batch" / "complete.json", _payload("images/batch/a.jpg"))
-    _write(
-        labels / "batch" / "progress.json",
-        _payload("images/batch/b.jpg", "in_progress"),
+    manifest = write_manifest(
+        data_root,
+        "batch",
+        [
+            manifest_entry("1" * 64, label=annotation_document("1" * 64, revision=3)),
+            manifest_entry(
+                "2" * 64, label=annotation_document("2" * 64, status="in_progress")
+            ),
+            manifest_entry("3" * 64),
+        ],
     )
 
-    annotations = load_complete_annotations(labels, data_root)
+    complete = load_complete_annotations(manifest)
 
-    assert len(annotations) == 1
-    assert annotations[0].source == Path("images/batch/a.jpg")
-    assert annotations[0].boxes[0].center == (14.0, 23.0)
-    assert annotations[0].revision == 3
+    assert [image.entry.digest for image in load_annotations(manifest)] == [
+        "1" * 64,
+        "2" * 64,
+    ]
+    assert len(complete) == 1
+    annotation = complete[0].annotation
+    assert complete[0].entry.extension == ".jpg"
+    assert annotation.digest == "1" * 64
+    assert annotation.boxes[0].center == (14.0, 23.0)
+    assert annotation.revision == 3
 
 
 def test_shared_annotation_contract() -> None:
-    annotation = load_annotation(CONTRACT_FIXTURE, CONTRACT_FIXTURE.parent)
+    annotation = parse_annotation(
+        json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
+    )
 
-    assert annotation.source == Path("images/set/example.jpg")
+    assert annotation.digest == "c" * 64
     assert annotation.status == "complete"
     assert len(annotation.boxes) == 1
 
 
-def test_unversioned_annotation_is_rejected(tmp_path: Path) -> None:
-    data_root = tmp_path / "data"
-    label = data_root / "labels" / "unversioned.json"
-    payload = _payload("images/unversioned.jpg")
+def test_label_must_describe_its_manifest_image(tmp_path: Path) -> None:
+    manifest = write_manifest(
+        tmp_path,
+        "batch",
+        [manifest_entry("1" * 64, label=annotation_document("2" * 64))],
+    )
+    with pytest.raises(ValueError, match="differs from its image"):
+        load_annotations(manifest)
+
+
+def test_manifest_rejects_unsupported_image_extensions(tmp_path: Path) -> None:
+    manifest = write_manifest(
+        tmp_path, "batch", [manifest_entry("1" * 64, extension=".webp")]
+    )
+    with pytest.raises(ValueError, match=r"images\[0\].extension must be one of"):
+        load_annotations(manifest)
+
+
+def test_unversioned_annotation_is_rejected() -> None:
+    payload = annotation_document("1" * 64)
     del payload["schemaVersion"]
-    _write(label, payload)
 
     with pytest.raises(ValueError, match="missing schemaVersion"):
-        load_annotation(label, data_root)
+        parse_annotation(payload)
 
 
-def test_annotation_schema_rejects_unknown_fields_and_escaping_paths(
-    tmp_path: Path,
-) -> None:
-    data_root = tmp_path / "data"
-    label = data_root / "labels" / "bad.json"
-    payload = _payload("images/a.jpg")
+def test_annotation_schema_rejects_unknown_fields_and_invalid_identities() -> None:
+    payload = annotation_document("1" * 64)
     payload["unexpected"] = True
-    _write(label, payload)
     with pytest.raises(ValueError, match="unknown unexpected"):
-        load_annotation(label, data_root)
+        parse_annotation(payload)
 
-    _write(label, _payload("../outside.jpg"))
-    with pytest.raises(ValueError, match="escapes the data root"):
-        load_annotation(label, data_root)
+    with pytest.raises(ValueError, match="annotation.image.digest must be a SHA-256"):
+        parse_annotation(annotation_document("images/a.jpg"))
 
-    payload = _payload("images/a.jpg", "excluded")
+    payload = annotation_document("1" * 64, status="excluded")
     payload["excludedReason"] = ""
-    _write(label, payload)
-    with pytest.raises(ValueError, match="non-empty string"):
-        load_annotation(label, data_root)
+    with pytest.raises(ValueError, match="excludedReason must be a non-empty string"):
+        parse_annotation(payload)
+
+    payload = annotation_document(
+        "1" * 64, [{"x": 95, "y": 20, "width": 8, "height": 6}]
+    )
+    with pytest.raises(ValueError, match=r"instances\[0\].bbox exceeds image bounds"):
+        parse_annotation(payload)

@@ -13,8 +13,11 @@ export const Route = createFileRoute("/api/datasets/$dataset/images")({
             .filter(
               (value): value is File => value instanceof File && value.size > 0,
             );
-          const added = await addImages(params.dataset, files);
-          return Response.json({ added: added.map((image) => image.stem) });
+          const { added, existing } = await addImages(params.dataset, files);
+          return Response.json({
+            added: added.map((image) => image.digest),
+            existing: existing.map((image) => image.digest),
+          });
         } catch (error) {
           return Response.json(
             { error: error instanceof Error ? error.message : String(error) },

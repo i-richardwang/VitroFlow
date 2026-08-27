@@ -16,7 +16,7 @@ describe("annotation contract", () => {
       JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8")),
     );
 
-    expect(document.image.path).toBe("images/set/example.jpg");
+    expect(document.image.digest).toBe("c".repeat(64));
     expect(document.status).toBe("complete");
     expect(document.instances).toHaveLength(1);
   });

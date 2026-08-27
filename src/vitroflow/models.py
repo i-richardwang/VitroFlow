@@ -43,7 +43,8 @@ class QualityReport:
 
 @dataclass(frozen=True)
 class CountResult:
-    source: Path
+    path: Path
+    digest: str
     width: int
     height: int
     detections: list[SeedDetection]
@@ -58,8 +59,12 @@ class CountResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "source": str(self.source),
-            "image": {"width": self.width, "height": self.height},
+            "path": str(self.path),
+            "image": {
+                "digest": self.digest,
+                "width": self.width,
+                "height": self.height,
+            },
             "count": self.count,
             "quality": self.quality.to_dict(),
             "dish": {

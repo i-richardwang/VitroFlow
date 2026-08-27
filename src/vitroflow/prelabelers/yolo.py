@@ -183,7 +183,7 @@ class YoloPrelabeler:
         return self._model
 
     def predict(
-        self, image_path: Path, source: Path, producer: PredictionProducer
+        self, image_path: Path, digest: str, producer: PredictionProducer
     ) -> PrelabelResult:
         options: dict[str, object] = {
             "source": str(image_path),
@@ -224,7 +224,7 @@ class YoloPrelabeler:
                     )
                 )
         return PrelabelResult(
-            source=source,
+            digest=digest,
             width=width,
             height=height,
             producer=producer,

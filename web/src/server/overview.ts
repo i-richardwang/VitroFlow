@@ -65,13 +65,13 @@ async function reviewedSinceLastRun(
     : null;
   const captured = new Set(
     snapshot?.images.map(
-      (image) => `${image.source}#${image.annotation.revision}`,
+      (image) => `${image.digest}#${image.annotation.revision}`,
     ) ?? [],
   );
   return records.filter(
     ({ image, label }) =>
       label?.status === "complete" &&
-      !captured.has(`${image.source}#${label.revision}`),
+      !captured.has(`${image.digest}#${label.revision}`),
   ).length;
 }
 

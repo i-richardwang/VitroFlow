@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import os
 import socket
 import sys
@@ -16,12 +15,24 @@ from typing import Any
 
 import httpx
 
-from .annotations import BoundingBox
+from .annotations import ReviewedImage, parse_annotation
+from .documents import (
+    as_digest,
+    as_extension,
+    as_list,
+    as_object,
+    as_string,
+    expect_fields,
+    expect_schema_version,
+)
 from .identifiers import IDENTIFIER
+from .image_io import verify_digest
+from .manifest import as_split
 from .worker_runtime import health_server
 from .yolo import DatasetImage, export_dataset_images, train_yolo_detector
 
 WORKER_ERRORS = (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError)
+SNAPSHOT_SCHEMA_VERSION = 1
 
 
 class TrainingArtifactRejectedError(RuntimeError):
@@ -39,6 +50,62 @@ class TrainingJob:
     @property
     def run_id(self) -> str:
         return str(self.run["id"])
+
+
+@dataclass(frozen=True)
+class SnapshotImage:
+    digest: str
+    extension: str
+    split: str
+    annotation: ReviewedImage
+
+
+@dataclass(frozen=True)
+class TrainingSnapshot:
+    id: str
+    dataset_id: str
+    model_id: str
+    images: tuple[SnapshotImage, ...]
+
+
+def _snapshot_image(value: Any, context: str) -> SnapshotImage:
+    entry = as_object(value, context)
+    expect_fields(entry, {"digest", "extension", "split", "annotation"}, context)
+    digest = as_digest(entry["digest"], f"{context}.digest")
+    annotation = parse_annotation(entry["annotation"], f"{context}.annotation")
+    if annotation.digest != digest:
+        raise ValueError(f"{context}.annotation describes another image")
+    if annotation.status != "complete":
+        raise ValueError(f"{context}.annotation is not complete")
+    return SnapshotImage(
+        digest=digest,
+        extension=as_extension(entry["extension"], f"{context}.extension"),
+        split=as_split(entry["split"], f"{context}.split"),
+        annotation=annotation,
+    )
+
+
+def parse_training_snapshot(value: Any, context: str = "snapshot") -> TrainingSnapshot:
+    document = as_object(value, context)
+    expect_fields(
+        document,
+        {"schemaVersion", "id", "datasetId", "modelId", "createdAt", "images"},
+        context,
+    )
+    expect_schema_version(document, "schemaVersion", SNAPSHOT_SCHEMA_VERSION, context)
+    images = tuple(
+        _snapshot_image(raw, f"{context}.images[{index}]")
+        for index, raw in enumerate(as_list(document["images"], f"{context}.images"))
+    )
+    digests = [image.digest for image in images]
+    if len(set(digests)) != len(digests):
+        raise ValueError(f"{context} lists an image digest more than once")
+    return TrainingSnapshot(
+        id=as_string(document["id"], f"{context}.id"),
+        dataset_id=as_string(document["datasetId"], f"{context}.datasetId"),
+        model_id=as_string(document["modelId"], f"{context}.modelId"),
+        images=images,
+    )
 
 
 class TrainingWorkerClient:
@@ -111,7 +178,7 @@ class TrainingWorkerClient:
             raise TypeError("Training claim response is invalid")
         return TrainingJob(document["run"])
 
-    def snapshot(self, run_id: str) -> dict[str, Any]:
+    def snapshot(self, run_id: str) -> TrainingSnapshot:
         response = self._request(
             "GET",
             f"api/training/runs/{run_id}/snapshot",
@@ -120,10 +187,7 @@ class TrainingWorkerClient:
         if response.status_code == 409:
             raise TrainingLeaseLostError(response.text)
         response.raise_for_status()
-        document = response.json()
-        if not isinstance(document, dict):
-            raise TypeError("Training snapshot response is invalid")
-        return document
+        return parse_training_snapshot(response.json())
 
     def progress(self, run_id: str, phase: str, progress: float) -> None:
         response = self._request(
@@ -139,19 +203,16 @@ class TrainingWorkerClient:
             raise TrainingLeaseLostError(response.text)
         response.raise_for_status()
 
-    def image(self, run_id: str, index: int, expected_digest: str) -> bytes:
+    def image(self, run_id: str, digest: str) -> bytes:
         response = self._request(
             "GET",
-            f"api/training/runs/{run_id}/images/{index}",
+            f"api/training/runs/{run_id}/images/{digest}",
             params={"workerId": self.worker_id},
         )
         if response.status_code == 409:
             raise TrainingLeaseLostError(response.text)
         response.raise_for_status()
-        contents = response.content
-        if hashlib.sha256(contents).hexdigest() != expected_digest:
-            raise ValueError(f"Training image {index} failed digest verification")
-        return contents
+        return verify_digest(response.content, digest)
 
     def artifact(self, run_id: str, weights: Path, inference: Path) -> None:
         response = self._request(
@@ -191,47 +252,27 @@ def materialize_snapshot(
     output: Path,
 ) -> Path:
     snapshot = client.snapshot(job.run_id)
-    images = snapshot.get("images")
-    if not isinstance(images, list) or len(images) < 2:
+    if len(snapshot.images) < 2:
         raise ValueError("Training snapshot must contain at least two images")
     downloads = output.parent / "snapshot-images"
+    downloads.mkdir(parents=True, exist_ok=True)
     dataset_images: list[DatasetImage] = []
-    splits: dict[Path, str] = {}
-    for index, entry in enumerate(images):
-        annotation = entry["annotation"]
-        image = annotation["image"]
-        artifact_path = Path(entry["artifactPath"])
-        downloaded = downloads / f"{index:06d}{artifact_path.suffix.lower()}"
-        downloaded.parent.mkdir(parents=True, exist_ok=True)
-        downloaded.write_bytes(
-            client.image(job.run_id, index, str(entry["imageDigest"]))
-        )
-        source = Path(entry["source"])
+    for image in snapshot.images:
+        downloaded = downloads / f"{image.digest}{image.extension}"
+        downloaded.write_bytes(client.image(job.run_id, image.digest))
         dataset_images.append(
             DatasetImage(
-                source=source,
-                width=int(image["width"]),
-                height=int(image["height"]),
-                boxes=tuple(
-                    BoundingBox(
-                        float(instance["bbox"]["x"]),
-                        float(instance["bbox"]["y"]),
-                        float(instance["bbox"]["width"]),
-                        float(instance["bbox"]["height"]),
-                    )
-                    for instance in annotation["instances"]
-                ),
-                revision=int(annotation["revision"]),
+                digest=image.digest,
+                extension=image.extension,
+                width=image.annotation.width,
+                height=image.annotation.height,
+                boxes=image.annotation.boxes,
+                split=image.split,
+                revision=image.annotation.revision,
                 file_path=downloaded,
             )
         )
-        splits[source] = str(entry["split"])
-    export_dataset_images(
-        dataset_images,
-        output.parent,
-        output,
-        splits=splits,
-    )
+    export_dataset_images(dataset_images, output.parent, output)
     return output / "dataset.yaml"
 
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { imageSourceSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../datasets/schema";
 import {
   fingerprintSchema,
   runtimeDescriptorSchema,
@@ -24,9 +24,9 @@ const seedInstanceSchema = z.strictObject({
 
 export const annotationSchema = z
   .strictObject({
-    schemaVersion: z.literal(2),
+    schemaVersion: z.literal(1),
     image: z.strictObject({
-      path: imageSourceSchema,
+      digest: imageDigestSchema,
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),

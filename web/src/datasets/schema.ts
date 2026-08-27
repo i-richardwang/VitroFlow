@@ -1,31 +1,34 @@
 import { z } from "zod";
 
-import { versionIdSchema } from "../inference/schema";
+import { fingerprintSchema, versionIdSchema } from "../inference/schema";
 
-/** Dataset ids are also the first segment of their image blob keys. */
 export const DATASET_NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._-]{0,79}";
 export const DATASET_NAME = new RegExp(`^${DATASET_NAME_PATTERN}$`);
 
-/** An image stem is its filename without the extension and identifies it within a dataset. */
-export const IMAGE_STEM = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,120}$/;
+/**
+ * An image is identified by the SHA-256 digest of its bytes everywhere: in
+ * the database, in blob storage, in documents, and in URLs. Datasets refer to
+ * images; they do not own them.
+ */
+export const imageDigestSchema = fingerprintSchema;
 
-export const imageSourceSchema = z
-  .string()
-  .min(1)
-  .refine(
-    (source) =>
-      source.startsWith("images/") &&
-      !source.includes("\\") &&
-      !source.split("/").includes(".."),
-    "Image source must be a relative path under images",
-  );
-
+/** One image as a member of one dataset. */
 export const imageRefSchema = z.strictObject({
   dataset: z.string().regex(DATASET_NAME),
-  stem: z.string().regex(IMAGE_STEM),
+  digest: imageDigestSchema,
 });
 
 export type ImageRef = z.infer<typeof imageRefSchema>;
+
+/**
+ * The photograph formats the workbench accepts. An image's extension names
+ * the format its bytes declare, one canonical extension per format.
+ */
+export const IMAGE_EXTENSIONS = [".jpg", ".png", ".tif"] as const;
+
+export type ImageExtension = (typeof IMAGE_EXTENSIONS)[number];
+
+export const imageExtensionSchema = z.enum(IMAGE_EXTENSIONS);
 
 export const datasetSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -37,8 +40,8 @@ export const datasetSchema = z.strictObject({
 export type Dataset = z.infer<typeof datasetSchema>;
 
 /**
- * An image's state follows from the documents attached to it: a worker's
- * prelabel, then a reviewer's label.
+ * An image's state within a dataset follows from the documents attached to
+ * it there: a worker's prelabel, then a reviewer's label.
  */
 export const IMAGE_STATES = [
   "pending",

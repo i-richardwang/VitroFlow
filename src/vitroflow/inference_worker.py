@@ -17,7 +17,9 @@ import cv2
 import httpx
 
 from .config import PipelineConfig
-from .identifiers import VERSION_ID, WORKER_ID
+from .documents import as_digest, as_extension, as_object, as_string, expect_fields
+from .identifiers import DATASET_NAME, VERSION_ID, WORKER_ID
+from .image_io import verify_digest
 from .prelabelers import (
     PredictionProducer,
     Prelabeler,
@@ -39,21 +41,24 @@ class PendingImage:
     """An image the workbench wants a prelabel for."""
 
     dataset: str
-    stem: str
-    source: str
+    digest: str
+    extension: str
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PendingImage:
-        values = []
-        for key in ("dataset", "stem", "source"):
-            value = data.get(key)
-            if not isinstance(value, str) or not value:
-                raise ValueError(f"Pending image is missing {key}")
-            values.append(value)
-        return cls(*values)
+    def parse(cls, value: Any, context: str = "pending image") -> PendingImage:
+        entry = as_object(value, context)
+        expect_fields(entry, {"dataset", "digest", "extension"}, context)
+        dataset = as_string(entry["dataset"], f"{context}.dataset")
+        if not DATASET_NAME.fullmatch(dataset):
+            raise ValueError(f"{context}.dataset is invalid")
+        return cls(
+            dataset=dataset,
+            digest=as_digest(entry["digest"], f"{context}.digest"),
+            extension=as_extension(entry["extension"], f"{context}.extension"),
+        )
 
     def to_dict(self) -> dict[str, str]:
-        return {"dataset": self.dataset, "stem": self.stem}
+        return {"dataset": self.dataset, "digest": self.digest}
 
 
 @dataclass(frozen=True)
@@ -101,7 +106,7 @@ class WorkerIdentity:
     def failure(self, image: PendingImage, error: Exception) -> dict[str, object]:
         """The prelabel document recorded when detection cannot produce a result."""
         return PrelabelFailure(
-            source=Path(image.source),
+            digest=image.digest,
             producer=self.producer,
             error=str(error)[:_ERROR_MESSAGE_LIMIT],
         ).to_dict()
@@ -160,20 +165,21 @@ class WorkerClient:
         images = response.json().get("images")
         if not isinstance(images, list):
             raise TypeError("Pending response must contain an images array")
-        return tuple(PendingImage.from_dict(item) for item in images)
+        return tuple(
+            PendingImage.parse(item, f"pending.images[{index}]")
+            for index, item in enumerate(images)
+        )
 
     def download(self, image: PendingImage) -> bytes:
-        response = self._request(
-            "GET", f"api/inference/images/{image.dataset}/{image.stem}"
-        )
+        response = self._request("GET", f"api/inference/images/{image.digest}")
         response.raise_for_status()
-        return response.content
+        return verify_digest(response.content, image.digest)
 
     def put_prelabel(self, image: PendingImage, document: dict[str, object]) -> bool:
         """Store a prelabel; False means review or a new version owns the image."""
         response = self._request(
             "PUT",
-            f"api/inference/prelabels/{image.dataset}/{image.stem}",
+            f"api/inference/prelabels/{image.dataset}/{image.digest}",
             params={"workerId": self.identity.worker_id},
             json=document,
         )
@@ -198,13 +204,9 @@ def prelabel_document(
     prelabeler: Prelabeler,
 ) -> dict[str, object]:
     try:
-        result = prelabeler.predict(
-            image_path,
-            Path(image.source),
-            identity.producer,
-        )
+        result = prelabeler.predict(image_path, image.digest, identity.producer)
     except DETECTION_ERRORS as error:
-        print(f"detection failed for {image.source}: {error}", file=sys.stderr)
+        print(f"detection failed for {image.digest}: {error}", file=sys.stderr)
         return identity.failure(image, error)
     return result.to_dict()
 
@@ -216,15 +218,14 @@ def process_image(
     prelabeler: Prelabeler,
 ) -> None:
     report_heartbeat(client, image)
-    suffix = Path(image.source).suffix.lower() or ".jpg"
-    image_path = work_dir / f"{image.dataset}-{image.stem}{suffix}"
+    image_path = work_dir / f"{image.digest}{image.extension}"
     image_path.write_bytes(client.download(image))
     try:
         document = prelabel_document(image, image_path, client.identity, prelabeler)
     finally:
         image_path.unlink(missing_ok=True)
     if client.put_prelabel(image, document):
-        print(f"prelabelled {image.source}", flush=True)
+        print(f"prelabelled {image.dataset}/{image.digest}", flush=True)
 
 
 def run_pass(

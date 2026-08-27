@@ -6,16 +6,16 @@ import pytest
 from vitroflow import count_seeds
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "images"
-MANIFEST_PATH = FIXTURE_DIR / "manifest.json"
+EXPECTED_COUNTS_PATH = FIXTURE_DIR / "expected-counts.json"
 
 
 def test_local_reference_image_counts() -> None:
-    if not MANIFEST_PATH.is_file():
-        pytest.skip("local reference manifest not available")
+    if not EXPECTED_COUNTS_PATH.is_file():
+        pytest.skip("local reference counts not available")
 
-    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    cases = manifest.get("images")
-    assert isinstance(cases, list) and cases, "manifest must contain images"
+    expected = json.loads(EXPECTED_COUNTS_PATH.read_text(encoding="utf-8"))
+    cases = expected.get("images")
+    assert isinstance(cases, list) and cases, "expected counts must list images"
 
     for case in cases:
         image_path = FIXTURE_DIR / case["file"]

@@ -11,17 +11,24 @@ import { WorkbenchTopBar } from "./WorkbenchTopBar";
 
 export function ImageWorkbench({
   image,
+  filename,
   prelabel,
   label,
 }: {
   image: ImageRef;
+  filename: string;
   prelabel: Prelabel | null;
   label: AnnotationDocument | null;
 }) {
   if (label && prelabel && !isFailure(prelabel)) {
     return (
       <div className="flex h-full flex-col">
-        <AnnotationEditor image={image} result={prelabel} label={label} />
+        <AnnotationEditor
+          image={image}
+          filename={filename}
+          result={prelabel}
+          label={label}
+        />
       </div>
     );
   }
@@ -29,6 +36,7 @@ export function ImageWorkbench({
     <div className="flex h-full flex-col">
       <WorkbenchTopBar
         image={image}
+        filename={filename}
         quality={prelabel && !isFailure(prelabel) ? prelabel.quality : null}
       />
       <div className="flex flex-1 items-center justify-center p-6">

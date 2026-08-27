@@ -1,73 +1,58 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
-import cv2
 import httpx
-import numpy as np
 import pytest
+from conftest import annotation_document, encoded_image, write_blob
 
 from vitroflow.training_worker import (
     TrainingJob,
     TrainingLeaseLostError,
     TrainingWorkerClient,
     materialize_snapshot,
+    parse_training_snapshot,
 )
 
 
-def _annotation(source: str, boxes: list[dict[str, float]]) -> dict[str, object]:
+def _snapshot(images: list[dict[str, object]]) -> dict[str, object]:
     return {
-        "schemaVersion": 2,
-        "image": {"path": source, "width": 100, "height": 80},
-        "source": {
-            "modelVersionId": "set.traditional-v1",
-            "artifactDigest": "a" * 64,
-            "runtime": {"adapter": "traditional", "fingerprint": "b" * 64},
-        },
-        "status": "complete",
-        "revision": 1,
-        "instances": [
-            {"id": str(index), "class": "seed", "bbox": box}
-            for index, box in enumerate(boxes)
-        ],
-    }
-
-
-def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> None:
-    requests: list[httpx.Request] = []
-    encoded, image_buffer = cv2.imencode(".jpg", np.zeros((80, 100, 3), dtype=np.uint8))
-    assert encoded
-    image = image_buffer.tobytes()
-    snapshot = {
         "schemaVersion": 1,
         "id": "snapshot-one",
         "datasetId": "set",
         "modelId": "set",
         "createdAt": "2026-08-27T00:00:00.000Z",
-        "images": [
-            {
-                "ref": {"dataset": "set", "stem": "a"},
-                "source": "images/set/a.jpg",
-                "artifactPath": "images/0.jpg",
-                "imageDigest": hashlib.sha256(image).hexdigest(),
-                "split": "train",
-                "annotation": _annotation(
-                    "images/set/a.jpg",
-                    [{"x": 10, "y": 20, "width": 8, "height": 6}],
-                ),
-            },
-            {
-                "ref": {"dataset": "set", "stem": "b"},
-                "source": "images/set/b.jpg",
-                "artifactPath": "images/1.jpg",
-                "imageDigest": hashlib.sha256(image).hexdigest(),
-                "split": "val",
-                "annotation": _annotation("images/set/b.jpg", []),
-            },
-        ],
+        "images": images,
     }
+
+
+def _snapshot_image(
+    digest: str, split: str, boxes: list[dict[str, float]]
+) -> dict[str, object]:
+    return {
+        "digest": digest,
+        "extension": ".jpg",
+        "split": split,
+        "annotation": annotation_document(digest, boxes),
+    }
+
+
+def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> None:
+    requests: list[httpx.Request] = []
+    images = {}
+    for variant in range(2):
+        pixels = encoded_image(variant=variant)
+        images[write_blob(tmp_path / "unused", pixels)] = pixels
+    train_digest, val_digest = images
+    snapshot = _snapshot(
+        [
+            _snapshot_image(
+                train_digest, "train", [{"x": 10, "y": 20, "width": 8, "height": 6}]
+            ),
+            _snapshot_image(val_digest, "val", []),
+        ]
+    )
     run = {
         "schemaVersion": 1,
         "id": "train-one",
@@ -92,8 +77,9 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
             return httpx.Response(200, json={"run": run})
         if request.url.path == "/api/training/runs/train-one/snapshot":
             return httpx.Response(200, json=snapshot)
-        if request.url.path.startswith("/api/training/runs/train-one/images/"):
-            return httpx.Response(200, content=image)
+        digest = request.url.path.removeprefix("/api/training/runs/train-one/images/")
+        if digest in images:
+            return httpx.Response(200, content=images[digest])
         return httpx.Response(404)
 
     client = TrainingWorkerClient(
@@ -116,13 +102,16 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         "/api/training/heartbeat",
         "/api/training/claim",
         "/api/training/runs/train-one/snapshot",
-        "/api/training/runs/train-one/images/0",
-        "/api/training/runs/train-one/images/1",
+        f"/api/training/runs/train-one/images/{train_digest}",
+        f"/api/training/runs/train-one/images/{val_digest}",
     ]
     train_image = next((tmp_path / "dataset/images/train").iterdir())
     train_label = next((tmp_path / "dataset/labels/train").iterdir())
     val_label = next((tmp_path / "dataset/labels/val").iterdir())
-    assert train_image.read_bytes() == image
+    assert train_image.name == f"{train_digest}.jpg"
+    assert train_label.name == f"{train_digest}.txt"
+    assert val_label.name == f"{val_digest}.txt"
+    assert train_image.read_bytes() == images[train_digest]
     assert train_label.read_text().strip() == (
         "0 0.14000000 0.28750000 0.08000000 0.07500000"
     )
@@ -130,6 +119,28 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     assert dataset_yaml.read_text() == (
         "train: images/train\nval: images/val\nnames:\n  0: seed\n"
     )
+
+
+def test_snapshot_parser_validates_every_image_entry() -> None:
+    snapshot = parse_training_snapshot(
+        _snapshot([_snapshot_image("1" * 64, "val", [])])
+    )
+    assert snapshot.id == "snapshot-one"
+    assert snapshot.images[0].split == "val"
+    assert snapshot.images[0].annotation.digest == "1" * 64
+
+    with pytest.raises(ValueError, match="snapshot.schemaVersion must be 1"):
+        parse_training_snapshot({**_snapshot([]), "schemaVersion": 99})
+    with pytest.raises(ValueError, match=r"images\[0\].split must be train or val"):
+        parse_training_snapshot(_snapshot([_snapshot_image("1" * 64, "test", [])]))
+    with pytest.raises(ValueError, match=r"images\[0\].annotation describes another"):
+        parse_training_snapshot(
+            _snapshot([{**_snapshot_image("1" * 64, "val", []), "digest": "2" * 64}])
+        )
+    incomplete = _snapshot_image("1" * 64, "val", [])
+    incomplete["annotation"] = annotation_document("1" * 64, status="in_progress")
+    with pytest.raises(ValueError, match=r"images\[0\].annotation is not complete"):
+        parse_training_snapshot(_snapshot([incomplete]))
 
 
 def test_training_client_rejects_snapshot_image_corruption() -> None:
@@ -143,7 +154,7 @@ def test_training_client_rejects_snapshot_image_corruption() -> None:
     )
     try:
         with pytest.raises(ValueError, match="digest verification"):
-            client.image("train-one", 0, "a" * 64)
+            client.image("train-one", "a" * 64)
     finally:
         client.close()
 

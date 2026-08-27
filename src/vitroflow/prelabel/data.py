@@ -9,6 +9,7 @@ import numpy as np
 from ..annotations import BoundingBox, ReviewedImage
 from ..candidates import FEATURE_NAMES, CandidateEvidence
 from ..config import PipelineConfig
+from ..manifest import verified_blob
 from ..pipeline import analyze_candidates
 from ..proposals import SeedProposal
 
@@ -84,11 +85,11 @@ def _prepare_image(
     data_root: str | Path,
     config: PipelineConfig,
 ) -> PreparedImage:
-    analysis = analyze_candidates(annotation.image_path(data_root), config)
+    analysis = analyze_candidates(verified_blob(data_root, annotation.digest), config)
     height, width = analysis.image.shape[:2]
     if (width, height) != (annotation.width, annotation.height):
         raise ValueError(
-            f"Image dimensions differ from annotation for {annotation.source}: "
+            f"Image dimensions differ from annotation for {annotation.digest}: "
             f"{width}x{height} != {annotation.width}x{annotation.height}"
         )
     proposals = tuple(analysis.proposals)

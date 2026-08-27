@@ -4,8 +4,8 @@ import type { AnnotationDocument } from "./schema";
 import { ReviewTransitionError, transition } from "./status";
 
 const base: AnnotationDocument = {
-  schemaVersion: 2,
-  image: { path: "images/set/a.jpg", width: 100, height: 100 },
+  schemaVersion: 1,
+  image: { digest: "0".repeat(64), width: 100, height: 100 },
   source: {
     modelVersionId: "set.traditional-v1",
     artifactDigest: "a".repeat(64),

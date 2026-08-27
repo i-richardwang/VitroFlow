@@ -4,6 +4,7 @@ from .bootstrap import export_prelabel_yolo_dataset
 from .dataset import (
     DatasetImage,
     YoloDatasetManifest,
+    assign_splits,
     export_dataset_images,
     export_yolo_dataset,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "DatasetImage",
     "YoloDatasetManifest",
     "YoloTrainingResult",
+    "assign_splits",
     "export_dataset_images",
     "export_prelabel_yolo_dataset",
     "export_yolo_dataset",

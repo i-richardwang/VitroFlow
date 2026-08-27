@@ -10,7 +10,7 @@ from .config import PipelineConfig
 from .detection import DetectionResult, detect_seeds
 from .geometry import DishGeometry, estimate_geometry
 from .identity import ExecutionIdentity
-from .image_io import read_image
+from .image_io import image_digest, read_image
 from .models import CountResult, QualityReport
 from .normalization import NormalizedImage, normalize_image
 from .proposals import SeedProposal, propose_seed_centers
@@ -101,7 +101,6 @@ class Recognition:
 def recognize(
     image_path: str | Path,
     *,
-    source: str | Path | None = None,
     config: PipelineConfig | None = None,
     model: CandidateModel = DEFAULT_MODEL,
 ) -> Recognition:
@@ -121,7 +120,8 @@ def recognize(
     )
     regions = render_regions(image.shape[:2], detection.detections, window_radius)
     result = CountResult(
-        source=Path(source) if source is not None else Path(image_path),
+        path=Path(image_path),
+        digest=image_digest(image_path),
         width=image.shape[1],
         height=image.shape[0],
         detections=detection.detections,
@@ -136,8 +136,7 @@ def recognize(
 def count_seeds(
     image_path: str | Path,
     *,
-    source: str | Path | None = None,
     config: PipelineConfig | None = None,
     model: CandidateModel = DEFAULT_MODEL,
 ) -> CountResult:
-    return recognize(image_path, source=source, config=config, model=model).result
+    return recognize(image_path, config=config, model=model).result

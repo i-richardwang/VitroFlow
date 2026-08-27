@@ -1,5 +1,6 @@
 import type { AnnotationDocument } from "../annotation/schema";
 import type { Prelabel } from "../detection/schema";
+import type { ImageSplit } from "../training/schema";
 import { readDataset } from "./datasets";
 import { listImageRecords } from "./summaries";
 
@@ -10,10 +11,11 @@ export interface DatasetExport {
 }
 
 interface DatasetExportImage {
-  dataset: string;
-  stem: string;
-  source: string;
   digest: string;
+  extension: string;
+  filename: string;
+  bytes: number;
+  split: ImageSplit | null;
   prelabel: Prelabel | null;
   label: AnnotationDocument | null;
 }
@@ -28,10 +30,11 @@ export async function exportDataset(
     schemaVersion: 1,
     dataset: datasetId,
     images: records.map(({ image, prelabel, label }) => ({
-      dataset: image.dataset,
-      stem: image.stem,
-      source: image.source,
       digest: image.digest,
+      extension: image.extension,
+      filename: image.filename,
+      bytes: image.bytes,
+      split: image.split,
       prelabel,
       label,
     })),

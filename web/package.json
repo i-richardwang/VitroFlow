@@ -7,7 +7,8 @@
     "build": "vite build",
     "start": "bun server.ts",
     "test": "bun test",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "images:collect": "bun scripts/collect-images.ts"
   },
   "dependencies": {
     "@heroui-pro/react": "1.0.0-beta.8",

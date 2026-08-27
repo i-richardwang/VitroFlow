@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { annotationSchema } from "../annotation/schema";
 import { imageRefSchema } from "../datasets/schema";
-import { listDatasets, removeImage } from "./datasets";
+import { listDatasets, notInDataset, removeImage } from "./datasets";
 import { createLabelFromPrelabel, updateLabel } from "./labels";
 import { discardPrelabel } from "./prelabels";
 import { readImageRecord, summarize, summarizeDataset } from "./summaries";
@@ -16,9 +16,7 @@ export const getImage = createServerFn({ method: "GET" })
   .validator(imageRefSchema)
   .handler(async ({ data }) => {
     const record = await readImageRecord(data);
-    if (!record) {
-      throw new Error(`No image ${data.stem} in dataset ${data.dataset}`);
-    }
+    if (!record) throw notInDataset(data);
     return {
       summary: summarize(record),
       prelabel: record.prelabel,

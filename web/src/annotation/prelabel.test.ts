@@ -11,7 +11,7 @@ describe("initialBoxSide", () => {
         { id: 1, x: 100, y: 100 },
         { id: 2, x: 300, y: 200 },
       ],
-      2000,
+      { dishRadius: 2000 },
     );
     expect(initialBoxSide(result)).toBe(50);
   });

@@ -1,6 +1,6 @@
 # Local image fixtures
 
-Place test images in `images/` and register their expected counts in `images/manifest.json`:
+Place test images in `images/` and register their expected counts in `images/expected-counts.json`:
 
 ```json
 {
@@ -13,4 +13,4 @@ Place test images in `images/` and register their expected counts in `images/man
 }
 ```
 
-Each `file` path is relative to `images/`. The local fixture test is skipped when the manifest is absent.
+Each `file` path is relative to `images/`. The local fixture test is skipped when the file is absent.

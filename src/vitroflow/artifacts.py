@@ -32,12 +32,11 @@ def _encode_jpeg(image: np.ndarray) -> bytes:
 
 def create_image_artifacts(
     image_path: str | Path,
-    source: str | Path,
     *,
     config: PipelineConfig | None = None,
     model: CandidateModel = DEFAULT_MODEL,
 ) -> ImageArtifacts:
-    recognition = recognize(image_path, source=source, config=config, model=model)
+    recognition = recognize(image_path, config=config, model=model)
     result = recognition.result
     result_json = (
         json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n"
@@ -53,7 +52,7 @@ def create_image_artifacts(
 def write_image_artifacts(artifacts: ImageArtifacts, output_dir: str | Path) -> None:
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
-    stem = artifacts.result.source.stem
+    stem = artifacts.result.path.stem
     (destination / f"{stem}.json").write_bytes(artifacts.result_json)
     (destination / f"{stem}_overlay.jpg").write_bytes(artifacts.overlay_jpeg)
     (destination / f"{stem}_debug.jpg").write_bytes(artifacts.debug_jpeg)

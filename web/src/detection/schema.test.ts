@@ -43,13 +43,13 @@ describe("prelabel contract", () => {
     expect(prelabelSchema.safeParse(document).success).toBe(true);
   });
 
-  test("rejects invalid scores and traversing source paths", () => {
+  test("rejects invalid scores and malformed image digests", () => {
     const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
     document.instances[0].score = 1.1;
     expect(prelabelSchema.safeParse(document).success).toBe(false);
 
     document.instances[0].score = 0.9;
-    document.source = "../example.jpg";
+    document.image.digest = "example.jpg";
     expect(prelabelSchema.safeParse(document).success).toBe(false);
   });
 });

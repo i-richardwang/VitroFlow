@@ -3,13 +3,12 @@ import { boxAround } from "./geometry";
 
 export function makeResult(
   detections: { id: number; x: number; y: number }[],
-  dishRadius = 2000,
+  { digest = "0".repeat(64), dishRadius = 2000 } = {},
 ): PrelabelResult {
-  const image = { width: 4000, height: 3000 };
+  const image = { digest, width: 4000, height: 3000 };
   const side = dishRadius * 0.025;
   return {
-    schema_version: 2,
-    source: "images/a.jpg",
+    schema_version: 1,
     image,
     producer: {
       model_version_id: "test.traditional-v1",

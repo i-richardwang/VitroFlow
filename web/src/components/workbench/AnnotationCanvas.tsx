@@ -16,7 +16,6 @@ import type {
   BoundingBox,
   SeedInstance,
 } from "../../annotation/schema";
-import type { ImageRef } from "../../datasets/schema";
 import type { PrelabelResult } from "../../detection/schema";
 import {
   CANVAS_COLORS,
@@ -59,7 +58,7 @@ const HANDLE_CURSORS: Record<Handle, string> = {
 };
 
 export function AnnotationCanvas({
-  image,
+  filename,
   result,
   annotation,
   tool,
@@ -69,7 +68,7 @@ export function AnnotationCanvas({
   onSelect,
   onInstancesChange,
 }: {
-  image: ImageRef;
+  filename: string;
   result: PrelabelResult;
   annotation: AnnotationDocument;
   tool: Tool;
@@ -257,8 +256,8 @@ export function AnnotationCanvas({
         }}
       >
         <img
-          src={`/img/${image.dataset}/${image.stem}`}
-          alt={image.stem}
+          src={`/img/${annotation.image.digest}`}
+          alt={filename}
           width={width}
           height={height}
           draggable={false}
