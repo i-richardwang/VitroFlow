@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
@@ -38,6 +38,7 @@ class DatasetImage:
     height: int
     boxes: tuple[BoundingBox, ...]
     revision: int | None = None
+    file_path: Path | None = None
 
 
 def _export_name(image: DatasetImage) -> str:
@@ -71,6 +72,15 @@ def _source_image(data_root: Path, source: Path) -> Path:
     return candidate
 
 
+def _image_file(image: DatasetImage, data_root: Path) -> Path:
+    if image.file_path is None:
+        return _source_image(data_root, image.source)
+    file_path = image.file_path.resolve()
+    if not file_path.is_file():
+        raise FileNotFoundError(file_path)
+    return file_path
+
+
 def _validation_sources(
     images: Sequence[DatasetImage], validation_fraction: float, seed: int
 ) -> set[Path]:
@@ -91,6 +101,7 @@ def export_dataset_images(
     *,
     validation_fraction: float = 0.2,
     seed: int = 0,
+    splits: Mapping[Path, str] | None = None,
 ) -> YoloDatasetManifest:
     """Publish a self-contained one-class YOLO dataset atomically."""
     if len(images) < 2:
@@ -102,13 +113,23 @@ def export_dataset_images(
         raise ValueError("Validation fraction must be between zero and one")
 
     root = Path(data_root).resolve()
-    validation = _validation_sources(images, validation_fraction, seed)
+    if splits is None:
+        validation = _validation_sources(images, validation_fraction, seed)
+    else:
+        if set(splits) != set(sources):
+            raise ValueError("Explicit YOLO splits must cover every image exactly once")
+        if any(split not in {"train", "val"} for split in splits.values()):
+            raise ValueError("YOLO split must be train or val")
+        if set(splits.values()) != {"train", "val"}:
+            raise ValueError("YOLO dataset requires both train and val images")
+        validation = {source for source, split in splits.items() if split == "val"}
+        validation_fraction = len(validation) / len(images)
     manifest_images: list[YoloManifestImage] = []
 
     with atomic_directory(output_dir) as working:
         for image in sorted(images, key=lambda item: item.source.as_posix()):
             split = "val" if image.source in validation else "train"
-            source = _source_image(root, image.source)
+            source = _image_file(image, root)
             pixels = read_image(source)
             height, width = pixels.shape[:2]
             if (width, height) != (image.width, image.height):

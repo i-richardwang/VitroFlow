@@ -1,17 +1,21 @@
 # VitroFlow
 
-VitroFlow turns petri-dish photographs into reviewed seed bounding boxes. It combines a Web annotation workbench, a compute Worker, a traditional-vision prelabel pipeline, and dataset export for detector training.
+VitroFlow turns petri-dish photographs into reviewed seed bounding boxes. The Web workbench is the control plane; independent inference and training Workers may run on different machines.
 
 ## System workflow
 
 ```text
 Upload a dataset of images in the workbench
           ↓
-Worker prelabels every pending image
+Inference Worker prelabels every pending image
           ↓
 Reviewer completes box annotations
-          ├──→ retrain and evaluate candidate scoring
-          └──→ export a YOLO detection dataset
+          ↓
+Server freezes a DatasetSnapshot and queues a TrainingRun
+          ↓
+Training Worker fine-tunes and validates YOLO26
+          ↓
+Server publishes a candidate ModelVersion
 ```
 
 The data directory is the shared contract between these stages:
@@ -24,10 +28,20 @@ data/
 ├── datasets/<dataset>.json          Dataset and selected ModelVersion
 ├── models/<model-id>.json           stable logical Model definitions
 ├── model-versions/<version-id>.json immutable executable ModelVersions
-└── workers/<worker-id>.json         latest heartbeat from each Worker
+├── inference-workers/               inference process heartbeats
+├── training-workers/                training process heartbeats
+├── dataset-splits/                  stable train/validation assignments
+├── dataset-snapshots/               immutable reviewed training inputs
+├── training-runs/                   leased training state machines
+├── training-staging/                durable unpublished model artifacts
+└── model-artifacts/                 server-published YOLO weights and settings
 ```
 
-A Dataset belongs to one stable logical Model and selects one immutable ModelVersion. Each ModelVersion contains the shared prelabeler identity needed to execute it, whether its implementation is traditional vision or YOLO. Workers only receive images from Datasets that selected the exact version they provide; an online but unselected Worker cannot replace another version's results. An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel that carries an `error` key marks it `failed`; a prelabel result makes it `prelabeled`; once a label exists the label's `status` applies and the prelabel is never modified again. Changing a Dataset's selection makes its unlabelled images pending for the newly selected version.
+A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions for prelabelling. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
+
+JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
+
+An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
 
 An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
 
@@ -54,7 +68,7 @@ uv run vitroflow recognize data/images/fixtures \
   --config config/pipeline.json
 ```
 
-## Workbench and Worker
+## Workbench and inference Worker
 
 Start the annotation workbench for local development:
 
@@ -68,37 +82,36 @@ Uploading images to a dataset is all it takes to request prelabels. The Worker p
 
 ```bash
 export VITROFLOW_SERVER_URL=https://vitroflow.example.com
-export VITROFLOW_WORKER_TOKEN=<worker-secret>
-uv run vitroflow-worker
+export VITROFLOW_INFERENCE_WORKER_TOKEN=<inference-secret>
+uv run vitroflow-inference-worker \
+  --model-version-id <dataset>.traditional-v1
 ```
 
-Use `--model` and `--config` to configure the built-in traditional prelabeler. They are loaded once at Worker startup and determine its content fingerprint. `--version-id` names that immutable configuration and defaults to `traditional-v1`; the server rejects the same version id if it later appears with different contents. `--model-id` identifies the stable logical Model and defaults to `seed-detector`.
+Use `--model` and `--config` to configure the traditional adapter. The supplied `--model-version-id` must already exist on the Server and its registered artifact digest must match the adapter. A heartbeat verifies this deployment; it never creates a ModelVersion.
 
-To serve a validated YOLO run, install the YOLO dependency group and point the same Worker at the run directory. Its `inference.json` fixes the weights, confidence, image size, detection limit, and YOLO26 head used during validation:
+To serve a published YOLO version, install the YOLO dependency group. The Worker downloads and verifies the registered weights and inference settings over HTTP before it heartbeats:
 
 ```bash
-uv sync --group train
-uv run --group train vitroflow-worker \
-  --model-id seed-detector \
-  --version-id seed-yolo-v1 \
-  --yolo-run output/yolo/train-seed-small \
+uv sync --group yolo
+uv run --group yolo vitroflow-inference-worker \
+  --model-version-id <dataset>.<training-run> \
   --device mps
 ```
 
 The Worker depends only on the common box-first prelabeler contract, so both implementations use the same review API. `--once` runs a single pass over the pending images and exits.
 
-The Worker protocol has four calls under the workbench URL, each authenticated with `Authorization: Bearer <token>`:
+The inference protocol uses a dedicated credential:
 
 | Call | Purpose |
 |---|---|
-| `POST api/worker/heartbeat` | registers the immutable ModelVersion and reports Worker state |
-| `GET api/worker/pending?worker_id=<id>` | images assigned by Dataset selection to the version registered by that Worker |
-| `GET api/worker/images/<dataset>/<stem>` | source image bytes |
-| `PUT api/worker/prelabels/<dataset>/<stem>` | prelabel document; `409` when review owns the image or the Dataset selection changed |
+| `POST api/inference/heartbeat` | verifies a published deployment and reports runtime state |
+| `GET api/inference/pending?workerId=<id>` | images assigned to that exact artifact |
+| `GET api/inference/images/<dataset>/<stem>` | source image bytes |
+| `PUT api/inference/prelabels/<dataset>/<stem>?workerId=<id>` | versioned prelabel document |
 
 Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `source`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations have explicit schema versions and are parsed against one current contract rather than runtime compatibility fallbacks. Prelabels are JSON only; rendered views belong to local recognition.
 
-The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
+The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_INFERENCE_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
 
 The workbench reads `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`). For a container deployment:
 
@@ -106,16 +119,33 @@ The workbench reads `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`
 docker compose up --build
 ```
 
-`compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench; `VITROFLOW_WORKER_TOKEN` is the separate Worker credential.
+`compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench. `VITROFLOW_INFERENCE_WORKER_TOKEN` and `VITROFLOW_TRAINING_WORKER_TOKEN` are independent machine credentials.
 
-To deploy the Worker to an arm64 Wonder Mesh server on Zeabur, create another GitHub service from this repository and name the service `worker`. Zeabur selects `Dockerfile.worker` by service name. Configure one replica with:
+Build inference deployments with `Dockerfile.inference` and configure:
 
 ```env
 VITROFLOW_SERVER_URL=https://vitroflow.example.com
-VITROFLOW_WORKER_TOKEN=<worker-secret>
+VITROFLOW_INFERENCE_WORKER_TOKEN=<inference-secret>
+VITROFLOW_INFERENCE_MODEL_VERSION_ID=<published-version-id>
+VITROFLOW_INFERENCE_DEVICE=cuda:0
 ```
 
-The container serves `/healthz` on Zeabur's `PORT`. Keep the Worker private; its only application traffic is outbound to the workbench API.
+The container serves `/healthz` on the platform `PORT`. It needs no shared data volume; all inputs and outputs travel through authenticated HTTP.
+
+## Training Worker
+
+The workbench creates a TrainingRun only from `complete` annotations. The Server copies images and annotations into a full-SHA-256 content-addressed DatasetSnapshot, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
+
+Every TrainingRun pins the base-weight digest, training configuration digest, and Ultralytics version. The Worker verifies all three before training. It then uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. Only the Server publishes the resulting candidate ModelVersion; an interrupted `publishing` state is reconciled before the next claim, and publication never changes the Dataset selection automatically.
+
+```bash
+uv sync --group yolo
+export VITROFLOW_SERVER_URL=https://vitroflow.example.com
+export VITROFLOW_TRAINING_WORKER_TOKEN=<training-secret>
+uv run --group yolo vitroflow-training-worker --device cuda:0
+```
+
+Build a remote training deployment with `Dockerfile.training`. Training and inference devices are intentionally independent; neither Worker requires the Server's filesystem.
 
 ## Prelabel workflow
 
@@ -178,9 +208,9 @@ Install the separate training dependencies and run the documented small-dataset
 fine-tuning recipe through the Ultralytics Python API:
 
 ```bash
-uv sync --group train
+uv sync --group yolo
 
-uv run --group train python scripts/train_yolo.py \
+uv run --group yolo python scripts/train_yolo.py \
   --data output/yolo/prelabels-smoke/dataset.yaml \
   --output output/yolo/train-seed-small \
   --model yolo26n.pt \
@@ -279,19 +309,21 @@ src/vitroflow/
 │   ├── runtime.py    Lazy Ultralytics runtime loading
 │   └── training.py   Ultralytics training and validation
 ├── cli.py            Local workflows
-└── worker.py         Remote prelabel execution
+├── inference_worker.py Remote prelabel execution
+├── training_worker.py  Remote YOLO training execution
+└── worker_runtime.py   Shared process health endpoint
 
 web/src/
 ├── datasets/         Dataset and image identity, derived image states
 ├── models/           Logical Model and immutable ModelVersion contracts
 ├── detection/        Prelabel document contract
-├── prelabelers/      Executable-version identity contract
+├── inference/        Runtime and inference heartbeat contracts
+├── training/         DatasetSnapshot and TrainingRun contracts
 ├── annotation/       Box annotation domain
-├── workers/          Worker heartbeat contract
 ├── components/       Review workbench UI
 ├── hooks/            Annotation persistence and history
 ├── routes/           Pages, image delivery, and Worker API
-└── server/           Datasets, prelabels, labels, and Worker presence
+└── server/           Control plane, leases, artifacts, and Worker presence
 ```
 
 ## Development

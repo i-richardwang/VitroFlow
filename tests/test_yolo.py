@@ -14,8 +14,10 @@ def _annotation(source: str) -> ReviewedImage:
         source=Path(source),
         width=100,
         height=80,
-        prelabeler_version_id="traditional-test",
-        prelabeler_fingerprint="b" * 64,
+        model_version_id="batch.traditional-v1",
+        artifact_digest="a" * 64,
+        runtime_adapter="traditional",
+        runtime_fingerprint="b" * 64,
         status="complete",
         revision=2,
         boxes=(BoundingBox(10, 20, 20, 10),),
@@ -79,14 +81,16 @@ def test_yolo_export_discards_an_invalid_dataset(tmp_path: Path) -> None:
 
 def _prelabel_payload(source: str) -> dict:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": source,
         "image": {"width": 1000, "height": 800},
         "producer": {
-            "version_id": "traditional-test",
-            "name": "Traditional test",
-            "kind": "traditional",
-            "fingerprint": "b" * 64,
+            "model_version_id": "batch.traditional-v1",
+            "artifact_digest": "a" * 64,
+            "runtime": {
+                "adapter": "traditional",
+                "fingerprint": "b" * 64,
+            },
         },
         "instances": [
             {
@@ -115,7 +119,7 @@ def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) ->
     (prelabels / "c.json").write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "source": "images/batch/c.jpg",
                 "producer": _prelabel_payload("images/batch/c.jpg")["producer"],
                 "error": "dish not found",
@@ -150,7 +154,7 @@ def test_prelabel_export_rejects_an_unversioned_document(tmp_path: Path) -> None
         (prelabels / f"{name}.json").write_text(json.dumps(payload), encoding="utf-8")
 
     output = tmp_path / "yolo"
-    with pytest.raises(ValueError, match="schema_version must be 1"):
+    with pytest.raises(ValueError, match="schema_version must be 2"):
         export_prelabel_yolo_dataset(prelabels, data_root, output)
 
     assert not output.exists()

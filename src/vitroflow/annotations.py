@@ -35,8 +35,10 @@ class ReviewedImage:
     source: Path
     width: int
     height: int
-    prelabeler_version_id: str
-    prelabeler_fingerprint: str
+    model_version_id: str
+    artifact_digest: str
+    runtime_adapter: str
+    runtime_fingerprint: str
     status: str
     revision: int
     boxes: tuple[BoundingBox, ...]
@@ -144,7 +146,7 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         "instances",
     }
     _fields(payload, required, str(annotation_path), {"excludedReason"})
-    if isinstance(payload["schemaVersion"], bool) or payload["schemaVersion"] != 1:
+    if isinstance(payload["schemaVersion"], bool) or payload["schemaVersion"] != 2:
         raise ValueError("Unsupported annotation schemaVersion")
 
     image = _object(payload["image"], "image")
@@ -164,19 +166,23 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
     source = _object(payload["source"], "source")
     _fields(
         source,
-        {"prelabelerVersionId", "prelabelerFingerprint"},
+        {"modelVersionId", "artifactDigest", "runtime"},
         "source",
     )
-    prelabeler_version_id = _string(
-        source["prelabelerVersionId"], "source.prelabelerVersionId"
-    )
-    prelabeler_fingerprint = _string(
-        source["prelabelerFingerprint"], "source.prelabelerFingerprint"
-    )
-    if not _VERSION_ID.fullmatch(prelabeler_version_id):
-        raise ValueError("source.prelabelerVersionId is invalid")
-    if not _FINGERPRINT.fullmatch(prelabeler_fingerprint):
-        raise ValueError("source.prelabelerFingerprint must be a SHA-256 fingerprint")
+    model_version_id = _string(source["modelVersionId"], "source.modelVersionId")
+    artifact_digest = _string(source["artifactDigest"], "source.artifactDigest")
+    runtime = _object(source["runtime"], "source.runtime")
+    _fields(runtime, {"adapter", "fingerprint"}, "source.runtime")
+    runtime_adapter = _string(runtime["adapter"], "source.runtime.adapter")
+    runtime_fingerprint = _string(runtime["fingerprint"], "source.runtime.fingerprint")
+    if not _VERSION_ID.fullmatch(model_version_id):
+        raise ValueError("source.modelVersionId is invalid")
+    if not _FINGERPRINT.fullmatch(artifact_digest):
+        raise ValueError("source.artifactDigest must be a SHA-256 digest")
+    if not _VERSION_ID.fullmatch(runtime_adapter):
+        raise ValueError("source.runtime.adapter is invalid")
+    if not _FINGERPRINT.fullmatch(runtime_fingerprint):
+        raise ValueError("source.runtime.fingerprint must be a SHA-256 fingerprint")
 
     status = _string(payload["status"], "status")
     if status not in _STATUSES:
@@ -206,8 +212,10 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
         source=source_path,
         width=image_width,
         height=image_height,
-        prelabeler_version_id=prelabeler_version_id,
-        prelabeler_fingerprint=prelabeler_fingerprint,
+        model_version_id=model_version_id,
+        artifact_digest=artifact_digest,
+        runtime_adapter=runtime_adapter,
+        runtime_fingerprint=runtime_fingerprint,
         status=status,
         revision=_integer(payload["revision"], "revision"),
         boxes=tuple(boxes),

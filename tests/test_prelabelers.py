@@ -8,10 +8,11 @@ import pytest
 from vitroflow.annotations import BoundingBox
 from vitroflow.config import DecisionConfig, PipelineConfig
 from vitroflow.prelabelers import (
-    PrelabelerDescriptor,
+    PredictionProducer,
     PrelabelInstance,
     PrelabelQuality,
     PrelabelResult,
+    RuntimeDescriptor,
     TraditionalPrelabeler,
     load_prelabel_document,
     parse_prelabel_document,
@@ -19,6 +20,21 @@ from vitroflow.prelabelers import (
 from vitroflow.scoring import DEFAULT_MODEL
 
 CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "prelabel.json"
+PRODUCER = PredictionProducer(
+    model_version_id="set.traditional-v1",
+    artifact_digest="a" * 64,
+    runtime=RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64),
+)
+
+
+def test_traditional_manifest_matches_the_default_artifact() -> None:
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "configs/traditional-v1.json").read_text())
+    assert manifest == {
+        "schemaVersion": 1,
+        "definition": "traditional-v1",
+        "artifactDigest": TraditionalPrelabeler().artifact_digest,
+    }
 
 
 def test_shared_prelabel_contract() -> None:
@@ -26,16 +42,10 @@ def test_shared_prelabel_contract() -> None:
         source=Path("images/set/example.jpg"),
         width=100,
         height=80,
-        producer=PrelabelerDescriptor(
-            version_id="traditional-test",
-            name="Traditional test",
-            kind="traditional",
-            fingerprint="b" * 64,
-        ),
+        producer=PRODUCER,
         instances=(PrelabelInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9),),
         quality=PrelabelQuality("ok"),
     ).to_dict()
-
     fixture = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     assert document == fixture
     assert load_prelabel_document(CONTRACT_FIXTURE).to_dict() == fixture
@@ -44,7 +54,6 @@ def test_shared_prelabel_contract() -> None:
 def test_parser_rejects_unknown_contract_fields() -> None:
     document = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     document["unexpected"] = True
-
     with pytest.raises(ValueError, match="unknown unexpected"):
         parse_prelabel_document(document)
 
@@ -52,6 +61,9 @@ def test_parser_rejects_unknown_contract_fields() -> None:
 def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
     config = PipelineConfig()
     prelabeler = TraditionalPrelabeler(config, DEFAULT_MODEL)
+    producer = PredictionProducer(
+        "set.traditional-v1", prelabeler.artifact_digest, prelabeler.runtime
+    )
     result = SimpleNamespace(
         source=Path("images/set/a.jpg"),
         width=100,
@@ -60,10 +72,7 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
         dish_center=(50.0, 40.0),
         detections=[SimpleNamespace(detection_id=3, x=10.0, y=12.0, score=0.91)],
         quality=SimpleNamespace(
-            status="ok",
-            warnings=(),
-            clipped_fraction=0.01,
-            focus_score=20.0,
+            status="ok", warnings=(), clipped_fraction=0.01, focus_score=20.0
         ),
     )
     monkeypatch.setattr(
@@ -71,9 +80,11 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
         lambda *args, **kwargs: result,
     )
 
-    document = prelabeler.predict(Path("a.jpg"), Path("images/set/a.jpg")).to_dict()
+    document = prelabeler.predict(
+        Path("a.jpg"), Path("images/set/a.jpg"), producer
+    ).to_dict()
 
-    assert document["producer"] == prelabeler.descriptor.to_dict()
+    assert document["producer"] == producer.to_dict()
     assert document["instances"] == [
         {
             "id": "3",
@@ -92,21 +103,14 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
     }
 
 
-def test_traditional_configuration_is_part_of_the_version_identity() -> None:
+def test_traditional_artifact_identity_covers_model_and_configuration() -> None:
     baseline = TraditionalPrelabeler()
     changed = TraditionalPrelabeler(
         PipelineConfig(decision=DecisionConfig(confidence_threshold=0.5)),
         DEFAULT_MODEL,
     )
-
-    assert changed.descriptor.version_id == baseline.descriptor.version_id
-    assert changed.descriptor.fingerprint != baseline.descriptor.fingerprint
-
-
-def test_explicit_traditional_version_id_is_preserved() -> None:
-    prelabeler = TraditionalPrelabeler(version_id="traditional-calibrated-v2")
-
-    assert prelabeler.descriptor.version_id == "traditional-calibrated-v2"
+    assert changed.artifact_digest != baseline.artifact_digest
+    assert changed.runtime.adapter == baseline.runtime.adapter == "traditional"
 
 
 @pytest.mark.parametrize(
@@ -130,30 +134,24 @@ def test_contract_rejects_values_the_web_cannot_accept(factory, message) -> None
 
 
 def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
-    descriptor = PrelabelerDescriptor(
-        version_id="traditional-test",
-        name="Traditional test",
-        kind="traditional",
-        fingerprint="b" * 64,
-    )
-    instance = PrelabelInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
+    outside = PrelabelInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="exceeds image bounds"):
         PrelabelResult(
-            source=Path("images/set/example.jpg"),
-            width=100,
-            height=80,
-            producer=descriptor,
-            instances=(instance,),
-            quality=PrelabelQuality("ok"),
+            Path("images/set/example.jpg"),
+            100,
+            80,
+            PRODUCER,
+            (outside,),
+            PrelabelQuality("ok"),
         )
 
     instance = PrelabelInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="Duplicate"):
         PrelabelResult(
-            source=Path("images/set/example.jpg"),
-            width=100,
-            height=80,
-            producer=descriptor,
-            instances=(instance, instance),
-            quality=PrelabelQuality("ok"),
+            Path("images/set/example.jpg"),
+            100,
+            80,
+            PRODUCER,
+            (instance, instance),
+            PrelabelQuality("ok"),
         )

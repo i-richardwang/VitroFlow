@@ -8,14 +8,16 @@ export function makeResult(
   const image = { width: 4000, height: 3000 };
   const side = dishRadius * 0.025;
   return {
-    schema_version: 1,
+    schema_version: 2,
     source: "images/a.jpg",
     image,
     producer: {
-      version_id: "traditional-v1",
-      name: "m",
-      kind: "traditional",
-      fingerprint: "b".repeat(64),
+      model_version_id: "test.traditional-v1",
+      artifact_digest: "a".repeat(64),
+      runtime: {
+        adapter: "traditional",
+        fingerprint: "b".repeat(64),
+      },
     },
     quality: { status: "ok", warnings: [] },
     diagnostics: {

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -61,12 +63,23 @@ def _positive_override(value: int | None, name: str) -> int | None:
     return value
 
 
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def train_yolo_detector(
     dataset: str | Path,
     output_dir: str | Path,
     *,
     config: str | Path,
     model: str | Path = "yolo26n.pt",
+    model_digest: str,
+    config_digest: str,
+    runtime_version: str,
     device: str | None = None,
     epochs: int | None = None,
     image_size: int | None = None,
@@ -79,6 +92,14 @@ def train_yolo_detector(
     config_path = Path(config).resolve()
     if not config_path.is_file():
         raise FileNotFoundError(config_path)
+    if _file_digest(config_path) != config_digest:
+        raise ValueError("Training configuration failed digest verification")
+    installed_runtime_version = version("ultralytics")
+    if installed_runtime_version != runtime_version:
+        raise ValueError(
+            "Training runtime version differs from the immutable recipe: "
+            f"{installed_runtime_version} != {runtime_version}"
+        )
     output = Path(output_dir).resolve()
     if output.exists():
         raise FileExistsError(f"Output directory already exists: {output}")
@@ -101,7 +122,10 @@ def train_yolo_detector(
         train_options["device"] = device
 
     yolo = load_yolo()
-    trainer_model = yolo(_model_source(model, output.parent / "weights"))
+    model_source = Path(_model_source(model, output.parent / "weights"))
+    trainer_model = yolo(str(model_source))
+    if not model_source.is_file() or _file_digest(model_source) != model_digest:
+        raise ValueError("Training base model failed digest verification")
     trainer_model.train(**train_options)
     trainer = trainer_model.trainer
     save_dir = Path(trainer.save_dir)
@@ -136,6 +160,20 @@ def train_yolo_detector(
             "end2end": False,
         },
         "validation": metric_values,
+        "training": {
+            "base_model": {
+                "reference": str(model),
+                "digest": model_digest,
+            },
+            "configuration": {
+                "name": config_path.name,
+                "digest": config_digest,
+            },
+            "runtime": {
+                "framework": "ultralytics",
+                "version": installed_runtime_version,
+            },
+        },
     }
     write_text_atomically(summary_path, json.dumps(summary, indent=2) + "\n")
     return YoloTrainingResult(best_weights, summary_path, metric_values, confidence)

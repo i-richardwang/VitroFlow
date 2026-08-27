@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { boundingBoxSchema } from "../annotation/schema";
 import { imageSourceSchema } from "../datasets/schema";
-import { prelabelerDescriptorSchema } from "../prelabelers/schema";
+import { predictionProducerSchema } from "../inference/schema";
 
 const warningCodeSchema = z
   .string()
@@ -33,13 +33,13 @@ const diagnosticsSchema = z.strictObject({
 
 export const resultSchema = z
   .strictObject({
-    schema_version: z.literal(1),
+    schema_version: z.literal(2),
     source: imageSourceSchema,
     image: z.strictObject({
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
-    producer: prelabelerDescriptorSchema,
+    producer: predictionProducerSchema,
     instances: z.array(prelabelInstanceSchema),
     quality: seedQualitySchema,
     diagnostics: diagnosticsSchema.optional(),
@@ -72,9 +72,9 @@ export const resultSchema = z
   });
 
 export const failureSchema = z.strictObject({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   source: imageSourceSchema,
-  producer: prelabelerDescriptorSchema,
+  producer: predictionProducerSchema,
   error: z.string().min(1).max(2000),
 });
 

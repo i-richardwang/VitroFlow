@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,6 +7,17 @@ import pytest
 
 from vitroflow.yolo import training
 from vitroflow.yolo.training import best_f1_confidence, train_yolo_detector
+
+
+def test_seed_small_recipe_pins_its_configuration() -> None:
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "configs/yolo26/seed-small.recipe.json").read_text())
+    configuration = root / "configs/yolo26/seed-small.yaml"
+    assert manifest["schemaVersion"] == 1
+    assert manifest["recipe"]["configuration"] == {
+        "name": configuration.name,
+        "digest": hashlib.sha256(configuration.read_bytes()).hexdigest(),
+    }
 
 
 class _Metrics:
@@ -54,16 +66,23 @@ def test_training_publishes_validated_inference_settings(
             return _Metrics()
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
+    monkeypatch.setattr(training, "version", lambda _: "8.4.129")
     dataset = tmp_path / "dataset.yaml"
     dataset.write_text("train: images/train\nval: images/val\n")
     config = tmp_path / "train.yaml"
     config.write_text("epochs: 50\n")
+    model = tmp_path / "base.pt"
+    model.write_bytes(b"base-weights")
     output = tmp_path / "run"
 
     result = train_yolo_detector(
         dataset,
         output,
         config=config,
+        model=model,
+        model_digest=hashlib.sha256(model.read_bytes()).hexdigest(),
+        config_digest=hashlib.sha256(config.read_bytes()).hexdigest(),
+        runtime_version="8.4.129",
         device="mps",
         epochs=3,
         image_size=768,
@@ -96,4 +115,18 @@ def test_training_publishes_validated_inference_settings(
             "end2end": False,
         },
         "validation": {"metrics/mAP50(B)": 0.4, "fitness": 0.2},
+        "training": {
+            "base_model": {
+                "reference": str(model),
+                "digest": hashlib.sha256(model.read_bytes()).hexdigest(),
+            },
+            "configuration": {
+                "name": "train.yaml",
+                "digest": hashlib.sha256(config.read_bytes()).hexdigest(),
+            },
+            "runtime": {
+                "framework": "ultralytics",
+                "version": "8.4.129",
+            },
+        },
     }

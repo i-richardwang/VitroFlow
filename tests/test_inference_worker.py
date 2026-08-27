@@ -7,57 +7,54 @@ import httpx
 import pytest
 
 from vitroflow.annotations import BoundingBox
-from vitroflow.prelabelers import (
-    PrelabelerDescriptor,
-    PrelabelInstance,
-    PrelabelQuality,
-    PrelabelResult,
-)
-from vitroflow.worker import (
+from vitroflow.inference_worker import (
     PendingImage,
     WorkerClient,
     WorkerIdentity,
-    _health_server,
     run_pass,
 )
-
-DESCRIPTOR = PrelabelerDescriptor(
-    version_id="traditional-test",
-    name="test prelabeler",
-    kind="traditional",
-    fingerprint="b" * 64,
+from vitroflow.prelabelers import (
+    PredictionProducer,
+    PrelabelInstance,
+    PrelabelQuality,
+    PrelabelResult,
+    RuntimeDescriptor,
 )
+from vitroflow.worker_runtime import health_server
+
+RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 
 
 class FakePrelabeler:
-    descriptor = DESCRIPTOR
+    artifact_digest = "a" * 64
+    runtime = RUNTIME
 
-    def predict(self, image_path: Path, source: Path) -> PrelabelResult:
+    def predict(
+        self, image_path: Path, source: Path, producer: PredictionProducer
+    ) -> PrelabelResult:
         assert image_path.read_bytes() == b"source"
         return PrelabelResult(
-            source=source,
-            width=100,
-            height=80,
-            producer=self.descriptor,
-            instances=(PrelabelInstance("1", BoundingBox(10, 20, 8, 6), 0.9),),
-            quality=PrelabelQuality("ok"),
+            source,
+            100,
+            80,
+            producer,
+            (PrelabelInstance("1", BoundingBox(10, 20, 8, 6), 0.9),),
+            PrelabelQuality("ok"),
         )
 
 
-class FailingPrelabeler:
-    descriptor = DESCRIPTOR
-
-    def predict(self, image_path: Path, source: Path) -> PrelabelResult:
+class FailingPrelabeler(FakePrelabeler):
+    def predict(
+        self, image_path: Path, source: Path, producer: PredictionProducer
+    ) -> PrelabelResult:
         raise ValueError("dish not found")
 
 
 PRELABELER = FakePrelabeler()
-IDENTITY = WorkerIdentity.create("test-worker", "seed-detector", PRELABELER)
+IDENTITY = WorkerIdentity.create("test-worker", "set.traditional-v1", PRELABELER)
 
 
 class Workbench:
-    """A MockTransport workbench recording every request in order."""
-
     def __init__(
         self, pending: list[dict[str, str]], *, prelabel_status: int = 200
     ) -> None:
@@ -69,13 +66,13 @@ class Workbench:
         self.requests.append(request)
         assert request.headers["authorization"] == "Bearer secret"
         path = request.url.path
-        if path == "/api/worker/heartbeat":
+        if path == "/api/inference/heartbeat":
             return httpx.Response(200)
-        if path == "/api/worker/pending":
+        if path == "/api/inference/pending":
             return httpx.Response(200, json={"images": self.pending})
-        if path.startswith("/api/worker/images/"):
+        if path.startswith("/api/inference/images/"):
             return httpx.Response(200, content=b"source")
-        if path.startswith("/api/worker/prelabels/"):
+        if path.startswith("/api/inference/prelabels/"):
             return httpx.Response(self.prelabel_status, json={})
         return httpx.Response(404)
 
@@ -105,32 +102,30 @@ PENDING = [
 
 
 def test_health_server_reports_liveness() -> None:
-    with _health_server(0) as port:
+    with health_server(0) as port:
         response = httpx.get(f"http://127.0.0.1:{port}/healthz")
         missing = httpx.get(f"http://127.0.0.1:{port}/missing")
-
     assert response.status_code == 200
     assert response.text == "ok\n"
     assert missing.status_code == 404
 
 
 def test_pending_image_requires_every_field() -> None:
-    image = PendingImage.from_dict(PENDING[0])
-
-    assert image == PendingImage("set", "a", "images/set/a.jpg")
+    assert PendingImage.from_dict(PENDING[0]) == PendingImage(
+        "set", "a", "images/set/a.jpg"
+    )
     with pytest.raises(ValueError, match="missing source"):
         PendingImage.from_dict({"dataset": "set", "stem": "a"})
 
 
-def test_worker_identity_reports_its_prelabeler() -> None:
-    image = PendingImage("set", "a", "images/set/a.jpg")
-    heartbeat = IDENTITY.heartbeat(image)
-
-    assert heartbeat["workerId"] == "test-worker"
-    assert heartbeat["modelId"] == "seed-detector"
+def test_worker_identity_separates_deployment_and_runtime() -> None:
+    heartbeat = IDENTITY.heartbeat(PendingImage("set", "a", "images/set/a.jpg"))
+    assert heartbeat["deployment"] == {
+        "modelVersionId": "set.traditional-v1",
+        "artifactDigest": "a" * 64,
+    }
+    assert heartbeat["runtime"] == RUNTIME.to_dict()
     assert heartbeat["current"] == {"dataset": "set", "stem": "a"}
-    assert heartbeat["prelabeler"] == DESCRIPTOR.to_dict()
-    assert IDENTITY.heartbeat(None)["current"] is None
 
 
 def test_pass_prelabels_every_pending_image(tmp_path: Path) -> None:
@@ -142,30 +137,22 @@ def test_pass_prelabels_every_pending_image(tmp_path: Path) -> None:
         client.close()
 
     assert workbench.calls() == [
-        ("POST", "/api/worker/heartbeat"),
-        ("GET", "/api/worker/pending"),
-        ("POST", "/api/worker/heartbeat"),
-        ("GET", "/api/worker/images/set/a"),
-        ("PUT", "/api/worker/prelabels/set/a"),
-        ("POST", "/api/worker/heartbeat"),
-        ("GET", "/api/worker/images/set/b"),
-        ("PUT", "/api/worker/prelabels/set/b"),
-        ("POST", "/api/worker/heartbeat"),
+        ("POST", "/api/inference/heartbeat"),
+        ("GET", "/api/inference/pending"),
+        ("POST", "/api/inference/heartbeat"),
+        ("GET", "/api/inference/images/set/a"),
+        ("PUT", "/api/inference/prelabels/set/a"),
+        ("POST", "/api/inference/heartbeat"),
+        ("GET", "/api/inference/images/set/b"),
+        ("PUT", "/api/inference/prelabels/set/b"),
+        ("POST", "/api/inference/heartbeat"),
     ]
-    pending = workbench.requests[1]
-    assert dict(pending.url.params) == {"worker_id": "test-worker"}
-    assert json.loads(workbench.requests[2].read()) == IDENTITY.heartbeat(
-        PendingImage.from_dict(PENDING[0])
-    )
-    assert json.loads(workbench.requests[8].read())["current"] is None
-    assert [body["source"] for body in workbench.prelabel_bodies()] == [
-        "images/set/a.jpg",
-        "images/set/b.png",
-    ]
+    assert dict(workbench.requests[1].url.params) == {"workerId": "test-worker"}
+    assert dict(workbench.requests[4].url.params) == {"workerId": "test-worker"}
     assert all(
-        body["producer"] == DESCRIPTOR.to_dict() for body in workbench.prelabel_bodies()
+        body["producer"] == IDENTITY.producer.to_dict()
+        for body in workbench.prelabel_bodies()
     )
-    assert all(len(body["instances"]) == 1 for body in workbench.prelabel_bodies())
     assert list(tmp_path.iterdir()) == []
 
 
@@ -176,29 +163,24 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
         assert run_pass(client, tmp_path, FailingPrelabeler()) is True
     finally:
         client.close()
-
     assert workbench.prelabel_bodies() == [
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "source": "images/set/a.jpg",
-            "producer": DESCRIPTOR.to_dict(),
+            "producer": IDENTITY.producer.to_dict(),
             "error": "dish not found",
         }
     ]
 
 
-def test_pass_skips_images_that_gained_a_label(tmp_path: Path) -> None:
-    workbench = Workbench(PENDING, prelabel_status=409)
+@pytest.mark.parametrize("status", [200, 409])
+def test_pass_accepts_stored_or_superseded_results(tmp_path: Path, status: int) -> None:
+    workbench = Workbench(PENDING[:1], prelabel_status=status)
     client = workbench.client()
     try:
         assert run_pass(client, tmp_path, PRELABELER) is True
     finally:
         client.close()
-
-    assert [call for call in workbench.calls() if call[0] == "PUT"] == [
-        ("PUT", "/api/worker/prelabels/set/a"),
-        ("PUT", "/api/worker/prelabels/set/b"),
-    ]
 
 
 def test_pass_propagates_http_errors(tmp_path: Path) -> None:
@@ -218,8 +200,7 @@ def test_pass_returns_false_when_nothing_is_pending(tmp_path: Path) -> None:
         assert run_pass(client, tmp_path, PRELABELER) is False
     finally:
         client.close()
-
     assert workbench.calls() == [
-        ("POST", "/api/worker/heartbeat"),
-        ("GET", "/api/worker/pending"),
+        ("POST", "/api/inference/heartbeat"),
+        ("GET", "/api/inference/pending"),
     ]

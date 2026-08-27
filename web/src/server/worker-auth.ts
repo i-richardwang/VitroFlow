@@ -1,7 +1,6 @@
 import { secretsEqual } from "./secrets";
 
-export function isWorkerAuthenticated(request: Request): boolean {
-  const expected = process.env.VITROFLOW_WORKER_TOKEN;
+function hasBearerToken(request: Request, expected: string | undefined): boolean {
   if (!expected) {
     return false;
   }
@@ -11,4 +10,15 @@ export function isWorkerAuthenticated(request: Request): boolean {
     authorization.startsWith(prefix) &&
     secretsEqual(authorization.slice(prefix.length), expected)
   );
+}
+
+export function isInferenceWorkerAuthenticated(request: Request): boolean {
+  return hasBearerToken(
+    request,
+    process.env.VITROFLOW_INFERENCE_WORKER_TOKEN,
+  );
+}
+
+export function isTrainingWorkerAuthenticated(request: Request): boolean {
+  return hasBearerToken(request, process.env.VITROFLOW_TRAINING_WORKER_TOKEN);
 }

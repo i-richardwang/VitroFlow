@@ -7,11 +7,12 @@ import { createLabel, readLabel, updateLabel } from "./labels";
 import { DATA_ROOT } from "./paths";
 
 const document: AnnotationDocument = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   image: { path: "images/set/a.jpg", width: 100, height: 100 },
   source: {
-    prelabelerVersionId: "traditional-test",
-    prelabelerFingerprint: "b".repeat(64),
+    modelVersionId: "set.traditional-v1",
+    artifactDigest: "a".repeat(64),
+    runtime: { adapter: "traditional", fingerprint: "b".repeat(64) },
   },
   status: "in_progress",
   revision: 0,

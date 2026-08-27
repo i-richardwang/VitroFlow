@@ -19,7 +19,7 @@ describe("prelabel contract", () => {
       throw new Error("unexpected failure fixture");
     }
 
-    expect(prelabel.producer.version_id).toBe("traditional-test");
+    expect(prelabel.producer.model_version_id).toBe("set.traditional-v1");
     expect(prelabel.instances[0].bbox).toEqual({
       x: 10,
       y: 20,

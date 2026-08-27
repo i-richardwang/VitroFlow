@@ -154,12 +154,12 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
                             "source": image.annotation.source.as_posix(),
                             "revision": image.annotation.revision,
                             "instances": len(image.annotation.boxes),
-                            "prelabeler_version_id": (
-                                image.annotation.prelabeler_version_id
-                            ),
-                            "prelabeler_fingerprint": (
-                                image.annotation.prelabeler_fingerprint
-                            ),
+                            "model_version_id": image.annotation.model_version_id,
+                            "artifact_digest": image.annotation.artifact_digest,
+                            "runtime": {
+                                "adapter": image.annotation.runtime_adapter,
+                                "fingerprint": image.annotation.runtime_fingerprint,
+                            },
                         }
                         for image in images
                     ],

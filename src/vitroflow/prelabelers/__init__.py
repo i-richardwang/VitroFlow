@@ -2,13 +2,14 @@
 
 from .contract import (
     DishGeometry,
+    PredictionProducer,
     PrelabelDiagnostics,
     Prelabeler,
-    PrelabelerDescriptor,
     PrelabelFailure,
     PrelabelInstance,
     PrelabelQuality,
     PrelabelResult,
+    RuntimeDescriptor,
 )
 from .documents import (
     PrelabelDocument,
@@ -20,6 +21,7 @@ from .yolo import YoloInferenceSettings, YoloPrelabeler, load_yolo_inference_set
 
 __all__ = [
     "DishGeometry",
+    "PredictionProducer",
     "PrelabelDiagnostics",
     "PrelabelDocument",
     "PrelabelFailure",
@@ -27,7 +29,7 @@ __all__ = [
     "PrelabelQuality",
     "PrelabelResult",
     "Prelabeler",
-    "PrelabelerDescriptor",
+    "RuntimeDescriptor",
     "TraditionalPrelabeler",
     "YoloInferenceSettings",
     "YoloPrelabeler",

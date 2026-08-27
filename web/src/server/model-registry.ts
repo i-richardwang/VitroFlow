@@ -2,23 +2,45 @@ import * as fs from "node:fs";
 
 import {
   modelSchema,
-  modelVersionFromPrelabeler,
   modelVersionSchema,
   sameModelVersion,
   type Model,
   type ModelVersion,
 } from "../models/schema";
-import type { PrelabelerDescriptor } from "../prelabelers/schema";
+import { TRADITIONAL_MODEL_MANIFEST } from "../models/builtins";
 import { createAtomically } from "./files";
 import { MODELS_DIR, MODEL_VERSIONS_DIR, resolveWithin } from "./paths";
 
-export const DEFAULT_MODEL: Model = {
-  schemaVersion: 1,
-  id: "seed-detector",
-  name: "Seed detector",
-  task: "object_detection",
-  classes: ["seed"],
-};
+export function builtinModel(datasetId: string): Model {
+  return modelSchema.parse({
+    schemaVersion: 1,
+    id: datasetId,
+    name: `${datasetId} seed detector`,
+    task: "object_detection",
+    classes: ["seed"],
+  });
+}
+
+export function builtinTraditionalVersion(
+  datasetId: string,
+  createdAt: string,
+): ModelVersion {
+  return modelVersionSchema.parse({
+    schemaVersion: 1,
+    id: `${datasetId}.traditional-v1`,
+    modelId: datasetId,
+    name: "Traditional vision baseline",
+    createdAt,
+    source: {
+      kind: "builtin",
+      definition: TRADITIONAL_MODEL_MANIFEST.definition,
+    },
+    artifact: {
+      kind: "traditional",
+      digest: TRADITIONAL_MODEL_MANIFEST.artifactDigest,
+    },
+  });
+}
 
 function modelPath(modelId: string): string {
   return resolveWithin(MODELS_DIR, `${modelId}.json`);
@@ -66,8 +88,14 @@ export function registerModel(model: Model): Model {
   return existing;
 }
 
-export function ensureDefaultModel(): Model {
-  return registerModel(DEFAULT_MODEL);
+export function ensureDatasetModel(datasetId: string): ModelVersion {
+  registerModel(builtinModel(datasetId));
+  const versionId = `${datasetId}.traditional-v1`;
+  const existing = readModelVersion(versionId);
+  if (existing) return existing;
+  return registerModelVersion(
+    builtinTraditionalVersion(datasetId, new Date().toISOString()),
+  );
 }
 
 export function readModelVersion(versionId: string): ModelVersion | null {
@@ -97,13 +125,12 @@ export function listModelVersions(modelId?: string): ModelVersion[] {
 
 /** Registers one immutable executable version under an existing logical model. */
 export function registerModelVersion(
-  modelId: string,
-  prelabeler: PrelabelerDescriptor,
+  value: ModelVersion,
 ): ModelVersion {
-  if (!readModel(modelId)) {
-    throw new Error(`Unknown model: ${modelId}`);
+  const version = modelVersionSchema.parse(value);
+  if (!readModel(version.modelId)) {
+    throw new Error(`Unknown model: ${version.modelId}`);
   }
-  const version = modelVersionFromPrelabeler(modelId, prelabeler);
   const created = createAtomically(
     versionPath(version.id),
     `${JSON.stringify(version, null, 2)}\n`,
@@ -116,4 +143,9 @@ export function registerModelVersion(
     );
   }
   return existing;
+}
+
+export function removeDatasetModel(datasetId: string): void {
+  fs.rmSync(versionPath(`${datasetId}.traditional-v1`), { force: true });
+  fs.rmSync(modelPath(datasetId), { force: true });
 }

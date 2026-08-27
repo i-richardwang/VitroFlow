@@ -1,18 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { imageRefSchema } from "../datasets/schema";
+import { readInferenceWorker } from "../server/inference-worker-store";
 import {
   PrelabelFrozenError,
   ModelVersionMismatchError,
   writePrelabel,
 } from "../server/prelabels";
 
-export const Route = createFileRoute("/api/worker/prelabels/$dataset/$stem")({
+export const Route = createFileRoute("/api/inference/prelabels/$dataset/$stem")({
   server: {
     handlers: {
       PUT: async ({ params, request }) => {
         try {
-          writePrelabel(imageRefSchema.parse(params), await request.json());
+          const workerId = new URL(request.url).searchParams.get("workerId");
+          const worker = workerId ? readInferenceWorker(workerId) : null;
+          if (!worker) {
+            return new Response("worker must heartbeat before uploading", {
+              status: 409,
+            });
+          }
+          writePrelabel(
+            imageRefSchema.parse(params),
+            await request.json(),
+            worker,
+          );
           return Response.json({});
         } catch (error) {
           if (

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { versionIdSchema } from "../prelabelers/schema";
+import { versionIdSchema } from "../inference/schema";
 
 /** Dataset names double as directory names under `images/`. */
 export const DATASET_NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._-]{0,79}";

@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { imageSourceSchema } from "../datasets/schema";
+import {
+  fingerprintSchema,
+  runtimeDescriptorSchema,
+  versionIdSchema,
+} from "../inference/schema";
 
 const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
@@ -19,17 +24,16 @@ const seedInstanceSchema = z.strictObject({
 
 export const annotationSchema = z
   .strictObject({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     image: z.strictObject({
       path: imageSourceSchema,
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
     source: z.strictObject({
-      prelabelerVersionId: z
-        .string()
-        .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
-      prelabelerFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      modelVersionId: versionIdSchema,
+      artifactDigest: fingerprintSchema,
+      runtime: runtimeDescriptorSchema,
     }),
     status: z.enum(REVIEW_STATUSES),
     excludedReason: z.string().min(1).optional(),

@@ -13,10 +13,11 @@ import numpy as np
 from ..annotations import BoundingBox
 from ..yolo.runtime import load_yolo
 from .contract import (
-    PrelabelerDescriptor,
+    PredictionProducer,
     PrelabelInstance,
     PrelabelQuality,
     PrelabelResult,
+    RuntimeDescriptor,
 )
 
 
@@ -69,7 +70,7 @@ def load_yolo_inference_settings(run_dir: Path) -> tuple[Path, YoloInferenceSett
     summary_path = run_dir.resolve() / "inference.json"
     document = _strict_object(
         json.loads(summary_path.read_text(encoding="utf-8")),
-        {"schema_version", "weights", "inference", "validation"},
+        {"schema_version", "weights", "inference", "validation", "training"},
         "YOLO inference summary",
     )
     if document["schema_version"] != 1:
@@ -99,7 +100,7 @@ def load_yolo_inference_settings(run_dir: Path) -> tuple[Path, YoloInferenceSett
     return weights, settings
 
 
-def _fingerprint(weights: Path, settings: YoloInferenceSettings) -> str:
+def _artifact_digest(weights: Path, settings: YoloInferenceSettings) -> str:
     digest = hashlib.sha256()
     with weights.open("rb") as stream:
         while chunk := stream.read(1024 * 1024):
@@ -108,11 +109,16 @@ def _fingerprint(weights: Path, settings: YoloInferenceSettings) -> str:
     digest.update(
         json.dumps(settings.to_dict(), sort_keys=True, separators=(",", ":")).encode()
     )
+    return digest.hexdigest()
+
+
+def _runtime_fingerprint() -> str:
+    digest = hashlib.sha256()
     try:
         ultralytics_version = version("ultralytics")
     except PackageNotFoundError as error:
         raise RuntimeError(
-            "Ultralytics is not installed; run `uv sync --group train` first"
+            "Ultralytics is not installed; run `uv sync --group yolo` first"
         ) from error
     digest.update(b"\0ultralytics\0")
     digest.update(ultralytics_version.encode())
@@ -131,23 +137,21 @@ class YoloPrelabeler:
 
     weights: Path
     settings: YoloInferenceSettings
-    version_id: str
-    name: str
     device: str | None = None
     _model: Any = field(default=None, init=False, repr=False)
     _runtime: type = field(init=False, repr=False)
-    _descriptor: PrelabelerDescriptor = field(init=False, repr=False)
+    _artifact_digest: str = field(init=False, repr=False)
+    _runtime_descriptor: RuntimeDescriptor = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.weights = self.weights.resolve()
         if not self.weights.is_file():
             raise FileNotFoundError(self.weights)
         self._runtime = load_yolo()
-        self._descriptor = PrelabelerDescriptor(
-            version_id=self.version_id,
-            name=self.name,
-            kind="yolo",
-            fingerprint=_fingerprint(self.weights, self.settings),
+        self._artifact_digest = _artifact_digest(self.weights, self.settings)
+        self._runtime_descriptor = RuntimeDescriptor(
+            adapter="ultralytics",
+            fingerprint=_runtime_fingerprint(),
         )
 
     @classmethod
@@ -155,8 +159,6 @@ class YoloPrelabeler:
         cls,
         run_dir: str | Path,
         *,
-        version_id: str,
-        name: str | None = None,
         device: str | None = None,
     ) -> YoloPrelabeler:
         run = Path(run_dir).resolve()
@@ -164,21 +166,25 @@ class YoloPrelabeler:
         return cls(
             weights,
             settings,
-            version_id,
-            name or f"YOLO26 {run.name}",
             device,
         )
 
     @property
-    def descriptor(self) -> PrelabelerDescriptor:
-        return self._descriptor
+    def artifact_digest(self) -> str:
+        return self._artifact_digest
+
+    @property
+    def runtime(self) -> RuntimeDescriptor:
+        return self._runtime_descriptor
 
     def _predictor(self) -> Any:
         if self._model is None:
             self._model = self._runtime(str(self.weights))
         return self._model
 
-    def predict(self, image_path: Path, source: Path) -> PrelabelResult:
+    def predict(
+        self, image_path: Path, source: Path, producer: PredictionProducer
+    ) -> PrelabelResult:
         options: dict[str, object] = {
             "source": str(image_path),
             "conf": self.settings.confidence,
@@ -194,7 +200,7 @@ class YoloPrelabeler:
         if len(results) != 1:
             raise RuntimeError("YOLO must return exactly one result for one image")
         result = results[0]
-        height, width = result.orig_shape
+        height, width = map(int, result.orig_shape)
         instances = []
         if result.boxes is not None:
             rows = np.asarray(result.boxes.data.cpu().numpy())
@@ -221,7 +227,7 @@ class YoloPrelabeler:
             source=source,
             width=width,
             height=height,
-            producer=self.descriptor,
+            producer=producer,
             instances=tuple(instances),
             quality=PrelabelQuality("ok"),
         )

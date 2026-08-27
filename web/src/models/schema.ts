@@ -1,11 +1,10 @@
 import { z } from "zod";
 
 import {
-  prelabelerDescriptorSchema,
-  samePrelabelerDescriptor,
+  fingerprintSchema,
   versionIdSchema,
-  type PrelabelerDescriptor,
-} from "../prelabelers/schema";
+  type RuntimeDescriptor,
+} from "../inference/schema";
 
 export const modelSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -15,40 +14,94 @@ export const modelSchema = z.strictObject({
   classes: z.tuple([z.literal("seed")]),
 });
 
-export const modelVersionSchema = z
-  .strictObject({
-    schemaVersion: z.literal(1),
-    id: versionIdSchema,
-    modelId: versionIdSchema,
-    prelabeler: prelabelerDescriptorSchema,
-  })
-  .refine((version) => version.id === version.prelabeler.version_id, {
-    message: "Model version id must match its prelabeler version id",
-    path: ["prelabeler", "version_id"],
-  });
+const inferenceSettingsSchema = z.strictObject({
+  confidence: z.number().finite().min(0).max(1),
+  imageSize: z.number().int().positive(),
+  maxDetections: z.number().int().positive(),
+  endToEnd: z.boolean(),
+});
+
+const artifactPathSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      !value.startsWith("/") &&
+      !value.includes("\\") &&
+      !value.split("/").includes(".."),
+    "Artifact path must be relative",
+  );
+
+const trainingIdentitySchema = z.strictObject({
+  baseModel: z.strictObject({
+    reference: z.string().min(1),
+    digest: fingerprintSchema,
+  }),
+  configuration: z.strictObject({
+    name: z.string().min(1),
+    digest: fingerprintSchema,
+  }),
+  runtime: z.strictObject({
+    framework: z.literal("ultralytics"),
+    version: z.string().min(1),
+  }),
+});
+
+export const modelArtifactSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("traditional"),
+    digest: fingerprintSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("ultralytics"),
+    digest: fingerprintSchema,
+    bytes: z.number().int().positive(),
+    path: artifactPathSchema,
+    inference: inferenceSettingsSchema,
+    validation: z.record(z.string().min(1), z.number().finite()),
+    training: trainingIdentitySchema,
+  }),
+]);
+
+export const modelVersionSourceSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("builtin"),
+    definition: versionIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("training_run"),
+    trainingRunId: versionIdSchema,
+    datasetSnapshotId: versionIdSchema,
+  }),
+]);
+
+export const modelVersionSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  id: versionIdSchema,
+  modelId: versionIdSchema,
+  name: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  source: modelVersionSourceSchema,
+  artifact: modelArtifactSchema,
+});
 
 export type Model = z.infer<typeof modelSchema>;
 export type ModelVersion = z.infer<typeof modelVersionSchema>;
+export type ModelArtifact = z.infer<typeof modelArtifactSchema>;
 
 export function sameModelVersion(
   left: ModelVersion,
   right: ModelVersion,
 ): boolean {
-  return (
-    left.id === right.id &&
-    left.modelId === right.modelId &&
-    samePrelabelerDescriptor(left.prelabeler, right.prelabeler)
-  );
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function modelVersionFromPrelabeler(
-  modelId: string,
-  prelabeler: PrelabelerDescriptor,
-): ModelVersion {
-  return modelVersionSchema.parse({
-    schemaVersion: 1,
-    id: prelabeler.version_id,
-    modelId,
-    prelabeler,
-  });
+export function supportsRuntime(
+  artifact: ModelArtifact,
+  runtime: RuntimeDescriptor,
+): boolean {
+  return (
+    (artifact.kind === "traditional" && runtime.adapter === "traditional") ||
+    (artifact.kind === "ultralytics" && runtime.adapter === "ultralytics")
+  );
 }

@@ -124,7 +124,7 @@ function diagnosticMetrics(result: PrelabelResult): Metric[] {
       label: "Threshold",
       value: String(metrics?.confidence_threshold ?? "—"),
     },
-    { label: "Model", value: result.producer.name },
+    { label: "Model", value: result.producer.model_version_id },
     { label: "Focus score", value: String(metrics?.focus_score ?? "—") },
     {
       label: "Clipped",

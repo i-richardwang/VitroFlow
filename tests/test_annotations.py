@@ -10,11 +10,15 @@ CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "annotatio
 
 def _payload(source: str, status: str = "complete") -> dict[str, object]:
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "image": {"path": source, "width": 100, "height": 80},
         "source": {
-            "prelabelerVersionId": "traditional-test",
-            "prelabelerFingerprint": "b" * 64,
+            "modelVersionId": "batch.traditional-v1",
+            "artifactDigest": "a" * 64,
+            "runtime": {
+                "adapter": "traditional",
+                "fingerprint": "b" * 64,
+            },
         },
         "status": status,
         "revision": 3,

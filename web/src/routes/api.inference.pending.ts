@@ -3,13 +3,13 @@ import { z } from "zod";
 
 import { DATASET_NAME } from "../datasets/schema";
 import { pendingImages } from "../server/prelabels";
-import { readWorker } from "../server/worker-store";
+import { readInferenceWorker } from "../server/inference-worker-store";
 
 const querySchema = z.object({
-  worker_id: z.string().regex(DATASET_NAME),
+  workerId: z.string().regex(DATASET_NAME),
 });
 
-export const Route = createFileRoute("/api/worker/pending")({
+export const Route = createFileRoute("/api/inference/pending")({
   server: {
     handlers: {
       GET: ({ request }) => {
@@ -17,16 +17,16 @@ export const Route = createFileRoute("/api/worker/pending")({
           Object.fromEntries(new URL(request.url).searchParams),
         );
         if (!query.success) {
-          return new Response("worker_id is required", { status: 400 });
+          return new Response("workerId is required", { status: 400 });
         }
-        const worker = readWorker(query.data.worker_id);
+        const worker = readInferenceWorker(query.data.workerId);
         if (!worker) {
           return new Response("worker must heartbeat before requesting work", {
             status: 409,
           });
         }
         return Response.json({
-          images: pendingImages(worker.prelabeler).map(
+          images: pendingImages(worker.deployment).map(
             ({ dataset, stem, source }) => ({
               dataset,
               stem,

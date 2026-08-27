@@ -42,3 +42,35 @@ export function createAtomically(
     fs.rmSync(tempPath, { force: true });
   }
 }
+
+/** Publishes a populated directory with one atomic rename. */
+export function createDirectoryAtomically(
+  directory: string,
+  populate: (temporary: string) => void,
+): boolean {
+  const parent = path.dirname(directory);
+  const temporary = path.join(
+    parent,
+    `.${path.basename(directory)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  fs.mkdirSync(parent, { recursive: true });
+  fs.mkdirSync(temporary);
+  try {
+    populate(temporary);
+    try {
+      fs.renameSync(temporary, directory);
+      return true;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        ["EEXIST", "ENOTEMPTY"].includes(String(error.code))
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}

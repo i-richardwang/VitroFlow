@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { recordHeartbeat } from "../server/worker-store";
-import { heartbeatSchema } from "../workers/schema";
+import { heartbeatSchema } from "../inference/workers";
+import { recordInferenceHeartbeat } from "../server/inference-worker-store";
 
-export const Route = createFileRoute("/api/worker/heartbeat")({
+export const Route = createFileRoute("/api/inference/heartbeat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         try {
           return Response.json(
-            recordHeartbeat(heartbeatSchema.parse(await request.json())),
+            recordInferenceHeartbeat(heartbeatSchema.parse(await request.json())),
           );
         } catch (error) {
           return new Response(

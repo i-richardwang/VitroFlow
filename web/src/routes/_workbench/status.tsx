@@ -6,7 +6,7 @@ import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
 import { getStatus } from "../../server/status";
-import type { WorkerPresence } from "../../workers/schema";
+import type { WorkerPresence } from "../../workers/presence";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
@@ -23,7 +23,7 @@ const PRESENCE: Record<
 };
 
 function StatusPage() {
-  const { workers, server } = Route.useLoaderData();
+  const { inferenceWorkers, trainingWorkers, server } = Route.useLoaderData();
   const router = useRouter();
 
   useEffect(() => {
@@ -34,18 +34,19 @@ function StatusPage() {
   return (
     <Page
       title="Status"
-      description="Workers report here while polling for pending images and before each one they process."
+      description="Inference and training workers report independently from their own compute environments."
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatKpi label="Datasets" value={server.datasets} />
         <StatKpi label="Images" value={server.images} />
         <StatKpi label="Prelabels" value={server.prelabels} />
         <StatKpi label="Labels" value={server.labels} />
+        <StatKpi label="Training runs" value={server.trainingRuns} />
       </div>
 
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="Workers">
+          <Table.Content aria-label="Inference Workers">
             <Table.Header>
               <Table.Column isRowHeader>Worker</Table.Column>
               <Table.Column>Presence</Table.Column>
@@ -60,17 +61,17 @@ function StatusPage() {
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
-                  <span className="font-medium">No workers have reported</span>
+                  <span className="font-medium">No inference workers have reported</span>
                   <span className="text-xs text-muted">
                     Start one with the workbench URL and worker token.
                   </span>
                   <code className="mt-3 rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs">
-                    uv run vitroflow-worker
+                    uv run vitroflow-inference-worker
                   </code>
                 </EmptyState>
               )}
             >
-              {workers.map((worker) => (
+              {inferenceWorkers.map((worker) => (
                 <Table.Row key={worker.workerId}>
                   <Table.Cell className="break-all font-mono font-medium">
                     {worker.workerId}
@@ -100,14 +101,69 @@ function StatusPage() {
                     )}
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap font-mono text-muted">
-                    <span title={worker.prelabeler.fingerprint}>
-                      {worker.modelId} / {worker.prelabeler.name}
+                    <span title={worker.runtime.fingerprint}>
+                      {worker.deployment.modelVersionId} / {worker.runtime.adapter}
                     </span>
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
                     <span title={new Date(worker.lastSeenAt).toLocaleString()}>
                       {formatAge(worker.lastSeenSeconds)}
                     </span>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
+
+      <Table>
+        <Table.ScrollContainer>
+          <Table.Content aria-label="Training Workers">
+            <Table.Header>
+              <Table.Column isRowHeader>Training Worker</Table.Column>
+              <Table.Column>Presence</Table.Column>
+              <Table.Column>Device</Table.Column>
+              <Table.Column>Training run</Table.Column>
+              <Table.Column className="whitespace-nowrap text-right">
+                Last seen
+              </Table.Column>
+            </Table.Header>
+            <Table.Body
+              renderEmptyState={() => (
+                <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
+                  <span className="font-medium">No training workers have reported</span>
+                  <span className="text-xs text-muted">
+                    Training workers can run on a separate GPU machine.
+                  </span>
+                  <code className="mt-3 rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs">
+                    uv run --group yolo vitroflow-training-worker
+                  </code>
+                </EmptyState>
+              )}
+            >
+              {trainingWorkers.map((worker) => (
+                <Table.Row key={worker.workerId}>
+                  <Table.Cell className="break-all font-mono font-medium">
+                    {worker.workerId}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Chip
+                      color={PRESENCE[worker.presence].color}
+                      variant="soft"
+                      size="sm"
+                    >
+                      {PRESENCE[worker.presence].label}
+                    </Chip>
+                  </Table.Cell>
+                  <Table.Cell className="font-mono text-muted">
+                    {worker.device}
+                  </Table.Cell>
+                  <Table.Cell className="font-mono text-muted">
+                    {worker.currentTrainingRunId ?? "Idle"}
+                  </Table.Cell>
+                  <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
+                    {formatAge(worker.lastSeenSeconds)}
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -132,8 +188,11 @@ function StatusPage() {
             <Fact label="Password">
               <Configured value={server.passwordConfigured} />
             </Fact>
-            <Fact label="Worker token">
-              <Configured value={server.workerTokenConfigured} />
+            <Fact label="Inference token">
+              <Configured value={server.inferenceWorkerTokenConfigured} />
+            </Fact>
+            <Fact label="Training token">
+              <Configured value={server.trainingWorkerTokenConfigured} />
             </Fact>
           </dl>
         </Widget.Content>

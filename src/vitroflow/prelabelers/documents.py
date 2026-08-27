@@ -8,12 +8,13 @@ from typing import Any
 from ..annotations import BoundingBox
 from .contract import (
     DishGeometry,
+    PredictionProducer,
     PrelabelDiagnostics,
-    PrelabelerDescriptor,
     PrelabelFailure,
     PrelabelInstance,
     PrelabelQuality,
     PrelabelResult,
+    RuntimeDescriptor,
 )
 
 PrelabelDocument = PrelabelResult | PrelabelFailure
@@ -64,14 +65,30 @@ def _number(value: Any, context: str) -> float:
     return number
 
 
-def _descriptor(value: Any, context: str) -> PrelabelerDescriptor:
+def _runtime(value: Any, context: str) -> RuntimeDescriptor:
     descriptor = _object(value, context)
-    _fields(descriptor, {"version_id", "name", "kind", "fingerprint"}, context)
-    return PrelabelerDescriptor(
-        version_id=_string(descriptor["version_id"], f"{context}.version_id"),
-        name=_string(descriptor["name"], f"{context}.name"),
-        kind=_string(descriptor["kind"], f"{context}.kind"),
+    _fields(descriptor, {"adapter", "fingerprint"}, context)
+    return RuntimeDescriptor(
+        adapter=_string(descriptor["adapter"], f"{context}.adapter"),
         fingerprint=_string(descriptor["fingerprint"], f"{context}.fingerprint"),
+    )
+
+
+def _producer(value: Any, context: str) -> PredictionProducer:
+    producer = _object(value, context)
+    _fields(
+        producer,
+        {"model_version_id", "artifact_digest", "runtime"},
+        context,
+    )
+    return PredictionProducer(
+        model_version_id=_string(
+            producer["model_version_id"], f"{context}.model_version_id"
+        ),
+        artifact_digest=_string(
+            producer["artifact_digest"], f"{context}.artifact_digest"
+        ),
+        runtime=_runtime(producer["runtime"], f"{context}.runtime"),
     )
 
 
@@ -102,10 +119,10 @@ def _diagnostics(value: Any, context: str) -> PrelabelDiagnostics:
 def parse_prelabel_document(value: Any, context: str = "prelabel") -> PrelabelDocument:
     payload = _object(value, context)
     schema_version = payload.get("schema_version")
-    if isinstance(schema_version, bool) or schema_version != 1:
-        raise ValueError(f"{context}.schema_version must be 1")
+    if isinstance(schema_version, bool) or schema_version != 2:
+        raise ValueError(f"{context}.schema_version must be 2")
     source = Path(_string(payload.get("source"), f"{context}.source"))
-    producer = _descriptor(payload.get("producer"), f"{context}.producer")
+    producer = _producer(payload.get("producer"), f"{context}.producer")
 
     if "error" in payload:
         _fields(payload, {"schema_version", "source", "producer", "error"}, context)

@@ -7,6 +7,6 @@ def load_yolo() -> type:
         from ultralytics import YOLO
     except ImportError as error:
         raise RuntimeError(
-            "Ultralytics is not installed; run `uv sync --group train` first"
+            "Ultralytics is not installed; run `uv sync --group yolo` first"
         ) from error
     return YOLO

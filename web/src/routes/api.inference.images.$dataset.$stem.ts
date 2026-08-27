@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { imageRefSchema } from "../datasets/schema";
 import { readImageFile } from "../server/datasets";
 
-export const Route = createFileRoute("/api/worker/images/$dataset/$stem")({
+export const Route = createFileRoute("/api/inference/images/$dataset/$stem")({
   server: {
     handlers: {
       GET: ({ params }) => {

@@ -12,28 +12,30 @@ from ..pipeline import count_seeds
 from ..scoring import DEFAULT_MODEL, CandidateModel
 from .contract import (
     DishGeometry,
+    PredictionProducer,
     PrelabelDiagnostics,
-    PrelabelerDescriptor,
     PrelabelInstance,
     PrelabelQuality,
     PrelabelResult,
+    RuntimeDescriptor,
 )
 
 _BOX_SIDE_FRACTION = 0.025
 _MIN_BOX_SIZE = 2.0
-DEFAULT_TRADITIONAL_VERSION_ID = "traditional-v1"
 
 
-def _execution_fingerprint(execution: ExecutionIdentity) -> str:
+def _artifact_digest(execution: ExecutionIdentity) -> str:
     config = json.dumps(
         execution.config.to_dict(),
         sort_keys=True,
         separators=(",", ":"),
     )
-    identity = (
-        f"{execution.pipeline_fingerprint}\0{execution.model_fingerprint}\0{config}"
-    ).encode()
-    digest = hashlib.sha256(identity)
+    identity = f"{execution.model_fingerprint}\0{config}".encode()
+    return hashlib.sha256(identity).hexdigest()
+
+
+def _runtime_fingerprint(execution: ExecutionIdentity) -> str:
+    digest = hashlib.sha256(execution.pipeline_fingerprint.encode())
     package = Path(__file__).parent
     for name in ("contract.py", "traditional.py"):
         digest.update(b"\0")
@@ -67,20 +69,23 @@ class TraditionalPrelabeler:
 
     config: PipelineConfig = field(default_factory=PipelineConfig)
     model: CandidateModel = DEFAULT_MODEL
-    version_id: str = DEFAULT_TRADITIONAL_VERSION_ID
 
     @property
-    def descriptor(self) -> PrelabelerDescriptor:
+    def artifact_digest(self) -> str:
         execution = ExecutionIdentity.create(self.config, self.model)
-        fingerprint = _execution_fingerprint(execution)
-        return PrelabelerDescriptor(
-            version_id=self.version_id,
-            name=execution.model_name,
-            kind="traditional",
-            fingerprint=fingerprint,
+        return _artifact_digest(execution)
+
+    @property
+    def runtime(self) -> RuntimeDescriptor:
+        execution = ExecutionIdentity.create(self.config, self.model)
+        return RuntimeDescriptor(
+            adapter="traditional",
+            fingerprint=_runtime_fingerprint(execution),
         )
 
-    def predict(self, image_path: Path, source: Path) -> PrelabelResult:
+    def predict(
+        self, image_path: Path, source: Path, producer: PredictionProducer
+    ) -> PrelabelResult:
         result = count_seeds(
             image_path,
             source=source,
@@ -109,7 +114,7 @@ class TraditionalPrelabeler:
             source=result.source,
             width=result.width,
             height=result.height,
-            producer=self.descriptor,
+            producer=producer,
             instances=tuple(instances),
             quality=PrelabelQuality(
                 status=result.quality.status,

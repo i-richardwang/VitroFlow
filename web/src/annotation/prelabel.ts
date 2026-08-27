@@ -32,15 +32,16 @@ export function documentFromPrelabel(
   result: PrelabelResult,
 ): AnnotationDocument {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     image: {
       path: result.source,
       width: result.image.width,
       height: result.image.height,
     },
     source: {
-      prelabelerVersionId: result.producer.version_id,
-      prelabelerFingerprint: result.producer.fingerprint,
+      modelVersionId: result.producer.model_version_id,
+      artifactDigest: result.producer.artifact_digest,
+      runtime: result.producer.runtime,
     },
     status: "in_progress",
     revision: 0,

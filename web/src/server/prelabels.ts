@@ -5,10 +5,8 @@ import {
   prelabelSchema,
   type Prelabel,
 } from "../detection/schema";
-import {
-  samePrelabelerDescriptor,
-  type PrelabelerDescriptor,
-} from "../prelabelers/schema";
+import { sameRuntimeDescriptor } from "../inference/schema";
+import type { InferenceWorkerRecord } from "../inference/workers";
 import {
   findImage,
   listDatasets,
@@ -48,7 +46,11 @@ export function readPrelabel(ref: ImageRef): Prelabel | null {
   return prelabelSchema.parse(document);
 }
 
-export function writePrelabel(ref: ImageRef, document: unknown): Prelabel {
+export function writePrelabel(
+  ref: ImageRef,
+  document: unknown,
+  worker: InferenceWorkerRecord,
+): Prelabel {
   const image = findImage(ref);
   if (!image) {
     throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
@@ -63,13 +65,16 @@ export function writePrelabel(ref: ImageRef, document: unknown): Prelabel {
     throw new PrelabelFrozenError(ref);
   }
   const dataset = readDataset(ref.dataset);
-  const registered = readModelVersion(prelabel.producer.version_id);
+  const registered = readModelVersion(prelabel.producer.model_version_id);
   if (
     !dataset ||
-    dataset.selectedModelVersionId !== prelabel.producer.version_id ||
+    dataset.selectedModelVersionId !== prelabel.producer.model_version_id ||
     !registered ||
     registered.modelId !== dataset.modelId ||
-    !samePrelabelerDescriptor(registered.prelabeler, prelabel.producer)
+    registered.artifact.digest !== prelabel.producer.artifact_digest ||
+    worker.deployment.modelVersionId !== prelabel.producer.model_version_id ||
+    worker.deployment.artifactDigest !== prelabel.producer.artifact_digest ||
+    !sameRuntimeDescriptor(worker.runtime, prelabel.producer.runtime)
   ) {
     throw new ModelVersionMismatchError(ref);
   }
@@ -89,17 +94,17 @@ export function discardPrelabel(ref: ImageRef): void {
  * Images assigned by datasets to this immutable executable version.
  */
 export function pendingImages(
-  prelabeler: PrelabelerDescriptor,
+  deployment: { modelVersionId: string; artifactDigest: string },
 ): DatasetImage[] {
   return listDatasets().flatMap((datasetId) => {
     const dataset = readDataset(datasetId);
-    const version = readModelVersion(prelabeler.version_id);
+    const version = readModelVersion(deployment.modelVersionId);
     if (
       !dataset ||
       !version ||
       dataset.modelId !== version.modelId ||
       dataset.selectedModelVersionId !== version.id ||
-      !samePrelabelerDescriptor(version.prelabeler, prelabeler)
+      version.artifact.digest !== deployment.artifactDigest
     ) {
       return [];
     }
@@ -110,8 +115,8 @@ export function pendingImages(
       const prelabel = readPrelabel(image);
       return (
         prelabel === null ||
-        prelabel.producer.version_id !== prelabeler.version_id ||
-        prelabel.producer.fingerprint !== prelabeler.fingerprint
+        prelabel.producer.model_version_id !== deployment.modelVersionId ||
+        prelabel.producer.artifact_digest !== deployment.artifactDigest
       );
     });
   });

@@ -11,8 +11,7 @@ import {
 } from "../datasets/schema";
 import { createAtomically, writeAtomically } from "./files";
 import {
-  DEFAULT_MODEL,
-  ensureDefaultModel,
+  ensureDatasetModel,
   readModelVersion,
 } from "./model-registry";
 import {
@@ -22,9 +21,6 @@ import {
   PRELABELS_DIR,
   resolveWithin,
 } from "./paths";
-
-export const DEFAULT_MODEL_VERSION_ID =
-  process.env.VITROFLOW_DEFAULT_MODEL_VERSION_ID ?? "traditional-v1";
 
 export const CONTENT_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -69,12 +65,12 @@ export function readDataset(dataset: string): Dataset | null {
 }
 
 function createDataset(dataset: string): Dataset | null {
-  ensureDefaultModel();
+  const defaultVersion = ensureDatasetModel(dataset);
   const record = datasetSchema.parse({
     schemaVersion: 1,
     id: dataset,
-    modelId: DEFAULT_MODEL.id,
-    selectedModelVersionId: DEFAULT_MODEL_VERSION_ID,
+    modelId: dataset,
+    selectedModelVersionId: defaultVersion.id,
   });
   return createAtomically(
     datasetPath(dataset),

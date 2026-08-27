@@ -13,6 +13,7 @@ _VERSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _FINGERPRINT = re.compile(r"^[a-f0-9]{64}$")
 _CODE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 _QUALITY_STATUSES = {"ok", "review_required"}
+_RUNTIME_ADAPTERS = {"traditional", "ultralytics"}
 
 
 def _finite(value: float, context: str) -> None:
@@ -34,30 +35,44 @@ def _validate_source(source: Path) -> None:
 
 
 @dataclass(frozen=True)
-class PrelabelerDescriptor:
-    """Stable identity of one executable prelabel implementation."""
+class RuntimeDescriptor:
+    """Identity of the code/runtime executing an immutable model artifact."""
 
-    version_id: str
-    name: str
-    kind: str
+    adapter: str
     fingerprint: str
 
     def __post_init__(self) -> None:
-        if not _VERSION_ID.fullmatch(self.version_id):
-            raise ValueError(f"Invalid prelabeler version id: {self.version_id}")
-        if not self.name:
-            raise ValueError("Prelabeler name must not be empty")
-        if not _VERSION_ID.fullmatch(self.kind):
-            raise ValueError(f"Invalid prelabeler kind: {self.kind}")
+        if self.adapter not in _RUNTIME_ADAPTERS:
+            raise ValueError(f"Invalid runtime adapter: {self.adapter}")
         if not _FINGERPRINT.fullmatch(self.fingerprint):
-            raise ValueError("Prelabeler fingerprint must be a SHA-256 digest")
+            raise ValueError("Runtime fingerprint must be a SHA-256 digest")
 
     def to_dict(self) -> dict[str, str]:
         return {
-            "version_id": self.version_id,
-            "name": self.name,
-            "kind": self.kind,
+            "adapter": self.adapter,
             "fingerprint": self.fingerprint,
+        }
+
+
+@dataclass(frozen=True)
+class PredictionProducer:
+    """Business model identity plus the exact runtime used for one prediction."""
+
+    model_version_id: str
+    artifact_digest: str
+    runtime: RuntimeDescriptor
+
+    def __post_init__(self) -> None:
+        if not _VERSION_ID.fullmatch(self.model_version_id):
+            raise ValueError(f"Invalid model version id: {self.model_version_id}")
+        if not _FINGERPRINT.fullmatch(self.artifact_digest):
+            raise ValueError("Artifact digest must be a SHA-256 digest")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "model_version_id": self.model_version_id,
+            "artifact_digest": self.artifact_digest,
+            "runtime": self.runtime.to_dict(),
         }
 
 
@@ -161,7 +176,7 @@ class PrelabelResult:
     source: Path
     width: int
     height: int
-    producer: PrelabelerDescriptor
+    producer: PredictionProducer
     instances: tuple[PrelabelInstance, ...]
     quality: PrelabelQuality
     diagnostics: PrelabelDiagnostics = field(default_factory=PrelabelDiagnostics)
@@ -192,7 +207,7 @@ class PrelabelResult:
 
     def to_dict(self) -> dict[str, object]:
         document: dict[str, object] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "source": self.source.as_posix(),
             "image": {"width": self.width, "height": self.height},
             "producer": self.producer.to_dict(),
@@ -208,7 +223,7 @@ class PrelabelResult:
 @dataclass(frozen=True)
 class PrelabelFailure:
     source: Path
-    producer: PrelabelerDescriptor
+    producer: PredictionProducer
     error: str
 
     def __post_init__(self) -> None:
@@ -218,7 +233,7 @@ class PrelabelFailure:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "source": self.source.as_posix(),
             "producer": self.producer.to_dict(),
             "error": self.error,
@@ -229,6 +244,11 @@ class Prelabeler(Protocol):
     """An executable model version that emits the canonical prelabel contract."""
 
     @property
-    def descriptor(self) -> PrelabelerDescriptor: ...
+    def runtime(self) -> RuntimeDescriptor: ...
 
-    def predict(self, image_path: Path, source: Path) -> PrelabelResult: ...
+    @property
+    def artifact_digest(self) -> str: ...
+
+    def predict(
+        self, image_path: Path, source: Path, producer: PredictionProducer
+    ) -> PrelabelResult: ...

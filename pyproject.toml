@@ -13,7 +13,8 @@ dependencies = [
 
 [project.scripts]
 vitroflow = "vitroflow.cli:main"
-vitroflow-worker = "vitroflow.worker:main"
+vitroflow-inference-worker = "vitroflow.inference_worker:main"
+vitroflow-training-worker = "vitroflow.training_worker:main"
 
 [project.urls]
 Repository = "https://github.com/i-richardwang/VitroFlow"
@@ -24,7 +25,7 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.12",
 ]
-train = [
+yolo = [
   "ultralytics>=8.4,<8.5",
 ]
 
@@ -40,7 +41,7 @@ packages = ["src/vitroflow"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/configs/yolo26",
+  "/configs",
   "/LICENSE",
   "/README.md",
   "/pyproject.toml",

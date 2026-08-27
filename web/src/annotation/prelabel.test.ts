@@ -32,8 +32,12 @@ describe("documentFromPrelabel", () => {
     expect(document.status).toBe("in_progress");
     expect(document.revision).toBe(0);
     expect(document.source).toEqual({
-      prelabelerVersionId: "traditional-v1",
-      prelabelerFingerprint: "b".repeat(64),
+      modelVersionId: "test.traditional-v1",
+      artifactDigest: "a".repeat(64),
+      runtime: {
+        adapter: "traditional",
+        fingerprint: "b".repeat(64),
+      },
     });
     expect(document.instances.map((instance) => instance.id)).toEqual([
       "1",

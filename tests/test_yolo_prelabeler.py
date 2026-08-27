@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import numpy as np
 import pytest
 
-from vitroflow.prelabelers import YoloPrelabeler
+from vitroflow import inference_worker
+from vitroflow.prelabelers import PredictionProducer, YoloPrelabeler
 from vitroflow.prelabelers import yolo as yolo_module
 
 
@@ -40,6 +42,20 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
                     "end2end": False,
                 },
                 "validation": {"metrics/mAP50(B)": 0.7},
+                "training": {
+                    "base_model": {
+                        "reference": "yolo26n.pt",
+                        "digest": "a" * 64,
+                    },
+                    "configuration": {
+                        "name": "seed-small.yaml",
+                        "digest": "b" * 64,
+                    },
+                    "runtime": {
+                        "framework": "ultralytics",
+                        "version": "8.4.129",
+                    },
+                },
             }
         )
     )
@@ -69,13 +85,17 @@ def test_yolo_prelabeler_uses_published_inference_settings(
             ]
 
     monkeypatch.setattr(yolo_module, "load_yolo", lambda: FakeYolo)
-    prelabeler = YoloPrelabeler.from_run(
-        _run(tmp_path), version_id="seed-yolo-v1", device="mps"
+    prelabeler = YoloPrelabeler.from_run(_run(tmp_path), device="mps")
+    producer = PredictionProducer(
+        "set.yolo-v1", prelabeler.artifact_digest, prelabeler.runtime
     )
 
-    result = prelabeler.predict(tmp_path / "source.jpg", Path("images/set/source.jpg"))
+    result = prelabeler.predict(
+        tmp_path / "source.jpg", Path("images/set/source.jpg"), producer
+    )
 
-    assert prelabeler.descriptor.kind == "yolo"
+    assert prelabeler.runtime.adapter == "ultralytics"
+    assert result.producer == producer
     assert calls == [
         (
             str(tmp_path / "run" / "weights" / "best.pt"),
@@ -109,15 +129,79 @@ def test_yolo_prelabeler_uses_published_inference_settings(
 
 def test_yolo_prelabeler_rejects_an_uncalibrated_run(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="not ready"):
-        YoloPrelabeler.from_run(_run(tmp_path, ready=False), version_id="seed-yolo-v1")
+        YoloPrelabeler.from_run(_run(tmp_path, ready=False))
 
 
 def test_yolo_fingerprint_covers_weights_and_inference_settings(tmp_path: Path) -> None:
     run = _run(tmp_path)
-    baseline = YoloPrelabeler.from_run(run, version_id="seed-yolo-v1")
+    baseline = YoloPrelabeler.from_run(run)
     document = json.loads((run / "inference.json").read_text())
     document["inference"]["confidence"] = 0.5
     (run / "inference.json").write_text(json.dumps(document))
-    changed = YoloPrelabeler.from_run(run, version_id="seed-yolo-v2")
+    changed = YoloPrelabeler.from_run(run)
 
-    assert baseline.descriptor.fingerprint != changed.descriptor.fingerprint
+    assert baseline.artifact_digest != changed.artifact_digest
+    assert baseline.runtime == changed.runtime
+
+
+def test_inference_worker_downloads_a_published_yolo_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeYolo:
+        def __init__(self, weights: str) -> None:
+            self.weights = weights
+
+    monkeypatch.setattr(yolo_module, "load_yolo", lambda: FakeYolo)
+    reference = YoloPrelabeler.from_run(_run(tmp_path))
+    artifact = {
+        "kind": "ultralytics",
+        "digest": reference.artifact_digest,
+        "bytes": len(b"weights"),
+        "path": "model-artifacts/set.yolo-v1/weights/best.pt",
+        "inference": {
+            "confidence": 0.42,
+            "imageSize": 768,
+            "maxDetections": 500,
+            "endToEnd": False,
+        },
+        "validation": {"metrics/mAP50(B)": 0.7},
+        "training": {
+            "baseModel": {
+                "reference": "yolo26n.pt",
+                "digest": "a" * 64,
+            },
+            "configuration": {
+                "name": "seed-small.yaml",
+                "digest": "b" * 64,
+            },
+            "runtime": {
+                "framework": "ultralytics",
+                "version": "8.4.129",
+            },
+        },
+    }
+    monkeypatch.setattr(
+        inference_worker,
+        "_deployment_manifest",
+        lambda args: {"id": args.model_version_id, "artifact": artifact},
+    )
+
+    def download(url: str, **kwargs: object) -> httpx.Response:
+        request = httpx.Request("GET", url)
+        return httpx.Response(200, content=b"weights", request=request)
+
+    monkeypatch.setattr(inference_worker.httpx, "get", download)
+    args = SimpleNamespace(
+        server="https://example.test",
+        token="secret",
+        model_version_id="set.yolo-v1",
+        work_dir=tmp_path / "worker",
+        config=None,
+        model=None,
+        device="cpu",
+    )
+
+    deployed = inference_worker._build_prelabeler(args)
+
+    assert deployed.artifact_digest == reference.artifact_digest
+    assert (args.work_dir / "model-artifacts/set.yolo-v1/weights/best.pt").is_file()

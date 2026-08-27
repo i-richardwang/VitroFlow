@@ -1,13 +1,19 @@
 services:
   workbench:
     build:
-      context: ./web
-      args:
-        HEROUI_KEY: ${HEROUI_KEY:?HEROUI_KEY is required to build the workbench}
+      context: .
+      dockerfile: web/Dockerfile
+      secrets:
+        - heroui_key
     environment:
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
-      VITROFLOW_WORKER_TOKEN: ${VITROFLOW_WORKER_TOKEN:-}
+      VITROFLOW_INFERENCE_WORKER_TOKEN: ${VITROFLOW_INFERENCE_WORKER_TOKEN:-}
+      VITROFLOW_TRAINING_WORKER_TOKEN: ${VITROFLOW_TRAINING_WORKER_TOKEN:-}
     ports:
       - "3000:3000"
     volumes:
       - ./data:/data
+
+secrets:
+  heroui_key:
+    environment: HEROUI_KEY

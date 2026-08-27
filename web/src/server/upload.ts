@@ -9,6 +9,7 @@ import {
   type DatasetImage,
 } from "./datasets";
 import { writeAtomically } from "./files";
+import { removeDatasetModel } from "./model-registry";
 import { DATASETS_DIR, IMAGES_DIR, resolveWithin } from "./paths";
 
 const MAX_IMAGES_PER_UPLOAD = 100;
@@ -86,6 +87,7 @@ export async function addImages(
     }
     if (datasetCreated) {
       fs.rmSync(resolveWithin(DATASETS_DIR, `${dataset}.json`), { force: true });
+      removeDatasetModel(dataset);
     }
     throw error;
   }
