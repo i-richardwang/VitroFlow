@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-      secrets:
-        - heroui_key
+      args:
+        HEROUI_KEY: ${HEROUI_KEY:?HEROUI_KEY is required to build the workbench}
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-vitroflow}:${POSTGRES_PASSWORD:-vitroflow}@postgres:5432/${POSTGRES_DB:-vitroflow}
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
@@ -45,7 +45,3 @@ services:
 
 volumes:
   postgres:
-
-secrets:
-  heroui_key:
-    environment: HEROUI_KEY
