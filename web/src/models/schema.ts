@@ -47,7 +47,7 @@ const trainingIdentitySchema = z.strictObject({
   }),
 });
 
-const modelArtifactSchema = z.discriminatedUnion("kind", [
+export const modelArtifactSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("traditional"),
     digest: fingerprintSchema,

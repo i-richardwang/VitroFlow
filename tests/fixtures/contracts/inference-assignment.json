@@ -1,0 +1,17 @@
+{
+  "manifest": {
+    "schemaVersion": 1,
+    "modelVersionId": "set.traditional-v1",
+    "artifact": {
+      "kind": "traditional",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "images": [
+    {
+      "dataset": "set",
+      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "extension": ".jpg"
+    }
+  ]
+}

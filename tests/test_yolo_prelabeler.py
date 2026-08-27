@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vitroflow.inference_models import ModelStore
+from vitroflow.inference_models import ModelManifest, ModelStore
 from vitroflow.prelabelers import PredictionProducer, YoloPrelabeler
 from vitroflow.prelabelers import yolo as yolo_module
 
@@ -189,10 +189,26 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
     source = Source()
     store = ModelStore(source, tmp_path / "worker", "cpu")
 
-    deployed = store.load({"id": "set.yolo-v1", "artifact": artifact})
+    manifest = ModelManifest.parse(
+        {
+            "schemaVersion": 1,
+            "modelVersionId": "set.yolo-v1",
+            "artifact": artifact,
+        }
+    )
+    deployed = store.load(manifest)
 
     assert source.requested == ["set.yolo-v1"]
     assert store.loaded == "set.yolo-v1"
-    assert store.load({"id": "set.yolo-v1", "artifact": artifact}) is deployed
+    assert store.load(manifest) is deployed
     assert deployed.artifact_digest == reference.artifact_digest
-    assert (tmp_path / "worker/model-artifacts/set.yolo-v1/weights/best.pt").is_file()
+    weights = tmp_path / "worker/model-artifacts/set.yolo-v1/weights/best.pt"
+    assert weights.is_file()
+
+    store.unload()
+    weights.write_bytes(b"corrupt")
+    repaired = store.load(manifest)
+
+    assert source.requested == ["set.yolo-v1", "set.yolo-v1"]
+    assert repaired.artifact_digest == reference.artifact_digest
+    assert weights.read_bytes() == b"weights"

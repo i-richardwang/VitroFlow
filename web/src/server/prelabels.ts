@@ -11,9 +11,12 @@ import {
 } from "../db/schema";
 import type { ImageRef } from "../datasets/schema";
 import { prelabelSchema, type Prelabel } from "../detection/schema";
+import {
+  inferenceModelManifest,
+  type InferenceModelManifest,
+} from "../inference/assignments";
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
-import type { ModelVersion } from "../models/schema";
 import {
   atRef,
   describeRef,
@@ -119,7 +122,7 @@ export async function discardPrelabel(ref: ImageRef): Promise<void> {
 
 /** One version's share of the pending work, with the manifest to load it. */
 export interface Assignment {
-  modelVersion: ModelVersion;
+  manifest: InferenceModelManifest;
   images: DatasetImage[];
 }
 
@@ -167,13 +170,16 @@ export async function pendingAssignments(
   const assignments: Assignment[] = [];
   for (const row of rows) {
     const last = assignments.at(-1);
-    if (last?.modelVersion.id === row.version.id) {
+    if (last?.manifest.modelVersionId === row.version.id) {
       last.images.push(toDatasetImage(row));
       continue;
     }
     const modelVersion = toModelVersion(row.version);
     if (!canExecute(worker, modelVersion.artifact)) continue;
-    assignments.push({ modelVersion, images: [toDatasetImage(row)] });
+    assignments.push({
+      manifest: inferenceModelManifest(modelVersion),
+      images: [toDatasetImage(row)],
+    });
   }
   return assignments;
 }

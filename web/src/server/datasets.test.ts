@@ -163,7 +163,7 @@ describe("prelabels", () => {
           (image) => image.dataset === "pend",
         );
         return images.length
-          ? [[assignment.modelVersion.id, images.map((i) => i.filename)]]
+          ? [[assignment.manifest.modelVersionId, images.map((i) => i.filename)]]
           : [];
       });
     const { version } = await selectedVersion("pend");

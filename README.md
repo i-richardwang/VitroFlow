@@ -92,12 +92,12 @@ The inference protocol uses a dedicated credential:
 
 | Call | Purpose |
 |---|---|
-| `POST api/inference/heartbeat` | verifies a published deployment and reports runtime state |
-| `GET api/inference/pending?workerId=<id>` | images assigned to that exact artifact |
+| `POST api/inference/heartbeat` | advertises runtime capabilities and reports loaded/current work |
+| `GET api/inference/pending?workerId=<id>` | compatible assignments with versioned execution manifests |
 | `GET api/inference/images/<digest>` | source image bytes |
 | `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document |
 
-Each pass heartbeats, fetches the pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped for that pass; the other assignments proceed. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
+On each polling interval the Worker heartbeats, fetches one snapshot of pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped until the next interval so the other assignments proceed without creating a hot retry loop. Invalid YOLO cache entries are discarded and rebuilt from verified Server bytes. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
 
 The Status page lists each Worker profile with its presence, current image, loaded version, and runtimes.
 

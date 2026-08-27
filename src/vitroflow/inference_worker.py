@@ -24,7 +24,7 @@ from .documents import (
 )
 from .identifiers import DATASET_NAME, WORKER_DEVICE, WORKER_ID
 from .image_io import verify_digest
-from .inference_models import ModelStore, parse_model_version
+from .inference_models import ModelManifest, ModelStore
 from .prelabelers import (
     PredictionProducer,
     Prelabeler,
@@ -93,28 +93,27 @@ class PendingImage:
 class Assignment:
     """The images the Server wants prelabelled with one model version."""
 
-    model_version: dict[str, Any]
+    manifest: ModelManifest
     images: tuple[PendingImage, ...]
 
     @classmethod
     def parse(cls, value: Any, context: str = "assignment") -> Assignment:
         entry = as_object(value, context)
-        expect_fields(entry, {"modelVersion", "images"}, context)
+        expect_fields(entry, {"manifest", "images"}, context)
+        images = tuple(
+            PendingImage.parse(item, f"{context}.images[{index}]")
+            for index, item in enumerate(as_list(entry["images"], f"{context}.images"))
+        )
+        if not images:
+            raise ValueError(f"{context}.images must not be empty")
         return cls(
-            model_version=parse_model_version(
-                entry["modelVersion"], f"{context}.modelVersion"
-            ),
-            images=tuple(
-                PendingImage.parse(item, f"{context}.images[{index}]")
-                for index, item in enumerate(
-                    as_list(entry["images"], f"{context}.images")
-                )
-            ),
+            manifest=ModelManifest.parse(entry["manifest"], f"{context}.manifest"),
+            images=images,
         )
 
     @property
     def version_id(self) -> str:
-        return self.model_version["id"]
+        return self.manifest.model_version_id
 
 
 def available_runtimes() -> tuple[RuntimeDescriptor, ...]:
@@ -314,15 +313,15 @@ def run_pass(
     work_root: Path,
     store: ModelStore,
     stopped: threading.Event | None = None,
-) -> bool:
+) -> None:
     """
-    Prelabel every pending image once; returns False when nothing was pending.
-    A version that cannot be loaded is skipped so the others still progress.
+    Process one snapshot of pending work. A version that cannot be loaded is
+    skipped so the other assignments still progress.
     """
     report_heartbeat(client, store.loaded, None)
     assignments = client.pending()
     if not assignments:
-        return False
+        return
     LOGGER.info(
         "%d pending images across %d versions",
         sum(len(assignment.images) for assignment in assignments),
@@ -333,13 +332,12 @@ def run_pass(
             if stopped and stopped.is_set():
                 break
             try:
-                prelabeler = store.load(assignment.model_version)
+                prelabeler = store.load(assignment.manifest)
             except WORKER_ERRORS as error:
                 LOGGER.error("cannot load %s: %s", assignment.version_id, error)
                 continue
             process_assignment(client, assignment, Path(temporary), prelabeler, stopped)
     report_heartbeat(client, store.loaded, None)
-    return True
 
 
 def run_inference_worker(
@@ -359,14 +357,10 @@ def run_inference_worker(
                 on_ready()
             while not stopped.is_set():
                 try:
-                    processed = run_pass(
-                        client, settings.work_dir, store, stopped=stopped
-                    )
+                    run_pass(client, settings.work_dir, store, stopped=stopped)
                 except WORKER_ERRORS as error:
                     LOGGER.error("inference worker error: %s", error)
-                    processed = False
-                if not processed:
-                    stopped.wait(settings.poll_seconds)
+                stopped.wait(settings.poll_seconds)
             return 0
     finally:
         store.unload()

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
+import { inferenceAssignmentSchema } from "../inference/assignments";
 import { Route as UploadRoute } from "../routes/api.datasets.$dataset.images";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
@@ -82,11 +83,16 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
   } as never);
   expect(pendingResponse.status).toBe(200);
   const { assignments } = await pendingResponse.json();
-  const assignment = assignments.find(
-    (entry: { modelVersion: { id: string } }) =>
-      entry.modelVersion.id === version.id,
+  const rawAssignment = assignments.find(
+    (entry: { manifest: { modelVersionId: string } }) =>
+      entry.manifest.modelVersionId === version.id,
   );
-  expect(assignment.modelVersion).toEqual(version);
+  const assignment = inferenceAssignmentSchema.parse(rawAssignment);
+  expect(assignment.manifest).toEqual({
+    schemaVersion: 1,
+    modelVersionId: version.id,
+    artifact: version.artifact,
+  });
   expect(assignment.images).toContainEqual({ ...ref, extension: ".jpg" });
   expect(
     (

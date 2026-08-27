@@ -1,0 +1,42 @@
+{
+  "manifest": {
+    "schemaVersion": 1,
+    "modelVersionId": "set.yolo-v1",
+    "artifact": {
+      "kind": "ultralytics",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bytes": 1024,
+      "path": "model-artifacts/set.yolo-v1/weights/best.pt",
+      "inference": {
+        "confidence": 0.42,
+        "imageSize": 768,
+        "maxDetections": 500,
+        "endToEnd": false
+      },
+      "validation": {
+        "metrics/mAP50(B)": 0.7
+      },
+      "training": {
+        "baseModel": {
+          "reference": "yolo26n.pt",
+          "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "configuration": {
+          "name": "seed-small.yaml",
+          "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "runtime": {
+          "framework": "ultralytics",
+          "version": "8.4.129"
+        }
+      }
+    }
+  },
+  "images": [
+    {
+      "dataset": "set",
+      "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "extension": ".png"
+    }
+  ]
+}

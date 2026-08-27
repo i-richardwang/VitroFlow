@@ -1,4 +1,4 @@
-"""Loads the model versions a Server assigns, one at a time."""
+"""Validates and loads the immutable model manifests assigned by the Server."""
 
 from __future__ import annotations
 
@@ -6,16 +6,26 @@ import json
 import logging
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from .config import PipelineConfig
-from .documents import as_digest, as_object, as_string, expect_fields
+from .documents import (
+    as_digest,
+    as_integer,
+    as_number,
+    as_object,
+    as_string,
+    expect_fields,
+    expect_schema_version,
+)
 from .identifiers import VERSION_ID
 from .prelabelers import Prelabeler, TraditionalPrelabeler, YoloPrelabeler
 from .scoring import DEFAULT_MODEL
 
-ARTIFACT_KINDS = frozenset({"traditional", "ultralytics"})
+MODEL_MANIFEST_SCHEMA_VERSION = 1
+CACHE_VALIDATION_ERRORS = (OSError, TypeError, ValueError, RuntimeError)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -23,19 +33,109 @@ class WeightsSource(Protocol):
     def weights(self, version_id: str) -> bytes: ...
 
 
-def parse_model_version(value: Any, context: str = "model version") -> dict[str, Any]:
-    """The manifest fields every model version carries, whatever its kind."""
-    manifest = as_object(value, context)
-    expect_fields(manifest, {"id", "artifact"}, context)
-    version_id = as_string(manifest["id"], f"{context}.id")
-    if not VERSION_ID.fullmatch(version_id):
-        raise ValueError(f"{context}.id is invalid")
-    artifact = as_object(manifest["artifact"], f"{context}.artifact")
-    expect_fields(artifact, {"kind", "digest"}, f"{context}.artifact")
-    if artifact["kind"] not in ARTIFACT_KINDS:
-        raise ValueError(f"{context}.artifact.kind is unsupported")
-    as_digest(artifact["digest"], f"{context}.artifact.digest")
-    return manifest
+def _relative_artifact_path(value: Any, context: str) -> str:
+    path = as_string(value, context)
+    if path.startswith("/") or "\\" in path or ".." in path.split("/"):
+        raise ValueError(f"{context} must be a relative artifact path")
+    return path
+
+
+def _inference_settings(value: Any, context: str) -> None:
+    settings = as_object(value, context)
+    expect_fields(
+        settings,
+        {"confidence", "imageSize", "maxDetections", "endToEnd"},
+        context,
+    )
+    confidence = as_number(settings["confidence"], f"{context}.confidence")
+    if not 0 <= confidence <= 1:
+        raise ValueError(f"{context}.confidence must be between 0 and 1")
+    as_integer(settings["imageSize"], f"{context}.imageSize", 1)
+    as_integer(settings["maxDetections"], f"{context}.maxDetections", 1)
+    if not isinstance(settings["endToEnd"], bool):
+        raise TypeError(f"{context}.endToEnd must be a boolean")
+
+
+def _training_identity(value: Any, context: str) -> None:
+    training = as_object(value, context)
+    expect_fields(training, {"baseModel", "configuration", "runtime"}, context)
+
+    base_model = as_object(training["baseModel"], f"{context}.baseModel")
+    expect_fields(base_model, {"reference", "digest"}, f"{context}.baseModel")
+    as_string(base_model["reference"], f"{context}.baseModel.reference")
+    as_digest(base_model["digest"], f"{context}.baseModel.digest")
+
+    configuration = as_object(training["configuration"], f"{context}.configuration")
+    expect_fields(configuration, {"name", "digest"}, f"{context}.configuration")
+    as_string(configuration["name"], f"{context}.configuration.name")
+    as_digest(configuration["digest"], f"{context}.configuration.digest")
+
+    runtime = as_object(training["runtime"], f"{context}.runtime")
+    expect_fields(runtime, {"framework", "version"}, f"{context}.runtime")
+    if runtime["framework"] != "ultralytics":
+        raise ValueError(f"{context}.runtime.framework must be ultralytics")
+    as_string(runtime["version"], f"{context}.runtime.version")
+
+
+def _model_artifact(value: Any, context: str) -> dict[str, Any]:
+    artifact = as_object(value, context)
+    kind = artifact.get("kind")
+    if kind == "traditional":
+        expect_fields(artifact, {"kind", "digest"}, context)
+    elif kind == "ultralytics":
+        expect_fields(
+            artifact,
+            {
+                "kind",
+                "digest",
+                "bytes",
+                "path",
+                "inference",
+                "validation",
+                "training",
+            },
+            context,
+        )
+        as_integer(artifact["bytes"], f"{context}.bytes", 1)
+        _relative_artifact_path(artifact["path"], f"{context}.path")
+        _inference_settings(artifact["inference"], f"{context}.inference")
+        validation = as_object(artifact["validation"], f"{context}.validation")
+        for name, metric in validation.items():
+            as_string(name, f"{context}.validation metric")
+            as_number(metric, f"{context}.validation.{name}")
+        _training_identity(artifact["training"], f"{context}.training")
+    else:
+        raise ValueError(f"{context}.kind is unsupported")
+    as_digest(artifact["digest"], f"{context}.digest")
+    return artifact
+
+
+@dataclass(frozen=True)
+class ModelManifest:
+    """The immutable model identity and artifact an assignment executes."""
+
+    model_version_id: str
+    artifact: dict[str, Any]
+
+    @classmethod
+    def parse(cls, value: Any, context: str = "model manifest") -> ModelManifest:
+        manifest = as_object(value, context)
+        expect_fields(
+            manifest, {"schemaVersion", "modelVersionId", "artifact"}, context
+        )
+        expect_schema_version(
+            manifest,
+            "schemaVersion",
+            MODEL_MANIFEST_SCHEMA_VERSION,
+            context,
+        )
+        version_id = as_string(manifest["modelVersionId"], f"{context}.modelVersionId")
+        if not VERSION_ID.fullmatch(version_id):
+            raise ValueError(f"{context}.modelVersionId is invalid")
+        return cls(
+            model_version_id=version_id,
+            artifact=_model_artifact(manifest["artifact"], f"{context}.artifact"),
+        )
 
 
 def _release_accelerator() -> None:
@@ -64,16 +164,14 @@ class ModelStore:
     def loaded(self) -> str | None:
         return self._loaded[0] if self._loaded else None
 
-    def load(self, manifest: dict[str, Any]) -> Prelabeler:
-        version_id = manifest["id"]
+    def load(self, manifest: ModelManifest) -> Prelabeler:
+        version_id = manifest.model_version_id
         if self._loaded and self._loaded[0] == version_id:
             return self._loaded[1]
         self.unload()
-        artifact = manifest["artifact"]
+        artifact = manifest.artifact
         if artifact["kind"] == "ultralytics":
-            prelabeler: Prelabeler = YoloPrelabeler.from_run(
-                self._yolo_run(version_id, artifact), device=self._device
-            )
+            prelabeler: Prelabeler = self._yolo_prelabeler(version_id, artifact)
         else:
             prelabeler = TraditionalPrelabeler(PipelineConfig(), DEFAULT_MODEL)
         if prelabeler.artifact_digest != artifact["digest"]:
@@ -92,27 +190,17 @@ class ModelStore:
         del prelabeler
         _release_accelerator()
 
-    def _yolo_run(self, version_id: str, artifact: dict[str, Any]) -> Path:
+    def _yolo_prelabeler(
+        self, version_id: str, artifact: dict[str, Any]
+    ) -> YoloPrelabeler:
         expected_digest = artifact["digest"]
-        expected_bytes = artifact.get("bytes")
-        inference = artifact.get("inference")
-        validation = artifact.get("validation")
-        training = artifact.get("training")
-        if (
-            not isinstance(expected_bytes, int)
-            or not isinstance(inference, dict)
-            or not isinstance(validation, dict)
-            or not isinstance(training, dict)
-        ):
-            raise TypeError("Published YOLO artifact manifest is invalid")
         destination = self._artifacts / version_id
         if destination.exists():
-            cached = YoloPrelabeler.from_run(destination, device=self._device)
-            if cached.artifact_digest != expected_digest:
-                raise ValueError(
-                    f"Cached YOLO artifact for {version_id} does not match the published version"
-                )
-            return destination
+            try:
+                return self._verified_yolo_prelabeler(destination, expected_digest)
+            except CACHE_VALIDATION_ERRORS as error:
+                LOGGER.warning("discarding invalid cache for %s: %s", version_id, error)
+                self._discard_cache_entry(destination)
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = Path(
@@ -122,9 +210,11 @@ class ModelStore:
             weights = temporary / "weights" / "best.pt"
             weights.parent.mkdir(parents=True)
             content = self._source.weights(version_id)
-            if len(content) != expected_bytes:
+            if len(content) != artifact["bytes"]:
                 raise ValueError("Downloaded YOLO weights have an unexpected size")
             weights.write_bytes(content)
+            inference = artifact["inference"]
+            training = artifact["training"]
             (temporary / "inference.json").write_text(
                 json.dumps(
                     {
@@ -132,16 +222,16 @@ class ModelStore:
                         "weights": "weights/best.pt",
                         "inference": {
                             "ready": True,
-                            "confidence": inference.get("confidence"),
-                            "imgsz": inference.get("imageSize"),
-                            "max_det": inference.get("maxDetections"),
-                            "end2end": inference.get("endToEnd"),
+                            "confidence": inference["confidence"],
+                            "imgsz": inference["imageSize"],
+                            "max_det": inference["maxDetections"],
+                            "end2end": inference["endToEnd"],
                         },
-                        "validation": validation,
+                        "validation": artifact["validation"],
                         "training": {
-                            "base_model": training.get("baseModel"),
-                            "configuration": training.get("configuration"),
-                            "runtime": training.get("runtime"),
+                            "base_model": training["baseModel"],
+                            "configuration": training["configuration"],
+                            "runtime": training["runtime"],
                         },
                     },
                     indent=2,
@@ -149,14 +239,27 @@ class ModelStore:
                 + "\n",
                 encoding="utf-8",
             )
-            downloaded = YoloPrelabeler.from_run(temporary, device=self._device)
-            if downloaded.artifact_digest != expected_digest:
-                raise ValueError("Downloaded YOLO artifact failed digest verification")
+            self._verified_yolo_prelabeler(temporary, expected_digest)
             try:
                 temporary.rename(destination)
             except FileExistsError:
-                pass
+                return self._verified_yolo_prelabeler(destination, expected_digest)
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
-        return destination
+        return self._verified_yolo_prelabeler(destination, expected_digest)
+
+    def _verified_yolo_prelabeler(
+        self, run: Path, expected_digest: str
+    ) -> YoloPrelabeler:
+        cached = YoloPrelabeler.from_run(run, device=self._device)
+        if cached.artifact_digest != expected_digest:
+            raise ValueError("YOLO artifact does not match its published digest")
+        return cached
+
+    @staticmethod
+    def _discard_cache_entry(path: Path) -> None:
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)

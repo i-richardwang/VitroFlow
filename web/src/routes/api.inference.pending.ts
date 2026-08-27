@@ -27,8 +27,8 @@ export const Route = createFileRoute("/api/inference/pending")({
         }
         const assignments = await pendingAssignments(worker);
         return Response.json({
-          assignments: assignments.map(({ modelVersion, images }) => ({
-            modelVersion,
+          assignments: assignments.map(({ manifest, images }) => ({
+            manifest,
             images: images.map(({ dataset, digest, extension }) => ({
               dataset,
               digest,

@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from vitroflow.annotations import BoundingBox
+from vitroflow.inference_models import ModelManifest
 from vitroflow.inference_worker import (
     Assignment,
     PendingImage,
@@ -28,13 +29,15 @@ from vitroflow.prelabelers import (
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 IMAGE = b"source"
 DIGEST = hashlib.sha256(IMAGE).hexdigest()
-VERSION = {
-    "id": "set.traditional-v1",
+MANIFEST = {
+    "schemaVersion": 1,
+    "modelVersionId": "set.traditional-v1",
     "artifact": {"kind": "traditional", "digest": "a" * 64},
 }
-OTHER_VERSION = {
-    "id": "set.yolo-v2",
-    "artifact": {"kind": "ultralytics", "digest": "c" * 64},
+OTHER_MANIFEST = {
+    "schemaVersion": 1,
+    "modelVersionId": "set.traditional-v2",
+    "artifact": {"kind": "traditional", "digest": "c" * 64},
 }
 
 
@@ -72,8 +75,8 @@ class FakeStore:
         self.loaded: str | None = None
         self.loads: list[str] = []
 
-    def load(self, manifest: dict[str, Any]) -> Any:
-        version_id = manifest["id"]
+    def load(self, manifest: ModelManifest) -> Any:
+        version_id = manifest.model_version_id
         self.loads.append(version_id)
         if version_id not in self.prelabelers:
             raise RuntimeError(f"no weights for {version_id}")
@@ -147,7 +150,7 @@ PENDING = [
     {"dataset": "set", "digest": DIGEST, "extension": ".jpg"},
     {"dataset": "set", "digest": DIGEST, "extension": ".png"},
 ]
-ASSIGNMENTS = [{"modelVersion": VERSION, "images": PENDING}]
+ASSIGNMENTS = [{"manifest": MANIFEST, "images": PENDING}]
 
 
 def test_pending_image_requires_every_field() -> None:
@@ -162,30 +165,45 @@ def test_pending_image_requires_every_field() -> None:
         PendingImage.parse({"dataset": "set", "digest": DIGEST, "extension": ".gif"})
 
 
-def test_assignment_validates_its_model_version() -> None:
-    assignment = Assignment.parse(ASSIGNMENTS[0])
-    assert assignment.version_id == "set.traditional-v1"
-    assert len(assignment.images) == 2
+@pytest.mark.parametrize(
+    ("filename", "kind"),
+    [
+        ("inference-assignment.json", "traditional"),
+        ("inference-assignment-yolo.json", "ultralytics"),
+    ],
+)
+def test_assignment_loads_shared_contract_fixtures(filename: str, kind: str) -> None:
+    fixture = Path(__file__).parent / "fixtures/contracts" / filename
+    assignment = Assignment.parse(json.loads(fixture.read_text()))
+    assert assignment.manifest.artifact["kind"] == kind
+    assert len(assignment.images) == 1
+
+
+def test_assignment_validates_its_manifest() -> None:
     with pytest.raises(ValueError, match="kind is unsupported"):
         Assignment.parse(
             {
-                "modelVersion": {
-                    "id": "set.v1",
+                "manifest": {
+                    "schemaVersion": 1,
+                    "modelVersionId": "set.v1",
                     "artifact": {"kind": "onnx", "digest": "a" * 64},
                 },
-                "images": [],
+                "images": PENDING[:1],
             }
         )
-    with pytest.raises(ValueError, match="id is invalid"):
+    with pytest.raises(ValueError, match="modelVersionId is invalid"):
         Assignment.parse(
             {
-                "modelVersion": {
-                    "id": "/set",
+                "manifest": {
+                    "schemaVersion": 1,
+                    "modelVersionId": "/set",
                     "artifact": {"kind": "traditional", "digest": "a" * 64},
                 },
-                "images": [],
+                "images": PENDING[:1],
             }
         )
+    with pytest.raises(ValueError, match="images must not be empty"):
+        Assignment.parse({"manifest": MANIFEST, "images": []})
 
 
 def test_heartbeat_describes_runtimes_and_loaded_version() -> None:
@@ -207,7 +225,7 @@ def test_pass_prelabels_every_assigned_image(tmp_path: Path) -> None:
     client = workbench.client()
     models = store()
     try:
-        assert run_pass(client, tmp_path, models) is True
+        run_pass(client, tmp_path, models)
     finally:
         client.close()
 
@@ -241,17 +259,17 @@ def test_pass_prelabels_every_assigned_image(tmp_path: Path) -> None:
 def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
     workbench = Workbench(
         [
-            {"modelVersion": OTHER_VERSION, "images": PENDING[:1]},
-            {"modelVersion": VERSION, "images": PENDING[:1]},
+            {"manifest": OTHER_MANIFEST, "images": PENDING[:1]},
+            {"manifest": MANIFEST, "images": PENDING[:1]},
         ]
     )
     client = workbench.client()
     models = store()
     try:
-        assert run_pass(client, tmp_path, models) is True
+        run_pass(client, tmp_path, models)
     finally:
         client.close()
-    assert models.loads == ["set.yolo-v2", "set.traditional-v1"]
+    assert models.loads == ["set.traditional-v2", "set.traditional-v1"]
     assert [body["producer"] for body in workbench.prelabel_bodies()] == [
         PRODUCER.to_dict()
     ]
@@ -259,7 +277,7 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
 
 def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> None:
     workbench = Workbench(
-        [{"modelVersion": VERSION, "images": PENDING[:1]}], image=b"tampered"
+        [{"manifest": MANIFEST, "images": PENDING[:1]}], image=b"tampered"
     )
     client = workbench.client()
     try:
@@ -271,10 +289,10 @@ def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> No
 
 
 def test_pass_records_a_failure_document(tmp_path: Path) -> None:
-    workbench = Workbench([{"modelVersion": VERSION, "images": PENDING[:1]}])
+    workbench = Workbench([{"manifest": MANIFEST, "images": PENDING[:1]}])
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, store(FailingPrelabeler())) is True
+        run_pass(client, tmp_path, store(FailingPrelabeler()))
     finally:
         client.close()
     assert workbench.prelabel_bodies() == [
@@ -290,18 +308,18 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
 @pytest.mark.parametrize("status", [200, 409])
 def test_pass_accepts_stored_or_superseded_results(tmp_path: Path, status: int) -> None:
     workbench = Workbench(
-        [{"modelVersion": VERSION, "images": PENDING[:1]}], prelabel_status=status
+        [{"manifest": MANIFEST, "images": PENDING[:1]}], prelabel_status=status
     )
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, store()) is True
+        run_pass(client, tmp_path, store())
     finally:
         client.close()
 
 
 def test_pass_propagates_http_errors(tmp_path: Path) -> None:
     workbench = Workbench(
-        [{"modelVersion": VERSION, "images": PENDING[:1]}], prelabel_status=400
+        [{"manifest": MANIFEST, "images": PENDING[:1]}], prelabel_status=400
     )
     client = workbench.client()
     try:
@@ -311,11 +329,11 @@ def test_pass_propagates_http_errors(tmp_path: Path) -> None:
         client.close()
 
 
-def test_pass_returns_false_when_nothing_is_pending(tmp_path: Path) -> None:
+def test_pass_does_nothing_when_nothing_is_pending(tmp_path: Path) -> None:
     workbench = Workbench([])
     client = workbench.client()
     try:
-        assert run_pass(client, tmp_path, store()) is False
+        run_pass(client, tmp_path, store())
     finally:
         client.close()
     assert workbench.calls() == [
@@ -330,7 +348,7 @@ def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
     stopped = threading.Event()
     stopped.set()
     try:
-        assert run_pass(client, tmp_path, store(), stopped=stopped) is True
+        run_pass(client, tmp_path, store(), stopped=stopped)
     finally:
         client.close()
 
