@@ -4,6 +4,9 @@ import { annotationSchema } from "../annotation/schema";
 import { imageRefSchema, imageSourceSchema } from "../datasets/schema";
 import { fingerprintSchema, versionIdSchema } from "../inference/schema";
 
+/** A snapshot needs one training and one validation image. */
+export const MIN_SNAPSHOT_IMAGES = 2;
+
 export const snapshotImageSchema = z.strictObject({
   ref: imageRefSchema,
   source: imageSourceSchema,
@@ -22,7 +25,7 @@ export const datasetSnapshotSchema = z.strictObject({
   datasetId: versionIdSchema,
   modelId: versionIdSchema,
   createdAt: z.string().datetime({ offset: true }),
-  images: z.array(snapshotImageSchema).min(2),
+  images: z.array(snapshotImageSchema).min(MIN_SNAPSHOT_IMAGES),
 });
 
 export const trainingRecipeSchema = z.strictObject({
@@ -108,3 +111,14 @@ export type DatasetSnapshot = z.infer<typeof datasetSnapshotSchema>;
 export type TrainingRecipe = z.infer<typeof trainingRecipeSchema>;
 export type TrainingRun = z.infer<typeof trainingRunSchema>;
 export type InferencePublication = z.infer<typeof inferencePublicationSchema>;
+
+const TRAINING_RUN_ID_PREFIX = "train-";
+
+export function trainingRunId(uuid: string): string {
+  return `${TRAINING_RUN_ID_PREFIX}${uuid}`;
+}
+
+/** The leading block of the run's UUID, enough to tell runs apart in a list. */
+export function trainingRunLabel(run: Pick<TrainingRun, "id">): string {
+  return run.id.slice(TRAINING_RUN_ID_PREFIX.length, TRAINING_RUN_ID_PREFIX.length + 8);
+}

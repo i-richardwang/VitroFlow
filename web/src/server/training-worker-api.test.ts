@@ -3,7 +3,6 @@ import { expect, test } from "bun:test";
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { Route as CreateRoute } from "../routes/api.datasets.$dataset.training-runs";
 import { Route as ManifestRoute } from "../routes/api.inference.model-versions.$versionId";
 import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
@@ -15,6 +14,7 @@ import { Route as SnapshotRoute } from "../routes/api.training.runs.$runId.snaps
 import { readDataset } from "./datasets";
 import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
+import { createTrainingRun } from "./training-runs";
 import { addImages } from "./upload";
 
 type Handler = (context: never) => Response | Promise<Response>;
@@ -60,14 +60,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     );
   }
 
-  const create = await handler(CreateRoute, "POST")({
-    params: { dataset: datasetId },
-    request: new Request(`http://localhost/api/datasets/${datasetId}/training-runs`, {
-      method: "POST",
-    }),
-  } as never);
-  expect(create.status).toBe(201);
-  const created = await create.json();
+  const created = createTrainingRun(datasetId, YOLO26_SEED_SMALL_RECIPE);
 
   const heartbeat = await handler(HeartbeatRoute, "POST")({
     request: new Request("http://localhost/api/training/heartbeat", {

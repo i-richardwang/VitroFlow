@@ -11,6 +11,7 @@ import {
   resolveWithin,
 } from "./paths";
 import {
+  MIN_SNAPSHOT_IMAGES,
   datasetSnapshotSchema,
   type DatasetSnapshot,
 } from "../training/schema";
@@ -111,8 +112,10 @@ export function createDatasetSnapshot(datasetId: string): DatasetSnapshot {
     const annotation = readLabel(image);
     return annotation?.status === "complete" ? [{ image, annotation }] : [];
   });
-  if (reviewed.length < 2) {
-    throw new Error("Training requires at least two complete annotations");
+  if (reviewed.length < MIN_SNAPSHOT_IMAGES) {
+    throw new Error(
+      `Training requires at least ${MIN_SNAPSHOT_IMAGES} complete annotations`,
+    );
   }
   const assignments = assignSplits(
     datasetId,

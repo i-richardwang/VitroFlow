@@ -5,20 +5,14 @@ import { documentFromPrelabel } from "../annotation/prelabel";
 import { annotationSchema } from "../annotation/schema";
 import { imageRefSchema } from "../datasets/schema";
 import { isFailure } from "../detection/schema";
-import { listDatasets, listImages, removeImage } from "./datasets";
+import { listDatasets, removeImage } from "./datasets";
 import { createLabel, readLabel, updateLabel } from "./labels";
 import { discardPrelabel, readPrelabel } from "./prelabels";
 import { summarizeDataset, summarizeImage } from "./summaries";
 
-const datasetInput = z.object({ dataset: z.string() });
-
 export const getDatasets = createServerFn({ method: "GET" }).handler(() =>
   listDatasets().map(summarizeDataset),
 );
-
-export const getDataset = createServerFn({ method: "GET" })
-  .validator(datasetInput)
-  .handler(({ data }) => listImages(data.dataset).map(summarizeImage));
 
 export const getImage = createServerFn({ method: "GET" })
   .validator(imageRefSchema)

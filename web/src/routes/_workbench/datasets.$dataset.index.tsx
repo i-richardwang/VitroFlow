@@ -12,15 +12,20 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { Count } from "../../components/Count";
+import { DatasetOverview } from "../../components/dataset/DatasetOverview";
+import { ModelPanel } from "../../components/dataset/ModelPanel";
+import { PrelabelVersion } from "../../components/dataset/PrelabelVersion";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
 import { ImageStateChip, imageStateLabel } from "../../components/ImageState";
 import { UploadCard } from "../../components/UploadCard";
 import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
-import { deleteImage, getDataset } from "../../server/images";
+import { deleteImage } from "../../server/images";
+import { getDatasetOverview } from "../../server/models";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
-  loader: ({ params }) => getDataset({ data: { dataset: params.dataset } }),
+  loader: ({ params }) =>
+    getDatasetOverview({ data: { dataset: params.dataset } }),
   component: DatasetPage,
 });
 
@@ -28,27 +33,24 @@ type Filter = ImageState | "all";
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const images = Route.useLoaderData();
+  const overview = Route.useLoaderData();
+  const { images, counts } = overview;
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
 
-  const awaitingWorker = images.some((image) => image.state === "pending");
+  // Worker presence and training leases are time-derived, so the console
+  // refreshes on a fixed interval.
   useEffect(() => {
-    if (!awaitingWorker) {
-      return;
-    }
-    const timer = window.setInterval(() => void router.invalidate(), 5000);
+    const timer = window.setInterval(() => void router.invalidate(), 10_000);
     return () => window.clearInterval(timer);
-  }, [awaitingWorker, router]);
+  }, [router]);
 
   const visible =
     filter === "all"
       ? images
       : images.filter((image) => image.state === filter);
   const countOf = (state: Filter) =>
-    state === "all"
-      ? images.length
-      : images.filter((image) => image.state === state).length;
+    state === "all" ? images.length : counts[state];
 
   return (
     <Page
@@ -61,6 +63,8 @@ function DatasetPage() {
       title={dataset}
       titleClassName="truncate font-mono"
     >
+      <DatasetOverview overview={overview} />
+      <ModelPanel overview={overview} />
       <UploadCard dataset={dataset} />
 
       <ToggleButtonGroup
@@ -90,6 +94,7 @@ function DatasetPage() {
               <Table.Column className="text-right">Detected</Table.Column>
               <Table.Column className="text-right">Boxes</Table.Column>
               <Table.Column>Quality</Table.Column>
+              <Table.Column>Model</Table.Column>
               <Table.Column>
                 <span className="sr-only">Actions</span>
               </Table.Column>
@@ -142,6 +147,12 @@ function DatasetPage() {
                     ) : (
                       <span className="text-muted">—</span>
                     )}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <PrelabelVersion
+                      dataset={overview.dataset}
+                      versionId={image.modelVersionId}
+                    />
                   </Table.Cell>
                   <Table.Cell className="text-right">
                     <DeleteImageButton dataset={dataset} stem={image.stem} />

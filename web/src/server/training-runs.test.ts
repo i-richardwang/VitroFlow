@@ -19,6 +19,7 @@ import { snapshotImagePath } from "./dataset-snapshots";
 import {
   claimTrainingRun,
   createTrainingRun,
+  failTrainingRun,
   publishTrainingArtifact,
   readTrainingRun,
   recoverTrainingPublications,
@@ -63,6 +64,25 @@ const recipe = {
   imageSize: 768,
   batchSize: 4,
 };
+
+test("a model has at most one active training run", async () => {
+  await reviewedDataset("exclusive-run");
+  const run = createTrainingRun("exclusive-run", recipe);
+  expect(() => createTrainingRun("exclusive-run", recipe)).toThrow(/still active/);
+  recordTrainingHeartbeat({
+    workerId: "exclusive-trainer",
+    startedAt: "2026-08-27T00:00:00.000Z",
+    device: "cuda:0",
+    currentTrainingRunId: null,
+  });
+  expect(claimTrainingRun("exclusive-trainer")?.id).toBe(run.id);
+  expect(() => createTrainingRun("exclusive-run", recipe)).toThrow(/still active/);
+  failTrainingRun(run.id, "exclusive-trainer", "stopped");
+  const next = createTrainingRun("exclusive-run", recipe);
+  expect(next.id).not.toBe(run.id);
+  expect(claimTrainingRun("exclusive-trainer")?.id).toBe(next.id);
+  failTrainingRun(next.id, "exclusive-trainer", "stopped");
+});
 
 test("a training run owns an immutable self-contained snapshot", async () => {
   await reviewedDataset("snapshot-contract");

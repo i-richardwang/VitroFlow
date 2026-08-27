@@ -14,6 +14,8 @@ export interface ImageSummary extends ImageRef {
   instanceCount: number | null;
   quality: SeedQuality | null;
   error: string | null;
+  /** The model version that produced the prelabel, if one exists. */
+  modelVersionId: string | null;
 }
 
 export interface DatasetSummary {
@@ -41,16 +43,23 @@ export function summarizeImage(ref: ImageRef): ImageSummary {
     instanceCount: label?.instances.length ?? null,
     quality: detected?.quality ?? null,
     error: prelabel && isFailure(prelabel) ? prelabel.error : null,
+    modelVersionId: prelabel?.producer.model_version_id ?? null,
   };
 }
 
-export function summarizeDataset(dataset: string): DatasetSummary {
+export function countImageStates(
+  images: ImageSummary[],
+): Record<ImageState, number> {
   const counts = Object.fromEntries(
     IMAGE_STATES.map((state) => [state, 0]),
   ) as Record<ImageState, number>;
-  const images = listImages(dataset);
   for (const image of images) {
-    counts[summarizeImage(image).state] += 1;
+    counts[image.state] += 1;
   }
-  return { dataset, imageCount: images.length, counts };
+  return counts;
+}
+
+export function summarizeDataset(dataset: string): DatasetSummary {
+  const images = listImages(dataset).map(summarizeImage);
+  return { dataset, imageCount: images.length, counts: countImageStates(images) };
 }

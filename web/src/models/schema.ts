@@ -105,3 +105,18 @@ export function supportsRuntime(
     (artifact.kind === "ultralytics" && runtime.adapter === "ultralytics")
   );
 }
+
+/** The part of a version id that distinguishes it within its model. */
+export function versionSlug(version: Pick<ModelVersion, "id" | "modelId">): string {
+  const prefix = `${version.modelId}.`;
+  return version.id.startsWith(prefix) ? version.id.slice(prefix.length) : version.id;
+}
+
+/** A validation metric by its short name, e.g. `mAP50` from `metrics/mAP50(B)`. */
+export function validationMetric(
+  artifact: ModelArtifact,
+  name: string,
+): number | null {
+  if (artifact.kind !== "ultralytics") return null;
+  return artifact.validation[`metrics/${name}(B)`] ?? null;
+}

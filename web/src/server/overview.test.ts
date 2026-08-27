@@ -1,0 +1,150 @@
+import { expect, test } from "bun:test";
+
+import { documentFromPrelabel } from "../annotation/prelabel";
+import { makeResult } from "../annotation/testing";
+import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
+import { readDataset, selectModelVersion } from "./datasets";
+import { recordInferenceHeartbeat } from "./inference-worker-store";
+import { createLabel, readLabel, updateLabel } from "./labels";
+import { readModelVersion, registerModelVersion } from "./model-registry";
+import { datasetOverview } from "./overview";
+import { writePrelabel } from "./prelabels";
+import {
+  claimTrainingRun,
+  createTrainingRun,
+  failTrainingRun,
+} from "./training-runs";
+import { recordTrainingHeartbeat } from "./training-worker-store";
+import { addImages } from "./upload";
+
+const runtime = { adapter: "traditional" as const, fingerprint: "b".repeat(64) };
+/** This test's clock; workers heartbeating at wall-clock time are offline here. */
+const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
+const OVERVIEW_AT = new Date(HEARTBEAT_AT.getTime() + 10_000);
+const LATER_AT = new Date(HEARTBEAT_AT.getTime() + 60 * 60 * 1000);
+
+async function datasetWithImages(datasetId: string, stems: string[]) {
+  await addImages(
+    datasetId,
+    stems.map((stem) => new File([stem], `${stem}.jpg`)),
+  );
+  const dataset = readDataset(datasetId);
+  if (!dataset) throw new Error("missing dataset");
+  const version = readModelVersion(dataset.selectedModelVersionId);
+  if (!version) throw new Error("missing version");
+  const worker = recordInferenceHeartbeat(
+    {
+      workerId: `${datasetId}-worker`,
+      startedAt: "2026-08-27T00:00:00.000Z",
+      deployment: { modelVersionId: version.id, artifactDigest: version.artifact.digest },
+      runtime,
+      current: null,
+    },
+    HEARTBEAT_AT,
+  );
+  const prelabelFor = (stem: string) => ({
+    ...makeResult([{ id: 0, x: 10, y: 10 }]),
+    source: `images/${datasetId}/${stem}.jpg`,
+    producer: {
+      model_version_id: version.id,
+      artifact_digest: version.artifact.digest,
+      runtime,
+    },
+  });
+  return { dataset, version, worker, prelabelFor };
+}
+
+test("the overview derives versions, serving workers, and training readiness", async () => {
+  const at = OVERVIEW_AT;
+  const { version, worker, prelabelFor } = await datasetWithImages("overview", [
+    "a",
+    "b",
+    "c",
+  ]);
+  for (const stem of ["a", "b"]) {
+    const ref = { dataset: "overview", stem };
+    writePrelabel(ref, prelabelFor(stem), worker);
+    createLabel(ref, { ...documentFromPrelabel(prelabelFor(stem)), status: "complete" });
+  }
+
+  let overview = datasetOverview("overview", at);
+  if (!overview) throw new Error("missing overview");
+  expect(overview.counts).toMatchObject({ pending: 1, complete: 2 });
+  expect(overview.images.map((image) => image.modelVersionId)).toEqual([
+    version.id,
+    version.id,
+    null,
+  ]);
+  expect(overview.versions).toEqual([
+    {
+      version,
+      selected: true,
+      serving: { online: 1, stale: 0 },
+      trainingImages: null,
+    },
+  ]);
+  expect(overview.training).toMatchObject({
+    runs: [],
+    active: null,
+    reviewedSinceLastRun: 2,
+    workersOnline: 0,
+    recipe: YOLO26_SEED_SMALL_RECIPE,
+  });
+
+  const run = createTrainingRun("overview", YOLO26_SEED_SMALL_RECIPE);
+  overview = datasetOverview("overview", at);
+  expect(overview?.training.active?.id).toBe(run.id);
+  expect(overview?.training.reviewedSinceLastRun).toBe(0);
+  recordTrainingHeartbeat(
+    {
+      workerId: "overview-trainer",
+      startedAt: HEARTBEAT_AT.toISOString(),
+      device: "cpu",
+      currentTrainingRunId: null,
+    },
+    HEARTBEAT_AT,
+  );
+  expect(claimTrainingRun("overview-trainer")?.id).toBe(run.id);
+  failTrainingRun(run.id, "overview-trainer", "stopped");
+  overview = datasetOverview("overview", at);
+  expect(overview?.training.active).toBeNull();
+  expect(overview?.training.workersOnline).toBe(1);
+
+  const label = readLabel({ dataset: "overview", stem: "a" });
+  if (!label) throw new Error("missing label");
+  updateLabel({ dataset: "overview", stem: "a" }, label);
+  expect(datasetOverview("overview", at)?.training.reviewedSinceLastRun).toBe(1);
+
+  const next = registerModelVersion({
+    schemaVersion: 1,
+    id: "overview.traditional-v2",
+    modelId: "overview",
+    name: "Traditional vision v2",
+    createdAt: LATER_AT.toISOString(),
+    source: { kind: "builtin", definition: "traditional-v2" },
+    artifact: { kind: "traditional", digest: "c".repeat(64) },
+  });
+  selectModelVersion("overview", next.id);
+  overview = datasetOverview("overview", at);
+  expect(overview?.versions.map(({ version, selected, serving }) => [
+    version.id,
+    selected,
+    serving,
+  ])).toEqual([
+    [next.id, true, { online: 0, stale: 0 }],
+    [version.id, false, { online: 1, stale: 0 }],
+  ]);
+  const staleAt = new Date(HEARTBEAT_AT.getTime() + 60_000);
+  expect(datasetOverview("overview", staleAt)?.versions[1]?.serving).toEqual({
+    online: 0,
+    stale: 1,
+  });
+  expect(datasetOverview("overview", LATER_AT)?.versions[1]?.serving).toEqual({
+    online: 0,
+    stale: 0,
+  });
+});
+
+test("the overview is absent for unknown datasets", () => {
+  expect(datasetOverview("nowhere")).toBeNull();
+});

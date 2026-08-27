@@ -4,12 +4,14 @@ import * as fs from "node:fs";
 import {
   inferencePublicationSchema,
   trainingRecipeSchema,
+  trainingRunId,
   trainingRunSchema,
   type InferencePublication,
   type TrainingRecipe,
   type TrainingRun,
 } from "../training/schema";
 import { createDatasetSnapshot, readDatasetSnapshot } from "./dataset-snapshots";
+import { readDataset } from "./datasets";
 import { writeAtomically } from "./files";
 import { registerModelVersion } from "./model-registry";
 import {
@@ -109,14 +111,37 @@ export function listTrainingRuns(): TrainingRun[] {
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
+const ACTIVE_STATUSES = new Set<TrainingRun["state"]["status"]>([
+  "queued",
+  "running",
+  "publishing",
+]);
+
+/** The run still queued, leased, or publishing for a model; at most one exists. */
+export function activeTrainingRun(modelId: string): TrainingRun | null {
+  return (
+    listTrainingRuns().find(
+      (run) => run.modelId === modelId && ACTIVE_STATUSES.has(run.state.status),
+    ) ?? null
+  );
+}
+
 export function createTrainingRun(
   datasetId: string,
   recipe: TrainingRecipe,
 ): TrainingRun {
+  const dataset = readDataset(datasetId);
+  if (!dataset) throw new Error(`Unknown dataset: ${datasetId}`);
+  const active = activeTrainingRun(dataset.modelId);
+  if (active) {
+    throw new TrainingRunConflictError(
+      `Training run ${active.id} is still active for ${dataset.modelId}`,
+    );
+  }
   const snapshot = createDatasetSnapshot(datasetId);
   return persist({
     schemaVersion: 1,
-    id: `train-${randomUUID()}`,
+    id: trainingRunId(randomUUID()),
     modelId: snapshot.modelId,
     datasetSnapshotId: snapshot.id,
     createdAt: new Date().toISOString(),

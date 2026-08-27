@@ -5,6 +5,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
+import { Timestamp } from "../../components/Timestamp";
 import { getStatus } from "../../server/status";
 import type { WorkerPresence } from "../../workers/presence";
 
@@ -36,7 +37,7 @@ function StatusPage() {
       title="Status"
       description="Inference and training workers report independently from their own compute environments."
     >
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatKpi label="Datasets" value={server.datasets} />
         <StatKpi label="Images" value={server.images} />
         <StatKpi label="Prelabels" value={server.prelabels} />
@@ -76,7 +77,7 @@ function StatusPage() {
                   <Table.Cell className="break-all font-mono font-medium">
                     {worker.workerId}
                     <span className="mt-1 block font-sans text-xs font-normal text-muted">
-                      Started {new Date(worker.startedAt).toLocaleString()}
+                      Started <Timestamp value={worker.startedAt} />
                     </span>
                   </Table.Cell>
                   <Table.Cell>
@@ -102,8 +103,29 @@ function StatusPage() {
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap font-mono text-muted">
                     <span title={worker.runtime.fingerprint}>
-                      {worker.deployment.modelVersionId} / {worker.runtime.adapter}
+                      {worker.target ? (
+                        <Link
+                          href={`/datasets/${worker.target.dataset}`}
+                          className="text-xs font-medium"
+                        >
+                          {worker.deployment.modelVersionId}
+                        </Link>
+                      ) : (
+                        worker.deployment.modelVersionId
+                      )}
+                      {" / "}
+                      {worker.runtime.adapter}
                     </span>
+                    {worker.target && !worker.target.selected && (
+                      <Chip
+                        color="warning"
+                        variant="soft"
+                        size="sm"
+                        className="ml-2"
+                      >
+                        Not selected
+                      </Chip>
+                    )}
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
                     <span title={new Date(worker.lastSeenAt).toLocaleString()}>
@@ -160,7 +182,16 @@ function StatusPage() {
                     {worker.device}
                   </Table.Cell>
                   <Table.Cell className="font-mono text-muted">
-                    {worker.currentTrainingRunId ?? "Idle"}
+                    {worker.currentTrainingRunId && worker.dataset ? (
+                      <Link
+                        href={`/datasets/${worker.dataset}`}
+                        className="text-xs font-medium"
+                      >
+                        {worker.dataset}
+                      </Link>
+                    ) : (
+                      (worker.currentTrainingRunId ?? "Idle")
+                    )}
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
                     {formatAge(worker.lastSeenSeconds)}
