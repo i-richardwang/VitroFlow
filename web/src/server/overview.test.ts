@@ -17,7 +17,10 @@ import {
 import { recordTrainingHeartbeat } from "./training-worker-store";
 import { addImages } from "./upload";
 
-const runtime = { adapter: "traditional" as const, fingerprint: "b".repeat(64) };
+const runtime = {
+  adapter: "traditional" as const,
+  fingerprint: "b".repeat(64),
+};
 /** This test's clock; workers heartbeating at wall-clock time are offline here. */
 const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
 const OVERVIEW_AT = new Date(HEARTBEAT_AT.getTime() + 10_000);
@@ -28,15 +31,18 @@ async function datasetWithImages(datasetId: string, stems: string[]) {
     datasetId,
     stems.map((stem) => new File([stem], `${stem}.jpg`)),
   );
-  const dataset = readDataset(datasetId);
+  const dataset = await readDataset(datasetId);
   if (!dataset) throw new Error("missing dataset");
-  const version = readModelVersion(dataset.selectedModelVersionId);
+  const version = await readModelVersion(dataset.selectedModelVersionId);
   if (!version) throw new Error("missing version");
-  const worker = recordInferenceHeartbeat(
+  const worker = await recordInferenceHeartbeat(
     {
       workerId: `${datasetId}-worker`,
       startedAt: "2026-08-27T00:00:00.000Z",
-      deployment: { modelVersionId: version.id, artifactDigest: version.artifact.digest },
+      deployment: {
+        modelVersionId: version.id,
+        artifactDigest: version.artifact.digest,
+      },
       runtime,
       current: null,
     },
@@ -63,11 +69,14 @@ test("the overview derives versions, serving workers, and training readiness", a
   ]);
   for (const stem of ["a", "b"]) {
     const ref = { dataset: "overview", stem };
-    writePrelabel(ref, prelabelFor(stem), worker);
-    createLabel(ref, { ...documentFromPrelabel(prelabelFor(stem)), status: "complete" });
+    await writePrelabel(ref, prelabelFor(stem), worker);
+    await createLabel(ref, {
+      ...documentFromPrelabel(prelabelFor(stem)),
+      status: "complete",
+    });
   }
 
-  let overview = datasetOverview("overview", at);
+  let overview = await datasetOverview("overview", at);
   if (!overview) throw new Error("missing overview");
   expect(overview.counts).toMatchObject({ pending: 1, complete: 2 });
   expect(overview.images.map((image) => image.modelVersionId)).toEqual([
@@ -91,11 +100,11 @@ test("the overview derives versions, serving workers, and training readiness", a
     recipe: YOLO26_SEED_SMALL_RECIPE,
   });
 
-  const run = createTrainingRun("overview", YOLO26_SEED_SMALL_RECIPE);
-  overview = datasetOverview("overview", at);
+  const run = await createTrainingRun("overview", YOLO26_SEED_SMALL_RECIPE);
+  overview = await datasetOverview("overview", at);
   expect(overview?.training.active?.id).toBe(run.id);
   expect(overview?.training.reviewedSinceLastRun).toBe(0);
-  recordTrainingHeartbeat(
+  await recordTrainingHeartbeat(
     {
       workerId: "overview-trainer",
       startedAt: HEARTBEAT_AT.toISOString(),
@@ -104,18 +113,20 @@ test("the overview derives versions, serving workers, and training readiness", a
     },
     HEARTBEAT_AT,
   );
-  expect(claimTrainingRun("overview-trainer")?.id).toBe(run.id);
-  failTrainingRun(run.id, "overview-trainer", "stopped");
-  overview = datasetOverview("overview", at);
+  expect((await claimTrainingRun("overview-trainer"))?.id).toBe(run.id);
+  await failTrainingRun(run.id, "overview-trainer", "stopped");
+  overview = await datasetOverview("overview", at);
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workersOnline).toBe(1);
 
-  const label = readLabel({ dataset: "overview", stem: "a" });
+  const label = await readLabel({ dataset: "overview", stem: "a" });
   if (!label) throw new Error("missing label");
-  updateLabel({ dataset: "overview", stem: "a" }, label);
-  expect(datasetOverview("overview", at)?.training.reviewedSinceLastRun).toBe(1);
+  await updateLabel({ dataset: "overview", stem: "a" }, label);
+  expect(
+    (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
+  ).toBe(1);
 
-  const next = registerModelVersion({
+  const next = await registerModelVersion({
     schemaVersion: 1,
     id: "overview.traditional-v2",
     modelId: "overview",
@@ -124,27 +135,33 @@ test("the overview derives versions, serving workers, and training readiness", a
     source: { kind: "builtin", definition: "traditional-v2" },
     artifact: { kind: "traditional", digest: "c".repeat(64) },
   });
-  selectModelVersion("overview", next.id);
-  overview = datasetOverview("overview", at);
-  expect(overview?.versions.map(({ version, selected, serving }) => [
-    version.id,
-    selected,
-    serving,
-  ])).toEqual([
+  await selectModelVersion("overview", next.id);
+  overview = await datasetOverview("overview", at);
+  expect(
+    overview?.versions.map(({ version, selected, serving }) => [
+      version.id,
+      selected,
+      serving,
+    ]),
+  ).toEqual([
     [next.id, true, { online: 0, stale: 0 }],
     [version.id, false, { online: 1, stale: 0 }],
   ]);
   const staleAt = new Date(HEARTBEAT_AT.getTime() + 60_000);
-  expect(datasetOverview("overview", staleAt)?.versions[1]?.serving).toEqual({
+  expect(
+    (await datasetOverview("overview", staleAt))?.versions[1]?.serving,
+  ).toEqual({
     online: 0,
     stale: 1,
   });
-  expect(datasetOverview("overview", LATER_AT)?.versions[1]?.serving).toEqual({
+  expect(
+    (await datasetOverview("overview", LATER_AT))?.versions[1]?.serving,
+  ).toEqual({
     online: 0,
     stale: 0,
   });
 });
 
-test("the overview is absent for unknown datasets", () => {
-  expect(datasetOverview("nowhere")).toBeNull();
+test("the overview is absent for unknown datasets", async () => {
+  expect(await datasetOverview("nowhere")).toBeNull();
 });

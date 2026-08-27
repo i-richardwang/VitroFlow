@@ -1,74 +1,121 @@
 import { createServerFn } from "@tanstack/react-start";
-import * as fs from "node:fs";
+import { count, eq, inArray } from "drizzle-orm";
 
-import type { TrainingRun } from "../training/schema";
-import { readDatasetSnapshot } from "./dataset-snapshots";
-import { listDatasets, listImages, readDataset } from "./datasets";
+import { database } from "../db/client";
+import {
+  datasetSnapshots,
+  datasets,
+  images,
+  labels,
+  modelVersions,
+  prelabels,
+  trainingRuns,
+} from "../db/schema";
+import { DATA_ROOT } from "./blobs";
+import { listDatasets } from "./datasets";
 import {
   inferenceWorkerPresence,
   listInferenceWorkers,
 } from "./inference-worker-store";
-import { readModelVersion } from "./model-registry";
-import { DATA_ROOT, LABELS_DIR, PRELABELS_DIR } from "./paths";
-import { listTrainingRuns } from "./training-runs";
+import { countTrainingRuns } from "./training-runs";
 import {
   listTrainingWorkers,
   trainingWorkerPresence,
 } from "./training-worker-store";
 
-function countFiles(directory: string): number {
-  if (!fs.existsSync(directory)) {
-    return 0;
-  }
-  return fs
-    .readdirSync(directory, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile()).length;
+interface DeploymentTarget {
+  dataset: string;
+  /** Whether the dataset still selects the deployed version. */
+  selected: boolean;
 }
 
-function datasetForModel(modelId: string, datasets: string[]): string | null {
-  return (
-    datasets.find((datasetId) => readDataset(datasetId)?.modelId === modelId) ??
-    null
+/** The dataset each deployed version belongs to, in one query. */
+async function deploymentTargets(
+  versionIds: string[],
+): Promise<Map<string, DeploymentTarget>> {
+  if (versionIds.length === 0) return new Map();
+  const db = await database();
+  const rows = await db
+    .select({
+      versionId: modelVersions.id,
+      dataset: datasets.id,
+      selectedVersionId: datasets.selectedModelVersionId,
+    })
+    .from(modelVersions)
+    .innerJoin(datasets, eq(datasets.modelId, modelVersions.modelId))
+    .where(inArray(modelVersions.id, versionIds));
+  return new Map(
+    rows.map((row) => [
+      row.versionId,
+      {
+        dataset: row.dataset,
+        selected: row.selectedVersionId === row.versionId,
+      },
+    ]),
   );
 }
 
-/** The dataset a deployed version belongs to and whether it is still that dataset's choice. */
-function deploymentTarget(versionId: string, datasets: string[]) {
-  const version = readModelVersion(versionId);
-  const datasetId = version ? datasetForModel(version.modelId, datasets) : null;
-  if (!datasetId) return null;
-  return {
-    dataset: datasetId,
-    selected: readDataset(datasetId)?.selectedModelVersionId === versionId,
-  };
+/** The dataset each run trains on, in one query. */
+async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
+  if (runIds.length === 0) return new Map();
+  const db = await database();
+  const rows = await db
+    .select({ runId: trainingRuns.id, dataset: datasetSnapshots.datasetId })
+    .from(trainingRuns)
+    .innerJoin(
+      datasetSnapshots,
+      eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
+    )
+    .where(inArray(trainingRuns.id, runIds));
+  return new Map(rows.map((row) => [row.runId, row.dataset]));
 }
 
-function trainingDataset(
-  runId: string | null,
-  runs: TrainingRun[],
-): string | null {
-  const run = runs.find((candidate) => candidate.id === runId);
-  return run ? (readDatasetSnapshot(run.datasetSnapshotId)?.datasetId ?? null) : null;
+async function countRows(
+  table: typeof images | typeof prelabels | typeof labels,
+) {
+  const db = await database();
+  const [row] = await db.select({ count: count() }).from(table);
+  return row?.count ?? 0;
 }
 
-export const getStatus = createServerFn({ method: "GET" }).handler(() => {
+export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
   const at = new Date();
-  const datasets = listDatasets();
   const age = (timestamp: string) =>
     Math.max(0, Math.floor((at.getTime() - Date.parse(timestamp)) / 1000));
-  const runs = listTrainingRuns();
+  const [inferenceWorkers, trainingWorkers, datasetIds] = await Promise.all([
+    listInferenceWorkers(at),
+    listTrainingWorkers(at),
+    listDatasets(),
+  ]);
+  const [targets, datasetsByRun] = await Promise.all([
+    deploymentTargets(inferenceWorkers.map((w) => w.deployment.modelVersionId)),
+    runDatasets(
+      trainingWorkers.flatMap((w) =>
+        w.currentTrainingRunId ? [w.currentTrainingRunId] : [],
+      ),
+    ),
+  ]);
+  const [imageCount, prelabelCount, labelCount, trainingRunCount] =
+    await Promise.all([
+      countRows(images),
+      countRows(prelabels),
+      countRows(labels),
+      countTrainingRuns(),
+    ]);
   return {
-    inferenceWorkers: listInferenceWorkers(at).map((worker) => ({
+    inferenceWorkers: inferenceWorkers.map((worker) => ({
       ...worker,
       presence: inferenceWorkerPresence(worker, at),
       lastSeenSeconds: age(worker.lastSeenAt),
-      target: deploymentTarget(worker.deployment.modelVersionId, datasets),
+      target: targets.get(worker.deployment.modelVersionId) ?? null,
     })),
-    trainingWorkers: listTrainingWorkers(at).map((worker) => ({
+    trainingWorkers: trainingWorkers.map((worker) => ({
       ...worker,
       presence: trainingWorkerPresence(worker, at),
       lastSeenSeconds: age(worker.lastSeenAt),
-      dataset: trainingDataset(worker.currentTrainingRunId, runs),
+      dataset: worker.currentTrainingRunId
+        ? (datasetsByRun.get(worker.currentTrainingRunId) ?? null)
+        : null,
     })),
     server: {
       dataRoot: DATA_ROOT,
@@ -79,14 +126,11 @@ export const getStatus = createServerFn({ method: "GET" }).handler(() => {
       trainingWorkerTokenConfigured: Boolean(
         process.env.VITROFLOW_TRAINING_WORKER_TOKEN,
       ),
-      datasets: datasets.length,
-      images: datasets.reduce(
-        (total, name) => total + listImages(name).length,
-        0,
-      ),
-      prelabels: countFiles(PRELABELS_DIR),
-      labels: countFiles(LABELS_DIR),
-      trainingRuns: runs.length,
+      datasets: datasetIds.length,
+      images: imageCount,
+      prelabels: prelabelCount,
+      labels: labelCount,
+      trainingRuns: trainingRunCount,
     },
   };
 });

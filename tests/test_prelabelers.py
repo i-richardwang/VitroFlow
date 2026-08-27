@@ -33,6 +33,7 @@ def test_traditional_manifest_matches_the_default_artifact() -> None:
     assert manifest == {
         "schemaVersion": 1,
         "definition": "traditional-v1",
+        "createdAt": "2026-08-27T00:00:00.000Z",
         "artifactDigest": TraditionalPrelabeler().artifact_digest,
     }
 

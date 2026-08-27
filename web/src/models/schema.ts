@@ -47,7 +47,7 @@ const trainingIdentitySchema = z.strictObject({
   }),
 });
 
-export const modelArtifactSchema = z.discriminatedUnion("kind", [
+const modelArtifactSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("traditional"),
     digest: fingerprintSchema,
@@ -63,7 +63,7 @@ export const modelArtifactSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const modelVersionSourceSchema = z.discriminatedUnion("kind", [
+const modelVersionSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("builtin"),
     definition: versionIdSchema,
@@ -89,6 +89,11 @@ export type Model = z.infer<typeof modelSchema>;
 export type ModelVersion = z.infer<typeof modelVersionSchema>;
 export type ModelArtifact = z.infer<typeof modelArtifactSchema>;
 
+/** Parsed documents have canonical key order, so serialised equality is structural. */
+export function sameModel(left: Model, right: Model): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export function sameModelVersion(
   left: ModelVersion,
   right: ModelVersion,
@@ -107,9 +112,13 @@ export function supportsRuntime(
 }
 
 /** The part of a version id that distinguishes it within its model. */
-export function versionSlug(version: Pick<ModelVersion, "id" | "modelId">): string {
+export function versionSlug(
+  version: Pick<ModelVersion, "id" | "modelId">,
+): string {
   const prefix = `${version.modelId}.`;
-  return version.id.startsWith(prefix) ? version.id.slice(prefix.length) : version.id;
+  return version.id.startsWith(prefix)
+    ? version.id.slice(prefix.length)
+    : version.id;
 }
 
 /** A validation metric by its short name, e.g. `mAP50` from `metrics/mAP50(B)`. */

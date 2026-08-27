@@ -7,9 +7,12 @@ import os
 import sys
 from pathlib import Path
 
+import httpx
+
 from .annotations import load_complete_annotations
 from .artifacts import create_image_artifacts, write_image_artifacts
 from .config import PipelineConfig
+from .dataset_pull import DatasetPullError, pull_dataset
 from .files import atomic_directory
 from .prelabel import (
     PreparedImage,
@@ -176,6 +179,20 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
     return 0
 
 
+def _pull_dataset(args: argparse.Namespace) -> int:
+    server_url = args.server or os.environ.get("VITROFLOW_SERVER_URL")
+    token = args.token or os.environ.get("VITROFLOW_EXPORT_TOKEN")
+    if not server_url or not token:
+        raise ValueError(
+            "dataset pull needs --server/VITROFLOW_SERVER_URL and "
+            "--token/VITROFLOW_EXPORT_TOKEN"
+        )
+    data_root = Path(args.data_root)
+    count = pull_dataset(server_url, token, args.dataset, data_root)
+    print(f"pulled {count} images of {args.dataset} into {data_root}")
+    return 0
+
+
 def _export_yolo(args: argparse.Namespace) -> int:
     data_root = Path(args.data_root)
     annotations = load_complete_annotations(
@@ -247,6 +264,17 @@ def _parser() -> argparse.ArgumentParser:
 
     dataset = commands.add_parser("dataset", help="Build training datasets")
     dataset_commands = dataset.add_subparsers(dest="dataset_command", required=True)
+    pull = dataset_commands.add_parser(
+        "pull", help="Download a workbench dataset into a local data directory"
+    )
+    pull.add_argument("dataset")
+    pull.add_argument("--data-root", default="data")
+    pull.add_argument("--server", help="Workbench URL (default: VITROFLOW_SERVER_URL)")
+    pull.add_argument(
+        "--token",
+        help="Export credential (default: VITROFLOW_EXPORT_TOKEN)",
+    )
+    pull.set_defaults(handler=_pull_dataset)
     export_yolo = dataset_commands.add_parser(
         "export-yolo", help="Export complete annotations as a YOLO dataset"
     )
@@ -262,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         return args.handler(args)
-    except (OSError, TypeError, ValueError) as error:
+    except (OSError, TypeError, ValueError, httpx.HTTPError, DatasetPullError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

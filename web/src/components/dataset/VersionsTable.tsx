@@ -53,7 +53,9 @@ export function VersionsTable({
                   <Metric value={validationMetric(version.artifact, "mAP50")} />
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono tabular-nums">
-                  <Metric value={validationMetric(version.artifact, "mAP50-95")} />
+                  <Metric
+                    value={validationMetric(version.artifact, "mAP50-95")}
+                  />
                 </Table.Cell>
                 <Table.Cell>
                   <ServingChip serving={serving} />

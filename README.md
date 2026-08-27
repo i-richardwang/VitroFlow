@@ -18,36 +18,45 @@ Training Worker fine-tunes and validates YOLO26
 Server publishes a candidate ModelVersion
 ```
 
-The data directory is the shared contract between these stages:
+Postgres holds every record the stages exchange; the data directory holds only binary content the records reference:
+
+| Table | Owner | Contents |
+|---|---|---|
+| `datasets`, `models`, `model_versions` | Server | a Dataset, its logical Model, and immutable executable ModelVersions |
+| `images` | Server | one row per photograph with digest and stable train/validation split |
+| `prelabels` | Inference Worker | detector output for an image, untouched by humans |
+| `labels` | Reviewer | reviewed box annotations with a revision counter |
+| `inference_workers`, `training_workers` | Workers | latest heartbeat per process |
+| `dataset_snapshots` | Server | immutable manifests of reviewed training inputs |
+| `training_runs` | Server | leased training state machines; a partial unique index allows one active run per model |
 
 ```text
 data/
-├── images/<dataset>/<stem>.<ext>    source photographs; the stem identifies the image
-├── prelabels/<dataset>/<stem>.json  Worker-owned detector output, untouched by humans
-├── labels/<dataset>/<stem>.json     reviewed box annotations
-├── datasets/<dataset>.json          Dataset and selected ModelVersion
-├── models/<model-id>.json           stable logical Model definitions
-├── model-versions/<version-id>.json immutable executable ModelVersions
-├── inference-workers/               inference process heartbeats
-├── training-workers/                training process heartbeats
-├── dataset-splits/                  stable train/validation assignments
-├── dataset-snapshots/               immutable reviewed training inputs
-├── training-runs/                   leased training state machines
-├── training-staging/                durable unpublished model artifacts
-└── model-artifacts/                 server-published YOLO weights and settings
+├── images/<xx>/<sha256>             immutable source photographs, addressed by content
+├── dataset-snapshots/<snapshot>/    immutable copies of the images a snapshot trains on
+├── training-staging/<run>/          uploaded but unpublished model artifacts
+└── model-artifacts/<version>/       server-published YOLO weights and settings
 ```
 
 A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions for prelabelling. The dataset page is that model's console: it lists every candidate version with its validation metrics and the Workers serving it, starts training from the reviewed annotations, follows each TrainingRun, and switches the selected version explicitly. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
 
 JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
 
-An image's state follows from which files exist for it. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
+An image's state follows from which rows exist for it. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
 
-An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are omitted from training and export.
+An image is identified by its path under `images/`. Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are kept in review state but omitted from training and from the YOLO export (`dataset export-yolo`); a dataset pull mirrors all review state, exclusions included.
 
 ## Local recognition
 
-Install the Python environment and recognize one image or a directory:
+Local commands read a pulled data directory: `images/<dataset>/<stem>.<ext>`, `prelabels/<dataset>/<stem>.json`, and `labels/<dataset>/<stem>.json`. Pull one from the workbench with the export credential:
+
+```bash
+export VITROFLOW_SERVER_URL=https://vitroflow.example.com
+export VITROFLOW_EXPORT_TOKEN=<export-secret>
+uv run vitroflow dataset pull fixtures --data-root data
+```
+
+Every image is verified against its recorded digest before the dataset's local `images/`, `prelabels/`, and `labels/` trees are replaced, so a pull either mirrors the server exactly or leaves the previous copy untouched. Install the Python environment and recognize one image or a directory:
 
 ```bash
 uv sync
@@ -113,13 +122,19 @@ Each pass heartbeats, fetches the pending list, then per image heartbeats, downl
 
 The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_INFERENCE_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
 
-The workbench reads `VITROFLOW_DATA_ROOT` (default: `../data` relative to `web/`). For a container deployment:
+Workbench configuration lives in the environment; `.env.example` lists every variable.
+
+- `DATABASE_URL`: the Postgres connection. The workbench applies the SQL migrations in `web/drizzle/` on startup. `pglite://<dir>` runs an embedded Postgres in that directory for single-machine development; `pglite://` alone keeps it in memory.
+- `VITROFLOW_DATA_ROOT`: the blob store (default: `../data` relative to `web/`).
+- Schema changes: edit `web/src/db/schema.ts`, then generate the migration with `bun run db:generate`.
+
+For a container deployment:
 
 ```bash
 docker compose up --build
 ```
 
-`compose.yaml` mounts `./data` at `/data` and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench. `VITROFLOW_INFERENCE_WORKER_TOKEN` and `VITROFLOW_TRAINING_WORKER_TOKEN` are independent machine credentials.
+`compose.yaml` runs Postgres 17, mounts `./data` at `/data`, and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench. `VITROFLOW_INFERENCE_WORKER_TOKEN` and `VITROFLOW_TRAINING_WORKER_TOKEN` are independent machine credentials for Workers. `VITROFLOW_EXPORT_TOKEN` is a developer/admin credential for `vitroflow dataset pull`; it is never given to a Worker. The workbench runs as a single replica; Workers scale independently because they only reach it over HTTP.
 
 Build inference deployments with `Dockerfile.inference` and configure:
 
@@ -194,7 +209,8 @@ Until complete human-reviewed labels are available, build a temporary dataset fr
 a dataset's prelabels. During this bootstrap phase they are treated as training
 targets, so validation metrics measure agreement with the traditional algorithm
 rather than final real-world accuracy. Failure documents are skipped, and the
-output stays outside `data/labels`:
+output stays outside `data/labels`. Pull the dataset first so the prelabels are
+on disk:
 
 ```bash
 uv run python scripts/build_yolo_prelabels.py \
@@ -313,17 +329,20 @@ src/vitroflow/
 ├── training_worker.py  Remote YOLO training execution
 └── worker_runtime.py   Shared process health endpoint
 
-web/src/
-├── datasets/         Dataset and image identity, derived image states
-├── models/           Logical Model and immutable ModelVersion contracts
-├── detection/        Prelabel document contract
-├── inference/        Runtime and inference heartbeat contracts
-├── training/         DatasetSnapshot and TrainingRun contracts
-├── annotation/       Box annotation domain
-├── components/       Review workbench UI
-├── hooks/            Annotation persistence and history
-├── routes/           Pages, image delivery, and Worker API
-└── server/           Control plane, leases, artifacts, and Worker presence
+web/
+├── drizzle/          Generated SQL migrations
+└── src/
+    ├── db/           Drizzle schema and connection
+    ├── datasets/     Dataset and image identity, derived image states
+    ├── models/       Logical Model and immutable ModelVersion contracts
+    ├── detection/    Prelabel document contract
+    ├── inference/    Runtime and inference heartbeat contracts
+    ├── training/     DatasetSnapshot and TrainingRun contracts
+    ├── annotation/   Box annotation domain
+    ├── components/   Review workbench UI
+    ├── hooks/        Annotation persistence and history
+    ├── routes/       Pages, image delivery, and Worker API
+    └── server/       Control plane, leases, artifacts, and Worker presence
 ```
 
 ## Development

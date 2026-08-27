@@ -32,7 +32,9 @@ export function SelectVersionDialog({
               <>
                 <AlertDialog.Header>
                   <AlertDialog.Icon />
-                  <AlertDialog.Heading>Prelabel with {label}?</AlertDialog.Heading>
+                  <AlertDialog.Heading>
+                    Prelabel with {label}?
+                  </AlertDialog.Heading>
                 </AlertDialog.Header>
                 <AlertDialog.Body>
                   Images in {dataset} that are not yet under review become
@@ -51,7 +53,9 @@ export function SelectVersionDialog({
                     isDisabled={busy}
                     onPress={() => {
                       setBusy(true);
-                      void selectDatasetModelVersion({ data: { dataset, versionId } })
+                      void selectDatasetModelVersion({
+                        data: { dataset, versionId },
+                      })
                         .then(async () => {
                           close();
                           await router.invalidate();
@@ -59,7 +63,9 @@ export function SelectVersionDialog({
                         .catch((cause: unknown) => {
                           toast.danger("Version not selected", {
                             description:
-                              cause instanceof Error ? cause.message : String(cause),
+                              cause instanceof Error
+                                ? cause.message
+                                : String(cause),
                           });
                         })
                         .finally(() => {

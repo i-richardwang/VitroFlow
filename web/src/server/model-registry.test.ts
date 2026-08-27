@@ -10,8 +10,8 @@ import {
   registerModelVersion,
 } from "./model-registry";
 
-test("registry lists immutable versions under their logical model", () => {
-  const model = registerModel({
+test("registry lists immutable versions under their logical model", async () => {
+  const model = await registerModel({
     schemaVersion: 1,
     id: "registry-detector",
     name: "Registry detector",
@@ -44,15 +44,15 @@ test("registry lists immutable versions under their logical model", () => {
       training: YOLO26_SEED_SMALL_RECIPE,
     },
   };
-  const version = registerModelVersion(candidate);
+  const version = await registerModelVersion(candidate);
 
-  expect(listModels()).toContainEqual(model);
-  expect(listModelVersions(model.id)).toEqual([version]);
-  expect(readModelVersion(version.id)).toEqual(version);
-  expect(() =>
+  expect(await listModels()).toContainEqual(model);
+  expect(await listModelVersions(model.id)).toEqual([version]);
+  expect(await readModelVersion(version.id)).toEqual(version);
+  await expect(
     registerModelVersion({
       ...candidate,
       artifact: { ...candidate.artifact, digest: "e".repeat(64) },
     }),
-  ).toThrow(/already registered with different contents/);
+  ).rejects.toThrow(/already registered with different contents/);
 });

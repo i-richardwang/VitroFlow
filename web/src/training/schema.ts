@@ -7,12 +7,26 @@ import { fingerprintSchema, versionIdSchema } from "../inference/schema";
 /** A snapshot needs one training and one validation image. */
 export const MIN_SNAPSHOT_IMAGES = 2;
 
-export const snapshotImageSchema = z.strictObject({
+export const IMAGE_SPLITS = ["train", "val"] as const;
+export type ImageSplit = (typeof IMAGE_SPLITS)[number];
+
+export const TRAINING_PHASES = ["preparing", "training", "validating"] as const;
+export type TrainingPhase = (typeof TRAINING_PHASES)[number];
+
+export const TRAINING_RUN_STATUSES = [
+  "queued",
+  "running",
+  "publishing",
+  "succeeded",
+  "failed",
+] as const;
+
+const snapshotImageSchema = z.strictObject({
   ref: imageRefSchema,
   source: imageSourceSchema,
   artifactPath: z.string().regex(/^images\/[0-9]+\.[A-Za-z0-9]+$/),
   imageDigest: fingerprintSchema,
-  split: z.enum(["train", "val"]),
+  split: z.enum(IMAGE_SPLITS),
   annotation: annotationSchema.refine(
     (annotation) => annotation.status === "complete",
     "Snapshot annotations must be complete",
@@ -46,13 +60,13 @@ export const trainingRecipeSchema = z.strictObject({
   batchSize: z.number().int().positive().optional(),
 });
 
-export const trainingRunStateSchema = z.discriminatedUnion("status", [
+const trainingRunStateSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("queued") }),
   z.strictObject({
     status: z.literal("running"),
     workerId: versionIdSchema,
     leaseExpiresAt: z.string().datetime({ offset: true }),
-    phase: z.enum(["preparing", "training", "validating"]),
+    phase: z.enum(TRAINING_PHASES),
     progress: z.number().finite().min(0).max(1),
   }),
   z.strictObject({
@@ -120,5 +134,8 @@ export function trainingRunId(uuid: string): string {
 
 /** The leading block of the run's UUID, enough to tell runs apart in a list. */
 export function trainingRunLabel(run: Pick<TrainingRun, "id">): string {
-  return run.id.slice(TRAINING_RUN_ID_PREFIX.length, TRAINING_RUN_ID_PREFIX.length + 8);
+  return run.id.slice(
+    TRAINING_RUN_ID_PREFIX.length,
+    TRAINING_RUN_ID_PREFIX.length + 8,
+  );
 }

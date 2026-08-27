@@ -13,7 +13,7 @@ const MIN_SCALE = 0.05;
 const MAX_SCALE = 40;
 const ZOOM_PER_WHEEL_PIXEL = 0.0015;
 
-export interface Transform {
+interface Transform {
   scale: number;
   x: number;
   y: number;

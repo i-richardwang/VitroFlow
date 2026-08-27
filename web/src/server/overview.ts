@@ -2,15 +2,20 @@ import type { Dataset, ImageState } from "../datasets/schema";
 import type { ModelVersion } from "../models/schema";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import type { TrainingRecipe, TrainingRun } from "../training/schema";
-import { readDatasetSnapshot } from "./dataset-snapshots";
-import { listImages, readDataset, type DatasetImage } from "./datasets";
+import { readDatasetSnapshot, snapshotImageCounts } from "./dataset-snapshots";
+import { readDataset } from "./datasets";
 import {
   inferenceWorkerPresence,
   listInferenceWorkers,
 } from "./inference-worker-store";
-import { readLabel } from "./labels";
 import { listModelVersions } from "./model-registry";
-import { countImageStates, summarizeImage, type ImageSummary } from "./summaries";
+import {
+  countImageStates,
+  listImageRecords,
+  summarize,
+  type ImageRecord,
+  type ImageSummary,
+} from "./summaries";
 import { activeTrainingRun, listTrainingRuns } from "./training-runs";
 import {
   listTrainingWorkers,
@@ -51,28 +56,30 @@ export interface DatasetOverview {
   training: TrainingOverview;
 }
 
-function reviewedSinceLastRun(
-  images: DatasetImage[],
+async function reviewedSinceLastRun(
+  records: ImageRecord[],
   latest: TrainingRun | undefined,
-): number {
-  const snapshot = latest ? readDatasetSnapshot(latest.datasetSnapshotId) : null;
+): Promise<number> {
+  const snapshot = latest
+    ? await readDatasetSnapshot(latest.datasetSnapshotId)
+    : null;
   const captured = new Set(
     snapshot?.images.map(
       (image) => `${image.source}#${image.annotation.revision}`,
     ) ?? [],
   );
-  return images.filter((image) => {
-    const label = readLabel(image);
-    return (
+  return records.filter(
+    ({ image, label }) =>
       label?.status === "complete" &&
-      !captured.has(`${image.source}#${label.revision}`)
-    );
-  }).length;
+      !captured.has(`${image.source}#${label.revision}`),
+  ).length;
 }
 
-function servingWorkerCounts(at: Date): Map<string, WorkerCount> {
+async function servingWorkerCounts(
+  at: Date,
+): Promise<Map<string, WorkerCount>> {
   const counts = new Map<string, WorkerCount>();
-  for (const worker of listInferenceWorkers(at)) {
+  for (const worker of await listInferenceWorkers(at)) {
     const presence = inferenceWorkerPresence(worker, at);
     if (presence === "offline") continue;
     const versionId = worker.deployment.modelVersionId;
@@ -83,30 +90,36 @@ function servingWorkerCounts(at: Date): Map<string, WorkerCount> {
   return counts;
 }
 
-export function datasetOverview(
+export async function datasetOverview(
   datasetId: string,
   at: Date = new Date(),
-): DatasetOverview | null {
-  const dataset = readDataset(datasetId);
+): Promise<DatasetOverview | null> {
+  const dataset = await readDataset(datasetId);
   if (!dataset) return null;
-  const images = listImages(datasetId);
-  const summaries = images.map(summarizeImage);
-  const serving = servingWorkerCounts(at);
-  const versions = listModelVersions(dataset.modelId)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .map((version) => ({
-      version,
-      selected: version.id === dataset.selectedModelVersionId,
-      serving: serving.get(version.id) ?? { online: 0, stale: 0 },
-      trainingImages:
-        version.source.kind === "training_run"
-          ? (readDatasetSnapshot(version.source.datasetSnapshotId)?.images
-              .length ?? null)
-          : null,
-    }));
-  const runs = listTrainingRuns()
-    .filter((run) => run.modelId === dataset.modelId)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const records = await listImageRecords(datasetId);
+  const summaries = records.map(summarize);
+  const [serving, modelVersions, runs, trainingWorkers] = await Promise.all([
+    servingWorkerCounts(at),
+    listModelVersions(dataset.modelId),
+    listTrainingRuns(dataset.modelId),
+    listTrainingWorkers(at),
+  ]);
+  const trainingImages = await snapshotImageCounts(
+    modelVersions.flatMap((version) =>
+      version.source.kind === "training_run"
+        ? [version.source.datasetSnapshotId]
+        : [],
+    ),
+  );
+  const versions = modelVersions.map((version) => ({
+    version,
+    selected: version.id === dataset.selectedModelVersionId,
+    serving: serving.get(version.id) ?? { online: 0, stale: 0 },
+    trainingImages:
+      version.source.kind === "training_run"
+        ? (trainingImages.get(version.source.datasetSnapshotId) ?? null)
+        : null,
+  }));
   return {
     dataset,
     images: summaries,
@@ -114,9 +127,9 @@ export function datasetOverview(
     versions,
     training: {
       runs,
-      active: activeTrainingRun(dataset.modelId),
-      reviewedSinceLastRun: reviewedSinceLastRun(images, runs[0]),
-      workersOnline: listTrainingWorkers(at).filter(
+      active: await activeTrainingRun(dataset.modelId),
+      reviewedSinceLastRun: await reviewedSinceLastRun(records, runs[0]),
+      workersOnline: trainingWorkers.filter(
         (worker) => trainingWorkerPresence(worker, at) === "online",
       ).length,
       recipe: YOLO26_SEED_SMALL_RECIPE,

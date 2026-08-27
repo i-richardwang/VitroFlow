@@ -56,7 +56,8 @@ export function TrainingRunsTable({
                   {run.attempt}
                 </Table.Cell>
                 <Table.Cell className="font-mono text-xs text-muted">
-                  {run.recipe.baseModel.reference} · {run.recipe.configuration.name}
+                  {run.recipe.baseModel.reference} ·{" "}
+                  {run.recipe.configuration.name}
                 </Table.Cell>
               </Table.Row>
             ))}

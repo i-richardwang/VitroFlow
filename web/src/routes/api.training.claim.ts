@@ -12,12 +12,15 @@ export const Route = createFileRoute("/api/training/claim")({
       POST: async ({ request }) => {
         try {
           const { workerId } = bodySchema.parse(await request.json());
-          const run = claimTrainingRun(workerId);
+          const run = await claimTrainingRun(workerId);
           return Response.json({ run });
         } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {
-            status: 409,
-          });
+          return new Response(
+            error instanceof Error ? error.message : String(error),
+            {
+              status: 409,
+            },
+          );
         }
       },
     },

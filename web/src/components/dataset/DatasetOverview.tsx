@@ -54,10 +54,7 @@ export function DatasetOverview({ overview }: { overview: Overview }) {
       <Fact label="Training">
         <span className="font-mono tabular-nums">
           {training.reviewedSinceLastRun}
-          <span className="text-muted">
-            {" "}
-            reviewed since last run
-          </span>
+          <span className="text-muted"> reviewed since last run</span>
         </span>
         <span className="text-xs text-muted">
           {training.runs.length} {training.runs.length === 1 ? "run" : "runs"}

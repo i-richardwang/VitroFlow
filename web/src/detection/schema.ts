@@ -4,11 +4,9 @@ import { boundingBoxSchema } from "../annotation/schema";
 import { imageSourceSchema } from "../datasets/schema";
 import { predictionProducerSchema } from "../inference/schema";
 
-const warningCodeSchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
+const warningCodeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
 
-export const seedQualitySchema = z.strictObject({
+const seedQualitySchema = z.strictObject({
   status: z.enum(["ok", "review_required"]),
   warnings: z.array(warningCodeSchema),
 });
@@ -31,7 +29,7 @@ const diagnosticsSchema = z.strictObject({
   metrics: z.record(z.string().min(1), z.number().finite()).optional(),
 });
 
-export const resultSchema = z
+const resultSchema = z
   .strictObject({
     schema_version: z.literal(2),
     source: imageSourceSchema,
@@ -71,7 +69,7 @@ export const resultSchema = z
     });
   });
 
-export const failureSchema = z.strictObject({
+const failureSchema = z.strictObject({
   schema_version: z.literal(2),
   source: imageSourceSchema,
   producer: predictionProducerSchema,

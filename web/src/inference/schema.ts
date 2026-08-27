@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const VERSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const VERSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 export const versionIdSchema = z.string().regex(VERSION_ID_PATTERN);
 export const fingerprintSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
@@ -16,14 +16,13 @@ export const predictionProducerSchema = z.strictObject({
 });
 
 export type RuntimeDescriptor = z.infer<typeof runtimeDescriptorSchema>;
-export type PredictionProducer = z.infer<typeof predictionProducerSchema>;
+type PredictionProducer = z.infer<typeof predictionProducerSchema>;
 
 export function sameRuntimeDescriptor(
   left: RuntimeDescriptor,
   right: RuntimeDescriptor,
 ): boolean {
   return (
-    left.adapter === right.adapter &&
-    left.fingerprint === right.fingerprint
+    left.adapter === right.adapter && left.fingerprint === right.fingerprint
   );
 }

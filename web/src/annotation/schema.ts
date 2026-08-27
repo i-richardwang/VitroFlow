@@ -7,7 +7,7 @@ import {
   versionIdSchema,
 } from "../inference/schema";
 
-const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
+export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
 export const boundingBoxSchema = z.strictObject({
   x: z.number().finite(),

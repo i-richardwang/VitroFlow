@@ -1,85 +1,114 @@
-import * as fs from "node:fs";
+import { desc, eq, gte, lt } from "drizzle-orm";
 
+import { database, type Executor } from "../db/client";
+import { inferenceWorkers } from "../db/schema";
 import {
   workerSchema,
   type InferenceWorkerHeartbeat,
   type InferenceWorkerRecord,
 } from "../inference/workers";
+import { supportsRuntime } from "../models/schema";
 import {
   WORKER_FORGET_SECONDS,
-  secondsSince,
   workerPresence,
   type WorkerPresence,
 } from "../workers/presence";
-import { supportsRuntime } from "../models/schema";
-import { writeAtomically } from "./files";
-import { INFERENCE_WORKERS_DIR, resolveWithin } from "./paths";
 import { readModelVersion } from "./model-registry";
 
 /**
  * A worker heartbeats while polling for work and before every image it
  * processes; presence is derived from the heartbeat age.
  */
-function workerPath(workerId: string): string {
-  return resolveWithin(INFERENCE_WORKERS_DIR, `${workerId}.json`);
+function toRecord(
+  row: typeof inferenceWorkers.$inferSelect,
+): InferenceWorkerRecord {
+  return workerSchema.parse({
+    workerId: row.id,
+    startedAt: row.startedAt.toISOString(),
+    deployment: {
+      modelVersionId: row.modelVersionId,
+      artifactDigest: row.artifactDigest,
+    },
+    runtime: row.runtime,
+    current: row.current,
+    lastSeenAt: row.lastSeenAt.toISOString(),
+  });
 }
 
-export function recordInferenceHeartbeat(
+export async function recordInferenceHeartbeat(
   heartbeat: InferenceWorkerHeartbeat,
   at: Date = new Date(),
-): InferenceWorkerRecord {
+): Promise<InferenceWorkerRecord> {
   const worker = workerSchema.parse({
     ...heartbeat,
     lastSeenAt: at.toISOString(),
   });
-  const version = readModelVersion(worker.deployment.modelVersionId);
+  const db = await database();
+  const version = await readModelVersion(worker.deployment.modelVersionId, db);
   if (!version) {
-    throw new Error(`Unknown model version: ${worker.deployment.modelVersionId}`);
+    throw new Error(
+      `Unknown model version: ${worker.deployment.modelVersionId}`,
+    );
   }
   if (version.artifact.digest !== worker.deployment.artifactDigest) {
-    throw new Error("Inference deployment artifact does not match model version");
+    throw new Error(
+      "Inference deployment artifact does not match model version",
+    );
   }
   if (!supportsRuntime(version.artifact, worker.runtime)) {
     throw new Error("Inference runtime cannot execute this model artifact");
   }
-  writeAtomically(
-    workerPath(worker.workerId),
-    `${JSON.stringify(worker, null, 2)}\n`,
-  );
-  return worker;
+  const row = {
+    startedAt: new Date(worker.startedAt),
+    modelVersionId: worker.deployment.modelVersionId,
+    artifactDigest: worker.deployment.artifactDigest,
+    runtime: worker.runtime,
+    current: worker.current,
+    lastSeenAt: at,
+  };
+  const [stored] = await db
+    .insert(inferenceWorkers)
+    .values({ id: worker.workerId, ...row })
+    .onConflictDoUpdate({ target: inferenceWorkers.id, set: row })
+    .returning();
+  if (!stored) throw new Error(`Worker ${worker.workerId} was not recorded`);
+  await forgetSilentWorkers(at, db);
+  return toRecord(stored);
 }
 
-function parseWorker(filePath: string): InferenceWorkerRecord {
-  return workerSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf-8")));
+export async function readInferenceWorker(
+  workerId: string,
+  db?: Executor,
+): Promise<InferenceWorkerRecord | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(inferenceWorkers)
+    .where(eq(inferenceWorkers.id, workerId));
+  return row ? toRecord(row) : null;
 }
 
-export function readInferenceWorker(workerId: string): InferenceWorkerRecord | null {
-  const filePath = workerPath(workerId);
-  return fs.existsSync(filePath) ? parseWorker(filePath) : null;
+function forgetBefore(at: Date): Date {
+  return new Date(at.getTime() - WORKER_FORGET_SECONDS * 1000);
 }
 
-export function listInferenceWorkers(
+/** Workers silent for longer than the forget window leave the roster. */
+async function forgetSilentWorkers(at: Date, db: Executor): Promise<void> {
+  await db
+    .delete(inferenceWorkers)
+    .where(lt(inferenceWorkers.lastSeenAt, forgetBefore(at)));
+}
+
+/** Workers heard from within the forget window, newest first. */
+export async function listInferenceWorkers(
   at: Date = new Date(),
-): InferenceWorkerRecord[] {
-  if (!fs.existsSync(INFERENCE_WORKERS_DIR)) {
-    return [];
-  }
-  const workers: InferenceWorkerRecord[] = [];
-  for (const name of fs.readdirSync(INFERENCE_WORKERS_DIR)) {
-    if (!name.endsWith(".json")) {
-      continue;
-    }
-    const filePath = resolveWithin(INFERENCE_WORKERS_DIR, name);
-    const worker = parseWorker(filePath);
-    if (secondsSince(worker.lastSeenAt, at) > WORKER_FORGET_SECONDS) {
-      fs.rmSync(filePath, { force: true });
-      continue;
-    }
-    workers.push(worker);
-  }
-  return workers.sort((left, right) =>
-    right.lastSeenAt.localeCompare(left.lastSeenAt),
-  );
+): Promise<InferenceWorkerRecord[]> {
+  const db = await database();
+  const rows = await db
+    .select()
+    .from(inferenceWorkers)
+    .where(gte(inferenceWorkers.lastSeenAt, forgetBefore(at)))
+    .orderBy(desc(inferenceWorkers.lastSeenAt));
+  return rows.map(toRecord);
 }
 
 export function inferenceWorkerPresence(

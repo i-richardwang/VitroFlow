@@ -9,7 +9,11 @@ const KIND_LABELS: Record<ModelArtifact["kind"], string> = {
 
 export function ModelKindChip({ kind }: { kind: ModelArtifact["kind"] }) {
   return (
-    <Chip color={kind === "ultralytics" ? "accent" : "default"} variant="soft" size="sm">
+    <Chip
+      color={kind === "ultralytics" ? "accent" : "default"}
+      variant="soft"
+      size="sm"
+    >
       {KIND_LABELS[kind]}
     </Chip>
   );

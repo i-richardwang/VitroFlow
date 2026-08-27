@@ -16,7 +16,9 @@ export function PrelabelVersion({
   return (
     <span
       className={`font-mono text-xs ${current ? "text-muted" : "text-warning"}`}
-      title={current ? versionId : `${versionId} is no longer the selected version`}
+      title={
+        current ? versionId : `${versionId} is no longer the selected version`
+      }
     >
       {versionSlug({ id: versionId, modelId: dataset.modelId })}
     </span>

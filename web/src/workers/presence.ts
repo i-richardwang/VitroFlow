@@ -1,4 +1,4 @@
-export const WORKER_PRESENCES = ["online", "stale", "offline"] as const;
+const WORKER_PRESENCES = ["online", "stale", "offline"] as const;
 
 export type WorkerPresence = (typeof WORKER_PRESENCES)[number];
 
@@ -6,7 +6,7 @@ export const WORKER_ONLINE_SECONDS = 30;
 export const WORKER_STALE_SECONDS = 90;
 export const WORKER_FORGET_SECONDS = 7 * 24 * 60 * 60;
 
-export function secondsSince(timestamp: string, at: Date): number {
+function secondsSince(timestamp: string, at: Date): number {
   return (at.getTime() - Date.parse(timestamp)) / 1000;
 }
 

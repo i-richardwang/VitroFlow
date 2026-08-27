@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { versionIdSchema } from "../inference/schema";
 
-/** Dataset names double as directory names under `images/`. */
+/** Dataset ids are also the first segment of their image blob keys. */
 export const DATASET_NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._-]{0,79}";
 export const DATASET_NAME = new RegExp(`^${DATASET_NAME_PATTERN}$`);
 
@@ -37,8 +37,8 @@ export const datasetSchema = z.strictObject({
 export type Dataset = z.infer<typeof datasetSchema>;
 
 /**
- * Everything the workbench knows about an image follows from which files
- * exist for it: a prelabel from a worker, then a label from a reviewer.
+ * An image's state follows from the documents attached to it: a worker's
+ * prelabel, then a reviewer's label.
  */
 export const IMAGE_STATES = [
   "pending",

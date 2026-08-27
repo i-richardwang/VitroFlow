@@ -9,9 +9,10 @@ import {
   listInferenceWorkers,
   recordInferenceHeartbeat,
 } from "./inference-worker-store";
+import { database } from "../db/client";
 import { ensureDatasetModel } from "./model-registry";
 
-const version = ensureDatasetModel("presence");
+const version = await ensureDatasetModel("presence", await database());
 const heartbeat = {
   workerId: "presence-worker",
   startedAt: "2026-01-01T00:00:00+00:00",
@@ -30,35 +31,51 @@ function later(from: Date, seconds: number): Date {
   return new Date(from.getTime() + seconds * 1000);
 }
 
-test("presence follows the age of the last heartbeat", () => {
+test("presence follows the age of the last heartbeat", async () => {
   const seen = new Date("2026-01-01T00:10:00.000Z");
-  const worker = recordInferenceHeartbeat(heartbeat, seen);
+  const worker = await recordInferenceHeartbeat(heartbeat, seen);
   expect(worker.lastSeenAt).toBe(seen.toISOString());
-  expect(inferenceWorkerPresence(worker, later(seen, WORKER_ONLINE_SECONDS))).toBe("online");
-  expect(inferenceWorkerPresence(worker, later(seen, WORKER_ONLINE_SECONDS + 1))).toBe("stale");
-  expect(inferenceWorkerPresence(worker, later(seen, WORKER_STALE_SECONDS + 1))).toBe("offline");
+  expect(
+    inferenceWorkerPresence(worker, later(seen, WORKER_ONLINE_SECONDS)),
+  ).toBe("online");
+  expect(
+    inferenceWorkerPresence(worker, later(seen, WORKER_ONLINE_SECONDS + 1)),
+  ).toBe("stale");
+  expect(
+    inferenceWorkerPresence(worker, later(seen, WORKER_STALE_SECONDS + 1)),
+  ).toBe("offline");
 });
 
-test("listing forgets workers that have been silent for a week", () => {
+test("listing forgets workers that have been silent for a week", async () => {
   const seen = new Date("2026-01-01T00:00:00.000Z");
-  recordInferenceHeartbeat({ ...heartbeat, workerId: "forgotten-worker" }, seen);
-  const ids = (at: Date) =>
-    listInferenceWorkers(at).map((worker) => worker.workerId);
-  expect(ids(later(seen, 6 * 24 * 60 * 60))).toContain("forgotten-worker");
-  expect(ids(later(seen, 8 * 24 * 60 * 60))).not.toContain("forgotten-worker");
+  await recordInferenceHeartbeat(
+    { ...heartbeat, workerId: "forgotten-worker" },
+    seen,
+  );
+  const ids = async (at: Date) =>
+    (await listInferenceWorkers(at)).map((worker) => worker.workerId);
+  expect(await ids(later(seen, 6 * 24 * 60 * 60))).toContain(
+    "forgotten-worker",
+  );
+  expect(await ids(later(seen, 8 * 24 * 60 * 60))).not.toContain(
+    "forgotten-worker",
+  );
 });
 
-test("heartbeat verifies a published deployment instead of registering it", () => {
-  expect(() =>
+test("heartbeat verifies a published deployment instead of registering it", async () => {
+  await expect(
     recordInferenceHeartbeat({
       ...heartbeat,
-      deployment: { ...heartbeat.deployment, modelVersionId: "unknown-version" },
+      deployment: {
+        ...heartbeat.deployment,
+        modelVersionId: "unknown-version",
+      },
     }),
-  ).toThrow(/Unknown model version/);
-  expect(() =>
+  ).rejects.toThrow(/Unknown model version/);
+  await expect(
     recordInferenceHeartbeat({
       ...heartbeat,
       deployment: { ...heartbeat.deployment, artifactDigest: "c".repeat(64) },
     }),
-  ).toThrow(/artifact does not match/);
+  ).rejects.toThrow(/artifact does not match/);
 });

@@ -2,12 +2,16 @@ import { createMiddleware, createStart } from "@tanstack/react-start";
 
 import { isAuthenticated, redirect } from "./server/session";
 import {
+  isExportAuthenticated,
   isInferenceWorkerAuthenticated,
   isTrainingWorkerAuthenticated,
 } from "./server/worker-auth";
 
 const requireSession = createMiddleware().server(
   ({ request, pathname, handlerType, next }) => {
+    if (pathname === "/healthz") {
+      return next();
+    }
     if (pathname.startsWith("/api/inference/")) {
       return isInferenceWorkerAuthenticated(request)
         ? next()
@@ -15,6 +19,11 @@ const requireSession = createMiddleware().server(
     }
     if (pathname.startsWith("/api/training/")) {
       return isTrainingWorkerAuthenticated(request)
+        ? next()
+        : new Response("Unauthorized", { status: 401 });
+    }
+    if (pathname.startsWith("/api/export/")) {
+      return isExportAuthenticated(request)
         ? next()
         : new Response("Unauthorized", { status: 401 });
     }

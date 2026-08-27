@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
-import re
 import socket
 import sys
 import tempfile
@@ -18,10 +17,10 @@ from typing import Any
 import httpx
 
 from .annotations import BoundingBox
+from .identifiers import IDENTIFIER
 from .worker_runtime import health_server
 from .yolo import DatasetImage, export_dataset_images, train_yolo_detector
 
-IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 WORKER_ERRORS = (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError)
 
 

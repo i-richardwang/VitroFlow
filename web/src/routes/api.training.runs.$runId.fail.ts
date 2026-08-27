@@ -15,11 +15,16 @@ export const Route = createFileRoute("/api/training/runs/$runId/fail")({
       POST: async ({ params, request }) => {
         try {
           const body = bodySchema.parse(await request.json());
-          return Response.json(failTrainingRun(params.runId, body.workerId, body.error));
+          return Response.json(
+            await failTrainingRun(params.runId, body.workerId, body.error),
+          );
         } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {
-            status: 409,
-          });
+          return new Response(
+            error instanceof Error ? error.message : String(error),
+            {
+              status: 409,
+            },
+          );
         }
       },
     },

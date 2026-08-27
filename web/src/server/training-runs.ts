@@ -1,49 +1,179 @@
 import { createHash, randomUUID } from "node:crypto";
-import * as fs from "node:fs";
+import { and, asc, count, desc, eq, gt, inArray, lte, or } from "drizzle-orm";
 
+import { database, transaction, type Executor } from "../db/client";
+import { trainingRuns } from "../db/schema";
 import {
   inferencePublicationSchema,
   trainingRecipeSchema,
   trainingRunId,
   trainingRunSchema,
   type InferencePublication,
+  type TrainingPhase,
   type TrainingRecipe,
   type TrainingRun,
 } from "../training/schema";
-import { createDatasetSnapshot, readDatasetSnapshot } from "./dataset-snapshots";
-import { readDataset } from "./datasets";
-import { writeAtomically } from "./files";
-import { registerModelVersion } from "./model-registry";
+import { blobExists, moveBlobDirectory, readBlob, writeBlob } from "./blobs";
 import {
-  MODEL_ARTIFACTS_DIR,
-  TRAINING_RUNS_DIR,
-  TRAINING_STAGING_DIR,
-  resolveWithin,
-} from "./paths";
+  createDatasetSnapshot,
+  readDatasetSnapshot,
+} from "./dataset-snapshots";
+import { readDataset } from "./datasets";
+import { registerModelVersion } from "./model-registry";
 import { readTrainingWorker } from "./training-worker-store";
 
 const LEASE_MILLISECONDS = 5 * 60 * 1000;
+const ACTIVE_STATUSES = ["queued", "running", "publishing"] as const;
 
 export class TrainingRunConflictError extends Error {}
 export class TrainingRunNotFoundError extends Error {}
 export class TrainingArtifactValidationError extends Error {}
 
-function runPath(runId: string): string {
-  return resolveWithin(TRAINING_RUNS_DIR, `${runId}.json`);
+type Row = typeof trainingRuns.$inferSelect;
+
+function stagingKey(runId: string, file: string): string {
+  return `training-staging/${runId}/${file}`;
 }
 
-function stagingDir(runId: string): string {
-  return resolveWithin(TRAINING_STAGING_DIR, runId);
+function artifactKey(versionId: string, file: string): string {
+  return `model-artifacts/${versionId}/${file}`;
 }
 
-function artifactDir(versionId: string): string {
-  return resolveWithin(MODEL_ARTIFACTS_DIR, versionId);
+/** The version a run publishes; fixed by the run identity before training starts. */
+function trainedVersionId(run: Pick<TrainingRun, "modelId" | "id">): string {
+  return `${run.modelId}.${run.id}`;
 }
 
-function persist(run: TrainingRun): TrainingRun {
-  const valid = trainingRunSchema.parse(run);
-  writeAtomically(runPath(valid.id), `${JSON.stringify(valid, null, 2)}\n`);
-  return valid;
+function returned(row: Row | undefined, runId: string): TrainingRun {
+  if (!row)
+    throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
+  return toRun(row);
+}
+
+function toRun(row: Row): TrainingRun {
+  const state = (() => {
+    switch (row.status) {
+      case "queued":
+        return { status: row.status };
+      case "running":
+        return {
+          status: row.status,
+          workerId: row.workerId,
+          leaseExpiresAt: row.leaseExpiresAt?.toISOString(),
+          phase: row.phase,
+          progress: row.progress,
+        };
+      case "publishing":
+        return { status: row.status, workerId: row.workerId };
+      case "succeeded":
+        return { status: row.status, modelVersionId: row.modelVersionId };
+      case "failed":
+        return { status: row.status, error: row.error };
+    }
+  })();
+  return trainingRunSchema.parse({
+    schemaVersion: 1,
+    id: row.id,
+    modelId: row.modelId,
+    datasetSnapshotId: row.datasetSnapshotId,
+    createdAt: row.createdAt.toISOString(),
+    attempt: row.attempt,
+    recipe: row.recipe,
+    state,
+  });
+}
+
+/** Every state column, so a transition never leaves stale values behind. */
+function stateColumns(
+  state: TrainingRun["state"],
+): Pick<
+  Row,
+  | "status"
+  | "workerId"
+  | "leaseExpiresAt"
+  | "phase"
+  | "progress"
+  | "error"
+  | "modelVersionId"
+> {
+  const cleared = {
+    workerId: null,
+    leaseExpiresAt: null,
+    phase: null,
+    progress: null,
+    error: null,
+    modelVersionId: null,
+  };
+  switch (state.status) {
+    case "queued":
+      return { ...cleared, status: state.status };
+    case "running":
+      return {
+        ...cleared,
+        status: state.status,
+        workerId: state.workerId,
+        leaseExpiresAt: new Date(state.leaseExpiresAt),
+        phase: state.phase,
+        progress: state.progress,
+      };
+    case "publishing":
+      return { ...cleared, status: state.status, workerId: state.workerId };
+    case "succeeded":
+      return {
+        ...cleared,
+        status: state.status,
+        modelVersionId: state.modelVersionId,
+      };
+    case "failed":
+      return { ...cleared, status: state.status, error: state.error };
+  }
+}
+
+async function transition(
+  runId: string,
+  state: TrainingRun["state"],
+  db: Executor,
+): Promise<TrainingRun> {
+  const [row] = await db
+    .update(trainingRuns)
+    .set(stateColumns(state))
+    .where(eq(trainingRuns.id, runId))
+    .returning();
+  return returned(row, runId);
+}
+
+/**
+ * Applies a worker's transition only while the run is still leased to it; the
+ * predicate is evaluated by the update, so a lease lost meanwhile cannot be
+ * overwritten.
+ */
+async function ownedTransition(
+  runId: string,
+  workerId: string,
+  state: TrainingRun["state"],
+  db: Executor,
+): Promise<TrainingRun> {
+  const [row] = await db
+    .update(trainingRuns)
+    .set(stateColumns(state))
+    .where(
+      and(
+        eq(trainingRuns.id, runId),
+        eq(trainingRuns.status, "running"),
+        eq(trainingRuns.workerId, workerId),
+      ),
+    )
+    .returning();
+  if (!row) {
+    throw new TrainingRunConflictError(
+      `Training run ${runId} is not owned by ${workerId}`,
+    );
+  }
+  return toRun(row);
+}
+
+function leaseFrom(at: Date): string {
+  return new Date(at.getTime() + LEASE_MILLISECONDS).toISOString();
 }
 
 function canonical(value: unknown): string {
@@ -61,27 +191,29 @@ function artifactDigest(
   weights: Uint8Array,
   publication: InferencePublication,
 ): string {
+  // Digest input, shared with the Python inference adapter: weights, NUL, then
+  // the canonical inference settings (`ready` is publication state, not a setting).
   const hash = createHash("sha256").update(weights).update("\0");
-  // `ready` is publication state, not an inference input. Keep this byte-for-byte
-  // compatible with the Python inference adapter's YoloInferenceSettings digest.
-  hash.update(canonical({
-    confidence: publication.inference.confidence,
-    end2end: publication.inference.end2end,
-    imgsz: publication.inference.imgsz,
-    max_det: publication.inference.max_det,
-  }));
+  hash.update(
+    canonical({
+      confidence: publication.inference.confidence,
+      end2end: publication.inference.end2end,
+      imgsz: publication.inference.imgsz,
+      max_det: publication.inference.max_det,
+    }),
+  );
   return hash.digest("hex");
 }
 
 function assertMatchingArtifact(
-  directory: string,
+  key: (file: string) => string,
   weights: Uint8Array,
   publication: InferencePublication,
   runId: string,
 ): void {
-  const storedWeights = fs.readFileSync(`${directory}/weights/best.pt`);
+  const storedWeights = readBlob(key("weights/best.pt"));
   const storedPublication = inferencePublicationSchema.parse(
-    JSON.parse(fs.readFileSync(`${directory}/inference.json`, "utf-8")),
+    JSON.parse(new TextDecoder().decode(readBlob(key("inference.json")))),
   );
   if (
     !Buffer.from(weights).equals(storedWeights) ||
@@ -93,92 +225,95 @@ function assertMatchingArtifact(
   }
 }
 
-export function readTrainingRun(runId: string): TrainingRun | null {
-  const filePath = runPath(runId);
-  if (!fs.existsSync(filePath)) return null;
-  const run = trainingRunSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf-8")));
-  if (run.id !== runId) throw new Error(`Training run ${run.id} does not match ${runId}`);
-  return run;
+export async function readTrainingRun(
+  runId: string,
+  db?: Executor,
+): Promise<TrainingRun | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(trainingRuns)
+    .where(eq(trainingRuns.id, runId));
+  return row ? toRun(row) : null;
 }
 
-export function listTrainingRuns(): TrainingRun[] {
-  if (!fs.existsSync(TRAINING_RUNS_DIR)) return [];
-  return fs
-    .readdirSync(TRAINING_RUNS_DIR)
-    .filter((name) => name.endsWith(".json"))
-    .map((name) => readTrainingRun(name.slice(0, -5)))
-    .filter((run): run is TrainingRun => run !== null)
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+/** Runs for a model, newest first. */
+export async function listTrainingRuns(
+  modelId: string,
+): Promise<TrainingRun[]> {
+  const db = await database();
+  const rows = await db
+    .select()
+    .from(trainingRuns)
+    .where(eq(trainingRuns.modelId, modelId))
+    .orderBy(desc(trainingRuns.createdAt));
+  return rows.map(toRun);
 }
 
-const ACTIVE_STATUSES = new Set<TrainingRun["state"]["status"]>([
-  "queued",
-  "running",
-  "publishing",
-]);
+export async function countTrainingRuns(): Promise<number> {
+  const db = await database();
+  const [row] = await db.select({ count: count() }).from(trainingRuns);
+  return row?.count ?? 0;
+}
 
 /** The run still queued, leased, or publishing for a model; at most one exists. */
-export function activeTrainingRun(modelId: string): TrainingRun | null {
-  return (
-    listTrainingRuns().find(
-      (run) => run.modelId === modelId && ACTIVE_STATUSES.has(run.state.status),
-    ) ?? null
-  );
+export async function activeTrainingRun(
+  modelId: string,
+  db?: Executor,
+): Promise<TrainingRun | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(trainingRuns)
+    .where(
+      and(
+        eq(trainingRuns.modelId, modelId),
+        inArray(trainingRuns.status, [...ACTIVE_STATUSES]),
+      ),
+    );
+  return row ? toRun(row) : null;
 }
 
-export function createTrainingRun(
+export async function createTrainingRun(
   datasetId: string,
   recipe: TrainingRecipe,
-): TrainingRun {
-  const dataset = readDataset(datasetId);
-  if (!dataset) throw new Error(`Unknown dataset: ${datasetId}`);
-  const active = activeTrainingRun(dataset.modelId);
-  if (active) {
-    throw new TrainingRunConflictError(
-      `Training run ${active.id} is still active for ${dataset.modelId}`,
-    );
-  }
-  const snapshot = createDatasetSnapshot(datasetId);
-  return persist({
-    schemaVersion: 1,
-    id: trainingRunId(randomUUID()),
-    modelId: snapshot.modelId,
-    datasetSnapshotId: snapshot.id,
-    createdAt: new Date().toISOString(),
-    attempt: 0,
-    recipe: trainingRecipeSchema.parse(recipe),
-    state: { status: "queued" },
+): Promise<TrainingRun> {
+  return transaction(async (tx) => {
+    const dataset = await readDataset(datasetId, tx);
+    if (!dataset) throw new Error(`Unknown dataset: ${datasetId}`);
+    const active = await activeTrainingRun(dataset.modelId, tx);
+    if (active) {
+      throw new TrainingRunConflictError(
+        `Training run ${active.id} is still active for ${dataset.modelId}`,
+      );
+    }
+    const snapshot = await createDatasetSnapshot(datasetId, tx);
+    const [row] = await tx
+      .insert(trainingRuns)
+      .values({
+        id: trainingRunId(randomUUID()),
+        modelId: snapshot.modelId,
+        datasetSnapshotId: snapshot.id,
+        createdAt: new Date(),
+        attempt: 0,
+        recipe: trainingRecipeSchema.parse(recipe),
+        ...stateColumns({ status: "queued" }),
+      })
+      .returning();
+    return returned(row, snapshot.id);
   });
 }
 
-function canClaim(run: TrainingRun, at: Date): boolean {
-  return (
-    run.state.status === "queued" ||
-    (run.state.status === "running" &&
-      Date.parse(run.state.leaseExpiresAt) <= at.getTime())
-  );
-}
-
-function activeRunForWorker(
-  workerId: string,
-  at: Date,
-): TrainingRun | undefined {
-  return listTrainingRuns().find(
-    (run) =>
-      run.state.status === "running" &&
-      run.state.workerId === workerId &&
-      Date.parse(run.state.leaseExpiresAt) > at.getTime(),
-  );
-}
-
-export function claimTrainingRun(
+/**
+ * Leases the oldest claimable run to a worker. A worker holding a live lease
+ * gets that run back; the row lock serialises competing workers.
+ */
+export async function claimTrainingRun(
   workerId: string,
   at: Date = new Date(),
-): TrainingRun | null {
-  if (!readTrainingWorker(workerId)) {
+): Promise<TrainingRun | null> {
+  if (!(await readTrainingWorker(workerId))) {
     throw new Error("Training worker must heartbeat before claiming work");
   }
-  const recovery = recoverTrainingPublications();
+  const recovery = await recoverTrainingPublications();
   if (recovery.failed.length > 0) {
     throw new Error(
       `Training publication recovery failed for ${recovery.failed
@@ -186,26 +321,64 @@ export function claimTrainingRun(
         .join(", ")}`,
     );
   }
-  const active = activeRunForWorker(workerId, at);
-  if (active) return active;
-  const run = listTrainingRuns().find((candidate) => canClaim(candidate, at));
-  if (!run) return null;
-  return persist({
-    ...run,
-    attempt: run.attempt + 1,
-    state: {
-      status: "running",
-      workerId,
-      leaseExpiresAt: new Date(at.getTime() + LEASE_MILLISECONDS).toISOString(),
-      phase: "preparing",
-      progress: 0,
-    },
+  return transaction(async (tx) => {
+    const [owned] = await tx
+      .select()
+      .from(trainingRuns)
+      .where(
+        and(
+          eq(trainingRuns.status, "running"),
+          eq(trainingRuns.workerId, workerId),
+          gt(trainingRuns.leaseExpiresAt, at),
+        ),
+      );
+    if (owned) return toRun(owned);
+    const [candidate] = await tx
+      .select()
+      .from(trainingRuns)
+      .where(
+        or(
+          eq(trainingRuns.status, "queued"),
+          and(
+            eq(trainingRuns.status, "running"),
+            lte(trainingRuns.leaseExpiresAt, at),
+          ),
+        ),
+      )
+      .orderBy(asc(trainingRuns.createdAt))
+      .limit(1)
+      .for("update", { skipLocked: true });
+    if (!candidate) return null;
+    const [row] = await tx
+      .update(trainingRuns)
+      .set({
+        attempt: candidate.attempt + 1,
+        ...stateColumns({
+          status: "running",
+          workerId,
+          leaseExpiresAt: leaseFrom(at),
+          phase: "preparing",
+          progress: 0,
+        }),
+      })
+      .where(eq(trainingRuns.id, candidate.id))
+      .returning();
+    return returned(row, candidate.id);
   });
 }
 
-function ownedRunningRun(runId: string, workerId: string): TrainingRun {
-  const run = readTrainingRun(runId);
-  if (!run || run.state.status !== "running" || run.state.workerId !== workerId) {
+/** The run as its leaseholder sees it; any other caller gets a conflict. */
+async function ownedRunningRun(
+  runId: string,
+  workerId: string,
+  db: Executor,
+): Promise<TrainingRun> {
+  const run = await readTrainingRun(runId, db);
+  if (
+    !run ||
+    run.state.status !== "running" ||
+    run.state.workerId !== workerId
+  ) {
     throw new TrainingRunConflictError(
       `Training run ${runId} is not owned by ${workerId}`,
     );
@@ -213,177 +386,194 @@ function ownedRunningRun(runId: string, workerId: string): TrainingRun {
   return run;
 }
 
-export function reportTrainingProgress(
+export async function reportTrainingProgress(
   runId: string,
   workerId: string,
-  phase: "preparing" | "training" | "validating",
+  phase: TrainingPhase,
   progress: number,
   at: Date = new Date(),
-): TrainingRun {
-  const run = ownedRunningRun(runId, workerId);
-  return persist({
-    ...run,
-    state: {
+): Promise<TrainingRun> {
+  return ownedTransition(
+    runId,
+    workerId,
+    {
       status: "running",
       workerId,
-      leaseExpiresAt: new Date(at.getTime() + LEASE_MILLISECONDS).toISOString(),
+      leaseExpiresAt: leaseFrom(at),
       phase,
       progress,
     },
-  });
+    await database(),
+  );
 }
 
-export function failTrainingRun(
+export async function failTrainingRun(
   runId: string,
   workerId: string,
   error: string,
-): TrainingRun {
-  const run = ownedRunningRun(runId, workerId);
-  return persist({
-    ...run,
-    state: { status: "failed", error: error.slice(0, 2000) },
-  });
+): Promise<TrainingRun> {
+  return ownedTransition(
+    runId,
+    workerId,
+    { status: "failed", error: error.slice(0, 2000) },
+    await database(),
+  );
 }
 
-function stageTrainingArtifact(
+async function stageTrainingArtifact(
   runId: string,
   workerId: string,
   weights: Uint8Array,
   inference: unknown,
-): TrainingRun {
-  const current = readTrainingRun(runId);
-  if (!current) throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
+): Promise<TrainingRun> {
   const parsed = inferencePublicationSchema.safeParse(inference);
   if (!parsed.success) {
     throw new TrainingArtifactValidationError(parsed.error.message);
   }
   const publication = parsed.data;
-  if (weights.byteLength === 0) {
-    throw new TrainingArtifactValidationError("Training weights are empty");
-  }
-  const publishedRecipe = {
-    baseModel: {
-      reference: publication.training.base_model.reference,
-      digest: publication.training.base_model.digest,
-    },
-    configuration: publication.training.configuration,
-    runtime: publication.training.runtime,
-  };
-  const expectedIdentity = {
-    baseModel: current.recipe.baseModel,
-    configuration: current.recipe.configuration,
-    runtime: current.recipe.runtime,
-  };
-  if (canonical(publishedRecipe) !== canonical(expectedIdentity)) {
-    throw new TrainingArtifactValidationError(
-      "Training artifact identity does not match its run recipe",
-    );
-  }
-  if (current.state.status === "succeeded") {
-    assertMatchingArtifact(
-      artifactDir(current.state.modelVersionId),
-      weights,
-      publication,
-      runId,
-    );
-    return current;
-  }
-  if (current.state.status === "publishing") {
-    if (current.state.workerId !== workerId) {
-      throw new TrainingRunConflictError(
-        `Training run ${runId} is not owned by ${workerId}`,
+  return transaction(async (tx) => {
+    const current = await readTrainingRun(runId, tx);
+    if (!current)
+      throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
+    if (
+      canonical(publication.training) !==
+      canonical({
+        base_model: current.recipe.baseModel,
+        configuration: current.recipe.configuration,
+        runtime: current.recipe.runtime,
+      })
+    ) {
+      throw new TrainingArtifactValidationError(
+        "Training artifact identity does not match the run recipe",
       );
     }
-    const staged = stagingDir(runId);
-    const directory = fs.existsSync(staged)
-      ? staged
-      : artifactDir(`${current.modelId}.${current.id}`);
-    assertMatchingArtifact(directory, weights, publication, runId);
-    return current;
-  }
-  const run = ownedRunningRun(runId, workerId);
-  const directory = stagingDir(runId);
-  fs.mkdirSync(`${directory}/weights`, { recursive: true });
-  writeAtomically(`${directory}/weights/best.pt`, weights);
-  writeAtomically(
-    `${directory}/inference.json`,
-    `${JSON.stringify(publication, null, 2)}\n`,
-  );
-  return persist({ ...run, state: { status: "publishing", workerId } });
+    if (current.state.status === "publishing") {
+      assertMatchingArtifact(
+        (file) => stagingKey(runId, file),
+        weights,
+        publication,
+        runId,
+      );
+      return current;
+    }
+    if (current.state.status === "succeeded") {
+      assertMatchingArtifact(
+        (file) => artifactKey(trainedVersionId(current), file),
+        weights,
+        publication,
+        runId,
+      );
+      return current;
+    }
+    const staged = await ownedTransition(
+      runId,
+      workerId,
+      { status: "publishing", workerId },
+      tx,
+    );
+    writeBlob(stagingKey(runId, "weights/best.pt"), weights);
+    writeBlob(
+      stagingKey(runId, "inference.json"),
+      `${JSON.stringify(publication, null, 2)}\n`,
+    );
+    return staged;
+  });
 }
 
 /** Upload and server-side publication are one recoverable, idempotent operation. */
-export function publishTrainingArtifact(
+export async function publishTrainingArtifact(
   runId: string,
   workerId: string,
   weights: Uint8Array,
   inference: unknown,
-): TrainingRun {
-  stageTrainingArtifact(runId, workerId, weights, inference);
+): Promise<TrainingRun> {
+  await stageTrainingArtifact(runId, workerId, weights, inference);
   return finalizeTrainingPublication(runId);
 }
 
-function finalizeTrainingPublication(runId: string): TrainingRun {
-  const current = readTrainingRun(runId);
-  if (!current) throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
-  if (current.state.status === "succeeded") return current;
-  if (current.state.status !== "publishing") {
-    throw new TrainingRunConflictError(
-      `Training run ${runId} is not ready to publish`,
-    );
-  }
-  const snapshot = readDatasetSnapshot(current.datasetSnapshotId);
-  if (!snapshot) throw new Error(`Missing snapshot ${current.datasetSnapshotId}`);
-  const versionId = `${current.modelId}.${current.id}`;
-  const destination = artifactDir(versionId);
-  const source = stagingDir(runId);
-  if (!fs.existsSync(destination)) {
-    if (!fs.existsSync(source)) {
-      throw new Error(`Missing staged artifact for training run ${runId}`);
+/**
+ * Moves the staged artifact into place, then registers the version and
+ * completes the run in one transaction. The row lock serialises the worker's
+ * upload with server-side recovery, and repeating any step is harmless.
+ */
+async function finalizeTrainingPublication(
+  runId: string,
+): Promise<TrainingRun> {
+  return transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(trainingRuns)
+      .where(eq(trainingRuns.id, runId))
+      .for("update");
+    const current = returned(row, runId);
+    if (current.state.status === "succeeded") return current;
+    if (current.state.status !== "publishing") {
+      throw new TrainingRunConflictError(
+        `Training run ${runId} is not ready to publish`,
+      );
     }
-    fs.mkdirSync(MODEL_ARTIFACTS_DIR, { recursive: true });
-    fs.renameSync(source, destination);
-  }
-  const weights = fs.readFileSync(`${destination}/weights/best.pt`);
-  const publication = inferencePublicationSchema.parse(
-    JSON.parse(fs.readFileSync(`${destination}/inference.json`, "utf-8")),
-  );
-  const version = registerModelVersion({
-    schemaVersion: 1,
-    id: versionId,
-    modelId: current.modelId,
-    name: `YOLO26 ${current.createdAt}`,
-    createdAt: current.createdAt,
-    source: {
-      kind: "training_run",
-      trainingRunId: current.id,
-      datasetSnapshotId: snapshot.id,
-    },
-    artifact: {
-      kind: "ultralytics",
-      digest: artifactDigest(weights, publication),
-      bytes: weights.byteLength,
-      path: `model-artifacts/${versionId}/weights/best.pt`,
-      inference: {
-        confidence: publication.inference.confidence,
-        imageSize: publication.inference.imgsz,
-        maxDetections: publication.inference.max_det,
-        endToEnd: publication.inference.end2end,
-      },
-      validation: publication.validation,
-      training: {
-        baseModel: {
-          reference: publication.training.base_model.reference,
-          digest: publication.training.base_model.digest,
+    const snapshot = await readDatasetSnapshot(current.datasetSnapshotId, tx);
+    if (!snapshot)
+      throw new Error(`Missing snapshot ${current.datasetSnapshotId}`);
+    const versionId = trainedVersionId(current);
+    if (!blobExists(artifactKey(versionId, "weights/best.pt"))) {
+      if (!blobExists(stagingKey(runId, "weights/best.pt"))) {
+        throw new Error(`Missing staged artifact for training run ${runId}`);
+      }
+      moveBlobDirectory(
+        `training-staging/${runId}`,
+        `model-artifacts/${versionId}`,
+      );
+    }
+    const weights = readBlob(artifactKey(versionId, "weights/best.pt"));
+    const publication = inferencePublicationSchema.parse(
+      JSON.parse(
+        new TextDecoder().decode(
+          readBlob(artifactKey(versionId, "inference.json")),
+        ),
+      ),
+    );
+    const version = await registerModelVersion(
+      {
+        schemaVersion: 1,
+        id: versionId,
+        modelId: current.modelId,
+        name: `YOLO26 ${current.createdAt}`,
+        createdAt: current.createdAt,
+        source: {
+          kind: "training_run",
+          trainingRunId: current.id,
+          datasetSnapshotId: snapshot.id,
         },
-        configuration: publication.training.configuration,
-        runtime: publication.training.runtime,
+        artifact: {
+          kind: "ultralytics",
+          digest: artifactDigest(weights, publication),
+          bytes: weights.byteLength,
+          path: artifactKey(versionId, "weights/best.pt"),
+          inference: {
+            confidence: publication.inference.confidence,
+            imageSize: publication.inference.imgsz,
+            maxDetections: publication.inference.max_det,
+            endToEnd: publication.inference.end2end,
+          },
+          validation: publication.validation,
+          training: {
+            baseModel: {
+              reference: publication.training.base_model.reference,
+              digest: publication.training.base_model.digest,
+            },
+            configuration: publication.training.configuration,
+            runtime: publication.training.runtime,
+          },
+        },
       },
-    },
-  });
-  return persist({
-    ...current,
-    state: { status: "succeeded", modelVersionId: version.id },
+      tx,
+    );
+    return transition(
+      runId,
+      { status: "succeeded", modelVersionId: version.id },
+      tx,
+    );
   });
 }
 
@@ -392,17 +582,21 @@ export interface TrainingPublicationRecovery {
   failed: Array<{ runId: string; error: string }>;
 }
 
-/** Reconciles durable publishing states after interrupted server operations. */
-export function recoverTrainingPublications(): TrainingPublicationRecovery {
+/** Completes publications a server interruption left in `publishing`. */
+export async function recoverTrainingPublications(): Promise<TrainingPublicationRecovery> {
   const result: TrainingPublicationRecovery = { recovered: [], failed: [] };
-  for (const run of listTrainingRuns()) {
-    if (run.state.status !== "publishing") continue;
+  const db = await database();
+  const rows = await db
+    .select({ id: trainingRuns.id })
+    .from(trainingRuns)
+    .where(eq(trainingRuns.status, "publishing"));
+  for (const { id } of rows) {
     try {
-      finalizeTrainingPublication(run.id);
-      result.recovered.push(run.id);
+      await finalizeTrainingPublication(id);
+      result.recovered.push(id);
     } catch (error) {
       result.failed.push({
-        runId: run.id,
+        runId: id,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -410,9 +604,10 @@ export function recoverTrainingPublications(): TrainingPublicationRecovery {
   return result;
 }
 
-export function snapshotForRun(runId: string, workerId: string) {
-  const run = ownedRunningRun(runId, workerId);
-  const snapshot = readDatasetSnapshot(run.datasetSnapshotId);
+export async function snapshotForRun(runId: string, workerId: string) {
+  const db = await database();
+  const run = await ownedRunningRun(runId, workerId, db);
+  const snapshot = await readDatasetSnapshot(run.datasetSnapshotId, db);
   if (!snapshot) throw new Error(`Missing snapshot ${run.datasetSnapshotId}`);
   return snapshot;
 }

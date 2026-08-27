@@ -24,8 +24,7 @@ function handler(
   method: "GET" | "POST" | "PUT",
 ): Handler {
   const handlers = route.options.server?.handlers as
-    | Partial<Record<"GET" | "POST" | "PUT", Handler>>
-    | undefined;
+    Partial<Record<"GET" | "POST" | "PUT", Handler>> | undefined;
   const selected = handlers?.[method];
   if (!selected) throw new Error(`Missing ${method} route handler`);
   return selected;
@@ -37,9 +36,9 @@ test("training HTTP routes publish one candidate version without selecting it", 
     new File(["first"], "a.jpg"),
     new File(["second"], "b.jpg"),
   ]);
-  const dataset = readDataset(datasetId);
+  const dataset = await readDataset(datasetId);
   if (!dataset) throw new Error("missing dataset");
-  const selected = readModelVersion(dataset.selectedModelVersionId);
+  const selected = await readModelVersion(dataset.selectedModelVersionId);
   if (!selected) throw new Error("missing model version");
   for (const stem of ["a", "b"]) {
     const result = {
@@ -54,15 +53,18 @@ test("training HTTP routes publish one candidate version without selecting it", 
         },
       },
     };
-    createLabel(
+    await createLabel(
       { dataset: datasetId, stem },
       { ...documentFromPrelabel(result), status: "complete" },
     );
   }
 
-  const created = createTrainingRun(datasetId, YOLO26_SEED_SMALL_RECIPE);
+  const created = await createTrainingRun(datasetId, YOLO26_SEED_SMALL_RECIPE);
 
-  const heartbeat = await handler(HeartbeatRoute, "POST")({
+  const heartbeat = await handler(
+    HeartbeatRoute,
+    "POST",
+  )({
     request: new Request("http://localhost/api/training/heartbeat", {
       method: "POST",
       body: JSON.stringify({
@@ -75,7 +77,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
   } as never);
   expect(heartbeat.status).toBe(200);
 
-  const claim = await handler(ClaimRoute, "POST")({
+  const claim = await handler(
+    ClaimRoute,
+    "POST",
+  )({
     request: new Request("http://localhost/api/training/claim", {
       method: "POST",
       body: JSON.stringify({ workerId: "api-trainer" }),
@@ -85,7 +90,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect(job.run.id).toBe(created.id);
   expect(Object.keys(job)).toEqual(["run"]);
 
-  const snapshot = await handler(SnapshotRoute, "GET")({
+  const snapshot = await handler(
+    SnapshotRoute,
+    "GET",
+  )({
     params: { runId: created.id },
     request: new Request(
       `http://localhost/api/training/runs/${created.id}/snapshot?workerId=api-trainer`,
@@ -93,7 +101,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
   } as never);
   expect((await snapshot.json()).images).toHaveLength(2);
 
-  const image = await handler(ImageRoute, "GET")({
+  const image = await handler(
+    ImageRoute,
+    "GET",
+  )({
     params: { runId: created.id, index: "0" },
     request: new Request(
       `http://localhost/api/training/runs/${created.id}/images/0?workerId=api-trainer`,
@@ -102,7 +113,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect(image.status).toBe(200);
   expect(image.headers.get("X-Content-SHA256")).toBeTruthy();
 
-  const progress = await handler(ProgressRoute, "POST")({
+  const progress = await handler(
+    ProgressRoute,
+    "POST",
+  )({
     params: { runId: created.id },
     request: new Request("http://localhost/progress", {
       method: "POST",
@@ -141,27 +155,47 @@ test("training HTTP routes publish one candidate version without selecting it", 
       type: "application/json",
     }),
   );
-  const artifact = await handler(ArtifactRoute, "PUT")({
+  const artifact = await handler(
+    ArtifactRoute,
+    "PUT",
+  )({
     params: { runId: created.id },
-    request: new Request("http://localhost/artifact", { method: "PUT", body: form }),
+    request: new Request("http://localhost/artifact", {
+      method: "PUT",
+      body: form,
+    }),
   } as never);
   expect(artifact.status).toBe(200);
   const published = await artifact.json();
   expect(published.state.status).toBe("succeeded");
 
-  const repeated = await handler(ArtifactRoute, "PUT")({
+  const repeated = await handler(
+    ArtifactRoute,
+    "PUT",
+  )({
     params: { runId: created.id },
-    request: new Request("http://localhost/artifact", { method: "PUT", body: form }),
+    request: new Request("http://localhost/artifact", {
+      method: "PUT",
+      body: form,
+    }),
   } as never);
   expect(await repeated.json()).toEqual(published);
-  expect(readDataset(datasetId)?.selectedModelVersionId).toBe(selected.id);
+  expect((await readDataset(datasetId))?.selectedModelVersionId).toBe(
+    selected.id,
+  );
 
   const versionId = published.state.modelVersionId;
-  const manifest = await handler(ManifestRoute, "GET")({
+  const manifest = await handler(
+    ManifestRoute,
+    "GET",
+  )({
     params: { versionId },
   } as never);
   expect((await manifest.json()).id).toBe(versionId);
-  const weights = await handler(WeightsRoute, "GET")({
+  const weights = await handler(
+    WeightsRoute,
+    "GET",
+  )({
     params: { versionId },
   } as never);
   expect(await weights.text()).toBe("weights");

@@ -1,17 +1,20 @@
-import * as fs from "node:fs";
+import { desc, eq } from "drizzle-orm";
 
+import { database, type Executor } from "../db/client";
+import { modelVersions, models } from "../db/schema";
 import {
   modelSchema,
   modelVersionSchema,
+  sameModel,
   sameModelVersion,
   type Model,
   type ModelVersion,
 } from "../models/schema";
 import { TRADITIONAL_MODEL_MANIFEST } from "../models/builtins";
-import { createAtomically } from "./files";
-import { MODELS_DIR, MODEL_VERSIONS_DIR, resolveWithin } from "./paths";
 
-export function builtinModel(datasetId: string): Model {
+type VersionRow = typeof modelVersions.$inferSelect;
+
+function builtinModel(datasetId: string): Model {
   return modelSchema.parse({
     schemaVersion: 1,
     id: datasetId,
@@ -21,16 +24,13 @@ export function builtinModel(datasetId: string): Model {
   });
 }
 
-export function builtinTraditionalVersion(
-  datasetId: string,
-  createdAt: string,
-): ModelVersion {
+function builtinTraditionalVersion(datasetId: string): ModelVersion {
   return modelVersionSchema.parse({
     schemaVersion: 1,
     id: `${datasetId}.traditional-v1`,
     modelId: datasetId,
     name: "Traditional vision baseline",
-    createdAt,
+    createdAt: TRADITIONAL_MODEL_MANIFEST.createdAt,
     source: {
       kind: "builtin",
       definition: TRADITIONAL_MODEL_MANIFEST.definition,
@@ -42,45 +42,59 @@ export function builtinTraditionalVersion(
   });
 }
 
-function modelPath(modelId: string): string {
-  return resolveWithin(MODELS_DIR, `${modelId}.json`);
+function toModel(row: typeof models.$inferSelect): Model {
+  return modelSchema.parse({
+    schemaVersion: 1,
+    id: row.id,
+    name: row.name,
+    task: row.task,
+    classes: row.classes,
+  });
 }
 
-function versionPath(versionId: string): string {
-  return resolveWithin(MODEL_VERSIONS_DIR, `${versionId}.json`);
+function toModelVersion(row: VersionRow): ModelVersion {
+  return modelVersionSchema.parse({
+    schemaVersion: 1,
+    id: row.id,
+    modelId: row.modelId,
+    name: row.name,
+    createdAt: row.createdAt.toISOString(),
+    source: row.source,
+    artifact: row.artifact,
+  });
 }
 
-export function readModel(modelId: string): Model | null {
-  const filePath = modelPath(modelId);
-  if (!fs.existsSync(filePath)) return null;
-  const model = modelSchema.parse(
-    JSON.parse(fs.readFileSync(filePath, "utf-8")),
-  );
-  if (model.id !== modelId) {
-    throw new Error(`Model record ${model.id} does not match ${modelId}`);
-  }
-  return model;
+async function readModel(modelId: string, db: Executor): Promise<Model | null> {
+  const [row] = await db.select().from(models).where(eq(models.id, modelId));
+  return row ? toModel(row) : null;
 }
 
-export function listModels(): Model[] {
-  if (!fs.existsSync(MODELS_DIR)) return [];
-  return fs
-    .readdirSync(MODELS_DIR)
-    .filter((name) => name.endsWith(".json"))
-    .map((name) => readModel(name.slice(0, -5)))
-    .filter((model): model is Model => model !== null)
-    .sort((left, right) => left.id.localeCompare(right.id));
+export async function listModels(): Promise<Model[]> {
+  const db = await database();
+  const rows = await db.select().from(models).orderBy(models.id);
+  return rows.map(toModel);
 }
 
-export function registerModel(model: Model): Model {
+/** Registers a logical model; registering the same contents again is a no-op. */
+export async function registerModel(
+  model: Model,
+  db?: Executor,
+): Promise<Model> {
   const valid = modelSchema.parse(model);
-  const created = createAtomically(
-    modelPath(valid.id),
-    `${JSON.stringify(valid, null, 2)}\n`,
-  );
-  if (created) return valid;
-  const existing = readModel(valid.id);
-  if (!existing || JSON.stringify(existing) !== JSON.stringify(valid)) {
+  const executor = db ?? (await database());
+  const [inserted] = await executor
+    .insert(models)
+    .values({
+      id: valid.id,
+      name: valid.name,
+      task: valid.task,
+      classes: [...valid.classes],
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (inserted) return toModel(inserted);
+  const existing = await readModel(valid.id, executor);
+  if (!existing || !sameModel(existing, valid)) {
     throw new Error(
       `Model ${valid.id} is already registered with different contents`,
     );
@@ -88,64 +102,70 @@ export function registerModel(model: Model): Model {
   return existing;
 }
 
-export function ensureDatasetModel(datasetId: string): ModelVersion {
-  registerModel(builtinModel(datasetId));
-  const versionId = `${datasetId}.traditional-v1`;
-  const existing = readModelVersion(versionId);
-  if (existing) return existing;
+/** A dataset's logical model together with the builtin baseline version. */
+export async function ensureDatasetModel(
+  datasetId: string,
+  db: Executor,
+): Promise<ModelVersion> {
+  await registerModel(builtinModel(datasetId), db);
   return registerModelVersion(
-    builtinTraditionalVersion(datasetId, new Date().toISOString()),
+    builtinTraditionalVersion(datasetId),
+    db,
   );
 }
 
-export function readModelVersion(versionId: string): ModelVersion | null {
-  const filePath = versionPath(versionId);
-  if (!fs.existsSync(filePath)) return null;
-  const version = modelVersionSchema.parse(
-    JSON.parse(fs.readFileSync(filePath, "utf-8")),
-  );
-  if (version.id !== versionId) {
-    throw new Error(`Model version record ${version.id} does not match ${versionId}`);
-  }
-  return version;
+export async function readModelVersion(
+  versionId: string,
+  db?: Executor,
+): Promise<ModelVersion | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(modelVersions)
+    .where(eq(modelVersions.id, versionId));
+  return row ? toModelVersion(row) : null;
 }
 
-export function listModelVersions(modelId?: string): ModelVersion[] {
-  if (!fs.existsSync(MODEL_VERSIONS_DIR)) return [];
-  return fs
-    .readdirSync(MODEL_VERSIONS_DIR)
-    .filter((name) => name.endsWith(".json"))
-    .map((name) => readModelVersion(name.slice(0, -5)))
-    .filter(
-      (version): version is ModelVersion =>
-        version !== null && (modelId === undefined || version.modelId === modelId),
-    )
-    .sort((left, right) => left.id.localeCompare(right.id));
+/** Versions of a model, newest first. */
+export async function listModelVersions(
+  modelId: string,
+): Promise<ModelVersion[]> {
+  const db = await database();
+  const rows = await db
+    .select()
+    .from(modelVersions)
+    .where(eq(modelVersions.modelId, modelId))
+    .orderBy(desc(modelVersions.createdAt), desc(modelVersions.id));
+  return rows.map(toModelVersion);
 }
 
-/** Registers one immutable executable version under an existing logical model. */
-export function registerModelVersion(
+/** Registers one immutable executable version; the same contents again is a no-op. */
+export async function registerModelVersion(
   value: ModelVersion,
-): ModelVersion {
+  db?: Executor,
+): Promise<ModelVersion> {
   const version = modelVersionSchema.parse(value);
-  if (!readModel(version.modelId)) {
+  const executor = db ?? (await database());
+  if (!(await readModel(version.modelId, executor))) {
     throw new Error(`Unknown model: ${version.modelId}`);
   }
-  const created = createAtomically(
-    versionPath(version.id),
-    `${JSON.stringify(version, null, 2)}\n`,
-  );
-  if (created) return version;
-  const existing = readModelVersion(version.id);
+  const [inserted] = await executor
+    .insert(modelVersions)
+    .values({
+      id: version.id,
+      modelId: version.modelId,
+      name: version.name,
+      createdAt: new Date(version.createdAt),
+      source: version.source,
+      artifact: version.artifact,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (inserted) return toModelVersion(inserted);
+  const existing = await readModelVersion(version.id, executor);
   if (!existing || !sameModelVersion(existing, version)) {
     throw new Error(
       `Model version ${version.id} is already registered with different contents`,
     );
   }
   return existing;
-}
-
-export function removeDatasetModel(datasetId: string): void {
-  fs.rmSync(versionPath(`${datasetId}.traditional-v1`), { force: true });
-  fs.rmSync(modelPath(datasetId), { force: true });
 }

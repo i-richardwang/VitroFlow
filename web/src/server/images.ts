@@ -1,36 +1,34 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
 import { annotationSchema } from "../annotation/schema";
 import { imageRefSchema } from "../datasets/schema";
-import { isFailure } from "../detection/schema";
 import { listDatasets, removeImage } from "./datasets";
-import { createLabel, readLabel, updateLabel } from "./labels";
-import { discardPrelabel, readPrelabel } from "./prelabels";
-import { summarizeDataset, summarizeImage } from "./summaries";
+import { createLabelFromPrelabel, updateLabel } from "./labels";
+import { discardPrelabel } from "./prelabels";
+import { readImageRecord, summarize, summarizeDataset } from "./summaries";
 
-export const getDatasets = createServerFn({ method: "GET" }).handler(() =>
-  listDatasets().map(summarizeDataset),
+export const getDatasets = createServerFn({ method: "GET" }).handler(async () =>
+  Promise.all((await listDatasets()).map(summarizeDataset)),
 );
 
 export const getImage = createServerFn({ method: "GET" })
   .validator(imageRefSchema)
-  .handler(({ data }) => ({
-    summary: summarizeImage(data),
-    prelabel: readPrelabel(data),
-    label: readLabel(data),
-  }));
+  .handler(async ({ data }) => {
+    const record = await readImageRecord(data);
+    if (!record) {
+      throw new Error(`No image ${data.stem} in dataset ${data.dataset}`);
+    }
+    return {
+      summary: summarize(record),
+      prelabel: record.prelabel,
+      label: record.label,
+    };
+  });
 
 export const initializeLabel = createServerFn({ method: "POST" })
   .validator(imageRefSchema)
-  .handler(({ data }) => {
-    const prelabel = readPrelabel(data);
-    if (!prelabel || isFailure(prelabel)) {
-      throw new Error("The image has no detections to start from");
-    }
-    return createLabel(data, documentFromPrelabel(prelabel));
-  });
+  .handler(({ data }) => createLabelFromPrelabel(data));
 
 export const saveLabel = createServerFn({ method: "POST" })
   .validator(z.object({ image: imageRefSchema, document: annotationSchema }))
@@ -38,12 +36,12 @@ export const saveLabel = createServerFn({ method: "POST" })
 
 export const retryPrelabel = createServerFn({ method: "POST" })
   .validator(imageRefSchema)
-  .handler(({ data }) => {
-    discardPrelabel(data);
+  .handler(async ({ data }) => {
+    await discardPrelabel(data);
   });
 
 export const deleteImage = createServerFn({ method: "POST" })
   .validator(imageRefSchema)
-  .handler(({ data }) => {
-    removeImage(data);
+  .handler(async ({ data }) => {
+    await removeImage(data);
   });

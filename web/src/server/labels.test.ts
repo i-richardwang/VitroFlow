@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 import type { AnnotationDocument } from "../annotation/schema";
 import { createLabel, readLabel, updateLabel } from "./labels";
-import { DATA_ROOT } from "./paths";
+import { addImages } from "./upload";
 
 const document: AnnotationDocument = {
   schemaVersion: 2,
@@ -22,37 +20,23 @@ const document: AnnotationDocument = {
 };
 
 describe("labels", () => {
-  test("creates, reads, and updates with revision checks", () => {
+  test("creates, reads, and updates with revision checks", async () => {
+    await addImages("set", [new File(["a"], "a.jpg")]);
     const ref = { dataset: "set", stem: "a" };
-    expect(readLabel(ref)).toBeNull();
-    const created = createLabel(ref, { ...document, revision: 7 });
+    expect(await readLabel(ref)).toBeNull();
+    const created = await createLabel(ref, { ...document, revision: 7 });
     expect(created.revision).toBe(0);
-    expect(() => createLabel(ref, document)).toThrow(/already exists/);
+    await expect(createLabel(ref, document)).rejects.toThrow(/already exists/);
 
-    const updated = updateLabel(ref, { ...created, instances: [] });
+    const updated = await updateLabel(ref, { ...created, instances: [] });
     expect(updated.revision).toBe(1);
-    expect(readLabel(ref)?.instances).toEqual([]);
-    expect(() => updateLabel(ref, created)).toThrow(/stale/);
+    expect((await readLabel(ref))?.instances).toEqual([]);
+    await expect(updateLabel(ref, created)).rejects.toThrow(/stale/);
   });
 
-  test("leaves no temporary file behind", () => {
-    createLabel({ dataset: "set", stem: "b" }, document);
-    expect(fs.readdirSync(path.join(DATA_ROOT, "labels", "set"))).toEqual([
-      "a.json",
-      "b.json",
-    ]);
-  });
-
-  test("keeps label files inside the labels directory", () => {
-    expect(() => readLabel({ dataset: "..", stem: "escape" })).toThrow();
-  });
-
-  test("rejects documents without an explicit schema version", () => {
-    const filePath = path.join(DATA_ROOT, "labels", "invalid", "a.json");
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const { schemaVersion: _, ...unversioned } = document;
-    fs.writeFileSync(filePath, JSON.stringify(unversioned));
-
-    expect(() => readLabel({ dataset: "invalid", stem: "a" })).toThrow();
+  test("belongs to an existing image", async () => {
+    await expect(
+      createLabel({ dataset: "set", stem: "missing" }, document),
+    ).rejects.toThrow();
   });
 });

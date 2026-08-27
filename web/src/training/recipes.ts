@@ -8,6 +8,5 @@ const recipeManifestSchema = z.strictObject({
   recipe: trainingRecipeSchema,
 });
 
-export const YOLO26_SEED_SMALL_RECIPE = recipeManifestSchema.parse(
-  recipeManifest,
-).recipe;
+export const YOLO26_SEED_SMALL_RECIPE =
+  recipeManifestSchema.parse(recipeManifest).recipe;

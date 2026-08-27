@@ -13,3 +13,5 @@ __pycache__/
 /output/
 /data/
 /tests/fixtures/images/
+*.pglite/
+.pglite/

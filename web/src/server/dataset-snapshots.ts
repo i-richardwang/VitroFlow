@@ -1,176 +1,178 @@
 import { createHash } from "node:crypto";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
-import { readDataset, listImages } from "./datasets";
-import { createDirectoryAtomically, writeAtomically } from "./files";
-import { readLabel } from "./labels";
+import { database, type Executor } from "../db/client";
+import { datasetSnapshots, images } from "../db/schema";
 import {
-  DATASET_SNAPSHOTS_DIR,
-  DATASET_SPLITS_DIR,
-  resolveWithin,
-} from "./paths";
-import {
+  IMAGE_SPLITS,
   MIN_SNAPSHOT_IMAGES,
   datasetSnapshotSchema,
   type DatasetSnapshot,
+  type ImageSplit,
 } from "../training/schema";
+import { imageBlobKey } from "./blobs";
+import { readDataset } from "./datasets";
+import { listReviewedRecords, type ImageRecord } from "./summaries";
 
-type Split = "train" | "val";
-interface SplitRegistry {
-  schemaVersion: 1;
-  datasetId: string;
-  assignments: Record<string, Split>;
-}
-
-function digest(value: Uint8Array | string): string {
+function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function snapshotPath(snapshotId: string): string {
-  return resolveWithin(DATASET_SNAPSHOTS_DIR, snapshotId, "manifest.json");
+function toSnapshot(
+  row: typeof datasetSnapshots.$inferSelect,
+): DatasetSnapshot {
+  return datasetSnapshotSchema.parse({
+    schemaVersion: 1,
+    id: row.id,
+    datasetId: row.datasetId,
+    modelId: row.modelId,
+    createdAt: row.createdAt.toISOString(),
+    images: row.images,
+  });
 }
 
-function splitPath(datasetId: string): string {
-  return resolveWithin(DATASET_SPLITS_DIR, `${datasetId}.json`);
-}
-
-function readSplits(datasetId: string): SplitRegistry {
-  const filePath = splitPath(datasetId);
-  if (!fs.existsSync(filePath)) {
-    return { schemaVersion: 1, datasetId, assignments: {} };
-  }
-  const value: unknown = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  if (
-    !value ||
-    typeof value !== "object" ||
-    (value as SplitRegistry).schemaVersion !== 1 ||
-    (value as SplitRegistry).datasetId !== datasetId
-  ) {
-    throw new Error(`Invalid split registry for ${datasetId}`);
-  }
-  const registry = value as SplitRegistry;
-  for (const [source, split] of Object.entries(registry.assignments)) {
-    if (!source.startsWith(`images/${datasetId}/`) || !["train", "val"].includes(split)) {
-      throw new Error(`Invalid split assignment for ${source}`);
+/**
+ * Gives every reviewed image a split it keeps across later snapshots, and
+ * guarantees the set trains and validates on something.
+ */
+async function assignSplits(
+  datasetId: string,
+  reviewed: ImageRecord[],
+  tx: Executor,
+): Promise<Map<string, ImageSplit>> {
+  const splits = new Map<string, ImageSplit>();
+  const assignedNow: ImageRecord[] = [];
+  for (const record of reviewed) {
+    if (record.image.split) {
+      splits.set(record.image.source, record.image.split);
+      continue;
     }
+    const bucket =
+      Number.parseInt(digest(record.image.source).slice(0, 8), 16) / 0xffffffff;
+    splits.set(record.image.source, bucket < 0.2 ? "val" : "train");
+    assignedNow.push(record);
   }
-  return registry;
-}
-
-function assignSplits(datasetId: string, sources: string[]): Record<string, Split> {
-  const registry = readSplits(datasetId);
-  const assignedNow: string[] = [];
-  for (const source of sources) {
-    if (!registry.assignments[source]) {
-      const bucket = Number.parseInt(digest(source).slice(0, 8), 16) / 0xffffffff;
-      registry.assignments[source] = bucket < 0.2 ? "val" : "train";
-      assignedNow.push(source);
-    }
-  }
-  const selected = sources.map((source) => registry.assignments[source]);
-  if (!selected.includes("val")) {
-    const source = [...assignedNow].sort((a, b) =>
-      digest(a).localeCompare(digest(b)),
+  const bySource = (direction: 1 | -1) =>
+    [...assignedNow].sort(
+      (a, b) =>
+        direction *
+        digest(a.image.source).localeCompare(digest(b.image.source)),
     )[0];
-    if (!source) {
+  for (const split of ["val", "train"] as const) {
+    if ([...splits.values()].includes(split)) continue;
+    const record = bySource(split === "val" ? 1 : -1);
+    if (!record) {
       throw new Error(
-        "Stable split has no validation image; add another reviewed image",
+        `Stable split has no ${split === "val" ? "validation" : "training"} image; add another reviewed image`,
       );
     }
-    registry.assignments[source] = "val";
+    splits.set(record.image.source, split);
   }
-  if (!sources.map((source) => registry.assignments[source]).includes("train")) {
-    const source = [...assignedNow].sort((a, b) =>
-      digest(b).localeCompare(digest(a)),
-    )[0];
-    if (!source) {
-      throw new Error("Stable split has no training image; add another reviewed image");
-    }
-    registry.assignments[source] = "train";
+  for (const split of IMAGE_SPLITS) {
+    const stems = assignedNow
+      .filter((record) => splits.get(record.image.source) === split)
+      .map((record) => record.image.stem);
+    if (stems.length === 0) continue;
+    await tx
+      .update(images)
+      .set({ split })
+      .where(and(eq(images.datasetId, datasetId), inArray(images.stem, stems)));
   }
-  writeAtomically(splitPath(datasetId), `${JSON.stringify(registry, null, 2)}\n`);
-  return registry.assignments;
+  return splits;
 }
 
-export function readDatasetSnapshot(snapshotId: string): DatasetSnapshot | null {
-  const filePath = snapshotPath(snapshotId);
-  if (!fs.existsSync(filePath)) return null;
-  const snapshot = datasetSnapshotSchema.parse(
-    JSON.parse(fs.readFileSync(filePath, "utf-8")),
-  );
-  if (snapshot.id !== snapshotId) {
-    throw new Error(`Dataset snapshot ${snapshot.id} does not match ${snapshotId}`);
-  }
-  return snapshot;
+export async function readDatasetSnapshot(
+  snapshotId: string,
+  db?: Executor,
+): Promise<DatasetSnapshot | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(datasetSnapshots)
+    .where(eq(datasetSnapshots.id, snapshotId));
+  return row ? toSnapshot(row) : null;
 }
 
-export function createDatasetSnapshot(datasetId: string): DatasetSnapshot {
-  const dataset = readDataset(datasetId);
+/**
+ * Freezes the complete annotations into a content-addressed snapshot; images
+ * are referenced by digest, so the manifest alone pins the bytes. An identical
+ * set returns the existing snapshot.
+ */
+export async function createDatasetSnapshot(
+  datasetId: string,
+  tx: Executor,
+): Promise<DatasetSnapshot> {
+  const dataset = await readDataset(datasetId, tx);
   if (!dataset) throw new Error(`Unknown dataset: ${datasetId}`);
-  const reviewed = listImages(datasetId).flatMap((image) => {
-    const annotation = readLabel(image);
-    return annotation?.status === "complete" ? [{ image, annotation }] : [];
-  });
+  // Keep image rows alive until the manifest commits. Deletion takes an
+  // exclusive lock and will then see the snapshot reference before deciding
+  // whether its content-addressed blob can be collected.
+  const reviewed = await listReviewedRecords(datasetId, tx, true);
   if (reviewed.length < MIN_SNAPSHOT_IMAGES) {
     throw new Error(
       `Training requires at least ${MIN_SNAPSHOT_IMAGES} complete annotations`,
     );
   }
-  const assignments = assignSplits(
-    datasetId,
-    reviewed.map(({ image }) => image.source),
-  );
-  const images = reviewed.map(({ image, annotation }, index) => ({
+  const splits = await assignSplits(datasetId, reviewed, tx);
+  const snapshotImages = reviewed.map(({ image, label }, index) => ({
     ref: { dataset: image.dataset, stem: image.stem },
     source: image.source,
-    artifactPath: `images/${index}${path.extname(image.filePath).toLowerCase()}`,
-    imageDigest: digest(fs.readFileSync(image.filePath)),
-    split: assignments[image.source],
-    annotation,
+    artifactPath: `images/${index}${image.extension}`,
+    imageDigest: image.digest,
+    split: splits.get(image.source),
+    annotation: label,
   }));
   const identity = digest(
-    JSON.stringify({ datasetId, modelId: dataset.modelId, images }),
+    JSON.stringify({
+      datasetId,
+      modelId: dataset.modelId,
+      images: snapshotImages,
+    }),
   );
-  const snapshotId = `snapshot-${identity}`;
-  const existing = readDatasetSnapshot(snapshotId);
-  if (existing) return existing;
   const snapshot = datasetSnapshotSchema.parse({
     schemaVersion: 1,
-    id: snapshotId,
+    id: `snapshot-${identity}`,
     datasetId,
     modelId: dataset.modelId,
     createdAt: new Date().toISOString(),
-    images,
+    images: snapshotImages,
   });
-  const directory = resolveWithin(DATASET_SNAPSHOTS_DIR, snapshot.id);
-  if (!createDirectoryAtomically(directory, (temporary) => {
-    for (const entry of snapshot.images) {
-      const source = reviewed.find(({ image }) => image.source === entry.source)?.image;
-      if (!source) throw new Error(`Missing image ${entry.source}`);
-      const destination = path.join(temporary, entry.artifactPath);
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.copyFileSync(source.filePath, destination);
-    }
-    fs.writeFileSync(
-      path.join(temporary, "manifest.json"),
-      `${JSON.stringify(snapshot, null, 2)}\n`,
-    );
-  })) {
-    return readDatasetSnapshot(snapshot.id) ?? snapshot;
-  }
+  const existing = await readDatasetSnapshot(snapshot.id, tx);
+  if (existing) return existing;
+  await tx.insert(datasetSnapshots).values({
+    id: snapshot.id,
+    datasetId: snapshot.datasetId,
+    modelId: snapshot.modelId,
+    createdAt: new Date(snapshot.createdAt),
+    images: snapshot.images,
+  });
   return snapshot;
 }
 
-export function snapshotImagePath(
+export async function snapshotImage(
   snapshotId: string,
   index: number,
-): { path: string; digest: string } | null {
-  const snapshot = readDatasetSnapshot(snapshotId);
+): Promise<{ key: string; digest: string } | null> {
+  const snapshot = await readDatasetSnapshot(snapshotId);
   const image = snapshot?.images[index];
   if (!snapshot || !image) return null;
-  return {
-    path: resolveWithin(DATASET_SNAPSHOTS_DIR, snapshot.id, image.artifactPath),
-    digest: image.imageDigest,
-  };
+  return { key: imageBlobKey(image.imageDigest), digest: image.imageDigest };
+}
+
+/** How many reviewed images each snapshot froze, without loading the manifests. */
+export async function snapshotImageCounts(
+  snapshotIds: string[],
+): Promise<Map<string, number>> {
+  if (snapshotIds.length === 0) return new Map();
+  const db = await database();
+  const rows = await db
+    .select({
+      id: datasetSnapshots.id,
+      count:
+        sql<number>`jsonb_array_length(${datasetSnapshots.images})`.mapWith(
+          Number,
+        ),
+    })
+    .from(datasetSnapshots)
+    .where(inArray(datasetSnapshots.id, snapshotIds));
+  return new Map(rows.map((row) => [row.id, row.count]));
 }

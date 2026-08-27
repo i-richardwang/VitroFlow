@@ -4,6 +4,12 @@ const CLIENT_DIR = `${import.meta.dir}/dist/client`;
 const MAX_REQUEST_BYTES = 520 * 1024 * 1024;
 const port = Number(process.env.PORT ?? 3000);
 
+// Connect and migrate before accepting traffic, so a bad DATABASE_URL fails the start.
+const health = await handler.fetch(new Request("http://localhost/healthz"));
+if (!health.ok) {
+  throw new Error(`Database is not ready: ${await health.text()}`);
+}
+
 Bun.serve({
   port,
   maxRequestBodySize: MAX_REQUEST_BYTES,

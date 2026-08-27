@@ -63,7 +63,10 @@ export function TrainingRunState({ run }: { run: TrainingRun }) {
         </ProgressBar>
       )}
       {state.status === "failed" && (
-        <span className="max-w-72 truncate text-xs text-danger" title={state.error}>
+        <span
+          className="max-w-72 truncate text-xs text-danger"
+          title={state.error}
+        >
           {state.error}
         </span>
       )}

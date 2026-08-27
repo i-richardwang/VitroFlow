@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
 from ..annotations import BoundingBox
+from ..identifiers import FINGERPRINT, VERSION_ID, WARNING_CODE
 
-_VERSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_FINGERPRINT = re.compile(r"^[a-f0-9]{64}$")
-_CODE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 _QUALITY_STATUSES = {"ok", "review_required"}
 _RUNTIME_ADAPTERS = {"traditional", "ultralytics"}
 
@@ -44,7 +41,7 @@ class RuntimeDescriptor:
     def __post_init__(self) -> None:
         if self.adapter not in _RUNTIME_ADAPTERS:
             raise ValueError(f"Invalid runtime adapter: {self.adapter}")
-        if not _FINGERPRINT.fullmatch(self.fingerprint):
+        if not FINGERPRINT.fullmatch(self.fingerprint):
             raise ValueError("Runtime fingerprint must be a SHA-256 digest")
 
     def to_dict(self) -> dict[str, str]:
@@ -63,9 +60,9 @@ class PredictionProducer:
     runtime: RuntimeDescriptor
 
     def __post_init__(self) -> None:
-        if not _VERSION_ID.fullmatch(self.model_version_id):
+        if not VERSION_ID.fullmatch(self.model_version_id):
             raise ValueError(f"Invalid model version id: {self.model_version_id}")
-        if not _FINGERPRINT.fullmatch(self.artifact_digest):
+        if not FINGERPRINT.fullmatch(self.artifact_digest):
             raise ValueError("Artifact digest must be a SHA-256 digest")
 
     def to_dict(self) -> dict[str, object]:
@@ -85,7 +82,7 @@ class PrelabelQuality:
         if self.status not in _QUALITY_STATUSES:
             raise ValueError(f"Unknown prelabel quality status: {self.status}")
         for warning in self.warnings:
-            if not isinstance(warning, str) or not _CODE.fullmatch(warning):
+            if not isinstance(warning, str) or not WARNING_CODE.fullmatch(warning):
                 raise ValueError(f"Invalid prelabel warning code: {warning}")
 
     def to_dict(self) -> dict[str, object]:

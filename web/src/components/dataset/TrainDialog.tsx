@@ -36,13 +36,15 @@ export function TrainDialog({
             {({ close }) => (
               <>
                 <AlertDialog.Header>
-                  <AlertDialog.Heading>Train a new version?</AlertDialog.Heading>
+                  <AlertDialog.Heading>
+                    Train a new version?
+                  </AlertDialog.Heading>
                 </AlertDialog.Header>
                 <AlertDialog.Body className="flex flex-col gap-3">
                   <p>
                     The {complete} complete annotations in {dataset} are frozen
-                    into a snapshot and queued for the next training worker.
-                    The result is published as a candidate version and does not
+                    into a snapshot and queued for the next training worker. The
+                    result is published as a candidate version and does not
                     change which version prelabels this dataset.
                   </p>
                   <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 font-mono text-xs">
@@ -81,7 +83,9 @@ export function TrainDialog({
                         .catch((cause: unknown) => {
                           toast.danger("Training not started", {
                             description:
-                              cause instanceof Error ? cause.message : String(cause),
+                              cause instanceof Error
+                                ? cause.message
+                                : String(cause),
                           });
                         })
                         .finally(() => {

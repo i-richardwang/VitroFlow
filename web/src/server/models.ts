@@ -12,8 +12,8 @@ const datasetInput = z.object({ dataset: z.string().regex(DATASET_NAME) });
 
 export const getDatasetOverview = createServerFn({ method: "GET" })
   .validator(datasetInput)
-  .handler(({ data }) => {
-    const overview = datasetOverview(data.dataset);
+  .handler(async ({ data }) => {
+    const overview = await datasetOverview(data.dataset);
     if (!overview) {
       throw new Error(`Unknown dataset: ${data.dataset}`);
     }
@@ -27,4 +27,6 @@ export const selectDatasetModelVersion = createServerFn({ method: "POST" })
 /** Freezes the reviewed annotations into a snapshot and queues one training run. */
 export const startTrainingRun = createServerFn({ method: "POST" })
   .validator(datasetInput)
-  .handler(({ data }) => createTrainingRun(data.dataset, YOLO26_SEED_SMALL_RECIPE));
+  .handler(({ data }) =>
+    createTrainingRun(data.dataset, YOLO26_SEED_SMALL_RECIPE),
+  );

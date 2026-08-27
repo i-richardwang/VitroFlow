@@ -9,14 +9,17 @@ export const Route = createFileRoute("/api/training/heartbeat")({
       POST: async ({ request }) => {
         try {
           return Response.json(
-            recordTrainingHeartbeat(
+            await recordTrainingHeartbeat(
               trainingWorkerHeartbeatSchema.parse(await request.json()),
             ),
           );
         } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {
-            status: 400,
-          });
+          return new Response(
+            error instanceof Error ? error.message : String(error),
+            {
+              status: 400,
+            },
+          );
         }
       },
     },

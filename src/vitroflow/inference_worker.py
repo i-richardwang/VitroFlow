@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import socket
 import sys
@@ -18,6 +17,7 @@ import cv2
 import httpx
 
 from .config import PipelineConfig
+from .identifiers import VERSION_ID, WORKER_ID
 from .prelabelers import (
     PredictionProducer,
     Prelabeler,
@@ -31,8 +31,6 @@ from .worker_runtime import health_server
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
-WORKER_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
-VERSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _ERROR_MESSAGE_LIMIT = 2000
 
 

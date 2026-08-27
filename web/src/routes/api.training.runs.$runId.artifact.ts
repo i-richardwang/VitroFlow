@@ -24,22 +24,33 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
             !(weightsFile instanceof File) ||
             !(inference instanceof File)
           ) {
-            return new Response("workerId, weights, and inference are required", {
-              status: 400,
-            });
+            return new Response(
+              "workerId, weights, and inference are required",
+              {
+                status: 400,
+              },
+            );
           }
           workerId = worker;
           weights = new Uint8Array(await weightsFile.arrayBuffer());
           publication = JSON.parse(await inference.text());
         } catch {
-          return new Response("Invalid training artifact request", { status: 400 });
+          return new Response("Invalid training artifact request", {
+            status: 400,
+          });
         }
         try {
           return Response.json(
-            publishTrainingArtifact(params.runId, workerId, weights, publication),
+            await publishTrainingArtifact(
+              params.runId,
+              workerId,
+              weights,
+              publication,
+            ),
           );
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           if (error instanceof TrainingArtifactValidationError) {
             return new Response(message, { status: 422 });
           }

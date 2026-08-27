@@ -17,7 +17,9 @@ export function ServingChip({ serving }: { serving: WorkerCount }) {
   }
   return (
     <Chip color="warning" variant="soft" size="sm">
-      {serving.stale > 0 ? `${workers(serving.stale)} stale` : "No worker serving"}
+      {serving.stale > 0
+        ? `${workers(serving.stale)} stale`
+        : "No worker serving"}
     </Chip>
   );
 }

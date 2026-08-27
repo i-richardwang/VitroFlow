@@ -3,13 +3,12 @@ from __future__ import annotations
 import json
 import math
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_FINGERPRINT = re.compile(r"^[a-f0-9]{64}$")
-_VERSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+from .identifiers import FINGERPRINT, VERSION_ID
+
 _STATUSES = {"in_progress", "complete", "excluded"}
 
 
@@ -175,13 +174,13 @@ def load_annotation(path: str | Path, data_root: str | Path) -> ReviewedImage:
     _fields(runtime, {"adapter", "fingerprint"}, "source.runtime")
     runtime_adapter = _string(runtime["adapter"], "source.runtime.adapter")
     runtime_fingerprint = _string(runtime["fingerprint"], "source.runtime.fingerprint")
-    if not _VERSION_ID.fullmatch(model_version_id):
+    if not VERSION_ID.fullmatch(model_version_id):
         raise ValueError("source.modelVersionId is invalid")
-    if not _FINGERPRINT.fullmatch(artifact_digest):
+    if not FINGERPRINT.fullmatch(artifact_digest):
         raise ValueError("source.artifactDigest must be a SHA-256 digest")
-    if not _VERSION_ID.fullmatch(runtime_adapter):
+    if not VERSION_ID.fullmatch(runtime_adapter):
         raise ValueError("source.runtime.adapter is invalid")
-    if not _FINGERPRINT.fullmatch(runtime_fingerprint):
+    if not FINGERPRINT.fullmatch(runtime_fingerprint):
         raise ValueError("source.runtime.fingerprint must be a SHA-256 fingerprint")
 
     status = _string(payload["status"], "status")

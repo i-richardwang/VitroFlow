@@ -20,7 +20,11 @@ export function ModelPanel({ overview }: { overview: DatasetOverview }) {
             one, and a new version never replaces it on its own.
           </Widget.Description>
         </div>
-        <TrainDialog dataset={dataset.id} complete={counts.complete} training={training} />
+        <TrainDialog
+          dataset={dataset.id}
+          complete={counts.complete}
+          training={training}
+        />
       </Widget.Header>
       <Widget.Content>
         <Tabs variant="secondary">
@@ -42,7 +46,10 @@ export function ModelPanel({ overview }: { overview: DatasetOverview }) {
             <VersionsTable dataset={dataset.id} versions={versions} />
           </Tabs.Panel>
           <Tabs.Panel id="runs" className="pt-4">
-            <TrainingRunsTable runs={training.runs} complete={counts.complete} />
+            <TrainingRunsTable
+              runs={training.runs}
+              complete={counts.complete}
+            />
           </Tabs.Panel>
         </Tabs>
       </Widget.Content>

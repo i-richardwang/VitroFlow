@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/training/runs/$runId/progress")({
         try {
           const body = bodySchema.parse(await request.json());
           return Response.json(
-            reportTrainingProgress(
+            await reportTrainingProgress(
               params.runId,
               body.workerId,
               body.phase,
@@ -25,9 +25,12 @@ export const Route = createFileRoute("/api/training/runs/$runId/progress")({
             ),
           );
         } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {
-            status: 409,
-          });
+          return new Response(
+            error instanceof Error ? error.message : String(error),
+            {
+              status: 409,
+            },
+          );
         }
       },
     },

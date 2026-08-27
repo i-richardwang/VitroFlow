@@ -9,7 +9,9 @@ export const Route = createFileRoute("/api/inference/heartbeat")({
       POST: async ({ request }) => {
         try {
           return Response.json(
-            recordInferenceHeartbeat(heartbeatSchema.parse(await request.json())),
+            await recordInferenceHeartbeat(
+              heartbeatSchema.parse(await request.json()),
+            ),
           );
         } catch (error) {
           return new Response(

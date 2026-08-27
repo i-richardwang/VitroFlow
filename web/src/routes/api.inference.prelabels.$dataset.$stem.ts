@@ -8,37 +8,41 @@ import {
   writePrelabel,
 } from "../server/prelabels";
 
-export const Route = createFileRoute("/api/inference/prelabels/$dataset/$stem")({
-  server: {
-    handlers: {
-      PUT: async ({ params, request }) => {
-        try {
-          const workerId = new URL(request.url).searchParams.get("workerId");
-          const worker = workerId ? readInferenceWorker(workerId) : null;
-          if (!worker) {
-            return new Response("worker must heartbeat before uploading", {
-              status: 409,
-            });
+export const Route = createFileRoute("/api/inference/prelabels/$dataset/$stem")(
+  {
+    server: {
+      handlers: {
+        PUT: async ({ params, request }) => {
+          try {
+            const workerId = new URL(request.url).searchParams.get("workerId");
+            const worker = workerId
+              ? await readInferenceWorker(workerId)
+              : null;
+            if (!worker) {
+              return new Response("worker must heartbeat before uploading", {
+                status: 409,
+              });
+            }
+            await writePrelabel(
+              imageRefSchema.parse(params),
+              await request.json(),
+              worker,
+            );
+            return Response.json({});
+          } catch (error) {
+            if (
+              error instanceof PrelabelFrozenError ||
+              error instanceof ModelVersionMismatchError
+            ) {
+              return new Response(error.message, { status: 409 });
+            }
+            return new Response(
+              error instanceof Error ? error.message : String(error),
+              { status: 400 },
+            );
           }
-          writePrelabel(
-            imageRefSchema.parse(params),
-            await request.json(),
-            worker,
-          );
-          return Response.json({});
-        } catch (error) {
-          if (
-            error instanceof PrelabelFrozenError ||
-            error instanceof ModelVersionMismatchError
-          ) {
-            return new Response(error.message, { status: 409 });
-          }
-          return new Response(
-            error instanceof Error ? error.message : String(error),
-            { status: 400 },
-          );
-        }
+        },
       },
     },
   },
-});
+);

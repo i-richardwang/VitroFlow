@@ -57,3 +57,21 @@ def test_recognize_requires_a_new_output_directory(
 
     assert exit_code == 2
     assert "already exists" in capsys.readouterr().err
+
+
+def test_dataset_pull_requires_server_and_token(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VITROFLOW_SERVER_URL", raising=False)
+    monkeypatch.delenv("VITROFLOW_EXPORT_TOKEN", raising=False)
+
+    exit_code = main(
+        ["dataset", "pull", "seeds", "--data-root", str(tmp_path / "data")]
+    )
+
+    assert exit_code == 2
+    error = capsys.readouterr().err
+    assert "VITROFLOW_SERVER_URL" in error
+    assert "VITROFLOW_EXPORT_TOKEN" in error

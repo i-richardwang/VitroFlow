@@ -1,189 +1,183 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { and, asc, eq, sql } from "drizzle-orm";
 
+import { database, transaction, type Executor } from "../db/client";
+import { datasetSnapshots, datasets, images } from "../db/schema";
 import {
-  DATASET_NAME,
-  IMAGE_STEM,
   datasetSchema,
   imageRefSchema,
   type Dataset,
   type ImageRef,
 } from "../datasets/schema";
-import { createAtomically, writeAtomically } from "./files";
-import {
-  ensureDatasetModel,
-  readModelVersion,
-} from "./model-registry";
-import {
-  DATASETS_DIR,
-  IMAGES_DIR,
-  LABELS_DIR,
-  PRELABELS_DIR,
-  resolveWithin,
-} from "./paths";
-
-export const CONTENT_TYPES: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".tif": "image/tiff",
-  ".tiff": "image/tiff",
-};
+import type { ImageSplit } from "../training/schema";
+import { imageBlobKey, removeBlob } from "./blobs";
+import { ensureDatasetModel, readModelVersion } from "./model-registry";
 
 export interface DatasetImage extends ImageRef {
-  /** Path relative to the data root, as documents reference it. */
+  /** The path documents reference the image by, relative to a data root. */
   source: string;
-  filePath: string;
+  /** Where the bytes live, by content digest. */
+  blobKey: string;
+  extension: string;
+  bytes: number;
+  digest: string;
+  split: ImageSplit | null;
 }
 
-function datasetDir(dataset: string): string {
-  if (!DATASET_NAME.test(dataset)) {
-    throw new Error(`Invalid dataset name: ${dataset}`);
-  }
-  return resolveWithin(IMAGES_DIR, dataset);
+function imageSource(ref: ImageRef, extension: string): string {
+  return `images/${ref.dataset}/${ref.stem}${extension}`;
 }
 
-function datasetPath(dataset: string): string {
-  if (!DATASET_NAME.test(dataset)) {
-    throw new Error(`Invalid dataset name: ${dataset}`);
-  }
-  return resolveWithin(DATASETS_DIR, `${dataset}.json`);
+export function toDatasetImage(row: typeof images.$inferSelect): DatasetImage {
+  const ref = { dataset: row.datasetId, stem: row.stem };
+  return {
+    ...ref,
+    source: imageSource(ref, row.extension),
+    blobKey: imageBlobKey(row.digest),
+    extension: row.extension,
+    bytes: row.bytes,
+    digest: row.digest,
+    split: row.split,
+  };
 }
 
-export function readDataset(dataset: string): Dataset | null {
-  const filePath = datasetPath(dataset);
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  const record = datasetSchema.parse(
-    JSON.parse(fs.readFileSync(filePath, "utf-8")),
-  );
-  if (record.id !== dataset) {
-    throw new Error(`Dataset record ${record.id} does not match ${dataset}`);
-  }
-  return record;
-}
-
-function createDataset(dataset: string): Dataset | null {
-  const defaultVersion = ensureDatasetModel(dataset);
-  const record = datasetSchema.parse({
+function toDataset(row: typeof datasets.$inferSelect): Dataset {
+  return datasetSchema.parse({
     schemaVersion: 1,
-    id: dataset,
-    modelId: dataset,
-    selectedModelVersionId: defaultVersion.id,
+    id: row.id,
+    modelId: row.modelId,
+    selectedModelVersionId: row.selectedModelVersionId,
   });
-  return createAtomically(
-    datasetPath(dataset),
-    `${JSON.stringify(record, null, 2)}\n`,
-  )
-    ? record
-    : null;
 }
 
-export function ensureDataset(dataset: string): boolean {
-  if (readDataset(dataset)) {
-    return false;
+export async function readDataset(
+  datasetId: string,
+  db?: Executor,
+): Promise<Dataset | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(datasets)
+    .where(eq(datasets.id, datasetId));
+  return row ? toDataset(row) : null;
+}
+
+/** A dataset, its logical model, and the builtin baseline version, created together. */
+export async function ensureDataset(
+  datasetId: string,
+  db: Executor,
+): Promise<Dataset> {
+  const existing = await readDataset(datasetId, db);
+  if (existing) return existing;
+  const baseline = await ensureDatasetModel(datasetId, db);
+  const [row] = await db
+    .insert(datasets)
+    .values({
+      id: datasetId,
+      modelId: datasetId,
+      selectedModelVersionId: baseline.id,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (row) return toDataset(row);
+  const current = await readDataset(datasetId, db);
+  if (!current || current.modelId !== datasetId) {
+    throw new Error(`Dataset ${datasetId} conflicts with another model`);
   }
-  return createDataset(dataset) !== null;
+  return current;
 }
 
-export function selectModelVersion(
-  dataset: string,
+/**
+ * Points the dataset at another version of its model. The dataset row lock
+ * excludes prelabels being accepted for the previous version meanwhile.
+ */
+export async function selectModelVersion(
+  datasetId: string,
   versionId: string,
-): Dataset {
-  const current = readDataset(dataset);
-  if (!current) {
-    throw new Error(`Unknown dataset: ${dataset}`);
-  }
-  const version = readModelVersion(versionId);
-  if (!version) {
-    throw new Error(`Unknown model version: ${versionId}`);
-  }
-  if (version.modelId !== current.modelId) {
-    throw new Error(
-      `Model version ${versionId} belongs to ${version.modelId}, not ${current.modelId}`,
-    );
-  }
-  const next = datasetSchema.parse({
-    ...current,
-    selectedModelVersionId: versionId,
+): Promise<Dataset> {
+  return transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(datasets)
+      .where(eq(datasets.id, datasetId))
+      .for("update");
+    const current = locked ? toDataset(locked) : null;
+    if (!current) throw new Error(`Unknown dataset: ${datasetId}`);
+    const version = await readModelVersion(versionId, tx);
+    if (!version) throw new Error(`Unknown model version: ${versionId}`);
+    if (version.modelId !== current.modelId) {
+      throw new Error(
+        `Model version ${versionId} belongs to ${version.modelId}, not ${current.modelId}`,
+      );
+    }
+    const [row] = await tx
+      .update(datasets)
+      .set({ selectedModelVersionId: versionId })
+      .where(eq(datasets.id, datasetId))
+      .returning();
+    if (!row) throw new Error(`Unknown dataset: ${datasetId}`);
+    return toDataset(row);
   });
-  writeAtomically(datasetPath(dataset), `${JSON.stringify(next, null, 2)}\n`);
-  return next;
 }
 
-function imageFromFilename(
-  dataset: string,
-  filename: string,
-): DatasetImage | null {
-  const extension = path.extname(filename);
-  const stem = filename.slice(0, -extension.length);
-  if (!(extension.toLowerCase() in CONTENT_TYPES) || !IMAGE_STEM.test(stem)) {
-    return null;
-  }
-  return {
-    dataset,
-    stem,
-    source: path.posix.join("images", dataset, filename),
-    filePath: path.join(IMAGES_DIR, dataset, filename),
-  };
+export async function listDatasets(): Promise<string[]> {
+  const db = await database();
+  const rows = await db
+    .select({ id: datasets.id })
+    .from(datasets)
+    .orderBy(asc(datasets.id));
+  return rows.map((row) => row.id);
 }
 
-export function listDatasets(): string[] {
-  if (!fs.existsSync(DATASETS_DIR)) {
-    return [];
-  }
-  return fs
-    .readdirSync(DATASETS_DIR)
-    .filter(
-      (name) =>
-        name.endsWith(".json") && DATASET_NAME.test(name.slice(0, -5)),
-    )
-    .map((name) => name.slice(0, -5))
-    .filter((dataset) => readDataset(dataset) !== null)
-    .sort();
+export async function listImages(
+  datasetId: string,
+  db?: Executor,
+): Promise<DatasetImage[]> {
+  const rows = await (db ?? (await database()))
+    .select()
+    .from(images)
+    .where(eq(images.datasetId, datasetId))
+    .orderBy(asc(images.stem));
+  return rows.map(toDatasetImage);
 }
 
-export function listImages(dataset: string): DatasetImage[] {
-  const directory = datasetDir(dataset);
-  if (!fs.existsSync(directory)) {
-    return [];
-  }
-  return fs
-    .readdirSync(directory)
-    .map((filename) => imageFromFilename(dataset, filename))
-    .filter((image): image is DatasetImage => image !== null)
-    .sort((left, right) => left.stem.localeCompare(right.stem));
-}
-
-export function findImage(ref: ImageRef): DatasetImage | null {
-  const { dataset, stem } = imageRefSchema.parse(ref);
-  return listImages(dataset).find((image) => image.stem === stem) ?? null;
-}
-
-export function readImageFile(
+export async function findImage(
   ref: ImageRef,
-): { body: Uint8Array<ArrayBuffer>; contentType: string } | null {
-  const image = findImage(ref);
-  if (!image) {
-    return null;
-  }
-  return {
-    body: new Uint8Array(fs.readFileSync(image.filePath)),
-    contentType: CONTENT_TYPES[path.extname(image.filePath).toLowerCase()],
-  };
+  db?: Executor,
+): Promise<DatasetImage | null> {
+  const { dataset, stem } = imageRefSchema.parse(ref);
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(images)
+    .where(and(eq(images.datasetId, dataset), eq(images.stem, stem)));
+  return row ? toDatasetImage(row) : null;
 }
 
-/** Removes the photograph together with everything derived from it. */
-export function removeImage(ref: ImageRef): void {
-  const image = findImage(ref);
-  if (!image) {
-    throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
-  }
-  fs.rmSync(image.filePath, { force: true });
-  for (const root of [PRELABELS_DIR, LABELS_DIR]) {
-    fs.rmSync(resolveWithin(root, ref.dataset, `${ref.stem}.json`), {
-      force: true,
-    });
-  }
+/** Whether any image row or snapshot manifest still references the digest. */
+async function digestReferenced(
+  digest: string,
+  db: Executor,
+): Promise<boolean> {
+  const [row] = await db
+    .select({
+      referenced: sql<boolean>`exists (select 1 from ${images} where ${images.digest} = ${digest})
+        or exists (select 1 from ${datasetSnapshots} where ${datasetSnapshots.images} @> ${JSON.stringify([{ imageDigest: digest }])}::jsonb)`,
+    })
+    .from(sql`(select 1) as probe`);
+  return row?.referenced ?? true;
+}
+
+/**
+ * Removes the photograph together with everything derived from it; the bytes
+ * go once nothing else shares them.
+ */
+export async function removeImage(ref: ImageRef): Promise<void> {
+  const orphaned = await transaction(async (tx) => {
+    const [row] = await tx
+      .delete(images)
+      .where(and(eq(images.datasetId, ref.dataset), eq(images.stem, ref.stem)))
+      .returning({ digest: images.digest });
+    if (!row) throw new Error(`No image ${ref.stem} in dataset ${ref.dataset}`);
+    return (await digestReferenced(row.digest, tx)) ? null : row.digest;
+  });
+  if (orphaned) removeBlob(imageBlobKey(orphaned));
 }

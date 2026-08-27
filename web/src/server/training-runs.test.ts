@@ -1,21 +1,17 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
-import * as fs from "node:fs";
+import { eq } from "drizzle-orm";
 
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
+import { database } from "../db/client";
+import { trainingRuns } from "../db/schema";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { createLabel } from "./labels";
+import { readBlob, writeBlob } from "./blobs";
+import { snapshotImage } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
-import { writeAtomically } from "./files";
+import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
-import {
-  MODEL_ARTIFACTS_DIR,
-  TRAINING_RUNS_DIR,
-  TRAINING_STAGING_DIR,
-  resolveWithin,
-} from "./paths";
-import { snapshotImagePath } from "./dataset-snapshots";
 import {
   claimTrainingRun,
   createTrainingRun,
@@ -33,9 +29,9 @@ async function reviewedDataset(datasetId: string) {
     new File(["first-image"], "a.jpg"),
     new File(["second-image"], "b.jpg"),
   ]);
-  const dataset = readDataset(datasetId);
+  const dataset = await readDataset(datasetId);
   if (!dataset) throw new Error("missing dataset");
-  const version = readModelVersion(dataset.selectedModelVersionId);
+  const version = await readModelVersion(dataset.selectedModelVersionId);
   if (!version) throw new Error("missing version");
   for (const stem of ["a", "b"]) {
     const prelabel = {
@@ -50,12 +46,21 @@ async function reviewedDataset(datasetId: string) {
         },
       },
     };
-    createLabel(
+    await createLabel(
       { dataset: datasetId, stem },
       { ...documentFromPrelabel(prelabel), status: "complete" },
     );
   }
   return dataset;
+}
+
+function trainer(workerId: string) {
+  return recordTrainingHeartbeat({
+    workerId,
+    startedAt: "2026-08-27T00:00:00.000Z",
+    device: "cuda:0",
+    currentTrainingRunId: null,
+  });
 }
 
 const recipe = {
@@ -65,188 +70,185 @@ const recipe = {
   batchSize: 4,
 };
 
+const publication = {
+  schema_version: 1 as const,
+  weights: "weights/best.pt" as const,
+  inference: {
+    ready: true as const,
+    confidence: 0.42,
+    imgsz: 768,
+    max_det: 500,
+    end2end: false,
+  },
+  validation: { "metrics/mAP50(B)": 0.8 },
+  training: {
+    base_model: recipe.baseModel,
+    configuration: recipe.configuration,
+    runtime: recipe.runtime,
+  },
+};
+
 test("a model has at most one active training run", async () => {
   await reviewedDataset("exclusive-run");
-  const run = createTrainingRun("exclusive-run", recipe);
-  expect(() => createTrainingRun("exclusive-run", recipe)).toThrow(/still active/);
-  recordTrainingHeartbeat({
-    workerId: "exclusive-trainer",
-    startedAt: "2026-08-27T00:00:00.000Z",
-    device: "cuda:0",
-    currentTrainingRunId: null,
-  });
-  expect(claimTrainingRun("exclusive-trainer")?.id).toBe(run.id);
-  expect(() => createTrainingRun("exclusive-run", recipe)).toThrow(/still active/);
-  failTrainingRun(run.id, "exclusive-trainer", "stopped");
-  const next = createTrainingRun("exclusive-run", recipe);
+  const run = await createTrainingRun("exclusive-run", recipe);
+  await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
+    /still active/,
+  );
+  await trainer("exclusive-trainer");
+  expect((await claimTrainingRun("exclusive-trainer"))?.id).toBe(run.id);
+  await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
+    /still active/,
+  );
+  await failTrainingRun(run.id, "exclusive-trainer", "stopped");
+  const next = await createTrainingRun("exclusive-run", recipe);
   expect(next.id).not.toBe(run.id);
-  expect(claimTrainingRun("exclusive-trainer")?.id).toBe(next.id);
-  failTrainingRun(next.id, "exclusive-trainer", "stopped");
+  expect((await claimTrainingRun("exclusive-trainer"))?.id).toBe(next.id);
+  await failTrainingRun(next.id, "exclusive-trainer", "stopped");
+});
+
+test("concurrent claims lease a run to exactly one worker", async () => {
+  await reviewedDataset("contended-run");
+  const run = await createTrainingRun("contended-run", recipe);
+  const workers = ["contender-1", "contender-2", "contender-3"];
+  await Promise.all(workers.map(trainer));
+  const claims = await Promise.all(workers.map((id) => claimTrainingRun(id)));
+  const winners = claims.filter((claimed) => claimed?.id === run.id);
+  expect(winners).toHaveLength(1);
+  expect(claims.filter((claimed) => claimed === null)).toHaveLength(2);
+  const winner = winners[0];
+  if (!winner || winner.state.status !== "running") throw new Error("no lease");
+  await failTrainingRun(run.id, winner.state.workerId, "stopped");
 });
 
 test("a training run owns an immutable self-contained snapshot", async () => {
   await reviewedDataset("snapshot-contract");
-  const run = createTrainingRun("snapshot-contract", recipe);
-  recordTrainingHeartbeat({
-    workerId: "snapshot-trainer",
-    startedAt: "2026-08-27T00:00:00.000Z",
-    device: "cuda:0",
-    currentTrainingRunId: null,
-  });
-  const claimed = claimTrainingRun("snapshot-trainer");
+  const run = await createTrainingRun("snapshot-contract", recipe);
+  await trainer("snapshot-trainer");
+  const claimed = await claimTrainingRun("snapshot-trainer");
   expect(claimed?.id).toBe(run.id);
-  expect(claimTrainingRun("snapshot-trainer")).toEqual(claimed);
+  expect(await claimTrainingRun("snapshot-trainer")).toEqual(claimed);
   if (!claimed) throw new Error("run was not claimed");
 
-  const snapshot = snapshotImagePath(claimed.datasetSnapshotId, 0);
-  if (!snapshot) throw new Error("missing snapshot image");
-  const bytes = fs.readFileSync(snapshot.path);
-  expect(createHash("sha256").update(bytes).digest("hex")).toBe(snapshot.digest);
-  expect(new Set([0, 1].map((index) => {
-    const image = snapshotImagePath(claimed.datasetSnapshotId, index);
-    return image ? fs.readFileSync(image.path).toString() : "missing";
-  }))).toEqual(new Set(["first-image", "second-image"]));
-  expect(() =>
+  const image = await snapshotImage(claimed.datasetSnapshotId, 0);
+  if (!image) throw new Error("missing snapshot image");
+  const bytes = readBlob(image.key);
+  expect(createHash("sha256").update(bytes).digest("hex")).toBe(image.digest);
+  const contents = await Promise.all(
+    [0, 1].map(async (index) => {
+      const entry = await snapshotImage(claimed.datasetSnapshotId, index);
+      return entry ? new TextDecoder().decode(readBlob(entry.key)) : "missing";
+    }),
+  );
+  expect(new Set(contents)).toEqual(new Set(["first-image", "second-image"]));
+  await expect(
     reportTrainingProgress(run.id, "another-trainer", "training", 0.5),
-  ).toThrow(/not owned/);
+  ).rejects.toThrow(/not owned/);
+  await failTrainingRun(run.id, "snapshot-trainer", "stopped");
 });
 
 test("the server publishes a candidate version idempotently without selecting it", async () => {
   const dataset = await reviewedDataset("publish-contract");
-  const run = createTrainingRun("publish-contract", recipe);
-  recordTrainingHeartbeat({
-    workerId: "publisher",
-    startedAt: "2026-08-27T00:00:00.000Z",
-    device: "cuda:0",
-    currentTrainingRunId: null,
-  });
-  expect(claimTrainingRun("publisher")?.id).toBe(run.id);
-  reportTrainingProgress(run.id, "publisher", "validating", 0.95);
+  const run = await createTrainingRun("publish-contract", recipe);
+  await trainer("publisher");
+  expect((await claimTrainingRun("publisher"))?.id).toBe(run.id);
+  await reportTrainingProgress(run.id, "publisher", "validating", 0.95);
 
-  const publication = {
-    schema_version: 1 as const,
-    weights: "weights/best.pt" as const,
-    inference: {
-      ready: true as const,
-      confidence: 0.42,
-      imgsz: 768,
-      max_det: 500,
-      end2end: false,
-    },
-    validation: { "metrics/mAP50(B)": 0.8 },
-    training: {
-      base_model: recipe.baseModel,
-      configuration: recipe.configuration,
-      runtime: recipe.runtime,
-    },
-  };
-  expect(() =>
-    publishTrainingArtifact(
-      run.id,
-      "publisher",
-      new TextEncoder().encode("trained-weights"),
-      {
-        ...publication,
-        training: {
-          ...publication.training,
-          runtime: { ...publication.training.runtime, version: "different" },
-        },
+  const weights = new TextEncoder().encode("trained-weights");
+  await expect(
+    publishTrainingArtifact(run.id, "publisher", weights, {
+      ...publication,
+      training: {
+        ...publication.training,
+        runtime: { ...publication.training.runtime, version: "different" },
       },
-    ),
-  ).toThrow(/identity does not match/);
-  const completed = publishTrainingArtifact(
+    }),
+  ).rejects.toThrow(/identity does not match/);
+  const completed = await publishTrainingArtifact(
     run.id,
     "publisher",
-    new TextEncoder().encode("trained-weights"),
+    weights,
     publication,
   );
-  const repeated = publishTrainingArtifact(
+  const repeated = await publishTrainingArtifact(
     run.id,
     "publisher",
-    new TextEncoder().encode("trained-weights"),
+    weights,
     publication,
   );
   expect(completed).toEqual(repeated);
-  expect(() =>
+  await expect(
     publishTrainingArtifact(
       run.id,
       "publisher",
       new TextEncoder().encode("different-weights"),
       publication,
     ),
-  ).toThrow(/different artifact/);
+  ).rejects.toThrow(/different artifact/);
   expect(completed.state.status).toBe("succeeded");
   if (completed.state.status !== "succeeded") throw new Error("not succeeded");
 
-  const version = readModelVersion(completed.state.modelVersionId);
+  const version = await readModelVersion(completed.state.modelVersionId);
   expect(version?.source).toEqual({
     kind: "training_run",
     trainingRunId: run.id,
     datasetSnapshotId: run.datasetSnapshotId,
   });
   expect(version?.artifact.kind).toBe("ultralytics");
-  expect(readDataset("publish-contract")?.selectedModelVersionId).toBe(
+  expect((await readDataset("publish-contract"))?.selectedModelVersionId).toBe(
     dataset.selectedModelVersionId,
   );
   expect(
-    fs.readFileSync(
-      resolveWithin(
-        MODEL_ARTIFACTS_DIR,
-        completed.state.modelVersionId,
-        "weights",
-        "best.pt",
+    new TextDecoder().decode(
+      readBlob(
+        `model-artifacts/${completed.state.modelVersionId}/weights/best.pt`,
       ),
-      "utf-8",
     ),
   ).toBe("trained-weights");
 });
 
 test("server recovery completes an interrupted durable publication", async () => {
   await reviewedDataset("recovery-contract");
-  const run = createTrainingRun("recovery-contract", recipe);
-  recordTrainingHeartbeat({
-    workerId: "recovery-publisher",
-    startedAt: "2026-08-27T00:00:00.000Z",
-    device: "cuda:0",
-    currentTrainingRunId: null,
-  });
-  const claimed = claimTrainingRun("recovery-publisher");
+  const run = await createTrainingRun("recovery-contract", recipe);
+  await trainer("recovery-publisher");
+  const claimed = await claimTrainingRun("recovery-publisher");
   if (!claimed) throw new Error("run was not claimed");
-  const publication = {
-    schema_version: 1,
-    weights: "weights/best.pt",
-    inference: {
-      ready: true,
-      confidence: 0.42,
-      imgsz: 768,
-      max_det: 500,
-      end2end: false,
-    },
-    validation: { "metrics/mAP50(B)": 0.8 },
-    training: {
-      base_model: recipe.baseModel,
-      configuration: recipe.configuration,
-      runtime: recipe.runtime,
-    },
-  };
-  const staging = resolveWithin(TRAINING_STAGING_DIR, run.id);
-  fs.mkdirSync(`${staging}/weights`, { recursive: true });
-  fs.writeFileSync(`${staging}/weights/best.pt`, "recovered-weights");
-  fs.writeFileSync(
-    `${staging}/inference.json`,
+  writeBlob(`training-staging/${run.id}/weights/best.pt`, "recovered-weights");
+  writeBlob(
+    `training-staging/${run.id}/inference.json`,
     `${JSON.stringify(publication, null, 2)}\n`,
   );
-  writeAtomically(
-    resolveWithin(TRAINING_RUNS_DIR, `${run.id}.json`),
-    `${JSON.stringify({
-      ...claimed,
-      state: { status: "publishing", workerId: "recovery-publisher" },
-    }, null, 2)}\n`,
-  );
+  const db = await database();
+  await db
+    .update(trainingRuns)
+    .set({
+      status: "publishing",
+      leaseExpiresAt: null,
+      phase: null,
+      progress: null,
+    })
+    .where(eq(trainingRuns.id, run.id));
 
-  expect(recoverTrainingPublications()).toEqual({
+  expect(await recoverTrainingPublications()).toEqual({
     recovered: [run.id],
     failed: [],
   });
-  expect(readTrainingRun(run.id)?.state.status).toBe("succeeded");
+  expect((await readTrainingRun(run.id))?.state.status).toBe("succeeded");
+});
+
+test("a worker whose lease was reassigned can no longer report on the run", async () => {
+  await reviewedDataset("lost-lease");
+  const run = await createTrainingRun("lost-lease", recipe);
+  await trainer("slow-trainer");
+  await trainer("fast-trainer");
+  const start = new Date();
+  expect((await claimTrainingRun("slow-trainer", start))?.id).toBe(run.id);
+  const expired = new Date(start.getTime() + 10 * 60 * 1000);
+  expect((await claimTrainingRun("fast-trainer", expired))?.id).toBe(run.id);
+  await expect(
+    reportTrainingProgress(run.id, "slow-trainer", "training", 0.5),
+  ).rejects.toThrow(/not owned/);
+  await expect(failTrainingRun(run.id, "slow-trainer", "late")).rejects.toThrow(
+    /not owned/,
+  );
+  await failTrainingRun(run.id, "fast-trainer", "stopped");
 });

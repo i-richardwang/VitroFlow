@@ -62,7 +62,9 @@ function StatusPage() {
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
-                  <span className="font-medium">No inference workers have reported</span>
+                  <span className="font-medium">
+                    No inference workers have reported
+                  </span>
                   <span className="text-xs text-muted">
                     Start one with the workbench URL and worker token.
                   </span>
@@ -154,7 +156,9 @@ function StatusPage() {
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
-                  <span className="font-medium">No training workers have reported</span>
+                  <span className="font-medium">
+                    No training workers have reported
+                  </span>
                   <span className="text-xs text-muted">
                     Training workers can run on a separate GPU machine.
                   </span>
