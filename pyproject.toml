@@ -18,8 +18,6 @@ yolo = [
 
 [project.scripts]
 vitroflow = "vitroflow.cli:main"
-vitroflow-inference-worker = "vitroflow.inference_worker:main"
-vitroflow-training-worker = "vitroflow.training_worker:main"
 
 [project.urls]
 Repository = "https://github.com/i-richardwang/VitroFlow"

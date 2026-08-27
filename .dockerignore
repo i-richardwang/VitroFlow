@@ -1,15 +1,7 @@
 *
-!Dockerfile.inference
-!Dockerfile.training
 !Dockerfile.web
-!LICENSE
-!README.md
-!pyproject.toml
 !configs/
 !configs/**
-!src/
-!src/**
-!uv.lock
 !web/
 !web/**
 web/node_modules/

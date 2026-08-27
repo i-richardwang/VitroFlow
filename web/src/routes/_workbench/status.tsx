@@ -68,8 +68,9 @@ function StatusPage() {
                   <span className="text-xs text-muted">
                     Start one with the workbench URL and worker token.
                   </span>
-                  <code className="mt-3 rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs">
-                    uv run vitroflow-inference-worker
+                  <code className="mt-3 max-w-full overflow-x-auto rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs whitespace-nowrap">
+                    vitroflow worker setup inference NAME --server URL
+                    --model-version-id VERSION
                   </code>
                 </EmptyState>
               )}
@@ -163,8 +164,8 @@ function StatusPage() {
                   <span className="text-xs text-muted">
                     Training workers can run on a separate GPU machine.
                   </span>
-                  <code className="mt-3 rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs">
-                    uv run --group yolo vitroflow-training-worker
+                  <code className="mt-3 max-w-full overflow-x-auto rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs whitespace-nowrap">
+                    vitroflow worker setup training NAME --server URL --device mps
                   </code>
                 </EmptyState>
               )}

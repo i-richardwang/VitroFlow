@@ -195,8 +195,6 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
         worker_id="test-worker",
         model_version_id="set.yolo-v1",
         work_dir=tmp_path / "worker",
-        config=None,
-        model=None,
         device="cpu",
     )
 

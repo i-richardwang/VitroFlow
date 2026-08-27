@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import argparse
 import json
 import logging
-import os
 import shutil
-import socket
 import tempfile
 import threading
 import time
@@ -30,12 +27,8 @@ from .prelabelers import (
     TraditionalPrelabeler,
     YoloPrelabeler,
 )
-from .scoring import DEFAULT_MODEL, load_candidate_model
-from .worker_runtime import (
-    configure_console_logging,
-    health_server,
-    shutdown_signals,
-)
+from .scoring import DEFAULT_MODEL
+from .worker_runtime import shutdown_signals
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
@@ -52,8 +45,6 @@ class InferenceWorkerSettings:
     work_dir: Path
     poll_seconds: float = 5.0
     device: str | None = None
-    config: str | None = None
-    model: str | None = None
 
     def __post_init__(self) -> None:
         if not self.server_url.startswith(("http://", "https://")):
@@ -283,62 +274,6 @@ def run_pass(
     return True
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="vitroflow-inference-worker",
-        description="Prelabel pending images of a VitroFlow workbench.",
-    )
-    parser.add_argument(
-        "--server",
-        default=os.environ.get("VITROFLOW_SERVER_URL"),
-        help="Workbench base URL (or VITROFLOW_SERVER_URL)",
-    )
-    parser.add_argument(
-        "--token",
-        default=os.environ.get("VITROFLOW_INFERENCE_WORKER_TOKEN"),
-        help="Inference Worker bearer token (or VITROFLOW_INFERENCE_WORKER_TOKEN)",
-    )
-    parser.add_argument(
-        "--work-dir",
-        type=Path,
-        default=Path(
-            os.environ.get("VITROFLOW_INFERENCE_WORK_DIR", tempfile.gettempdir())
-        ),
-    )
-    parser.add_argument(
-        "--model-version-id",
-        default=os.environ.get("VITROFLOW_INFERENCE_MODEL_VERSION_ID"),
-        help=(
-            "Published model version served by this Worker "
-            "(or VITROFLOW_INFERENCE_MODEL_VERSION_ID)"
-        ),
-    )
-    parser.add_argument(
-        "--worker-id",
-        default=os.environ.get("VITROFLOW_INFERENCE_WORKER_ID") or socket.gethostname(),
-        help=(
-            "Identity shown on the workbench Status page "
-            "(or VITROFLOW_INFERENCE_WORKER_ID)"
-        ),
-    )
-    parser.add_argument("--poll-seconds", type=float, default=5.0)
-    parser.add_argument(
-        "--health-port",
-        type=int,
-        default=os.environ.get("PORT"),
-        help="Health endpoint port (or PORT)",
-    )
-    parser.add_argument("--config", help="JSON file overriding pipeline parameters")
-    parser.add_argument("--model", help="Candidate model JSON")
-    parser.add_argument(
-        "--device",
-        default=os.environ.get("VITROFLOW_INFERENCE_DEVICE"),
-        help="Ultralytics inference device (or VITROFLOW_INFERENCE_DEVICE)",
-    )
-    parser.add_argument("--once", action="store_true", help="Run a single pass")
-    return parser
-
-
 def deployment_manifest(settings: InferenceWorkerSettings) -> dict[str, Any]:
     response = httpx.get(
         f"{settings.server_url.rstrip('/')}/api/inference/model-versions/"
@@ -447,24 +382,12 @@ def build_prelabeler(settings: InferenceWorkerSettings) -> Prelabeler:
     manifest = deployment_manifest(settings)
     artifact = manifest["artifact"]
     if artifact["kind"] == "ultralytics":
-        if settings.config or settings.model:
-            raise ValueError(
-                "--config and --model only apply to traditional prelabelling"
-            )
         run = _remote_yolo_run(settings, artifact)
         prelabeler = YoloPrelabeler.from_run(run, device=settings.device)
     else:
         if settings.device:
-            raise ValueError("--device only applies to YOLO prelabelling")
-        config = (
-            PipelineConfig.from_json(settings.config)
-            if settings.config
-            else PipelineConfig()
-        )
-        model = (
-            load_candidate_model(settings.model) if settings.model else DEFAULT_MODEL
-        )
-        prelabeler = TraditionalPrelabeler(config, model)
+            raise ValueError("device only applies to YOLO prelabelling")
+        prelabeler = TraditionalPrelabeler(PipelineConfig(), DEFAULT_MODEL)
     if prelabeler.artifact_digest != artifact.get("digest"):
         raise ValueError(
             "Local inference artifact does not match the published version"
@@ -475,12 +398,8 @@ def build_prelabeler(settings: InferenceWorkerSettings) -> Prelabeler:
 def run_inference_worker(
     settings: InferenceWorkerSettings,
     *,
-    health_port: int | None = None,
-    once: bool = False,
     on_ready: Callable[[], None] | None = None,
 ) -> int:
-    if health_port is not None and not 1 <= health_port <= 65535:
-        raise ValueError("health port must be between 1 and 65535")
     settings.work_dir.mkdir(parents=True, exist_ok=True)
     prelabeler = build_prelabeler(settings)
     identity = WorkerIdentity.create(
@@ -490,7 +409,7 @@ def run_inference_worker(
     )
     client = WorkerClient(settings.server_url, settings.token, identity)
     try:
-        with health_server(health_port), shutdown_signals() as stopped:
+        with shutdown_signals() as stopped:
             client.heartbeat(None)
             if on_ready:
                 on_ready()
@@ -502,39 +421,8 @@ def run_inference_worker(
                 except WORKER_ERRORS as error:
                     LOGGER.error("inference worker error: %s", error)
                     processed = False
-                    if once:
-                        return 1
-                if once:
-                    return 0
                 if not processed:
                     stopped.wait(settings.poll_seconds)
             return 0
     finally:
         client.close()
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_console_logging()
-    args = _parser().parse_args(argv)
-    try:
-        settings = InferenceWorkerSettings(
-            server_url=args.server or "",
-            token=args.token or "",
-            worker_id=args.worker_id,
-            model_version_id=args.model_version_id or "",
-            work_dir=args.work_dir,
-            poll_seconds=args.poll_seconds,
-            device=args.device,
-            config=args.config,
-            model=args.model,
-        )
-        return run_inference_worker(
-            settings, health_port=args.health_port, once=args.once
-        )
-    except (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError) as error:
-        LOGGER.error("%s", error)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

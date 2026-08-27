@@ -86,27 +86,7 @@ bun install
 bun run dev
 ```
 
-Uploading images to a dataset is all it takes to request prelabels. The Worker polls the authenticated API for pending images, downloads each source image, runs the same recognition core used by the local command, and uploads the resulting prelabel JSON:
-
-```bash
-export VITROFLOW_SERVER_URL=https://vitroflow.example.com
-export VITROFLOW_INFERENCE_WORKER_TOKEN=<inference-secret>
-uv run vitroflow-inference-worker \
-  --model-version-id <dataset>.traditional-v1
-```
-
-Use `--model` and `--config` to configure the traditional adapter. The supplied `--model-version-id` must already exist on the Server and its registered artifact digest must match the adapter. A heartbeat verifies this deployment; it never creates a ModelVersion.
-
-To serve a published YOLO version, install the YOLO extra. The Worker downloads and verifies the registered weights and inference settings over HTTP before it heartbeats:
-
-```bash
-uv sync --extra yolo
-uv run vitroflow-inference-worker \
-  --model-version-id <dataset>.<training-run> \
-  --device mps
-```
-
-The Worker depends only on the common box-first prelabeler contract, so both implementations use the same review API. `--once` runs a single pass over the pending images and exits.
+Uploading images to a dataset is all it takes to request prelabels. A named Inference Worker profile polls the authenticated API for pending images, downloads each source image, runs the selected immutable ModelVersion, and uploads the resulting prelabel JSON. The built-in traditional baseline and every published YOLO version implement the same box-first prelabeler contract and therefore use the same review API. YOLO weights and inference settings are downloaded and verified before the Worker first heartbeats; the traditional baseline is verified against the artifact bundled with the package.
 
 The inference protocol uses a dedicated credential:
 
@@ -119,7 +99,7 @@ The inference protocol uses a dedicated credential:
 
 Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
 
-The Worker identifies itself by hostname, or by `--worker-id` / `VITROFLOW_INFERENCE_WORKER_ID`. The Status page lists each Worker with its presence, current image, and model.
+The Status page lists each Worker profile with its presence, current image, and model.
 
 ### Native Worker services on macOS
 
@@ -128,6 +108,10 @@ Inference and training machines do not need a VitroFlow Server deployment. Insta
 ```bash
 # From a source checkout; a published release uses: uv tool install 'vitroflow[yolo]'
 uv tool install '.[yolo]'
+
+vitroflow worker setup inference seed-traditional-v1 \
+  --server https://vitroflow.example.com \
+  --model-version-id <dataset>.traditional-v1
 
 vitroflow worker setup inference seed-yolo-v3 \
   --server https://vitroflow.example.com \
@@ -156,15 +140,13 @@ Profile state lives under `~/.vitroflow/profiles/<profile>/`. `config.toml` is a
 
 Stopping a profile is cooperative: inference finishes its current image, while training and validation stop at the next batch boundary. An interrupted TrainingRun is not published or marked failed; its lease remains recoverable by a Training Worker.
 
-The role-specific `vitroflow-inference-worker` and `vitroflow-training-worker` entry points remain the container/development interface. They read flags and environment variables directly, expose `/healthz` when `PORT` is set, and run the same foreground loops as profile services.
-
 Workbench configuration lives in the environment; `.env.example` lists every variable.
 
 - `DATABASE_URL`: the Postgres connection. The workbench applies the SQL migrations in `web/drizzle/` on startup. `pglite://<dir>` runs an embedded Postgres in that directory for single-machine development; `pglite://` alone keeps it in memory.
 - `VITROFLOW_DATA_ROOT`: the blob store (default: `../data` relative to `web/`).
 - Schema changes: edit `web/src/db/schema.ts`, then generate the migration with `bun run db:generate`.
 
-For a container deployment:
+For a Server deployment:
 
 ```bash
 docker compose up --build
@@ -174,44 +156,13 @@ docker compose up --build
 
 The same Compose deployment can be used as a local acceptance Server with real Worker tokens. Run the Workers natively against `http://localhost:3000` to exercise authentication and the complete control-plane protocol while retaining macOS MPS acceleration.
 
-`Dockerfile.inference` targets `linux/arm64` by default for the Apple Silicon
-deployment. Build it and configure:
-
-```env
-VITROFLOW_SERVER_URL=https://vitroflow.example.com
-VITROFLOW_INFERENCE_WORKER_TOKEN=<inference-secret>
-VITROFLOW_INFERENCE_MODEL_VERSION_ID=<published-version-id>
-VITROFLOW_INFERENCE_DEVICE=cuda:0
-```
-
-The container serves `/healthz` on the platform `PORT`. It needs no shared data volume; all inputs and outputs travel through authenticated HTTP.
-
 ## Training Worker
 
 The dataset page's Train action creates a TrainingRun from the `complete` annotations; one run per model is active at a time. The Server freezes the reviewed annotations into a DatasetSnapshot that references images by digest, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
 
 Every TrainingRun pins the base-weight digest, training configuration digest, and Ultralytics version. The Worker verifies all three before training. It then uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. Only the Server publishes the resulting candidate ModelVersion; an interrupted `publishing` state is reconciled before the next claim, and publication never changes the Dataset selection automatically.
 
-```bash
-uv sync --extra yolo
-export VITROFLOW_SERVER_URL=https://vitroflow.example.com
-export VITROFLOW_TRAINING_WORKER_TOKEN=<training-secret>
-uv run vitroflow-training-worker --device cuda:0
-```
-
-Build a remote training deployment with `Dockerfile.training`. Its build
-platform is independent from inference and defaults to `linux/amd64`; set the
-Zeabur build variable `VITROFLOW_TRAINING_PLATFORM` when the training device
-uses another architecture. The equivalent local build is:
-
-```bash
-docker build \
-  --build-arg VITROFLOW_TRAINING_PLATFORM=linux/arm64 \
-  --file Dockerfile.training \
-  .
-```
-
-Neither Worker requires the Server's filesystem.
+Training uses the native profile configured above; neither Worker requires the Server's filesystem. The V1 service host is macOS `launchd`, which preserves native MPS access. A Linux/CUDA deployment should add its own host adapter when it is actually required instead of introducing a second Worker execution interface now.
 
 ## Prelabel workflow
 
@@ -379,13 +330,13 @@ src/vitroflow/
 │   └── training.py   Ultralytics training and validation
 ├── cli.py            Local workflows
 ├── worker_command.py Native Worker management commands
-├── inference_worker.py Remote prelabel execution
-├── training_worker.py  Remote YOLO training execution
+├── inference_worker.py Inference protocol and execution
+├── training_worker.py  Training protocol and execution
 ├── training_configs.py Packaged YOLO recipe discovery
 ├── worker_profiles.py  Strict per-process native configuration
 ├── worker_host.py      Profile preflight, execution, status, and logs
 ├── worker_launchd.py   macOS LaunchAgent lifecycle
-└── worker_runtime.py   Process signals, health, and logging
+└── worker_runtime.py   Process signals and logging
 
 web/
 ├── drizzle/          Generated SQL migrations

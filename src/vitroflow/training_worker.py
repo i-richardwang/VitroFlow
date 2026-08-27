@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import argparse
 import logging
-import os
-import socket
 import tempfile
 import threading
 import time
@@ -29,12 +26,7 @@ from .documents import (
 from .identifiers import WORKER_DEVICE, WORKER_ID
 from .image_io import verify_digest
 from .manifest import as_split
-from .training_configs import default_training_config_root
-from .worker_runtime import (
-    configure_console_logging,
-    health_server,
-    shutdown_signals,
-)
+from .worker_runtime import shutdown_signals
 from .yolo import (
     DatasetImage,
     YoloTrainingInterruptedError,
@@ -436,53 +428,11 @@ def process_training_job(
         client.heartbeat()
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="vitroflow-training-worker",
-        description="Train queued VitroFlow model versions on a dedicated device.",
-    )
-    parser.add_argument("--server", default=os.environ.get("VITROFLOW_SERVER_URL"))
-    parser.add_argument(
-        "--token", default=os.environ.get("VITROFLOW_TRAINING_WORKER_TOKEN")
-    )
-    parser.add_argument(
-        "--worker-id",
-        default=os.environ.get("VITROFLOW_TRAINING_WORKER_ID") or socket.gethostname(),
-    )
-    parser.add_argument(
-        "--device", default=os.environ.get("VITROFLOW_TRAINING_DEVICE", "cpu")
-    )
-    parser.add_argument(
-        "--work-dir",
-        type=Path,
-        default=Path(
-            os.environ.get("VITROFLOW_TRAINING_WORK_DIR", tempfile.gettempdir())
-        ),
-    )
-    parser.add_argument(
-        "--config-root",
-        type=Path,
-        default=(
-            Path(os.environ["VITROFLOW_TRAINING_CONFIG_ROOT"])
-            if "VITROFLOW_TRAINING_CONFIG_ROOT" in os.environ
-            else default_training_config_root()
-        ),
-    )
-    parser.add_argument("--poll-seconds", type=float, default=10.0)
-    parser.add_argument("--health-port", type=int, default=os.environ.get("PORT"))
-    parser.add_argument("--once", action="store_true")
-    return parser
-
-
 def run_training_worker(
     settings: TrainingWorkerSettings,
     *,
-    health_port: int | None = None,
-    once: bool = False,
     on_ready: Callable[[], None] | None = None,
 ) -> int:
-    if health_port is not None and not 1 <= health_port <= 65535:
-        raise ValueError("health port must be between 1 and 65535")
     settings.work_dir.mkdir(parents=True, exist_ok=True)
     if not settings.config_root.is_dir():
         raise FileNotFoundError(settings.config_root)
@@ -494,7 +444,7 @@ def run_training_worker(
         settings.device,
     )
     try:
-        with health_server(health_port), shutdown_signals() as stopped:
+        with shutdown_signals() as stopped:
             client.heartbeat()
             if on_ready:
                 on_ready()
@@ -515,38 +465,9 @@ def run_training_worker(
                     LOGGER.info("training interrupted; lease will be recoverable")
                 except WORKER_ERRORS as error:
                     LOGGER.error("training worker error: %s", error)
-                    if once:
-                        return 1
                     job = None
-                if once:
-                    return 0
                 if not job:
                     stopped.wait(settings.poll_seconds)
             return 0
     finally:
         client.close()
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_console_logging()
-    args = _parser().parse_args(argv)
-    try:
-        settings = TrainingWorkerSettings(
-            server_url=args.server or "",
-            token=args.token or "",
-            worker_id=args.worker_id,
-            device=args.device,
-            work_dir=args.work_dir,
-            config_root=args.config_root,
-            poll_seconds=args.poll_seconds,
-        )
-        return run_training_worker(
-            settings, health_port=args.health_port, once=args.once
-        )
-    except (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError) as error:
-        LOGGER.error("%s", error)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

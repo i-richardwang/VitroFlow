@@ -22,7 +22,6 @@ from vitroflow.prelabelers import (
     PrelabelResult,
     RuntimeDescriptor,
 )
-from vitroflow.worker_runtime import health_server
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 IMAGE = b"source"
@@ -110,15 +109,6 @@ PENDING = [
     {"dataset": "set", "digest": DIGEST, "extension": ".jpg"},
     {"dataset": "set", "digest": DIGEST, "extension": ".png"},
 ]
-
-
-def test_health_server_reports_liveness() -> None:
-    with health_server(0) as port, httpx.Client(trust_env=False) as client:
-        response = client.get(f"http://127.0.0.1:{port}/healthz")
-        missing = client.get(f"http://127.0.0.1:{port}/missing")
-    assert response.status_code == 200
-    assert response.text == "ok\n"
-    assert missing.status_code == 404
 
 
 def test_pending_image_requires_every_field() -> None:
