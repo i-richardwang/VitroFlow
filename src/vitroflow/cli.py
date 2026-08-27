@@ -29,6 +29,7 @@ from .scoring import (
     load_candidate_model,
     write_candidate_model,
 )
+from .worker_command import add_worker_commands
 from .yolo import export_yolo_dataset
 
 
@@ -260,6 +261,8 @@ def _parser() -> argparse.ArgumentParser:
     export_yolo.add_argument("--validation-fraction", type=float, default=0.2)
     export_yolo.add_argument("--seed", type=int, default=0)
     export_yolo.set_defaults(handler=_export_yolo)
+
+    add_worker_commands(commands)
     return parser
 
 
@@ -267,7 +270,14 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         return args.handler(args)
-    except (OSError, TypeError, ValueError, httpx.HTTPError, DatasetPullError) as error:
+    except (
+        OSError,
+        TypeError,
+        ValueError,
+        RuntimeError,
+        httpx.HTTPError,
+        DatasetPullError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

@@ -118,7 +118,7 @@ def _runtime_fingerprint() -> str:
         ultralytics_version = version("ultralytics")
     except PackageNotFoundError as error:
         raise RuntimeError(
-            "Ultralytics is not installed; run `uv sync --group yolo` first"
+            "Ultralytics is not installed; run `uv sync --extra yolo` first"
         ) from error
     digest.update(b"\0ultralytics\0")
     digest.update(ultralytics_version.encode())

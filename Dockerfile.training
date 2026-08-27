@@ -14,7 +14,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY configs ./configs
 COPY src ./src
-RUN uv sync --locked --no-dev --group yolo
+RUN uv sync --locked --no-dev --extra yolo
 
 EXPOSE 8080
 

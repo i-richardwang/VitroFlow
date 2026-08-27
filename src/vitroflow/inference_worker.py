@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import shutil
 import socket
-import sys
 import tempfile
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,7 +20,7 @@ import httpx
 
 from .config import PipelineConfig
 from .documents import as_digest, as_extension, as_object, as_string, expect_fields
-from .identifiers import DATASET_NAME, VERSION_ID, WORKER_ID
+from .identifiers import DATASET_NAME, VERSION_ID, WORKER_DEVICE, WORKER_ID
 from .image_io import verify_digest
 from .prelabelers import (
     PredictionProducer,
@@ -29,11 +31,43 @@ from .prelabelers import (
     YoloPrelabeler,
 )
 from .scoring import DEFAULT_MODEL, load_candidate_model
-from .worker_runtime import health_server
+from .worker_runtime import (
+    configure_console_logging,
+    health_server,
+    shutdown_signals,
+)
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
 _ERROR_MESSAGE_LIMIT = 2000
+LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class InferenceWorkerSettings:
+    server_url: str
+    token: str
+    worker_id: str
+    model_version_id: str
+    work_dir: Path
+    poll_seconds: float = 5.0
+    device: str | None = None
+    config: str | None = None
+    model: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.server_url.startswith(("http://", "https://")):
+            raise ValueError("worker server URL must use http or https")
+        if not self.token:
+            raise ValueError("worker token is required")
+        if not WORKER_ID.fullmatch(self.worker_id):
+            raise ValueError("invalid inference worker id")
+        if not VERSION_ID.fullmatch(self.model_version_id):
+            raise ValueError("valid model version id is required")
+        if self.poll_seconds <= 0:
+            raise ValueError("poll interval must be positive")
+        if self.device is not None and not WORKER_DEVICE.fullmatch(self.device):
+            raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
 
 
 @dataclass(frozen=True)
@@ -194,7 +228,7 @@ def report_heartbeat(client: WorkerClient, current: PendingImage | None) -> None
     try:
         client.heartbeat(current)
     except WORKER_ERRORS as error:
-        print(f"heartbeat failed: {error}", file=sys.stderr, flush=True)
+        LOGGER.warning("heartbeat failed: %s", error)
 
 
 def prelabel_document(
@@ -206,7 +240,7 @@ def prelabel_document(
     try:
         result = prelabeler.predict(image_path, image.digest, identity.producer)
     except DETECTION_ERRORS as error:
-        print(f"detection failed for {image.digest}: {error}", file=sys.stderr)
+        LOGGER.error("detection failed for %s: %s", image.digest, error)
         return identity.failure(image, error)
     return result.to_dict()
 
@@ -225,22 +259,25 @@ def process_image(
     finally:
         image_path.unlink(missing_ok=True)
     if client.put_prelabel(image, document):
-        print(f"prelabelled {image.dataset}/{image.digest}", flush=True)
+        LOGGER.info("prelabelled %s/%s", image.dataset, image.digest)
 
 
 def run_pass(
     client: WorkerClient,
     work_root: Path,
     prelabeler: Prelabeler,
+    stopped: threading.Event | None = None,
 ) -> bool:
     """Prelabel every pending image once; returns False when nothing was pending."""
     report_heartbeat(client, None)
     images = client.pending()
     if not images:
         return False
-    print(f"{len(images)} pending images", flush=True)
+    LOGGER.info("%d pending images", len(images))
     with tempfile.TemporaryDirectory(prefix="vitroflow-", dir=work_root) as temporary:
         for image in images:
+            if stopped and stopped.is_set():
+                break
             process_image(client, image, Path(temporary), prelabeler)
     report_heartbeat(client, None)
     return True
@@ -302,15 +339,19 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _deployment_manifest(args: argparse.Namespace) -> dict[str, Any]:
+def deployment_manifest(settings: InferenceWorkerSettings) -> dict[str, Any]:
     response = httpx.get(
-        f"{args.server.rstrip('/')}/api/inference/model-versions/{args.model_version_id}",
-        headers={"Authorization": f"Bearer {args.token}"},
+        f"{settings.server_url.rstrip('/')}/api/inference/model-versions/"
+        f"{settings.model_version_id}",
+        headers={"Authorization": f"Bearer {settings.token}"},
         timeout=120,
     )
     response.raise_for_status()
     manifest = response.json()
-    if not isinstance(manifest, dict) or manifest.get("id") != args.model_version_id:
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("id") != settings.model_version_id
+    ):
         raise ValueError("Server returned an invalid model version manifest")
     artifact = manifest.get("artifact")
     if not isinstance(artifact, dict) or artifact.get("kind") not in {
@@ -321,7 +362,9 @@ def _deployment_manifest(args: argparse.Namespace) -> dict[str, Any]:
     return manifest
 
 
-def _remote_yolo_run(args: argparse.Namespace, artifact: dict[str, Any]) -> Path:
+def _remote_yolo_run(
+    settings: InferenceWorkerSettings, artifact: dict[str, Any]
+) -> Path:
     expected_digest = artifact.get("digest")
     expected_bytes = artifact.get("bytes")
     inference = artifact.get("inference")
@@ -335,9 +378,9 @@ def _remote_yolo_run(args: argparse.Namespace, artifact: dict[str, Any]) -> Path
         or not isinstance(training, dict)
     ):
         raise TypeError("Published YOLO artifact manifest is invalid")
-    destination = args.work_dir / "model-artifacts" / args.model_version_id
+    destination = settings.work_dir / "model-artifacts" / settings.model_version_id
     if destination.exists():
-        cached = YoloPrelabeler.from_run(destination, device=args.device)
+        cached = YoloPrelabeler.from_run(destination, device=settings.device)
         if cached.artifact_digest != expected_digest:
             raise ValueError(
                 "Cached YOLO artifact does not match the published version"
@@ -346,15 +389,17 @@ def _remote_yolo_run(args: argparse.Namespace, artifact: dict[str, Any]) -> Path
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(
-        tempfile.mkdtemp(prefix=f".{args.model_version_id}.", dir=destination.parent)
+        tempfile.mkdtemp(
+            prefix=f".{settings.model_version_id}.", dir=destination.parent
+        )
     )
     try:
         weights = temporary / "weights" / "best.pt"
         weights.parent.mkdir(parents=True)
         response = httpx.get(
-            f"{args.server.rstrip('/')}/api/inference/model-versions/"
-            f"{args.model_version_id}/weights",
-            headers={"Authorization": f"Bearer {args.token}"},
+            f"{settings.server_url.rstrip('/')}/api/inference/model-versions/"
+            f"{settings.model_version_id}/weights",
+            headers={"Authorization": f"Bearer {settings.token}"},
             timeout=None,
         )
         response.raise_for_status()
@@ -385,7 +430,7 @@ def _remote_yolo_run(args: argparse.Namespace, artifact: dict[str, Any]) -> Path
             + "\n",
             encoding="utf-8",
         )
-        downloaded = YoloPrelabeler.from_run(temporary, device=args.device)
+        downloaded = YoloPrelabeler.from_run(temporary, device=settings.device)
         if downloaded.artifact_digest != expected_digest:
             raise ValueError("Downloaded YOLO artifact failed digest verification")
         try:
@@ -398,23 +443,27 @@ def _remote_yolo_run(args: argparse.Namespace, artifact: dict[str, Any]) -> Path
     return destination
 
 
-def _build_prelabeler(args: argparse.Namespace) -> Prelabeler:
-    manifest = _deployment_manifest(args)
+def build_prelabeler(settings: InferenceWorkerSettings) -> Prelabeler:
+    manifest = deployment_manifest(settings)
     artifact = manifest["artifact"]
     if artifact["kind"] == "ultralytics":
-        if args.config or args.model:
+        if settings.config or settings.model:
             raise ValueError(
                 "--config and --model only apply to traditional prelabelling"
             )
-        run = _remote_yolo_run(args, artifact)
-        prelabeler = YoloPrelabeler.from_run(run, device=args.device)
+        run = _remote_yolo_run(settings, artifact)
+        prelabeler = YoloPrelabeler.from_run(run, device=settings.device)
     else:
-        if args.device:
+        if settings.device:
             raise ValueError("--device only applies to YOLO prelabelling")
         config = (
-            PipelineConfig.from_json(args.config) if args.config else PipelineConfig()
+            PipelineConfig.from_json(settings.config)
+            if settings.config
+            else PipelineConfig()
         )
-        model = load_candidate_model(args.model) if args.model else DEFAULT_MODEL
+        model = (
+            load_candidate_model(settings.model) if settings.model else DEFAULT_MODEL
+        )
         prelabeler = TraditionalPrelabeler(config, model)
     if prelabeler.artifact_digest != artifact.get("digest"):
         raise ValueError(
@@ -423,64 +472,68 @@ def _build_prelabeler(args: argparse.Namespace) -> Prelabeler:
     return prelabeler
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    if not args.server:
-        print("error: worker server URL is required", file=sys.stderr)
-        return 2
-    if not args.token:
-        print("error: worker token is required", file=sys.stderr)
-        return 2
-    if not WORKER_ID.match(args.worker_id):
-        print(
-            "error: worker id must use letters, numbers, dots, dashes, or underscores",
-            file=sys.stderr,
-        )
-        return 2
-    if not args.model_version_id or not VERSION_ID.fullmatch(args.model_version_id):
-        print("error: valid model version id is required", file=sys.stderr)
-        return 2
-    if args.poll_seconds <= 0:
-        print("error: poll interval must be positive", file=sys.stderr)
-        return 2
-    if args.health_port is not None and not 1 <= args.health_port <= 65535:
-        print("error: health port must be between 1 and 65535", file=sys.stderr)
-        return 2
-
-    try:
-        args.work_dir.mkdir(parents=True, exist_ok=True)
-        prelabeler = _build_prelabeler(args)
-        identity = WorkerIdentity.create(
-            args.worker_id,
-            args.model_version_id,
-            prelabeler,
-        )
-    except (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
-    client = WorkerClient(
-        args.server,
-        args.token,
-        identity,
+def run_inference_worker(
+    settings: InferenceWorkerSettings,
+    *,
+    health_port: int | None = None,
+    once: bool = False,
+    on_ready: Callable[[], None] | None = None,
+) -> int:
+    if health_port is not None and not 1 <= health_port <= 65535:
+        raise ValueError("health port must be between 1 and 65535")
+    settings.work_dir.mkdir(parents=True, exist_ok=True)
+    prelabeler = build_prelabeler(settings)
+    identity = WorkerIdentity.create(
+        settings.worker_id,
+        settings.model_version_id,
+        prelabeler,
     )
+    client = WorkerClient(settings.server_url, settings.token, identity)
     try:
-        with health_server(args.health_port):
-            while True:
+        with health_server(health_port), shutdown_signals() as stopped:
+            client.heartbeat(None)
+            if on_ready:
+                on_ready()
+            while not stopped.is_set():
                 try:
-                    processed = run_pass(client, args.work_dir, prelabeler)
+                    processed = run_pass(
+                        client, settings.work_dir, prelabeler, stopped=stopped
+                    )
                 except WORKER_ERRORS as error:
-                    print(f"worker error: {error}", file=sys.stderr, flush=True)
+                    LOGGER.error("inference worker error: %s", error)
                     processed = False
-                    if args.once:
+                    if once:
                         return 1
-                if args.once:
+                if once:
                     return 0
                 if not processed:
-                    time.sleep(args.poll_seconds)
-    except KeyboardInterrupt:
-        return 0
+                    stopped.wait(settings.poll_seconds)
+            return 0
     finally:
         client.close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    configure_console_logging()
+    args = _parser().parse_args(argv)
+    try:
+        settings = InferenceWorkerSettings(
+            server_url=args.server or "",
+            token=args.token or "",
+            worker_id=args.worker_id,
+            model_version_id=args.model_version_id or "",
+            work_dir=args.work_dir,
+            poll_seconds=args.poll_seconds,
+            device=args.device,
+            config=args.config,
+            model=args.model,
+        )
+        return run_inference_worker(
+            settings, health_port=args.health_port, once=args.once
+        )
+    except (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError) as error:
+        LOGGER.error("%s", error)
+        return 2
 
 
 if __name__ == "__main__":

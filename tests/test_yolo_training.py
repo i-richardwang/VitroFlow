@@ -6,7 +6,11 @@ from types import SimpleNamespace
 import pytest
 
 from vitroflow.yolo import training
-from vitroflow.yolo.training import best_f1_confidence, train_yolo_detector
+from vitroflow.yolo.training import (
+    YoloTrainingInterruptedError,
+    best_f1_confidence,
+    train_yolo_detector,
+)
 
 
 def test_seed_small_recipe_pins_its_configuration() -> None:
@@ -35,6 +39,100 @@ def test_best_f1_confidence_rejects_a_model_without_validation_signal() -> None:
     metrics.curves_results[0][1] = [[0.0, 0.0, 0.0]]
 
     assert best_f1_confidence(metrics) is None
+
+
+def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None:
+    class FakeYolo:
+        def __init__(self, _source: str) -> None:
+            self.callback = None
+
+        def add_callback(self, event: str, callback) -> None:
+            assert event == "on_train_batch_end"
+            self.callback = callback
+
+        def train(self, **_options: object) -> None:
+            trainer = SimpleNamespace(stop=False)
+            assert self.callback is not None
+            self.callback(trainer)
+            assert trainer.stop is True
+
+    monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
+    monkeypatch.setattr(training, "version", lambda _: "8.4.129")
+    dataset = tmp_path / "dataset.yaml"
+    dataset.write_text("train: images/train\nval: images/val\n")
+    config = tmp_path / "train.yaml"
+    config.write_text("epochs: 50\n")
+    model = tmp_path / "base.pt"
+    model.write_bytes(b"base-weights")
+
+    with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
+        train_yolo_detector(
+            dataset,
+            tmp_path / "run",
+            config=config,
+            model=model,
+            model_digest=hashlib.sha256(model.read_bytes()).hexdigest(),
+            config_digest=hashlib.sha256(config.read_bytes()).hexdigest(),
+            runtime_version="8.4.129",
+            cancelled=lambda: True,
+        )
+
+
+def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None:
+    instances = []
+
+    class FakeYolo:
+        def __init__(self, _source: str) -> None:
+            self.callbacks = {}
+            self.trainer = None
+            instances.append(self)
+
+        def add_callback(self, event: str, callback) -> None:
+            self.callbacks[event] = callback
+
+        def train(self, **options: object) -> None:
+            save_dir = Path(str(options["project"])) / str(options["name"])
+            weights = save_dir / "weights"
+            weights.mkdir(parents=True)
+            (weights / "best.pt").write_bytes(b"weights")
+            self.trainer = SimpleNamespace(
+                save_dir=save_dir,
+                args=SimpleNamespace(imgsz=768, max_det=500, device="cpu"),
+            )
+
+        def val(self, **_options: object) -> None:
+            self.callbacks["on_val_batch_end"](SimpleNamespace())
+            pytest.fail("validation must stop at the cancelled batch boundary")
+
+    checks = 0
+
+    def cancelled() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks >= 3
+
+    monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
+    monkeypatch.setattr(training, "version", lambda _: "8.4.129")
+    dataset = tmp_path / "dataset.yaml"
+    dataset.write_text("train: images/train\nval: images/val\n")
+    config = tmp_path / "train.yaml"
+    config.write_text("epochs: 50\n")
+    model = tmp_path / "base.pt"
+    model.write_bytes(b"base-weights")
+
+    with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
+        train_yolo_detector(
+            dataset,
+            tmp_path / "run",
+            config=config,
+            model=model,
+            model_digest=hashlib.sha256(model.read_bytes()).hexdigest(),
+            config_digest=hashlib.sha256(config.read_bytes()).hexdigest(),
+            runtime_version="8.4.129",
+            cancelled=cancelled,
+        )
+
+    assert len(instances) == 2
 
 
 def test_training_publishes_validated_inference_settings(

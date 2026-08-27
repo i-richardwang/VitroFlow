@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import httpx
 import pytest
 from conftest import annotation_document, encoded_image, write_blob
 
+from vitroflow import training_worker
 from vitroflow.training_worker import (
     TrainingJob,
     TrainingLeaseLostError,
@@ -14,6 +16,7 @@ from vitroflow.training_worker import (
     materialize_snapshot,
     parse_training_snapshot,
 )
+from vitroflow.yolo import YoloTrainingInterruptedError
 
 
 def _snapshot(images: list[dict[str, object]]) -> dict[str, object]:
@@ -197,3 +200,51 @@ def test_claim_response_requires_a_run_object() -> None:
 
 def test_training_job_exposes_run_identity() -> None:
     assert TrainingJob({"id": "train-one"}).run_id == "train-one"
+
+
+def test_snapshot_materialization_honors_shutdown_before_network_access(
+    tmp_path: Path,
+) -> None:
+    class UnexpectedClient:
+        def snapshot(self, _run_id: str) -> None:
+            pytest.fail("cancelled materialization must not request a snapshot")
+
+    with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
+        materialize_snapshot(
+            UnexpectedClient(),  # type: ignore[arg-type]
+            TrainingJob({"id": "train-one"}),
+            tmp_path / "dataset",
+            cancelled=lambda: True,
+        )
+
+
+def test_lease_refresh_failure_cancels_training_and_surfaces_lease_loss(
+    monkeypatch,
+) -> None:
+    class FailingClient:
+        progress_calls = 0
+
+        def progress(self, _run_id: str, _phase: str, _progress: float) -> None:
+            self.progress_calls += 1
+            if self.progress_calls > 1:
+                raise OSError("connection lost")
+
+        def heartbeat(self) -> None:
+            return None
+
+    monkeypatch.setattr(training_worker, "LEASE_REFRESH_SECONDS", 0.001)
+    deadline = time.monotonic() + 1
+
+    with (
+        pytest.raises(TrainingLeaseLostError, match="refresh failed"),
+        training_worker._lease(
+            FailingClient(),  # type: ignore[arg-type]
+            "train-one",
+            "training",
+            0.1,
+        ) as cancelled,
+    ):
+        while not cancelled() and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert cancelled()
+        raise YoloTrainingInterruptedError("training interrupted")

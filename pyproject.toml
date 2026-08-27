@@ -11,6 +11,11 @@ dependencies = [
   "opencv-python-headless>=4.10",
 ]
 
+[project.optional-dependencies]
+yolo = [
+  "ultralytics==8.4.129",
+]
+
 [project.scripts]
 vitroflow = "vitroflow.cli:main"
 vitroflow-inference-worker = "vitroflow.inference_worker:main"
@@ -25,9 +30,6 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.12",
 ]
-yolo = [
-  "ultralytics>=8.4,<8.5",
-]
 
 [build-system]
 requires = ["hatchling"]
@@ -38,6 +40,9 @@ testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vitroflow"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"configs/yolo26" = "vitroflow/resources/yolo26"
 
 [tool.hatch.build.targets.sdist]
 include = [

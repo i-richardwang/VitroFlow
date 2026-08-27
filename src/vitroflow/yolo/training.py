@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -25,6 +25,10 @@ class YoloTrainingResult:
     summary: Path
     metrics: dict[str, float]
     confidence: float | None
+
+
+class YoloTrainingInterruptedError(RuntimeError):
+    pass
 
 
 def best_f1_confidence(metrics: ValidationMetrics) -> float | None:
@@ -84,6 +88,7 @@ def train_yolo_detector(
     epochs: int | None = None,
     image_size: int | None = None,
     batch_size: int | None = None,
+    cancelled: Callable[[], bool] | None = None,
 ) -> YoloTrainingResult:
     """Fine-tune, validate, and publish inference calibration for a YOLO detector."""
     data_path = Path(dataset).resolve()
@@ -126,7 +131,16 @@ def train_yolo_detector(
     trainer_model = yolo(str(model_source))
     if not model_source.is_file() or _file_digest(model_source) != model_digest:
         raise ValueError("Training base model failed digest verification")
+    if cancelled:
+
+        def stop_when_cancelled(trainer: Any) -> None:
+            if cancelled():
+                trainer.stop = True
+
+        trainer_model.add_callback("on_train_batch_end", stop_when_cancelled)
     trainer_model.train(**train_options)
+    if cancelled and cancelled():
+        raise YoloTrainingInterruptedError("training interrupted")
     trainer = trainer_model.trainer
     save_dir = Path(trainer.save_dir)
     best_weights = save_dir / "weights" / "best.pt"
@@ -135,6 +149,15 @@ def train_yolo_detector(
 
     trained_args = trainer.args
     validator_model = yolo(str(best_weights))
+    if cancelled:
+
+        def interrupt_validation(_validator: Any) -> None:
+            if cancelled():
+                raise YoloTrainingInterruptedError("training interrupted")
+
+        validator_model.add_callback("on_val_batch_end", interrupt_validation)
+        if cancelled():
+            raise YoloTrainingInterruptedError("training interrupted")
     metrics = validator_model.val(
         data=str(data_path),
         imgsz=trained_args.imgsz,
@@ -145,6 +168,8 @@ def train_yolo_detector(
         name="validation-one-to-many",
         exist_ok=False,
     )
+    if cancelled and cancelled():
+        raise YoloTrainingInterruptedError("training interrupted")
     confidence = best_f1_confidence(metrics)
     metric_values = {key: float(value) for key, value in metrics.results_dict.items()}
 

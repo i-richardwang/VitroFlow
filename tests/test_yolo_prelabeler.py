@@ -180,8 +180,8 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
     }
     monkeypatch.setattr(
         inference_worker,
-        "_deployment_manifest",
-        lambda args: {"id": args.model_version_id, "artifact": artifact},
+        "deployment_manifest",
+        lambda settings: {"id": settings.model_version_id, "artifact": artifact},
     )
 
     def download(url: str, **kwargs: object) -> httpx.Response:
@@ -189,9 +189,10 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
         return httpx.Response(200, content=b"weights", request=request)
 
     monkeypatch.setattr(inference_worker.httpx, "get", download)
-    args = SimpleNamespace(
-        server="https://example.test",
+    settings = inference_worker.InferenceWorkerSettings(
+        server_url="https://example.test",
         token="secret",
+        worker_id="test-worker",
         model_version_id="set.yolo-v1",
         work_dir=tmp_path / "worker",
         config=None,
@@ -199,7 +200,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
         device="cpu",
     )
 
-    deployed = inference_worker._build_prelabeler(args)
+    deployed = inference_worker.build_prelabeler(settings)
 
     assert deployed.artifact_digest == reference.artifact_digest
-    assert (args.work_dir / "model-artifacts/set.yolo-v1/weights/best.pt").is_file()
+    assert (settings.work_dir / "model-artifacts/set.yolo-v1/weights/best.pt").is_file()

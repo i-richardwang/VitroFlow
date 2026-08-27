@@ -1621,13 +1621,15 @@ dependencies = [
     { name = "opencv-python-headless" },
 ]
 
+[package.optional-dependencies]
+yolo = [
+    { name = "ultralytics" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
-]
-yolo = [
-    { name = "ultralytics" },
 ]
 
 [package.metadata]
@@ -1635,11 +1637,12 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-python-headless", specifier = ">=4.10" },
+    { name = "ultralytics", marker = "extra == 'yolo'", specifier = "==8.4.129" },
 ]
+provides-extras = ["yolo"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.12" },
 ]
-yolo = [{ name = "ultralytics", specifier = ">=8.4,<8.5" }]

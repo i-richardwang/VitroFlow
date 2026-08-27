@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from pathlib import Path
 
 import httpx
@@ -112,9 +113,9 @@ PENDING = [
 
 
 def test_health_server_reports_liveness() -> None:
-    with health_server(0) as port:
-        response = httpx.get(f"http://127.0.0.1:{port}/healthz")
-        missing = httpx.get(f"http://127.0.0.1:{port}/missing")
+    with health_server(0) as port, httpx.Client(trust_env=False) as client:
+        response = client.get(f"http://127.0.0.1:{port}/healthz")
+        missing = client.get(f"http://127.0.0.1:{port}/missing")
     assert response.status_code == 200
     assert response.text == "ok\n"
     assert missing.status_code == 404
@@ -228,4 +229,21 @@ def test_pass_returns_false_when_nothing_is_pending(tmp_path: Path) -> None:
     assert workbench.calls() == [
         ("POST", "/api/inference/heartbeat"),
         ("GET", "/api/inference/pending"),
+    ]
+
+
+def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
+    workbench = Workbench(PENDING)
+    client = workbench.client()
+    stopped = threading.Event()
+    stopped.set()
+    try:
+        assert run_pass(client, tmp_path, PRELABELER, stopped=stopped) is True
+    finally:
+        client.close()
+
+    assert workbench.calls() == [
+        ("POST", "/api/inference/heartbeat"),
+        ("GET", "/api/inference/pending"),
+        ("POST", "/api/inference/heartbeat"),
     ]

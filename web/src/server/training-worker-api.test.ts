@@ -6,6 +6,7 @@ import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$v
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
 import { Route as ClaimRoute } from "../routes/api.training.claim";
 import { Route as HeartbeatRoute } from "../routes/api.training.heartbeat";
+import { Route as ReadyRoute } from "../routes/api.training.ready";
 import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$digest";
 import { Route as ProgressRoute } from "../routes/api.training.runs.$runId.progress";
 import { Route as SnapshotRoute } from "../routes/api.training.runs.$runId.snapshot";
@@ -176,4 +177,11 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { versionId },
   } as never);
   expect(await weights.text()).toBe("weights");
+});
+
+test("training readiness identifies the authenticated control plane", async () => {
+  const response = await handler(ReadyRoute, "GET")({} as never);
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ role: "training" });
 });

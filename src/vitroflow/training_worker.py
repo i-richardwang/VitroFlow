@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import socket
-import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -25,14 +26,26 @@ from .documents import (
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import IDENTIFIER
+from .identifiers import WORKER_DEVICE, WORKER_ID
 from .image_io import verify_digest
 from .manifest import as_split
-from .worker_runtime import health_server
-from .yolo import DatasetImage, export_dataset_images, train_yolo_detector
+from .training_configs import default_training_config_root
+from .worker_runtime import (
+    configure_console_logging,
+    health_server,
+    shutdown_signals,
+)
+from .yolo import (
+    DatasetImage,
+    YoloTrainingInterruptedError,
+    export_dataset_images,
+    train_yolo_detector,
+)
 
 WORKER_ERRORS = (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError)
 SNAPSHOT_SCHEMA_VERSION = 1
+LEASE_REFRESH_SECONDS = 30.0
+LOGGER = logging.getLogger(__name__)
 
 
 class TrainingArtifactRejectedError(RuntimeError):
@@ -41,6 +54,29 @@ class TrainingArtifactRejectedError(RuntimeError):
 
 class TrainingLeaseLostError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class TrainingWorkerSettings:
+    server_url: str
+    token: str
+    worker_id: str
+    device: str
+    work_dir: Path
+    config_root: Path
+    poll_seconds: float = 10.0
+
+    def __post_init__(self) -> None:
+        if not self.server_url.startswith(("http://", "https://")):
+            raise ValueError("worker server URL must use http or https")
+        if not self.token:
+            raise ValueError("training worker token is required")
+        if not WORKER_ID.fullmatch(self.worker_id):
+            raise ValueError("invalid training worker id")
+        if self.poll_seconds <= 0:
+            raise ValueError("poll interval must be positive")
+        if not WORKER_DEVICE.fullmatch(self.device):
+            raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
 
 
 @dataclass(frozen=True)
@@ -250,7 +286,11 @@ def materialize_snapshot(
     client: TrainingWorkerClient,
     job: TrainingJob,
     output: Path,
+    *,
+    cancelled: Callable[[], bool] | None = None,
 ) -> Path:
+    if cancelled and cancelled():
+        raise YoloTrainingInterruptedError("training interrupted")
     snapshot = client.snapshot(job.run_id)
     if len(snapshot.images) < 2:
         raise ValueError("Training snapshot must contain at least two images")
@@ -258,6 +298,8 @@ def materialize_snapshot(
     downloads.mkdir(parents=True, exist_ok=True)
     dataset_images: list[DatasetImage] = []
     for image in snapshot.images:
+        if cancelled and cancelled():
+            raise YoloTrainingInterruptedError("training interrupted")
         downloaded = downloads / f"{image.digest}{image.extension}"
         downloaded.write_bytes(client.image(job.run_id, image.digest))
         dataset_images.append(
@@ -282,30 +324,38 @@ def _lease(
     run_id: str,
     phase: str,
     progress: float,
+    *,
+    cancelled: Callable[[], bool] | None = None,
 ):
-    stopped = threading.Event()
+    closed = threading.Event()
+    lost = threading.Event()
     refresh_errors: list[Exception] = []
 
     def refresh() -> None:
-        while not stopped.wait(30):
+        while not closed.wait(LEASE_REFRESH_SECONDS):
             try:
                 client.progress(run_id, phase, progress)
                 client.heartbeat()
             except WORKER_ERRORS as error:
                 refresh_errors.append(error)
-                stopped.set()
+                lost.set()
                 return
+
+    def should_stop() -> bool:
+        return lost.is_set() or bool(cancelled and cancelled())
 
     client.progress(run_id, phase, progress)
     thread = threading.Thread(target=refresh, name="training-lease", daemon=True)
     thread.start()
     try:
-        yield
+        yield should_stop
     finally:
-        stopped.set()
+        closed.set()
         thread.join()
-    if refresh_errors:
-        raise RuntimeError("Training lease refresh failed") from refresh_errors[0]
+        if refresh_errors:
+            raise TrainingLeaseLostError("Training lease refresh failed") from (
+                refresh_errors[0]
+            )
 
 
 def process_training_job(
@@ -313,7 +363,12 @@ def process_training_job(
     job: TrainingJob,
     work_root: Path,
     config_root: Path,
+    stopped: threading.Event | None = None,
 ) -> None:
+    def ensure_running() -> None:
+        if stopped and stopped.is_set():
+            raise YoloTrainingInterruptedError("training interrupted")
+
     client.current_run_id = job.run_id
     client.heartbeat()
     publication_started = False
@@ -323,7 +378,13 @@ def process_training_job(
         ) as temporary:
             root = Path(temporary)
             client.progress(job.run_id, "preparing", 0.05)
-            dataset = materialize_snapshot(client, job, root / "dataset")
+            dataset = materialize_snapshot(
+                client,
+                job,
+                root / "dataset",
+                cancelled=stopped.is_set if stopped else None,
+            )
+            ensure_running()
             recipe = job.run["recipe"]
             config = (config_root / str(recipe["configuration"]["name"])).resolve()
             try:
@@ -332,7 +393,13 @@ def process_training_job(
                 raise ValueError(
                     "Training config escapes the configured root"
                 ) from None
-            with _lease(client, job.run_id, "training", 0.1):
+            with _lease(
+                client,
+                job.run_id,
+                "training",
+                0.1,
+                cancelled=stopped.is_set if stopped else None,
+            ) as cancelled:
                 result = train_yolo_detector(
                     dataset,
                     root / "run",
@@ -345,14 +412,19 @@ def process_training_job(
                     epochs=recipe.get("epochs"),
                     image_size=recipe.get("imageSize"),
                     batch_size=recipe.get("batchSize"),
+                    cancelled=cancelled,
                 )
+            ensure_running()
             client.progress(job.run_id, "validating", 0.95)
+            ensure_running()
             if result.confidence is None:
                 raise RuntimeError(
                     "Training completed without a usable validation signal"
                 )
             publication_started = True
             client.artifact(job.run_id, result.best_weights, result.summary)
+    except YoloTrainingInterruptedError:
+        raise
     except WORKER_ERRORS as error:
         if not isinstance(error, TrainingLeaseLostError) and (
             not publication_started or isinstance(error, TrainingArtifactRejectedError)
@@ -390,8 +462,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config-root",
         type=Path,
-        default=Path(
-            os.environ.get("VITROFLOW_TRAINING_CONFIG_ROOT", "configs/yolo26")
+        default=(
+            Path(os.environ["VITROFLOW_TRAINING_CONFIG_ROOT"])
+            if "VITROFLOW_TRAINING_CONFIG_ROOT" in os.environ
+            else default_training_config_root()
         ),
     )
     parser.add_argument("--poll-seconds", type=float, default=10.0)
@@ -400,58 +474,78 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    if not args.server or not args.token:
-        print(
-            "error: server URL and training worker token are required", file=sys.stderr
-        )
-        return 2
-    if not IDENTIFIER.fullmatch(args.worker_id):
-        print("error: invalid training worker id", file=sys.stderr)
-        return 2
-    if args.poll_seconds <= 0:
-        print("error: poll interval must be positive", file=sys.stderr)
-        return 2
-    try:
-        args.work_dir.mkdir(parents=True, exist_ok=True)
-        if not args.config_root.is_dir():
-            raise FileNotFoundError(args.config_root)
-    except OSError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
+def run_training_worker(
+    settings: TrainingWorkerSettings,
+    *,
+    health_port: int | None = None,
+    once: bool = False,
+    on_ready: Callable[[], None] | None = None,
+) -> int:
+    if health_port is not None and not 1 <= health_port <= 65535:
+        raise ValueError("health port must be between 1 and 65535")
+    settings.work_dir.mkdir(parents=True, exist_ok=True)
+    if not settings.config_root.is_dir():
+        raise FileNotFoundError(settings.config_root)
     client = TrainingWorkerClient(
-        args.server,
-        args.token,
-        args.worker_id,
+        settings.server_url,
+        settings.token,
+        settings.worker_id,
         datetime.now(UTC).isoformat(),
-        args.device,
+        settings.device,
     )
     try:
-        with health_server(args.health_port):
-            while True:
+        with health_server(health_port), shutdown_signals() as stopped:
+            client.heartbeat()
+            if on_ready:
+                on_ready()
+            while not stopped.is_set():
                 job: TrainingJob | None = None
                 try:
                     client.heartbeat()
                     job = client.claim()
                     if job:
                         process_training_job(
-                            client, job, args.work_dir, args.config_root
+                            client,
+                            job,
+                            settings.work_dir,
+                            settings.config_root,
+                            stopped=stopped,
                         )
+                except YoloTrainingInterruptedError:
+                    LOGGER.info("training interrupted; lease will be recoverable")
                 except WORKER_ERRORS as error:
-                    print(
-                        f"training worker error: {error}", file=sys.stderr, flush=True
-                    )
-                    if args.once:
+                    LOGGER.error("training worker error: %s", error)
+                    if once:
                         return 1
-                if args.once:
+                    job = None
+                if once:
                     return 0
                 if not job:
-                    time.sleep(args.poll_seconds)
-    except KeyboardInterrupt:
-        return 0
+                    stopped.wait(settings.poll_seconds)
+            return 0
     finally:
         client.close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    configure_console_logging()
+    args = _parser().parse_args(argv)
+    try:
+        settings = TrainingWorkerSettings(
+            server_url=args.server or "",
+            token=args.token or "",
+            worker_id=args.worker_id,
+            device=args.device,
+            work_dir=args.work_dir,
+            config_root=args.config_root,
+            poll_seconds=args.poll_seconds,
+        )
+        return run_training_worker(
+            settings, health_port=args.health_port, once=args.once
+        )
+    except (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError) as error:
+        LOGGER.error("%s", error)
+        return 2
 
 
 if __name__ == "__main__":
