@@ -226,24 +226,24 @@ export const labels = pgTable(
   ],
 );
 
+/**
+ * An inference process by the runtimes it can execute. Which versions it
+ * prelabels with follows from the datasets' selections; the version it holds
+ * in memory is reported for display only.
+ */
 export const inferenceWorkers = pgTable(
   "inference_workers",
   {
     id: text("id").primaryKey(),
     startedAt: instant("started_at"),
-    modelVersionId: text("model_version_id").notNull(),
-    artifactDigest: text("artifact_digest").notNull(),
-    runtime: jsonb("runtime").$type<RuntimeDescriptor>().notNull(),
+    runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
+    loadedModelVersionId: text("loaded_model_version_id").references(
+      () => modelVersions.id,
+    ),
     current: jsonb("current").$type<ImageRef | null>(),
     lastSeenAt: instant("last_seen_at"),
   },
-  (table) => [
-    foreignKey({
-      columns: [table.modelVersionId, table.artifactDigest],
-      foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
-    }),
-    index("inference_workers_seen_idx").on(table.lastSeenAt),
-  ],
+  (table) => [index("inference_workers_seen_idx").on(table.lastSeenAt)],
 );
 
 export const datasetSnapshots = pgTable(

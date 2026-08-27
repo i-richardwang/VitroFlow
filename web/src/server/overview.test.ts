@@ -14,12 +14,7 @@ import {
   failTrainingRun,
 } from "./training-runs";
 import { recordTrainingHeartbeat } from "./training-worker-store";
-import {
-  TEST_RUNTIME as runtime,
-  imageDigest,
-  resultFor,
-  uploadTexts,
-} from "./testing";
+import { testHeartbeat, imageDigest, resultFor, uploadTexts } from "./testing";
 
 /** This test's clock; workers heartbeating at wall-clock time are offline here. */
 const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -29,16 +24,7 @@ const LATER_AT = new Date(HEARTBEAT_AT.getTime() + 60 * 60 * 1000);
 async function datasetWithImages(datasetId: string, names: string[]) {
   const { dataset, version } = await uploadTexts(datasetId, names);
   const worker = await recordInferenceHeartbeat(
-    {
-      workerId: `${datasetId}-worker`,
-      startedAt: "2026-08-27T00:00:00.000Z",
-      deployment: {
-        modelVersionId: version.id,
-        artifactDigest: version.artifact.digest,
-      },
-      runtime,
-      current: null,
-    },
+    testHeartbeat(`${datasetId}-worker`),
     HEARTBEAT_AT,
   );
   const prelabelFor = (name: string) => resultFor(version, name);
@@ -70,13 +56,9 @@ test("the overview derives versions, serving workers, and training readiness", a
     null,
   ]);
   expect(overview.versions).toEqual([
-    {
-      version,
-      selected: true,
-      serving: { online: 1, stale: 0 },
-      trainingImages: null,
-    },
+    { version, selected: true, trainingImages: null },
   ]);
+  expect(overview.inference).toEqual({ online: 1, stale: 0 });
   expect(overview.training).toMatchObject({
     runs: [],
     active: null,
@@ -124,25 +106,18 @@ test("the overview derives versions, serving workers, and training readiness", a
   await selectModelVersion("overview", next.id);
   overview = await datasetOverview("overview", at);
   expect(
-    overview?.versions.map(({ version, selected, serving }) => [
-      version.id,
-      selected,
-      serving,
-    ]),
+    overview?.versions.map(({ version, selected }) => [version.id, selected]),
   ).toEqual([
-    [next.id, true, { online: 0, stale: 0 }],
-    [version.id, false, { online: 1, stale: 0 }],
+    [next.id, true],
+    [version.id, false],
   ]);
+  expect(overview?.inference).toEqual({ online: 1, stale: 0 });
   const staleAt = new Date(HEARTBEAT_AT.getTime() + 60_000);
-  expect(
-    (await datasetOverview("overview", staleAt))?.versions[1]?.serving,
-  ).toEqual({
+  expect((await datasetOverview("overview", staleAt))?.inference).toEqual({
     online: 0,
     stale: 1,
   });
-  expect(
-    (await datasetOverview("overview", LATER_AT))?.versions[1]?.serving,
-  ).toEqual({
+  expect((await datasetOverview("overview", LATER_AT))?.inference).toEqual({
     online: 0,
     stale: 0,
   });

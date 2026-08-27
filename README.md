@@ -86,7 +86,7 @@ bun install
 bun run dev
 ```
 
-Uploading images to a dataset is all it takes to request prelabels. A named Inference Worker profile polls the authenticated API for pending images, downloads each source image, runs the selected immutable ModelVersion, and uploads the resulting prelabel JSON. The built-in traditional baseline and every published YOLO version implement the same box-first prelabeler contract and therefore use the same review API. YOLO weights and inference settings are downloaded and verified before the Worker first heartbeats; the traditional baseline is verified against the artifact bundled with the package.
+Uploading images to a dataset is all it takes to request prelabels. A named Inference Worker profile is a runtime, not a deployment: it advertises the adapters it can execute (the traditional baseline always, Ultralytics when installed) and the Server hands it pending images grouped by the immutable ModelVersion each dataset currently selects. The Worker loads versions on demand, holding one in memory at a time and caching downloaded YOLO weights under its work directory after verifying their digests; the traditional baseline is verified against the artifact bundled with the package. Changing a dataset's version in the workbench is therefore all it takes to redirect prelabelling. The built-in baseline and every published YOLO version implement the same box-first prelabeler contract and therefore use the same review API.
 
 The inference protocol uses a dedicated credential:
 
@@ -97,9 +97,9 @@ The inference protocol uses a dedicated credential:
 | `GET api/inference/images/<digest>` | source image bytes |
 | `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document |
 
-Each pass heartbeats, fetches the pending list, then per image heartbeats, downloads, detects, and uploads. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
+Each pass heartbeats, fetches the pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped for that pass; the other assignments proceed. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
 
-The Status page lists each Worker profile with its presence, current image, and model.
+The Status page lists each Worker profile with its presence, current image, loaded version, and runtimes.
 
 ### Native Worker services on macOS
 
@@ -109,13 +109,8 @@ Inference and training machines do not need a VitroFlow Server deployment. Insta
 # From a source checkout; a published release uses: uv tool install 'vitroflow[yolo]'
 uv tool install '.[yolo]'
 
-vitroflow worker setup inference seed-traditional-v1 \
+vitroflow worker setup inference mac-inference \
   --server https://vitroflow.example.com \
-  --model-version-id <dataset>.traditional-v1
-
-vitroflow worker setup inference seed-yolo-v3 \
-  --server https://vitroflow.example.com \
-  --model-version-id <published-version-id> \
   --device mps
 
 vitroflow worker setup training mac-mps \
@@ -123,7 +118,7 @@ vitroflow worker setup training mac-mps \
   --device mps
 ```
 
-Setup always prompts for the role-specific credential without echoing it, so the token never enters shell history or the LaunchAgent. It validates Server authentication, the selected model or training runtime, and the accelerator before it commits the profile and installs the LaunchAgent. Profiles are independent: an inference profile is permanently bound to one immutable ModelVersion, while a training profile claims queued TrainingRuns.
+Setup always prompts for the role-specific credential without echoing it, so the token never enters shell history or the LaunchAgent. It validates Server authentication and role, the available runtimes, and the accelerator before it commits the profile and installs the LaunchAgent. Both roles share one profile shape. One inference profile per machine serves every dataset; a second one on the same machine would receive the same assignments and repeat its work.
 
 Setup refuses to replace an existing profile unless `--force` is supplied; a forced setup validates the replacement before restarting its service.
 
@@ -331,6 +326,7 @@ src/vitroflow/
 ├── cli.py            Local workflows
 ├── worker_command.py Native Worker management commands
 ├── inference_worker.py Inference protocol and execution
+├── inference_models.py On-demand model loading and artifact cache
 ├── training_worker.py  Training protocol and execution
 ├── training_configs.py Packaged YOLO recipe discovery
 ├── worker_profiles.py  Strict per-process native configuration

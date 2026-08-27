@@ -70,6 +70,14 @@ export function atRef(table: MembershipKeyed, { dataset, digest }: ImageRef) {
   return and(eq(table.datasetId, dataset), eq(table.imageId, digest));
 }
 
+/** Joins two membership-keyed tables on the same membership. */
+export function sameMembership(left: MembershipKeyed, right: MembershipKeyed) {
+  return and(
+    eq(left.datasetId, right.datasetId),
+    eq(left.imageId, right.imageId),
+  );
+}
+
 export function describeRef({ dataset, digest }: ImageRef): string {
   return `${dataset}/${digest}`;
 }

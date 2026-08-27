@@ -3,19 +3,16 @@ import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { selectDatasetModelVersion } from "../../server/models";
-import type { WorkerCount } from "../../server/overview";
 
 /** Makes a candidate version the one the dataset prelabels with. */
 export function SelectVersionDialog({
   dataset,
   versionId,
   label,
-  serving,
 }: {
   dataset: string;
   versionId: string;
   label: string;
-  serving: WorkerCount;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -39,9 +36,8 @@ export function SelectVersionDialog({
                 <AlertDialog.Body>
                   Images in {dataset} that are not yet under review become
                   pending for this version. Reviewed annotations keep their
-                  original prelabels.
-                  {serving.online === 0 &&
-                    " No inference worker currently serves this version, so nothing is detected until one connects."}
+                  original prelabels. An inference worker able to run this kind
+                  of model picks the images up on its next pass.
                 </AlertDialog.Body>
                 <AlertDialog.Footer>
                   <Button variant="tertiary" size="sm" onPress={close}>

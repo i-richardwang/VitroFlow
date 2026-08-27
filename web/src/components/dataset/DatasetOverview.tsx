@@ -7,7 +7,7 @@ import { ServingChip } from "./ServingChip";
 
 /** The dataset's identity, review progress, and the version doing its prelabelling. */
 export function DatasetOverview({ overview }: { overview: Overview }) {
-  const { counts, images, versions, training } = overview;
+  const { counts, images, versions, inference, training } = overview;
   const selected = versions.find((entry) => entry.selected);
   const reviewed = counts.complete + counts.excluded;
 
@@ -44,7 +44,7 @@ export function DatasetOverview({ overview }: { overview: Overview }) {
               <ModelKindChip kind={selected.version.artifact.kind} />
             </span>
             <span className="text-xs text-muted">{selected.version.name}</span>
-            <ServingChip serving={selected.serving} />
+            <ServingChip serving={inference} />
           </>
         ) : (
           <span className="text-muted">No version selected</span>

@@ -16,7 +16,7 @@ import { createLabel, readLabel } from "./labels";
 import { registerModelVersion, readModelVersion } from "./model-registry";
 import {
   discardPrelabel,
-  pendingImages,
+  pendingAssignments,
   readPrelabel,
   writePrelabel,
 } from "./prelabels";
@@ -24,6 +24,7 @@ import { readImageRecord, summarize } from "./summaries";
 import { collectUnreferencedImages } from "./image-collection";
 import {
   TEST_RUNTIME as runtime,
+  testHeartbeat,
   imageBytes,
   imageDigest,
   imageFile,
@@ -31,28 +32,20 @@ import {
 } from "./testing";
 import { addImages } from "./upload";
 
-async function workerFor(datasetId: string, workerId = `${datasetId}-worker`) {
-  const { version } = await selectedVersion(datasetId);
-  return {
-    workerId,
-    startedAt: "2026-08-27T00:00:00.000Z",
-    deployment: {
-      modelVersionId: version.id,
-      artifactDigest: version.artifact.digest,
-    },
-    runtime,
-    current: null,
-    lastSeenAt: "2026-08-27T00:00:00.000Z",
-  } satisfies InferenceWorkerRecord;
-}
+const worker: InferenceWorkerRecord = {
+  ...testHeartbeat("worker"),
+  lastSeenAt: "2026-08-27T00:00:00.000Z",
+};
 
-function resultFor(digest: string, worker: InferenceWorkerRecord) {
+/** A result from the version `datasetId` currently selects. */
+async function resultFor(datasetId: string, digest: string) {
+  const { version } = await selectedVersion(datasetId);
   return {
     ...makeResult([{ id: 0, x: 10, y: 10 }], { digest }),
     producer: {
-      model_version_id: worker.deployment.modelVersionId,
-      artifact_digest: worker.deployment.artifactDigest,
-      runtime: worker.runtime,
+      model_version_id: version.id,
+      artifact_digest: version.artifact.digest,
+      runtime,
     },
   };
 }
@@ -162,51 +155,61 @@ describe("uploads", () => {
 describe("prelabels", () => {
   test("a dataset assigns work only to its selected model version", async () => {
     await addImages("pend", [imageFile("a", "a.jpg"), imageFile("b", "b.jpg")]);
-    const worker = await workerFor("pend");
     const a = { dataset: "pend", digest: imageDigest("a") };
     const b = { dataset: "pend", digest: imageDigest("b") };
-    const pending = async (deployment: InferenceWorkerRecord["deployment"]) =>
-      (await pendingImages(deployment)).map((image) => image.filename);
-    expect(await pending(worker.deployment)).toEqual(["a.jpg", "b.jpg"]);
+    const pending = async () =>
+      (await pendingAssignments(worker)).flatMap((assignment) => {
+        const images = assignment.images.filter(
+          (image) => image.dataset === "pend",
+        );
+        return images.length
+          ? [[assignment.modelVersion.id, images.map((i) => i.filename)]]
+          : [];
+      });
+    const { version } = await selectedVersion("pend");
+    expect(await pending()).toEqual([[version.id, ["a.jpg", "b.jpg"]]]);
+    const original = await resultFor("pend", b.digest);
 
-    await writePrelabel(a, resultFor(a.digest, worker), worker);
+    await writePrelabel(a, await resultFor("pend", a.digest), worker);
     expect(await stateOf(a)).toBe("prelabeled");
     const failure = {
       schema_version: 1,
       image: { digest: b.digest },
-      producer: resultFor(b.digest, worker).producer,
+      producer: original.producer,
       error: "boom",
     };
     await writePrelabel(b, failure, worker);
     expect(await stateOf(b)).toBe("failed");
     await discardPrelabel(b);
-    expect(await pending(worker.deployment)).toEqual(["b.jpg"]);
+    expect(await pending()).toEqual([[version.id, ["b.jpg"]]]);
 
     const next = await nextTraditionalVersion("pend");
     await selectModelVersion("pend", next.id);
-    const nextWorker = await workerFor("pend", "pend-next-worker");
-    expect(await pending(nextWorker.deployment)).toEqual(["a.jpg", "b.jpg"]);
-    await expect(
-      writePrelabel(b, resultFor(b.digest, worker), worker),
-    ).rejects.toThrow(/assigned to another model version/);
+    expect(await pending()).toEqual([[next.id, ["a.jpg", "b.jpg"]]]);
+    await expect(writePrelabel(b, original, worker)).rejects.toThrow(
+      /assigned to another model version/,
+    );
+    expect(
+      await pendingAssignments({
+        runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
+      }),
+    ).toEqual([]);
   });
 
   test("a prelabel must describe the image it is stored under", async () => {
     await addImages("mismatch", [imageFile("a", "a.jpg")]);
-    const worker = await workerFor("mismatch");
     const ref = { dataset: "mismatch", digest: imageDigest("a") };
     await expect(
-      writePrelabel(ref, resultFor(imageDigest("b"), worker), worker),
+      writePrelabel(ref, await resultFor("mismatch", imageDigest("b")), worker),
     ).rejects.toThrow(/describes/);
   });
 
   test("freezes a prelabel after review begins", async () => {
     await addImages("frozen", [imageFile("a", "a.jpg")]);
     const ref = { dataset: "frozen", digest: imageDigest("a") };
-    const worker = await workerFor("frozen");
     const original = await writePrelabel(
       ref,
-      resultFor(ref.digest, worker),
+      await resultFor("frozen", ref.digest),
       worker,
     );
     if ("error" in original) throw new Error("unexpected failure document");
@@ -225,10 +228,9 @@ describe("prelabels", () => {
     await addImages("ctx-one", [imageFile("ctx", "ctx.jpg")]);
     await addImages("ctx-two", [imageFile("ctx", "ctx.jpg")]);
     const digest = imageDigest("ctx");
-    const worker = await workerFor("ctx-one");
     await writePrelabel(
       { dataset: "ctx-one", digest },
-      resultFor(digest, worker),
+      await resultFor("ctx-one", digest),
       worker,
     );
     expect(await stateOf({ dataset: "ctx-one", digest })).toBe("prelabeled");
@@ -240,10 +242,9 @@ describe("removal", () => {
   test("removes the membership with its prelabel and label", async () => {
     await addImages("rm", [imageFile("rm-bytes", "a.jpg")]);
     const ref = { dataset: "rm", digest: imageDigest("rm-bytes") };
-    const worker = await workerFor("rm");
     const prelabel = await writePrelabel(
       ref,
-      resultFor(ref.digest, worker),
+      await resultFor("rm", ref.digest),
       worker,
     );
     if ("error" in prelabel) throw new Error("unexpected failure document");

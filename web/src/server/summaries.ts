@@ -17,6 +17,7 @@ import {
   atRef,
   membershipOrder,
   membershipQuery,
+  sameMembership,
   toDatasetImage,
   type DatasetImage,
   type MembershipRow,
@@ -85,20 +86,8 @@ export function recordQuery(db: Executor) {
     })
     .from(datasetImages)
     .innerJoin(images, eq(images.id, datasetImages.imageId))
-    .leftJoin(
-      prelabels,
-      and(
-        eq(prelabels.datasetId, datasetImages.datasetId),
-        eq(prelabels.imageId, datasetImages.imageId),
-      ),
-    )
-    .leftJoin(
-      labels,
-      and(
-        eq(labels.datasetId, datasetImages.datasetId),
-        eq(labels.imageId, datasetImages.imageId),
-      ),
-    );
+    .leftJoin(prelabels, sameMembership(prelabels, datasetImages))
+    .leftJoin(labels, sameMembership(labels, datasetImages));
 }
 
 function toRecord(

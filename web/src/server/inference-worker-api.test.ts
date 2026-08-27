@@ -4,6 +4,7 @@ import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
 import { Route as UploadRoute } from "../routes/api.datasets.$dataset.images";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
+import { Route as ReadyRoute } from "../routes/api.inference.ready";
 import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as PrelabelRoute } from "../routes/api.inference.prelabels.$dataset.$digest";
@@ -62,11 +63,8 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
       body: JSON.stringify({
         workerId: "api-worker",
         startedAt: "2026-01-01T00:00:00Z",
-        deployment: {
-          modelVersionId: version.id,
-          artifactDigest: version.artifact.digest,
-        },
-        runtime,
+        runtimes: [runtime],
+        loaded: null,
         current: ref,
       }),
     }),
@@ -83,10 +81,13 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
     request: new Request(pendingUrl),
   } as never);
   expect(pendingResponse.status).toBe(200);
-  expect((await pendingResponse.json()).images).toContainEqual({
-    ...ref,
-    extension: ".jpg",
-  });
+  const { assignments } = await pendingResponse.json();
+  const assignment = assignments.find(
+    (entry: { modelVersion: { id: string } }) =>
+      entry.modelVersion.id === version.id,
+  );
+  expect(assignment.modelVersion).toEqual(version);
+  expect(assignment.images).toContainEqual({ ...ref, extension: ".jpg" });
   expect(
     (
       await handler(
@@ -142,7 +143,7 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
   expect((await put(result)).status).toBe(409);
 });
 
-test("an inference heartbeat cannot create an unknown model version", async () => {
+test("an inference heartbeat cannot load an unknown model version", async () => {
   const response = await handler(
     HeartbeatRoute,
     "POST",
@@ -152,15 +153,18 @@ test("an inference heartbeat cannot create an unknown model version", async () =
       body: JSON.stringify({
         workerId: "unknown-version-worker",
         startedAt: "2026-01-01T00:00:00Z",
-        deployment: {
-          modelVersionId: "not-published",
-          artifactDigest: "a".repeat(64),
-        },
-        runtime: { adapter: "traditional", fingerprint: "b".repeat(64) },
+        runtimes: [{ adapter: "traditional", fingerprint: "b".repeat(64) }],
+        loaded: "not-published",
         current: null,
       }),
     }),
   } as never);
   expect(response.status).toBe(400);
   expect(await response.text()).toContain("Unknown model version");
+});
+
+test("inference readiness identifies the authenticated control plane", async () => {
+  const response = await handler(ReadyRoute, "GET")({} as never);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ role: "inference" });
 });

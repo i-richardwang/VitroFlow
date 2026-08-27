@@ -37,6 +37,33 @@ def test_training_preflight_checks_authenticated_server_runtime(
     assert any(check.startswith("training configs:") for check in checks)
 
 
+def test_inference_preflight_reports_the_runtimes_it_will_advertise(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    requests: list[httpx.Request] = []
+
+    def ready(url: str, **kwargs: object) -> httpx.Response:
+        request = httpx.Request("GET", url, headers=kwargs["headers"])
+        requests.append(request)
+        return httpx.Response(200, json={"role": "inference"}, request=request)
+
+    monkeypatch.setattr(worker_host.httpx, "get", ready)
+    monkeypatch.setattr(worker_host.importlib.util, "find_spec", lambda _name: None)
+    profile = WorkerProfile(
+        role="inference",
+        server_url="https://example.test",
+        token="inference-secret",
+        worker_id="mac-mps",
+    )
+
+    checks = worker_host.preflight_profile("mac-mps", profile)
+
+    assert requests[0].url.path == "/api/inference/ready"
+    assert requests[0].headers["authorization"] == "Bearer inference-secret"
+    assert "runtimes: traditional" in checks
+
+
 def test_profile_host_passes_typed_settings_and_marks_readiness(
     tmp_path, monkeypatch
 ) -> None:

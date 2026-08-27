@@ -10,11 +10,7 @@ from datetime import UTC, datetime
 
 import httpx
 
-from .inference_worker import (
-    InferenceWorkerSettings,
-    deployment_manifest,
-    run_inference_worker,
-)
+from .inference_worker import InferenceWorkerSettings, run_inference_worker
 from .training_configs import default_training_config_root
 from .training_worker import TrainingWorkerSettings, run_training_worker
 from .worker_launchd import service_loaded
@@ -29,7 +25,6 @@ def _inference_settings(name: str, profile: WorkerProfile) -> InferenceWorkerSet
         server_url=profile.server_url,
         token=profile.token,
         worker_id=profile.worker_id,
-        model_version_id=profile.model_version_id or "",
         work_dir=profile_directory(name) / "work",
         poll_seconds=profile.poll_seconds,
         device=profile.device,
@@ -65,42 +60,44 @@ def _check_device(device: str | None) -> None:
             raise RuntimeError(f"CUDA device {index} is not available")
 
 
+def _check_ready(profile: WorkerProfile) -> None:
+    """The Server accepts this credential for this role."""
+    response = httpx.get(
+        f"{profile.server_url.rstrip('/')}/api/{profile.role}/ready",
+        headers={"Authorization": f"Bearer {profile.token}"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    if response.json() != {"role": profile.role}:
+        raise ValueError(
+            f"Server returned an invalid {profile.role} readiness response"
+        )
+
+
 def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
     directory = profile_directory(name)
     work = directory / "work"
     work.mkdir(parents=True, exist_ok=True)
     if not os.access(work, os.W_OK):
         raise PermissionError(f"worker directory is not writable: {work}")
+    _check_ready(profile)
     checks = [
         f"profile: {name} ({profile.role})",
         f"server: {profile.server_url}",
         f"work directory: {work}",
     ]
-
-    needs_yolo = profile.role == "training"
+    has_yolo = importlib.util.find_spec("ultralytics") is not None
     if profile.role == "inference":
-        settings = _inference_settings(name, profile)
-        artifact = deployment_manifest(settings)["artifact"]
-        kind = artifact["kind"]
-        if kind == "traditional" and profile.device:
-            raise ValueError("traditional inference profiles cannot select a device")
-        needs_yolo = kind == "ultralytics"
-        checks.append(f"model version: {profile.model_version_id} ({kind})")
+        runtimes = ["traditional"]
+        if has_yolo:
+            runtimes.append(
+                f"ultralytics ({profile.device})" if profile.device else "ultralytics"
+            )
+        checks.append(f"runtimes: {', '.join(runtimes)}")
     else:
-        settings = _training_settings(name, profile)
-        response = httpx.get(
-            f"{settings.server_url.rstrip('/')}/api/training/ready",
-            headers={"Authorization": f"Bearer {settings.token}"},
-            timeout=30,
-        )
-        response.raise_for_status()
-        document = response.json()
-        if document != {"role": "training"}:
-            raise ValueError("Server returned an invalid training readiness response")
-        checks.append(f"training configs: {settings.config_root}")
-
-    if needs_yolo and importlib.util.find_spec("ultralytics") is None:
-        raise RuntimeError("YOLO runtime is missing; install vitroflow[yolo]")
+        if not has_yolo:
+            raise RuntimeError("YOLO runtime is missing; install vitroflow[yolo]")
+        checks.append(f"training configs: {default_training_config_root()}")
     _check_device(profile.device)
     if profile.device:
         checks.append(f"device: {profile.device}")
@@ -165,8 +162,8 @@ def profile_summary(name: str) -> str:
     status = _read_status(name)
     state = str(status.get("state")) if status else "never started"
     loaded = "loaded" if service_loaded(name) else "not loaded"
-    target = profile.model_version_id or profile.device or "cpu"
-    return f"{name}\t{profile.role}\t{state}\t{loaded}\t{target}"
+    device = profile.device or "cpu"
+    return f"{name}\t{profile.role}\t{state}\t{loaded}\t{device}"
 
 
 def tail_log(name: str, *, lines: int = 100, follow: bool = False) -> None:

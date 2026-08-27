@@ -1,10 +1,11 @@
 import type { Dataset, ImageState } from "../datasets/schema";
-import type { ModelVersion } from "../models/schema";
+import type { ModelArtifact, ModelVersion } from "../models/schema";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import type { TrainingRecipe, TrainingRun } from "../training/schema";
 import { readDatasetSnapshot, snapshotImageCounts } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
 import {
+  canExecute,
   inferenceWorkerPresence,
   listInferenceWorkers,
 } from "./inference-worker-store";
@@ -31,8 +32,6 @@ export interface WorkerCount {
 export interface VersionOverview {
   version: ModelVersion;
   selected: boolean;
-  /** Inference workers deployed with this exact version, by presence. */
-  serving: WorkerCount;
   /** Reviewed images the version was trained on; none for builtin versions. */
   trainingImages: number | null;
 }
@@ -53,6 +52,8 @@ export interface DatasetOverview {
   images: ImageSummary[];
   counts: Record<ImageState, number>;
   versions: VersionOverview[];
+  /** Inference workers able to execute the selected version, by presence. */
+  inference: WorkerCount;
   training: TrainingOverview;
 }
 
@@ -75,19 +76,17 @@ async function reviewedSinceLastRun(
   ).length;
 }
 
-async function servingWorkerCounts(
+async function inferenceWorkerCount(
+  artifact: ModelArtifact,
   at: Date,
-): Promise<Map<string, WorkerCount>> {
-  const counts = new Map<string, WorkerCount>();
+): Promise<WorkerCount> {
+  const count = { online: 0, stale: 0 };
   for (const worker of await listInferenceWorkers(at)) {
     const presence = inferenceWorkerPresence(worker, at);
-    if (presence === "offline") continue;
-    const versionId = worker.deployment.modelVersionId;
-    const count = counts.get(versionId) ?? { online: 0, stale: 0 };
+    if (presence === "offline" || !canExecute(worker, artifact)) continue;
     count[presence] += 1;
-    counts.set(versionId, count);
   }
-  return counts;
+  return count;
 }
 
 export async function datasetOverview(
@@ -98,8 +97,7 @@ export async function datasetOverview(
   if (!dataset) return null;
   const records = await listImageRecords(datasetId);
   const summaries = records.map(summarize);
-  const [serving, modelVersions, runs, trainingWorkers] = await Promise.all([
-    servingWorkerCounts(at),
+  const [modelVersions, runs, trainingWorkers] = await Promise.all([
     listModelVersions(dataset.modelId),
     listTrainingRuns(dataset.modelId),
     listTrainingWorkers(at),
@@ -114,17 +112,20 @@ export async function datasetOverview(
   const versions = modelVersions.map((version) => ({
     version,
     selected: version.id === dataset.selectedModelVersionId,
-    serving: serving.get(version.id) ?? { online: 0, stale: 0 },
     trainingImages:
       version.source.kind === "training_run"
         ? (trainingImages.get(version.source.datasetSnapshotId) ?? null)
         : null,
   }));
+  const selected = versions.find((entry) => entry.selected);
   return {
     dataset,
     images: summaries,
     counts: countImageStates(summaries),
     versions,
+    inference: selected
+      ? await inferenceWorkerCount(selected.version.artifact, at)
+      : { online: 0, stale: 0 },
     training: {
       runs,
       active: await activeTrainingRun(dataset.modelId),

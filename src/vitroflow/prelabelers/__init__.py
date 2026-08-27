@@ -13,7 +13,12 @@ from .contract import (
 )
 from .documents import PrelabelDocument, parse_prelabel_document
 from .traditional import TraditionalPrelabeler
-from .yolo import YoloInferenceSettings, YoloPrelabeler, load_yolo_inference_settings
+from .yolo import (
+    YoloInferenceSettings,
+    YoloPrelabeler,
+    load_yolo_inference_settings,
+    yolo_runtime_descriptor,
+)
 
 __all__ = [
     "DishGeometry",
@@ -31,4 +36,5 @@ __all__ = [
     "YoloPrelabeler",
     "load_yolo_inference_settings",
     "parse_prelabel_document",
+    "yolo_runtime_descriptor",
 ]

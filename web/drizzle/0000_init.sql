@@ -48,9 +48,8 @@ CREATE TABLE "images" (
 CREATE TABLE "inference_workers" (
 	"id" text PRIMARY KEY NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
-	"model_version_id" text NOT NULL,
-	"artifact_digest" text NOT NULL,
-	"runtime" jsonb NOT NULL,
+	"runtimes" jsonb NOT NULL,
+	"loaded_model_version_id" text,
 	"current" jsonb,
 	"last_seen_at" timestamp with time zone NOT NULL
 );
@@ -140,7 +139,7 @@ ALTER TABLE "dataset_snapshot_images" ADD CONSTRAINT "dataset_snapshot_images_im
 ALTER TABLE "dataset_snapshots" ADD CONSTRAINT "dataset_snapshots_dataset_id_model_id_datasets_id_model_id_fk" FOREIGN KEY ("dataset_id","model_id") REFERENCES "public"."datasets"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "datasets" ADD CONSTRAINT "datasets_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "datasets" ADD CONSTRAINT "datasets_selected_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("selected_model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "inference_workers" ADD CONSTRAINT "inference_workers_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk" FOREIGN KEY ("model_version_id","artifact_digest") REFERENCES "public"."model_versions"("id","artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "inference_workers" ADD CONSTRAINT "inference_workers_loaded_model_version_id_model_versions_id_fk" FOREIGN KEY ("loaded_model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "labels" ADD CONSTRAINT "labels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk" FOREIGN KEY ("dataset_id","image_id") REFERENCES "public"."dataset_images"("dataset_id","image_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prelabels" ADD CONSTRAINT "prelabels_model_version_id_model_versions_id_fk" FOREIGN KEY ("model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

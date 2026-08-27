@@ -54,7 +54,7 @@ function StatusPage() {
               <Table.Column className="whitespace-nowrap">
                 Processing
               </Table.Column>
-              <Table.Column>Model</Table.Column>
+              <Table.Column>Loaded</Table.Column>
               <Table.Column className="whitespace-nowrap text-right">
                 Last seen
               </Table.Column>
@@ -70,7 +70,6 @@ function StatusPage() {
                   </span>
                   <code className="mt-3 max-w-full overflow-x-auto rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs whitespace-nowrap">
                     vitroflow worker setup inference NAME --server URL
-                    --model-version-id VERSION
                   </code>
                 </EmptyState>
               )}
@@ -106,30 +105,31 @@ function StatusPage() {
                     )}
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap font-mono text-muted">
-                    <span title={worker.runtime.fingerprint}>
-                      {worker.target ? (
+                    {worker.loaded ? (
+                      worker.loadedDataset ? (
                         <Link
-                          href={`/datasets/${worker.target.dataset}`}
+                          href={`/datasets/${worker.loadedDataset}`}
                           className="text-xs font-medium"
                         >
-                          {worker.deployment.modelVersionId}
+                          {worker.loaded}
                         </Link>
                       ) : (
-                        worker.deployment.modelVersionId
-                      )}
-                      {" / "}
-                      {worker.runtime.adapter}
-                    </span>
-                    {worker.target && !worker.target.selected && (
-                      <Chip
-                        color="warning"
-                        variant="soft"
-                        size="sm"
-                        className="ml-2"
-                      >
-                        Not selected
-                      </Chip>
+                        worker.loaded
+                      )
+                    ) : (
+                      <span>Nothing loaded</span>
                     )}
+                    <span className="mt-1 block text-xs">
+                      {worker.runtimes.map((runtime) => (
+                        <span
+                          key={runtime.adapter}
+                          title={runtime.fingerprint}
+                          className="mr-2"
+                        >
+                          {runtime.adapter}
+                        </span>
+                      ))}
+                    </span>
                   </Table.Cell>
                   <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums text-muted">
                     <span title={new Date(worker.lastSeenAt).toLocaleString()}>
@@ -165,7 +165,8 @@ function StatusPage() {
                     Training workers can run on a separate GPU machine.
                   </span>
                   <code className="mt-3 max-w-full overflow-x-auto rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs whitespace-nowrap">
-                    vitroflow worker setup training NAME --server URL --device mps
+                    vitroflow worker setup training NAME --server URL --device
+                    mps
                   </code>
                 </EmptyState>
               )}

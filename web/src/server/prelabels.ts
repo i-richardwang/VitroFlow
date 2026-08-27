@@ -4,6 +4,7 @@ import { database, transaction, type Executor } from "../db/client";
 import {
   datasetImages,
   datasets,
+  images,
   labels,
   modelVersions,
   prelabels,
@@ -12,14 +13,18 @@ import type { ImageRef } from "../datasets/schema";
 import { prelabelSchema, type Prelabel } from "../detection/schema";
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
+import type { ModelVersion } from "../models/schema";
 import {
   atRef,
   describeRef,
   membershipOrder,
   notInDataset,
+  sameMembership,
   toDatasetImage,
   type DatasetImage,
 } from "./datasets";
+import { canExecute } from "./inference-worker-store";
+import { toModelVersion } from "./model-registry";
 import { lockImageRecord, recordQuery } from "./summaries";
 
 /** Thrown when a worker tries to replace the prelabel a review started from. */
@@ -84,9 +89,9 @@ export async function writePrelabel(
         prelabel.producer.model_version_id ||
       assignment.versionModelId !== assignment.modelId ||
       assignment.artifactDigest !== prelabel.producer.artifact_digest ||
-      worker.deployment.modelVersionId !== prelabel.producer.model_version_id ||
-      worker.deployment.artifactDigest !== prelabel.producer.artifact_digest ||
-      !sameRuntimeDescriptor(worker.runtime, prelabel.producer.runtime)
+      !worker.runtimes.some((runtime) =>
+        sameRuntimeDescriptor(runtime, prelabel.producer.runtime),
+      )
     ) {
       throw new ModelVersionMismatchError(ref);
     }
@@ -112,16 +117,28 @@ export async function discardPrelabel(ref: ImageRef): Promise<void> {
   });
 }
 
+/** One version's share of the pending work, with the manifest to load it. */
+export interface Assignment {
+  modelVersion: ModelVersion;
+  images: DatasetImage[];
+}
+
 /**
- * Unreviewed images in datasets that select this exact executable version and
- * whose prelabel, if any, came from something else.
+ * Unreviewed images whose dataset selects a version the worker can execute
+ * and whose prelabel, if any, came from something else; grouped by version.
  */
-export async function pendingImages(deployment: {
-  modelVersionId: string;
-  artifactDigest: string;
-}): Promise<DatasetImage[]> {
+export async function pendingAssignments(
+  worker: Pick<InferenceWorkerRecord, "runtimes">,
+): Promise<Assignment[]> {
   const db = await database();
-  const rows = await recordQuery(db)
+  const rows = await db
+    .select({
+      membership: datasetImages,
+      image: images,
+      version: modelVersions,
+    })
+    .from(datasetImages)
+    .innerJoin(images, eq(images.id, datasetImages.imageId))
     .innerJoin(datasets, eq(datasets.id, datasetImages.datasetId))
     .innerJoin(
       modelVersions,
@@ -130,18 +147,33 @@ export async function pendingImages(deployment: {
         eq(modelVersions.modelId, datasets.modelId),
       ),
     )
+    .leftJoin(labels, sameMembership(labels, datasetImages))
+    .leftJoin(prelabels, sameMembership(prelabels, datasetImages))
     .where(
       and(
-        eq(modelVersions.id, deployment.modelVersionId),
-        eq(modelVersions.artifactDigest, deployment.artifactDigest),
         isNull(labels.imageId),
         or(
           isNull(prelabels.imageId),
-          ne(prelabels.modelVersionId, deployment.modelVersionId),
-          ne(prelabels.artifactDigest, deployment.artifactDigest),
+          ne(prelabels.modelVersionId, modelVersions.id),
+          ne(prelabels.artifactDigest, modelVersions.artifactDigest),
         ),
       ),
     )
-    .orderBy(asc(datasetImages.datasetId), ...membershipOrder());
-  return rows.map(toDatasetImage);
+    .orderBy(
+      asc(modelVersions.id),
+      asc(datasetImages.datasetId),
+      ...membershipOrder(),
+    );
+  const assignments: Assignment[] = [];
+  for (const row of rows) {
+    const last = assignments.at(-1);
+    if (last?.modelVersion.id === row.version.id) {
+      last.images.push(toDatasetImage(row));
+      continue;
+    }
+    const modelVersion = toModelVersion(row.version);
+    if (!canExecute(worker, modelVersion.artifact)) continue;
+    assignments.push({ modelVersion, images: [toDatasetImage(row)] });
+  }
+  return assignments;
 }

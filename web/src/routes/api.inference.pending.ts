@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { versionIdSchema } from "../inference/schema";
-import { pendingImages } from "../server/prelabels";
+import { pendingAssignments } from "../server/prelabels";
 import { readInferenceWorker } from "../server/inference-worker-store";
 
 const querySchema = z.object({
@@ -25,14 +25,16 @@ export const Route = createFileRoute("/api/inference/pending")({
             status: 409,
           });
         }
+        const assignments = await pendingAssignments(worker);
         return Response.json({
-          images: (await pendingImages(worker.deployment)).map(
-            ({ dataset, digest, extension }) => ({
+          assignments: assignments.map(({ modelVersion, images }) => ({
+            modelVersion,
+            images: images.map(({ dataset, digest, extension }) => ({
               dataset,
               digest,
               extension,
-            }),
-          ),
+            })),
+          })),
         });
       },
     },

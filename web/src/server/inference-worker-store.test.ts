@@ -16,14 +16,8 @@ const version = await ensureDatasetModel("presence", await database());
 const heartbeat = {
   workerId: "presence-worker",
   startedAt: "2026-01-01T00:00:00+00:00",
-  deployment: {
-    modelVersionId: version.id,
-    artifactDigest: version.artifact.digest,
-  },
-  runtime: {
-    adapter: "traditional" as const,
-    fingerprint: "b".repeat(64),
-  },
+  runtimes: [{ adapter: "traditional" as const, fingerprint: "b".repeat(64) }],
+  loaded: null,
   current: null,
 };
 
@@ -62,20 +56,20 @@ test("listing forgets workers that have been silent for a week", async () => {
   );
 });
 
-test("heartbeat verifies a published deployment instead of registering it", async () => {
+test("a loaded version must exist and match the worker's runtimes", async () => {
   await expect(
-    recordInferenceHeartbeat({
-      ...heartbeat,
-      deployment: {
-        ...heartbeat.deployment,
-        modelVersionId: "unknown-version",
-      },
-    }),
+    recordInferenceHeartbeat({ ...heartbeat, loaded: "unknown-version" }),
   ).rejects.toThrow(/Unknown model version/);
   await expect(
     recordInferenceHeartbeat({
       ...heartbeat,
-      deployment: { ...heartbeat.deployment, artifactDigest: "c".repeat(64) },
+      runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
+      loaded: version.id,
     }),
-  ).rejects.toThrow(/artifact does not match/);
+  ).rejects.toThrow(/cannot execute/);
+  const worker = await recordInferenceHeartbeat({
+    ...heartbeat,
+    loaded: version.id,
+  });
+  expect(worker.loaded).toBe(version.id);
 });

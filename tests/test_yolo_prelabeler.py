@@ -4,11 +4,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import httpx
 import numpy as np
 import pytest
 
-from vitroflow import inference_worker
+from vitroflow.inference_models import ModelStore
 from vitroflow.prelabelers import PredictionProducer, YoloPrelabeler
 from vitroflow.prelabelers import yolo as yolo_module
 
@@ -178,27 +177,22 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
             },
         },
     }
-    monkeypatch.setattr(
-        inference_worker,
-        "deployment_manifest",
-        lambda settings: {"id": settings.model_version_id, "artifact": artifact},
-    )
 
-    def download(url: str, **kwargs: object) -> httpx.Response:
-        request = httpx.Request("GET", url)
-        return httpx.Response(200, content=b"weights", request=request)
+    class Source:
+        def __init__(self) -> None:
+            self.requested: list[str] = []
 
-    monkeypatch.setattr(inference_worker.httpx, "get", download)
-    settings = inference_worker.InferenceWorkerSettings(
-        server_url="https://example.test",
-        token="secret",
-        worker_id="test-worker",
-        model_version_id="set.yolo-v1",
-        work_dir=tmp_path / "worker",
-        device="cpu",
-    )
+        def weights(self, version_id: str) -> bytes:
+            self.requested.append(version_id)
+            return b"weights"
 
-    deployed = inference_worker.build_prelabeler(settings)
+    source = Source()
+    store = ModelStore(source, tmp_path / "worker", "cpu")
 
+    deployed = store.load({"id": "set.yolo-v1", "artifact": artifact})
+
+    assert source.requested == ["set.yolo-v1"]
+    assert store.loaded == "set.yolo-v1"
+    assert store.load({"id": "set.yolo-v1", "artifact": artifact}) is deployed
     assert deployed.artifact_digest == reference.artifact_digest
-    assert (settings.work_dir / "model-artifacts/set.yolo-v1/weights/best.pt").is_file()
+    assert (tmp_path / "worker/model-artifacts/set.yolo-v1/weights/best.pt").is_file()

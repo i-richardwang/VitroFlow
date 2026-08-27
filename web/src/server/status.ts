@@ -23,36 +23,18 @@ import {
   trainingWorkerPresence,
 } from "./training-worker-store";
 
-interface DeploymentTarget {
-  dataset: string;
-  /** Whether the dataset still selects the deployed version. */
-  selected: boolean;
-}
-
-/** The dataset each deployed version belongs to, in one query. */
-async function deploymentTargets(
+/** The dataset each loaded version belongs to, in one query. */
+async function versionDatasets(
   versionIds: string[],
-): Promise<Map<string, DeploymentTarget>> {
+): Promise<Map<string, string>> {
   if (versionIds.length === 0) return new Map();
   const db = await database();
   const rows = await db
-    .select({
-      versionId: modelVersions.id,
-      dataset: datasets.id,
-      selectedVersionId: datasets.selectedModelVersionId,
-    })
+    .select({ versionId: modelVersions.id, dataset: datasets.id })
     .from(modelVersions)
     .innerJoin(datasets, eq(datasets.modelId, modelVersions.modelId))
     .where(inArray(modelVersions.id, versionIds));
-  return new Map(
-    rows.map((row) => [
-      row.versionId,
-      {
-        dataset: row.dataset,
-        selected: row.selectedVersionId === row.versionId,
-      },
-    ]),
-  );
+  return new Map(rows.map((row) => [row.versionId, row.dataset]));
 }
 
 /** The dataset each run trains on, in one query. */
@@ -87,8 +69,10 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
     listTrainingWorkers(at),
     listDatasets(),
   ]);
-  const [targets, datasetsByRun] = await Promise.all([
-    deploymentTargets(inferenceWorkers.map((w) => w.deployment.modelVersionId)),
+  const [datasetsByVersion, datasetsByRun] = await Promise.all([
+    versionDatasets(
+      inferenceWorkers.flatMap((w) => (w.loaded ? [w.loaded] : [])),
+    ),
     runDatasets(
       trainingWorkers.flatMap((w) =>
         w.currentTrainingRunId ? [w.currentTrainingRunId] : [],
@@ -107,7 +91,9 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
       ...worker,
       presence: inferenceWorkerPresence(worker, at),
       lastSeenSeconds: age(worker.lastSeenAt),
-      target: targets.get(worker.deployment.modelVersionId) ?? null,
+      loadedDataset: worker.loaded
+        ? (datasetsByVersion.get(worker.loaded) ?? null)
+        : null,
     })),
     trainingWorkers: trainingWorkers.map((worker) => ({
       ...worker,

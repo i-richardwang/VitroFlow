@@ -7,13 +7,21 @@ import {
   type InferenceWorkerHeartbeat,
   type InferenceWorkerRecord,
 } from "../inference/workers";
-import { supportsRuntime } from "../models/schema";
+import { supportsRuntime, type ModelArtifact } from "../models/schema";
 import {
   WORKER_FORGET_SECONDS,
   workerPresence,
   type WorkerPresence,
 } from "../workers/presence";
 import { readModelVersion } from "./model-registry";
+
+/** Whether one of the worker's runtimes executes this artifact. */
+export function canExecute(
+  worker: Pick<InferenceWorkerRecord, "runtimes">,
+  artifact: ModelArtifact,
+): boolean {
+  return worker.runtimes.some((runtime) => supportsRuntime(artifact, runtime));
+}
 
 /**
  * A worker heartbeats while polling for work and before every image it
@@ -25,11 +33,8 @@ function toRecord(
   return workerSchema.parse({
     workerId: row.id,
     startedAt: row.startedAt.toISOString(),
-    deployment: {
-      modelVersionId: row.modelVersionId,
-      artifactDigest: row.artifactDigest,
-    },
-    runtime: row.runtime,
+    runtimes: row.runtimes,
+    loaded: row.loadedModelVersionId,
     current: row.current,
     lastSeenAt: row.lastSeenAt.toISOString(),
   });
@@ -44,25 +49,17 @@ export async function recordInferenceHeartbeat(
     lastSeenAt: at.toISOString(),
   });
   const db = await database();
-  const version = await readModelVersion(worker.deployment.modelVersionId, db);
-  if (!version) {
-    throw new Error(
-      `Unknown model version: ${worker.deployment.modelVersionId}`,
-    );
-  }
-  if (version.artifact.digest !== worker.deployment.artifactDigest) {
-    throw new Error(
-      "Inference deployment artifact does not match model version",
-    );
-  }
-  if (!supportsRuntime(version.artifact, worker.runtime)) {
-    throw new Error("Inference runtime cannot execute this model artifact");
+  if (worker.loaded) {
+    const version = await readModelVersion(worker.loaded, db);
+    if (!version) throw new Error(`Unknown model version: ${worker.loaded}`);
+    if (!canExecute(worker, version.artifact)) {
+      throw new Error("Inference runtimes cannot execute the loaded version");
+    }
   }
   const row = {
     startedAt: new Date(worker.startedAt),
-    modelVersionId: worker.deployment.modelVersionId,
-    artifactDigest: worker.deployment.artifactDigest,
-    runtime: worker.runtime,
+    runtimes: worker.runtimes,
+    loadedModelVersionId: worker.loaded,
     current: worker.current,
     lastSeenAt: at,
   };

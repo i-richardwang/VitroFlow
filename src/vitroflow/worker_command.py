@@ -40,7 +40,6 @@ def _setup(args: argparse.Namespace) -> int:
         token=token,
         worker_id=args.worker_id or args.profile,
         device=args.device,
-        model_version_id=args.model_version_id,
         poll_seconds=args.poll_seconds,
     )
     for check in preflight_profile(args.profile, profile):
@@ -116,7 +115,6 @@ def add_worker_commands(commands: SubparserCollection) -> None:
     setup.add_argument("--server", required=True)
     setup.add_argument("--worker-id")
     setup.add_argument("--device")
-    setup.add_argument("--model-version-id")
     setup.add_argument("--poll-seconds", type=float, default=5.0)
     setup.add_argument(
         "--force", action="store_true", help="Replace an existing profile"

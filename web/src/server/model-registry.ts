@@ -52,7 +52,7 @@ function toModel(row: typeof models.$inferSelect): Model {
   });
 }
 
-function toModelVersion(row: VersionRow): ModelVersion {
+export function toModelVersion(row: VersionRow): ModelVersion {
   return modelVersionSchema.parse({
     schemaVersion: 1,
     id: row.id,

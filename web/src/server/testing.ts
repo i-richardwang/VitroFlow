@@ -3,7 +3,8 @@ import { makeResult } from "../annotation/testing";
 import type { PrelabelResult } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { ModelVersion } from "../models/schema";
-import type { ImageExtension } from "../datasets/schema";
+import type { ImageExtension, ImageRef } from "../datasets/schema";
+import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { contentDigest } from "./blobs";
 import { IMAGE_SIGNATURES } from "./image-format";
 import { readDataset } from "./datasets";
@@ -15,6 +16,20 @@ export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
   fingerprint: "b".repeat(64),
 };
+
+/** A heartbeat from a worker that executes only `TEST_RUNTIME`. */
+export function testHeartbeat(
+  workerId: string,
+  current: ImageRef | null = null,
+): InferenceWorkerHeartbeat {
+  return {
+    workerId,
+    startedAt: "2026-08-27T00:00:00.000Z",
+    runtimes: [TEST_RUNTIME],
+    loaded: null,
+    current,
+  };
+}
 
 /** Bytes that declare `format` and carry `content` behind the signature. */
 export function imageBytes(

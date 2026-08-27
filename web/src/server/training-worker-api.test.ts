@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { Route as ManifestRoute } from "../routes/api.inference.model-versions.$versionId";
 import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
 import { Route as ClaimRoute } from "../routes/api.training.claim";
@@ -163,13 +162,6 @@ test("training HTTP routes publish one candidate version without selecting it", 
   );
 
   const versionId = published.state.modelVersionId;
-  const manifest = await handler(
-    ManifestRoute,
-    "GET",
-  )({
-    params: { versionId },
-  } as never);
-  expect((await manifest.json()).id).toBe(versionId);
   const weights = await handler(
     WeightsRoute,
     "GET",

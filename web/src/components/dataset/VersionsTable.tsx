@@ -6,7 +6,6 @@ import { Count } from "../Count";
 import { Timestamp } from "../Timestamp";
 import { ModelKindChip } from "./ModelKindChip";
 import { SelectVersionDialog } from "./SelectVersionDialog";
-import { ServingChip } from "./ServingChip";
 
 export function VersionsTable({
   dataset,
@@ -29,13 +28,12 @@ export function VersionsTable({
             <Table.Column className="whitespace-nowrap text-right">
               mAP50-95
             </Table.Column>
-            <Table.Column>Serving</Table.Column>
             <Table.Column>
               <span className="sr-only">Selection</span>
             </Table.Column>
           </Table.Header>
           <Table.Body>
-            {versions.map(({ version, selected, serving, trainingImages }) => (
+            {versions.map(({ version, selected, trainingImages }) => (
               <Table.Row key={version.id}>
                 <Table.Cell className="font-mono font-medium">
                   {versionSlug(version)}
@@ -57,9 +55,6 @@ export function VersionsTable({
                     value={validationMetric(version.artifact, "mAP50-95")}
                   />
                 </Table.Cell>
-                <Table.Cell>
-                  <ServingChip serving={serving} />
-                </Table.Cell>
                 <Table.Cell className="text-right">
                   {selected ? (
                     <Chip color="accent" variant="primary" size="sm">
@@ -70,7 +65,6 @@ export function VersionsTable({
                       dataset={dataset}
                       versionId={version.id}
                       label={versionSlug(version)}
-                      serving={serving}
                     />
                   )}
                 </Table.Cell>

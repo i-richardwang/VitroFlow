@@ -20,7 +20,6 @@ def test_profile_round_trip_is_private(tmp_path, monkeypatch) -> None:
         token="secret",
         worker_id="mac-studio-seed-v3",
         device="mps",
-        model_version_id="seed.yolo-v3",
     )
 
     path = save_profile("seed-v3", profile)
@@ -31,16 +30,7 @@ def test_profile_round_trip_is_private(tmp_path, monkeypatch) -> None:
     assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
 
 
-def test_profile_rejects_role_specific_fields() -> None:
-    with pytest.raises(ValueError, match="cannot bind"):
-        WorkerProfile(
-            role="training",
-            server_url="https://example.test",
-            token="secret",
-            worker_id="trainer",
-            model_version_id="seed.yolo-v3",
-        )
-
+def test_profile_rejects_an_unknown_device() -> None:
     with pytest.raises(ValueError, match="device must be"):
         WorkerProfile(
             role="training",

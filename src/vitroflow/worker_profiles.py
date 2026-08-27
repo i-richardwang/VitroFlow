@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from .identifiers import VERSION_ID, WORKER_DEVICE, WORKER_ID
+from .identifiers import WORKER_DEVICE, WORKER_ID
 
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PROFILE_FIELDS = {
@@ -18,19 +18,19 @@ PROFILE_FIELDS = {
     "token",
     "worker_id",
     "device",
-    "model_version_id",
     "poll_seconds",
 }
 
 
 @dataclass(frozen=True)
 class WorkerProfile:
+    """One native Worker process: who it serves, as whom, and on which accelerator."""
+
     role: Literal["inference", "training"]
     server_url: str
     token: str
     worker_id: str
     device: str | None = None
-    model_version_id: str | None = None
     poll_seconds: float = 5.0
 
     def __post_init__(self) -> None:
@@ -46,13 +46,6 @@ class WorkerProfile:
             raise ValueError("poll interval must be positive")
         if self.device is not None and not WORKER_DEVICE.fullmatch(self.device):
             raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
-        if self.role == "inference":
-            if not self.model_version_id or not VERSION_ID.fullmatch(
-                self.model_version_id
-            ):
-                raise ValueError("inference profile requires a valid model version id")
-        elif self.model_version_id is not None:
-            raise ValueError("training profile cannot bind a model version")
 
     @classmethod
     def from_toml(cls, path: Path) -> WorkerProfile:
@@ -73,8 +66,6 @@ class WorkerProfile:
         ]
         if self.device is not None:
             values.append(("device", self.device))
-        if self.model_version_id is not None:
-            values.append(("model_version_id", self.model_version_id))
         values.append(("poll_seconds", self.poll_seconds))
         return "".join(
             f"{key} = {json.dumps(value)}\n"

@@ -131,6 +131,12 @@ def _runtime_fingerprint() -> str:
     return digest.hexdigest()
 
 
+def yolo_runtime_descriptor() -> RuntimeDescriptor:
+    """The runtime identity this process would sign YOLO predictions with."""
+    load_yolo()
+    return RuntimeDescriptor(adapter="ultralytics", fingerprint=_runtime_fingerprint())
+
+
 @dataclass
 class YoloPrelabeler:
     """Runs one validated YOLO training artifact through the shared contract."""
@@ -149,10 +155,7 @@ class YoloPrelabeler:
             raise FileNotFoundError(self.weights)
         self._runtime = load_yolo()
         self._artifact_digest = _artifact_digest(self.weights, self.settings)
-        self._runtime_descriptor = RuntimeDescriptor(
-            adapter="ultralytics",
-            fingerprint=_runtime_fingerprint(),
-        )
+        self._runtime_descriptor = yolo_runtime_descriptor()
 
     @classmethod
     def from_run(
