@@ -1,5 +1,6 @@
 import { createMiddleware, createStart } from "@tanstack/react-start";
 
+import { loginPath, requestedPath } from "./auth/navigation";
 import { isAuthenticated, redirect } from "./server/session";
 import {
   isExportAuthenticated,
@@ -33,7 +34,7 @@ const requireSession = createMiddleware().server(
     if (handlerType === "serverFn") {
       return new Response("Unauthorized", { status: 401 });
     }
-    return redirect("/login");
+    return redirect(loginPath(requestedPath(request)));
   },
 );
 

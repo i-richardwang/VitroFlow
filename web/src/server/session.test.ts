@@ -9,16 +9,18 @@ test("document redirects use a relative Location", () => {
   expect(response.headers.get("Location")).toBe("/login?rejected=true");
 });
 
-test("passwordless login GET does not copy the request origin into Location", () => {
+test("passwordless login GET returns to the requested workbench page", () => {
   const handlers = LoginRoute.options.server?.handlers as
     | {
         GET?: (context: { request: Request; next: () => Response }) => Response;
       }
     | undefined;
   const response = handlers?.GET?.({
-    request: new Request("http://example.invalid/login"),
+    request: new Request(
+      "http://example.invalid/login?returnTo=%2Fstatus%3Fworkers%3Donline",
+    ),
     next: () => new Response("ok"),
   });
   expect(response?.status).toBe(303);
-  expect(response?.headers.get("Location")).toBe("/");
+  expect(response?.headers.get("Location")).toBe("/status?workers=online");
 });

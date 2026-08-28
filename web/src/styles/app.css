@@ -2,6 +2,11 @@
 @import "@heroui/styles";
 @import "@heroui-pro/react/css";
 
+:root {
+  --accent: #4a4636;
+  --danger: #b42318;
+}
+
 [data-app-layout].sidebar__provider,
 [data-app-layout][data-scroll-mode="content"] {
   height: 100%;

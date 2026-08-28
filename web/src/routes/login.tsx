@@ -8,21 +8,34 @@ import {
   TextField,
 } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { z } from "zod";
 
+import { loginPath, returnPath } from "../auth/navigation";
 import { BrandLogo } from "../components/BrandLogo";
 import { isAuthenticated, redirect, signIn } from "../server/session";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: z.object({ rejected: z.boolean().optional() }),
+  validateSearch: z.object({
+    rejected: z.boolean().optional(),
+    returnTo: z.string().optional(),
+  }),
+  head: () => ({ meta: [{ title: "Sign in · VitroFlow" }] }),
   server: {
     handlers: {
-      GET: ({ request, next }) =>
-        isAuthenticated(request) ? redirect("/") : next(),
+      GET: ({ request, next }) => {
+        const destination = returnPath(
+          new URL(request.url).searchParams.get("returnTo"),
+        );
+        return isAuthenticated(request) ? redirect(destination) : next();
+      },
       POST: async ({ request }) => {
         const form = await request.formData();
+        const destination = returnPath(form.get("returnTo"));
         const accepted = signIn(String(form.get("password") ?? ""));
-        return redirect(accepted ? "/" : "/login?rejected=true");
+        return redirect(
+          accepted ? destination : loginPath(destination, true),
+        );
       },
     },
   },
@@ -30,30 +43,34 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { rejected } = Route.useSearch();
+  const { rejected, returnTo: requestedReturnPath } = Route.useSearch();
+  const destination = returnPath(requestedReturnPath);
+  const [rejectionDismissed, setRejectionDismissed] = useState(false);
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center bg-surface-secondary p-6 md:p-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
-        <div className="flex items-center gap-2.5 self-center font-medium">
+        <header className="flex items-center gap-2.5 self-center">
           <BrandLogo className="size-10" />
-          VitroFlow
-        </div>
+          <span className="text-sm font-semibold">VitroFlow</span>
+        </header>
         <Card className="w-full">
           <Card.Header>
-            <Card.Title>Sign in</Card.Title>
+            <Card.Title render={(props) => <h1 {...props} />}>Sign in</Card.Title>
             <Card.Description>
               Enter the workbench password to continue.
             </Card.Description>
           </Card.Header>
           <Form method="post" action="/login">
             <Card.Content>
+              <input type="hidden" name="returnTo" value={destination} />
               <TextField
                 fullWidth
-                isInvalid={rejected}
+                isInvalid={Boolean(rejected) && !rejectionDismissed}
                 isRequired
                 autoFocus
                 name="password"
+                onChange={() => setRejectionDismissed(true)}
                 type="password"
               >
                 <Label>Password</Label>
