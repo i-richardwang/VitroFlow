@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { recordTrainingHeartbeat } from "../server/training-worker-store";
+import {
+  parseTrainingJson,
+  trainingWorkerErrorResponse,
+} from "../server/training-worker-http";
 import { trainingWorkerHeartbeatSchema } from "../training/workers";
 
 export const Route = createFileRoute("/api/training/heartbeat")({
@@ -10,15 +14,13 @@ export const Route = createFileRoute("/api/training/heartbeat")({
         try {
           return Response.json(
             await recordTrainingHeartbeat(
-              trainingWorkerHeartbeatSchema.parse(await request.json()),
+              await parseTrainingJson(request, trainingWorkerHeartbeatSchema),
             ),
           );
         } catch (error) {
-          return new Response(
-            error instanceof Error ? error.message : String(error),
-            {
-              status: 400,
-            },
+          return trainingWorkerErrorResponse(
+            error,
+            "Training worker heartbeat failed",
           );
         }
       },

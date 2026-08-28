@@ -12,7 +12,10 @@ import { TrainingRunState } from "../../components/training/TrainingRunState";
 import { validationMetric, versionSlug } from "../../models/schema";
 import { getTrainingRun } from "../../server/models";
 import { bestEpoch } from "../../server/training-console";
-import { trainingRunLabel } from "../../training/schema";
+import {
+  isTrainingRunActive,
+  trainingRunLabel,
+} from "../../training/schema";
 
 export const Route = createFileRoute(
   "/_workbench/datasets/$dataset/training/$runId",
@@ -25,7 +28,7 @@ export const Route = createFileRoute(
 function TrainingRunPage() {
   const { dataset, run, epochs, version } = Route.useLoaderData();
   const router = useRouter();
-  const live = run.state.status === "queued" || run.state.status === "running";
+  const live = isTrainingRunActive(run);
 
   useEffect(() => {
     if (!live) return;

@@ -6,9 +6,10 @@ import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artif
 import { Route as ClaimRoute } from "../routes/api.training.claim";
 import { Route as EpochsRoute } from "../routes/api.training.runs.$runId.epochs";
 import { Route as HeartbeatRoute } from "../routes/api.training.heartbeat";
+import { Route as LeaseRoute } from "../routes/api.training.runs.$runId.lease";
+import { Route as PhaseRoute } from "../routes/api.training.runs.$runId.phase";
 import { Route as ReadyRoute } from "../routes/api.training.ready";
 import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$digest";
-import { Route as ProgressRoute } from "../routes/api.training.runs.$runId.progress";
 import { Route as SnapshotRoute } from "../routes/api.training.runs.$runId.snapshot";
 import { contentDigest } from "./blobs";
 import { readDataset } from "./datasets";
@@ -91,6 +92,15 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect(image.status).toBe(200);
   expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(digest);
 
+  const trainingPhase = await handler(PhaseRoute, "POST")({
+    params: { runId: created.id },
+    request: new Request("http://localhost/phase", {
+      method: "POST",
+      body: JSON.stringify({ workerId: "api-trainer", phase: "training" }),
+    }),
+  } as never);
+  expect(trainingPhase.status).toBe(200);
+
   const epoch = await handler(
     EpochsRoute,
     "POST",
@@ -116,24 +126,28 @@ test("training HTTP routes publish one candidate version without selecting it", 
   const reported = (await epoch.json()).state;
   expect(reported.phase).toBe("training");
   expect(reported.progress).toBeCloseTo(
-    1 / YOLO26_SEED_SMALL_RECIPE.parameters.epochs,
+    0.05 + 0.85 / YOLO26_SEED_SMALL_RECIPE.parameters.epochs,
   );
 
-  const progress = await handler(
-    ProgressRoute,
-    "POST",
-  )({
+  const lease = await handler(LeaseRoute, "POST")({
     params: { runId: created.id },
-    request: new Request("http://localhost/progress", {
+    request: new Request("http://localhost/lease", {
       method: "POST",
-      body: JSON.stringify({
-        workerId: "api-trainer",
-        phase: "validating",
-        progress: 0.95,
-      }),
+      body: JSON.stringify({ workerId: "api-trainer" }),
     }),
   } as never);
-  expect(progress.status).toBe(200);
+  expect(lease.status).toBe(200);
+  expect((await lease.json()).state.progress).toBeCloseTo(reported.progress);
+
+  const validationPhase = await handler(PhaseRoute, "POST")({
+    params: { runId: created.id },
+    request: new Request("http://localhost/phase", {
+      method: "POST",
+      body: JSON.stringify({ workerId: "api-trainer", phase: "validating" }),
+    }),
+  } as never);
+  expect(validationPhase.status).toBe(200);
+  expect((await validationPhase.json()).state.progress).toBe(0.9);
 
   const publication = {
     schema_version: 1,
@@ -205,4 +219,24 @@ test("training readiness identifies the authenticated control plane", async () =
 
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ role: "training" });
+});
+
+test("training HTTP routes distinguish invalid requests from lease conflicts", async () => {
+  const invalid = await handler(PhaseRoute, "POST")({
+    params: { runId: "train-invalid" },
+    request: new Request("http://localhost/phase", {
+      method: "POST",
+      body: JSON.stringify({ workerId: "trainer", phase: "complete" }),
+    }),
+  } as never);
+  expect(invalid.status).toBe(400);
+
+  const conflict = await handler(LeaseRoute, "POST")({
+    params: { runId: "train-missing" },
+    request: new Request("http://localhost/lease", {
+      method: "POST",
+      body: JSON.stringify({ workerId: "trainer" }),
+    }),
+  } as never);
+  expect(conflict.status).toBe(409);
 });

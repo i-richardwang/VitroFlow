@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { versionIdSchema } from "../inference/schema";
-import { claimTrainingRun } from "../server/training-runs";
+import { renewTrainingLease } from "../server/training-runs";
 import {
   parseTrainingJson,
   trainingWorkerErrorResponse,
@@ -10,18 +10,19 @@ import {
 
 const bodySchema = z.strictObject({ workerId: versionIdSchema });
 
-export const Route = createFileRoute("/api/training/claim")({
+export const Route = createFileRoute("/api/training/runs/$runId/lease")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: async ({ params, request }) => {
         try {
           const { workerId } = await parseTrainingJson(request, bodySchema);
-          const run = await claimTrainingRun(workerId);
-          return Response.json({ run });
+          return Response.json(
+            await renewTrainingLease(params.runId, workerId),
+          );
         } catch (error) {
           return trainingWorkerErrorResponse(
             error,
-            "Training run claim failed",
+            "Training lease renewal failed",
           );
         }
       },

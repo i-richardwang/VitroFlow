@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
+from vitroflow.training_recipe import load_training_recipe_manifest
 from vitroflow.yolo import train_yolo_detector
 
 DEFAULT_RECIPE_PATH = (
@@ -39,8 +39,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    recipe = json.loads(args.recipe.read_text(encoding="utf-8"))["recipe"]
-    parameters = dict(recipe["parameters"])
+    recipe = load_training_recipe_manifest(args.recipe)
+    parameters = dict(recipe.parameters)
     for name in ("epochs", "imgsz", "batch"):
         override = getattr(args, name)
         if override is not None:
@@ -50,9 +50,9 @@ def main() -> int:
         args.data,
         args.output,
         parameters=parameters,
-        model=recipe["baseModel"]["reference"],
-        model_digest=recipe["baseModel"]["digest"],
-        runtime_version=recipe["runtime"]["version"],
+        model=recipe.base_model_reference,
+        model_digest=recipe.base_model_digest,
+        runtime_version=recipe.runtime_version,
         device=args.device,
         on_epoch=lambda epoch: print(
             f"epoch {epoch.epoch}/{parameters['epochs']}: "

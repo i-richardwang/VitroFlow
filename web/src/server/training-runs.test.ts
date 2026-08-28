@@ -11,6 +11,7 @@ import { readModelVersion } from "./model-registry";
 import {
   claimTrainingRun,
   createTrainingRun,
+  enterTrainingPhase,
   failTrainingRun,
   latestAttemptEpochs,
   listTrainingEpochs,
@@ -18,7 +19,7 @@ import {
   readTrainingRun,
   recordTrainingEpoch,
   recoverTrainingPublications,
-  reportTrainingProgress,
+  renewTrainingLease,
 } from "./training-runs";
 import { recordTrainingHeartbeat } from "./training-worker-store";
 import { imageDigest, reviewedDataset as reviewed } from "./testing";
@@ -137,7 +138,7 @@ test("a training run owns an immutable self-contained snapshot", async () => {
     expect(image.annotation.image.digest).toBe(image.digest);
   }
   await expect(
-    reportTrainingProgress(run.id, "another-trainer", "training", 0.5),
+    renewTrainingLease(run.id, "another-trainer"),
   ).rejects.toThrow(/not owned/);
   await failTrainingRun(run.id, "snapshot-trainer", "stopped");
 });
@@ -147,7 +148,8 @@ test("the server publishes a candidate version idempotently without selecting it
   const run = await createTrainingRun("publish-contract", recipe);
   await trainer("publisher");
   expect((await claimTrainingRun("publisher"))?.id).toBe(run.id);
-  await reportTrainingProgress(run.id, "publisher", "validating", 0.95);
+  await enterTrainingPhase(run.id, "publisher", "training");
+  await enterTrainingPhase(run.id, "publisher", "validating");
 
   const weights = new TextEncoder().encode("trained-weights");
   await expect(
@@ -238,6 +240,10 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
   await trainer("epoch-successor");
   const start = new Date();
   expect((await claimTrainingRun("epoch-trainer", start))?.id).toBe(run.id);
+  await expect(
+    recordTrainingEpoch(run.id, "epoch-trainer", epochReport(1), start),
+  ).rejects.toThrow(/while preparing/);
+  await enterTrainingPhase(run.id, "epoch-trainer", "training", start);
 
   const first = await recordTrainingEpoch(
     run.id,
@@ -247,7 +253,7 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
   );
   expect(first.state).toMatchObject({ status: "running", phase: "training" });
   if (first.state.status !== "running") throw new Error("not running");
-  expect(first.state.progress).toBeCloseTo(1 / 3);
+  expect(first.state.progress).toBeCloseTo(0.05 + 0.85 / 3);
   await recordTrainingEpoch(run.id, "epoch-trainer", epochReport(2), start);
   await recordTrainingEpoch(
     run.id,
@@ -255,6 +261,21 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
     { ...epochReport(2), fitness: 0.5 },
     start,
   );
+  const renewed = await renewTrainingLease(run.id, "epoch-trainer", start);
+  expect(renewed.state).toMatchObject({
+    status: "running",
+    phase: "training",
+  });
+  if (renewed.state.status !== "running") throw new Error("not running");
+  expect(renewed.state.progress).toBeCloseTo(0.05 + (0.85 * 2) / 3);
+  const repeatedEarlier = await recordTrainingEpoch(
+    run.id,
+    "epoch-trainer",
+    epochReport(1),
+    start,
+  );
+  if (repeatedEarlier.state.status !== "running") throw new Error("not running");
+  expect(repeatedEarlier.state.progress).toBeCloseTo(0.05 + (0.85 * 2) / 3);
   await expect(
     recordTrainingEpoch(run.id, "epoch-trainer", epochReport(4), start),
   ).rejects.toThrow(/has 3 epochs/);
@@ -264,6 +285,7 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
 
   const expired = new Date(start.getTime() + 10 * 60 * 1000);
   expect((await claimTrainingRun("epoch-successor", expired))?.id).toBe(run.id);
+  await enterTrainingPhase(run.id, "epoch-successor", "training", expired);
   await recordTrainingEpoch(run.id, "epoch-successor", epochReport(1), expired);
 
   const history = await listTrainingEpochs(run.id);
@@ -283,6 +305,23 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
   const latest = await latestAttemptEpochs([run.id, "train-missing"]);
   expect([...latest.keys()]).toEqual([run.id]);
   expect(latest.get(run.id)?.map(({ epoch }) => epoch)).toEqual([1]);
+  const validating = await enterTrainingPhase(
+    run.id,
+    "epoch-successor",
+    "validating",
+    expired,
+  );
+  expect(validating.state).toMatchObject({
+    status: "running",
+    phase: "validating",
+    progress: 0.9,
+  });
+  await expect(
+    enterTrainingPhase(run.id, "epoch-successor", "training", expired),
+  ).rejects.toThrow(/cannot move/);
+  await expect(
+    recordTrainingEpoch(run.id, "epoch-successor", epochReport(2), expired),
+  ).rejects.toThrow(/while validating/);
   await failTrainingRun(run.id, "epoch-successor", "stopped");
 });
 
@@ -296,7 +335,7 @@ test("a worker whose lease was reassigned can no longer report on the run", asyn
   const expired = new Date(start.getTime() + 10 * 60 * 1000);
   expect((await claimTrainingRun("fast-trainer", expired))?.id).toBe(run.id);
   await expect(
-    reportTrainingProgress(run.id, "slow-trainer", "training", 0.5),
+    renewTrainingLease(run.id, "slow-trainer"),
   ).rejects.toThrow(/not owned/);
   await expect(failTrainingRun(run.id, "slow-trainer", "late")).rejects.toThrow(
     /not owned/,

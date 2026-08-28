@@ -14,7 +14,21 @@ from vitroflow.yolo.training import (
     train_yolo_detector,
 )
 
-PARAMETERS = {"epochs": 3, "imgsz": 768, "batch": 4, "mosaic": 0.0}
+PARAMETERS = {
+    "epochs": 3,
+    "patience": 20,
+    "batch": 4,
+    "imgsz": 768,
+    "optimizer": "AdamW",
+    "lr0": 0.001,
+    "warmup_epochs": 3.0,
+    "mosaic": 0.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "max_det": 500,
+    "seed": 0,
+    "deterministic": True,
+}
 
 
 def test_seed_small_recipe_fixes_every_training_argument() -> None:
@@ -236,6 +250,7 @@ def test_training_reports_epochs_and_publishes_validated_settings(
     dataset = _dataset(tmp_path)
     output = tmp_path / "run"
     reported: list[EpochReport] = []
+    phases: list[str] = []
 
     result = train_yolo_detector(
         dataset,
@@ -245,10 +260,13 @@ def test_training_reports_epochs_and_publishes_validated_settings(
         model_digest=digest,
         runtime_version="8.4.129",
         device="mps",
+        on_training_start=lambda: phases.append("training"),
         on_epoch=reported.append,
+        on_validation_start=lambda: phases.append("validating"),
     )
 
     assert [report.epoch for report in reported] == [1, 2]
+    assert phases == ["training", "validating"]
     assert result.best_weights == output / "weights" / "best.pt"
     assert result.confidence == pytest.approx(0.2)
     assert instances[0].train_options == {

@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, gt, inArray, lte, or } from "drizzle-orm";
 import { database, transaction, type Executor } from "../db/client";
 import { trainingEpochs, trainingRuns } from "../db/schema";
 import {
+  ACTIVE_TRAINING_RUN_STATUSES,
   inferencePublicationSchema,
   trainingEpochSchema,
   trainingRecipeSchema,
@@ -16,6 +17,11 @@ import {
   type TrainingRecipe,
   type TrainingRun,
 } from "../training/schema";
+import {
+  TrainingArtifactValidationError,
+  TrainingRunConflictError,
+  TrainingRunNotFoundError,
+} from "../training/errors";
 import { blobExists, moveBlobDirectory, readBlob, writeBlob } from "./blobs";
 import {
   createDatasetSnapshot,
@@ -26,14 +32,24 @@ import { registerModelVersion } from "./model-registry";
 import { readTrainingWorker } from "./training-worker-store";
 
 const LEASE_MILLISECONDS = 5 * 60 * 1000;
-const ACTIVE_STATUSES = ["queued", "running", "publishing"] as const;
-
-export class TrainingRunConflictError extends Error {}
-export class TrainingRunNotFoundError extends Error {}
-export class TrainingArtifactValidationError extends Error {}
+const PHASE_PROGRESS: Record<TrainingPhase, number> = {
+  preparing: 0,
+  training: 0.05,
+  validating: 0.9,
+};
+const TRAINING_PROGRESS_RANGE =
+  PHASE_PROGRESS.validating - PHASE_PROGRESS.training;
+const NEXT_PHASE: Record<TrainingPhase, TrainingPhase | null> = {
+  preparing: "training",
+  training: "validating",
+  validating: null,
+};
 
 type Row = typeof trainingRuns.$inferSelect;
 type EpochRow = typeof trainingEpochs.$inferSelect;
+type RunningTrainingRun = TrainingRun & {
+  state: Extract<TrainingRun["state"], { status: "running" }>;
+};
 
 function stagingKey(runId: string, file: string): string {
   return `training-staging/${runId}/${file}`;
@@ -196,8 +212,12 @@ async function ownedTransition(
   return toRun(row);
 }
 
+function leaseUntil(at: Date): Date {
+  return new Date(at.getTime() + LEASE_MILLISECONDS);
+}
+
 function leaseFrom(at: Date): string {
-  return new Date(at.getTime() + LEASE_MILLISECONDS).toISOString();
+  return leaseUntil(at).toISOString();
 }
 
 function canonical(value: unknown): string {
@@ -290,7 +310,7 @@ export async function activeTrainingRun(
     .where(
       and(
         eq(trainingRuns.modelId, modelId),
-        inArray(trainingRuns.status, [...ACTIVE_STATUSES]),
+        inArray(trainingRuns.status, [...ACTIVE_TRAINING_RUN_STATUSES]),
       ),
     );
   return row ? toRun(row) : null;
@@ -335,7 +355,9 @@ export async function claimTrainingRun(
   at: Date = new Date(),
 ): Promise<TrainingRun | null> {
   if (!(await readTrainingWorker(workerId))) {
-    throw new Error("Training worker must heartbeat before claiming work");
+    throw new TrainingRunConflictError(
+      "Training worker must heartbeat before claiming work",
+    );
   }
   const recovery = await recoverTrainingPublications();
   if (recovery.failed.length > 0) {
@@ -396,7 +418,7 @@ async function ownedRunningRun(
   runId: string,
   workerId: string,
   db: Executor,
-): Promise<TrainingRun> {
+): Promise<RunningTrainingRun> {
   const run = await readTrainingRun(runId, db);
   if (
     !run ||
@@ -407,16 +429,52 @@ async function ownedRunningRun(
       `Training run ${runId} is not owned by ${workerId}`,
     );
   }
-  return run;
+  return run as RunningTrainingRun;
 }
 
-export async function reportTrainingProgress(
+/** Renew ownership without changing the run's phase or business progress. */
+export async function renewTrainingLease(
+  runId: string,
+  workerId: string,
+  at: Date = new Date(),
+): Promise<TrainingRun> {
+  const db = await database();
+  const [row] = await db
+    .update(trainingRuns)
+    .set({ leaseExpiresAt: leaseUntil(at) })
+    .where(
+      and(
+        eq(trainingRuns.id, runId),
+        eq(trainingRuns.status, "running"),
+        eq(trainingRuns.workerId, workerId),
+      ),
+    )
+    .returning();
+  if (!row) {
+    throw new TrainingRunConflictError(
+      `Training run ${runId} is not owned by ${workerId}`,
+    );
+  }
+  return toRun(row);
+}
+
+/** Advance through the ordered execution phases; retries are idempotent. */
+export async function enterTrainingPhase(
   runId: string,
   workerId: string,
   phase: TrainingPhase,
-  progress: number,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
+  const db = await database();
+  const current = await ownedRunningRun(runId, workerId, db);
+  if (
+    phase !== current.state.phase &&
+    phase !== NEXT_PHASE[current.state.phase]
+  ) {
+    throw new TrainingRunConflictError(
+      `Training run ${runId} cannot move from ${current.state.phase} to ${phase}`,
+    );
+  }
   return ownedTransition(
     runId,
     workerId,
@@ -425,9 +483,9 @@ export async function reportTrainingProgress(
       workerId,
       leaseExpiresAt: leaseFrom(at),
       phase,
-      progress,
+      progress: Math.max(current.state.progress, PHASE_PROGRESS[phase]),
     },
-    await database(),
+    db,
   );
 }
 
@@ -443,6 +501,11 @@ export async function recordTrainingEpoch(
 ): Promise<TrainingRun> {
   return transaction(async (tx) => {
     const current = await ownedRunningRun(runId, workerId, tx);
+    if (current.state.phase !== "training") {
+      throw new TrainingRunConflictError(
+        `Training run ${runId} cannot record epochs while ${current.state.phase}`,
+      );
+    }
     const total = current.recipe.parameters.epochs;
     if (report.epoch > total) {
       throw new TrainingRunConflictError(
@@ -499,7 +562,11 @@ export async function recordTrainingEpoch(
         workerId,
         leaseExpiresAt: leaseFrom(at),
         phase: "training",
-        progress: report.epoch / total,
+        progress: Math.max(
+          current.state.progress,
+          PHASE_PROGRESS.training +
+            TRAINING_PROGRESS_RANGE * (report.epoch / total),
+        ),
       },
       tx,
     );

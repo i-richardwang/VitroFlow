@@ -1,33 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { versionIdSchema } from "../inference/schema";
-import { recordTrainingEpoch } from "../server/training-runs";
+import { enterTrainingPhase } from "../server/training-runs";
 import {
   parseTrainingJson,
   trainingWorkerErrorResponse,
 } from "../server/training-worker-http";
-import { trainingEpochReportSchema } from "../training/schema";
+import { TRAINING_PHASES } from "../training/schema";
 
-const bodySchema = trainingEpochReportSchema.extend({
+const bodySchema = z.strictObject({
   workerId: versionIdSchema,
+  phase: z.enum(TRAINING_PHASES),
 });
 
-export const Route = createFileRoute("/api/training/runs/$runId/epochs")({
+export const Route = createFileRoute("/api/training/runs/$runId/phase")({
   server: {
     handlers: {
       POST: async ({ params, request }) => {
         try {
-          const { workerId, ...report } = await parseTrainingJson(
+          const { workerId, phase } = await parseTrainingJson(
             request,
             bodySchema,
           );
           return Response.json(
-            await recordTrainingEpoch(params.runId, workerId, report),
+            await enterTrainingPhase(params.runId, workerId, phase),
           );
         } catch (error) {
           return trainingWorkerErrorResponse(
             error,
-            "Training epoch report failed",
+            "Training phase transition failed",
           );
         }
       },

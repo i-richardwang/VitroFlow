@@ -19,6 +19,26 @@ from vitroflow.training_worker import (
 )
 from vitroflow.yolo import EpochReport, YoloTrainingInterruptedError
 
+PARAMETERS = {
+    "epochs": 3,
+    "patience": 20,
+    "batch": 4,
+    "imgsz": 768,
+    "optimizer": "AdamW",
+    "lr0": 0.001,
+    "warmup_epochs": 3.0,
+    "mosaic": 0.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "max_det": 500,
+    "seed": 0,
+    "deterministic": True,
+}
+
+
+def _parameters(**overrides: object) -> dict[str, object]:
+    return {**PARAMETERS, **overrides}
+
 
 def _snapshot(images: list[dict[str, object]]) -> dict[str, object]:
     return {
@@ -66,7 +86,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         "attempt": 1,
         "recipe": {
             "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-            "parameters": {"epochs": 3, "imgsz": 768, "batch": 4},
+            "parameters": PARAMETERS,
             "runtime": {"framework": "ultralytics", "version": "8.4.129"},
         },
         "state": {"status": "running"},
@@ -158,7 +178,7 @@ def test_training_client_rejects_snapshot_image_corruption() -> None:
     )
     try:
         with pytest.raises(ValueError, match="digest verification"):
-            client.image("train-one", "a" * 64)
+            client.download_image("train-one", "a" * 64)
     finally:
         client.close()
 
@@ -176,7 +196,7 @@ def test_training_client_surfaces_lease_loss() -> None:
     )
     try:
         with pytest.raises(TrainingLeaseLostError, match="lease expired"):
-            client.progress("train-one", "training", 0.5)
+            client.renew_lease("train-one")
     finally:
         client.close()
 
@@ -207,7 +227,7 @@ def test_snapshot_materialization_honors_shutdown_before_network_access(
     tmp_path: Path,
 ) -> None:
     class UnexpectedClient:
-        def snapshot(self, _run_id: str) -> None:
+        def fetch_snapshot(self, _run_id: str) -> None:
             pytest.fail("cancelled materialization must not request a snapshot")
 
     with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
@@ -223,12 +243,11 @@ def test_lease_refresh_failure_cancels_training_and_surfaces_lease_loss(
     monkeypatch,
 ) -> None:
     class FailingClient:
-        progress_calls = 0
+        renew_calls = 0
 
-        def progress(self, _run_id: str, _phase: str, progress: float) -> None:
-            assert progress == 0.1
-            self.progress_calls += 1
-            if self.progress_calls > 1:
+        def renew_lease(self, _run_id: str) -> None:
+            self.renew_calls += 1
+            if self.renew_calls > 1:
                 raise OSError("connection lost")
 
         def heartbeat(self) -> None:
@@ -242,44 +261,12 @@ def test_lease_refresh_failure_cancels_training_and_surfaces_lease_loss(
         training_worker._lease(
             FailingClient(),  # type: ignore[arg-type]
             "train-one",
-            "training",
-            lambda: 0.1,
         ) as cancelled,
     ):
         while not cancelled() and time.monotonic() < deadline:
             time.sleep(0.001)
         assert cancelled()
         raise YoloTrainingInterruptedError("training interrupted")
-
-
-def test_training_recipe_parser_requires_the_immutable_identity() -> None:
-    recipe = training_worker.parse_training_recipe(
-        {
-            "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-            "parameters": {"epochs": 3, "imgsz": 768, "deterministic": True},
-            "runtime": {"framework": "ultralytics", "version": "8.4.129"},
-        }
-    )
-
-    assert recipe.base_model == "yolo26n.pt"
-    assert recipe.epochs == 3
-    assert recipe.parameters == {"epochs": 3, "imgsz": 768, "deterministic": True}
-    with pytest.raises(ValueError, match="epochs"):
-        training_worker.parse_training_recipe(
-            {
-                "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-                "parameters": {"imgsz": 768},
-                "runtime": {"framework": "ultralytics", "version": "8.4.129"},
-            }
-        )
-    with pytest.raises(TypeError, match="scalar"):
-        training_worker.parse_training_recipe(
-            {
-                "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-                "parameters": {"epochs": 3, "augment": {"mosaic": 1}},
-                "runtime": {"framework": "ultralytics", "version": "8.4.129"},
-            }
-        )
 
 
 def test_training_job_reports_each_epoch_and_publishes_the_artifact(
@@ -296,18 +283,23 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         def heartbeat(self) -> None:
             return None
 
-        def progress(self, run_id: str, phase: str, progress: float) -> None:
-            posted.append((run_id, {"phase": phase, "progress": progress}))
+        def enter_phase(self, run_id: str, phase: str) -> None:
+            posted.append((run_id, {"phase": phase}))
 
-        def epoch(self, run_id: str, report: EpochReport) -> None:
+        def renew_lease(self, run_id: str) -> None:
+            posted.append((run_id, {"lease": "renewed"}))
+
+        def report_epoch(self, run_id: str, report: EpochReport) -> None:
             posted.append((run_id, report.to_json()))
 
-        def artifact(self, run_id: str, weights: Path, inference: Path) -> None:
+        def publish_artifact(
+            self, run_id: str, weights: Path, inference: Path
+        ) -> None:
             artifacts.append(
                 (run_id, weights.read_bytes(), json.loads(inference.read_text()))
             )
 
-        def fail(self, run_id: str, error: str) -> None:
+        def report_failure(self, run_id: str, error: str) -> None:
             pytest.fail(f"unexpected failure report: {error}")
 
     def materialize(_client, _job, output: Path, *, cancelled=None) -> Path:
@@ -316,8 +308,17 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         dataset.write_text("train: images/train\nval: images/val\n")
         return dataset
 
-    def train(dataset, output_dir, *, parameters, on_epoch, **options):
-        assert parameters == {"epochs": 2, "imgsz": 768}
+    def train(
+        dataset,
+        output_dir,
+        *,
+        parameters,
+        on_training_start,
+        on_epoch,
+        on_validation_start,
+        **options,
+    ):
+        assert parameters == _parameters(epochs=2)
         assert options["model"] == "yolo26n.pt"
         assert options["model_digest"] == "a" * 64
         assert options["runtime_version"] == "8.4.129"
@@ -327,6 +328,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         (output / "weights" / "best.pt").write_bytes(b"weights")
         summary = output / "inference.json"
         summary.write_text(json.dumps({"schema_version": 1}))
+        on_training_start()
         for epoch in (1, 2):
             on_epoch(
                 EpochReport(
@@ -341,6 +343,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
                     lr=0.001,
                 )
             )
+        on_validation_start()
         return SimpleNamespace(
             best_weights=output / "weights" / "best.pt",
             summary=summary,
@@ -355,7 +358,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
             "id": "train-one",
             "recipe": {
                 "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-                "parameters": {"epochs": 2, "imgsz": 768},
+                "parameters": _parameters(epochs=2),
                 "runtime": {"framework": "ultralytics", "version": "8.4.129"},
             },
         }
@@ -369,5 +372,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         "validating",
     ]
     assert [entry["epoch"] for _, entry in posted if "epoch" in entry] == [1, 2]
-    assert posted[1] == ("train-one", {"phase": "training", "progress": 0.0})
+    assert [entry["lease"] for _, entry in posted if "lease" in entry] == [
+        "renewed"
+    ]
     assert artifacts == [("train-one", b"weights", {"schema_version": 1})]

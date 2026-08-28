@@ -11,6 +11,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from ..files import write_text_atomically
+from ..training_parameters import parse_training_parameters
 from .runtime import load_yolo
 
 # Ultralytics keys for what one epoch's validation pass measured.
@@ -146,13 +147,16 @@ def train_yolo_detector(
     runtime_version: str,
     device: str | None = None,
     cancelled: Callable[[], bool] | None = None,
+    on_training_start: Callable[[], None] | None = None,
     on_epoch: Callable[[EpochReport], None] | None = None,
+    on_validation_start: Callable[[], None] | None = None,
 ) -> YoloTrainingResult:
     """Fine-tune, validate, and publish inference calibration for a YOLO detector.
 
     `parameters` are the Ultralytics training arguments the run fixes; they are
     recorded verbatim in the published summary.
     """
+    fixed_parameters = parse_training_parameters(parameters)
     data_path = Path(dataset).resolve()
     if not data_path.is_file():
         raise FileNotFoundError(data_path)
@@ -166,9 +170,8 @@ def train_yolo_detector(
     if output.exists():
         raise FileExistsError(f"Output directory already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
-
     train_options: dict[str, object] = {
-        **parameters,
+        **fixed_parameters,
         "data": str(data_path),
         "project": str(output.parent),
         "name": output.name,
@@ -195,6 +198,8 @@ def train_yolo_detector(
             on_epoch(epoch_report(trainer))
 
         trainer_model.add_callback("on_fit_epoch_end", report_epoch)
+    if on_training_start:
+        on_training_start()
     trainer_model.train(**train_options)
     if cancelled and cancelled():
         raise YoloTrainingInterruptedError("training interrupted")
@@ -215,6 +220,8 @@ def train_yolo_detector(
         validator_model.add_callback("on_val_batch_end", interrupt_validation)
         if cancelled():
             raise YoloTrainingInterruptedError("training interrupted")
+    if on_validation_start:
+        on_validation_start()
     metrics = validator_model.val(
         data=str(data_path),
         imgsz=trained_args.imgsz,
@@ -247,7 +254,7 @@ def train_yolo_detector(
                 "reference": str(model),
                 "digest": model_digest,
             },
-            "parameters": dict(parameters),
+            "parameters": fixed_parameters,
             "runtime": {
                 "framework": "ultralytics",
                 "version": installed_runtime_version,

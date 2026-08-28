@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { versionIdSchema } from "../inference/schema";
 import { failTrainingRun } from "../server/training-runs";
+import {
+  parseTrainingJson,
+  trainingWorkerErrorResponse,
+} from "../server/training-worker-http";
 
 const bodySchema = z.strictObject({
   workerId: versionIdSchema,
@@ -14,16 +18,14 @@ export const Route = createFileRoute("/api/training/runs/$runId/fail")({
     handlers: {
       POST: async ({ params, request }) => {
         try {
-          const body = bodySchema.parse(await request.json());
+          const body = await parseTrainingJson(request, bodySchema);
           return Response.json(
             await failTrainingRun(params.runId, body.workerId, body.error),
           );
         } catch (error) {
-          return new Response(
-            error instanceof Error ? error.message : String(error),
-            {
-              status: 409,
-            },
+          return trainingWorkerErrorResponse(
+            error,
+            "Training run failure report failed",
           );
         }
       },

@@ -21,6 +21,14 @@ export const TRAINING_RUN_STATUSES = [
   "succeeded",
   "failed",
 ] as const;
+export const ACTIVE_TRAINING_RUN_STATUSES = [
+  "queued",
+  "running",
+  "publishing",
+] as const;
+const ACTIVE_TRAINING_RUN_STATUS_SET = new Set<string>(
+  ACTIVE_TRAINING_RUN_STATUSES,
+);
 
 const snapshotImageSchema = z.strictObject({
   digest: imageDigestSchema,
@@ -143,6 +151,10 @@ export type TrainingRun = z.infer<typeof trainingRunSchema>;
 export type TrainingEpochReport = z.infer<typeof trainingEpochReportSchema>;
 export type TrainingEpoch = z.infer<typeof trainingEpochSchema>;
 export type InferencePublication = z.infer<typeof inferencePublicationSchema>;
+
+export function isTrainingRunActive(run: Pick<TrainingRun, "state">): boolean {
+  return ACTIVE_TRAINING_RUN_STATUS_SET.has(run.state.status);
+}
 
 const TRAINING_RUN_ID_PREFIX = "train-";
 

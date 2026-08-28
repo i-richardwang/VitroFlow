@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { versionIdSchema } from "../inference/schema";
+import { publishTrainingArtifact } from "../server/training-runs";
 import {
-  publishTrainingArtifact,
-  TrainingArtifactValidationError,
-  TrainingRunConflictError,
-  TrainingRunNotFoundError,
-} from "../server/training-runs";
+  parseTrainingForm,
+  parseTrainingJsonText,
+  parseTrainingValue,
+  trainingWorkerErrorResponse,
+} from "../server/training-worker-http";
 
 export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
   server: {
@@ -15,15 +17,11 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
         let weights: Uint8Array;
         let publication: unknown;
         try {
-          const form = await request.formData();
+          const form = await parseTrainingForm(request);
           const worker = form.get("workerId");
           const weightsFile = form.get("weights");
           const inference = form.get("inference");
-          if (
-            typeof worker !== "string" ||
-            !(weightsFile instanceof File) ||
-            !(inference instanceof File)
-          ) {
+          if (!(weightsFile instanceof File) || !(inference instanceof File)) {
             return new Response(
               "workerId, weights, and inference are required",
               {
@@ -31,13 +29,14 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
               },
             );
           }
-          workerId = worker;
+          workerId = parseTrainingValue(worker, versionIdSchema, "workerId");
           weights = new Uint8Array(await weightsFile.arrayBuffer());
-          publication = JSON.parse(await inference.text());
-        } catch {
-          return new Response("Invalid training artifact request", {
-            status: 400,
-          });
+          publication = parseTrainingJsonText(await inference.text());
+        } catch (error) {
+          return trainingWorkerErrorResponse(
+            error,
+            "Invalid training artifact request",
+          );
         }
         try {
           return Response.json(
@@ -49,21 +48,10 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
             ),
           );
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          if (error instanceof TrainingArtifactValidationError) {
-            return new Response(message, { status: 422 });
-          }
-          if (error instanceof TrainingRunConflictError) {
-            return new Response(message, { status: 409 });
-          }
-          if (error instanceof TrainingRunNotFoundError) {
-            return new Response(message, { status: 404 });
-          }
-          console.error(`Training artifact publication failed: ${message}`);
-          return new Response("Training artifact publication failed", {
-            status: 500,
-          });
+          return trainingWorkerErrorResponse(
+            error,
+            "Training artifact publication failed",
+          );
         }
       },
     },

@@ -11,6 +11,22 @@ from vitroflow.inference_models import ModelManifest, ModelStore
 from vitroflow.prelabelers import PredictionProducer, YoloPrelabeler
 from vitroflow.prelabelers import yolo as yolo_module
 
+PARAMETERS = {
+    "epochs": 50,
+    "patience": 20,
+    "batch": 8,
+    "imgsz": 1024,
+    "optimizer": "AdamW",
+    "lr0": 0.001,
+    "warmup_epochs": 3.0,
+    "mosaic": 0.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "max_det": 500,
+    "seed": 0,
+    "deterministic": True,
+}
+
 
 class _Tensor:
     def __init__(self, values: list[list[float]]) -> None:
@@ -46,7 +62,7 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
                         "reference": "yolo26n.pt",
                         "digest": "a" * 64,
                     },
-                    "parameters": {"epochs": 50, "imgsz": 1024, "batch": 8},
+                    "parameters": PARAMETERS,
                     "runtime": {
                         "framework": "ultralytics",
                         "version": "8.4.129",
@@ -164,7 +180,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
                 "reference": "yolo26n.pt",
                 "digest": "a" * 64,
             },
-            "parameters": {"epochs": 50, "imgsz": 1024, "batch": 8},
+            "parameters": PARAMETERS,
             "runtime": {
                 "framework": "ultralytics",
                 "version": "8.4.129",

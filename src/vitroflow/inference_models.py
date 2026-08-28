@@ -23,6 +23,7 @@ from .documents import (
 from .identifiers import VERSION_ID
 from .prelabelers import Prelabeler, TraditionalPrelabeler, YoloPrelabeler
 from .scoring import DEFAULT_MODEL
+from .training_recipe import parse_training_recipe
 
 MODEL_MANIFEST_SCHEMA_VERSION = 1
 CACHE_VALIDATION_ERRORS = (OSError, TypeError, ValueError, RuntimeError)
@@ -56,27 +57,6 @@ def _inference_settings(value: Any, context: str) -> None:
         raise TypeError(f"{context}.endToEnd must be a boolean")
 
 
-def _training_identity(value: Any, context: str) -> None:
-    training = as_object(value, context)
-    expect_fields(training, {"baseModel", "parameters", "runtime"}, context)
-
-    base_model = as_object(training["baseModel"], f"{context}.baseModel")
-    expect_fields(base_model, {"reference", "digest"}, f"{context}.baseModel")
-    as_string(base_model["reference"], f"{context}.baseModel.reference")
-    as_digest(base_model["digest"], f"{context}.baseModel.digest")
-
-    parameters = as_object(training["parameters"], f"{context}.parameters")
-    for name, parameter in parameters.items():
-        if not isinstance(parameter, (bool, int, float, str)):
-            raise TypeError(f"{context}.parameters.{name} must be a scalar")
-
-    runtime = as_object(training["runtime"], f"{context}.runtime")
-    expect_fields(runtime, {"framework", "version"}, f"{context}.runtime")
-    if runtime["framework"] != "ultralytics":
-        raise ValueError(f"{context}.runtime.framework must be ultralytics")
-    as_string(runtime["version"], f"{context}.runtime.version")
-
-
 def _model_artifact(value: Any, context: str) -> dict[str, Any]:
     artifact = as_object(value, context)
     kind = artifact.get("kind")
@@ -103,7 +83,7 @@ def _model_artifact(value: Any, context: str) -> dict[str, Any]:
         for name, metric in validation.items():
             as_string(name, f"{context}.validation metric")
             as_number(metric, f"{context}.validation.{name}")
-        _training_identity(artifact["training"], f"{context}.training")
+        parse_training_recipe(artifact["training"], f"{context}.training")
     else:
         raise ValueError(f"{context}.kind is unsupported")
     as_digest(artifact["digest"], f"{context}.digest")

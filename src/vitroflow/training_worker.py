@@ -17,7 +17,6 @@ from .annotations import ReviewedImage, parse_annotation
 from .documents import (
     as_digest,
     as_extension,
-    as_integer,
     as_list,
     as_object,
     as_string,
@@ -27,6 +26,7 @@ from .documents import (
 from .identifiers import WORKER_DEVICE, WORKER_ID
 from .image_io import verify_digest
 from .manifest import as_split
+from .training_recipe import TrainingRecipe, parse_training_recipe
 from .worker_runtime import shutdown_signals
 from .yolo import (
     DatasetImage,
@@ -70,44 +70,6 @@ class TrainingWorkerSettings:
             raise ValueError("poll interval must be positive")
         if not WORKER_DEVICE.fullmatch(self.device):
             raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
-
-
-@dataclass(frozen=True)
-class TrainingRecipe:
-    """The immutable training identity a run carries; verified before training."""
-
-    base_model: str
-    base_model_digest: str
-    parameters: dict[str, Any]
-    runtime_version: str
-
-    @property
-    def epochs(self) -> int:
-        return int(self.parameters["epochs"])
-
-
-def parse_training_recipe(value: Any, context: str = "recipe") -> TrainingRecipe:
-    recipe = as_object(value, context)
-    expect_fields(recipe, {"baseModel", "parameters", "runtime"}, context)
-    base_model = as_object(recipe["baseModel"], f"{context}.baseModel")
-    expect_fields(base_model, {"reference", "digest"}, f"{context}.baseModel")
-    parameters = as_object(recipe["parameters"], f"{context}.parameters")
-    for name, parameter in parameters.items():
-        if not isinstance(parameter, (bool, int, float, str)):
-            raise TypeError(f"{context}.parameters.{name} must be a scalar")
-    as_integer(parameters.get("epochs"), f"{context}.parameters.epochs", 1)
-    runtime = as_object(recipe["runtime"], f"{context}.runtime")
-    expect_fields(runtime, {"framework", "version"}, f"{context}.runtime")
-    if runtime["framework"] != "ultralytics":
-        raise ValueError(f"{context}.runtime.framework must be ultralytics")
-    return TrainingRecipe(
-        base_model=as_string(base_model["reference"], f"{context}.baseModel.reference"),
-        base_model_digest=as_digest(
-            base_model["digest"], f"{context}.baseModel.digest"
-        ),
-        parameters=dict(parameters),
-        runtime_version=as_string(runtime["version"], f"{context}.runtime.version"),
-    )
 
 
 @dataclass(frozen=True)
@@ -249,53 +211,58 @@ class TrainingWorkerClient:
             raise TypeError("Training claim response is invalid")
         return TrainingJob(document["run"])
 
-    def snapshot(self, run_id: str) -> TrainingSnapshot:
+    @staticmethod
+    def _require_active_lease(response: httpx.Response) -> None:
+        if response.status_code == 409:
+            raise TrainingLeaseLostError(response.text)
+        response.raise_for_status()
+
+    def fetch_snapshot(self, run_id: str) -> TrainingSnapshot:
         response = self._request(
             "GET",
             f"api/training/runs/{run_id}/snapshot",
             params={"workerId": self.worker_id},
         )
-        if response.status_code == 409:
-            raise TrainingLeaseLostError(response.text)
-        response.raise_for_status()
+        self._require_active_lease(response)
         return parse_training_snapshot(response.json())
 
-    def progress(self, run_id: str, phase: str, progress: float) -> None:
+    def enter_phase(self, run_id: str, phase: str) -> None:
         response = self._request(
             "POST",
-            f"api/training/runs/{run_id}/progress",
+            f"api/training/runs/{run_id}/phase",
             json={
                 "workerId": self.worker_id,
                 "phase": phase,
-                "progress": progress,
             },
         )
-        if response.status_code == 409:
-            raise TrainingLeaseLostError(response.text)
-        response.raise_for_status()
+        self._require_active_lease(response)
 
-    def epoch(self, run_id: str, report: EpochReport) -> None:
+    def renew_lease(self, run_id: str) -> None:
+        response = self._request(
+            "POST",
+            f"api/training/runs/{run_id}/lease",
+            json={"workerId": self.worker_id},
+        )
+        self._require_active_lease(response)
+
+    def report_epoch(self, run_id: str, report: EpochReport) -> None:
         response = self._request(
             "POST",
             f"api/training/runs/{run_id}/epochs",
             json={"workerId": self.worker_id, **report.to_json()},
         )
-        if response.status_code == 409:
-            raise TrainingLeaseLostError(response.text)
-        response.raise_for_status()
+        self._require_active_lease(response)
 
-    def image(self, run_id: str, digest: str) -> bytes:
+    def download_image(self, run_id: str, digest: str) -> bytes:
         response = self._request(
             "GET",
             f"api/training/runs/{run_id}/images/{digest}",
             params={"workerId": self.worker_id},
         )
-        if response.status_code == 409:
-            raise TrainingLeaseLostError(response.text)
-        response.raise_for_status()
+        self._require_active_lease(response)
         return verify_digest(response.content, digest)
 
-    def artifact(self, run_id: str, weights: Path, inference: Path) -> None:
+    def publish_artifact(self, run_id: str, weights: Path, inference: Path) -> None:
         response = self._request(
             "PUT",
             f"api/training/runs/{run_id}/artifact",
@@ -316,7 +283,7 @@ class TrainingWorkerClient:
             raise TrainingLeaseLostError(response.text)
         response.raise_for_status()
 
-    def fail(self, run_id: str, error: str) -> None:
+    def report_failure(self, run_id: str, error: str) -> None:
         response = self._request(
             "POST",
             f"api/training/runs/{run_id}/fail",
@@ -336,7 +303,7 @@ def materialize_snapshot(
 ) -> Path:
     if cancelled and cancelled():
         raise YoloTrainingInterruptedError("training interrupted")
-    snapshot = client.snapshot(job.run_id)
+    snapshot = client.fetch_snapshot(job.run_id)
     if len(snapshot.images) < 2:
         raise ValueError("Training snapshot must contain at least two images")
     downloads = output.parent / "snapshot-images"
@@ -346,7 +313,7 @@ def materialize_snapshot(
         if cancelled and cancelled():
             raise YoloTrainingInterruptedError("training interrupted")
         downloaded = downloads / f"{image.digest}{image.extension}"
-        downloaded.write_bytes(client.image(job.run_id, image.digest))
+        downloaded.write_bytes(client.download_image(job.run_id, image.digest))
         dataset_images.append(
             DatasetImage(
                 digest=image.digest,
@@ -367,12 +334,10 @@ def materialize_snapshot(
 def _lease(
     client: TrainingWorkerClient,
     run_id: str,
-    phase: str,
-    progress: Callable[[], float],
     *,
     cancelled: Callable[[], bool] | None = None,
 ):
-    """Keeps the run leased while a long phase runs, re-reporting its progress."""
+    """Keep ownership alive without writing phase or business progress."""
     closed = threading.Event()
     lost = threading.Event()
     refresh_errors: list[Exception] = []
@@ -380,7 +345,7 @@ def _lease(
     def refresh() -> None:
         while not closed.wait(LEASE_REFRESH_SECONDS):
             try:
-                client.progress(run_id, phase, progress())
+                client.renew_lease(run_id)
                 client.heartbeat()
             except WORKER_ERRORS as error:
                 refresh_errors.append(error)
@@ -390,7 +355,7 @@ def _lease(
     def should_stop() -> bool:
         return lost.is_set() or bool(cancelled and cancelled())
 
-    client.progress(run_id, phase, progress())
+    client.renew_lease(run_id)
     thread = threading.Thread(target=refresh, name="training-lease", daemon=True)
     thread.start()
     try:
@@ -423,58 +388,51 @@ def process_training_job(
             prefix="vitroflow-training-", dir=work_root
         ) as temporary:
             root = Path(temporary)
-            client.progress(job.run_id, "preparing", 0.05)
-            dataset = materialize_snapshot(
-                client,
-                job,
-                root / "dataset",
-                cancelled=stopped.is_set if stopped else None,
-            )
-            ensure_running()
-            finished_epochs = 0
-
-            def progress() -> float:
-                return finished_epochs / recipe.epochs
-
-            def report(epoch: EpochReport) -> None:
-                nonlocal finished_epochs
-                client.epoch(job.run_id, epoch)
-                finished_epochs = epoch.epoch
-
             with _lease(
                 client,
                 job.run_id,
-                "training",
-                progress,
                 cancelled=stopped.is_set if stopped else None,
             ) as cancelled:
+                client.enter_phase(job.run_id, "preparing")
+                dataset = materialize_snapshot(
+                    client,
+                    job,
+                    root / "dataset",
+                    cancelled=cancelled,
+                )
                 result = train_yolo_detector(
                     dataset,
                     root / "run",
                     parameters=recipe.parameters,
-                    model=recipe.base_model,
+                    model=recipe.base_model_reference,
                     model_digest=recipe.base_model_digest,
                     runtime_version=recipe.runtime_version,
                     device=client.device,
                     cancelled=cancelled,
-                    on_epoch=report,
+                    on_training_start=lambda: client.enter_phase(
+                        job.run_id, "training"
+                    ),
+                    on_epoch=lambda epoch: client.report_epoch(job.run_id, epoch),
+                    on_validation_start=lambda: client.enter_phase(
+                        job.run_id, "validating"
+                    ),
                 )
-            ensure_running()
-            client.progress(job.run_id, "validating", 0.95)
             ensure_running()
             if result.confidence is None:
                 raise RuntimeError(
                     "Training completed without a usable validation signal"
                 )
             publication_started = True
-            client.artifact(job.run_id, result.best_weights, result.summary)
+            client.publish_artifact(
+                job.run_id, result.best_weights, result.summary
+            )
     except YoloTrainingInterruptedError:
         raise
     except WORKER_ERRORS as error:
         if not isinstance(error, TrainingLeaseLostError) and (
             not publication_started or isinstance(error, TrainingArtifactRejectedError)
         ):
-            client.fail(job.run_id, str(error) or type(error).__name__)
+            client.report_failure(job.run_id, str(error) or type(error).__name__)
         raise
     finally:
         client.current_run_id = None
