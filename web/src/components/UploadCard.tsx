@@ -41,16 +41,15 @@ export function UploadCard({ dataset }: { dataset?: string }) {
           void uploadImages(target, files, (done) => {
             setProgress({ done, total: files.length });
           })
-            .then(async ({ added, existing }) => {
-              setFiles([]);
-              toast.success(uploadSummary(target, added, existing));
+            .then(async ({ added, existing, failed }) => {
+              setFiles(failed.map((failure) => failure.file));
+              if (added + existing > 0) {
+                toast.success(uploadSummary(target, added, existing));
+              }
+              for (const { file, reason } of failed) {
+                toast.danger(file.name, { description: reason });
+              }
               await router.invalidate();
-            })
-            .catch((cause: unknown) => {
-              toast.danger("Upload failed", {
-                description:
-                  cause instanceof Error ? cause.message : String(cause),
-              });
             })
             .finally(() => {
               setProgress(null);
@@ -112,53 +111,80 @@ function uploadSummary(target: string, added: number, existing: number) {
   return `${count(added)} added to ${target}, ${existing} already there`;
 }
 
-/** Photographs one request carries; the server re-encodes each one it takes. */
-const IMAGES_PER_REQUEST = 4;
+/**
+ * Requests kept in flight while the server serializes canonicalization. One
+ * photograph can travel while the preceding one encodes.
+ */
+const UPLOAD_LANES = 2;
+
+interface UploadFailure {
+  file: File;
+  reason: string;
+}
+
+interface UploadOutcome {
+  added: number;
+  existing: number;
+  failed: UploadFailure[];
+}
 
 /**
- * Adds the photographs a chunk at a time so that no single request waits on
- * the whole batch being re-encoded. Uploads are content addressed and repeat
- * safely, so a batch that stops partway leaves the photographs it did add.
+ * Adds the photographs one request each. Every photograph stands alone, so one
+ * that will not decode is reported against its own name and left in the picker
+ * while the rest go through.
  */
 async function uploadImages(
   dataset: string,
   files: File[],
   onProgress: (done: number) => void,
-): Promise<{ added: number; existing: number }> {
+): Promise<UploadOutcome> {
+  const failures = new Array<UploadFailure | null>(files.length).fill(null);
   let added = 0;
   let existing = 0;
-  for (let start = 0; start < files.length; start += IMAGES_PER_REQUEST) {
-    const chunk = files.slice(start, start + IMAGES_PER_REQUEST);
-    const result = await postImages(dataset, chunk);
-    added += result.added;
-    existing += result.existing;
-    onProgress(start + chunk.length);
-  }
-  return { added, existing };
+  let done = 0;
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(UPLOAD_LANES, files.length) }, async () => {
+      for (let index = next++; index < files.length; index = next++) {
+        const file = files[index]!;
+        try {
+          if (await postImage(dataset, file)) {
+            added += 1;
+          } else {
+            existing += 1;
+          }
+        } catch (cause) {
+          const reason = cause instanceof Error ? cause.message : String(cause);
+          failures[index] = { file, reason };
+        }
+        onProgress((done += 1));
+      }
+    }),
+  );
+  return {
+    added,
+    existing,
+    failed: failures.filter(
+      (failure): failure is UploadFailure => failure !== null,
+    ),
+  };
 }
 
-async function postImages(
-  dataset: string,
-  files: File[],
-): Promise<{ added: number; existing: number }> {
-  const data = new FormData();
-  for (const file of files) {
-    data.append("images", file);
-  }
+/** Whether the photograph joined the dataset, rather than already being in it. */
+async function postImage(dataset: string, file: File): Promise<boolean> {
   const response = await fetch(
-    `/api/datasets/${encodeURIComponent(dataset)}/images`,
-    { method: "POST", body: data },
+    `/api/datasets/${encodeURIComponent(dataset)}/images?filename=${encodeURIComponent(file.name)}`,
+    { method: "POST", body: file },
   );
   const body = (await response.json().catch(() => null)) as {
     error?: string;
-    added?: string[];
-    existing?: string[];
+    added?: boolean;
   } | null;
   if (body?.error != null) {
     throw new Error(body.error);
   }
-  if (!response.ok || body?.added == null || body.existing == null) {
+  if (!response.ok || body?.added == null) {
     throw new Error(`Upload failed (${response.status})`);
   }
-  return { added: body.added.length, existing: body.existing.length };
+  return body.added;
 }

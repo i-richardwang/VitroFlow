@@ -11,11 +11,8 @@ import { ParametersList } from "../../components/training/ParametersList";
 import { TrainingRunState } from "../../components/training/TrainingRunState";
 import { validationMetric, versionSlug } from "../../models/schema";
 import { getTrainingRun } from "../../server/models";
-import { bestEpoch } from "../../server/training-console";
-import {
-  isTrainingRunActive,
-  trainingRunLabel,
-} from "../../training/schema";
+import { bestEpoch } from "../../training/metrics";
+import { isTrainingRunActive, trainingRunLabel } from "../../training/schema";
 
 export const Route = createFileRoute(
   "/_workbench/datasets/$dataset/training/$runId",

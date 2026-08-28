@@ -69,6 +69,15 @@ export function DatasetsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function TrainingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12.5l3.5-5 3 3 4.5-6.5" />
+      <path d="M2.5 13.5h11" />
+    </Icon>
+  );
+}
+
 export function StatusIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

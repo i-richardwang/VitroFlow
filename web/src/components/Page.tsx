@@ -28,7 +28,7 @@ export function Page({
         {title}
       </h1>
       {description ? (
-        <p className="mt-1 text-sm text-muted">{description}</p>
+        <p className="mt-1 text-sm text-foreground/80">{description}</p>
       ) : null}
       <div className="mt-6 flex flex-col gap-6">{children}</div>
     </main>

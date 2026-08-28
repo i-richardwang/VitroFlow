@@ -28,10 +28,10 @@ import {
   FIXTURE_EDGE,
   imageBytes,
   imageDigest,
-  imageFile,
+  imageSource,
   selectedVersion,
 } from "./testing";
-import { addImages } from "./upload";
+import { addImage } from "./upload";
 
 const worker: InferenceWorkerRecord = {
   ...testHeartbeat("worker"),
@@ -76,16 +76,17 @@ async function stateOf(ref: { dataset: string; digest: string }) {
 
 describe("uploads", () => {
   test("creates a dataset-owned model and identifies images by content", async () => {
-    const { added, existing } = await addImages("crop", [
-      await imageFile("one"),
-      new File([await imageBytes("two")], "two.jpg"),
-    ]);
-    expect(existing).toEqual([]);
-    expect(added.map((image) => image.digest)).toEqual([
+    const one = await addImage("crop", await imageSource("one"));
+    const two = await addImage("crop", {
+      filename: "two.jpg",
+      bytes: await imageBytes("two"),
+    });
+    expect([one.added, two.added]).toEqual([true, true]);
+    expect([one.image.digest, two.image.digest]).toEqual([
       await imageDigest("one"),
       await imageDigest("two"),
     ]);
-    expect(added[1]).toMatchObject({
+    expect(two.image).toMatchObject({
       dataset: "crop",
       filename: "two.jpg",
       width: FIXTURE_EDGE,
@@ -102,34 +103,19 @@ describe("uploads", () => {
     expect((await readModelVersion("crop.traditional-v1"))?.modelId).toBe(
       "crop",
     );
-
-    await expect(
-      addImages("crop", [new File(["x"], "notes.jpg")]),
-    ).rejects.toThrow(/notes\.jpg/);
-    expect(await listImages("crop")).toHaveLength(2);
   });
 
   test("the same bytes are one image, whatever they are called", async () => {
-    const first = await addImages("same", [await imageFile("pixels", "a.jpg")]);
-    const again = await addImages("same", [
-      await imageFile("pixels", "b.jpg"),
-      await imageFile("pixels", "c.jpg"),
-    ]);
-    expect(again).toEqual({ added: [], existing: first.added });
+    const first = await addImage("same", await imageSource("pixels", "a.jpg"));
+    const again = await addImage("same", await imageSource("pixels", "b.jpg"));
+    expect(again).toEqual({ image: first.image, added: false });
     expect(await listImages("same")).toHaveLength(1);
-    expect(
-      (
-        await findImage({
-          dataset: "same",
-          digest: await imageDigest("pixels"),
-        })
-      )?.filename,
-    ).toBe("a.jpg");
+    expect(first.image.filename).toBe("a.jpg");
   });
 
   test("one image can belong to several datasets under its own name in each", async () => {
-    await addImages("left", [await imageFile("shared", "shared.jpg")]);
-    await addImages("right", [await imageFile("shared", "renamed.jpg")]);
+    await addImage("left", await imageSource("shared", "shared.jpg"));
+    await addImage("right", await imageSource("shared", "renamed.jpg"));
     const digest = await imageDigest("shared");
     expect((await findImage({ dataset: "left", digest }))?.filename).toBe(
       "shared.jpg",
@@ -140,34 +126,38 @@ describe("uploads", () => {
     expect(contentDigest(readBlob(imageBlobKey(digest)))).toBe(digest);
   });
 
-  test("writes nothing when any file in the batch is invalid", async () => {
+  test("a source that is not a photograph writes nothing", async () => {
     await expect(
-      addImages("atomic", [
-        await imageFile("x", "ok.jpg"),
-        await imageFile("y", "../up.jpg"),
-      ]),
-    ).rejects.toThrow();
-    expect(await readDataset("atomic")).toBeNull();
-    expect(blobExists(imageBlobKey(await imageDigest("x")))).toBe(false);
+      addImage("rejected", {
+        filename: "notes.jpg",
+        bytes: new TextEncoder().encode("x"),
+      }),
+    ).rejects.toThrow(/notes\.jpg/);
+    await expect(
+      addImage("rejected", await imageSource("y", "../up.jpg")),
+    ).rejects.toThrow(/filename/);
+    await expect(
+      addImage("rejected", await imageSource("y", "..\\up.jpg")),
+    ).rejects.toThrow(/filename/);
+    expect(await readDataset("rejected")).toBeNull();
+    expect(blobExists(imageBlobKey(await imageDigest("y")))).toBe(false);
   });
 
   test("serializes concurrent uploads into a new dataset", async () => {
     const [first, second] = await Promise.all([
-      addImages("concurrent-upload", [await imageFile("a")]),
-      addImages("concurrent-upload", [await imageFile("b")]),
+      addImage("concurrent-upload", await imageSource("a")),
+      addImage("concurrent-upload", await imageSource("b")),
     ]);
-    expect(first.added[0]?.digest).toBe(await imageDigest("a"));
-    expect(second.added[0]?.digest).toBe(await imageDigest("b"));
+    expect(first.image.digest).toBe(await imageDigest("a"));
+    expect(second.image.digest).toBe(await imageDigest("b"));
     expect(await listImages("concurrent-upload")).toHaveLength(2);
   });
 });
 
 describe("prelabels", () => {
   test("a dataset assigns work only to its selected model version", async () => {
-    await addImages("pend", [
-      await imageFile("a", "a.jpg"),
-      await imageFile("b", "b.jpg"),
-    ]);
+    await addImage("pend", await imageSource("a", "a.jpg"));
+    await addImage("pend", await imageSource("b", "b.jpg"));
     const a = { dataset: "pend", digest: await imageDigest("a") };
     const b = { dataset: "pend", digest: await imageDigest("b") };
     const pending = async () =>
@@ -215,7 +205,7 @@ describe("prelabels", () => {
   });
 
   test("a prelabel must describe the image it is stored under", async () => {
-    await addImages("mismatch", [await imageFile("a", "a.jpg")]);
+    await addImage("mismatch", await imageSource("a", "a.jpg"));
     const ref = { dataset: "mismatch", digest: await imageDigest("a") };
     await expect(
       writePrelabel(
@@ -240,7 +230,7 @@ describe("prelabels", () => {
   });
 
   test("freezes a prelabel after review begins", async () => {
-    await addImages("frozen", [await imageFile("a", "a.jpg")]);
+    await addImage("frozen", await imageSource("a", "a.jpg"));
     const ref = { dataset: "frozen", digest: await imageDigest("a") };
     const original = await writePrelabel(
       ref,
@@ -260,8 +250,8 @@ describe("prelabels", () => {
   });
 
   test("review state is per dataset", async () => {
-    await addImages("ctx-one", [await imageFile("ctx", "ctx.jpg")]);
-    await addImages("ctx-two", [await imageFile("ctx", "ctx.jpg")]);
+    await addImage("ctx-one", await imageSource("ctx", "ctx.jpg"));
+    await addImage("ctx-two", await imageSource("ctx", "ctx.jpg"));
     const digest = await imageDigest("ctx");
     await writePrelabel(
       { dataset: "ctx-one", digest },
@@ -275,7 +265,7 @@ describe("prelabels", () => {
 
 describe("removal", () => {
   test("removes the membership with its prelabel and label", async () => {
-    await addImages("rm", [await imageFile("rm-bytes", "a.jpg")]);
+    await addImage("rm", await imageSource("rm-bytes", "a.jpg"));
     const ref = { dataset: "rm", digest: await imageDigest("rm-bytes") };
     const prelabel = await writePrelabel(
       ref,
@@ -293,8 +283,8 @@ describe("removal", () => {
   });
 
   test("bytes outlive their last reference until collected", async () => {
-    await addImages("share-a", [await imageFile("shared-bytes", "first.jpg")]);
-    await addImages("share-b", [await imageFile("shared-bytes", "second.jpg")]);
+    await addImage("share-a", await imageSource("shared-bytes", "first.jpg"));
+    await addImage("share-b", await imageSource("shared-bytes", "second.jpg"));
     const digest = await imageDigest("shared-bytes");
     await removeImage({ dataset: "share-a", digest });
     expect(await collectUnreferencedImages()).not.toContain(digest);
@@ -304,10 +294,11 @@ describe("removal", () => {
     expect(await collectUnreferencedImages()).toContain(digest);
     expect(blobExists(imageBlobKey(digest))).toBe(false);
 
-    const { added } = await addImages("share-c", [
-      await imageFile("shared-bytes", "third.jpg"),
-    ]);
-    expect(added.map((image) => image.digest)).toEqual([digest]);
+    const { image } = await addImage(
+      "share-c",
+      await imageSource("shared-bytes", "third.jpg"),
+    );
+    expect(image.digest).toBe(digest);
     expect(contentDigest(readBlob(imageBlobKey(digest)))).toBe(digest);
   });
 });

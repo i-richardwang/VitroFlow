@@ -7,7 +7,11 @@ import { tunableParametersSchema } from "../training/parameters";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { selectModelVersion } from "./datasets";
 import { datasetOverview } from "./overview";
-import { trainingConsole, trainingRunDetail } from "./training-console";
+import {
+  trainingConsole,
+  trainingOverview,
+  trainingRunDetail,
+} from "./training-console";
 import { createTrainingRun } from "./training-runs";
 
 const datasetInput = z.object({ dataset: z.string().regex(DATASET_NAME) });
@@ -33,6 +37,10 @@ export const getTrainingConsole = createServerFn({ method: "GET" })
     if (!console) throw new Error(`Unknown dataset: ${data.dataset}`);
     return console;
   });
+
+export const getTrainingOverview = createServerFn({ method: "GET" }).handler(
+  () => trainingOverview(),
+);
 
 export const getTrainingRun = createServerFn({ method: "GET" })
   .validator(datasetInput.extend({ runId: versionIdSchema }))

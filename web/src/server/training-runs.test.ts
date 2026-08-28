@@ -10,11 +10,13 @@ import { readDataset } from "./datasets";
 import { readModelVersion } from "./model-registry";
 import {
   claimTrainingRun,
+  countActiveTrainingRuns,
+  countTrainingRuns,
   createTrainingRun,
   enterTrainingPhase,
   failTrainingRun,
-  latestAttemptEpochs,
   listTrainingEpochs,
+  listTrainingRunSummaries,
   publishTrainingArtifact,
   readTrainingRun,
   recordTrainingEpoch,
@@ -86,6 +88,8 @@ const publication = {
 test("a model has at most one active training run", async () => {
   await reviewedDataset("exclusive-run");
   const run = await createTrainingRun("exclusive-run", recipe);
+  expect(await countTrainingRuns(run.modelId)).toBe(1);
+  expect(await countActiveTrainingRuns(run.modelId)).toBe(1);
   await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
     /still active/,
   );
@@ -95,10 +99,15 @@ test("a model has at most one active training run", async () => {
     /still active/,
   );
   await failTrainingRun(run.id, "exclusive-trainer", "stopped");
+  expect(await countActiveTrainingRuns(run.modelId)).toBe(0);
   const next = await createTrainingRun("exclusive-run", recipe);
   expect(next.id).not.toBe(run.id);
   expect((await claimTrainingRun("exclusive-trainer"))?.id).toBe(next.id);
   await failTrainingRun(next.id, "exclusive-trainer", "stopped");
+  expect(await countTrainingRuns(run.modelId)).toBe(2);
+  await expect(
+    listTrainingRunSummaries({ modelId: run.modelId, limit: 101 }),
+  ).rejects.toThrow(/between 1 and 100/);
 });
 
 test("concurrent claims lease a run to exactly one worker", async () => {
@@ -304,9 +313,16 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
     map50: 0.3,
     lr: 0.001,
   });
-  const latest = await latestAttemptEpochs([run.id, "train-missing"]);
-  expect([...latest.keys()]).toEqual([run.id]);
-  expect(latest.get(run.id)?.map(({ epoch }) => epoch)).toEqual([1]);
+  expect(
+    await listTrainingRunSummaries({ modelId: run.modelId, limit: 1 }),
+  ).toMatchObject([
+    {
+      dataset: "epoch-history",
+      run: { id: run.id },
+      completed: 1,
+      best: { map50: 0.3, map5095: 0.1 },
+    },
+  ]);
   const validating = await enterTrainingPhase(
     run.id,
     "epoch-successor",

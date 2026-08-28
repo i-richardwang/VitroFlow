@@ -1,10 +1,10 @@
-import { KPI } from "@heroui-pro/react/kpi";
 import { Widget } from "@heroui-pro/react/widget";
 import { Chip, EmptyState, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
+import { StatKpi } from "../../components/StatKpi";
 import { formatGibibytes } from "../../workers/memory";
 import { Timestamp } from "../../components/Timestamp";
 import { getStatus } from "../../server/status";
@@ -237,19 +237,6 @@ function StatusPage() {
         </Widget.Content>
       </Widget>
     </Page>
-  );
-}
-
-function StatKpi({ label, value }: { label: string; value: number }) {
-  return (
-    <KPI>
-      <KPI.Header>
-        <KPI.Title>{label}</KPI.Title>
-      </KPI.Header>
-      <KPI.Content>
-        <KPI.Value maximumFractionDigits={0} value={value} />
-      </KPI.Content>
-    </KPI>
   );
 }
 

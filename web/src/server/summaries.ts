@@ -16,7 +16,6 @@ import type { AnnotationDocument } from "../annotation/schema";
 import {
   atRef,
   membershipOrder,
-  membershipQuery,
   sameMembership,
   toDatasetImage,
   type DatasetImage,

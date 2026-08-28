@@ -1,13 +1,13 @@
 import { DropZone } from "@heroui-pro/react/drop-zone";
+import { toast } from "@heroui/react";
 import { useCallback } from "react";
 
 import {
   MAX_SOURCE_IMAGE_BYTES,
   MAX_SOURCE_IMAGE_PIXELS,
   SOURCE_IMAGE_EXTENSIONS,
+  sourceImageFileError,
 } from "../images/canonical";
-
-const ACCEPT_SET = new Set<string>(SOURCE_IMAGE_EXTENSIONS);
 
 export function ImageDropZone({
   files,
@@ -20,13 +20,15 @@ export function ImageDropZone({
 }) {
   const addFiles = useCallback(
     (incoming: File[]) => {
-      const accepted = incoming.filter((file) =>
-        ACCEPT_SET.has(`.${extension(file.name)}`),
-      );
+      const accepted = incoming.filter((file) => {
+        const error = sourceImageFileError(file);
+        if (error) toast.danger(file.name, { description: error });
+        return error === null;
+      });
       if (accepted.length === 0) {
         return;
       }
-      onChange(mergeFiles(files, accepted));
+      onChange([...files, ...accepted]);
     },
     [files, onChange],
   );
@@ -48,9 +50,8 @@ export function ImageDropZone({
         <DropZone.Icon />
         <DropZone.Label>Drop images here or browse</DropZone.Label>
         <DropZone.Description>
-          JPEG, PNG, or TIFF, up to{" "}
-          {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB and{" "}
-          {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP each. Every photograph is
+          JPEG, PNG, or TIFF, up to {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB
+          and {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP each. Every photograph is
           re-encoded on arrival into the one format the workbench stores.
         </DropZone.Description>
         <DropZone.Trigger isDisabled={progress != null}>
@@ -65,11 +66,11 @@ export function ImageDropZone({
       />
       {files.length > 0 && (
         <DropZone.FileList>
-          {files.map((file) => {
+          {files.map((file, index) => {
             const ext = extension(file.name);
             return (
               <DropZone.FileItem
-                key={`${file.name}:${file.size}`}
+                key={`${file.name}:${file.size}:${file.lastModified}:${index}`}
                 status={progress != null ? "uploading" : undefined}
               >
                 <DropZone.FileFormatIcon
@@ -110,20 +111,6 @@ export function ImageDropZone({
       )}
     </DropZone>
   );
-}
-
-function mergeFiles(current: File[], incoming: File[]): File[] {
-  const names = new Set(current.map((file) => file.name.toLocaleLowerCase()));
-  const next = [...current];
-  for (const file of incoming) {
-    const key = file.name.toLocaleLowerCase();
-    if (names.has(key)) {
-      continue;
-    }
-    names.add(key);
-    next.push(file);
-  }
-  return next;
 }
 
 function extension(name: string): string {

@@ -16,7 +16,6 @@ export const predictionProducerSchema = z.strictObject({
 });
 
 export type RuntimeDescriptor = z.infer<typeof runtimeDescriptorSchema>;
-type PredictionProducer = z.infer<typeof predictionProducerSchema>;
 
 export function sameRuntimeDescriptor(
   left: RuntimeDescriptor,

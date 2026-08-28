@@ -8,11 +8,27 @@ import {
   parseTrainingValue,
   trainingWorkerErrorResponse,
 } from "../server/training-worker-http";
+import {
+  MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
+  MAX_TRAINING_MANIFEST_BYTES,
+  MAX_TRAINING_WEIGHTS_BYTES,
+} from "../training/artifact";
+
+function payloadTooLarge(message: string): Response {
+  return new Response(message, { status: 413 });
+}
 
 export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
   server: {
     handlers: {
       PUT: async ({ params, request }) => {
+        const declaredLength = Number(request.headers.get("content-length"));
+        if (!Number.isSafeInteger(declaredLength) || declaredLength <= 0) {
+          return new Response("Content-Length is required", { status: 411 });
+        }
+        if (declaredLength > MAX_TRAINING_ARTIFACT_REQUEST_BYTES) {
+          return payloadTooLarge("Training artifact request is too large");
+        }
         let workerId: string;
         let weights: Uint8Array;
         let publication: unknown;
@@ -28,6 +44,12 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
                 status: 400,
               },
             );
+          }
+          if (weightsFile.size > MAX_TRAINING_WEIGHTS_BYTES) {
+            return payloadTooLarge("Training weights exceed 512 MiB");
+          }
+          if (inference.size > MAX_TRAINING_MANIFEST_BYTES) {
+            return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
           workerId = parseTrainingValue(worker, versionIdSchema, "workerId");
           weights = new Uint8Array(await weightsFile.arrayBuffer());

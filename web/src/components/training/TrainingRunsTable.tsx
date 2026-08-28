@@ -1,27 +1,38 @@
 import { EmptyState, Table } from "@heroui/react";
 
 import { versionSlug } from "../../models/schema";
-import type { TrainingRunSummary } from "../../server/training-console";
-import { MIN_SNAPSHOT_IMAGES, trainingRunLabel } from "../../training/schema";
+import type { TrainingRunSummary } from "../../server/training-runs";
+import { trainingRunLabel } from "../../training/schema";
 import { Timestamp } from "../Timestamp";
 import { Metric } from "./Metric";
 import { TrainingRunState } from "./TrainingRunState";
 
 export function TrainingRunsTable({
-  dataset,
   runs,
-  complete,
+  datasetColumn = false,
+  emptyHint,
 }: {
-  dataset: string;
   runs: TrainingRunSummary[];
-  complete: number;
+  /** Shown when the rows come from several datasets. */
+  datasetColumn?: boolean;
+  emptyHint: string;
 }) {
+  if (runs.length === 0) {
+    return (
+      <EmptyState className="flex min-h-32 flex-col items-center justify-center gap-1 text-center">
+        <span className="font-medium">No training runs yet</span>
+        <span className="text-xs text-muted">{emptyHint}</span>
+      </EmptyState>
+    );
+  }
+
   return (
     <Table>
       <Table.ScrollContainer>
         <Table.Content aria-label="Training runs">
           <Table.Header>
             <Table.Column isRowHeader>Run</Table.Column>
+            {datasetColumn && <Table.Column>Dataset</Table.Column>}
             <Table.Column>State</Table.Column>
             <Table.Column className="text-right">Epochs</Table.Column>
             <Table.Column className="whitespace-nowrap text-right">
@@ -32,19 +43,8 @@ export function TrainingRunsTable({
             </Table.Column>
             <Table.Column>Version</Table.Column>
           </Table.Header>
-          <Table.Body
-            renderEmptyState={() => (
-              <EmptyState className="flex min-h-32 flex-col items-center justify-center gap-1 text-center">
-                <span className="font-medium">No training runs yet</span>
-                <span className="text-xs text-muted">
-                  {complete < MIN_SNAPSHOT_IMAGES
-                    ? `Complete at least ${MIN_SNAPSHOT_IMAGES} annotations to train.`
-                    : "Train a YOLO version from the reviewed annotations."}
-                </span>
-              </EmptyState>
-            )}
-          >
-            {runs.map(({ run, completed, best }) => (
+          <Table.Body>
+            {runs.map(({ dataset, run, completed, best }) => (
               <Table.Row
                 key={run.id}
                 href={`/datasets/${dataset}/training/${run.id}`}
@@ -56,6 +56,9 @@ export function TrainingRunsTable({
                     <Timestamp value={run.createdAt} />
                   </span>
                 </Table.Cell>
+                {datasetColumn && (
+                  <Table.Cell className="font-mono">{dataset}</Table.Cell>
+                )}
                 <Table.Cell>
                   <TrainingRunState run={run} />
                 </Table.Cell>

@@ -7,26 +7,46 @@ import { readModelVersion } from "./model-registry";
 import { trainingSummary, type TrainingSummary } from "./overview";
 import { countImageStates, listImageRecords, summarize } from "./summaries";
 import {
-  latestAttemptEpochs,
+  countActiveTrainingRuns,
+  countTrainingRuns,
   listTrainingEpochs,
-  listTrainingRuns,
+  listTrainingRunSummaries,
   readTrainingRun,
+  type TrainingRunSummary,
 } from "./training-runs";
+import {
+  listTrainingWorkers,
+  trainingWorkerPresence,
+} from "./training-worker-store";
 
-/** The epoch with the highest fitness; what Ultralytics keeps as `best.pt`. */
-export function bestEpoch(epochs: TrainingEpoch[]): TrainingEpoch | null {
-  let best: TrainingEpoch | null = null;
-  for (const epoch of epochs) {
-    if (!best || epoch.fitness > best.fitness) best = epoch;
-  }
-  return best;
+/** Every dataset's runs on one page. */
+export interface TrainingOverview {
+  /** Exact count across the full history. */
+  total: number;
+  /** Newest first. */
+  runs: TrainingRunSummary[];
+  /** Runs queued, training, or publishing. */
+  inProgress: number;
+  workersOnline: number;
 }
 
-export interface TrainingRunSummary {
-  run: TrainingRun;
-  /** Epochs the current attempt has finished. */
-  completed: number;
-  best: TrainingEpoch | null;
+export async function trainingOverview(
+  at: Date = new Date(),
+): Promise<TrainingOverview> {
+  const [runs, total, inProgress, workers] = await Promise.all([
+    listTrainingRunSummaries(),
+    countTrainingRuns(),
+    countActiveTrainingRuns(),
+    listTrainingWorkers(at),
+  ]);
+  return {
+    total,
+    runs,
+    inProgress,
+    workersOnline: workers.filter(
+      (worker) => trainingWorkerPresence(worker, at) === "online",
+    ).length,
+  };
 }
 
 /** Everything the training page shows for one dataset. */
@@ -46,17 +66,13 @@ export async function trainingConsole(
   const dataset = await readDataset(datasetId);
   if (!dataset) return null;
   const records = await listImageRecords(datasetId);
-  const runs = await listTrainingRuns(dataset.modelId);
-  const epochs = await latestAttemptEpochs(runs.map((run) => run.id));
+  const runs = await listTrainingRunSummaries({ modelId: dataset.modelId });
   return {
     dataset: dataset.id,
     complete: countImageStates(records.map(summarize)).complete,
     recipe: YOLO26_SEED_SMALL_RECIPE,
-    training: await trainingSummary(dataset.modelId, records, runs, at),
-    runs: runs.map((run) => {
-      const own = epochs.get(run.id) ?? [];
-      return { run, completed: own.length, best: bestEpoch(own) };
-    }),
+    training: await trainingSummary(dataset.modelId, records, at),
+    runs,
   };
 }
 

@@ -33,9 +33,7 @@ export const Route = createFileRoute("/login")({
         const form = await request.formData();
         const destination = returnPath(form.get("returnTo"));
         const accepted = signIn(String(form.get("password") ?? ""));
-        return redirect(
-          accepted ? destination : loginPath(destination, true),
-        );
+        return redirect(accepted ? destination : loginPath(destination, true));
       },
     },
   },
@@ -56,7 +54,9 @@ function LoginPage() {
         </header>
         <Card className="w-full">
           <Card.Header>
-            <Card.Title render={(props) => <h1 {...props} />}>Sign in</Card.Title>
+            <Card.Title render={(props) => <h1 {...props} />}>
+              Sign in
+            </Card.Title>
             <Card.Description>
               Enter the workbench password to continue.
             </Card.Description>

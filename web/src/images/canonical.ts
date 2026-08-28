@@ -18,3 +18,18 @@ export const MAX_SOURCE_IMAGE_BYTES = 64 * 1024 * 1024;
 
 /** Every stored photograph is an opaque, oriented sRGB AVIF. */
 export const CANONICAL_IMAGE_MEDIA_TYPE = "image/avif";
+
+/** Why a browser file cannot enter the photograph boundary. */
+export function sourceImageFileError(file: {
+  name: string;
+  size: number;
+}): string | null {
+  const dot = file.name.lastIndexOf(".");
+  const extension = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
+  if (!SOURCE_IMAGE_EXTENSIONS.some((accepted) => accepted === extension)) {
+    return "Choose a JPEG, PNG, or TIFF photograph";
+  }
+  if (file.size === 0) return "The file is empty";
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) return "The file exceeds 64 MiB";
+  return null;
+}

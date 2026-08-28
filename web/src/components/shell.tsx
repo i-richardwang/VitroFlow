@@ -6,10 +6,16 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { BrandLogo } from "./BrandLogo";
-import { DatasetsIcon, LogoutIcon, StatusIcon } from "./icons";
+import { DatasetsIcon, LogoutIcon, StatusIcon, TrainingIcon } from "./icons";
 
 const NAV = [
   { href: "/", label: "Datasets", icon: DatasetsIcon, match: "datasets" },
+  {
+    href: "/training",
+    label: "Training",
+    icon: TrainingIcon,
+    match: "training",
+  },
   { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
 
@@ -47,7 +53,7 @@ function AppNavbar({ pathname }: { pathname: string }) {
   return (
     <Navbar maxWidth="full">
       <Navbar.Header>
-        <Sidebar.Trigger />
+        <Sidebar.Trigger aria-label="Toggle navigation" />
         <span className="truncate text-sm font-semibold tracking-tight text-foreground">
           {titleFor(pathname)}
         </span>

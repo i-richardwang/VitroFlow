@@ -14,10 +14,9 @@ function source() {
 }
 
 test("canonical images are opaque, oriented sRGB AVIF photographs", async () => {
-  const transparent = await sharp(
-    Buffer.from([255, 0, 0, 0]),
-    { raw: { width: 1, height: 1, channels: 4 } },
-  )
+  const transparent = await sharp(Buffer.from([255, 0, 0, 0]), {
+    raw: { width: 1, height: 1, channels: 4 },
+  })
     .png()
     .toBuffer();
   const canonical = await canonicalize(transparent);

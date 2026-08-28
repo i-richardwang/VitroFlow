@@ -1,4 +1,8 @@
-import { createMiddleware, createStart } from "@tanstack/react-start";
+import {
+  createCsrfMiddleware,
+  createMiddleware,
+  createStart,
+} from "@tanstack/react-start";
 
 import { loginPath, requestedPath } from "./auth/navigation";
 import { isAuthenticated, redirect } from "./server/session";
@@ -38,6 +42,10 @@ const requireSession = createMiddleware().server(
   },
 );
 
+const requireSameOriginServerFunction = createCsrfMiddleware({
+  filter: ({ handlerType }) => handlerType === "serverFn",
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [requireSession],
+  requestMiddleware: [requireSameOriginServerFunction, requireSession],
 }));

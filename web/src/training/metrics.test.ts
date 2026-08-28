@@ -1,0 +1,26 @@
+import { expect, test } from "bun:test";
+
+import type { TrainingEpoch } from "./schema";
+import { bestEpoch } from "./metrics";
+
+function epoch(epoch: number, fitness: number): TrainingEpoch {
+  return {
+    attempt: 1,
+    epoch,
+    recordedAt: "2026-08-28T00:00:00.000Z",
+    train: { box: 1, cls: 1, dfl: 1 },
+    val: { box: 1, cls: 1, dfl: 1 },
+    precision: 0.5,
+    recall: 0.5,
+    map50: 0.5,
+    map5095: 0.25,
+    fitness,
+    lr: 0.001,
+  };
+}
+
+test("best epoch follows Ultralytics fitness and keeps the first tie", () => {
+  const first = epoch(1, 0.4);
+  expect(bestEpoch([])).toBeNull();
+  expect(bestEpoch([first, epoch(2, 0.8), epoch(3, 0.8)])?.epoch).toBe(2);
+});

@@ -12,7 +12,7 @@ import { canonicalize } from "./image-ingest";
 import { readDataset } from "./datasets";
 import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
-import { addImages } from "./upload";
+import { addImage } from "./upload";
 
 export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
@@ -71,14 +71,15 @@ export async function imageBytes(
   return bytes;
 }
 
-export async function imageFile(
+/** The transport-neutral source accepted by the image ingestion domain. */
+export async function imageSource(
   content: string,
-  name = `${content}.jpg`,
-): Promise<File> {
-  return new File([await imageBytes(content)], name);
+  filename = `${content}.jpg`,
+) {
+  return { filename, bytes: await imageBytes(content) };
 }
 
-/** The digest `imageFile(content)` is stored under once it is canonicalised. */
+/** The digest `imageSource(content)` is stored under once it is canonicalised. */
 export async function imageDigest(content: string): Promise<string> {
   return (await canonicalize(await imageBytes(content))).digest;
 }
@@ -94,10 +95,9 @@ export async function selectedVersion(datasetId: string) {
 
 /** Uploads one deterministic source per text; tests use its canonical digest. */
 export async function uploadTexts(datasetId: string, contents: string[]) {
-  await addImages(
-    datasetId,
-    await Promise.all(contents.map((content) => imageFile(content))),
-  );
+  for (const content of contents) {
+    await addImage(datasetId, await imageSource(content));
+  }
   return selectedVersion(datasetId);
 }
 

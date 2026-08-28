@@ -31,8 +31,29 @@ const EFFORT = 0;
 
 const SOURCE_FORMAT_SET = new Set<string>(SOURCE_IMAGE_FORMATS);
 
-/** Encoder threads used by the one photograph ingested at a time. */
+/** Encoder threads used by the one photograph processed at a time. */
 sharp.concurrency(2);
+
+let canonicalizationTail = Promise.resolve();
+
+/**
+ * Decoding a maximum-size source dominates workbench memory. HTTP requests may
+ * arrive concurrently, but one process materializes only one photograph at a
+ * time; the next request can finish travelling while the current image encodes.
+ */
+async function inCanonicalizationSlot<T>(work: () => Promise<T>): Promise<T> {
+  const previous = canonicalizationTail;
+  let release!: () => void;
+  canonicalizationTail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
 
 /** The longest edge AVIF can represent. */
 const MAX_EDGE_PIXELS = 16384;
@@ -52,6 +73,10 @@ export interface CanonicalImage {
 export async function canonicalize(
   source: Uint8Array,
 ): Promise<CanonicalImage> {
+  return inCanonicalizationSlot(() => canonicalizeSource(source));
+}
+
+async function canonicalizeSource(source: Uint8Array): Promise<CanonicalImage> {
   const image = sharp(source, {
     failOn: "error",
     limitInputPixels: MAX_SOURCE_IMAGE_PIXELS,

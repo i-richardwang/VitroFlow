@@ -29,7 +29,7 @@ import {
 import { canExecute } from "./inference-worker-store";
 import { assertDocumentImage } from "./image-documents";
 import { toModelVersion } from "./model-registry";
-import { lockImageRecord, recordQuery } from "./summaries";
+import { lockImageRecord } from "./summaries";
 
 /** Thrown when a worker tries to replace the prelabel a review started from. */
 export class PrelabelFrozenError extends Error {

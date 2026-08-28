@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
+import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../training/artifact";
 import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
 import { Route as ClaimRoute } from "../routes/api.training.claim";
@@ -93,7 +94,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect(image.status).toBe(200);
   expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(digest);
 
-  const trainingPhase = await handler(PhaseRoute, "POST")({
+  const trainingPhase = await handler(
+    PhaseRoute,
+    "POST",
+  )({
     params: { runId: created.id },
     request: new Request("http://localhost/phase", {
       method: "POST",
@@ -130,7 +134,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
     0.05 + 0.85 / YOLO26_SEED_SMALL_RECIPE.parameters.epochs,
   );
 
-  const lease = await handler(LeaseRoute, "POST")({
+  const lease = await handler(
+    LeaseRoute,
+    "POST",
+  )({
     params: { runId: created.id },
     request: new Request("http://localhost/lease", {
       method: "POST",
@@ -140,7 +147,10 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect(lease.status).toBe(200);
   expect((await lease.json()).state.progress).toBeCloseTo(reported.progress);
 
-  const validationPhase = await handler(PhaseRoute, "POST")({
+  const validationPhase = await handler(
+    PhaseRoute,
+    "POST",
+  )({
     params: { runId: created.id },
     request: new Request("http://localhost/phase", {
       method: "POST",
@@ -183,6 +193,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { runId: created.id },
     request: new Request("http://localhost/artifact", {
       method: "PUT",
+      headers: { "content-length": "1000" },
       body: form,
     }),
   } as never);
@@ -197,6 +208,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { runId: created.id },
     request: new Request("http://localhost/artifact", {
       method: "PUT",
+      headers: { "content-length": "1000" },
       body: form,
     }),
   } as never);
@@ -223,7 +235,10 @@ test("training readiness identifies the authenticated control plane", async () =
 });
 
 test("training HTTP routes distinguish invalid requests from lease conflicts", async () => {
-  const invalid = await handler(PhaseRoute, "POST")({
+  const invalid = await handler(
+    PhaseRoute,
+    "POST",
+  )({
     params: { runId: "train-invalid" },
     request: new Request("http://localhost/phase", {
       method: "POST",
@@ -232,7 +247,10 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
   } as never);
   expect(invalid.status).toBe(400);
 
-  const conflict = await handler(LeaseRoute, "POST")({
+  const conflict = await handler(
+    LeaseRoute,
+    "POST",
+  )({
     params: { runId: "train-missing" },
     request: new Request("http://localhost/lease", {
       method: "POST",
@@ -240,4 +258,28 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
     }),
   } as never);
   expect(conflict.status).toBe(409);
+});
+
+test("training artifact admission rejects unknown and excessive request sizes", async () => {
+  const put = (request: Request) =>
+    handler(
+      ArtifactRoute,
+      "PUT",
+    )({ params: { runId: "train-boundary" }, request } as never);
+
+  const unknown = await put(
+    new Request("http://localhost/artifact", { method: "PUT" }),
+  );
+  expect(unknown.status).toBe(411);
+
+  const excessive = await put(
+    new Request("http://localhost/artifact", {
+      method: "PUT",
+      headers: {
+        "content-length": String(MAX_TRAINING_ARTIFACT_REQUEST_BYTES + 1),
+      },
+      body: new Uint8Array([1]),
+    }),
+  );
+  expect(excessive.status).toBe(413);
 });

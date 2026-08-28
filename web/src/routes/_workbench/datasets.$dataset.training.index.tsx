@@ -8,6 +8,7 @@ import { ParametersList } from "../../components/training/ParametersList";
 import { TrainDialog } from "../../components/training/TrainDialog";
 import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../server/models";
+import { MIN_SNAPSHOT_IMAGES } from "../../training/schema";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
   {
@@ -79,6 +80,9 @@ function TrainingPage() {
           <div className="flex flex-col gap-1">
             <Widget.Title>Runs</Widget.Title>
             <Widget.Description>
+              {runs.length < training.runs
+                ? `${runs.length} most recent. `
+                : ""}
               Open a run to follow its loss and metric curves epoch by epoch.
             </Widget.Description>
           </div>
@@ -86,9 +90,12 @@ function TrainingPage() {
         </Widget.Header>
         <Widget.Content>
           <TrainingRunsTable
-            dataset={dataset}
             runs={runs}
-            complete={complete}
+            emptyHint={
+              complete < MIN_SNAPSHOT_IMAGES
+                ? `Complete at least ${MIN_SNAPSHOT_IMAGES} annotations to train.`
+                : "Train a YOLO version from the reviewed annotations."
+            }
           />
         </Widget.Content>
       </Widget>

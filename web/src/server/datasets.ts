@@ -52,7 +52,7 @@ export function membershipQuery(db: Executor) {
     .innerJoin(images, eq(images.id, datasetImages.imageId));
 }
 
-/** Upload order, then name within one upload. */
+/** Membership creation time, then filename and digest. */
 export function membershipOrder() {
   return [
     asc(datasetImages.addedAt),

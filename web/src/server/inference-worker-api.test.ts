@@ -15,7 +15,7 @@ import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
 import { readPrelabel } from "./prelabels";
 import { contentDigest } from "./blobs";
-import { FIXTURE_EDGE, imageDigest, imageFile } from "./testing";
+import { FIXTURE_EDGE, imageBytes, imageDigest } from "./testing";
 
 type Handler = (context: never) => Response | Promise<Response>;
 
@@ -34,19 +34,23 @@ const digest = await imageDigest("image");
 const ref = { dataset: "api", digest };
 
 test("inference HTTP routes carry an image from upload to prelabel", async () => {
-  const upload = new FormData();
-  upload.append("images", await imageFile("image", "api.jpg"));
+  const upload = await imageBytes("image");
   const uploadResponse = await handler(
     UploadRoute,
     "POST",
   )({
     params: { dataset: "api" },
-    request: new Request("http://localhost/api/datasets/api/images", {
-      method: "POST",
-      body: upload,
-    }),
+    request: new Request(
+      "http://localhost/api/datasets/api/images?filename=api.jpg",
+      {
+        method: "POST",
+        headers: { "content-length": String(upload.byteLength) },
+        body: upload,
+      },
+    ),
   } as never);
   expect(uploadResponse.status).toBe(200);
+  expect(await uploadResponse.json()).toEqual({ digest, added: true });
 
   const dataset = await readDataset("api");
   if (!dataset) throw new Error("missing dataset");
@@ -179,4 +183,33 @@ test("inference readiness identifies the authenticated control plane", async () 
   const response = await handler(ReadyRoute, "GET")({} as never);
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ role: "inference" });
+});
+
+test("image upload rejects an absent or excessive declared body before reading it", async () => {
+  const post = (request: Request) =>
+    handler(
+      UploadRoute,
+      "POST",
+    )({ params: { dataset: "upload-boundary" }, request } as never);
+
+  const absent = await post(
+    new Request(
+      "http://localhost/api/datasets/upload-boundary/images?filename=a.jpg",
+      { method: "POST" },
+    ),
+  );
+  expect(absent.status).toBe(411);
+
+  const excessive = await post(
+    new Request(
+      "http://localhost/api/datasets/upload-boundary/images?filename=a.jpg",
+      {
+        method: "POST",
+        headers: { "content-length": String(64 * 1024 * 1024 + 1) },
+        body: new Uint8Array([1]),
+      },
+    ),
+  );
+  expect(excessive.status).toBe(413);
+  expect(await readDataset("upload-boundary")).toBeNull();
 });

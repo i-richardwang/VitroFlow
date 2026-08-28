@@ -16,7 +16,11 @@ import {
   type ImageRecord,
   type ImageSummary,
 } from "./summaries";
-import { activeTrainingRun, listTrainingRuns } from "./training-runs";
+import {
+  activeTrainingRun,
+  countTrainingRuns,
+  latestTrainingRun,
+} from "./training-runs";
 import {
   listTrainingWorkers,
   trainingWorkerPresence,
@@ -92,16 +96,24 @@ async function inferenceWorkerCount(
 export async function trainingSummary(
   modelId: string,
   records: ImageRecord[],
-  runs: TrainingRun[],
   at: Date,
 ): Promise<TrainingSummary> {
-  const online = (await listTrainingWorkers(at)).filter(
+  const [workers, active, runs, latest] = await Promise.all([
+    listTrainingWorkers(at),
+    activeTrainingRun(modelId),
+    countTrainingRuns(modelId),
+    latestTrainingRun(modelId),
+  ]);
+  const online = workers.filter(
     (worker) => trainingWorkerPresence(worker, at) === "online",
   );
   return {
-    runs: runs.length,
-    active: await activeTrainingRun(modelId),
-    reviewedSinceLastRun: await reviewedSinceLastRun(records, runs[0]),
+    runs,
+    active,
+    reviewedSinceLastRun: await reviewedSinceLastRun(
+      records,
+      latest ?? undefined,
+    ),
     workersOnline: online.length,
     workerMemoryBytes: online.length
       ? Math.min(...online.map((worker) => worker.memoryBytes))
@@ -117,10 +129,7 @@ export async function datasetOverview(
   if (!dataset) return null;
   const records = await listImageRecords(datasetId);
   const summaries = records.map(summarize);
-  const [modelVersions, runs] = await Promise.all([
-    listModelVersions(dataset.modelId),
-    listTrainingRuns(dataset.modelId),
-  ]);
+  const modelVersions = await listModelVersions(dataset.modelId);
   const trainingImages = await snapshotImageCounts(
     modelVersions.flatMap((version) =>
       version.source.kind === "training_run"
@@ -145,6 +154,6 @@ export async function datasetOverview(
     inference: selected
       ? await inferenceWorkerCount(selected.version.artifact, at)
       : { online: 0, stale: 0 },
-    training: await trainingSummary(dataset.modelId, records, runs, at),
+    training: await trainingSummary(dataset.modelId, records, at),
   };
 }

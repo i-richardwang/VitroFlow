@@ -1,8 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gt, inArray, lte, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
-import { trainingEpochs, trainingRuns } from "../db/schema";
+import { datasets, trainingEpochs, trainingRuns } from "../db/schema";
 import {
   ACTIVE_TRAINING_RUN_STATUSES,
   inferencePublicationSchema,
@@ -44,6 +55,9 @@ const NEXT_PHASE: Record<TrainingPhase, TrainingPhase | null> = {
   training: "validating",
   validating: null,
 };
+
+/** A workbench page stays bounded while exact totals remain separate. */
+export const TRAINING_RUN_LIST_LIMIT = 100;
 
 type Row = typeof trainingRuns.$inferSelect;
 type EpochRow = typeof trainingEpochs.$inferSelect;
@@ -280,23 +294,111 @@ export async function readTrainingRun(
   return row ? toRun(row) : null;
 }
 
-/** Runs for a model, newest first. */
-export async function listTrainingRuns(
-  modelId: string,
-): Promise<TrainingRun[]> {
+export interface TrainingRunSummary {
+  dataset: string;
+  run: TrainingRun;
+  /** Epochs the current attempt has finished. */
+  completed: number;
+  /** Metrics from the epoch Ultralytics selects as `best.pt`. */
+  best: { map50: number; map5095: number } | null;
+}
+
+/** The newest bounded page of runs, with current-attempt metrics aggregated by SQL. */
+export async function listTrainingRunSummaries(
+  options: { modelId?: string; limit?: number } = {},
+): Promise<TrainingRunSummary[]> {
+  const limit = options.limit ?? TRAINING_RUN_LIST_LIMIT;
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > TRAINING_RUN_LIST_LIMIT
+  ) {
+    throw new Error(
+      `Training run list limit must be between 1 and ${TRAINING_RUN_LIST_LIMIT}`,
+    );
+  }
   const db = await database();
   const rows = await db
+    .select({
+      dataset: datasets.id,
+      run: trainingRuns,
+      completed: sql<number>`(
+        select count(*)::integer
+        from ${trainingEpochs}
+        where ${trainingEpochs.runId} = ${trainingRuns.id}
+          and ${trainingEpochs.attempt} = ${trainingRuns.attempt}
+      )`,
+      bestMap50: sql<number | null>`(
+        select ${trainingEpochs.map50}
+        from ${trainingEpochs}
+        where ${trainingEpochs.runId} = ${trainingRuns.id}
+          and ${trainingEpochs.attempt} = ${trainingRuns.attempt}
+        order by ${trainingEpochs.fitness} desc, ${trainingEpochs.epoch} asc
+        limit 1
+      )`,
+      bestMap5095: sql<number | null>`(
+        select ${trainingEpochs.map5095}
+        from ${trainingEpochs}
+        where ${trainingEpochs.runId} = ${trainingRuns.id}
+          and ${trainingEpochs.attempt} = ${trainingRuns.attempt}
+        order by ${trainingEpochs.fitness} desc, ${trainingEpochs.epoch} asc
+        limit 1
+      )`,
+    })
+    .from(trainingRuns)
+    .innerJoin(datasets, eq(datasets.modelId, trainingRuns.modelId))
+    .where(
+      options.modelId ? eq(trainingRuns.modelId, options.modelId) : undefined,
+    )
+    .orderBy(desc(trainingRuns.createdAt), desc(trainingRuns.id))
+    .limit(limit);
+  return rows.map((row) => ({
+    dataset: row.dataset,
+    run: toRun(row.run),
+    completed: row.completed,
+    best:
+      row.bestMap50 == null || row.bestMap5095 == null
+        ? null
+        : { map50: row.bestMap50, map5095: row.bestMap5095 },
+  }));
+}
+
+export async function countTrainingRuns(modelId?: string): Promise<number> {
+  const db = await database();
+  const [row] = await db
+    .select({ count: count() })
+    .from(trainingRuns)
+    .where(modelId ? eq(trainingRuns.modelId, modelId) : undefined);
+  return row?.count ?? 0;
+}
+
+export async function countActiveTrainingRuns(
+  modelId?: string,
+): Promise<number> {
+  const db = await database();
+  const predicates = [
+    inArray(trainingRuns.status, [...ACTIVE_TRAINING_RUN_STATUSES]),
+  ];
+  if (modelId) predicates.push(eq(trainingRuns.modelId, modelId));
+  const [row] = await db
+    .select({ count: count() })
+    .from(trainingRuns)
+    .where(and(...predicates));
+  return row?.count ?? 0;
+}
+
+/** The newest run for a model, if it has ever trained. */
+export async function latestTrainingRun(
+  modelId: string,
+): Promise<TrainingRun | null> {
+  const db = await database();
+  const [row] = await db
     .select()
     .from(trainingRuns)
     .where(eq(trainingRuns.modelId, modelId))
-    .orderBy(desc(trainingRuns.createdAt));
-  return rows.map(toRun);
-}
-
-export async function countTrainingRuns(): Promise<number> {
-  const db = await database();
-  const [row] = await db.select({ count: count() }).from(trainingRuns);
-  return row?.count ?? 0;
+    .orderBy(desc(trainingRuns.createdAt), desc(trainingRuns.id))
+    .limit(1);
+  return row ? toRun(row) : null;
 }
 
 /** The run still queued, leased, or publishing for a model; at most one exists. */
@@ -584,32 +686,6 @@ export async function listTrainingEpochs(
     .where(eq(trainingEpochs.runId, runId))
     .orderBy(asc(trainingEpochs.attempt), asc(trainingEpochs.epoch));
   return rows.map(toEpoch);
-}
-
-/** The latest attempt's epochs for each run, keyed by run id. */
-export async function latestAttemptEpochs(
-  runIds: string[],
-): Promise<Map<string, TrainingEpoch[]>> {
-  const result = new Map<string, TrainingEpoch[]>();
-  if (runIds.length === 0) return result;
-  const db = await database();
-  const rows = await db
-    .select({ epoch: trainingEpochs, attempt: trainingRuns.attempt })
-    .from(trainingEpochs)
-    .innerJoin(trainingRuns, eq(trainingRuns.id, trainingEpochs.runId))
-    .where(
-      and(
-        inArray(trainingEpochs.runId, runIds),
-        eq(trainingEpochs.attempt, trainingRuns.attempt),
-      ),
-    )
-    .orderBy(asc(trainingEpochs.epoch));
-  for (const { epoch } of rows) {
-    const epochs = result.get(epoch.runId) ?? [];
-    epochs.push(toEpoch(epoch));
-    result.set(epoch.runId, epochs);
-  }
-  return result;
 }
 
 export async function failTrainingRun(

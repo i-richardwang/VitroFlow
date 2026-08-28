@@ -1,8 +1,7 @@
 import type { DatasetImage } from "./datasets";
 
 type DocumentImage =
-  | { digest: string }
-  | { digest: string; width: number; height: number };
+  { digest: string } | { digest: string; width: number; height: number };
 
 /** A persisted document must describe the canonical photograph it belongs to. */
 export function assertDocumentImage(
