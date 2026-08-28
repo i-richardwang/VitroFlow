@@ -42,6 +42,8 @@ export interface TrainingSummary {
   /** Complete annotations the most recent run's snapshot does not contain. */
   reviewedSinceLastRun: number;
   workersOnline: number;
+  /** The least memory any online worker offers; a queued run may land on it. */
+  workerMemoryBytes: number | null;
 }
 
 /** Everything the dataset page shows: images, candidate versions, and training. */
@@ -93,14 +95,17 @@ export async function trainingSummary(
   runs: TrainingRun[],
   at: Date,
 ): Promise<TrainingSummary> {
-  const workers = await listTrainingWorkers(at);
+  const online = (await listTrainingWorkers(at)).filter(
+    (worker) => trainingWorkerPresence(worker, at) === "online",
+  );
   return {
     runs: runs.length,
     active: await activeTrainingRun(modelId),
     reviewedSinceLastRun: await reviewedSinceLastRun(records, runs[0]),
-    workersOnline: workers.filter(
-      (worker) => trainingWorkerPresence(worker, at) === "online",
-    ).length,
+    workersOnline: online.length,
+    workerMemoryBytes: online.length
+      ? Math.min(...online.map((worker) => worker.memoryBytes))
+      : null,
   };
 }
 

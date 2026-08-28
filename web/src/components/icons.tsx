@@ -16,14 +16,6 @@ function Icon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function BrandIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <circle cx="8" cy="8" r="5.5" />
-    </Icon>
-  );
-}
-
 export function CursorIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

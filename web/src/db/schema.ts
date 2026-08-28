@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   foreignKey,
+  bigint,
   index,
   integer,
   jsonb,
@@ -394,6 +395,7 @@ export const trainingWorkers = pgTable(
     id: text("id").primaryKey(),
     startedAt: instant("started_at"),
     device: text("device").notNull(),
+    memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     currentTrainingRunId: text("current_training_run_id").references(
       () => trainingRuns.id,
       { onDelete: "set null" },

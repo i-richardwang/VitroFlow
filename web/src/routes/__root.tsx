@@ -19,7 +19,10 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "VitroFlow" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/logo.svg", type: "image/svg+xml" },
+    ],
   }),
   component: RootComponent,
   notFoundComponent: NotFoundPage,

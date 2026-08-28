@@ -17,6 +17,7 @@ import {
   type TunableParameters,
 } from "../../training/parameters";
 import { MIN_SNAPSHOT_IMAGES } from "../../training/schema";
+import { formatGibibytes } from "../../workers/memory";
 
 function tunable(console: TrainingConsole): TunableParameters {
   return tunableParametersSchema.parse(console.recipe.parameters);
@@ -88,9 +89,16 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
                     mosaic {recipe.parameters.mosaic}, max_det{" "}
                     {recipe.parameters.max_det}
                   </p>
-                  {training.workersOnline === 0 && (
+                  {training.workerMemoryBytes === null ? (
                     <p className="text-sm text-warning">
                       No training worker is online; the run waits in the queue.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      The smallest online worker reports{" "}
+                      {formatGibibytes(training.workerMemoryBytes)} of training
+                      memory. Batch and image size determine how much a run
+                      needs.
                     </p>
                   )}
                 </Modal.Body>

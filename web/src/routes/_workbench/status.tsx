@@ -5,6 +5,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
+import { formatGibibytes } from "../../workers/memory";
 import { Timestamp } from "../../components/Timestamp";
 import { getStatus } from "../../server/status";
 import type { WorkerPresence } from "../../workers/presence";
@@ -186,7 +187,7 @@ function StatusPage() {
                     </Chip>
                   </Table.Cell>
                   <Table.Cell className="font-mono text-muted">
-                    {worker.device}
+                    {worker.device} · {formatGibibytes(worker.memoryBytes)}
                   </Table.Cell>
                   <Table.Cell className="font-mono text-muted">
                     {worker.currentTrainingRunId && worker.dataset ? (

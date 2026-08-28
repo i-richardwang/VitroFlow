@@ -41,8 +41,8 @@ def test_seed_small_recipe_fixes_every_training_argument() -> None:
     assert recipe["parameters"] == {
         "epochs": 50,
         "patience": 20,
-        "batch": 8,
-        "imgsz": 1024,
+        "batch": 4,
+        "imgsz": 1536,
         "optimizer": "AdamW",
         "lr0": 0.001,
         "warmup_epochs": 3.0,

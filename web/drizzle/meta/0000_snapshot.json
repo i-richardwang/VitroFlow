@@ -1,5 +1,5 @@
 {
-  "id": "0f815bdc-0579-4747-84c7-f3624e9ea842",
+  "id": "a4aa156b-96e4-4a91-9fc5-b1738cfc25e9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1275,6 +1275,12 @@
         "device": {
           "name": "device",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memory_bytes": {
+          "name": "memory_bytes",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },

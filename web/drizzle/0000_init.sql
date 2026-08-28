@@ -149,6 +149,7 @@ CREATE TABLE "training_workers" (
 	"id" text PRIMARY KEY NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
 	"device" text NOT NULL,
+	"memory_bytes" bigint NOT NULL,
 	"current_training_run_id" text,
 	"last_seen_at" timestamp with time zone NOT NULL
 );

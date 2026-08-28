@@ -64,6 +64,7 @@ test("the overview derives versions, serving workers, and training readiness", a
     active: null,
     reviewedSinceLastRun: 2,
     workersOnline: 0,
+    workerMemoryBytes: null,
   });
 
   const run = await createTrainingRun("overview", YOLO26_SEED_SMALL_RECIPE);
@@ -75,6 +76,7 @@ test("the overview derives versions, serving workers, and training readiness", a
       workerId: "overview-trainer",
       startedAt: HEARTBEAT_AT.toISOString(),
       device: "cpu",
+      memoryBytes: 24 * 1024 ** 3,
       currentTrainingRunId: null,
     },
     HEARTBEAT_AT,

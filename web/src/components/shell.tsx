@@ -5,7 +5,8 @@ import { Button } from "@heroui/react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import { BrandIcon, DatasetsIcon, LogoutIcon, StatusIcon } from "./icons";
+import { BrandLogo } from "./BrandLogo";
+import { DatasetsIcon, LogoutIcon, StatusIcon } from "./icons";
 
 const NAV = [
   { href: "/", label: "Datasets", icon: DatasetsIcon, match: "datasets" },
@@ -93,9 +94,7 @@ function SidebarContents({
     <>
       <Sidebar.Header>
         <div className="flex items-center gap-3 px-1 py-1">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
-            <BrandIcon />
-          </div>
+          <BrandLogo className="size-10 shrink-0" />
           <div className="min-w-0" data-sidebar="label">
             <div className="truncate text-sm font-semibold text-foreground">
               VitroFlow

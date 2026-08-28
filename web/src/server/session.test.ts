@@ -9,7 +9,7 @@ test("document redirects use a relative Location", () => {
   expect(response.headers.get("Location")).toBe("/login?rejected=true");
 });
 
-test("signed-in login GET does not copy the request origin into Location", () => {
+test("passwordless login GET does not copy the request origin into Location", () => {
   const handlers = LoginRoute.options.server?.handlers as
     | {
         GET?: (context: { request: Request; next: () => Response }) => Response;

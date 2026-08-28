@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import threading
 import time
@@ -40,6 +41,22 @@ WORKER_ERRORS = (OSError, TypeError, ValueError, RuntimeError, httpx.HTTPError)
 SNAPSHOT_SCHEMA_VERSION = 1
 LEASE_REFRESH_SECONDS = 30.0
 LOGGER = logging.getLogger(__name__)
+
+
+def device_memory_bytes(device: str) -> int:
+    """The memory the accelerator offers a training process.
+
+    Unified-memory Macs report Metal's recommended working set, CUDA devices
+    their total memory, and the CPU the machine's physical memory.
+    """
+    if device == "cpu":
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    import torch
+
+    if device == "mps":
+        return int(torch.mps.recommended_max_memory())
+    index = int(device.partition(":")[2] or "0")
+    return int(torch.cuda.mem_get_info(index)[1])
 
 
 class TrainingArtifactRejectedError(RuntimeError):
@@ -149,6 +166,7 @@ class TrainingWorkerClient:
         worker_id: str,
         started_at: str,
         device: str,
+        memory_bytes: int,
         *,
         timeout: float = 120.0,
         transport: httpx.BaseTransport | None = None,
@@ -156,6 +174,7 @@ class TrainingWorkerClient:
         self.worker_id = worker_id
         self.started_at = started_at
         self.device = device
+        self.memory_bytes = memory_bytes
         self.current_run_id: str | None = None
         self._client = httpx.Client(
             base_url=server_url.rstrip("/") + "/",
@@ -192,6 +211,7 @@ class TrainingWorkerClient:
                 "workerId": self.worker_id,
                 "startedAt": self.started_at,
                 "device": self.device,
+                "memoryBytes": self.memory_bytes,
                 "currentTrainingRunId": self.current_run_id,
             },
         )
@@ -423,9 +443,7 @@ def process_training_job(
                     "Training completed without a usable validation signal"
                 )
             publication_started = True
-            client.publish_artifact(
-                job.run_id, result.best_weights, result.summary
-            )
+            client.publish_artifact(job.run_id, result.best_weights, result.summary)
     except YoloTrainingInterruptedError:
         raise
     except WORKER_ERRORS as error:
@@ -451,6 +469,7 @@ def run_training_worker(
         settings.worker_id,
         datetime.now(UTC).isoformat(),
         settings.device,
+        device_memory_bytes(settings.device),
     )
     try:
         with shutdown_signals() as stopped:

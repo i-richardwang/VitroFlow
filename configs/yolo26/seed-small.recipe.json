@@ -8,8 +8,8 @@
     "parameters": {
       "epochs": 50,
       "patience": 20,
-      "batch": 8,
-      "imgsz": 1024,
+      "batch": 4,
+      "imgsz": 1536,
       "optimizer": "AdamW",
       "lr0": 0.001,
       "warmup_epochs": 3.0,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -62,6 +63,31 @@ def _snapshot_image(
     }
 
 
+def test_training_memory_capacity_follows_the_selected_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pages = {"SC_PAGE_SIZE": 4096, "SC_PHYS_PAGES": 1_000_000}
+    monkeypatch.setattr(training_worker.os, "sysconf", pages.__getitem__)
+    assert training_worker.device_memory_bytes("cpu") == 4_096_000_000
+
+    cuda_devices: list[int] = []
+
+    def cuda_memory(index: int) -> tuple[int, int]:
+        cuda_devices.append(index)
+        return 8_000_000_000, 24_000_000_000
+
+    torch = SimpleNamespace(
+        mps=SimpleNamespace(recommended_max_memory=lambda: 18_000_000_000),
+        cuda=SimpleNamespace(mem_get_info=cuda_memory),
+    )
+    monkeypatch.setitem(sys.modules, "torch", torch)
+
+    assert training_worker.device_memory_bytes("mps") == 18_000_000_000
+    assert training_worker.device_memory_bytes("cuda") == 24_000_000_000
+    assert training_worker.device_memory_bytes("cuda:2") == 24_000_000_000
+    assert cuda_devices == [0, 2]
+
+
 def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> None:
     requests: list[httpx.Request] = []
     images = {}
@@ -112,6 +138,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         "trainer",
         "2026-08-27T00:00:00.000Z",
         "cuda:0",
+        24 * 1024**3,
         transport=httpx.MockTransport(server),
     )
     try:
@@ -122,6 +149,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     finally:
         client.close()
 
+    assert json.loads(requests[0].content)["memoryBytes"] == 24 * 1024**3
     assert [request.url.path for request in requests] == [
         "/api/training/heartbeat",
         "/api/training/claim",
@@ -174,6 +202,7 @@ def test_training_client_rejects_snapshot_image_corruption() -> None:
         "trainer",
         "2026-08-27T00:00:00.000Z",
         "cpu",
+        8 * 1024**3,
         transport=httpx.MockTransport(lambda _: httpx.Response(200, content=b"bad")),
     )
     try:
@@ -190,6 +219,7 @@ def test_training_client_surfaces_lease_loss() -> None:
         "trainer",
         "2026-08-27T00:00:00.000Z",
         "cpu",
+        8 * 1024**3,
         transport=httpx.MockTransport(
             lambda _: httpx.Response(409, text="lease expired")
         ),
@@ -208,6 +238,7 @@ def test_claim_response_requires_a_run_object() -> None:
         "trainer",
         "2026-08-27T00:00:00.000Z",
         "cpu",
+        8 * 1024**3,
         transport=httpx.MockTransport(
             lambda _: httpx.Response(200, content=json.dumps({"run": []}))
         ),
@@ -292,9 +323,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         def report_epoch(self, run_id: str, report: EpochReport) -> None:
             posted.append((run_id, report.to_json()))
 
-        def publish_artifact(
-            self, run_id: str, weights: Path, inference: Path
-        ) -> None:
+        def publish_artifact(self, run_id: str, weights: Path, inference: Path) -> None:
             artifacts.append(
                 (run_id, weights.read_bytes(), json.loads(inference.read_text()))
             )
@@ -372,7 +401,5 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         "validating",
     ]
     assert [entry["epoch"] for _, entry in posted if "epoch" in entry] == [1, 2]
-    assert [entry["lease"] for _, entry in posted if "lease" in entry] == [
-        "renewed"
-    ]
+    assert [entry["lease"] for _, entry in posted if "lease" in entry] == ["renewed"]
     assert artifacts == [("train-one", b"weights", {"schema_version": 1})]

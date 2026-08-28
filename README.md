@@ -241,10 +241,12 @@ than 1,000 images: AdamW at `lr0=0.001`, 50 epochs, and early stopping with
 each dish already contains hundreds of tiny targets, and combining four dishes
 made MPS target assignment pathologically expensive. The recipe deliberately
 leaves Ultralytics' gradient accumulation and three-epoch warmup unchanged. It uses
-`imgsz=1024` because a seed box is only about five pixels wide at the default 640;
-Ultralytics also recommends increasing resolution for small-object datasets. The
-M5 Pro recipe uses `batch=8` as a conservative fixed size for the available 24 GB
-unified memory; it remains a runtime override for machines with different capacity.
+`imgsz=1536` because a seed box is only about five pixels wide at the default 640;
+the larger input keeps it near twelve pixels wide, following Ultralytics' guidance
+to increase resolution for small-object datasets. The M5 Pro recipe pairs that
+resolution with `batch=4` to bound the pixel load per step on its 24 GB unified
+memory while prioritizing object visibility. Both values remain explicit run
+parameters for machines with different training-memory capacity.
 
 After training, the script verifies `best.pt`, runs a full validation pass with
 YOLO26's one-to-many head, and writes `inference.json` beside the weights. That file

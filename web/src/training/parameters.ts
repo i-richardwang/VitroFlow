@@ -70,7 +70,7 @@ export const PARAMETER_FIELDS: ParameterField[] = [
   {
     key: "imgsz",
     label: "Image size",
-    description: "Longest side in pixels; seeds need 1024 to stay visible.",
+    description: "Longest side in pixels; seeds need at least 1024 to stay visible.",
     min: 320,
     max: 2048,
     step: 32,

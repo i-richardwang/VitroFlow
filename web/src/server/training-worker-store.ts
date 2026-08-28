@@ -21,6 +21,7 @@ function toRecord(
     workerId: row.id,
     startedAt: row.startedAt.toISOString(),
     device: row.device,
+    memoryBytes: row.memoryBytes,
     currentTrainingRunId: row.currentTrainingRunId,
     lastSeenAt: row.lastSeenAt.toISOString(),
   });
@@ -38,6 +39,7 @@ export async function recordTrainingHeartbeat(
   const row = {
     startedAt: new Date(record.startedAt),
     device: record.device,
+    memoryBytes: record.memoryBytes,
     currentTrainingRunId: record.currentTrainingRunId,
     lastSeenAt: at,
   };
