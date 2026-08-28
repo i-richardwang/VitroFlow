@@ -185,8 +185,8 @@ export function trainingRunId(uuid: string): string {
 
 /** The leading block of the run's UUID, enough to tell runs apart in a list. */
 export function trainingRunLabel(run: Pick<TrainingRun, "id">): string {
-  return run.id.slice(
-    TRAINING_RUN_ID_PREFIX.length,
-    TRAINING_RUN_ID_PREFIX.length + 8,
-  );
+  const uuid = run.id.startsWith(TRAINING_RUN_ID_PREFIX)
+    ? run.id.slice(TRAINING_RUN_ID_PREFIX.length)
+    : run.id;
+  return uuid.slice(0, 8);
 }

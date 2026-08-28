@@ -17,6 +17,8 @@ import type { PrelabelResult } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
 import { useHistory } from "../../hooks/useHistory";
 import { PanelRightIcon, RedoIcon, UndoIcon } from "../icons";
+import { NavbarEnd } from "../shell";
+import { QualityWarnings } from "../QualityWarnings";
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import {
   TOOL_SPECS,
@@ -27,7 +29,7 @@ import {
 } from "./controls";
 import { InspectorPanel } from "./InspectorPanel";
 import { ReviewStatusMenu } from "./ReviewStatusMenu";
-import { SaveIndicator, WorkbenchTopBar } from "./WorkbenchTopBar";
+import { SaveIndicator } from "./SaveIndicator";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 
@@ -132,27 +134,24 @@ export function AnnotationEditor({
 
   return (
     <>
-      <WorkbenchTopBar
-        image={image}
-        filename={filename}
-        quality={result.quality}
-        trailing={
-          <>
-            {!wide && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() => setInspectorOpen(true)}
-              >
-                <PanelRightIcon />
-                Details
-              </Button>
-            )}
-            <SaveIndicator state={saveState} error={error} onRetry={retry} />
-            <ReviewStatusMenu annotation={annotation} onReview={review} />
-          </>
-        }
-      />
+      <NavbarEnd>
+        {result.quality && <QualityWarnings quality={result.quality} />}
+        {!wide && (
+          <Tooltip delay={0}>
+            <Button
+              variant="ghost"
+              isIconOnly
+              aria-label="Details"
+              onPress={() => setInspectorOpen(true)}
+            >
+              <PanelRightIcon />
+            </Button>
+            <Tooltip.Content>Details</Tooltip.Content>
+          </Tooltip>
+        )}
+        <SaveIndicator state={saveState} error={error} onRetry={retry} />
+        <ReviewStatusMenu annotation={annotation} onReview={review} />
+      </NavbarEnd>
       {wide ? (
         <Resizable
           autoSaveId="vitroflow-inspector"

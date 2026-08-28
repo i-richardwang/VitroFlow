@@ -33,14 +33,6 @@ export function AddBoxIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function ChevronDownIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M4 6l4 4 4-4" />
-    </Icon>
-  );
-}
-
 export function UndoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

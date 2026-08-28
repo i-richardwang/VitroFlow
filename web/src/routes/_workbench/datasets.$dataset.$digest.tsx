@@ -1,12 +1,17 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { ImageWorkbench } from "../../components/workbench/ImageWorkbench";
 import { getImage } from "../../server/images";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
-  loader: ({ params }) =>
-    getImage({ data: { dataset: params.dataset, digest: params.digest } }),
+  loader: async ({ params }) => {
+    const image = await getImage({
+      data: { dataset: params.dataset, digest: params.digest },
+    });
+    if (!image) throw notFound();
+    return image;
+  },
   // The editor owns the document while the page is open and the label row
   // is the source of truth between visits, so a cached copy is never wanted.
   gcTime: 0,

@@ -1,93 +1,51 @@
-import { Card, Link, ProgressBar } from "@heroui/react";
+import { KPI } from "@heroui-pro/react/kpi";
+import { KPIGroup } from "@heroui-pro/react/kpi-group";
 
 import { versionSlug } from "../../models/schema";
 import type { DatasetOverview as Overview } from "../../server/overview";
-import { ModelKindChip } from "./ModelKindChip";
 import { ServingChip } from "./ServingChip";
 
-/** The dataset's identity, review progress, and the version doing its prelabelling. */
+/** Review progress and the version currently prelabelling this dataset. */
 export function DatasetOverview({ overview }: { overview: Overview }) {
-  const { dataset, counts, images, versions, inference, training } = overview;
+  const { counts, versions, inference } = overview;
   const selected = versions.find((entry) => entry.selected);
-  const reviewed = counts.complete + counts.excluded;
+  const toReview = counts.prelabeled + counts.in_progress;
 
   return (
-    <Card className="grid gap-6 p-6 sm:grid-cols-3">
-      <Fact label="Reviewed">
-        <ProgressBar
-          aria-label="Reviewed images"
-          value={reviewed}
-          minValue={0}
-          maxValue={Math.max(images.length, 1)}
-          color="success"
-          size="sm"
-        >
-          <ProgressBar.Track>
-            <ProgressBar.Fill />
-          </ProgressBar.Track>
-        </ProgressBar>
-        <span className="font-mono tabular-nums">
-          {counts.complete}
-          <span className="text-muted"> / {images.length} complete</span>
-        </span>
-        <span className="text-xs text-muted">
-          {counts.pending + counts.failed} awaiting detection ·{" "}
-          {counts.prelabeled + counts.in_progress} to review
-        </span>
-      </Fact>
-
-      <Fact label="Prelabelled by">
-        {selected ? (
-          <>
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="font-mono">{versionSlug(selected.version)}</span>
-              <ModelKindChip kind={selected.version.artifact.kind} />
+    <KPIGroup>
+      <KPI>
+        <KPI.Header>
+          <KPI.Title>Reviewed</KPI.Title>
+        </KPI.Header>
+        <KPI.Content>
+          <KPI.Value maximumFractionDigits={0} value={counts.complete} />
+        </KPI.Content>
+        {toReview > 0 ? (
+          <KPI.Footer>
+            {toReview} {toReview === 1 ? "image" : "images"} to review
+          </KPI.Footer>
+        ) : null}
+      </KPI>
+      <KPIGroup.Separator />
+      <KPI>
+        <KPI.Header>
+          <KPI.Title>Prelabel</KPI.Title>
+        </KPI.Header>
+        <KPI.Content>
+          {selected ? (
+            <span className="text-2xl font-semibold tracking-tight">
+              {versionSlug(selected.version)}
             </span>
-            <span className="text-xs text-muted">{selected.version.name}</span>
+          ) : (
+            <span className="text-2xl font-semibold text-muted">None</span>
+          )}
+        </KPI.Content>
+        {selected ? (
+          <KPI.Footer>
             <ServingChip serving={inference} />
-          </>
-        ) : (
-          <span className="text-muted">No version selected</span>
-        )}
-      </Fact>
-
-      <Fact label="Training">
-        <span className="font-mono tabular-nums">
-          {training.reviewedSinceLastRun}
-          <span className="text-muted"> reviewed since last run</span>
-        </span>
-        <span className="text-xs text-muted">
-          {training.active
-            ? "A run is in progress"
-            : `${training.runs} ${training.runs === 1 ? "run" : "runs"}`}
-          {" · "}
-          {training.workersOnline}{" "}
-          {training.workersOnline === 1 ? "worker" : "workers"} online
-        </span>
-        <Link
-          href={`/datasets/${dataset.id}/training`}
-          className="text-xs font-medium"
-        >
-          Open training
-        </Link>
-      </Fact>
-    </Card>
-  );
-}
-
-function Fact({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5 text-sm">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted">
-        {label}
-      </span>
-      {children}
-    </div>
+          </KPI.Footer>
+        ) : null}
+      </KPI>
+    </KPIGroup>
   );
 }

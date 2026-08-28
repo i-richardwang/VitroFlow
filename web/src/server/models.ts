@@ -18,13 +18,7 @@ const datasetInput = z.object({ dataset: z.string().regex(DATASET_NAME) });
 
 export const getDatasetOverview = createServerFn({ method: "GET" })
   .validator(datasetInput)
-  .handler(async ({ data }) => {
-    const overview = await datasetOverview(data.dataset);
-    if (!overview) {
-      throw new Error(`Unknown dataset: ${data.dataset}`);
-    }
-    return overview;
-  });
+  .handler(({ data }) => datasetOverview(data.dataset));
 
 export const selectDatasetModelVersion = createServerFn({ method: "POST" })
   .validator(datasetInput.extend({ versionId: versionIdSchema }))
@@ -32,11 +26,7 @@ export const selectDatasetModelVersion = createServerFn({ method: "POST" })
 
 export const getTrainingConsole = createServerFn({ method: "GET" })
   .validator(datasetInput)
-  .handler(async ({ data }) => {
-    const console = await trainingConsole(data.dataset);
-    if (!console) throw new Error(`Unknown dataset: ${data.dataset}`);
-    return console;
-  });
+  .handler(({ data }) => trainingConsole(data.dataset));
 
 export const getTrainingOverview = createServerFn({ method: "GET" }).handler(
   () => trainingOverview(),
@@ -44,11 +34,7 @@ export const getTrainingOverview = createServerFn({ method: "GET" }).handler(
 
 export const getTrainingRun = createServerFn({ method: "GET" })
   .validator(datasetInput.extend({ runId: versionIdSchema }))
-  .handler(async ({ data }) => {
-    const detail = await trainingRunDetail(data.dataset, data.runId);
-    if (!detail) throw new Error(`Unknown training run: ${data.runId}`);
-    return detail;
-  });
+  .handler(({ data }) => trainingRunDetail(data.dataset, data.runId));
 
 /**
  * Freezes the reviewed annotations into a snapshot and queues one training run

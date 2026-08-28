@@ -1,6 +1,5 @@
-import { Chip, ProgressBar } from "@heroui/react";
+import { Chip } from "@heroui/react";
 
-import { versionSlug } from "../../models/schema";
 import type { TrainingRun } from "../../training/schema";
 
 type Tone = "default" | "accent" | "warning" | "success" | "danger";
@@ -26,50 +25,25 @@ function tone(status: TrainingRun["state"]["status"]): Tone {
   }
 }
 
-/** One training run's lifecycle state, with progress while it runs. */
+/** One training run's lifecycle state. */
 export function TrainingRunState({ run }: { run: TrainingRun }) {
   const { state } = run;
+  const chip = (
+    <Chip color={tone(state.status)} variant="soft" size="sm">
+      {state.status === "running"
+        ? PHASE_LABELS[state.phase]
+        : state.status.charAt(0).toUpperCase() + state.status.slice(1)}
+    </Chip>
+  );
+  if (state.status !== "failed") {
+    return chip;
+  }
   return (
     <span className="flex flex-col gap-1">
-      <span className="flex items-center gap-2">
-        <Chip color={tone(state.status)} variant="soft" size="sm">
-          {state.status === "running"
-            ? PHASE_LABELS[state.phase]
-            : state.status.charAt(0).toUpperCase() + state.status.slice(1)}
-        </Chip>
-        {state.status === "running" && (
-          <span className="font-mono text-xs tabular-nums text-muted">
-            {Math.round(state.progress * 100)}%
-          </span>
-        )}
-        {state.status === "succeeded" && (
-          <span className="font-mono text-xs text-muted">
-            {versionSlug({ id: state.modelVersionId, modelId: run.modelId })}
-          </span>
-        )}
+      {chip}
+      <span className="max-w-72 truncate text-xs text-danger" title={state.error}>
+        {state.error}
       </span>
-      {state.status === "running" && (
-        <ProgressBar
-          aria-label="Training progress"
-          value={state.progress}
-          minValue={0}
-          maxValue={1}
-          size="sm"
-          className="w-40"
-        >
-          <ProgressBar.Track>
-            <ProgressBar.Fill />
-          </ProgressBar.Track>
-        </ProgressBar>
-      )}
-      {state.status === "failed" && (
-        <span
-          className="max-w-72 truncate text-xs text-danger"
-          title={state.error}
-        >
-          {state.error}
-        </span>
-      )}
     </span>
   );
 }

@@ -48,6 +48,18 @@ export const tunableParametersSchema = trainingParametersSchema.pick({
 
 export type TunableParameters = z.infer<typeof tunableParametersSchema>;
 
+export function tunableParameters(
+  parameters: TrainingParameters,
+): TunableParameters {
+  return {
+    epochs: parameters.epochs,
+    imgsz: parameters.imgsz,
+    batch: parameters.batch,
+    patience: parameters.patience,
+    lr0: parameters.lr0,
+  };
+}
+
 export interface ParameterField {
   key: keyof TunableParameters;
   label: string;

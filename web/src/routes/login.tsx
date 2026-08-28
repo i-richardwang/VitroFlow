@@ -57,14 +57,12 @@ function LoginPage() {
             <Card.Title render={(props) => <h1 {...props} />}>
               Sign in
             </Card.Title>
-            <Card.Description>
-              Enter the workbench password to continue.
-            </Card.Description>
           </Card.Header>
           <Form method="post" action="/login">
             <Card.Content>
               <input type="hidden" name="returnTo" value={destination} />
               <TextField
+                variant="secondary"
                 fullWidth
                 isInvalid={Boolean(rejected) && !rejectionDismissed}
                 isRequired
@@ -78,7 +76,7 @@ function LoginPage() {
                 <FieldError>Incorrect password.</FieldError>
               </TextField>
             </Card.Content>
-            <Card.Footer className="mt-4">
+            <Card.Footer className="mt-4 flex flex-col gap-2">
               <Button type="submit" variant="primary" fullWidth>
                 Sign in
               </Button>

@@ -9,14 +9,20 @@ import {
   sourceImageFileError,
 } from "../images/canonical";
 
+export type ListedImage = {
+  file: File;
+  status?: "uploading" | "complete" | "failed";
+  progress?: number;
+};
+
 export function ImageDropZone({
   files,
   onChange,
-  progress,
+  busy,
 }: {
-  files: File[];
+  files: ListedImage[];
   onChange: (files: File[]) => void;
-  progress: { done: number; total: number } | null;
+  busy: boolean;
 }) {
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -28,7 +34,7 @@ export function ImageDropZone({
       if (accepted.length === 0) {
         return;
       }
-      onChange([...files, ...accepted]);
+      onChange([...files.map((item) => item.file), ...accepted]);
     },
     [files, onChange],
   );
@@ -36,7 +42,7 @@ export function ImageDropZone({
   return (
     <DropZone className="w-full">
       <DropZone.Area
-        isDisabled={progress != null}
+        isDisabled={busy}
         onDrop={async (event) => {
           const dropped: File[] = [];
           for (const item of event.items) {
@@ -50,42 +56,61 @@ export function ImageDropZone({
         <DropZone.Icon />
         <DropZone.Label>Drop images here or browse</DropZone.Label>
         <DropZone.Description>
-          JPEG, PNG, or TIFF, up to {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB
-          and {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP each. Every photograph is
-          re-encoded on arrival into the one format the workbench stores.
+          JPEG, PNG, or TIFF · {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB ·{" "}
+          {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP
         </DropZone.Description>
-        <DropZone.Trigger isDisabled={progress != null}>
-          Select images
-        </DropZone.Trigger>
+        <DropZone.Trigger isDisabled={busy}>Select images</DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
         accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
-        disabled={progress != null}
+        disabled={busy}
         multiple
         onSelect={(list) => addFiles(Array.from(list))}
       />
       {files.length > 0 && (
         <DropZone.FileList>
-          {files.map((file, index) => {
-            const ext = extension(file.name);
+          {files.map((item, index) => {
+            const ext = extension(item.file.name);
             return (
               <DropZone.FileItem
-                key={`${file.name}:${file.size}:${file.lastModified}:${index}`}
-                status={progress != null ? "uploading" : undefined}
+                key={`${item.file.name}:${item.file.size}:${item.file.lastModified}:${index}`}
+                status={item.status}
               >
                 <DropZone.FileFormatIcon
                   color={ext === "tif" || ext === "tiff" ? "purple" : "green"}
                   format={ext.toUpperCase()}
                 />
                 <DropZone.FileInfo>
-                  <DropZone.FileName>{file.name}</DropZone.FileName>
-                  <DropZone.FileMeta>{formatSize(file.size)}</DropZone.FileMeta>
+                  <DropZone.FileName>{item.file.name}</DropZone.FileName>
+                  <DropZone.FileMeta>
+                    {formatSize(item.file.size)}
+                    {item.status === "uploading" &&
+                      item.progress != null &&
+                      ` | ${item.progress}%`}
+                    {item.status === "complete" && (
+                      <span className="text-success"> | 100%</span>
+                    )}
+                  </DropZone.FileMeta>
+                  {item.status === "uploading" && (
+                    <DropZone.FileProgress
+                      aria-label={`Upload progress for ${item.file.name}`}
+                      value={item.progress ?? 0}
+                    >
+                      <DropZone.FileProgressTrack>
+                        <DropZone.FileProgressFill />
+                      </DropZone.FileProgressTrack>
+                    </DropZone.FileProgress>
+                  )}
                 </DropZone.FileInfo>
-                {progress == null && (
+                {!busy && (
                   <DropZone.FileRemoveTrigger
-                    aria-label={`Remove ${file.name}`}
+                    aria-label={`Remove ${item.file.name}`}
                     onPress={() =>
-                      onChange(files.filter((item) => item !== file))
+                      onChange(
+                        files
+                          .filter((_, current) => current !== index)
+                          .map((listed) => listed.file),
+                      )
                     }
                   />
                 )}
@@ -93,21 +118,6 @@ export function ImageDropZone({
             );
           })}
         </DropZone.FileList>
-      )}
-      {progress && (
-        <DropZone.FileProgress
-          className="gap-1"
-          maxValue={progress.total}
-          minValue={0}
-          value={progress.done}
-        >
-          <DropZone.FileProgressTrack>
-            <DropZone.FileProgressFill />
-          </DropZone.FileProgressTrack>
-          <span className="text-xs tabular-nums text-muted">
-            {progress.done} / {progress.total} images
-          </span>
-        </DropZone.FileProgress>
       )}
     </DropZone>
   );

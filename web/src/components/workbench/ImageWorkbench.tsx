@@ -1,4 +1,5 @@
-import { Button, Card } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react/empty-state";
+import { Button } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -6,8 +7,9 @@ import type { AnnotationDocument } from "../../annotation/schema";
 import type { ImageRef } from "../../datasets/schema";
 import { isFailure, type Prelabel } from "../../detection/schema";
 import { initializeLabel, retryPrelabel } from "../../server/images";
+import { NavbarEnd } from "../shell";
+import { QualityWarnings } from "../QualityWarnings";
 import { AnnotationEditor } from "./AnnotationEditor";
-import { WorkbenchTopBar } from "./WorkbenchTopBar";
 
 export function ImageWorkbench({
   image,
@@ -32,18 +34,21 @@ export function ImageWorkbench({
       </div>
     );
   }
+
+  const quality = prelabel && !isFailure(prelabel) ? prelabel.quality : null;
+
   return (
     <div className="flex h-full flex-col">
-      <WorkbenchTopBar
-        image={image}
-        filename={filename}
-        quality={prelabel && !isFailure(prelabel) ? prelabel.quality : null}
-      />
+      {quality && (
+        <NavbarEnd>
+          <QualityWarnings quality={quality} />
+        </NavbarEnd>
+      )}
       <div className="flex flex-1 items-center justify-center p-6">
         {prelabel === null ? (
           <Notice
             title="Waiting for a worker"
-            description="A connected worker will detect seeds in this image; the page refreshes on its own."
+            description="A connected worker will detect seeds in this image."
           />
         ) : isFailure(prelabel) ? (
           <Notice
@@ -57,7 +62,7 @@ export function ImageWorkbench({
         ) : (
           <Notice
             title="No annotation yet"
-            description={`Initialize boxes from the ${prelabel.instances.length} prelabels, then review every seed before marking the image complete.`}
+            description={`Start from ${prelabel.instances.length} prelabels, then review each seed.`}
             action={{
               label: "Initialize from prelabels",
               run: () => initializeLabel({ data: image }),
@@ -98,13 +103,13 @@ function Notice({
   };
 
   return (
-    <Card className="max-w-md">
-      <Card.Header>
-        <Card.Title>{title}</Card.Title>
-        <Card.Description>{description}</Card.Description>
-      </Card.Header>
+    <EmptyState>
+      <EmptyState.Header>
+        <EmptyState.Title>{title}</EmptyState.Title>
+        <EmptyState.Description>{description}</EmptyState.Description>
+      </EmptyState.Header>
       {action && (
-        <Card.Footer className="flex items-center gap-3">
+        <EmptyState.Content>
           <Button
             variant="primary"
             size="sm"
@@ -114,8 +119,8 @@ function Notice({
             {action.label}
           </Button>
           {error && <span className="text-xs text-danger">{error}</span>}
-        </Card.Footer>
+        </EmptyState.Content>
       )}
-    </Card>
+    </EmptyState>
   );
 }

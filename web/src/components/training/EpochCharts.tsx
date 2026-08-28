@@ -1,13 +1,6 @@
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { ChartTooltip } from "@heroui-pro/react/chart-tooltip";
+import { LineChart } from "@heroui-pro/react/line-chart";
+import { ReferenceLine } from "recharts";
 
 import type { TrainingEpoch } from "../../training/schema";
 
@@ -25,7 +18,11 @@ interface Panel {
   unit?: boolean;
 }
 
-const LOSS_COLORS = ["var(--accent)", "var(--warning)", "var(--danger)"];
+const LOSS_COLORS = [
+  "var(--chart-1, var(--accent))",
+  "var(--chart-2, var(--warning))",
+  "var(--chart-3, var(--danger))",
+];
 
 function losses(split: "train" | "val"): Series[] {
   return (["box", "cls", "dfl"] as const).map((component, index) => ({
@@ -47,13 +44,13 @@ const PANELS: Panel[] = [
       {
         key: "map50",
         label: "mAP50",
-        color: "var(--accent)",
+        color: "var(--chart-1, var(--accent))",
         value: (epoch) => epoch.map50,
       },
       {
         key: "map5095",
         label: "mAP50-95",
-        color: "var(--success)",
+        color: "var(--chart-2, var(--success))",
         value: (epoch) => epoch.map5095,
       },
     ],
@@ -65,13 +62,13 @@ const PANELS: Panel[] = [
       {
         key: "precision",
         label: "Precision",
-        color: "var(--accent)",
+        color: "var(--chart-1, var(--accent))",
         value: (epoch) => epoch.precision,
       },
       {
         key: "recall",
         label: "Recall",
-        color: "var(--warning)",
+        color: "var(--chart-3, var(--warning))",
         value: (epoch) => epoch.recall,
       },
     ],
@@ -89,7 +86,7 @@ export function EpochCharts({
   best: TrainingEpoch | null;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-6 sm:grid-cols-2">
       {PANELS.map((panel) => (
         <EpochChart
           key={panel.title}
@@ -122,81 +119,83 @@ function EpochChart({
   }));
 
   return (
-    <figure className="flex flex-col gap-2 rounded-lg border border-border p-4">
-      <figcaption className="flex items-baseline justify-between gap-3">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-3">
         <span className="text-sm font-medium">{panel.title}</span>
         <span className="flex gap-3 text-xs text-muted">
           {panel.series.map((series) => (
-            <span key={series.key} className="flex items-center gap-1">
+            <span key={series.key} className="flex items-center gap-1.5">
               <span
                 aria-hidden
-                className="inline-block size-2 rounded-full"
+                className="size-2 rounded-full"
                 style={{ background: series.color }}
               />
               {series.label}
             </span>
           ))}
         </span>
-      </figcaption>
-      <ResponsiveContainer
-        width="100%"
+      </div>
+      <LineChart
+        data={data}
         height={200}
-        initialDimension={{ width: 400, height: 200 }}
+        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
       >
-        <LineChart
-          data={data}
-          margin={{ top: 8, right: 8, bottom: 0, left: -16 }}
-        >
-          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-          <XAxis
-            dataKey="epoch"
-            type="number"
-            domain={[1, Math.max(total, 2)]}
-            allowDecimals={false}
-            tick={{ fill: "var(--muted)", fontSize: 11 }}
-            stroke="var(--border)"
+        <LineChart.Grid vertical={false} />
+        <LineChart.XAxis
+          dataKey="epoch"
+          type="number"
+          domain={[1, Math.max(total, 2)]}
+          allowDecimals={false}
+          tickMargin={8}
+        />
+        <LineChart.YAxis
+          domain={panel.unit ? [0, 1] : ["auto", "auto"]}
+          tickFormatter={(value: number) => value.toFixed(panel.unit ? 1 : 2)}
+          width={40}
+        />
+        {best && (
+          <ReferenceLine
+            x={best.epoch}
+            stroke="var(--muted)"
+            strokeDasharray="4 2"
           />
-          <YAxis
-            domain={panel.unit ? [0, 1] : ["auto", "auto"]}
-            tick={{ fill: "var(--muted)", fontSize: 11 }}
-            tickFormatter={(value: number) => value.toFixed(panel.unit ? 1 : 2)}
-            stroke="var(--border)"
-            width={48}
+        )}
+        {panel.series.map((series) => (
+          <LineChart.Line
+            key={series.key}
+            type="monotone"
+            dataKey={series.key}
+            name={series.label}
+            stroke={series.color}
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
           />
-          <Tooltip
-            formatter={(value) =>
-              typeof value === "number" ? value.toFixed(4) : String(value)
-            }
-            labelFormatter={(epoch) => `Epoch ${epoch}`}
-            contentStyle={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--foreground)",
-              fontSize: 12,
-            }}
-          />
-          {best && (
-            <ReferenceLine
-              x={best.epoch}
-              stroke="var(--muted)"
-              strokeDasharray="4 2"
-            />
-          )}
-          {panel.series.map((series) => (
-            <Line
-              key={series.key}
-              type="monotone"
-              dataKey={series.key}
-              name={series.label}
-              stroke={series.color}
-              strokeWidth={1.5}
-              dot={false}
-              isAnimationActive={false}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </figure>
+        ))}
+        <LineChart.Tooltip
+          content={({ active, label, payload }) => {
+            if (!active || !payload?.length) return null;
+            return (
+              <ChartTooltip>
+                <ChartTooltip.Header>Epoch {label}</ChartTooltip.Header>
+                {payload.map((entry) => (
+                  <ChartTooltip.Item key={String(entry.dataKey)}>
+                    <ChartTooltip.Indicator
+                      color={entry.color ?? entry.stroke}
+                    />
+                    <ChartTooltip.Label>{entry.name}</ChartTooltip.Label>
+                    <ChartTooltip.Value>
+                      {typeof entry.value === "number"
+                        ? entry.value.toFixed(4)
+                        : String(entry.value)}
+                    </ChartTooltip.Value>
+                  </ChartTooltip.Item>
+                ))}
+              </ChartTooltip>
+            );
+          }}
+        />
+      </LineChart>
+    </div>
   );
 }

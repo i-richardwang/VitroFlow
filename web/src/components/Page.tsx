@@ -1,36 +1,30 @@
 import type { ReactNode } from "react";
 
 export function Page({
-  breadcrumbs,
   title,
-  titleClassName,
   description,
+  actions,
   children,
 }: {
-  breadcrumbs?: ReactNode;
   title: ReactNode;
-  titleClassName?: string;
   description?: ReactNode;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <main className="mx-auto w-full max-w-4xl px-8 py-10">
-      {breadcrumbs}
-      <h1
-        className={[
-          "text-xl font-semibold tracking-tight",
-          breadcrumbs ? "mt-3" : "",
-          titleClassName,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {title}
-      </h1>
-      {description ? (
-        <p className="mt-1 text-sm text-foreground/80">{description}</p>
-      ) : null}
-      <div className="mt-6 flex flex-col gap-6">{children}</div>
+    <main className="mx-auto w-full max-w-5xl px-8 pt-10 pb-12">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          {description ? (
+            <p className="mt-1 text-sm text-muted">{description}</p>
+          ) : null}
+        </div>
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-3">{actions}</div>
+        ) : null}
+      </div>
+      <div className="mt-8 flex flex-col gap-6">{children}</div>
     </main>
   );
 }

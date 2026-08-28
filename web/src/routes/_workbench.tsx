@@ -1,11 +1,14 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
+import { WorkbenchNotice } from "../components/WorkbenchNotice";
 import { WorkbenchShell } from "../components/shell";
 import { getSession } from "../server/auth";
 
 export const Route = createFileRoute("/_workbench")({
   loader: () => getSession(),
   component: WorkbenchLayout,
+  notFoundComponent: WorkbenchNotFound,
+  errorComponent: WorkbenchError,
 });
 
 function WorkbenchLayout() {
@@ -14,6 +17,30 @@ function WorkbenchLayout() {
   return (
     <WorkbenchShell signedIn={signedIn}>
       <Outlet />
+    </WorkbenchShell>
+  );
+}
+
+function WorkbenchNotFound() {
+  const { signedIn } = Route.useLoaderData();
+  return (
+    <WorkbenchShell signedIn={signedIn}>
+      <WorkbenchNotice
+        title="Not found"
+        description="The dataset, image, or run is not in this workbench."
+      />
+    </WorkbenchShell>
+  );
+}
+
+function WorkbenchError({ error }: { error: Error }) {
+  const { signedIn } = Route.useLoaderData();
+  return (
+    <WorkbenchShell signedIn={signedIn}>
+      <WorkbenchNotice
+        title="Something went wrong"
+        description={error.message}
+      />
     </WorkbenchShell>
   );
 }

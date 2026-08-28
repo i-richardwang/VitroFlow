@@ -1,11 +1,4 @@
-import {
-  Button,
-  Header,
-  Label,
-  Separator,
-  Switch,
-  SwitchGroup,
-} from "@heroui/react";
+import { Button, Header, Switch, SwitchGroup } from "@heroui/react";
 
 import type { AnnotationDocument, SeedInstance } from "../../annotation/schema";
 import type { PrelabelResult } from "../../detection/schema";
@@ -53,13 +46,13 @@ export function InspectorPanel({
               onChange={(on) => toggleLayer(layer.key, on)}
             >
               <Switch.Content className="flex w-full items-center justify-between">
-                <Label className="flex items-center gap-2">
+                <span className="flex items-center gap-2">
                   <span
                     className="size-1.5 rounded-full"
                     style={{ backgroundColor: layer.color }}
                   />
                   {layer.label}
-                </Label>
+                </span>
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
@@ -69,7 +62,6 @@ export function InspectorPanel({
         </SwitchGroup>
       </Section>
 
-      <Separator />
       <Section
         title="Instances"
         trailing={
@@ -83,7 +75,6 @@ export function InspectorPanel({
         <Metrics rows={instanceMetrics(annotation, selected)} />
       </Section>
 
-      <Separator />
       <Section title="Diagnostics">
         <Metrics rows={diagnosticMetrics(result)} />
       </Section>

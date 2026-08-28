@@ -1,9 +1,10 @@
-import { EmptyState, Table } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react/empty-state";
+import { Link, Table } from "@heroui/react";
 
 import { versionSlug } from "../../models/schema";
 import type { TrainingRunSummary } from "../../server/training-runs";
 import { trainingRunLabel } from "../../training/schema";
-import { Timestamp } from "../Timestamp";
+import { TrainingIcon } from "../icons";
 import { Metric } from "./Metric";
 import { TrainingRunState } from "./TrainingRunState";
 
@@ -15,17 +16,8 @@ export function TrainingRunsTable({
   runs: TrainingRunSummary[];
   /** Shown when the rows come from several datasets. */
   datasetColumn?: boolean;
-  emptyHint: string;
+  emptyHint?: string;
 }) {
-  if (runs.length === 0) {
-    return (
-      <EmptyState className="flex min-h-32 flex-col items-center justify-center gap-1 text-center">
-        <span className="font-medium">No training runs yet</span>
-        <span className="text-xs text-muted">{emptyHint}</span>
-      </EmptyState>
-    );
-  }
-
   return (
     <Table>
       <Table.ScrollContainer>
@@ -43,7 +35,28 @@ export function TrainingRunsTable({
             </Table.Column>
             <Table.Column>Version</Table.Column>
           </Table.Header>
-          <Table.Body>
+          <Table.Body
+            renderEmptyState={() => (
+              <EmptyState size="sm">
+                <EmptyState.Header>
+                  <EmptyState.Media variant="icon">
+                    <TrainingIcon />
+                  </EmptyState.Media>
+                  <EmptyState.Title>No training runs yet</EmptyState.Title>
+                  {emptyHint ? (
+                    <EmptyState.Description>{emptyHint}</EmptyState.Description>
+                  ) : null}
+                </EmptyState.Header>
+                {datasetColumn ? (
+                  <EmptyState.Content>
+                    <Link href="/" className="text-sm font-medium">
+                      Open datasets
+                    </Link>
+                  </EmptyState.Content>
+                ) : null}
+              </EmptyState>
+            )}
+          >
             {runs.map(({ dataset, run, completed, best }) => (
               <Table.Row
                 key={run.id}
@@ -52,9 +65,6 @@ export function TrainingRunsTable({
               >
                 <Table.Cell className="font-mono font-medium">
                   {trainingRunLabel(run)}
-                  <span className="mt-1 block font-sans text-xs font-normal text-muted">
-                    <Timestamp value={run.createdAt} />
-                  </span>
                 </Table.Cell>
                 {datasetColumn && (
                   <Table.Cell className="font-mono">{dataset}</Table.Cell>

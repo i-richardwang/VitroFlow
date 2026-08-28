@@ -1,31 +1,29 @@
-import {
-  AlertDialog,
-  Breadcrumbs,
-  Button,
-  EmptyState,
-  Table,
-  ToggleButton,
-  ToggleButtonGroup,
-  toast,
-} from "@heroui/react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { EmptyState } from "@heroui-pro/react/empty-state";
+import { Segment } from "@heroui-pro/react/segment";
+import { AlertDialog, Button, Table, toast } from "@heroui/react";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { Count } from "../../components/Count";
 import { DatasetOverview } from "../../components/dataset/DatasetOverview";
-import { VersionsPanel } from "../../components/dataset/VersionsPanel";
 import { PrelabelVersion } from "../../components/dataset/PrelabelVersion";
+import { UploadDialog } from "../../components/dataset/UploadDialog";
+import { VersionsDialog } from "../../components/dataset/VersionsDialog";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
-import { ImageStateChip, imageStateLabel } from "../../components/ImageState";
-import { UploadCard } from "../../components/UploadCard";
+import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
 import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
 import { deleteImage } from "../../server/images";
 import { getDatasetOverview } from "../../server/models";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
-  loader: ({ params }) =>
-    getDatasetOverview({ data: { dataset: params.dataset } }),
+  loader: async ({ params }) => {
+    const overview = await getDatasetOverview({
+      data: { dataset: params.dataset },
+    });
+    if (!overview) throw notFound();
+    return overview;
+  },
   component: DatasetPage,
 });
 
@@ -52,38 +50,46 @@ function DatasetPage() {
   const countOf = (state: Filter) =>
     state === "all" ? images.length : counts[state];
 
+  const filters = (["all", ...IMAGE_STATES] as const).filter(
+    (state) => state === "all" || state === filter || countOf(state) > 0,
+  );
+
   return (
     <Page
-      breadcrumbs={
-        <Breadcrumbs>
-          <Breadcrumbs.Item href="/">Datasets</Breadcrumbs.Item>
-          <Breadcrumbs.Item>{dataset}</Breadcrumbs.Item>
-        </Breadcrumbs>
+      title={<span className="block truncate font-mono">{dataset}</span>}
+      actions={
+        <>
+          <UploadDialog dataset={dataset} />
+          <VersionsDialog overview={overview} />
+          <Button
+            variant="ghost"
+            onPress={() => {
+              void router.navigate({
+                to: "/datasets/$dataset/training",
+                params: { dataset },
+              });
+            }}
+          >
+            Training
+          </Button>
+        </>
       }
-      title={dataset}
-      titleClassName="truncate font-mono"
     >
       <DatasetOverview overview={overview} />
-      <VersionsPanel overview={overview} />
-      <UploadCard dataset={dataset} />
 
-      <ToggleButtonGroup
+      <Segment
         aria-label="Image state"
-        size="sm"
-        selectionMode="single"
-        disallowEmptySelection
-        selectedKeys={new Set([filter])}
-        onSelectionChange={(keys) => setFilter([...keys][0] as Filter)}
+        selectedKey={filter}
+        onSelectionChange={(key) => {
+          if (key != null) setFilter(String(key) as Filter);
+        }}
       >
-        {(["all", ...IMAGE_STATES] as const).map((state) => (
-          <ToggleButton key={state} id={state}>
+        {filters.map((state) => (
+          <Segment.Item key={state} id={state}>
             {state === "all" ? "All" : imageStateLabel(state)}
-            <span className="ml-1.5 font-mono tabular-nums text-muted">
-              {countOf(state)}
-            </span>
-          </ToggleButton>
+          </Segment.Item>
         ))}
-      </ToggleButtonGroup>
+      </Segment>
 
       <Table>
         <Table.ScrollContainer>
@@ -94,24 +100,25 @@ function DatasetPage() {
               <Table.Column className="text-right">Detected</Table.Column>
               <Table.Column className="text-right">Boxes</Table.Column>
               <Table.Column>Quality</Table.Column>
-              <Table.Column>Model</Table.Column>
               <Table.Column>
                 <span className="sr-only">Actions</span>
               </Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
-                <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
-                  <span className="font-medium">
-                    {images.length === 0
-                      ? "No images yet"
-                      : "No images in this state"}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {images.length === 0
-                      ? "Upload images above to start."
-                      : "Choose another filter to see images."}
-                  </span>
+                <EmptyState size="sm">
+                  <EmptyState.Header>
+                    <EmptyState.Title>
+                      {images.length === 0
+                        ? "No images yet"
+                        : "No images in this state"}
+                    </EmptyState.Title>
+                    {images.length > 0 ? (
+                      <EmptyState.Description>
+                        Choose another filter to see images.
+                      </EmptyState.Description>
+                    ) : null}
+                  </EmptyState.Header>
                 </EmptyState>
               )}
             >
@@ -123,6 +130,10 @@ function DatasetPage() {
                 >
                   <Table.Cell className="font-mono font-medium">
                     {image.filename}
+                    <PrelabelVersion
+                      dataset={overview.dataset}
+                      versionId={image.modelVersionId}
+                    />
                     {image.error && (
                       <span
                         className="mt-1 block max-w-72 truncate font-sans text-xs font-normal text-danger"
@@ -147,12 +158,6 @@ function DatasetPage() {
                     ) : (
                       <span className="text-muted">—</span>
                     )}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <PrelabelVersion
-                      dataset={overview.dataset}
-                      versionId={image.modelVersionId}
-                    />
                   </Table.Cell>
                   <Table.Cell className="text-right">
                     <DeleteImageButton dataset={dataset} image={image} />
@@ -202,7 +207,7 @@ function DeleteImageButton({
                     Cancel
                   </Button>
                   <Button
-                    variant="danger"
+                    variant="danger-soft"
                     size="sm"
                     isDisabled={busy}
                     onPress={() => {

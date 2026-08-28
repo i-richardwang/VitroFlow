@@ -13,22 +13,19 @@ import { startTrainingRun } from "../../server/models";
 import type { TrainingConsole } from "../../server/training-console";
 import {
   PARAMETER_FIELDS,
+  tunableParameters,
   tunableParametersSchema,
-  type TunableParameters,
 } from "../../training/parameters";
 import { MIN_SNAPSHOT_IMAGES } from "../../training/schema";
-import { formatGibibytes } from "../../workers/memory";
-
-function tunable(console: TrainingConsole): TunableParameters {
-  return tunableParametersSchema.parse(console.recipe.parameters);
-}
 
 /** Freezes the reviewed annotations and queues one run with chosen parameters. */
 export function TrainDialog({ console }: { console: TrainingConsole }) {
   const { dataset, complete, recipe, training } = console;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [parameters, setParameters] = useState(() => tunable(console));
+  const [parameters, setParameters] = useState(() =>
+    tunableParameters(console.recipe.parameters),
+  );
   const canTrain = complete >= MIN_SNAPSHOT_IMAGES && training.active === null;
   const valid = tunableParametersSchema.safeParse(parameters).success;
 
@@ -36,7 +33,6 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
     <Modal>
       <Button
         variant="primary"
-        size="sm"
         isDisabled={busy || !canTrain}
         className="shrink-0"
       >
@@ -47,20 +43,16 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
           <Modal.Dialog>
             {({ close }) => (
               <>
+                <Modal.CloseTrigger />
                 <Modal.Header>
                   <Modal.Heading>Train a new version</Modal.Heading>
                 </Modal.Header>
                 <Modal.Body className="flex flex-col gap-5">
-                  <p className="text-sm text-muted">
-                    The {complete} complete annotations in {dataset} are frozen
-                    into a snapshot and queued for the next training worker. The
-                    result is published as a candidate version and does not
-                    change which version prelabels this dataset.
-                  </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {PARAMETER_FIELDS.map((field) => (
                       <NumberField
                         key={field.key}
+                        variant="secondary"
                         value={parameters[field.key]}
                         minValue={field.min}
                         maxValue={field.max}
@@ -83,33 +75,17 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
                       </NumberField>
                     ))}
                   </div>
-                  <p className="font-mono text-xs text-muted">
+                  <p className="text-xs text-muted">
                     {recipe.baseModel.reference} · {recipe.runtime.framework}{" "}
-                    {recipe.runtime.version} · {recipe.parameters.optimizer},
-                    mosaic {recipe.parameters.mosaic}, max_det{" "}
-                    {recipe.parameters.max_det}
+                    {recipe.runtime.version}
                   </p>
                   {training.workerMemoryBytes === null ? (
                     <p className="text-sm text-warning">
                       No training worker is online; the run waits in the queue.
                     </p>
-                  ) : (
-                    <p className="text-sm text-muted">
-                      The smallest online worker reports{" "}
-                      {formatGibibytes(training.workerMemoryBytes)} of training
-                      memory. Batch and image size determine how much a run
-                      needs.
-                    </p>
-                  )}
+                  ) : null}
                 </Modal.Body>
                 <Modal.Footer>
-                  <Button
-                    variant="tertiary"
-                    size="sm"
-                    onPress={() => setParameters(tunable(console))}
-                  >
-                    Reset
-                  </Button>
                   <Button variant="tertiary" size="sm" onPress={close}>
                     Cancel
                   </Button>

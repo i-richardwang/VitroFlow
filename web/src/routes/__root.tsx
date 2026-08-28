@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import type { ReactNode } from "react";
 
-import { Link, RouterProvider, Toast } from "@heroui/react";
+import { RouterProvider, Toast } from "@heroui/react";
 import {
   HeadContent,
   Outlet,
@@ -10,6 +10,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 
+import { WorkbenchNotice } from "../components/WorkbenchNotice";
 import appCss from "../styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -44,18 +45,10 @@ function RootComponent() {
 
 function NotFoundPage() {
   return (
-    <main className="mx-auto flex min-h-full max-w-lg flex-col items-center justify-center px-8 text-center">
-      <p className="font-mono text-xs text-muted">404</p>
-      <h1 className="mt-2 text-xl font-semibold tracking-tight">
-        Page not found
-      </h1>
-      <p className="mt-2 text-sm text-muted">
-        The requested page does not exist in this workbench.
-      </p>
-      <Link href="/" className="mt-5 text-sm font-medium">
-        Return to runs
-      </Link>
-    </main>
+    <WorkbenchNotice
+      title="Page not found"
+      description="The requested page does not exist in this workbench."
+    />
   );
 }
 
@@ -65,7 +58,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       <head>
         <HeadContent />
       </head>
-      <body className="flex h-dvh flex-col overflow-hidden bg-background text-[13px] leading-normal text-foreground antialiased">
+      <body className="flex h-dvh flex-col overflow-hidden bg-background text-foreground antialiased">
         {children}
         <Scripts />
       </body>

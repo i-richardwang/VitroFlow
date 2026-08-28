@@ -1,8 +1,10 @@
-import { EmptyState, Table } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react/empty-state";
+import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Count } from "../../components/Count";
 import { Page } from "../../components/Page";
+import { DatasetsIcon } from "../../components/icons";
 import { UploadCard } from "../../components/UploadCard";
 import { getDatasets } from "../../server/images";
 
@@ -15,10 +17,7 @@ function DatasetsPage() {
   const datasets = Route.useLoaderData();
 
   return (
-    <Page
-      title="Datasets"
-      description="Each dataset is the training set for one model. Uploaded images are detected by a worker and then reviewed here."
-    >
+    <Page title="Datasets">
       <UploadCard />
 
       <Table>
@@ -35,11 +34,13 @@ function DatasetsPage() {
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
-                <EmptyState className="flex min-h-40 flex-col items-center justify-center gap-1 text-center">
-                  <span className="font-medium">No datasets yet</span>
-                  <span className="text-xs text-muted">
-                    Upload images above to create the first one.
-                  </span>
+                <EmptyState size="sm">
+                  <EmptyState.Header>
+                    <EmptyState.Media variant="icon">
+                      <DatasetsIcon />
+                    </EmptyState.Media>
+                    <EmptyState.Title>No datasets yet</EmptyState.Title>
+                  </EmptyState.Header>
                 </EmptyState>
               )}
             >
@@ -68,8 +69,7 @@ function DatasetsPage() {
                     />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    {dataset.counts.complete}
-                    <span className="text-muted"> / {dataset.imageCount}</span>
+                    <Count value={dataset.counts.complete} />
                   </Table.Cell>
                 </Table.Row>
               ))}

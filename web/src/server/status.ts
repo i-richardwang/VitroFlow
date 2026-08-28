@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { count, eq, inArray } from "drizzle-orm";
+import { count, and, eq, inArray, or } from "drizzle-orm";
 
 import { database } from "../db/client";
 import {
+  datasetImages,
   datasetSnapshots,
   datasets,
   images,
@@ -52,6 +53,39 @@ async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((row) => [row.runId, row.dataset]));
 }
 
+/** Filename each live inference assignment is stored under. */
+async function imageFilenames(
+  refs: Array<{ dataset: string; digest: string }>,
+): Promise<Map<string, string>> {
+  const unique = [
+    ...new Map(
+      refs.map((ref) => [`${ref.dataset}/${ref.digest}`, ref] as const),
+    ).values(),
+  ];
+  if (unique.length === 0) return new Map();
+  const db = await database();
+  const rows = await db
+    .select({
+      datasetId: datasetImages.datasetId,
+      imageId: datasetImages.imageId,
+      filename: datasetImages.filename,
+    })
+    .from(datasetImages)
+    .where(
+      or(
+        ...unique.map((ref) =>
+          and(
+            eq(datasetImages.datasetId, ref.dataset),
+            eq(datasetImages.imageId, ref.digest),
+          ),
+        ),
+      ),
+    );
+  return new Map(
+    rows.map((row) => [`${row.datasetId}/${row.imageId}`, row.filename]),
+  );
+}
+
 async function countRows(
   table: typeof images | typeof prelabels | typeof labels,
 ) {
@@ -69,13 +103,18 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
     listTrainingWorkers(at),
     listDatasets(),
   ]);
-  const [datasetsByVersion, datasetsByRun] = await Promise.all([
+  const [datasetsByVersion, datasetsByRun, filenames] = await Promise.all([
     versionDatasets(
       inferenceWorkers.flatMap((w) => (w.loaded ? [w.loaded] : [])),
     ),
     runDatasets(
       trainingWorkers.flatMap((w) =>
         w.currentTrainingRunId ? [w.currentTrainingRunId] : [],
+      ),
+    ),
+    imageFilenames(
+      inferenceWorkers.flatMap((worker) =>
+        worker.current ? [worker.current] : [],
       ),
     ),
   ]);
@@ -91,6 +130,11 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
       ...worker,
       presence: inferenceWorkerPresence(worker, at),
       lastSeenSeconds: age(worker.lastSeenAt),
+      currentFilename: worker.current
+        ? (filenames.get(
+            `${worker.current.dataset}/${worker.current.digest}`,
+          ) ?? null)
+        : null,
       loadedDataset: worker.loaded
         ? (datasetsByVersion.get(worker.loaded) ?? null)
         : null,

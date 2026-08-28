@@ -1,10 +1,18 @@
 import { AppLayout } from "@heroui-pro/react/app-layout";
 import { Navbar } from "@heroui-pro/react/navbar";
 import { Sidebar } from "@heroui-pro/react/sidebar";
-import { Button } from "@heroui/react";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { Breadcrumbs, Button } from "@heroui/react";
+import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 
+import { trainingRunLabel } from "../training/schema";
 import { BrandLogo } from "./BrandLogo";
 import { DatasetsIcon, LogoutIcon, StatusIcon, TrainingIcon } from "./icons";
 
@@ -19,6 +27,17 @@ const NAV = [
   { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
 
+const NavbarEndContext = createContext<HTMLElement | null>(null);
+
+/** Page actions that belong in the shared AppLayout navbar. */
+export function NavbarEnd({ children }: { children: ReactNode }) {
+  const target = useContext(NavbarEndContext);
+  if (target == null) {
+    return null;
+  }
+  return createPortal(children, target);
+}
+
 export function WorkbenchShell({
   signedIn,
   children,
@@ -28,6 +47,7 @@ export function WorkbenchShell({
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [navbarEnd, setNavbarEnd] = useState<HTMLElement | null>(null);
   const go = useCallback(
     (href: string) => {
       void navigate({ to: href });
@@ -36,28 +56,61 @@ export function WorkbenchShell({
   );
 
   return (
-    <AppLayout
-      className="h-full min-h-0 flex-1"
-      navigate={go}
-      scrollMode="content"
-      sidebar={<AppSidebar pathname={pathname} signedIn={signedIn} />}
-      sidebarCollapsible="icon"
-      navbar={<AppNavbar pathname={pathname} />}
-    >
-      {children}
-    </AppLayout>
+    <NavbarEndContext.Provider value={navbarEnd}>
+      <AppLayout
+        className="h-full min-h-0 flex-1"
+        navigate={go}
+        scrollMode="content"
+        sidebar={<AppSidebar pathname={pathname} signedIn={signedIn} />}
+        sidebarCollapsible="icon"
+        navbar={<AppNavbar pathname={pathname} endRef={setNavbarEnd} />}
+      >
+        {children}
+      </AppLayout>
+    </NavbarEndContext.Provider>
   );
 }
 
-function AppNavbar({ pathname }: { pathname: string }) {
+function AppNavbar({
+  pathname,
+  endRef,
+}: {
+  pathname: string;
+  endRef: (node: HTMLElement | null) => void;
+}) {
+  const image = useMatch({
+    from: "/_workbench/datasets/$dataset/$digest",
+    shouldThrow: false,
+  });
+  const crumbs = workbenchCrumbs(
+    pathname,
+    image?.loaderData?.summary.filename ?? null,
+  );
+
   return (
     <Navbar maxWidth="full">
       <Navbar.Header>
+        <AppLayout.MenuToggle />
         <Sidebar.Trigger aria-label="Toggle navigation" />
-        <span className="truncate text-sm font-semibold tracking-tight text-foreground">
-          {titleFor(pathname)}
-        </span>
+        <Breadcrumbs className="min-w-0">
+          {crumbs.map((crumb, index) => {
+            const last = index === crumbs.length - 1;
+            return (
+              <Breadcrumbs.Item
+                key={`${crumb.label}:${crumb.href ?? "current"}`}
+                href={last ? undefined : crumb.href}
+                className={`min-w-0 ${last ? "font-semibold" : "text-muted"} ${crumb.mono ? "font-mono" : ""}`}
+              >
+                <span className="truncate">{crumb.label}</span>
+              </Breadcrumbs.Item>
+            );
+          })}
+        </Breadcrumbs>
       </Navbar.Header>
+      <Navbar.Spacer />
+      <Navbar.Content>
+        <div ref={endRef} className="flex items-center gap-3" />
+      </Navbar.Content>
     </Navbar>
   );
 }
@@ -138,7 +191,6 @@ function SidebarContents({
             <Button
               type="submit"
               variant="ghost"
-              size="sm"
               className="w-full justify-start"
             >
               <LogoutIcon />
@@ -151,13 +203,51 @@ function SidebarContents({
   );
 }
 
-function titleFor(pathname: string): string {
+type Crumb = { label: string; href?: string; mono?: boolean };
+
+function workbenchCrumbs(pathname: string, filename: string | null): Crumb[] {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] === "datasets" && parts[1]) {
-    return parts[parts.length - 1] ?? "Datasets";
+  if (parts[0] !== "datasets" || parts.length < 2) {
+    const section =
+      parts[0] === "training"
+        ? "Training"
+        : parts[0] === "status"
+          ? "Status"
+          : "Datasets";
+    return [{ label: section }];
   }
-  return (
-    NAV.find((item) => item.match === (parts[0] || "datasets"))?.label ??
-    "Datasets"
-  );
+
+  const dataset = parts[1]!;
+  const crumbs: Crumb[] = [
+    { label: "Datasets", href: "/" },
+    {
+      label: dataset,
+      href: parts.length > 2 ? `/datasets/${dataset}` : undefined,
+      mono: true,
+    },
+  ];
+
+  if (parts.length >= 3 && parts[2] !== "training") {
+    crumbs.push({
+      label: filename ?? parts[2]!.slice(0, 12),
+      mono: true,
+    });
+    return crumbs;
+  }
+
+  if (parts[2] !== "training") {
+    return crumbs;
+  }
+
+  crumbs.push({
+    label: "Training",
+    href: parts.length > 3 ? `/datasets/${dataset}/training` : undefined,
+  });
+  if (parts[3]) {
+    crumbs.push({
+      label: trainingRunLabel({ id: parts[3] }),
+      mono: true,
+    });
+  }
+  return crumbs;
 }

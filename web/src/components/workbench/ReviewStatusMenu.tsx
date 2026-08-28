@@ -13,7 +13,6 @@ import {
   ReviewTransitionError,
   type ReviewEvent,
 } from "../../annotation/status";
-import { ChevronDownIcon } from "../icons";
 import { ImageStateDot, imageStateLabel } from "../ImageState";
 
 type Action = "complete" | "reopen" | "include" | "exclude";
@@ -61,10 +60,9 @@ export function ReviewStatusMenu({
         </span>
       )}
       <Dropdown>
-        <Button variant="secondary" size="sm">
+        <Button variant="ghost">
           <ImageStateDot state={annotation.status} />
           {imageStateLabel(annotation.status)}
-          <ChevronDownIcon className="size-3.5 text-muted" />
         </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
@@ -105,7 +103,12 @@ export function ReviewStatusMenu({
                   <Modal.Heading>Exclude image</Modal.Heading>
                 </Modal.Header>
                 <Modal.Body>
-                  <TextField value={reason} onChange={setReason} fullWidth>
+                  <TextField
+                    variant="secondary"
+                    value={reason}
+                    onChange={setReason}
+                    fullWidth
+                  >
                     <Label>Reason</Label>
                     <Input placeholder="Optional" autoFocus />
                   </TextField>

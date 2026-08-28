@@ -3,7 +3,6 @@ import { Chip, Table } from "@heroui/react";
 import { validationMetric, versionSlug } from "../../models/schema";
 import type { VersionOverview } from "../../server/overview";
 import { Count } from "../Count";
-import { Timestamp } from "../Timestamp";
 import { Metric } from "../training/Metric";
 import { ModelKindChip } from "./ModelKindChip";
 import { SelectVersionDialog } from "./SelectVersionDialog";
@@ -38,9 +37,6 @@ export function VersionsTable({
               <Table.Row key={version.id}>
                 <Table.Cell className="font-mono font-medium">
                   {versionSlug(version)}
-                  <span className="mt-1 block font-sans text-xs font-normal text-muted">
-                    {version.name} · <Timestamp value={version.createdAt} />
-                  </span>
                 </Table.Cell>
                 <Table.Cell>
                   <ModelKindChip kind={version.artifact.kind} />
@@ -58,7 +54,7 @@ export function VersionsTable({
                 </Table.Cell>
                 <Table.Cell className="text-right">
                   {selected ? (
-                    <Chip color="accent" variant="primary" size="sm">
+                    <Chip color="accent" variant="soft" size="sm">
                       Selected
                     </Chip>
                   ) : (
