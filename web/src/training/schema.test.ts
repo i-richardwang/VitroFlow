@@ -35,6 +35,7 @@ test("active training states include recoverable publication", () => {
       state: {
         status: "running",
         workerId: "trainer",
+        sessionId: "trainer-session",
         leaseExpiresAt: "2026-08-28T00:00:00.000Z",
         phase: "training",
         progress: 0.5,
@@ -43,7 +44,11 @@ test("active training states include recoverable publication", () => {
   ).toBeTrue();
   expect(
     isTrainingRunActive({
-      state: { status: "publishing", workerId: "trainer" },
+      state: {
+        status: "publishing",
+        workerId: "trainer",
+        sessionId: "trainer-session",
+      },
     }),
   ).toBeTrue();
   expect(

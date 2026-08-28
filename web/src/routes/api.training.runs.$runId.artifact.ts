@@ -29,17 +29,18 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
         if (declaredLength > MAX_TRAINING_ARTIFACT_REQUEST_BYTES) {
           return payloadTooLarge("Training artifact request is too large");
         }
-        let workerId: string;
+        let owner: { workerId: string; sessionId: string };
         let weights: Uint8Array;
         let publication: unknown;
         try {
           const form = await parseTrainingForm(request);
           const worker = form.get("workerId");
+          const session = form.get("sessionId");
           const weightsFile = form.get("weights");
           const inference = form.get("inference");
           if (!(weightsFile instanceof File) || !(inference instanceof File)) {
             return new Response(
-              "workerId, weights, and inference are required",
+              "workerId, sessionId, weights, and inference are required",
               {
                 status: 400,
               },
@@ -51,7 +52,14 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
           if (inference.size > MAX_TRAINING_MANIFEST_BYTES) {
             return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
-          workerId = parseTrainingValue(worker, versionIdSchema, "workerId");
+          owner = {
+            workerId: parseTrainingValue(worker, versionIdSchema, "workerId"),
+            sessionId: parseTrainingValue(
+              session,
+              versionIdSchema,
+              "sessionId",
+            ),
+          };
           weights = new Uint8Array(await weightsFile.arrayBuffer());
           publication = parseTrainingJsonText(await inference.text());
         } catch (error) {
@@ -64,7 +72,7 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
           return Response.json(
             await publishTrainingArtifact(
               params.runId,
-              workerId,
+              owner,
               weights,
               publication,
             ),

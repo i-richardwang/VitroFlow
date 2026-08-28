@@ -13,7 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 yolo = [
-  "ultralytics==8.4.129",
+  "ultralytics==8.4.131",
 ]
 
 [project.scripts]

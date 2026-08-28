@@ -83,7 +83,7 @@ export function TrainingRunsTable({
                   <Metric value={best?.map50 ?? null} />
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono tabular-nums">
-                  <Metric value={best?.map5095 ?? null} />
+                  <Metric value={best?.map50To95 ?? null} />
                 </Table.Cell>
                 <Table.Cell className="font-mono text-xs text-muted">
                   {run.state.status === "succeeded"

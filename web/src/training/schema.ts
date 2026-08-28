@@ -84,11 +84,19 @@ export const trainingRecipeSchema = z.strictObject({
 
 const lossSchema = z.strictObject({
   box: z.number().finite(),
-  cls: z.number().finite(),
-  dfl: z.number().finite(),
+  classification: z.number().finite(),
+  regression: z.number().finite(),
 });
 
 const unit = z.number().finite().min(0).max(1);
+
+export const detectionValidationSchema = z.strictObject({
+  precision: unit,
+  recall: unit,
+  map50: unit,
+  map50_95: unit,
+  fitness: z.number().finite(),
+});
 
 /** What Ultralytics knows after one epoch's validation pass. */
 export const trainingEpochReportSchema = z.strictObject({
@@ -98,9 +106,9 @@ export const trainingEpochReportSchema = z.strictObject({
   precision: unit,
   recall: unit,
   map50: unit,
-  map5095: unit,
+  map50To95: unit,
   fitness: z.number().finite(),
-  lr: z.number().finite().nonnegative(),
+  learningRate: z.number().finite().nonnegative(),
 });
 
 export const trainingEpochSchema = trainingEpochReportSchema.extend({
@@ -113,6 +121,7 @@ const trainingRunStateSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("running"),
     workerId: versionIdSchema,
+    sessionId: versionIdSchema,
     leaseExpiresAt: z.string().datetime({ offset: true }),
     phase: z.enum(TRAINING_PHASES),
     progress: z.number().finite().min(0).max(1),
@@ -120,6 +129,7 @@ const trainingRunStateSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("publishing"),
     workerId: versionIdSchema,
+    sessionId: versionIdSchema,
   }),
   z.strictObject({
     status: z.literal("succeeded"),
@@ -152,7 +162,7 @@ export const inferencePublicationSchema = z.strictObject({
     max_det: z.number().int().positive(),
     end2end: z.boolean(),
   }),
-  validation: z.record(z.string().min(1), z.number().finite()),
+  validation: detectionValidationSchema,
   training: z.strictObject({
     base_model: z.strictObject({
       reference: z.string().min(1),

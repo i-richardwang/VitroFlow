@@ -14,7 +14,11 @@
         "endToEnd": false
       },
       "validation": {
-        "metrics/mAP50(B)": 0.7
+        "precision": 0.6,
+        "recall": 0.5,
+        "map50": 0.7,
+        "map50_95": 0.4,
+        "fitness": 0.43
       },
       "training": {
         "baseModel": {
@@ -38,7 +42,7 @@
         },
         "runtime": {
           "framework": "ultralytics",
-          "version": "8.4.129"
+          "version": "8.4.131"
         }
       }
     }

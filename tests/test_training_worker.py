@@ -19,7 +19,7 @@ from vitroflow.training_worker import (
     materialize_snapshot,
     parse_training_snapshot,
 )
-from vitroflow.yolo import EpochReport, YoloTrainingInterruptedError
+from vitroflow.yolo import DetectionLosses, EpochReport, YoloTrainingInterruptedError
 
 PARAMETERS = {
     "epochs": 3,
@@ -115,7 +115,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         "recipe": {
             "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
             "parameters": PARAMETERS,
-            "runtime": {"framework": "ultralytics", "version": "8.4.129"},
+            "runtime": {"framework": "ultralytics", "version": "8.4.131"},
         },
         "state": {"status": "running"},
     }
@@ -138,6 +138,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         "https://example.test",
         "training-secret",
         "trainer",
+        "trainer-session",
         "2026-08-27T00:00:00.000Z",
         "cuda:0",
         24 * 1024**3,
@@ -152,6 +153,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         client.close()
 
     assert json.loads(requests[0].content)["memoryBytes"] == 24 * 1024**3
+    assert json.loads(requests[0].content)["sessionId"] == "trainer-session"
     assert [request.url.path for request in requests] == [
         "/api/training/heartbeat",
         "/api/training/claim",
@@ -202,6 +204,7 @@ def test_training_client_rejects_snapshot_image_corruption() -> None:
         "https://example.test",
         "secret",
         "trainer",
+        "trainer-session",
         "2026-08-27T00:00:00.000Z",
         "cpu",
         8 * 1024**3,
@@ -219,6 +222,7 @@ def test_training_client_surfaces_lease_loss() -> None:
         "https://example.test",
         "secret",
         "trainer",
+        "trainer-session",
         "2026-08-27T00:00:00.000Z",
         "cpu",
         8 * 1024**3,
@@ -238,6 +242,7 @@ def test_claim_response_requires_a_run_object() -> None:
         "https://example.test",
         "secret",
         "trainer",
+        "trainer-session",
         "2026-08-27T00:00:00.000Z",
         "cpu",
         8 * 1024**3,
@@ -352,7 +357,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         assert parameters == _parameters(epochs=2)
         assert options["model"] == "yolo26n.pt"
         assert options["model_digest"] == "a" * 64
-        assert options["runtime_version"] == "8.4.129"
+        assert options["runtime_version"] == "8.4.131"
         assert options["device"] == "mps"
         output = Path(output_dir)
         (output / "weights").mkdir(parents=True)
@@ -364,14 +369,14 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
             on_epoch(
                 EpochReport(
                     epoch=epoch,
-                    train={"box": 1.0, "cls": 2.0, "dfl": 0.5},
-                    val={"box": 1.1, "cls": 2.1, "dfl": 0.6},
+                    train=DetectionLosses(1.0, 2.0, 0.5),
+                    val=DetectionLosses(1.1, 2.1, 0.6),
                     precision=0.5,
                     recall=0.4,
                     map50=0.45,
-                    map5095=0.2,
+                    map50_to_95=0.2,
                     fitness=0.225,
-                    lr=0.001,
+                    learning_rate=0.001,
                 )
             )
         on_validation_start()
@@ -390,7 +395,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
             "recipe": {
                 "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
                 "parameters": _parameters(epochs=2),
-                "runtime": {"framework": "ultralytics", "version": "8.4.129"},
+                "runtime": {"framework": "ultralytics", "version": "8.4.131"},
             },
         }
     )
@@ -405,3 +410,47 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     assert [entry["epoch"] for _, entry in posted if "epoch" in entry] == [1, 2]
     assert [entry["lease"] for _, entry in posted if "lease" in entry] == ["renewed"]
     assert artifacts == [("train-one", b"weights", {"schema_version": 1})]
+
+
+def test_training_job_reports_an_unexpected_adapter_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failures: list[tuple[str, str]] = []
+
+    class Client:
+        device = "mps"
+        current_run_id: str | None = None
+
+        def heartbeat(self) -> None:
+            return None
+
+        def enter_phase(self, _run_id: str, _phase: str) -> None:
+            return None
+
+        def renew_lease(self, _run_id: str) -> None:
+            return None
+
+        def report_failure(self, run_id: str, error: str) -> None:
+            failures.append((run_id, error))
+
+    def broken_materialization(*_args, **_kwargs) -> Path:
+        raise KeyError("unexpected Ultralytics field")
+
+    monkeypatch.setattr(training_worker, "materialize_snapshot", broken_materialization)
+    job = TrainingJob(
+        {
+            "id": "train-broken",
+            "recipe": {
+                "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
+                "parameters": PARAMETERS,
+                "runtime": {"framework": "ultralytics", "version": "8.4.131"},
+            },
+        }
+    )
+
+    with pytest.raises(KeyError, match="unexpected Ultralytics field"):
+        training_worker.process_training_job(  # type: ignore[arg-type]
+            Client(), job, tmp_path
+        )
+
+    assert failures == [("train-broken", "'unexpected Ultralytics field'")]

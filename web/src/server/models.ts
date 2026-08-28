@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { DATASET_NAME } from "../datasets/schema";
 import { versionIdSchema } from "../inference/schema";
-import { tunableParametersSchema } from "../training/parameters";
+import { trainingOverridesSchema } from "../training/parameters";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { selectModelVersion } from "./datasets";
 import { datasetOverview } from "./overview";
@@ -41,13 +41,13 @@ export const getTrainingRun = createServerFn({ method: "GET" })
  * of the recipe with the chosen parameters.
  */
 export const startTrainingRun = createServerFn({ method: "POST" })
-  .validator(datasetInput.extend({ parameters: tunableParametersSchema }))
+  .validator(datasetInput.extend({ overrides: trainingOverridesSchema }))
   .handler(({ data }) =>
     createTrainingRun(data.dataset, {
       ...YOLO26_SEED_SMALL_RECIPE,
       parameters: {
         ...YOLO26_SEED_SMALL_RECIPE.parameters,
-        ...data.parameters,
+        ...data.overrides,
       },
     }),
   );

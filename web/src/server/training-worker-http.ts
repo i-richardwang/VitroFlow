@@ -4,7 +4,12 @@ import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
   TrainingRunNotFoundError,
+  TrainingWorkerSessionConflictError,
 } from "../training/errors";
+import {
+  trainingWorkerIdentitySchema,
+  type TrainingWorkerIdentity,
+} from "../training/workers";
 
 export class TrainingRequestError extends Error {}
 
@@ -51,6 +56,19 @@ export function parseTrainingValue<T>(
   return parsed.data;
 }
 
+export function parseTrainingWorkerIdentity(
+  values: Pick<URLSearchParams, "get">,
+): TrainingWorkerIdentity {
+  const parsed = trainingWorkerIdentitySchema.safeParse({
+    workerId: values.get("workerId"),
+    sessionId: values.get("sessionId"),
+  });
+  if (!parsed.success) {
+    throw new TrainingRequestError("workerId and sessionId are required");
+  }
+  return parsed.data;
+}
+
 export function trainingWorkerErrorResponse(
   error: unknown,
   operation: string,
@@ -62,7 +80,10 @@ export function trainingWorkerErrorResponse(
   if (error instanceof TrainingRunNotFoundError) {
     return new Response(message, { status: 404 });
   }
-  if (error instanceof TrainingRunConflictError) {
+  if (
+    error instanceof TrainingRunConflictError ||
+    error instanceof TrainingWorkerSessionConflictError
+  ) {
     return new Response(message, { status: 409 });
   }
   if (error instanceof TrainingArtifactValidationError) {

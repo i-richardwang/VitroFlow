@@ -25,9 +25,14 @@ const LOSS_COLORS = [
 ];
 
 function losses(split: "train" | "val"): Series[] {
-  return (["box", "cls", "dfl"] as const).map((component, index) => ({
+  const components = [
+    ["box", "Box"],
+    ["classification", "Classification"],
+    ["regression", "Regression"],
+  ] as const;
+  return components.map(([component, label], index) => ({
     key: `${split}-${component}`,
-    label: `${component} loss`,
+    label: `${label} loss`,
     color: LOSS_COLORS[index]!,
     value: (epoch) => epoch[split][component],
   }));
@@ -48,10 +53,10 @@ const PANELS: Panel[] = [
         value: (epoch) => epoch.map50,
       },
       {
-        key: "map5095",
+        key: "map50To95",
         label: "mAP50-95",
         color: "var(--chart-2, var(--success))",
-        value: (epoch) => epoch.map5095,
+        value: (epoch) => epoch.map50To95,
       },
     ],
   },

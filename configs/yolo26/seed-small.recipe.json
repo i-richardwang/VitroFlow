@@ -22,7 +22,7 @@
     },
     "runtime": {
       "framework": "ultralytics",
-      "version": "8.4.129"
+      "version": "8.4.131"
     }
   }
 }

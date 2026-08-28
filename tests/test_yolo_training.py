@@ -7,6 +7,7 @@ import pytest
 
 from vitroflow.yolo import training
 from vitroflow.yolo.training import (
+    DetectionLosses,
     EpochReport,
     YoloTrainingInterruptedError,
     best_f1_confidence,
@@ -37,7 +38,7 @@ def test_seed_small_recipe_fixes_every_training_argument() -> None:
     assert manifest["schemaVersion"] == 1
     recipe = manifest["recipe"]
     assert recipe["baseModel"]["reference"] == "yolo26n.pt"
-    assert recipe["runtime"] == {"framework": "ultralytics", "version": "8.4.129"}
+    assert recipe["runtime"] == {"framework": "ultralytics", "version": "8.4.131"}
     assert recipe["parameters"] == {
         "epochs": 50,
         "patience": 20,
@@ -55,10 +56,22 @@ def test_seed_small_recipe_fixes_every_training_argument() -> None:
     }
 
 
+class _BoxMetrics:
+    def __init__(self) -> None:
+        self.mp = 0.5
+        self.mr = 0.4
+        self.map50 = 0.45
+        self.map = 0.2
+        self.px = [0.0, 0.2, 0.4]
+        self.f1_curve = [[0.1, 0.8, 0.2]]
+
+    def fitness(self) -> float:
+        return 0.225
+
+
 class _Metrics:
     def __init__(self) -> None:
-        self.results_dict = {"metrics/mAP50(B)": 0.4, "fitness": 0.2}
-        self.curves_results = [[[0.0, 0.2, 0.4], [[0.1, 0.8, 0.2]], "Confidence", "F1"]]
+        self.box = _BoxMetrics()
 
 
 def test_best_f1_confidence_reads_the_public_ultralytics_curve() -> None:
@@ -67,27 +80,34 @@ def test_best_f1_confidence_reads_the_public_ultralytics_curve() -> None:
 
 def test_best_f1_confidence_rejects_a_model_without_validation_signal() -> None:
     metrics = _Metrics()
-    metrics.curves_results[0][1] = [[0.0, 0.0, 0.0]]
+    metrics.box.f1_curve = [[0.0, 0.0, 0.0]]
 
     assert best_f1_confidence(metrics) is None
 
 
-def _trainer_after_epoch(epoch: int) -> SimpleNamespace:
+def test_best_f1_confidence_accepts_an_absent_validation_curve() -> None:
+    metrics = _Metrics()
+    metrics.box.px = []
+    metrics.box.f1_curve = []
+
+    assert best_f1_confidence(metrics) is None
+
+
+def _trainer_after_epoch(
+    epoch: int, regression_loss: str = "l1_loss"
+) -> SimpleNamespace:
+    metrics = _Metrics()
     return SimpleNamespace(
         epoch=epoch - 1,
-        tloss={"box_loss": 1.5, "cls_loss": 2.25, "dfl_loss": 1.0},
+        loss_names=("box_loss", "cls_loss", regression_loss),
+        tloss={"box_loss": 1.5, "cls_loss": 2.25, regression_loss: 1.0},
         metrics={
-            "metrics/precision(B)": 0.5,
-            "metrics/recall(B)": 0.4,
-            "metrics/mAP50(B)": 0.45,
-            "metrics/mAP50-95(B)": 0.2,
             "val/box_loss": 1.6,
             "val/cls_loss": 2.4,
-            "val/dfl_loss": 1.1,
-            "fitness": 0.225,
+            f"val/{regression_loss}": 1.1,
         },
-        fitness=0.225,
-        lr={"lr/pg0": 0.001, "lr/pg1": 0.001, "lr/pg2": 0.001},
+        validator=SimpleNamespace(metrics=metrics),
+        optimizer=SimpleNamespace(param_groups=[{"lr": 0.001}]),
     )
 
 
@@ -96,21 +116,31 @@ def test_epoch_report_reads_the_trainer_after_validation() -> None:
 
     assert report == EpochReport(
         epoch=7,
-        train={"box": 1.5, "cls": 2.25, "dfl": 1.0},
-        val={"box": 1.6, "cls": 2.4, "dfl": 1.1},
+        train=DetectionLosses(box=1.5, classification=2.25, regression=1.0),
+        val=DetectionLosses(box=1.6, classification=2.4, regression=1.1),
         precision=0.5,
         recall=0.4,
         map50=0.45,
-        map5095=0.2,
+        map50_to_95=0.2,
         fitness=0.225,
-        lr=0.001,
+        learning_rate=0.001,
     )
-    assert report.to_json()["train"] == {"box": 1.5, "cls": 2.25, "dfl": 1.0}
+    assert report.to_json()["train"] == {
+        "box": 1.5,
+        "classification": 2.25,
+        "regression": 1.0,
+    }
+    assert report.to_json()["map50To95"] == 0.2
+
+
+def test_epoch_report_normalizes_both_ultralytics_regression_losses() -> None:
+    assert epoch_report(_trainer_after_epoch(1, "l1_loss")).train.regression == 1.0
+    assert epoch_report(_trainer_after_epoch(1, "dfl_loss")).train.regression == 1.0
 
 
 def test_epoch_report_rejects_non_finite_values() -> None:
     trainer = _trainer_after_epoch(1)
-    trainer.metrics["metrics/mAP50(B)"] = float("nan")
+    trainer.validator.metrics.box.map50 = float("nan")
 
     with pytest.raises(ValueError, match="non-finite mAP50"):
         epoch_report(trainer)
@@ -144,7 +174,7 @@ def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None
             assert trainer.stop is True
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
-    monkeypatch.setattr(training, "version", lambda _: "8.4.129")
+    monkeypatch.setattr(training, "version", lambda _: "8.4.131")
     model, digest = _base_model(tmp_path)
 
     with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
@@ -154,7 +184,7 @@ def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None
             parameters=PARAMETERS,
             model=model,
             model_digest=digest,
-            runtime_version="8.4.129",
+            runtime_version="8.4.131",
             cancelled=lambda: True,
         )
 
@@ -178,6 +208,7 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
             (weights / "best.pt").write_bytes(b"weights")
             self.trainer = SimpleNamespace(
                 save_dir=save_dir,
+                best=weights / "best.pt",
                 args=SimpleNamespace(imgsz=768, max_det=500, device="cpu"),
             )
 
@@ -193,7 +224,7 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
         return checks >= 3
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
-    monkeypatch.setattr(training, "version", lambda _: "8.4.129")
+    monkeypatch.setattr(training, "version", lambda _: "8.4.131")
     model, digest = _base_model(tmp_path)
 
     with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
@@ -203,7 +234,7 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
             parameters=PARAMETERS,
             model=model,
             model_digest=digest,
-            runtime_version="8.4.129",
+            runtime_version="8.4.131",
             cancelled=cancelled,
         )
 
@@ -234,9 +265,10 @@ def test_training_reports_epochs_and_publishes_validated_settings(
             weights.mkdir(parents=True)
             (weights / "best.pt").write_bytes(b"weights")
             for epoch in (1, 2):
-                self.callbacks["on_fit_epoch_end"](_trainer_after_epoch(epoch))
+                self.callbacks["on_model_save"](_trainer_after_epoch(epoch))
             self.trainer = SimpleNamespace(
                 save_dir=save_dir,
+                best=weights / "best.pt",
                 args=SimpleNamespace(imgsz=768, max_det=500, device="mps"),
             )
 
@@ -245,7 +277,7 @@ def test_training_reports_epochs_and_publishes_validated_settings(
             return _Metrics()
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
-    monkeypatch.setattr(training, "version", lambda _: "8.4.129")
+    monkeypatch.setattr(training, "version", lambda _: "8.4.131")
     model, digest = _base_model(tmp_path)
     dataset = _dataset(tmp_path)
     output = tmp_path / "run"
@@ -258,7 +290,7 @@ def test_training_reports_epochs_and_publishes_validated_settings(
         parameters=PARAMETERS,
         model=model,
         model_digest=digest,
-        runtime_version="8.4.129",
+        runtime_version="8.4.131",
         device="mps",
         on_training_start=lambda: phases.append("training"),
         on_epoch=reported.append,
@@ -289,10 +321,16 @@ def test_training_reports_epochs_and_publishes_validated_settings(
             "max_det": 500,
             "end2end": False,
         },
-        "validation": {"metrics/mAP50(B)": 0.4, "fitness": 0.2},
+        "validation": {
+            "precision": 0.5,
+            "recall": 0.4,
+            "map50": 0.45,
+            "map50_95": 0.2,
+            "fitness": 0.225,
+        },
         "training": {
             "base_model": {"reference": str(model), "digest": digest},
             "parameters": PARAMETERS,
-            "runtime": {"framework": "ultralytics", "version": "8.4.129"},
+            "runtime": {"framework": "ultralytics", "version": "8.4.131"},
         },
     }

@@ -17,6 +17,8 @@ import { readDataset } from "./datasets";
 import { reviewedDataset } from "./testing";
 import { createTrainingRun } from "./training-runs";
 
+const OWNER = { workerId: "api-trainer", sessionId: "api-trainer-session" };
+
 type Handler = (context: never) => Response | Promise<Response>;
 
 function handler(
@@ -46,7 +48,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     request: new Request("http://localhost/api/training/heartbeat", {
       method: "POST",
       body: JSON.stringify({
-        workerId: "api-trainer",
+        ...OWNER,
         startedAt: "2026-08-27T00:00:00.000Z",
         device: "cuda:0",
         memoryBytes: 24 * 1024 ** 3,
@@ -62,7 +64,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
   )({
     request: new Request("http://localhost/api/training/claim", {
       method: "POST",
-      body: JSON.stringify({ workerId: "api-trainer" }),
+      body: JSON.stringify(OWNER),
     }),
   } as never);
   const job = await claim.json();
@@ -75,7 +77,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
   )({
     params: { runId: created.id },
     request: new Request(
-      `http://localhost/api/training/runs/${created.id}/snapshot?workerId=api-trainer`,
+      `http://localhost/api/training/runs/${created.id}/snapshot?${new URLSearchParams(OWNER)}`,
     ),
   } as never);
   const snapshotImages = (await snapshot.json()).images;
@@ -88,7 +90,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
   )({
     params: { runId: created.id, digest },
     request: new Request(
-      `http://localhost/api/training/runs/${created.id}/images/${digest}?workerId=api-trainer`,
+      `http://localhost/api/training/runs/${created.id}/images/${digest}?${new URLSearchParams(OWNER)}`,
     ),
   } as never);
   expect(image.status).toBe(200);
@@ -101,7 +103,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { runId: created.id },
     request: new Request("http://localhost/phase", {
       method: "POST",
-      body: JSON.stringify({ workerId: "api-trainer", phase: "training" }),
+      body: JSON.stringify({ ...OWNER, phase: "training" }),
     }),
   } as never);
   expect(trainingPhase.status).toBe(200);
@@ -114,16 +116,16 @@ test("training HTTP routes publish one candidate version without selecting it", 
     request: new Request("http://localhost/epochs", {
       method: "POST",
       body: JSON.stringify({
-        workerId: "api-trainer",
+        ...OWNER,
         epoch: 1,
-        train: { box: 1.2, cls: 2.4, dfl: 1.1 },
-        val: { box: 1.3, cls: 2.5, dfl: 1.2 },
+        train: { box: 1.2, classification: 2.4, regression: 1.1 },
+        val: { box: 1.3, classification: 2.5, regression: 1.2 },
         precision: 0.5,
         recall: 0.4,
         map50: 0.45,
-        map5095: 0.2,
+        map50To95: 0.2,
         fitness: 0.225,
-        lr: 0.001,
+        learningRate: 0.001,
       }),
     }),
   } as never);
@@ -141,7 +143,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { runId: created.id },
     request: new Request("http://localhost/lease", {
       method: "POST",
-      body: JSON.stringify({ workerId: "api-trainer" }),
+      body: JSON.stringify(OWNER),
     }),
   } as never);
   expect(lease.status).toBe(200);
@@ -154,7 +156,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { runId: created.id },
     request: new Request("http://localhost/phase", {
       method: "POST",
-      body: JSON.stringify({ workerId: "api-trainer", phase: "validating" }),
+      body: JSON.stringify({ ...OWNER, phase: "validating" }),
     }),
   } as never);
   expect(validationPhase.status).toBe(200);
@@ -170,7 +172,13 @@ test("training HTTP routes publish one candidate version without selecting it", 
       max_det: 500,
       end2end: false,
     },
-    validation: { "metrics/mAP50(B)": 0.8 },
+    validation: {
+      precision: 0.5,
+      recall: 0.4,
+      map50: 0.45,
+      map50_95: 0.2,
+      fitness: 0.225,
+    },
     training: {
       base_model: YOLO26_SEED_SMALL_RECIPE.baseModel,
       parameters: YOLO26_SEED_SMALL_RECIPE.parameters,
@@ -178,7 +186,8 @@ test("training HTTP routes publish one candidate version without selecting it", 
     },
   };
   const form = new FormData();
-  form.append("workerId", "api-trainer");
+  form.append("workerId", OWNER.workerId);
+  form.append("sessionId", OWNER.sessionId);
   form.append("weights", new File(["weights"], "best.pt"));
   form.append(
     "inference",
@@ -242,7 +251,11 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
     params: { runId: "train-invalid" },
     request: new Request("http://localhost/phase", {
       method: "POST",
-      body: JSON.stringify({ workerId: "trainer", phase: "complete" }),
+      body: JSON.stringify({
+        workerId: "trainer",
+        sessionId: "trainer-session",
+        phase: "complete",
+      }),
     }),
   } as never);
   expect(invalid.status).toBe(400);
@@ -254,7 +267,10 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
     params: { runId: "train-missing" },
     request: new Request("http://localhost/lease", {
       method: "POST",
-      body: JSON.stringify({ workerId: "trainer" }),
+      body: JSON.stringify({
+        workerId: "trainer",
+        sessionId: "trainer-session",
+      }),
     }),
   } as never);
   expect(conflict.status).toBe(409);

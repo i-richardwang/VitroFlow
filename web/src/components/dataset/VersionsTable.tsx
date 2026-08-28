@@ -45,11 +45,11 @@ export function VersionsTable({
                   <Count value={trainingImages} />
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono tabular-nums">
-                  <Metric value={validationMetric(version.artifact, "mAP50")} />
+                  <Metric value={validationMetric(version.artifact, "map50")} />
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono tabular-nums">
                   <Metric
-                    value={validationMetric(version.artifact, "mAP50-95")}
+                    value={validationMetric(version.artifact, "map50_95")}
                   />
                 </Table.Cell>
                 <Table.Cell className="text-right">

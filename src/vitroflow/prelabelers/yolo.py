@@ -206,11 +206,22 @@ class YoloPrelabeler:
         height, width = map(int, result.orig_shape)
         instances = []
         if result.boxes is not None:
-            rows = np.asarray(result.boxes.data.cpu().numpy())
-            if rows.ndim != 2 or rows.shape[1] < 6:
+            boxes = np.asarray(result.boxes.xyxy.cpu().numpy())
+            scores = np.asarray(result.boxes.conf.cpu().numpy())
+            classes = np.asarray(result.boxes.cls.cpu().numpy())
+            if (
+                boxes.ndim != 2
+                or boxes.shape[1] != 4
+                or scores.shape != boxes.shape[:1]
+                or classes.shape != boxes.shape[:1]
+            ):
                 raise RuntimeError("YOLO returned invalid detection boxes")
-            for row in rows:
-                x1, y1, x2, y2, score, class_id = map(float, row[:6])
+            for coordinates, score, class_id in zip(
+                boxes, scores, classes, strict=True
+            ):
+                x1, y1, x2, y2 = map(float, coordinates)
+                score = float(score)
+                class_id = float(class_id)
                 if int(class_id) != 0:
                     continue
                 left = min(max(x1, 0.0), float(width))

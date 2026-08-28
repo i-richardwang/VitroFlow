@@ -29,7 +29,7 @@ PARAMETERS = {
 
 
 class _Tensor:
-    def __init__(self, values: list[list[float]]) -> None:
+    def __init__(self, values: list[float] | list[list[float]]) -> None:
         self._values = np.asarray(values, dtype=float)
 
     def cpu(self) -> _Tensor:
@@ -56,7 +56,13 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
                     "max_det": 500,
                     "end2end": False,
                 },
-                "validation": {"metrics/mAP50(B)": 0.7},
+                "validation": {
+                    "precision": 0.6,
+                    "recall": 0.5,
+                    "map50": 0.7,
+                    "map50_95": 0.4,
+                    "fitness": 0.43,
+                },
                 "training": {
                     "base_model": {
                         "reference": "yolo26n.pt",
@@ -65,7 +71,7 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
                     "parameters": PARAMETERS,
                     "runtime": {
                         "framework": "ultralytics",
-                        "version": "8.4.129",
+                        "version": "8.4.131",
                     },
                 },
             }
@@ -85,16 +91,18 @@ def test_yolo_prelabeler_uses_published_inference_settings(
 
         def predict(self, **options: object) -> list[object]:
             calls.append((self.weights, options))
-            boxes = _Tensor(
-                [
-                    [-2, 5, 12, 25, 0.9, 0],
-                    [30, 40, 35, 45, 0.8, 1],
-                    [99, 79, 105, 90, 0.7, 0],
-                ]
+            boxes = SimpleNamespace(
+                xyxy=_Tensor(
+                    [
+                        [-2, 5, 12, 25],
+                        [30, 40, 35, 45],
+                        [99, 79, 105, 90],
+                    ]
+                ),
+                conf=_Tensor([0.9, 0.8, 0.7]),
+                cls=_Tensor([0, 1, 0]),
             )
-            return [
-                SimpleNamespace(orig_shape=(80, 100), boxes=SimpleNamespace(data=boxes))
-            ]
+            return [SimpleNamespace(orig_shape=(80, 100), boxes=boxes)]
 
     monkeypatch.setattr(yolo_module, "load_yolo", lambda: FakeYolo)
     prelabeler = YoloPrelabeler.from_run(_run(tmp_path), device="mps")
@@ -174,7 +182,13 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
             "maxDetections": 500,
             "endToEnd": False,
         },
-        "validation": {"metrics/mAP50(B)": 0.7},
+        "validation": {
+            "precision": 0.6,
+            "recall": 0.5,
+            "map50": 0.7,
+            "map50_95": 0.4,
+            "fitness": 0.43,
+        },
         "training": {
             "baseModel": {
                 "reference": "yolo26n.pt",
@@ -183,7 +197,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
             "parameters": PARAMETERS,
             "runtime": {
                 "framework": "ultralytics",
-                "version": "8.4.129",
+                "version": "8.4.131",
             },
         },
     }

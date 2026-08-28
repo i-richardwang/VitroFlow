@@ -53,7 +53,7 @@ def test_start_kickstarts_an_already_loaded_service(monkeypatch) -> None:
     assert calls == [("kickstart", "gui/501/com.vitroflow.worker.trainer")]
 
 
-def test_restart_reloads_the_launch_agent(monkeypatch) -> None:
+def test_restart_replaces_the_loaded_process_atomically(monkeypatch) -> None:
     calls: list[tuple[str, ...]] = []
     monkeypatch.setattr(
         worker_launchd, "install_launch_agent", lambda _name: Path("/tmp/worker.plist")
@@ -67,6 +67,21 @@ def test_restart_reloads_the_launch_agent(monkeypatch) -> None:
     worker_launchd.restart_service("trainer")
 
     assert calls == [
-        ("bootout", "gui/501/com.vitroflow.worker.trainer"),
-        ("bootstrap", "gui/501", "/tmp/worker.plist"),
+        ("kickstart", "-k", "gui/501/com.vitroflow.worker.trainer"),
     ]
+
+
+def test_restart_bootstraps_an_unloaded_service(monkeypatch) -> None:
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        worker_launchd, "install_launch_agent", lambda _name: Path("/tmp/worker.plist")
+    )
+    monkeypatch.setattr(worker_launchd, "service_loaded", lambda _name: False)
+    monkeypatch.setattr(worker_launchd.os, "getuid", lambda: 501)
+    monkeypatch.setattr(
+        worker_launchd, "_launchctl", lambda *arguments: calls.append(arguments)
+    )
+
+    worker_launchd.restart_service("trainer")
+
+    assert calls == [("bootstrap", "gui/501", "/tmp/worker.plist")]

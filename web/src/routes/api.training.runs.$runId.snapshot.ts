@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { versionIdSchema } from "../inference/schema";
 import { snapshotForRun } from "../server/training-runs";
 import {
-  parseTrainingValue,
+  parseTrainingWorkerIdentity,
   trainingWorkerErrorResponse,
 } from "../server/training-worker-http";
 
@@ -12,12 +11,10 @@ export const Route = createFileRoute("/api/training/runs/$runId/snapshot")({
     handlers: {
       GET: async ({ params, request }) => {
         try {
-          const workerId = parseTrainingValue(
-            new URL(request.url).searchParams.get("workerId"),
-            versionIdSchema,
-            "workerId",
+          const owner = parseTrainingWorkerIdentity(
+            new URL(request.url).searchParams,
           );
-          return Response.json(await snapshotForRun(params.runId, workerId));
+          return Response.json(await snapshotForRun(params.runId, owner));
         } catch (error) {
           return trainingWorkerErrorResponse(
             error,

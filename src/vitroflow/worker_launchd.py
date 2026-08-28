@@ -97,5 +97,6 @@ def stop_service(name: str) -> None:
 def restart_service(name: str) -> None:
     path = install_launch_agent(name)
     if service_loaded(name):
-        _launchctl("bootout", _service_target(name))
-    _launchctl("bootstrap", f"gui/{os.getuid()}", str(path))
+        _launchctl("kickstart", "-k", _service_target(name))
+    else:
+        _launchctl("bootstrap", f"gui/{os.getuid()}", str(path))

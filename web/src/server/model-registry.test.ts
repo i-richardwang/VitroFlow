@@ -40,7 +40,13 @@ test("registry lists immutable versions under their logical model", async () => 
         maxDetections: 500,
         endToEnd: false,
       },
-      validation: { map50: 0.8 },
+      validation: {
+        precision: 0.6,
+        recall: 0.5,
+        map50: 0.8,
+        map50_95: 0.4,
+        fitness: 0.44,
+      },
       training: YOLO26_SEED_SMALL_RECIPE,
     },
   };

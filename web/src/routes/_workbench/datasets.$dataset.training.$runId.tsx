@@ -82,7 +82,7 @@ function TrainingRunPage() {
             {best ? (
               <KPI.Value
                 maximumFractionDigits={3}
-                value={best.map5095}
+                value={best.map50To95}
               />
             ) : (
               <span className="text-2xl font-semibold text-muted">—</span>

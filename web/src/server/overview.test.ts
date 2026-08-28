@@ -74,6 +74,7 @@ test("the overview derives versions, serving workers, and training readiness", a
   await recordTrainingHeartbeat(
     {
       workerId: "overview-trainer",
+      sessionId: "overview-trainer-session",
       startedAt: HEARTBEAT_AT.toISOString(),
       device: "cpu",
       memoryBytes: 24 * 1024 ** 3,
@@ -81,8 +82,12 @@ test("the overview derives versions, serving workers, and training readiness", a
     },
     HEARTBEAT_AT,
   );
-  expect((await claimTrainingRun("overview-trainer"))?.id).toBe(run.id);
-  await failTrainingRun(run.id, "overview-trainer", "stopped");
+  const owner = {
+    workerId: "overview-trainer",
+    sessionId: "overview-trainer-session",
+  };
+  expect((await claimTrainingRun(owner))?.id).toBe(run.id);
+  await failTrainingRun(run.id, owner, "stopped");
   overview = await datasetOverview("overview", at);
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workersOnline).toBe(1);

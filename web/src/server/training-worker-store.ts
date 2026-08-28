@@ -1,7 +1,8 @@
-import { desc, eq, gte, lt } from "drizzle-orm";
+import { desc, eq, gte, lt, or } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import { trainingWorkers } from "../db/schema";
+import { TrainingWorkerSessionConflictError } from "../training/errors";
 import {
   trainingWorkerHeartbeatSchema,
   trainingWorkerRecordSchema,
@@ -19,6 +20,7 @@ function toRecord(
 ): TrainingWorkerRecord {
   return trainingWorkerRecordSchema.parse({
     workerId: row.id,
+    sessionId: row.sessionId,
     startedAt: row.startedAt.toISOString(),
     device: row.device,
     memoryBytes: row.memoryBytes,
@@ -37,6 +39,7 @@ export async function recordTrainingHeartbeat(
     lastSeenAt: at.toISOString(),
   });
   const row = {
+    sessionId: record.sessionId,
     startedAt: new Date(record.startedAt),
     device: record.device,
     memoryBytes: record.memoryBytes,
@@ -47,9 +50,20 @@ export async function recordTrainingHeartbeat(
   const [stored] = await db
     .insert(trainingWorkers)
     .values({ id: record.workerId, ...row })
-    .onConflictDoUpdate({ target: trainingWorkers.id, set: row })
+    .onConflictDoUpdate({
+      target: trainingWorkers.id,
+      set: row,
+      setWhere: or(
+        eq(trainingWorkers.sessionId, record.sessionId),
+        lt(trainingWorkers.startedAt, new Date(record.startedAt)),
+      ),
+    })
     .returning();
-  if (!stored) throw new Error(`Worker ${record.workerId} was not recorded`);
+  if (!stored) {
+    throw new TrainingWorkerSessionConflictError(
+      `Worker ${record.workerId} has a newer active session`,
+    );
+  }
   await forgetSilentWorkers(at, db);
   return toRecord(stored);
 }

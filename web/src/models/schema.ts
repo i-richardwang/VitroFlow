@@ -6,6 +6,7 @@ import {
   type RuntimeDescriptor,
 } from "../inference/schema";
 import { trainingParametersSchema } from "../training/parameters";
+import { detectionValidationSchema } from "../training/schema";
 
 export const modelSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -56,7 +57,7 @@ export const modelArtifactSchema = z.discriminatedUnion("kind", [
     bytes: z.number().int().positive(),
     path: artifactPathSchema,
     inference: inferenceSettingsSchema,
-    validation: z.record(z.string().min(1), z.number().finite()),
+    validation: detectionValidationSchema,
     training: trainingIdentitySchema,
   }),
 ]);
@@ -119,11 +120,10 @@ export function versionSlug(
     : version.id;
 }
 
-/** A validation metric by its short name, e.g. `mAP50` from `metrics/mAP50(B)`. */
 export function validationMetric(
   artifact: ModelArtifact,
-  name: string,
+  name: "map50" | "map50_95",
 ): number | null {
   if (artifact.kind !== "ultralytics") return null;
-  return artifact.validation[`metrics/${name}(B)`] ?? null;
+  return artifact.validation[name];
 }

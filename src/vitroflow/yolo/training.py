@@ -14,19 +14,36 @@ from ..files import write_text_atomically
 from ..training_parameters import parse_training_parameters
 from .runtime import load_yolo
 
-# Ultralytics keys for what one epoch's validation pass measured.
-LOSS_COMPONENTS = ("box", "cls", "dfl")
-METRIC_KEYS = {
-    "precision": "metrics/precision(B)",
-    "recall": "metrics/recall(B)",
-    "map50": "metrics/mAP50(B)",
-    "map5095": "metrics/mAP50-95(B)",
-}
+
+class BoxValidationMetrics(Protocol):
+    mp: float
+    mr: float
+    map50: float
+    map: float
+    f1_curve: Sequence[Sequence[float]]
+    px: Sequence[float]
+
+    def fitness(self) -> float: ...
 
 
 class ValidationMetrics(Protocol):
-    results_dict: Mapping[str, float]
-    curves_results: Sequence[Sequence[Any]]
+    box: BoxValidationMetrics
+
+
+@dataclass(frozen=True)
+class DetectionLosses:
+    """Framework-neutral detection losses exposed by the training protocol."""
+
+    box: float
+    classification: float
+    regression: float
+
+    def to_json(self) -> dict[str, float]:
+        return {
+            "box": self.box,
+            "classification": self.classification,
+            "regression": self.regression,
+        }
 
 
 @dataclass(frozen=True)
@@ -34,26 +51,26 @@ class EpochReport:
     """What Ultralytics knows after one epoch's validation pass."""
 
     epoch: int
-    train: dict[str, float]
-    val: dict[str, float]
+    train: DetectionLosses
+    val: DetectionLosses
     precision: float
     recall: float
     map50: float
-    map5095: float
+    map50_to_95: float
     fitness: float
-    lr: float
+    learning_rate: float
 
     def to_json(self) -> dict[str, Any]:
         return {
             "epoch": self.epoch,
-            "train": dict(self.train),
-            "val": dict(self.val),
+            "train": self.train.to_json(),
+            "val": self.val.to_json(),
             "precision": self.precision,
             "recall": self.recall,
             "map50": self.map50,
-            "map5095": self.map5095,
+            "map50To95": self.map50_to_95,
             "fitness": self.fitness,
-            "lr": self.lr,
+            "learningRate": self.learning_rate,
         }
 
 
@@ -69,26 +86,36 @@ class YoloTrainingInterruptedError(RuntimeError):
     pass
 
 
+def _smooth_curve(values: np.ndarray, fraction: float) -> np.ndarray:
+    """Apply the box filter Ultralytics uses when selecting max-F1."""
+    width = round(len(values) * fraction * 2) // 2 + 1
+    padding = np.ones(width // 2)
+    padded = np.concatenate((padding * values[0], values, padding * values[-1]))
+    return np.convolve(padded, np.ones(width) / width, mode="valid")
+
+
 def best_f1_confidence(metrics: ValidationMetrics) -> float | None:
-    """Select inference confidence from Ultralytics' public F1 curve."""
-    for x_values, y_values, x_label, y_label in metrics.curves_results:
-        if x_label == "Confidence" and y_label == "F1":
-            confidence = np.asarray(x_values)
-            mean_f1 = np.asarray(y_values).mean(axis=0)
-            if confidence.ndim != 1 or mean_f1.shape != confidence.shape:
-                raise ValueError("Invalid F1-confidence curve returned by Ultralytics")
-            if not np.isfinite(confidence).all() or not np.isfinite(mean_f1).all():
-                raise ValueError(
-                    "Non-finite F1-confidence curve returned by Ultralytics"
-                )
-            index = int(mean_f1.argmax())
-            if mean_f1[index] <= 0:
-                return None
-            value = float(confidence[index])
-            if not 0.0 <= value <= 1.0:
-                raise ValueError("Confidence returned by Ultralytics is outside [0, 1]")
-            return value
-    raise ValueError("Ultralytics validation did not produce an F1-confidence curve")
+    """Select inference confidence from Ultralytics' public detection curves."""
+    confidence = np.asarray(metrics.box.px, dtype=float)
+    f1_curve = np.asarray(metrics.box.f1_curve, dtype=float)
+    if confidence.size == 0 or f1_curve.size == 0:
+        return None
+    if (
+        confidence.ndim != 1
+        or f1_curve.ndim != 2
+        or f1_curve.shape[1:] != confidence.shape
+    ):
+        raise ValueError("Invalid F1-confidence curve returned by Ultralytics")
+    if not np.isfinite(confidence).all() or not np.isfinite(f1_curve).all():
+        raise ValueError("Non-finite F1-confidence curve returned by Ultralytics")
+    mean_f1 = _smooth_curve(f1_curve.mean(axis=0), 0.1)
+    index = int(mean_f1.argmax())
+    if mean_f1[index] <= 0:
+        return None
+    value = float(confidence[index])
+    if not 0.0 <= value <= 1.0:
+        raise ValueError("Confidence returned by Ultralytics is outside [0, 1]")
+    return value
 
 
 def _finite(value: Any, name: str) -> float:
@@ -98,26 +125,58 @@ def _finite(value: Any, name: str) -> float:
     return number
 
 
-def _losses(values: Mapping[str, Any], prefix: str) -> dict[str, float]:
+def _losses(
+    values: Mapping[str, Any], loss_names: Sequence[str], prefix: str
+) -> DetectionLosses:
+    names = set(loss_names)
+    regression_names = names.intersection({"dfl_loss", "l1_loss"})
+    if names - {"box_loss", "cls_loss", "dfl_loss", "l1_loss"} or (
+        names.intersection({"box_loss", "cls_loss"}) != {"box_loss", "cls_loss"}
+        or len(regression_names) != 1
+        or len(names) != 3
+    ):
+        raise ValueError(
+            "Ultralytics returned unsupported detection loss components: "
+            + ", ".join(sorted(names))
+        )
+    regression_name = next(iter(regression_names))
+    return DetectionLosses(
+        box=_finite(values[f"{prefix}box_loss"], f"{prefix}box loss"),
+        classification=_finite(
+            values[f"{prefix}cls_loss"], f"{prefix}classification loss"
+        ),
+        regression=_finite(
+            values[f"{prefix}{regression_name}"], f"{prefix}regression loss"
+        ),
+    )
+
+
+def _validation_summary(metrics: ValidationMetrics) -> dict[str, float]:
+    box = metrics.box
     return {
-        component: _finite(values[f"{prefix}{component}_loss"], f"{prefix}{component}")
-        for component in LOSS_COMPONENTS
+        "precision": _finite(box.mp, "precision"),
+        "recall": _finite(box.mr, "recall"),
+        "map50": _finite(box.map50, "mAP50"),
+        "map50_95": _finite(box.map, "mAP50-95"),
+        "fitness": _finite(box.fitness(), "fitness"),
     }
 
 
 def epoch_report(trainer: Any) -> EpochReport:
     """Read one finished epoch from an Ultralytics trainer after validation."""
-    metrics = trainer.metrics
+    metrics = trainer.validator.metrics
+    validation = _validation_summary(metrics)
+    loss_names = tuple(trainer.loss_names)
     return EpochReport(
         epoch=int(trainer.epoch) + 1,
-        train=_losses(trainer.tloss, ""),
-        val=_losses(metrics, "val/"),
-        precision=_finite(metrics[METRIC_KEYS["precision"]], "precision"),
-        recall=_finite(metrics[METRIC_KEYS["recall"]], "recall"),
-        map50=_finite(metrics[METRIC_KEYS["map50"]], "mAP50"),
-        map5095=_finite(metrics[METRIC_KEYS["map5095"]], "mAP50-95"),
-        fitness=_finite(trainer.fitness, "fitness"),
-        lr=_finite(trainer.lr["lr/pg0"], "learning rate"),
+        train=_losses(trainer.tloss, loss_names, ""),
+        val=_losses(trainer.metrics, loss_names, "val/"),
+        precision=validation["precision"],
+        recall=validation["recall"],
+        map50=validation["map50"],
+        map50_to_95=validation["map50_95"],
+        fitness=validation["fitness"],
+        learning_rate=_finite(trainer.optimizer.param_groups[0]["lr"], "learning rate"),
     )
 
 
@@ -197,7 +256,7 @@ def train_yolo_detector(
         def report_epoch(trainer: Any) -> None:
             on_epoch(epoch_report(trainer))
 
-        trainer_model.add_callback("on_fit_epoch_end", report_epoch)
+        trainer_model.add_callback("on_model_save", report_epoch)
     if on_training_start:
         on_training_start()
     trainer_model.train(**train_options)
@@ -205,7 +264,7 @@ def train_yolo_detector(
         raise YoloTrainingInterruptedError("training interrupted")
     trainer = trainer_model.trainer
     save_dir = Path(trainer.save_dir)
-    best_weights = save_dir / "weights" / "best.pt"
+    best_weights = Path(trainer.best)
     if not best_weights.is_file():
         raise RuntimeError(f"Training did not produce {best_weights}")
 
@@ -235,7 +294,7 @@ def train_yolo_detector(
     if cancelled and cancelled():
         raise YoloTrainingInterruptedError("training interrupted")
     confidence = best_f1_confidence(metrics)
-    metric_values = {key: float(value) for key, value in metrics.results_dict.items()}
+    metric_values = _validation_summary(metrics)
 
     summary_path = save_dir / "inference.json"
     summary = {

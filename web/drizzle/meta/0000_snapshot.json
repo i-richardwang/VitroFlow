@@ -1,5 +1,5 @@
 {
-  "id": "bb662553-768d-4e88-a9b7-78d29d9be961",
+  "id": "ab5f5543-27bf-4395-896a-0178b1bc0d0b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -961,14 +961,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "train_cls_loss": {
-          "name": "train_cls_loss",
+        "train_classification_loss": {
+          "name": "train_classification_loss",
           "type": "double precision",
           "primaryKey": false,
           "notNull": true
         },
-        "train_dfl_loss": {
-          "name": "train_dfl_loss",
+        "train_regression_loss": {
+          "name": "train_regression_loss",
           "type": "double precision",
           "primaryKey": false,
           "notNull": true
@@ -979,14 +979,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "val_cls_loss": {
-          "name": "val_cls_loss",
+        "val_classification_loss": {
+          "name": "val_classification_loss",
           "type": "double precision",
           "primaryKey": false,
           "notNull": true
         },
-        "val_dfl_loss": {
-          "name": "val_dfl_loss",
+        "val_regression_loss": {
+          "name": "val_regression_loss",
           "type": "double precision",
           "primaryKey": false,
           "notNull": true
@@ -1021,8 +1021,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "lr": {
-          "name": "lr",
+        "learning_rate": {
+          "name": "learning_rate",
           "type": "double precision",
           "primaryKey": false,
           "notNull": true
@@ -1112,6 +1112,12 @@
         },
         "worker_id": {
           "name": "worker_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_id": {
+          "name": "session_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1257,7 +1263,7 @@
         },
         "training_runs_state_check": {
           "name": "training_runs_state_check",
-          "value": "case \"training_runs\".\"status\"\n        when 'queued' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'running' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"lease_expires_at\" is not null and \"training_runs\".\"phase\" in ('preparing', 'training', 'validating') and \"training_runs\".\"progress\" is not null and \"training_runs\".\"progress\" between 0 and 1 and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'publishing' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'succeeded' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is not null\n        when 'failed' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and length(\"training_runs\".\"error\") between 1 and 2000 and \"training_runs\".\"model_version_id\" is null\n        else false\n      end"
+          "value": "case \"training_runs\".\"status\"\n        when 'queued' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'running' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"session_id\" is not null and \"training_runs\".\"lease_expires_at\" is not null and \"training_runs\".\"phase\" in ('preparing', 'training', 'validating') and \"training_runs\".\"progress\" is not null and \"training_runs\".\"progress\" between 0 and 1 and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'publishing' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"session_id\" is not null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'succeeded' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is not null\n        when 'failed' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and length(\"training_runs\".\"error\") between 1 and 2000 and \"training_runs\".\"model_version_id\" is null\n        else false\n      end"
         }
       },
       "isRLSEnabled": false
@@ -1270,6 +1276,12 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true
         },
         "started_at": {

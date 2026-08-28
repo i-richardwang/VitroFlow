@@ -13,8 +13,8 @@ import { startTrainingRun } from "../../server/models";
 import type { TrainingConsole } from "../../server/training-console";
 import {
   PARAMETER_FIELDS,
-  tunableParameters,
-  tunableParametersSchema,
+  trainingOverrides,
+  trainingOverridesSchema,
 } from "../../training/parameters";
 import { MIN_SNAPSHOT_IMAGES } from "../../training/schema";
 
@@ -23,11 +23,11 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
   const { dataset, complete, recipe, training } = console;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [parameters, setParameters] = useState(() =>
-    tunableParameters(console.recipe.parameters),
+  const [overrides, setOverrides] = useState(() =>
+    trainingOverrides(console.recipe.parameters),
   );
   const canTrain = complete >= MIN_SNAPSHOT_IMAGES && training.active === null;
-  const valid = tunableParametersSchema.safeParse(parameters).success;
+  const valid = trainingOverridesSchema.safeParse(overrides).success;
 
   return (
     <Modal>
@@ -53,13 +53,13 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
                       <NumberField
                         key={field.key}
                         variant="secondary"
-                        value={parameters[field.key]}
+                        value={overrides[field.key]}
                         minValue={field.min}
                         maxValue={field.max}
                         step={field.step}
                         formatOptions={{ maximumFractionDigits: 5 }}
                         onChange={(value) =>
-                          setParameters((current) => ({
+                          setOverrides((current) => ({
                             ...current,
                             [field.key]: value,
                           }))
@@ -95,7 +95,7 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
                     isDisabled={busy || !valid}
                     onPress={() => {
                       setBusy(true);
-                      void startTrainingRun({ data: { dataset, parameters } })
+                      void startTrainingRun({ data: { dataset, overrides } })
                         .then(async () => {
                           close();
                           toast.success("Training run queued");

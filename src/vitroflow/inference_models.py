@@ -57,6 +57,20 @@ def _inference_settings(value: Any, context: str) -> None:
         raise TypeError(f"{context}.endToEnd must be a boolean")
 
 
+def _validation_metrics(value: Any, context: str) -> None:
+    metrics = as_object(value, context)
+    expect_fields(
+        metrics,
+        {"precision", "recall", "map50", "map50_95", "fitness"},
+        context,
+    )
+    for name in ("precision", "recall", "map50", "map50_95"):
+        metric = as_number(metrics[name], f"{context}.{name}")
+        if not 0 <= metric <= 1:
+            raise ValueError(f"{context}.{name} must be between 0 and 1")
+    as_number(metrics["fitness"], f"{context}.fitness")
+
+
 def _model_artifact(value: Any, context: str) -> dict[str, Any]:
     artifact = as_object(value, context)
     kind = artifact.get("kind")
@@ -79,10 +93,7 @@ def _model_artifact(value: Any, context: str) -> dict[str, Any]:
         as_integer(artifact["bytes"], f"{context}.bytes", 1)
         _relative_artifact_path(artifact["path"], f"{context}.path")
         _inference_settings(artifact["inference"], f"{context}.inference")
-        validation = as_object(artifact["validation"], f"{context}.validation")
-        for name, metric in validation.items():
-            as_string(name, f"{context}.validation metric")
-            as_number(metric, f"{context}.validation.{name}")
+        _validation_metrics(artifact["validation"], f"{context}.validation")
         parse_training_recipe(artifact["training"], f"{context}.training")
     else:
         raise ValueError(f"{context}.kind is unsupported")

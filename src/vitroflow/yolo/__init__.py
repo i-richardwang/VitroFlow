@@ -9,6 +9,7 @@ from .dataset import (
     export_yolo_dataset,
 )
 from .training import (
+    DetectionLosses,
     EpochReport,
     YoloTrainingInterruptedError,
     YoloTrainingResult,
@@ -17,6 +18,7 @@ from .training import (
 
 __all__ = [
     "DatasetImage",
+    "DetectionLosses",
     "EpochReport",
     "YoloDatasetManifest",
     "YoloTrainingInterruptedError",

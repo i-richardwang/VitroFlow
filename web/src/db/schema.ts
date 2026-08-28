@@ -306,6 +306,7 @@ export const trainingRuns = pgTable(
     recipe: jsonb("recipe").$type<TrainingRecipe>().notNull(),
     status: text("status", { enum: TRAINING_RUN_STATUSES }).notNull(),
     workerId: text("worker_id"),
+    sessionId: text("session_id"),
     leaseExpiresAt: timestamp("lease_expires_at", {
       withTimezone: true,
       mode: "date",
@@ -331,11 +332,11 @@ export const trainingRuns = pgTable(
     check(
       "training_runs_state_check",
       sql`case ${table.status}
-        when 'queued' then ${table.workerId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
-        when 'running' then ${table.workerId} is not null and ${table.leaseExpiresAt} is not null and ${table.phase} in ('preparing', 'training', 'validating') and ${table.progress} is not null and ${table.progress} between 0 and 1 and ${table.error} is null and ${table.modelVersionId} is null
-        when 'publishing' then ${table.workerId} is not null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
-        when 'succeeded' then ${table.workerId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is not null
-        when 'failed' then ${table.workerId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and length(${table.error}) between 1 and 2000 and ${table.modelVersionId} is null
+        when 'queued' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
+        when 'running' then ${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null and ${table.phase} in ('preparing', 'training', 'validating') and ${table.progress} is not null and ${table.progress} between 0 and 1 and ${table.error} is null and ${table.modelVersionId} is null
+        when 'publishing' then ${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
+        when 'succeeded' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is not null
+        when 'failed' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and length(${table.error}) between 1 and 2000 and ${table.modelVersionId} is null
         else false
       end`,
     ),
@@ -364,17 +365,19 @@ export const trainingEpochs = pgTable(
     epoch: integer("epoch").notNull(),
     recordedAt: instant("recorded_at"),
     trainBoxLoss: doublePrecision("train_box_loss").notNull(),
-    trainClsLoss: doublePrecision("train_cls_loss").notNull(),
-    trainDflLoss: doublePrecision("train_dfl_loss").notNull(),
+    trainClassificationLoss: doublePrecision(
+      "train_classification_loss",
+    ).notNull(),
+    trainRegressionLoss: doublePrecision("train_regression_loss").notNull(),
     valBoxLoss: doublePrecision("val_box_loss").notNull(),
-    valClsLoss: doublePrecision("val_cls_loss").notNull(),
-    valDflLoss: doublePrecision("val_dfl_loss").notNull(),
+    valClassificationLoss: doublePrecision("val_classification_loss").notNull(),
+    valRegressionLoss: doublePrecision("val_regression_loss").notNull(),
     precision: doublePrecision("precision").notNull(),
     recall: doublePrecision("recall").notNull(),
     map50: doublePrecision("map50").notNull(),
-    map5095: doublePrecision("map50_95").notNull(),
+    map50To95: doublePrecision("map50_95").notNull(),
     fitness: doublePrecision("fitness").notNull(),
-    lr: doublePrecision("lr").notNull(),
+    learningRate: doublePrecision("learning_rate").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.runId, table.attempt, table.epoch] }),
@@ -389,6 +392,7 @@ export const trainingWorkers = pgTable(
   "training_workers",
   {
     id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     device: text("device").notNull(),
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),

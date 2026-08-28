@@ -8,14 +8,14 @@ function epoch(epoch: number, fitness: number): TrainingEpoch {
     attempt: 1,
     epoch,
     recordedAt: "2026-08-28T00:00:00.000Z",
-    train: { box: 1, cls: 1, dfl: 1 },
-    val: { box: 1, cls: 1, dfl: 1 },
+    train: { box: 1, classification: 1, regression: 1 },
+    val: { box: 1, classification: 1, regression: 1 },
     precision: 0.5,
     recall: 0.5,
     map50: 0.5,
-    map5095: 0.25,
+    map50To95: 0.25,
     fitness,
-    lr: 0.001,
+    learningRate: 0.001,
   };
 }
 

@@ -30,7 +30,7 @@ def _recipe() -> dict[str, object]:
             "seed": 0,
             "deterministic": True,
         },
-        "runtime": {"framework": "ultralytics", "version": "8.4.129"},
+        "runtime": {"framework": "ultralytics", "version": "8.4.131"},
     }
 
 
@@ -40,7 +40,7 @@ def test_training_recipe_parser_returns_the_complete_identity() -> None:
     assert recipe.base_model_reference == "yolo26n.pt"
     assert recipe.base_model_digest == "a" * 64
     assert recipe.parameters["epochs"] == 3
-    assert recipe.runtime_version == "8.4.129"
+    assert recipe.runtime_version == "8.4.131"
 
 
 def test_training_recipe_manifest_requires_its_version_and_exact_shape() -> None:

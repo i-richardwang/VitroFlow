@@ -106,17 +106,17 @@ CREATE TABLE "training_epochs" (
 	"epoch" integer NOT NULL,
 	"recorded_at" timestamp with time zone NOT NULL,
 	"train_box_loss" double precision NOT NULL,
-	"train_cls_loss" double precision NOT NULL,
-	"train_dfl_loss" double precision NOT NULL,
+	"train_classification_loss" double precision NOT NULL,
+	"train_regression_loss" double precision NOT NULL,
 	"val_box_loss" double precision NOT NULL,
-	"val_cls_loss" double precision NOT NULL,
-	"val_dfl_loss" double precision NOT NULL,
+	"val_classification_loss" double precision NOT NULL,
+	"val_regression_loss" double precision NOT NULL,
 	"precision" double precision NOT NULL,
 	"recall" double precision NOT NULL,
 	"map50" double precision NOT NULL,
 	"map50_95" double precision NOT NULL,
 	"fitness" double precision NOT NULL,
-	"lr" double precision NOT NULL,
+	"learning_rate" double precision NOT NULL,
 	CONSTRAINT "training_epochs_run_id_attempt_epoch_pk" PRIMARY KEY("run_id","attempt","epoch"),
 	CONSTRAINT "training_epochs_order_check" CHECK ("training_epochs"."attempt" >= 1 and "training_epochs"."epoch" >= 1)
 );
@@ -130,6 +130,7 @@ CREATE TABLE "training_runs" (
 	"recipe" jsonb NOT NULL,
 	"status" text NOT NULL,
 	"worker_id" text,
+	"session_id" text,
 	"lease_expires_at" timestamp with time zone,
 	"phase" text,
 	"progress" real,
@@ -137,17 +138,18 @@ CREATE TABLE "training_runs" (
 	"model_version_id" text,
 	CONSTRAINT "training_runs_attempt_check" CHECK ("training_runs"."attempt" >= 0),
 	CONSTRAINT "training_runs_state_check" CHECK (case "training_runs"."status"
-        when 'queued' then "training_runs"."worker_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is null
-        when 'running' then "training_runs"."worker_id" is not null and "training_runs"."lease_expires_at" is not null and "training_runs"."phase" in ('preparing', 'training', 'validating') and "training_runs"."progress" is not null and "training_runs"."progress" between 0 and 1 and "training_runs"."error" is null and "training_runs"."model_version_id" is null
-        when 'publishing' then "training_runs"."worker_id" is not null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is null
-        when 'succeeded' then "training_runs"."worker_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is not null
-        when 'failed' then "training_runs"."worker_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and length("training_runs"."error") between 1 and 2000 and "training_runs"."model_version_id" is null
+        when 'queued' then "training_runs"."worker_id" is null and "training_runs"."session_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is null
+        when 'running' then "training_runs"."worker_id" is not null and "training_runs"."session_id" is not null and "training_runs"."lease_expires_at" is not null and "training_runs"."phase" in ('preparing', 'training', 'validating') and "training_runs"."progress" is not null and "training_runs"."progress" between 0 and 1 and "training_runs"."error" is null and "training_runs"."model_version_id" is null
+        when 'publishing' then "training_runs"."worker_id" is not null and "training_runs"."session_id" is not null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is null
+        when 'succeeded' then "training_runs"."worker_id" is null and "training_runs"."session_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is not null
+        when 'failed' then "training_runs"."worker_id" is null and "training_runs"."session_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and length("training_runs"."error") between 1 and 2000 and "training_runs"."model_version_id" is null
         else false
       end)
 );
 --> statement-breakpoint
 CREATE TABLE "training_workers" (
 	"id" text PRIMARY KEY NOT NULL,
+	"session_id" text NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
 	"device" text NOT NULL,
 	"memory_bytes" bigint NOT NULL,

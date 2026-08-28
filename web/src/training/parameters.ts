@@ -38,7 +38,7 @@ export const trainingParametersSchema = z.strictObject({
 export type TrainingParameters = z.infer<typeof trainingParametersSchema>;
 
 /** The parameters a run may change from the recipe; the rest stay as recorded. */
-export const tunableParametersSchema = trainingParametersSchema.pick({
+export const trainingOverridesSchema = trainingParametersSchema.pick({
   epochs: true,
   imgsz: true,
   batch: true,
@@ -46,11 +46,11 @@ export const tunableParametersSchema = trainingParametersSchema.pick({
   lr0: true,
 });
 
-export type TunableParameters = z.infer<typeof tunableParametersSchema>;
+export type TrainingOverrides = z.infer<typeof trainingOverridesSchema>;
 
-export function tunableParameters(
+export function trainingOverrides(
   parameters: TrainingParameters,
-): TunableParameters {
+): TrainingOverrides {
   return {
     epochs: parameters.epochs,
     imgsz: parameters.imgsz,
@@ -61,7 +61,7 @@ export function tunableParameters(
 }
 
 export interface ParameterField {
-  key: keyof TunableParameters;
+  key: keyof TrainingOverrides;
   label: string;
   description: string;
   min: number;
@@ -111,6 +111,6 @@ export const PARAMETER_FIELDS: ParameterField[] = [
     description: "Initial rate for the optimizer.",
     min: 0.00001,
     max: 0.1,
-    step: 0.0001,
+    step: 0.00001,
   },
 ];
