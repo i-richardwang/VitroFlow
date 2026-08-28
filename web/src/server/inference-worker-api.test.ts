@@ -14,7 +14,8 @@ import { readInferenceWorker } from "./inference-worker-store";
 import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
 import { readPrelabel } from "./prelabels";
-import { imageBytes, imageDigest, imageFile } from "./testing";
+import { contentDigest } from "./blobs";
+import { FIXTURE_EDGE, imageDigest, imageFile } from "./testing";
 
 type Handler = (context: never) => Response | Promise<Response>;
 
@@ -29,12 +30,12 @@ function handler(
   return selected;
 }
 
-const digest = imageDigest("image");
+const digest = await imageDigest("image");
 const ref = { dataset: "api", digest };
 
 test("inference HTTP routes carry an image from upload to prelabel", async () => {
   const upload = new FormData();
-  upload.append("images", imageFile("image", "api.jpg"));
+  upload.append("images", await imageFile("image", "api.jpg"));
   const uploadResponse = await handler(
     UploadRoute,
     "POST",
@@ -93,7 +94,7 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
     modelVersionId: version.id,
     artifact: version.artifact,
   });
-  expect(assignment.images).toContainEqual({ ...ref, extension: ".jpg" });
+  expect(assignment.images).toContainEqual(ref);
   expect(
     (
       await handler(
@@ -109,14 +110,19 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
     ImageRoute,
     "GET",
   )({ params: { digest } } as never);
-  expect(imageResponse.headers.get("Content-Type")).toBe("image/jpeg");
+  expect(imageResponse.headers.get("Content-Type")).toBe("image/avif");
   expect(imageResponse.headers.get("Cache-Control")).toContain("immutable");
-  expect(new Uint8Array(await imageResponse.arrayBuffer())).toEqual(
-    imageBytes("image"),
+  expect(contentDigest(new Uint8Array(await imageResponse.arrayBuffer()))).toBe(
+    digest,
   );
 
   const result = {
-    ...makeResult([{ id: 0, x: 5, y: 5 }], { digest }),
+    ...makeResult([{ id: 0, x: 5, y: 5 }], {
+      digest,
+      dishRadius: FIXTURE_EDGE / 4,
+      width: FIXTURE_EDGE,
+      height: FIXTURE_EDGE,
+    }),
     producer: {
       model_version_id: version.id,
       artifact_digest: version.artifact.digest,

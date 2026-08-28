@@ -11,6 +11,7 @@ import pytest
 from conftest import annotation_document, encoded_image, write_blob
 
 from vitroflow import training_worker
+from vitroflow.image_io import CANONICAL_EXTENSION
 from vitroflow.training_worker import (
     TrainingJob,
     TrainingLeaseLostError,
@@ -57,7 +58,8 @@ def _snapshot_image(
 ) -> dict[str, object]:
     return {
         "digest": digest,
-        "extension": ".jpg",
+        "width": 100,
+        "height": 80,
         "split": split,
         "annotation": annotation_document(digest, boxes),
     }
@@ -160,7 +162,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     train_image = next((tmp_path / "dataset/images/train").iterdir())
     train_label = next((tmp_path / "dataset/labels/train").iterdir())
     val_label = next((tmp_path / "dataset/labels/val").iterdir())
-    assert train_image.name == f"{train_digest}.jpg"
+    assert train_image.name == f"{train_digest}{CANONICAL_EXTENSION}"
     assert train_label.name == f"{train_digest}.txt"
     assert val_label.name == f"{val_digest}.txt"
     assert train_image.read_bytes() == images[train_digest]

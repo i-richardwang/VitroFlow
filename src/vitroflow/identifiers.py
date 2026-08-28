@@ -11,6 +11,5 @@ DATASET_NAME = SHORT_IDENTIFIER
 WORKER_ID = SHORT_IDENTIFIER
 WORKER_DEVICE = re.compile(r"^(?:cpu|mps|cuda(?::[0-9]+)?)$")
 VERSION_ID = IDENTIFIER
-IMAGE_EXTENSIONS = frozenset({".jpg", ".png", ".tif"})
 FINGERPRINT = re.compile(r"^[a-f0-9]{64}$")
 WARNING_CODE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")

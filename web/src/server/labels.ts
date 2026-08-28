@@ -10,6 +10,7 @@ import { labels } from "../db/schema";
 import type { ImageRef } from "../datasets/schema";
 import { isFailure } from "../detection/schema";
 import { atRef, describeRef, notInDataset } from "./datasets";
+import { assertDocumentImage } from "./image-documents";
 import { lockImageRecord } from "./summaries";
 
 export async function readLabel(
@@ -32,6 +33,7 @@ export async function createLabel(
   return transaction(async (tx) => {
     const record = await lockImageRecord(ref, tx);
     if (!record) throw notInDataset(ref);
+    assertDocumentImage("Label", created.image, record.image);
     if (record.label) {
       throw new Error(`Label already exists for ${describeRef(ref)}`);
     }

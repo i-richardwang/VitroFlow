@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { annotationSchema } from "../annotation/schema";
-import { imageDigestSchema, imageExtensionSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../datasets/schema";
 import { fingerprintSchema, versionIdSchema } from "../inference/schema";
 import { trainingParametersSchema } from "./parameters";
 
@@ -30,15 +30,36 @@ const ACTIVE_TRAINING_RUN_STATUS_SET = new Set<string>(
   ACTIVE_TRAINING_RUN_STATUSES,
 );
 
-const snapshotImageSchema = z.strictObject({
-  digest: imageDigestSchema,
-  extension: imageExtensionSchema,
-  split: z.enum(IMAGE_SPLITS),
-  annotation: annotationSchema.refine(
-    (annotation) => annotation.status === "complete",
-    "Snapshot annotations must be complete",
-  ),
-});
+const snapshotImageSchema = z
+  .strictObject({
+    digest: imageDigestSchema,
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    split: z.enum(IMAGE_SPLITS),
+    annotation: annotationSchema.refine(
+      (annotation) => annotation.status === "complete",
+      "Snapshot annotations must be complete",
+    ),
+  })
+  .superRefine((image, context) => {
+    if (image.annotation.image.digest !== image.digest) {
+      context.addIssue({
+        code: "custom",
+        path: ["annotation", "image", "digest"],
+        message: "Snapshot annotation describes another image",
+      });
+    }
+    if (
+      image.annotation.image.width !== image.width ||
+      image.annotation.image.height !== image.height
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["annotation", "image"],
+        message: "Snapshot annotation dimensions differ from its image",
+      });
+    }
+  });
 
 export const datasetSnapshotSchema = z.strictObject({
   schemaVersion: z.literal(1),

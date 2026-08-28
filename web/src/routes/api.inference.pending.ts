@@ -29,11 +29,7 @@ export const Route = createFileRoute("/api/inference/pending")({
         return Response.json({
           assignments: assignments.map(({ manifest, images }) => ({
             manifest,
-            images: images.map(({ dataset, digest, extension }) => ({
-              dataset,
-              digest,
-              extension,
-            })),
+            images: images.map(({ dataset, digest }) => ({ dataset, digest })),
           })),
         });
       },

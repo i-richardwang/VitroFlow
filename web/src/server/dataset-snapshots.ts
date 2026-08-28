@@ -80,7 +80,8 @@ async function snapshotImages(snapshotId: string, db: Executor) {
   return db
     .select({
       digest: datasetSnapshotImages.imageId,
-      extension: images.extension,
+      width: images.width,
+      height: images.height,
       split: datasetSnapshotImages.split,
       annotation: datasetSnapshotImages.annotation,
     })

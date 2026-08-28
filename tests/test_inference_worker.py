@@ -147,22 +147,20 @@ class Workbench:
 
 
 PENDING = [
-    {"dataset": "set", "digest": DIGEST, "extension": ".jpg"},
-    {"dataset": "set", "digest": DIGEST, "extension": ".png"},
+    {"dataset": "set", "digest": DIGEST},
+    {"dataset": "set", "digest": DIGEST},
 ]
 ASSIGNMENTS = [{"manifest": MANIFEST, "images": PENDING}]
 
 
 def test_pending_image_requires_every_field() -> None:
-    assert PendingImage.parse(PENDING[0]) == PendingImage("set", DIGEST, ".jpg")
-    with pytest.raises(ValueError, match="missing extension"):
-        PendingImage.parse({"dataset": "set", "digest": DIGEST})
+    assert PendingImage.parse(PENDING[0]) == PendingImage("set", DIGEST)
+    with pytest.raises(ValueError, match="missing digest"):
+        PendingImage.parse({"dataset": "set"})
     with pytest.raises(ValueError, match="digest must be a SHA-256"):
-        PendingImage.parse(
-            {"dataset": "set", "digest": "images/set/a.jpg", "extension": ".jpg"}
-        )
-    with pytest.raises(ValueError, match="extension must be one of"):
-        PendingImage.parse({"dataset": "set", "digest": DIGEST, "extension": ".gif"})
+        PendingImage.parse({"dataset": "set", "digest": "images/set/a.jpg"})
+    with pytest.raises(ValueError, match="dataset is invalid"):
+        PendingImage.parse({"dataset": "not/a/name", "digest": DIGEST})
 
 
 @pytest.mark.parametrize(
@@ -207,9 +205,7 @@ def test_assignment_validates_its_manifest() -> None:
 
 
 def test_heartbeat_describes_runtimes_and_loaded_version() -> None:
-    heartbeat = WORKER.heartbeat(
-        "set.traditional-v1", PendingImage("set", DIGEST, ".jpg")
-    )
+    heartbeat = WORKER.heartbeat("set.traditional-v1", PendingImage("set", DIGEST))
     assert heartbeat == {
         "workerId": "test-worker",
         "startedAt": "2026-08-27T00:00:00+00:00",

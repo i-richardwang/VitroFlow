@@ -20,16 +20,6 @@ export const imageRefSchema = z.strictObject({
 
 export type ImageRef = z.infer<typeof imageRefSchema>;
 
-/**
- * The photograph formats the workbench accepts. An image's extension names
- * the format its bytes declare, one canonical extension per format.
- */
-export const IMAGE_EXTENSIONS = [".jpg", ".png", ".tif"] as const;
-
-export type ImageExtension = (typeof IMAGE_EXTENSIONS)[number];
-
-export const imageExtensionSchema = z.enum(IMAGE_EXTENSIONS);
-
 export const datasetSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: z.string().regex(DATASET_NAME),

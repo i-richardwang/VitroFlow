@@ -3,9 +3,14 @@ import { boxAround } from "./geometry";
 
 export function makeResult(
   detections: { id: number; x: number; y: number }[],
-  { digest = "0".repeat(64), dishRadius = 2000 } = {},
+  {
+    digest = "0".repeat(64),
+    dishRadius = 2000,
+    width = 4000,
+    height = 3000,
+  } = {},
 ): PrelabelResult {
-  const image = { digest, width: 4000, height: 3000 };
+  const image = { digest, width, height };
   const side = dishRadius * 0.025;
   return {
     schema_version: 1,

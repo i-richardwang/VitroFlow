@@ -23,7 +23,7 @@ Postgres holds every record the stages exchange; the data directory holds only b
 | Table | Owner | Contents |
 |---|---|---|
 | `datasets`, `models`, `model_versions` | Server | a Dataset, its logical Model, and immutable executable ModelVersions |
-| `images` | Server | one row per photograph, identified by the SHA-256 of its bytes |
+| `images` | Server | one row per canonical photograph, identified by the SHA-256 of its bytes |
 | `dataset_images` | Server | an image's membership in a dataset and its stable train/validation split |
 | `prelabels` | Inference Worker | detector output for an image in a dataset, untouched by humans |
 | `labels` | Reviewer | reviewed box annotations with a revision counter |
@@ -34,7 +34,7 @@ Postgres holds every record the stages exchange; the data directory holds only b
 
 ```text
 data/
-├── images/<xx>/<sha256>             immutable source photographs, addressed by content
+├── images/<xx>/<sha256>             immutable canonical AVIF photographs, addressed by content
 ├── training-staging/<run>/          uploaded but unpublished model artifacts
 └── model-artifacts/<version>/       server-published YOLO weights and settings
 ```
@@ -43,7 +43,7 @@ A Dataset owns one logical Model—the purpose of the model, not one artifact—
 
 JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
 
-An image is its bytes. Its format is read from the bytes (JPEG, PNG, or TIFF), the same photograph uploaded twice, under any names, is one image, and one image can belong to several datasets and snapshots at once; the name it was added under belongs to each membership and is shown, never matched. An upload reports which memberships it created and which already existed. A dataset removal drops the membership and its review documents; the image row goes once nothing refers to it, and its bytes stay on disk until `bun run images:collect` (in `web/`) removes the bytes of images no row refers to, deciding each digest under the same lock uploads take. Because a digest names immutable content, image URLs (`/img/<digest>`) are cached indefinitely.
+An uploaded file is a source, not yet an image. The Server accepts one JPEG, PNG, or TIFF photograph up to 64 MiB and 40 megapixels, applies its orientation, converts its colours to sRGB, composites transparency onto white, and encodes one opaque AVIF. Those canonical bytes define the image digest, pixel dimensions, browser view, inference input, and training input. Repeating the same source therefore produces the same image under any filename, while the original filename belongs only to each Dataset membership and is shown, never matched. One image can belong to several datasets and snapshots at once. An upload reports which memberships it created and which already existed. A dataset removal drops the membership and its review documents; the image row goes once nothing refers to it, and its bytes stay on disk until `bun run images:collect` (in `web/`) removes the bytes of images no row refers to, deciding each digest under the same lock uploads take. Because a digest names immutable content, image URLs (`/img/<digest>`) are cached indefinitely.
 
 An image's state within a dataset follows from which rows exist for it there. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
 
@@ -51,27 +51,32 @@ Annotation documents marked `complete` are the canonical training data. Editing 
 
 ## Local recognition
 
-Local commands read a pulled data root: `blobs/<xx>/<sha256>` holds image bytes shared by every dataset, and `datasets/<dataset>.json` is the dataset's export document with each image's digest, filename, split, prelabel, and label. Pull one from the workbench with the export credential:
+Local commands read a pulled data root: `blobs/<xx>/<sha256>` holds canonical AVIF bytes shared by every dataset, and `datasets/<dataset>.json` records each image's digest, dimensions, filename, split, prelabel, and label. Install the environment and pull one Dataset from the workbench with the export credential:
 
 ```bash
+uv sync
 export VITROFLOW_SERVER_URL=https://vitroflow.example.com
 export VITROFLOW_EXPORT_TOKEN=<export-secret>
 uv run vitroflow dataset pull --dataset fixtures --data-root data
 ```
 
-Every local command verifies each blob it reads against its digest and refuses one that fails. A pull keeps the local blobs that verify, downloads the missing ones, repairs any blob that fails verification, and then replaces the dataset document in one rename, so a pull either mirrors the server exactly or leaves the previous copy untouched. Install the Python environment and recognize one image or a directory:
+Every local command verifies each blob it reads against its digest and refuses one that fails. A pull keeps the local blobs that verify, downloads the missing ones, repairs any blob that fails verification, and then replaces the dataset document in one rename, so a pull either mirrors the Server exactly or leaves the previous copy untouched. Recognition consumes the Dataset as stored rather than accepting a second local-image ingress path:
 
 ```bash
-uv sync
-uv run vitroflow recognize photos/ --output output/local-review
+uv run vitroflow recognize \
+  --dataset fixtures \
+  --data-root data \
+  --output output/local-review
 ```
 
-Each image produces a result JSON, an overlay, and a diagnostic image. The batch also produces `counts.csv`. A result document records the input `path` it was computed from and identifies the image itself by its content digest.
+Each digest produces a result JSON, an overlay, and a diagnostic image. The Dataset batch also produces `counts.csv`; every result identifies its verified blob path and content digest.
 
 Pass a trained model or a pipeline configuration explicitly when needed:
 
 ```bash
-uv run vitroflow recognize photos/ \
+uv run vitroflow recognize \
+  --dataset fixtures \
+  --data-root data \
   --output output/review \
   --model output/models/candidate-seedness/model.json \
   --config config/pipeline.json
@@ -95,7 +100,7 @@ The inference protocol uses a dedicated credential:
 |---|---|
 | `POST api/inference/heartbeat` | advertises runtime capabilities and reports loaded/current work |
 | `GET api/inference/pending?workerId=<id>` | compatible assignments with versioned execution manifests |
-| `GET api/inference/images/<digest>` | source image bytes |
+| `GET api/inference/images/<digest>` | canonical image bytes |
 | `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document |
 
 On each polling interval the Worker heartbeats, fetches one snapshot of pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped until the next interval so the other assignments proceed without creating a hot retry loop. Invalid YOLO cache entries are discarded and rebuilt from verified Server bytes. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
@@ -202,7 +207,7 @@ uv run vitroflow dataset export-yolo \
   --seed 42
 ```
 
-The export contains the source images named by digest, normalized YOLO labels, `dataset.yaml`, and a manifest recording digests, revisions, and train/validation assignments. An image keeps the stable split the server recorded for it in the dataset; only images without one are assigned locally from `--seed` and `--validation-fraction`. Training artifacts and dataset exports are published atomically to new directories.
+The export contains the canonical AVIF images named by digest, normalized YOLO labels, `dataset.yaml`, and a manifest recording digests, revisions, and train/validation assignments. An image keeps the stable split the Server recorded for it in the Dataset; only images without one are assigned locally from `--seed` and `--validation-fraction`. Training artifacts and dataset exports are published atomically to new directories.
 
 ## YOLO26 fine-tuning
 

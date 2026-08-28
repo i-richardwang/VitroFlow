@@ -27,6 +27,7 @@ import {
   type DatasetImage,
 } from "./datasets";
 import { canExecute } from "./inference-worker-store";
+import { assertDocumentImage } from "./image-documents";
 import { toModelVersion } from "./model-registry";
 import { lockImageRecord, recordQuery } from "./summaries";
 
@@ -64,11 +65,7 @@ export async function writePrelabel(
   return transaction(async (tx) => {
     const record = await lockImageRecord(ref, tx);
     if (!record) throw notInDataset(ref);
-    if (prelabel.image.digest !== ref.digest) {
-      throw new Error(
-        `Prelabel describes ${prelabel.image.digest}, not ${ref.digest}`,
-      );
-    }
+    assertDocumentImage("Prelabel", prelabel.image, record.image);
     if (record.label) {
       throw new PrelabelFrozenError(ref);
     }

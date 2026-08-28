@@ -15,6 +15,7 @@ from vitroflow.annotations import (
     load_complete_annotations,
     parse_annotation,
 )
+from vitroflow.image_io import CANONICAL_EXTENSION
 from vitroflow.manifest import BlobError, ManifestImage, blob_path
 from vitroflow.yolo import (
     DatasetImage,
@@ -26,7 +27,16 @@ from vitroflow.yolo import (
 
 
 def _labelled(digest: str, split: str | None = None) -> LabelledImage:
-    entry = ManifestImage(digest, ".jpg", f"{digest[:4]}.jpg", 1, split, None, None)
+    entry = ManifestImage(
+        digest=digest,
+        width=100,
+        height=80,
+        filename=f"{digest[:4]}.jpg",
+        bytes=1,
+        split=split,
+        prelabel=None,
+        label=None,
+    )
     annotation = annotation_document(
         digest, [{"x": 10, "y": 20, "width": 20, "height": 10}], revision=2
     )
@@ -59,7 +69,10 @@ def test_yolo_export_is_deterministic_and_self_contained(tmp_path: Path) -> None
     )
     assert {entry["split"] for entry in entries} == {"train", "val"}
     for entry in entries:
-        assert entry["image"] == f"images/{entry['split']}/{entry['digest']}.jpg"
+        assert (
+            entry["image"]
+            == f"images/{entry['split']}/{entry['digest']}{CANONICAL_EXTENSION}"
+        )
         assert entry["label"] == f"labels/{entry['split']}/{entry['digest']}.txt"
         assert entry["revision"] == 2
         assert (output / entry["image"]).is_file()
@@ -104,7 +117,7 @@ def test_yolo_export_honours_recorded_splits(tmp_path: Path) -> None:
 
 def test_split_assignment_fills_the_quota_around_recorded_splits() -> None:
     def image(digest: str, split: str | None = None) -> DatasetImage:
-        return DatasetImage(digest, ".jpg", 100, 80, (), split=split)
+        return DatasetImage(digest=digest, width=100, height=80, boxes=(), split=split)
 
     recorded = [image("1" * 64, "val"), image("2" * 64, "train")]
     unassigned = [image(f"{index:064x}") for index in range(3, 11)]
@@ -126,7 +139,7 @@ def test_split_assignment_fills_the_quota_around_recorded_splits() -> None:
 def test_yolo_export_requires_unique_digests(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     digest = write_blob(data_root, encoded_image())
-    image = DatasetImage(digest, ".jpg", 100, 80, ())
+    image = DatasetImage(digest=digest, width=100, height=80, boxes=())
 
     with pytest.raises(ValueError, match="unique image digests"):
         export_dataset_images([image, image], data_root, tmp_path / "dup")

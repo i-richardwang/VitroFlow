@@ -127,7 +127,7 @@ test("a training run owns an immutable self-contained snapshot", async () => {
   const snapshot = await readDatasetSnapshot(claimed.datasetSnapshotId);
   if (!snapshot) throw new Error("missing snapshot");
   expect(snapshot.images.map((image) => image.digest)).toEqual(
-    CONTENTS.map(imageDigest).sort(),
+    (await Promise.all(CONTENTS.map(imageDigest))).sort(),
   );
   expect(new Set(snapshot.images.map((image) => image.split))).toEqual(
     new Set(["train", "val"]),
@@ -138,9 +138,9 @@ test("a training run owns an immutable self-contained snapshot", async () => {
     );
     expect(image.annotation.image.digest).toBe(image.digest);
   }
-  await expect(
-    renewTrainingLease(run.id, "another-trainer"),
-  ).rejects.toThrow(/not owned/);
+  await expect(renewTrainingLease(run.id, "another-trainer")).rejects.toThrow(
+    /not owned/,
+  );
   await failTrainingRun(run.id, "snapshot-trainer", "stopped");
 });
 
@@ -275,7 +275,8 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
     epochReport(1),
     start,
   );
-  if (repeatedEarlier.state.status !== "running") throw new Error("not running");
+  if (repeatedEarlier.state.status !== "running")
+    throw new Error("not running");
   expect(repeatedEarlier.state.progress).toBeCloseTo(0.05 + (0.85 * 2) / 3);
   await expect(
     recordTrainingEpoch(run.id, "epoch-trainer", epochReport(4), start),
@@ -335,9 +336,9 @@ test("a worker whose lease was reassigned can no longer report on the run", asyn
   expect((await claimTrainingRun("slow-trainer", start))?.id).toBe(run.id);
   const expired = new Date(start.getTime() + 10 * 60 * 1000);
   expect((await claimTrainingRun("fast-trainer", expired))?.id).toBe(run.id);
-  await expect(
-    renewTrainingLease(run.id, "slow-trainer"),
-  ).rejects.toThrow(/not owned/);
+  await expect(renewTrainingLease(run.id, "slow-trainer")).rejects.toThrow(
+    /not owned/,
+  );
   await expect(failTrainingRun(run.id, "slow-trainer", "late")).rejects.toThrow(
     /not owned/,
   );

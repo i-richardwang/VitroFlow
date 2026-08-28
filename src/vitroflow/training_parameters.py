@@ -58,9 +58,7 @@ def parse_training_parameters(
     if not isinstance(optimizer, str) or optimizer not in OPTIMIZERS:
         raise ValueError(f"{context}.optimizer is unsupported")
     _bounded_number(parameters["lr0"], f"{context}.lr0", 0.00001, 0.1)
-    _bounded_number(
-        parameters["warmup_epochs"], f"{context}.warmup_epochs", 0, 10
-    )
+    _bounded_number(parameters["warmup_epochs"], f"{context}.warmup_epochs", 0, 10)
     for name in ("mosaic", "mixup", "copy_paste"):
         _bounded_number(parameters[name], f"{context}.{name}", 0, 1)
     _bounded_integer(parameters["max_det"], f"{context}.max_det", 1, 10_000)

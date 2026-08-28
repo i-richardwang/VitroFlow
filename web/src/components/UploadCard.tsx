@@ -24,7 +24,7 @@ export function UploadCard({ dataset }: { dataset?: string }) {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<{
-    loaded: number;
+    done: number;
     total: number;
   } | null>(null);
 
@@ -37,12 +37,9 @@ export function UploadCard({ dataset }: { dataset?: string }) {
           const target =
             dataset ??
             String(new FormData(event.currentTarget).get("dataset") ?? "");
-          setProgress({
-            loaded: 0,
-            total: files.reduce((sum, file) => sum + file.size, 0),
-          });
-          void uploadImages(target, files, (loaded, total) => {
-            setProgress({ loaded, total });
+          setProgress({ done: 0, total: files.length });
+          void uploadImages(target, files, (done) => {
+            setProgress({ done, total: files.length });
           })
             .then(async ({ added, existing }) => {
               setFiles([]);
@@ -115,49 +112,53 @@ function uploadSummary(target: string, added: number, existing: number) {
   return `${count(added)} added to ${target}, ${existing} already there`;
 }
 
-function uploadImages(
+/** Photographs one request carries; the server re-encodes each one it takes. */
+const IMAGES_PER_REQUEST = 4;
+
+/**
+ * Adds the photographs a chunk at a time so that no single request waits on
+ * the whole batch being re-encoded. Uploads are content addressed and repeat
+ * safely, so a batch that stops partway leaves the photographs it did add.
+ */
+async function uploadImages(
   dataset: string,
   files: File[],
-  onProgress: (loaded: number, total: number) => void,
+  onProgress: (done: number) => void,
+): Promise<{ added: number; existing: number }> {
+  let added = 0;
+  let existing = 0;
+  for (let start = 0; start < files.length; start += IMAGES_PER_REQUEST) {
+    const chunk = files.slice(start, start + IMAGES_PER_REQUEST);
+    const result = await postImages(dataset, chunk);
+    added += result.added;
+    existing += result.existing;
+    onProgress(start + chunk.length);
+  }
+  return { added, existing };
+}
+
+async function postImages(
+  dataset: string,
+  files: File[],
 ): Promise<{ added: number; existing: number }> {
   const data = new FormData();
   for (const file of files) {
     data.append("images", file);
   }
-  return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    request.open("POST", `/api/datasets/${encodeURIComponent(dataset)}/images`);
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(event.loaded, event.total);
-      }
-    };
-    request.onload = () => {
-      let body: {
-        error?: string;
-        added?: string[];
-        existing?: string[];
-      } | null;
-      try {
-        body = JSON.parse(request.responseText) as typeof body;
-      } catch {
-        body = null;
-      }
-      if (body?.error != null) {
-        reject(new Error(body.error));
-      } else if (
-        request.status >= 400 ||
-        body?.added == null ||
-        body.existing == null
-      ) {
-        reject(new Error(`Upload failed (${request.status})`));
-      } else {
-        resolve({ added: body.added.length, existing: body.existing.length });
-      }
-    };
-    request.onerror = () => {
-      reject(new Error("Upload failed"));
-    };
-    request.send(data);
-  });
+  const response = await fetch(
+    `/api/datasets/${encodeURIComponent(dataset)}/images`,
+    { method: "POST", body: data },
+  );
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+    added?: string[];
+    existing?: string[];
+  } | null;
+  if (body?.error != null) {
+    throw new Error(body.error);
+  }
+  if (!response.ok || body?.added == null || body.existing == null) {
+    throw new Error(`Upload failed (${response.status})`);
+  }
+  return { added: body.added.length, existing: body.existing.length };
 }

@@ -12,7 +12,8 @@ export interface DatasetExport {
 
 interface DatasetExportImage {
   digest: string;
-  extension: string;
+  width: number;
+  height: number;
   filename: string;
   bytes: number;
   split: ImageSplit | null;
@@ -31,7 +32,8 @@ export async function exportDataset(
     dataset: datasetId,
     images: records.map(({ image, prelabel, label }) => ({
       digest: image.digest,
-      extension: image.extension,
+      width: image.width,
+      height: image.height,
       filename: image.filename,
       bytes: image.bytes,
       split: image.split,

@@ -29,7 +29,6 @@ def export_prelabel_yolo_dataset(
         images.append(
             DatasetImage(
                 digest=image.digest,
-                extension=image.extension,
                 width=document.width,
                 height=document.height,
                 boxes=tuple(instance.bbox for instance in document.instances),

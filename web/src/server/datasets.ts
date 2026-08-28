@@ -15,7 +15,8 @@ import { ensureDatasetModel, readModelVersion } from "./model-registry";
 /** An image as seen through its membership in one dataset. */
 export interface DatasetImage extends ImageRef {
   filename: string;
-  extension: string;
+  width: number;
+  height: number;
   bytes: number;
   /** Where the bytes live, by content digest. */
   blobKey: string;
@@ -35,7 +36,8 @@ export function toDatasetImage({
     dataset: membership.datasetId,
     digest: image.id,
     filename: membership.filename,
-    extension: image.extension,
+    width: image.width,
+    height: image.height,
     bytes: image.bytes,
     blobKey: imageBlobKey(image.id),
     split: membership.split,

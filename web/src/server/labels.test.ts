@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test";
 
 import type { AnnotationDocument } from "../annotation/schema";
 import { createLabel, readLabel, updateLabel } from "./labels";
-import { imageDigest, imageFile } from "./testing";
+import { FIXTURE_EDGE, imageDigest, imageFile } from "./testing";
 import { addImages } from "./upload";
 
-const digest = imageDigest("a");
+const digest = await imageDigest("a");
 
 const document: AnnotationDocument = {
   schemaVersion: 1,
-  image: { digest, width: 100, height: 100 },
+  image: { digest, width: FIXTURE_EDGE, height: FIXTURE_EDGE },
   source: {
     modelVersionId: "set.traditional-v1",
     artifactDigest: "a".repeat(64),
@@ -24,7 +24,7 @@ const document: AnnotationDocument = {
 
 describe("labels", () => {
   test("creates, reads, and updates with revision checks", async () => {
-    await addImages("set", [imageFile("a", "a.jpg")]);
+    await addImages("set", [await imageFile("a", "a.jpg")]);
     const ref = { dataset: "set", digest };
     expect(await readLabel(ref)).toBeNull();
     const created = await createLabel(ref, { ...document, revision: 7 });
@@ -44,10 +44,25 @@ describe("labels", () => {
   });
 
   test("describes the image it is stored under", async () => {
-    await addImages("set", [imageFile("b", "b.jpg")]);
-    const other = imageDigest("b");
+    await addImages("set", [await imageFile("b", "b.jpg")]);
+    const other = await imageDigest("b");
     await expect(
       createLabel({ dataset: "set", digest: other }, document),
     ).rejects.toThrow();
+  });
+
+  test("uses the canonical image dimensions", async () => {
+    await addImages("dimensions", [await imageFile("dimensions")]);
+    const image = await imageDigest("dimensions");
+    await expect(
+      createLabel(
+        { dataset: "dimensions", digest: image },
+        {
+          ...document,
+          image: { digest: image, width: 1, height: 1 },
+          instances: [],
+        },
+      ),
+    ).rejects.toThrow(/1x1/);
   });
 });

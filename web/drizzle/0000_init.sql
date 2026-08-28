@@ -37,12 +37,13 @@ CREATE TABLE "datasets" (
 --> statement-breakpoint
 CREATE TABLE "images" (
 	"id" text PRIMARY KEY NOT NULL,
-	"extension" text NOT NULL,
+	"width" integer NOT NULL,
+	"height" integer NOT NULL,
 	"bytes" integer NOT NULL,
 	"uploaded_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "images_id_check" CHECK ("images"."id" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "images_bytes_check" CHECK ("images"."bytes" > 0),
-	CONSTRAINT "images_extension_check" CHECK ("images"."extension" in ('.jpg', '.png', '.tif'))
+	CONSTRAINT "images_size_check" CHECK ("images"."width" > 0 and "images"."height" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "inference_workers" (

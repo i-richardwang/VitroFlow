@@ -35,7 +35,7 @@ def test_complete_annotations_are_the_training_source(tmp_path: Path) -> None:
     ]
     assert len(complete) == 1
     annotation = complete[0].annotation
-    assert complete[0].entry.extension == ".jpg"
+    assert (complete[0].entry.width, complete[0].entry.height) == (100, 80)
     assert annotation.digest == "1" * 64
     assert annotation.boxes[0].center == (14.0, 23.0)
     assert annotation.revision == 3
@@ -61,11 +61,9 @@ def test_label_must_describe_its_manifest_image(tmp_path: Path) -> None:
         load_annotations(manifest)
 
 
-def test_manifest_rejects_unsupported_image_extensions(tmp_path: Path) -> None:
-    manifest = write_manifest(
-        tmp_path, "batch", [manifest_entry("1" * 64, extension=".webp")]
-    )
-    with pytest.raises(ValueError, match=r"images\[0\].extension must be one of"):
+def test_manifest_rejects_images_without_pixel_dimensions(tmp_path: Path) -> None:
+    manifest = write_manifest(tmp_path, "batch", [manifest_entry("1" * 64, width=0)])
+    with pytest.raises(ValueError, match=r"images\[0\].width must be an integer"):
         load_annotations(manifest)
 
 

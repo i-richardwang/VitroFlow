@@ -17,7 +17,7 @@ import httpx
 from .annotations import ReviewedImage, parse_annotation
 from .documents import (
     as_digest,
-    as_extension,
+    as_integer,
     as_list,
     as_object,
     as_string,
@@ -25,7 +25,7 @@ from .documents import (
     expect_schema_version,
 )
 from .identifiers import WORKER_DEVICE, WORKER_ID
-from .image_io import verify_digest
+from .image_io import CANONICAL_EXTENSION, verify_digest
 from .manifest import as_split
 from .training_recipe import TrainingRecipe, parse_training_recipe
 from .worker_runtime import shutdown_signals
@@ -105,7 +105,8 @@ class TrainingJob:
 @dataclass(frozen=True)
 class SnapshotImage:
     digest: str
-    extension: str
+    width: int
+    height: int
     split: str
     annotation: ReviewedImage
 
@@ -120,16 +121,24 @@ class TrainingSnapshot:
 
 def _snapshot_image(value: Any, context: str) -> SnapshotImage:
     entry = as_object(value, context)
-    expect_fields(entry, {"digest", "extension", "split", "annotation"}, context)
+    expect_fields(entry, {"digest", "width", "height", "split", "annotation"}, context)
     digest = as_digest(entry["digest"], f"{context}.digest")
     annotation = parse_annotation(entry["annotation"], f"{context}.annotation")
     if annotation.digest != digest:
         raise ValueError(f"{context}.annotation describes another image")
     if annotation.status != "complete":
         raise ValueError(f"{context}.annotation is not complete")
+    width = as_integer(entry["width"], f"{context}.width", minimum=1)
+    height = as_integer(entry["height"], f"{context}.height", minimum=1)
+    if (annotation.width, annotation.height) != (width, height):
+        raise ValueError(
+            f"{context}.annotation is drawn on {annotation.width}x{annotation.height}, "
+            f"not {width}x{height}"
+        )
     return SnapshotImage(
         digest=digest,
-        extension=as_extension(entry["extension"], f"{context}.extension"),
+        width=width,
+        height=height,
         split=as_split(entry["split"], f"{context}.split"),
         annotation=annotation,
     )
@@ -332,12 +341,11 @@ def materialize_snapshot(
     for image in snapshot.images:
         if cancelled and cancelled():
             raise YoloTrainingInterruptedError("training interrupted")
-        downloaded = downloads / f"{image.digest}{image.extension}"
+        downloaded = downloads / f"{image.digest}{CANONICAL_EXTENSION}"
         downloaded.write_bytes(client.download_image(job.run_id, image.digest))
         dataset_images.append(
             DatasetImage(
                 digest=image.digest,
-                extension=image.extension,
                 width=image.annotation.width,
                 height=image.annotation.height,
                 boxes=image.annotation.boxes,

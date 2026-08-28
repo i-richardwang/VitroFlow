@@ -39,10 +39,10 @@ test("the overview derives versions, serving workers, and training readiness", a
     "c",
   ]);
   for (const name of ["a", "b"]) {
-    const ref = { dataset: "overview", digest: imageDigest(name) };
-    await writePrelabel(ref, prelabelFor(name), worker);
+    const ref = { dataset: "overview", digest: await imageDigest(name) };
+    await writePrelabel(ref, await prelabelFor(name), worker);
     await createLabel(ref, {
-      ...documentFromPrelabel(prelabelFor(name)),
+      ...documentFromPrelabel(await prelabelFor(name)),
       status: "complete",
     });
   }
@@ -87,7 +87,7 @@ test("the overview derives versions, serving workers, and training readiness", a
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workersOnline).toBe(1);
 
-  const a = { dataset: "overview", digest: imageDigest("a") };
+  const a = { dataset: "overview", digest: await imageDigest("a") };
   const label = await readLabel(a);
   if (!label) throw new Error("missing label");
   await updateLabel(a, label);

@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .identifiers import FINGERPRINT, IMAGE_EXTENSIONS
+from .identifiers import FINGERPRINT
 
 
 def as_object(value: Any, context: str) -> dict[str, Any]:
@@ -69,15 +69,6 @@ def as_digest(value: Any, context: str) -> str:
     if not FINGERPRINT.fullmatch(digest):
         raise ValueError(f"{context} must be a SHA-256 digest")
     return digest
-
-
-def as_extension(value: Any, context: str) -> str:
-    extension = as_string(value, context)
-    if extension not in IMAGE_EXTENSIONS:
-        raise ValueError(
-            f"{context} must be one of {', '.join(sorted(IMAGE_EXTENSIONS))}"
-        )
-    return extension
 
 
 def expect_schema_version(value: dict[str, Any], key: str, version: int, context: str):

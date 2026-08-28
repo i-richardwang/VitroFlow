@@ -1,40 +1,21 @@
-import { eq } from "drizzle-orm";
-
-import { database } from "../db/client";
-import { images } from "../db/schema";
-import {
-  imageDigestSchema,
-  imageExtensionSchema,
-  type ImageExtension,
-} from "../datasets/schema";
-import { imageBlobKey, readBlob } from "./blobs";
-
-const CONTENT_TYPES: Record<ImageExtension, string> = {
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".tif": "image/tiff",
-};
+import { imageDigestSchema } from "../datasets/schema";
+import { CANONICAL_IMAGE_MEDIA_TYPE } from "../images/canonical";
+import { blobExists, imageBlobKey, readBlob } from "./blobs";
 
 /**
- * Serves a photograph by digest. The bytes behind a digest never change, so
- * every response may be cached indefinitely.
+ * Serves a photograph by digest. Every image is stored in the one canonical
+ * encoding, so the bytes are the whole answer: nothing about them has to be
+ * looked up, and because a digest's bytes never change every response may be
+ * cached indefinitely.
  */
-export async function imageResponse(digest: unknown): Promise<Response> {
+export function imageResponse(digest: unknown): Response {
   const parsed = imageDigestSchema.safeParse(digest);
-  const db = await database();
-  const [image] = parsed.success
-    ? await db
-        .select({ extension: images.extension })
-        .from(images)
-        .where(eq(images.id, parsed.data))
-    : [];
-  if (!parsed.success || !image) {
-    return new Response("Not found", { status: 404 });
-  }
-  return new Response(readBlob(imageBlobKey(parsed.data)), {
+  if (!parsed.success) return new Response("Not found", { status: 404 });
+  const key = imageBlobKey(parsed.data);
+  if (!blobExists(key)) return new Response("Not found", { status: 404 });
+  return new Response(readBlob(key), {
     headers: {
-      "Content-Type":
-        CONTENT_TYPES[imageExtensionSchema.parse(image.extension)],
+      "Content-Type": CANONICAL_IMAGE_MEDIA_TYPE,
       "Cache-Control": "private, max-age=31536000, immutable",
     },
   });

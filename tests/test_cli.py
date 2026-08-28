@@ -1,10 +1,7 @@
 import csv
-import hashlib
 import json
 from pathlib import Path
 
-import cv2
-import numpy as np
 import pytest
 from conftest import (
     annotation_document,
@@ -15,52 +12,90 @@ from conftest import (
 )
 
 from vitroflow.cli import main
+from vitroflow.image_io import CANONICAL_EXTENSION
+from vitroflow.manifest import blob_path
 
 
-def test_recognize_records_the_input_path_and_digest(tmp_path: Path) -> None:
-    image = tmp_path / "sample.jpg"
-    cv2.imwrite(str(image), np.zeros((400, 600, 3), dtype=np.uint8))
+def _pulled_dataset(data_root: Path, count: int = 1) -> list[str]:
+    """A data root holding `count` images of one dataset, as ``dataset pull`` leaves it."""
+    digests = [
+        write_blob(data_root, encoded_image(variant=variant))
+        for variant in range(count)
+    ]
+    write_manifest(data_root, "seeds", [manifest_entry(digest) for digest in digests])
+    return digests
+
+
+def test_recognize_reads_the_images_of_a_pulled_dataset(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    digest = _pulled_dataset(data_root)[0]
     output = tmp_path / "run"
 
-    exit_code = main(["recognize", str(image), "--output", str(output)])
+    exit_code = main(
+        [
+            "recognize",
+            "--dataset",
+            "seeds",
+            "--data-root",
+            str(data_root),
+            "--output",
+            str(output),
+        ]
+    )
 
     assert exit_code == 0
     with (output / "counts.csv").open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
-    assert rows == [{"image": str(image), "count": "0"}]
-    result = json.loads((output / "sample.json").read_text(encoding="utf-8"))
-    assert result["path"] == str(image)
-    assert result["image"]["digest"] == hashlib.sha256(image.read_bytes()).hexdigest()
-    assert (output / "sample_overlay.jpg").is_file()
+    assert rows == [{"image": str(blob_path(data_root, digest)), "count": "0"}]
+    result = json.loads((output / f"{digest}.json").read_text(encoding="utf-8"))
+    assert result["image"]["digest"] == digest
+    assert (output / f"{digest}_overlay.jpg").is_file()
 
 
-def test_recognize_rejects_duplicate_stems_before_publishing(
+def test_recognize_refuses_a_blob_that_fails_its_digest(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    first = tmp_path / "one" / "sample.jpg"
-    second = tmp_path / "two" / "sample.png"
-    first.parent.mkdir(parents=True)
-    second.parent.mkdir(parents=True)
-    first.write_bytes(b"first")
-    second.write_bytes(b"second")
+    data_root = tmp_path / "data"
+    digest = _pulled_dataset(data_root)[0]
+    blob_path(data_root, digest).write_bytes(b"corrupted")
     output = tmp_path / "run"
 
-    exit_code = main(["recognize", str(first), str(second), "--output", str(output)])
+    exit_code = main(
+        [
+            "recognize",
+            "--dataset",
+            "seeds",
+            "--data-root",
+            str(data_root),
+            "--output",
+            str(output),
+        ]
+    )
 
     assert exit_code == 2
-    assert "unique filename stems" in capsys.readouterr().err
+    assert digest in capsys.readouterr().err
     assert not output.exists()
 
 
 def test_recognize_requires_a_new_output_directory(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    image = tmp_path / "sample.jpg"
-    image.write_bytes(b"image")
+    data_root = tmp_path / "data"
+    _pulled_dataset(data_root)
     output = tmp_path / "run"
     output.mkdir()
 
-    exit_code = main(["recognize", str(image), "--output", str(output)])
+    exit_code = main(
+        [
+            "recognize",
+            "--dataset",
+            "seeds",
+            "--data-root",
+            str(data_root),
+            "--output",
+            str(output),
+        ]
+    )
 
     assert exit_code == 2
     assert "already exists" in capsys.readouterr().err
@@ -110,5 +145,9 @@ def test_export_yolo_reads_the_pulled_dataset_manifest(
 
     assert exit_code == 0
     assert "exported 2 images" in capsys.readouterr().out
-    exported = sorted(path.name for path in (output / "images").rglob("*.jpg"))
-    assert exported == sorted(f"{image['digest']}.jpg" for image in images)
+    exported = sorted(
+        path.name for path in (output / "images").rglob(f"*{CANONICAL_EXTENSION}")
+    )
+    assert exported == sorted(
+        f"{image['digest']}{CANONICAL_EXTENSION}" for image in images
+    )

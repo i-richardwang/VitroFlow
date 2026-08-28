@@ -69,7 +69,8 @@ def prelabel_document(
 def manifest_entry(
     digest: str,
     *,
-    extension: str = ".jpg",
+    width: int = 100,
+    height: int = 80,
     size: int = 1,
     split: str | None = None,
     prelabel: dict[str, Any] | None = None,
@@ -77,8 +78,9 @@ def manifest_entry(
 ) -> dict[str, Any]:
     return {
         "digest": digest,
-        "extension": extension,
-        "filename": f"{digest[:4]}{extension}",
+        "width": width,
+        "height": height,
+        "filename": f"{digest[:4]}.jpg",
         "bytes": size,
         "split": split,
         "prelabel": prelabel,
@@ -102,10 +104,16 @@ def write_manifest(data_root: Path, dataset: str, images: list[dict[str, Any]]) 
 
 
 def encoded_image(width: int = 100, height: int = 80, variant: int = 0) -> bytes:
-    """JPEG bytes of a blank image; ``variant`` makes distinct digests."""
-    encoded, buffer = cv2.imencode(".jpg", np.zeros((height, width, 3), np.uint8))
+    """Canonical-format bytes; ``variant`` makes distinct valid photographs."""
+    pixels = np.zeros((height, width, 3), np.uint8)
+    pixels[:] = (
+        (variant * 37) % 256,
+        (variant * 67) % 256,
+        (variant * 97) % 256,
+    )
+    encoded, buffer = cv2.imencode(".avif", pixels, [cv2.IMWRITE_AVIF_QUALITY, 90])
     assert encoded
-    return buffer.tobytes() + bytes([variant])
+    return buffer.tobytes()
 
 
 def write_blob(data_root: Path, data: bytes) -> str:

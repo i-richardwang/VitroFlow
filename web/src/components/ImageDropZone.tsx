@@ -1,8 +1,13 @@
 import { DropZone } from "@heroui-pro/react/drop-zone";
 import { useCallback } from "react";
 
-const ACCEPT = [".jpg", ".jpeg", ".png", ".tif", ".tiff"] as const;
-const ACCEPT_SET = new Set<string>(ACCEPT);
+import {
+  MAX_SOURCE_IMAGE_BYTES,
+  MAX_SOURCE_IMAGE_PIXELS,
+  SOURCE_IMAGE_EXTENSIONS,
+} from "../images/canonical";
+
+const ACCEPT_SET = new Set<string>(SOURCE_IMAGE_EXTENSIONS);
 
 export function ImageDropZone({
   files,
@@ -11,7 +16,7 @@ export function ImageDropZone({
 }: {
   files: File[];
   onChange: (files: File[]) => void;
-  progress: { loaded: number; total: number } | null;
+  progress: { done: number; total: number } | null;
 }) {
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -43,14 +48,17 @@ export function ImageDropZone({
         <DropZone.Icon />
         <DropZone.Label>Drop images here or browse</DropZone.Label>
         <DropZone.Description>
-          JPEG, PNG, or TIFF. Up to 100 files, 64 MiB each and 512 MiB total.
+          JPEG, PNG, or TIFF, up to{" "}
+          {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB and{" "}
+          {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP each. Every photograph is
+          re-encoded on arrival into the one format the workbench stores.
         </DropZone.Description>
         <DropZone.Trigger isDisabled={progress != null}>
           Select images
         </DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
-        accept={ACCEPT.join(",")}
+        accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
         disabled={progress != null}
         multiple
         onSelect={(list) => addFiles(Array.from(list))}
@@ -90,13 +98,13 @@ export function ImageDropZone({
           className="gap-1"
           maxValue={progress.total}
           minValue={0}
-          value={progress.loaded}
+          value={progress.done}
         >
           <DropZone.FileProgressTrack>
             <DropZone.FileProgressFill />
           </DropZone.FileProgressTrack>
           <span className="text-xs tabular-nums text-muted">
-            {formatSize(progress.loaded)} / {formatSize(progress.total)}
+            {progress.done} / {progress.total} images
           </span>
         </DropZone.FileProgress>
       )}

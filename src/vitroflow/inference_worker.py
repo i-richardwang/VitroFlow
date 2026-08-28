@@ -16,14 +16,13 @@ import httpx
 from .config import PipelineConfig
 from .documents import (
     as_digest,
-    as_extension,
     as_list,
     as_object,
     as_string,
     expect_fields,
 )
 from .identifiers import DATASET_NAME, WORKER_DEVICE, WORKER_ID
-from .image_io import verify_digest
+from .image_io import CANONICAL_EXTENSION, verify_digest
 from .inference_models import ModelManifest, ModelStore
 from .prelabelers import (
     PredictionProducer,
@@ -70,19 +69,17 @@ class PendingImage:
 
     dataset: str
     digest: str
-    extension: str
 
     @classmethod
     def parse(cls, value: Any, context: str = "pending image") -> PendingImage:
         entry = as_object(value, context)
-        expect_fields(entry, {"dataset", "digest", "extension"}, context)
+        expect_fields(entry, {"dataset", "digest"}, context)
         dataset = as_string(entry["dataset"], f"{context}.dataset")
         if not DATASET_NAME.fullmatch(dataset):
             raise ValueError(f"{context}.dataset is invalid")
         return cls(
             dataset=dataset,
             digest=as_digest(entry["digest"], f"{context}.digest"),
-            extension=as_extension(entry["extension"], f"{context}.extension"),
         )
 
     def to_dict(self) -> dict[str, str]:
@@ -282,7 +279,7 @@ def process_image(
     prelabeler: Prelabeler,
 ) -> None:
     report_heartbeat(client, producer.model_version_id, image)
-    image_path = work_dir / f"{image.digest}{image.extension}"
+    image_path = work_dir / f"{image.digest}{CANONICAL_EXTENSION}"
     image_path.write_bytes(client.download(image))
     try:
         document = prelabel_document(image, image_path, producer, prelabeler)

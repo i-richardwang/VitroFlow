@@ -14,8 +14,7 @@ from .artifacts import create_image_artifacts, write_image_artifacts
 from .config import PipelineConfig
 from .dataset_pull import DatasetPullError, pull_dataset
 from .files import atomic_directory
-from .identifiers import IMAGE_EXTENSIONS
-from .manifest import manifest_path
+from .manifest import load_dataset_manifest, manifest_path, verified_blob
 from .prelabel import (
     PreparedImage,
     evaluate_candidate_model,
@@ -33,23 +32,6 @@ from .worker_command import add_worker_commands
 from .yolo import export_yolo_dataset
 
 
-def _collect_inputs(paths: list[str]) -> list[Path]:
-    inputs: list[Path] = []
-    for raw in paths:
-        path = Path(raw)
-        if path.is_dir():
-            inputs.extend(
-                child
-                for child in sorted(path.iterdir())
-                if child.is_file() and child.suffix.lower() in IMAGE_EXTENSIONS
-            )
-        elif path.is_file():
-            inputs.append(path)
-        else:
-            raise FileNotFoundError(path)
-    return inputs
-
-
 def _pipeline_config(path: str | None) -> PipelineConfig:
     return PipelineConfig.from_json(path) if path else PipelineConfig()
 
@@ -59,15 +41,19 @@ def _candidate_model(path: str | None) -> CandidateModel:
 
 
 def _recognize(args: argparse.Namespace) -> int:
-    inputs = _collect_inputs(args.inputs)
+    """Run the pipeline over a pulled dataset.
+
+    Photographs are recognized as the workbench stores them, so a local run
+    sees the same pixels a worker does.
+    """
+    data_root = Path(args.data_root)
+    manifest = load_dataset_manifest(manifest_path(data_root, args.dataset))
+    inputs = [verified_blob(data_root, image.digest) for image in manifest.images]
     if not inputs:
-        raise ValueError("No supported images found")
+        raise ValueError(f"{args.dataset} holds no images")
     config = _pipeline_config(args.config)
     model = _candidate_model(args.model)
     output_dir = Path(args.output)
-    stems = [image_path.stem.casefold() for image_path in inputs]
-    if len(set(stems)) != len(stems):
-        raise ValueError("Input images must have unique filename stems")
     rows: list[dict[str, str | int]] = []
     with atomic_directory(output_dir) as working:
         for image_path in inputs:
@@ -208,8 +194,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
-    recognize = commands.add_parser("recognize", help="Recognize local images")
-    recognize.add_argument("inputs", nargs="+", help="Image files or directories")
+    recognize = commands.add_parser(
+        "recognize", help="Recognize the images of a pulled dataset"
+    )
+    _add_dataset_options(recognize)
     recognize.add_argument("-o", "--output", required=True)
     recognize.add_argument("--model", help="Candidate model JSON")
     _add_pipeline_options(recognize)

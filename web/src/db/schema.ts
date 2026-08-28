@@ -18,7 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
-import { IMAGE_EXTENSIONS, type ImageRef } from "../datasets/schema";
+import type { ImageRef } from "../datasets/schema";
 import type { Prelabel } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { ModelArtifact, ModelVersion } from "../models/schema";
@@ -107,20 +107,16 @@ export const images = pgTable(
   "images",
   {
     id: text("id").primaryKey(),
-    /** The format the bytes declare. */
-    extension: text("extension").notNull(),
+    /** The pixels the bytes hold, with orientation already applied. */
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
     bytes: integer("bytes").notNull(),
     uploadedAt: instant("uploaded_at"),
   },
   (table) => [
     check("images_id_check", sql`${table.id} ~ '^[0-9a-f]{64}$'`),
     check("images_bytes_check", sql`${table.bytes} > 0`),
-    check(
-      "images_extension_check",
-      sql`${table.extension} in (${sql.raw(
-        IMAGE_EXTENSIONS.map((extension) => `'${extension}'`).join(", "),
-      )})`,
-    ),
+    check("images_size_check", sql`${table.width} > 0 and ${table.height} > 0`),
   ],
 );
 

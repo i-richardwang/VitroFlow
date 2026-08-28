@@ -27,7 +27,7 @@ def _export() -> dict[str, object]:
                 prelabel={"schema_version": 1, "note": "opaque"},
                 label=annotation_document(DIGEST_A, width=100, height=100),
             ),
-            manifest_entry(DIGEST_B, extension=".png", size=len(IMAGE_B)),
+            manifest_entry(DIGEST_B, size=len(IMAGE_B)),
         ],
     )
 

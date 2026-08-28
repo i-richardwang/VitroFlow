@@ -14,7 +14,6 @@ from typing import Any
 
 from .documents import (
     as_digest,
-    as_extension,
     as_integer,
     as_list,
     as_object,
@@ -32,7 +31,8 @@ SPLITS = frozenset({"train", "val"})
 @dataclass(frozen=True)
 class ManifestImage:
     digest: str
-    extension: str
+    width: int
+    height: int
     filename: str
     bytes: int
     split: str | None
@@ -85,12 +85,22 @@ def _image(value: Any, context: str) -> ManifestImage:
     entry = as_object(value, context)
     expect_fields(
         entry,
-        {"digest", "extension", "filename", "bytes", "split", "prelabel", "label"},
+        {
+            "digest",
+            "width",
+            "height",
+            "filename",
+            "bytes",
+            "split",
+            "prelabel",
+            "label",
+        },
         context,
     )
     return ManifestImage(
         digest=as_digest(entry["digest"], f"{context}.digest"),
-        extension=as_extension(entry["extension"], f"{context}.extension"),
+        width=as_integer(entry["width"], f"{context}.width", minimum=1),
+        height=as_integer(entry["height"], f"{context}.height", minimum=1),
         filename=as_string(entry["filename"], f"{context}.filename"),
         bytes=as_integer(entry["bytes"], f"{context}.bytes"),
         split=(

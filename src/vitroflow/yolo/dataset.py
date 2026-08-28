@@ -10,7 +10,7 @@ from typing import NotRequired, TypedDict
 
 from ..annotations import BoundingBox, LabelledImage
 from ..files import atomic_directory
-from ..image_io import read_image
+from ..image_io import CANONICAL_EXTENSION, read_image
 from ..manifest import verified_blob
 
 
@@ -39,7 +39,6 @@ class DatasetImage:
     """
 
     digest: str
-    extension: str
     width: int
     height: int
     boxes: tuple[BoundingBox, ...]
@@ -131,7 +130,7 @@ def export_dataset_images(
                 )
 
             image_destination = (
-                working / "images" / split / f"{image.digest}{image.extension}"
+                working / "images" / split / f"{image.digest}{CANONICAL_EXTENSION}"
             )
             label_destination = working / "labels" / split / f"{image.digest}.txt"
             image_destination.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +176,6 @@ def export_yolo_dataset(
     images = [
         DatasetImage(
             digest=image.entry.digest,
-            extension=image.entry.extension,
             width=image.annotation.width,
             height=image.annotation.height,
             boxes=image.annotation.boxes,

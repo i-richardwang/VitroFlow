@@ -46,8 +46,7 @@
   "images": [
     {
       "dataset": "set",
-      "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-      "extension": ".png"
+      "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }
   ]
 }

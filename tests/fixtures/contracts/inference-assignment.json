@@ -10,8 +10,7 @@
   "images": [
     {
       "dataset": "set",
-      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      "extension": ".jpg"
+      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }
   ]
 }

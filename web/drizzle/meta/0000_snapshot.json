@@ -1,5 +1,5 @@
 {
-  "id": "a4aa156b-96e4-4a91-9fc5-b1738cfc25e9",
+  "id": "bb662553-768d-4e88-a9b7-78d29d9be961",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -386,9 +386,15 @@
           "primaryKey": true,
           "notNull": true
         },
-        "extension": {
-          "name": "extension",
-          "type": "text",
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -419,9 +425,9 @@
           "name": "images_bytes_check",
           "value": "\"images\".\"bytes\" > 0"
         },
-        "images_extension_check": {
-          "name": "images_extension_check",
-          "value": "\"images\".\"extension\" in ('.jpg', '.png', '.tif')"
+        "images_size_check": {
+          "name": "images_size_check",
+          "value": "\"images\".\"width\" > 0 and \"images\".\"height\" > 0"
         }
       },
       "isRLSEnabled": false
