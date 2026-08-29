@@ -31,6 +31,9 @@ const EFFORT = 0;
 
 const SOURCE_FORMAT_SET = new Set<string>(SOURCE_IMAGE_FORMATS);
 
+/** A source that cannot enter the canonical photograph boundary. */
+export class ImageSourceError extends Error {}
+
 /** Encoder threads used by the one photograph processed at a time. */
 sharp.concurrency(2);
 
@@ -81,19 +84,23 @@ async function canonicalizeSource(source: Uint8Array): Promise<CanonicalImage> {
     failOn: "error",
     limitInputPixels: MAX_SOURCE_IMAGE_PIXELS,
   });
-  const metadata = await image.metadata();
+  const unsupported = () =>
+    new ImageSourceError(
+      "The file must contain a JPEG, PNG, or TIFF photograph",
+    );
+  const metadata = await image.metadata().catch(() => {
+    throw unsupported();
+  });
   const { format, width, height } = metadata;
-  if (!format || !SOURCE_FORMAT_SET.has(format)) {
-    throw new Error("The file must contain a JPEG, PNG, or TIFF photograph");
-  }
+  if (!format || !SOURCE_FORMAT_SET.has(format)) throw unsupported();
   if ((metadata.pages ?? 1) !== 1) {
-    throw new Error("The file must contain exactly one photograph");
+    throw new ImageSourceError("The file must contain exactly one photograph");
   }
   if (!width || !height) {
-    throw new Error("The file does not decode as a photograph");
+    throw new ImageSourceError("The file does not decode as a photograph");
   }
   if (width > MAX_EDGE_PIXELS || height > MAX_EDGE_PIXELS) {
-    throw new Error(
+    throw new ImageSourceError(
       `Edges longer than ${MAX_EDGE_PIXELS} pixels cannot be stored: ${width}x${height}`,
     );
   }
@@ -102,7 +109,12 @@ async function canonicalizeSource(source: Uint8Array): Promise<CanonicalImage> {
     .toColourspace("srgb")
     .flatten({ background: "#fff" })
     .avif({ quality: QUALITY, effort: EFFORT })
-    .toBuffer({ resolveWithObject: true });
+    .toBuffer({ resolveWithObject: true })
+    .catch(() => {
+      throw new ImageSourceError(
+        "The file cannot be converted into a supported photograph",
+      );
+    });
   const bytes = new Uint8Array(data);
   return {
     digest: contentDigest(bytes),

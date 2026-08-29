@@ -9,10 +9,10 @@ import type { ModelVersion } from "../models/schema";
 import type { ImageRef } from "../datasets/schema";
 import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { canonicalize } from "./image-ingest";
-import { readDataset } from "./datasets";
+import { claimImages, readDataset } from "./datasets";
+import { storeImage } from "./image-store";
 import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
-import { addImage } from "./upload";
 
 export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
@@ -93,11 +93,24 @@ export async function selectedVersion(datasetId: string) {
   return { dataset, version };
 }
 
+/** Stores the sources and claims them for the dataset, as an upload does. */
+export async function uploadSources(
+  datasetId: string,
+  sources: { filename: string; bytes: Uint8Array }[],
+) {
+  const entries = [];
+  for (const { filename, bytes } of sources) {
+    entries.push({ digest: (await storeImage(bytes)).digest, filename });
+  }
+  return claimImages({ dataset: datasetId, images: entries });
+}
+
 /** Uploads one deterministic source per text; tests use its canonical digest. */
 export async function uploadTexts(datasetId: string, contents: string[]) {
-  for (const content of contents) {
-    await addImage(datasetId, await imageSource(content));
-  }
+  await uploadSources(
+    datasetId,
+    await Promise.all(contents.map((content) => imageSource(content))),
+  );
   return selectedVersion(datasetId);
 }
 

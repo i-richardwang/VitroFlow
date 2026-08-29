@@ -3,8 +3,15 @@ import { describe, expect, test } from "bun:test";
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
 import type { InferenceWorkerRecord } from "../inference/workers";
-import { blobExists, contentDigest, imageBlobKey, requireBlob } from "./blobs";
 import {
+  blobExists,
+  contentDigest,
+  imageBlobKey,
+  putImmutableBlob,
+  requireBlob,
+} from "./blobs";
+import {
+  claimImages,
   findImage,
   listDatasets,
   listImages,
@@ -21,7 +28,9 @@ import {
   writePrelabel,
 } from "./prelabels";
 import { readImageRecord, summarize } from "./summaries";
-import { collectUnreferencedImages } from "./image-collection";
+import { collectImages } from "./image-collection";
+import { canonicalize } from "./image-ingest";
+import { storeImage } from "./image-store";
 import {
   TEST_RUNTIME as runtime,
   testHeartbeat,
@@ -30,8 +39,8 @@ import {
   imageDigest,
   imageSource,
   selectedVersion,
+  uploadSources,
 } from "./testing";
-import { addImage } from "./upload";
 
 const worker: InferenceWorkerRecord = {
   ...testHeartbeat("worker"),
@@ -75,20 +84,31 @@ async function stateOf(ref: { dataset: string; digest: string }) {
 }
 
 describe("uploads", () => {
-  test("creates a dataset-owned model and identifies images by content", async () => {
-    const one = await addImage("crop", await imageSource("one"));
-    const two = await addImage("crop", {
-      filename: "two.jpg",
-      bytes: await imageBytes("two"),
+  test("stores a photograph before any dataset claims it", async () => {
+    const stored = await storeImage(await imageBytes("loose"));
+    expect(stored).toEqual({
+      digest: await imageDigest("loose"),
+      width: FIXTURE_EDGE,
+      height: FIXTURE_EDGE,
+      bytes: stored.bytes,
     });
-    expect([one.added, two.added]).toEqual([true, true]);
-    expect([one.image.digest, two.image.digest]).toEqual([
-      await imageDigest("one"),
-      await imageDigest("two"),
-    ]);
-    expect(two.image).toMatchObject({
+    expect(await blobExists(imageBlobKey(stored.digest))).toBe(true);
+    expect(await listDatasets()).not.toContain("loose");
+  });
+
+  test("creates a dataset-owned model and identifies images by content", async () => {
+    expect(
+      await uploadSources("crop", [
+        await imageSource("one"),
+        { filename: "two.jpg", bytes: await imageBytes("two") },
+      ]),
+    ).toEqual({ added: 2, existing: 0 });
+    const listed = await listImages("crop");
+    expect(listed.map((image) => image.digest).sort()).toEqual(
+      [await imageDigest("one"), await imageDigest("two")].sort(),
+    );
+    expect(listed.find((image) => image.filename === "two.jpg")).toMatchObject({
       dataset: "crop",
-      filename: "two.jpg",
       width: FIXTURE_EDGE,
       height: FIXTURE_EDGE,
       split: null,
@@ -106,16 +126,25 @@ describe("uploads", () => {
   });
 
   test("the same bytes are one image, whatever they are called", async () => {
-    const first = await addImage("same", await imageSource("pixels", "a.jpg"));
-    const again = await addImage("same", await imageSource("pixels", "b.jpg"));
-    expect(again).toEqual({ image: first.image, added: false });
-    expect(await listImages("same")).toHaveLength(1);
-    expect(first.image.filename).toBe("a.jpg");
+    const { added } = await uploadSources("same", [
+      await imageSource("pixels", "a.jpg"),
+      await imageSource("pixels", "b.jpg"),
+    ]);
+    expect(added).toBe(1);
+    const listed = await listImages("same");
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.filename).toBe("a.jpg");
+
+    const again = await uploadSources("same", [
+      await imageSource("pixels", "c.jpg"),
+    ]);
+    expect(again.added).toBe(0);
+    expect((await listImages("same"))[0]?.filename).toBe("a.jpg");
   });
 
   test("one image can belong to several datasets under its own name in each", async () => {
-    await addImage("left", await imageSource("shared", "shared.jpg"));
-    await addImage("right", await imageSource("shared", "renamed.jpg"));
+    await uploadSources("left", [await imageSource("shared", "shared.jpg")]);
+    await uploadSources("right", [await imageSource("shared", "renamed.jpg")]);
     const digest = await imageDigest("shared");
     expect((await findImage({ dataset: "left", digest }))?.filename).toBe(
       "shared.jpg",
@@ -126,38 +155,89 @@ describe("uploads", () => {
     expect(contentDigest(await requireBlob(imageBlobKey(digest)))).toBe(digest);
   });
 
-  test("a source that is not a photograph writes nothing", async () => {
+  test("a source that is not a photograph is not stored", async () => {
+    await expect(storeImage(new TextEncoder().encode("notes"))).rejects.toThrow(
+      /JPEG, PNG, or TIFF/,
+    );
+    await expect(storeImage(new Uint8Array())).rejects.toThrow(/empty/);
+  });
+
+  test("a dataset gains the whole set or none of it", async () => {
+    const stored = await storeImage(await imageBytes("rejected"));
     await expect(
-      addImage("rejected", {
-        filename: "notes.jpg",
-        bytes: new TextEncoder().encode("x"),
+      claimImages({
+        dataset: "rejected",
+        images: [
+          { digest: stored.digest, filename: "fine.jpg" },
+          { digest: stored.digest, filename: "../up.jpg" },
+        ],
       }),
-    ).rejects.toThrow(/notes\.jpg/);
-    await expect(
-      addImage("rejected", await imageSource("y", "../up.jpg")),
     ).rejects.toThrow(/filename/);
     await expect(
-      addImage("rejected", await imageSource("y", "..\\up.jpg")),
-    ).rejects.toThrow(/filename/);
+      claimImages({
+        dataset: "not a name",
+        images: [{ digest: stored.digest, filename: "fine.jpg" }],
+      }),
+    ).rejects.toThrow(/Dataset names/);
     expect(await readDataset("rejected")).toBeNull();
-    expect(await blobExists(imageBlobKey(await imageDigest("y")))).toBe(false);
+  });
+
+  test("images must still be stored when they are claimed", async () => {
+    await expect(
+      claimImages({
+        dataset: "gone",
+        images: [{ digest: "a".repeat(64), filename: "a.jpg" }],
+      }),
+    ).rejects.toThrow(/no longer stored/);
   });
 
   test("serializes concurrent uploads into a new dataset", async () => {
     const [first, second] = await Promise.all([
-      addImage("concurrent-upload", await imageSource("a")),
-      addImage("concurrent-upload", await imageSource("b")),
+      uploadSources("concurrent-upload", [await imageSource("a")]),
+      uploadSources("concurrent-upload", [await imageSource("b")]),
     ]);
-    expect(first.image.digest).toBe(await imageDigest("a"));
-    expect(second.image.digest).toBe(await imageDigest("b"));
+    expect(first.added).toBe(1);
+    expect(second.added).toBe(1);
     expect(await listImages("concurrent-upload")).toHaveLength(2);
+  });
+});
+
+describe("collection", () => {
+  /** A moment past the period an unclaimed photograph is kept for. */
+  const later = () => new Date(Date.now() + 25 * 60 * 60 * 1000);
+
+  test("keeps unclaimed bytes while a dataset is still being chosen", async () => {
+    const { digest } = await storeImage(await imageBytes("waiting"));
+    expect(await collectImages()).not.toContain(digest);
+    expect(await blobExists(imageBlobKey(digest))).toBe(true);
+  });
+
+  test("collects photographs nobody claimed", async () => {
+    const { digest } = await storeImage(await imageBytes("abandoned"));
+    expect(await collectImages(later())).toContain(digest);
+    expect(await blobExists(imageBlobKey(digest))).toBe(false);
+  });
+
+  test("claiming a photograph keeps it", async () => {
+    await uploadSources("claimed", [await imageSource("kept", "kept.jpg")]);
+    const digest = await imageDigest("kept");
+    expect(await collectImages(later())).not.toContain(digest);
+    expect(await blobExists(imageBlobKey(digest))).toBe(true);
+  });
+
+  test("collects an immutable object whose Image transaction never committed", async () => {
+    const orphan = await canonicalize(await imageBytes("orphan"));
+    await putImmutableBlob(imageBlobKey(orphan.digest), orphan.bytes);
+
+    expect(await collectImages()).toContain(orphan.digest);
+    expect(await blobExists(imageBlobKey(orphan.digest))).toBe(false);
   });
 });
 
 describe("prelabels", () => {
   test("a dataset assigns work only to its selected model version", async () => {
-    await addImage("pend", await imageSource("a", "a.jpg"));
-    await addImage("pend", await imageSource("b", "b.jpg"));
+    await uploadSources("pend", [await imageSource("a", "a.jpg")]);
+    await uploadSources("pend", [await imageSource("b", "b.jpg")]);
     const a = { dataset: "pend", digest: await imageDigest("a") };
     const b = { dataset: "pend", digest: await imageDigest("b") };
     const pending = async () =>
@@ -205,7 +285,7 @@ describe("prelabels", () => {
   });
 
   test("a prelabel must describe the image it is stored under", async () => {
-    await addImage("mismatch", await imageSource("a", "a.jpg"));
+    await uploadSources("mismatch", [await imageSource("a", "a.jpg")]);
     const ref = { dataset: "mismatch", digest: await imageDigest("a") };
     await expect(
       writePrelabel(
@@ -230,7 +310,7 @@ describe("prelabels", () => {
   });
 
   test("freezes a prelabel after review begins", async () => {
-    await addImage("frozen", await imageSource("a", "a.jpg"));
+    await uploadSources("frozen", [await imageSource("a", "a.jpg")]);
     const ref = { dataset: "frozen", digest: await imageDigest("a") };
     const original = await writePrelabel(
       ref,
@@ -250,8 +330,8 @@ describe("prelabels", () => {
   });
 
   test("review state is per dataset", async () => {
-    await addImage("ctx-one", await imageSource("ctx", "ctx.jpg"));
-    await addImage("ctx-two", await imageSource("ctx", "ctx.jpg"));
+    await uploadSources("ctx-one", [await imageSource("ctx", "ctx.jpg")]);
+    await uploadSources("ctx-two", [await imageSource("ctx", "ctx.jpg")]);
     const digest = await imageDigest("ctx");
     await writePrelabel(
       { dataset: "ctx-one", digest },
@@ -265,7 +345,7 @@ describe("prelabels", () => {
 
 describe("removal", () => {
   test("removes the membership with its prelabel and label", async () => {
-    await addImage("rm", await imageSource("rm-bytes", "a.jpg"));
+    await uploadSources("rm", [await imageSource("rm-bytes", "a.jpg")]);
     const ref = { dataset: "rm", digest: await imageDigest("rm-bytes") };
     const prelabel = await writePrelabel(
       ref,
@@ -283,22 +363,26 @@ describe("removal", () => {
   });
 
   test("bytes outlive their last reference until collected", async () => {
-    await addImage("share-a", await imageSource("shared-bytes", "first.jpg"));
-    await addImage("share-b", await imageSource("shared-bytes", "second.jpg"));
+    await uploadSources("share-a", [
+      await imageSource("shared-bytes", "first.jpg"),
+    ]);
+    await uploadSources("share-b", [
+      await imageSource("shared-bytes", "second.jpg"),
+    ]);
     const digest = await imageDigest("shared-bytes");
+    const later = new Date(Date.now() + 25 * 60 * 60 * 1000);
     await removeImage({ dataset: "share-a", digest });
-    expect(await collectUnreferencedImages()).not.toContain(digest);
+    expect(await collectImages(later)).not.toContain(digest);
     expect(await findImage({ dataset: "share-b", digest })).not.toBeNull();
     await removeImage({ dataset: "share-b", digest });
     expect(await blobExists(imageBlobKey(digest))).toBe(true);
-    expect(await collectUnreferencedImages()).toContain(digest);
+    expect(await collectImages(later)).toContain(digest);
     expect(await blobExists(imageBlobKey(digest))).toBe(false);
 
-    const { image } = await addImage(
-      "share-c",
+    await uploadSources("share-c", [
       await imageSource("shared-bytes", "third.jpg"),
-    );
-    expect(image.digest).toBe(digest);
+    ]);
+    expect((await listImages("share-c"))[0]?.digest).toBe(digest);
     expect(contentDigest(await requireBlob(imageBlobKey(digest)))).toBe(digest);
   });
 });

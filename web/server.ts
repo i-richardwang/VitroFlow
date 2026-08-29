@@ -1,7 +1,7 @@
 import handler from "./dist/server/server.js";
 import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/training/artifact";
 
-const CLIENT_DIR = `${import.meta.dir}/dist/client`;
+const CLIENT_DIR = `${process.cwd()}/dist/client`;
 const port = Number(process.env.PORT ?? 3000);
 
 // Reach the database and the blob store before accepting traffic, so a bad

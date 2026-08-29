@@ -40,7 +40,7 @@ CREATE TABLE "images" (
 	"width" integer NOT NULL,
 	"height" integer NOT NULL,
 	"bytes" integer NOT NULL,
-	"uploaded_at" timestamp with time zone NOT NULL,
+	"received_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "images_id_check" CHECK ("images"."id" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "images_bytes_check" CHECK ("images"."bytes" > 0),
 	CONSTRAINT "images_size_check" CHECK ("images"."width" > 0 and "images"."height" > 0)
@@ -178,6 +178,7 @@ CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_
 CREATE INDEX "dataset_snapshot_images_image_idx" ON "dataset_snapshot_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshots_dataset_idx" ON "dataset_snapshots" USING btree ("dataset_id");--> statement-breakpoint
 CREATE INDEX "datasets_selected_version_idx" ON "datasets" USING btree ("selected_model_version_id");--> statement-breakpoint
+CREATE INDEX "images_received_idx" ON "images" USING btree ("received_at");--> statement-breakpoint
 CREATE INDEX "inference_workers_seen_idx" ON "inference_workers" USING btree ("last_seen_at");--> statement-breakpoint
 CREATE INDEX "labels_dataset_status_idx" ON "labels" USING btree ("dataset_id","status");--> statement-breakpoint
 CREATE INDEX "model_versions_model_idx" ON "model_versions" USING btree ("model_id","created_at");--> statement-breakpoint

@@ -93,9 +93,7 @@ function instanceMetrics(
     },
     {
       label: "Selected",
-      value: selected
-        ? `#${annotation.instances.indexOf(selected) + 1}`
-        : "—",
+      value: selected ? `#${annotation.instances.indexOf(selected) + 1}` : "—",
     },
   ];
   if (annotation.status === "excluded") {

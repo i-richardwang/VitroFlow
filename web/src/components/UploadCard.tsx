@@ -9,14 +9,17 @@ import {
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { DATASET_NAME_PATTERN } from "../datasets/schema";
 import { ImageDropZone, type ListedImage } from "./ImageDropZone";
 
 /**
- * Adds images to a dataset. With a fixed dataset the form only asks for
- * files; otherwise the dataset name is typed and created on first upload.
+ * Adds photographs to a dataset. Storing a photograph and claiming it are
+ * separate acts, and the form follows them: bytes go up as soon as they are
+ * chosen, so the seconds spent naming the dataset and reviewing the list are
+ * the seconds they travel and encode in. Submitting only claims what is
+ * already stored, which is one small request.
  */
 export function UploadCard({
   dataset,
@@ -26,10 +29,82 @@ export function UploadCard({
   onComplete?: () => void;
 }) {
   const router = useRouter();
-  const [files, setFiles] = useState<ListedImage[]>([]);
+  const [images, setImages] = useState<ListedImage[]>([]);
   const [busy, setBusy] = useState(false);
+  const nextId = useRef(0);
+  const queue = useRef<ListedImage[]>([]);
+  const lanes = useRef(0);
 
-  const form = (
+  const update = useCallback((id: number, state: ListedImage["state"]) => {
+    setImages((current) =>
+      current.map((image) => (image.id === id ? { ...image, state } : image)),
+    );
+  }, []);
+
+  const onAdd = useCallback(
+    (files: File[]) => {
+      const added = files.map((file) => ({
+        id: (nextId.current += 1),
+        file,
+        state: { status: "storing", progress: 0 } as const,
+      }));
+      setImages((current) => [...current, ...added]);
+      queue.current.push(...added);
+      while (lanes.current < UPLOAD_LANES && queue.current.length > 0) {
+        lanes.current += 1;
+        void (async () => {
+          for (let next = queue.current.shift(); next;) {
+            const { id, file } = next;
+            try {
+              const { digest } = await storeImage(file, (progress) =>
+                update(id, { status: "storing", progress }),
+              );
+              update(id, { status: "stored", digest });
+            } catch (cause) {
+              update(id, { status: "failed", reason: message(cause) });
+            }
+            next = queue.current.shift();
+          }
+          lanes.current -= 1;
+        })();
+      }
+    },
+    [update],
+  );
+
+  const onRemove = useCallback((id: number) => {
+    queue.current = queue.current.filter((image) => image.id !== id);
+    setImages((current) => current.filter((image) => image.id !== id));
+  }, []);
+
+  /** The photographs a submission would claim, as the dataset will name them. */
+  const ready = images.flatMap(({ file, state }) =>
+    state.status === "stored"
+      ? [{ digest: state.digest, filename: file.name }]
+      : [],
+  );
+  const storing = images.some((image) => image.state.status === "storing");
+  const hasFailures = images.some((image) => image.state.status === "failed");
+
+  const picker = (
+    <ImageDropZone
+      images={images}
+      onAdd={onAdd}
+      onRemove={onRemove}
+      busy={busy}
+    />
+  );
+  const submit = (
+    <Button
+      type="submit"
+      variant="primary"
+      isDisabled={busy || storing || ready.length === 0}
+    >
+      {busy ? "Adding…" : storing ? "Preparing…" : "Upload"}
+    </Button>
+  );
+
+  return (
     <Form
       className="w-full"
       onSubmit={(event) => {
@@ -38,29 +113,17 @@ export function UploadCard({
           dataset ??
           String(new FormData(event.currentTarget).get("dataset") ?? "");
         setBusy(true);
-        void uploadImages(
-          target,
-          files.map((item) => item.file),
-          (index, update) => {
-            setFiles((current) =>
-              current.map((item, currentIndex) =>
-                currentIndex === index ? { ...item, ...update } : item,
-              ),
+        void claimImages(target, ready)
+          .then(async ({ added, existing }) => {
+            setImages((current) =>
+              current.filter((image) => image.state.status !== "stored"),
             );
-          },
-        )
-          .then(async ({ added, existing, failed }) => {
-            setFiles(failed.map((failure) => ({ file: failure.file })));
-            if (added + existing > 0) {
-              toast.success(uploadSummary(target, added, existing));
-            }
-            for (const { file, reason } of failed) {
-              toast.danger(file.name, { description: reason });
-            }
+            toast.success(uploadSummary(target, added, existing));
             await router.invalidate();
-            if (failed.length === 0) {
-              onComplete?.();
-            }
+            if (!hasFailures) onComplete?.();
+          })
+          .catch((cause: unknown) => {
+            toast.danger("Nothing was added", { description: message(cause) });
           })
           .finally(() => {
             setBusy(false);
@@ -69,18 +132,8 @@ export function UploadCard({
     >
       {dataset ? (
         <div className="flex flex-col gap-3">
-          <ImageDropZone
-            files={files}
-            onChange={(next) => setFiles(next.map((file) => ({ file })))}
-            busy={busy}
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            isDisabled={busy || files.length === 0}
-          >
-            {busy ? "Uploading…" : "Upload"}
-          </Button>
+          {picker}
+          {submit}
         </div>
       ) : (
         <Fieldset>
@@ -97,26 +150,12 @@ export function UploadCard({
               <FieldError />
             </TextField>
           </Fieldset.Group>
-          <ImageDropZone
-            files={files}
-            onChange={(next) => setFiles(next.map((file) => ({ file })))}
-            busy={busy}
-          />
-          <Fieldset.Actions>
-            <Button
-              type="submit"
-              variant="primary"
-              isDisabled={busy || files.length === 0}
-            >
-              {busy ? "Uploading…" : "Upload"}
-            </Button>
-          </Fieldset.Actions>
+          {picker}
+          <Fieldset.Actions>{submit}</Fieldset.Actions>
         </Fieldset>
       )}
     </Form>
   );
-
-  return form;
 }
 
 function uploadSummary(target: string, added: number, existing: number) {
@@ -126,111 +165,71 @@ function uploadSummary(target: string, added: number, existing: number) {
   return `${count(added)} added to ${target}, ${existing} already there`;
 }
 
+function message(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 /**
- * Requests kept in flight while the server serializes canonicalization. One
- * photograph can travel while the preceding one encodes.
+ * Photographs travelling at once. A second request keeps the server encoding
+ * while the next photograph is still on the wire; more than that would queue
+ * behind the same processor.
  */
 const UPLOAD_LANES = 2;
 
-interface UploadFailure {
-  file: File;
-  reason: string;
-}
-
-interface UploadOutcome {
-  added: number;
-  existing: number;
-  failed: UploadFailure[];
-}
-
-/**
- * Adds the photographs one request each. Every photograph stands alone, so one
- * that will not decode is reported against its own name and left in the picker
- * while the rest go through.
- */
-async function uploadImages(
-  dataset: string,
-  files: File[],
-  onFile: (
-    index: number,
-    update: ListedImage,
-  ) => void,
-): Promise<UploadOutcome> {
-  const failures = new Array<UploadFailure | null>(files.length).fill(null);
-  let added = 0;
-  let existing = 0;
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(UPLOAD_LANES, files.length) }, async () => {
-      for (let index = next++; index < files.length; index = next++) {
-        const file = files[index]!;
-        onFile(index, { file, status: "uploading", progress: 0 });
-        try {
-          const addedThis = await postImage(dataset, file, (progress) => {
-            onFile(index, { file, status: "uploading", progress });
-          });
-          if (addedThis) {
-            added += 1;
-          } else {
-            existing += 1;
-          }
-          onFile(index, { file, status: "complete", progress: 100 });
-        } catch (cause) {
-          const reason = cause instanceof Error ? cause.message : String(cause);
-          failures[index] = { file, reason };
-          onFile(index, { file, status: "failed", progress: 0 });
-        }
-      }
-    }),
-  );
-  return {
-    added,
-    existing,
-    failed: failures.filter(
-      (failure): failure is UploadFailure => failure !== null,
-    ),
-  };
-}
-
-/** Whether the photograph joined the dataset, rather than already being in it. */
-function postImage(
-  dataset: string,
+/** Stores one photograph's bytes, reporting how much of them has gone. */
+function storeImage(
   file: File,
   onProgress: (percent: number) => void,
-): Promise<boolean> {
+): Promise<{ digest: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open(
-      "POST",
-      `/api/datasets/${encodeURIComponent(dataset)}/images?filename=${encodeURIComponent(file.name)}`,
-    );
+    request.open("POST", "/api/images");
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgress(Math.round((event.loaded / event.total) * 100));
       }
     };
     request.onload = () => {
-      const body = parseBody(request.responseText);
-      if (body?.error != null) {
-        reject(new Error(body.error));
-        return;
-      }
-      if (request.status >= 200 && request.status < 300 && body?.added != null) {
-        resolve(body.added);
-        return;
+      const body = parse<{ error?: string; digest?: string }>(
+        request.responseText,
+      );
+      if (body?.error != null) return reject(new Error(body.error));
+      if (request.status === 200 && body?.digest) {
+        return resolve({ digest: body.digest });
       }
       reject(new Error(`Upload failed (${request.status})`));
     };
-    request.onerror = () => {
-      reject(new Error("Upload failed"));
-    };
+    request.onerror = () => reject(new Error("Upload failed"));
     request.send(file);
   });
 }
 
-function parseBody(text: string): { error?: string; added?: boolean } | null {
+/** Claims the stored photographs for the dataset under the names they came as. */
+async function claimImages(
+  dataset: string,
+  images: { digest: string; filename: string }[],
+): Promise<{ added: number; existing: number }> {
+  const response = await fetch(
+    `/api/datasets/${encodeURIComponent(dataset)}/images`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ images }),
+    },
+  );
+  const body = parse<{ error?: string; added?: number; existing?: number }>(
+    await response.text(),
+  );
+  if (body?.error != null) throw new Error(body.error);
+  if (!response.ok || body?.added == null || body.existing == null) {
+    throw new Error(`Upload failed (${response.status})`);
+  }
+  return { added: body.added, existing: body.existing };
+}
+
+function parse<T>(text: string): T | null {
   try {
-    return JSON.parse(text) as { error?: string; added?: boolean };
+    return JSON.parse(text) as T;
   } catch {
     return null;
   }

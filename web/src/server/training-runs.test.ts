@@ -298,9 +298,7 @@ test("an interrupted upload cannot constrain a reclaimed run", async () => {
   );
   expect(await collectUnreferencedModelWeights()).toContain(abandonedKey);
   expect(await blobExists(abandonedKey)).toBeFalse();
-  expect(
-    await requireBlob(replacementKey),
-  ).toEqual(replacement);
+  expect(await requireBlob(replacementKey)).toEqual(replacement);
 });
 
 test("model weights remain rooted by their active attempt", async () => {

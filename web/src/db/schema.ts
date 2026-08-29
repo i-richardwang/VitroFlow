@@ -102,6 +102,11 @@ export const datasets = pgTable(
  * A photograph, identified by the SHA-256 digest of its bytes. Images belong
  * to no dataset; datasets, snapshots, and future experiments refer to them.
  * Every column describes the bytes themselves.
+ *
+ * An image with no reference is unclaimed: bytes may arrive before their
+ * dataset is known, and losing the last membership returns an image to that
+ * state. `receivedAt` is when the bytes last arrived and bounds how long an
+ * initial claim may still be in progress.
  */
 export const images = pgTable(
   "images",
@@ -111,12 +116,14 @@ export const images = pgTable(
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     bytes: integer("bytes").notNull(),
-    uploadedAt: instant("uploaded_at"),
+    receivedAt: instant("received_at"),
   },
   (table) => [
     check("images_id_check", sql`${table.id} ~ '^[0-9a-f]{64}$'`),
     check("images_bytes_check", sql`${table.bytes} > 0`),
     check("images_size_check", sql`${table.width} > 0 and ${table.height} > 0`),
+    /** The collector reads unreferenced images oldest first. */
+    index("images_received_idx").on(table.receivedAt),
   ],
 );
 

@@ -1,4 +1,4 @@
-import { collectUnreferencedImages } from "./image-collection";
+import { collectImages } from "./image-collection";
 import { collectUnreferencedModelWeights } from "./model-weight-collection";
 
 export interface CollectedBlobs {
@@ -9,7 +9,7 @@ export interface CollectedBlobs {
 /** Collects every immutable object type according to its ownership rules. */
 export async function collectUnreferencedBlobs(): Promise<CollectedBlobs> {
   return {
-    images: await collectUnreferencedImages(),
+    images: await collectImages(),
     modelWeights: await collectUnreferencedModelWeights(),
   };
 }

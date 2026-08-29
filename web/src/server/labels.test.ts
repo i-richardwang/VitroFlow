@@ -2,8 +2,12 @@ import { describe, expect, test } from "bun:test";
 
 import type { AnnotationDocument } from "../annotation/schema";
 import { createLabel, readLabel, updateLabel } from "./labels";
-import { FIXTURE_EDGE, imageDigest, imageSource } from "./testing";
-import { addImage } from "./upload";
+import {
+  FIXTURE_EDGE,
+  imageDigest,
+  imageSource,
+  uploadSources,
+} from "./testing";
 
 const digest = await imageDigest("a");
 
@@ -24,7 +28,7 @@ const document: AnnotationDocument = {
 
 describe("labels", () => {
   test("creates, reads, and updates with revision checks", async () => {
-    await addImage("set", await imageSource("a", "a.jpg"));
+    await uploadSources("set", [await imageSource("a", "a.jpg")]);
     const ref = { dataset: "set", digest };
     expect(await readLabel(ref)).toBeNull();
     const created = await createLabel(ref, { ...document, revision: 7 });
@@ -44,7 +48,7 @@ describe("labels", () => {
   });
 
   test("describes the image it is stored under", async () => {
-    await addImage("set", await imageSource("b", "b.jpg"));
+    await uploadSources("set", [await imageSource("b", "b.jpg")]);
     const other = await imageDigest("b");
     await expect(
       createLabel({ dataset: "set", digest: other }, document),
@@ -52,7 +56,7 @@ describe("labels", () => {
   });
 
   test("uses the canonical image dimensions", async () => {
-    await addImage("dimensions", await imageSource("dimensions"));
+    await uploadSources("dimensions", [await imageSource("dimensions")]);
     const image = await imageDigest("dimensions");
     await expect(
       createLabel(

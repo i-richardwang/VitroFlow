@@ -1,5 +1,5 @@
 {
-  "id": "959a6d39-d501-4900-9884-850ec69bf5a0",
+  "id": "9d2b33c7-1b85-4773-b3ae-b464c4a82ffd",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -404,14 +404,30 @@
           "primaryKey": false,
           "notNull": true
         },
-        "uploaded_at": {
-          "name": "uploaded_at",
+        "received_at": {
+          "name": "received_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "images_received_idx": {
+          "name": "images_received_idx",
+          "columns": [
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

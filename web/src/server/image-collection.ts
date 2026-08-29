@@ -1,18 +1,58 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 
-import { transaction } from "../db/client";
-import { images } from "../db/schema";
+import { database, transaction } from "../db/client";
+import { datasetImages, datasetSnapshotImages, images } from "../db/schema";
 import { imageDigestSchema } from "../datasets/schema";
 import { imageBlobKey, listBlobs, removeBlob } from "./blobs";
 import { lockImage } from "./image-lock";
 
 /**
- * Removes the bytes of images no row refers to any more. Removal from a
- * dataset only ever touches rows; bytes outlive their last reference until
- * this runs. Each digest is decided under the same lock uploads take, so a
- * blob is never removed underneath an upload that is about to reference it.
+ * How long a photograph nobody has claimed is kept. Bytes are stored before
+ * the dataset they will join is chosen, so the period covers a person filling
+ * in the rest of the form, changing their mind, and coming back to it.
  */
-export async function collectUnreferencedImages(): Promise<string[]> {
+const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+
+/** No dataset and no snapshot refers to the image. */
+function unclaimed() {
+  return sql`not exists (select 1 from ${datasetImages} where ${datasetImages.imageId} = ${images.id})
+    and not exists (select 1 from ${datasetSnapshotImages} where ${datasetSnapshotImages.imageId} = ${images.id})`;
+}
+
+/**
+ * Forgets expired images nothing refers to. This phase only commits database
+ * state: leaving their immutable objects behind is safe, and the Blob sweep
+ * below removes them after the rows are durably absent.
+ */
+async function forgetExpiredImages(now: Date): Promise<void> {
+  const cutoff = new Date(now.getTime() - GRACE_PERIOD_MS);
+  const candidates = await (
+    await database()
+  )
+    .select({ id: images.id })
+    .from(images)
+    .where(and(lte(images.receivedAt, cutoff), unclaimed()))
+    .orderBy(asc(images.receivedAt), asc(images.id));
+  for (const { id } of candidates) {
+    await transaction(async (tx) => {
+      await lockImage(id, tx);
+      await tx
+        .delete(images)
+        .where(
+          and(eq(images.id, id), lte(images.receivedAt, cutoff), unclaimed()),
+        );
+    });
+  }
+}
+
+/**
+ * Removes image objects with no committed Image row. The digest lock is shared
+ * with storage and claims: a concurrent store either commits its row first and
+ * roots the object, or rolls back before this check and leaves it collectible.
+ * This transaction changes no database state, so an object deletion never has
+ * a database mutation that would need to roll back with it.
+ */
+async function sweepImageBlobs(): Promise<string[]> {
   const collected: string[] = [];
   for (const key of await listBlobs("images/")) {
     const parsed = imageDigestSchema.safeParse(key.split("/").at(-1));
@@ -31,4 +71,10 @@ export async function collectUnreferencedImages(): Promise<string[]> {
     if (removed) collected.push(digest);
   }
   return collected;
+}
+
+/** Expires unclaimed Image rows, then sweeps every Blob no row roots. */
+export async function collectImages(now: Date = new Date()): Promise<string[]> {
+  await forgetExpiredImages(now);
+  return sweepImageBlobs();
 }

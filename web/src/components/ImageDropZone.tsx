@@ -9,19 +9,31 @@ import {
   sourceImageFileError,
 } from "../images/canonical";
 
-export type ListedImage = {
+/** A photograph on its way into the system, as the picker shows it. */
+export interface ListedImage {
+  id: number;
   file: File;
-  status?: "uploading" | "complete" | "failed";
-  progress?: number;
-};
+  state:
+    | { status: "storing"; progress: number }
+    | { status: "stored"; digest: string }
+    | { status: "failed"; reason: string };
+}
+
+const ITEM_STATUS = {
+  storing: "uploading",
+  stored: "complete",
+  failed: "failed",
+} as const;
 
 export function ImageDropZone({
-  files,
-  onChange,
+  images,
+  onAdd,
+  onRemove,
   busy,
 }: {
-  files: ListedImage[];
-  onChange: (files: File[]) => void;
+  images: ListedImage[];
+  onAdd: (files: File[]) => void;
+  onRemove: (id: number) => void;
   busy: boolean;
 }) {
   const addFiles = useCallback(
@@ -31,12 +43,9 @@ export function ImageDropZone({
         if (error) toast.danger(file.name, { description: error });
         return error === null;
       });
-      if (accepted.length === 0) {
-        return;
-      }
-      onChange([...files.map((item) => item.file), ...accepted]);
+      if (accepted.length > 0) onAdd(accepted);
     },
-    [files, onChange],
+    [onAdd],
   );
 
   return (
@@ -67,34 +76,32 @@ export function ImageDropZone({
         multiple
         onSelect={(list) => addFiles(Array.from(list))}
       />
-      {files.length > 0 && (
+      {images.length > 0 && (
         <DropZone.FileList>
-          {files.map((item, index) => {
-            const ext = extension(item.file.name);
+          {images.map(({ id, file, state }) => {
+            const ext = extension(file.name);
             return (
-              <DropZone.FileItem
-                key={`${item.file.name}:${item.file.size}:${item.file.lastModified}:${index}`}
-                status={item.status}
-              >
+              <DropZone.FileItem key={id} status={ITEM_STATUS[state.status]}>
                 <DropZone.FileFormatIcon
                   color={ext === "tif" || ext === "tiff" ? "purple" : "green"}
                   format={ext.toUpperCase()}
                 />
                 <DropZone.FileInfo>
-                  <DropZone.FileName>{item.file.name}</DropZone.FileName>
+                  <DropZone.FileName>{file.name}</DropZone.FileName>
                   <DropZone.FileMeta>
-                    {formatSize(item.file.size)}
-                    {item.status === "uploading" &&
-                      item.progress != null &&
-                      ` | ${item.progress}%`}
-                    {item.status === "complete" && (
-                      <span className="text-success"> | 100%</span>
+                    {formatSize(file.size)}
+                    {state.status === "storing" && ` | ${state.progress}%`}
+                    {state.status === "stored" && (
+                      <span className="text-success"> | ready</span>
+                    )}
+                    {state.status === "failed" && (
+                      <span className="text-danger"> | {state.reason}</span>
                     )}
                   </DropZone.FileMeta>
-                  {item.status === "uploading" && (
+                  {state.status === "storing" && (
                     <DropZone.FileProgress
-                      aria-label={`Upload progress for ${item.file.name}`}
-                      value={item.progress ?? 0}
+                      aria-label={`Upload progress for ${file.name}`}
+                      value={state.progress}
                     >
                       <DropZone.FileProgressTrack>
                         <DropZone.FileProgressFill />
@@ -104,14 +111,8 @@ export function ImageDropZone({
                 </DropZone.FileInfo>
                 {!busy && (
                   <DropZone.FileRemoveTrigger
-                    aria-label={`Remove ${item.file.name}`}
-                    onPress={() =>
-                      onChange(
-                        files
-                          .filter((_, current) => current !== index)
-                          .map((listed) => listed.file),
-                      )
-                    }
+                    aria-label={`Remove ${file.name}`}
+                    onPress={() => onRemove(id)}
                   />
                 )}
               </DropZone.FileItem>

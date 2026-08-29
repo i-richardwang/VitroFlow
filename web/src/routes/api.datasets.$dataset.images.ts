@@ -1,40 +1,49 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ZodError } from "zod";
 
-import { MAX_SOURCE_IMAGE_BYTES } from "../images/canonical";
-import { addImage } from "../server/upload";
+import { claimImages, ImagesNotStoredError } from "../server/datasets";
 
-function error(message: string, status: number): Response {
+function failed(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
 }
 
+/**
+ * Claims stored photographs for a dataset. One request is one intent: the
+ * dataset gains the whole set or none of it.
+ */
 export const Route = createFileRoute("/api/datasets/$dataset/images")({
   server: {
     handlers: {
       POST: async ({ params, request }) => {
-        const filename = new URL(request.url).searchParams.get("filename");
-        if (!filename) return error("Image filename is required", 400);
-        const declaredLength = Number(request.headers.get("content-length"));
-        if (!Number.isSafeInteger(declaredLength) || declaredLength <= 0) {
-          return error("Image Content-Length is required", 411);
-        }
-        if (declaredLength > MAX_SOURCE_IMAGE_BYTES) {
-          return error("Image exceeds 64 MiB", 413);
-        }
         try {
-          const bytes = new Uint8Array(await request.arrayBuffer());
-          if (bytes.byteLength !== declaredLength) {
-            return error("Image length differs from Content-Length", 400);
+          const body: unknown = await request.json();
+          if (
+            typeof body !== "object" ||
+            body === null ||
+            Array.isArray(body)
+          ) {
+            return failed("Request body must be a JSON object", 400);
           }
-          const { image, added } = await addImage(params.dataset, {
-            filename,
-            bytes,
-          });
-          return Response.json({ digest: image.digest, added });
-        } catch (error) {
           return Response.json(
-            { error: error instanceof Error ? error.message : String(error) },
-            { status: 400 },
+            await claimImages({ ...body, dataset: params.dataset }),
           );
+        } catch (error) {
+          if (error instanceof SyntaxError) {
+            return failed("Request body must be valid JSON", 400);
+          }
+          if (error instanceof ZodError) {
+            return failed(
+              error.issues[0]?.message ?? "Invalid image claim",
+              400,
+            );
+          }
+          if (error instanceof ImagesNotStoredError) {
+            return failed(error.message, 409);
+          }
+          console.error(
+            `Claim images failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return failed("Could not claim images", 500);
         }
       },
     },

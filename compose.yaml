@@ -1,17 +1,24 @@
+x-web-image: &web-image
+  image: vitroflow-web
+  build:
+    context: .
+    dockerfile: Dockerfile.web
+    secrets:
+      - heroui_key
+
+x-storage-environment: &storage-environment
+  DATABASE_URL: postgres://${POSTGRES_USER:-vitroflow}:${POSTGRES_PASSWORD:-vitroflow}@postgres:5432/${POSTGRES_DB:-vitroflow}
+  VITROFLOW_BLOB_ENDPOINT: http://rustfs:9000
+  VITROFLOW_BLOB_BUCKET: ${BLOB_BUCKET:-vitroflow}
+  AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-vitroflow}
+  AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-vitroflow}
+  AWS_REGION: us-east-1
+
 services:
   workbench:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      args:
-        HEROUI_KEY: ${HEROUI_KEY:?HEROUI_KEY is required to build the workbench}
+    <<: *web-image
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-vitroflow}:${POSTGRES_PASSWORD:-vitroflow}@postgres:5432/${POSTGRES_DB:-vitroflow}
-      VITROFLOW_BLOB_ENDPOINT: http://rustfs:9000
-      VITROFLOW_BLOB_BUCKET: ${BLOB_BUCKET:-vitroflow}
-      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-vitroflow}
-      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-vitroflow}
-      AWS_REGION: us-east-1
+      <<: *storage-environment
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
       VITROFLOW_INFERENCE_WORKER_TOKEN: ${VITROFLOW_INFERENCE_WORKER_TOKEN:-}
       VITROFLOW_TRAINING_WORKER_TOKEN: ${VITROFLOW_TRAINING_WORKER_TOKEN:-}
@@ -33,6 +40,14 @@ services:
         condition: service_healthy
       bucket:
         condition: service_completed_successfully
+
+  maintenance:
+    <<: *web-image
+    command: ["bun", "dist/maintenance.js"]
+    environment: *storage-environment
+    depends_on:
+      workbench:
+        condition: service_healthy
 
   postgres:
     image: postgres:17
@@ -89,3 +104,7 @@ services:
 volumes:
   postgres:
   rustfs:
+
+secrets:
+  heroui_key:
+    environment: HEROUI_KEY

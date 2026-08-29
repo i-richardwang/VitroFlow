@@ -34,10 +34,7 @@ function TrainingPage() {
   }, [router]);
 
   return (
-    <Page
-      title="Training"
-      actions={<TrainDialog console={console} />}
-    >
+    <Page title="Training" actions={<TrainDialog console={console} />}>
       <KPIGroup>
         <KPI>
           <KPI.Header>

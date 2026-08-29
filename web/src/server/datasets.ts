@@ -1,15 +1,16 @@
-import { and, asc, eq, notExists, sql, type Column } from "drizzle-orm";
+import { and, asc, eq, inArray, type Column } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
+import { datasetImages, datasets, images } from "../db/schema";
 import {
-  datasetImages,
-  datasetSnapshotImages,
-  datasets,
-  images,
-} from "../db/schema";
-import { datasetSchema, type Dataset, type ImageRef } from "../datasets/schema";
+  datasetSchema,
+  imageClaimRequestSchema,
+  type Dataset,
+  type ImageRef,
+} from "../datasets/schema";
 import type { ImageSplit } from "../training/schema";
 import { imageBlobKey } from "./blobs";
+import { lockImage } from "./image-lock";
 import { ensureDatasetModel, readModelVersion } from "./model-registry";
 
 /** An image as seen through its membership in one dataset. */
@@ -22,6 +23,13 @@ export interface DatasetImage extends ImageRef {
   blobKey: string;
   split: ImageSplit | null;
 }
+
+export interface ImageClaimResult {
+  added: number;
+  existing: number;
+}
+
+export class ImagesNotStoredError extends Error {}
 
 export type MembershipRow = {
   membership: typeof datasetImages.$inferSelect;
@@ -197,34 +205,60 @@ export async function findImage(
 }
 
 /**
- * Removes the image from the dataset together with its review documents.
- * The image row goes once no dataset or snapshot refers to it; the foreign
- * keys make any other outcome impossible. Its bytes stay until
- * `collectUnreferencedImages` runs.
+ * Claims stored photographs for one dataset under that dataset's filenames.
+ * The sorted digest locks serialize the whole claim with image collection;
+ * every membership is created in one transaction or none is.
+ */
+export async function claimImages(value: unknown): Promise<ImageClaimResult> {
+  const { dataset, images: claims } = imageClaimRequestSchema.parse(value);
+  const names = new Map<string, string>();
+  for (const { digest, filename } of claims) {
+    if (!names.has(digest)) names.set(digest, filename);
+  }
+  const digests = [...names.keys()].sort();
+  const addedAt = new Date();
+  return transaction(async (tx) => {
+    await ensureDataset(dataset, tx);
+    for (const digest of digests) await lockImage(digest, tx);
+    const stored = await tx
+      .select({ id: images.id })
+      .from(images)
+      .where(inArray(images.id, digests));
+    if (stored.length !== digests.length) {
+      throw new ImagesNotStoredError(
+        "Some images are no longer stored; upload them again",
+      );
+    }
+    const created = await tx
+      .insert(datasetImages)
+      .values(
+        digests.map((digest) => ({
+          datasetId: dataset,
+          imageId: digest,
+          filename: names.get(digest)!,
+          addedAt,
+        })),
+      )
+      .onConflictDoNothing()
+      .returning({ imageId: datasetImages.imageId });
+    return {
+      added: created.length,
+      existing: digests.length - created.length,
+    };
+  });
+}
+
+/**
+ * Removes the image from the dataset together with its review documents. The
+ * photograph itself outlives the membership: another dataset may hold it, and
+ * `collectImages` is what decides when bytes nothing refers to go.
  */
 export async function removeImage(ref: ImageRef): Promise<void> {
-  await transaction(async (tx) => {
-    const [membership] = await tx
-      .delete(datasetImages)
-      .where(atRef(datasetImages, ref))
-      .returning({ imageId: datasetImages.imageId });
-    if (!membership) throw notInDataset(ref);
-    await tx.delete(images).where(
-      and(
-        eq(images.id, membership.imageId),
-        notExists(
-          tx
-            .select({ one: sql`1` })
-            .from(datasetImages)
-            .where(eq(datasetImages.imageId, images.id)),
-        ),
-        notExists(
-          tx
-            .select({ one: sql`1` })
-            .from(datasetSnapshotImages)
-            .where(eq(datasetSnapshotImages.imageId, images.id)),
-        ),
-      ),
-    );
-  });
+  const [membership] = await (
+    await database()
+  )
+    .delete(datasetImages)
+    .where(atRef(datasetImages, ref))
+    .returning({ imageId: datasetImages.imageId });
+  if (!membership) throw notInDataset(ref);
 }

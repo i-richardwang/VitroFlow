@@ -3,7 +3,8 @@ import { expect, test } from "bun:test";
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
 import { inferenceAssignmentSchema } from "../inference/assignments";
-import { Route as UploadRoute } from "../routes/api.datasets.$dataset.images";
+import { Route as ClaimRoute } from "../routes/api.datasets.$dataset.images";
+import { Route as StoreRoute } from "../routes/api.images";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
 import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
@@ -35,22 +36,31 @@ const ref = { dataset: "api", digest };
 
 test("inference HTTP routes carry an image from upload to prelabel", async () => {
   const upload = await imageBytes("image");
-  const uploadResponse = await handler(
-    UploadRoute,
+  const stored = await handler(
+    StoreRoute,
+    "POST",
+  )({
+    request: new Request("http://localhost/api/images", {
+      method: "POST",
+      headers: { "content-length": String(upload.byteLength) },
+      body: upload,
+    }),
+  } as never);
+  expect(stored.status).toBe(200);
+  expect(await stored.json()).toMatchObject({ digest });
+
+  const claimed = await handler(
+    ClaimRoute,
     "POST",
   )({
     params: { dataset: "api" },
-    request: new Request(
-      "http://localhost/api/datasets/api/images?filename=api.jpg",
-      {
-        method: "POST",
-        headers: { "content-length": String(upload.byteLength) },
-        body: upload,
-      },
-    ),
+    request: new Request("http://localhost/api/datasets/api/images", {
+      method: "POST",
+      body: JSON.stringify({ images: [{ digest, filename: "api.jpg" }] }),
+    }),
   } as never);
-  expect(uploadResponse.status).toBe(200);
-  expect(await uploadResponse.json()).toEqual({ digest, added: true });
+  expect(claimed.status).toBe(200);
+  expect(await claimed.json()).toEqual({ added: 1, existing: 0 });
 
   const dataset = await readDataset("api");
   if (!dataset) throw new Error("missing dataset");
@@ -185,31 +195,52 @@ test("inference readiness identifies the authenticated control plane", async () 
   expect(await response.json()).toEqual({ role: "inference" });
 });
 
-test("image upload rejects an absent or excessive declared body before reading it", async () => {
+test("storing an image rejects an absent or excessive declared body before reading it", async () => {
   const post = (request: Request) =>
-    handler(
-      UploadRoute,
-      "POST",
-    )({ params: { dataset: "upload-boundary" }, request } as never);
+    handler(StoreRoute, "POST")({ request } as never);
 
   const absent = await post(
-    new Request(
-      "http://localhost/api/datasets/upload-boundary/images?filename=a.jpg",
-      { method: "POST" },
-    ),
+    new Request("http://localhost/api/images", { method: "POST" }),
   );
   expect(absent.status).toBe(411);
 
   const excessive = await post(
-    new Request(
-      "http://localhost/api/datasets/upload-boundary/images?filename=a.jpg",
-      {
-        method: "POST",
-        headers: { "content-length": String(64 * 1024 * 1024 + 1) },
-        body: new Uint8Array([1]),
-      },
-    ),
+    new Request("http://localhost/api/images", {
+      method: "POST",
+      headers: { "content-length": String(64 * 1024 * 1024 + 1) },
+      body: new Uint8Array([1]),
+    }),
   );
   expect(excessive.status).toBe(413);
-  expect(await readDataset("upload-boundary")).toBeNull();
+});
+
+test("image claims distinguish invalid requests from expired stored images", async () => {
+  const post = (body: string) =>
+    handler(
+      ClaimRoute,
+      "POST",
+    )({
+      params: { dataset: "claim-boundary" },
+      request: new Request(
+        "http://localhost/api/datasets/claim-boundary/images",
+        { method: "POST", body },
+      ),
+    } as never);
+
+  expect((await post("not json")).status).toBe(400);
+  const nonObject = await post(JSON.stringify([]));
+  expect(nonObject.status).toBe(400);
+  expect(await nonObject.json()).toEqual({
+    error: "Request body must be a JSON object",
+  });
+  expect((await post(JSON.stringify({ images: [] }))).status).toBe(400);
+  expect(
+    (
+      await post(
+        JSON.stringify({
+          images: [{ digest: "a".repeat(64), filename: "a.jpg" }],
+        }),
+      )
+    ).status,
+  ).toBe(409);
 });
