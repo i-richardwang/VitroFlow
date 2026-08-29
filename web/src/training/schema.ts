@@ -17,15 +17,10 @@ export type TrainingPhase = (typeof TRAINING_PHASES)[number];
 export const TRAINING_RUN_STATUSES = [
   "queued",
   "running",
-  "publishing",
   "succeeded",
   "failed",
 ] as const;
-export const ACTIVE_TRAINING_RUN_STATUSES = [
-  "queued",
-  "running",
-  "publishing",
-] as const;
+export const ACTIVE_TRAINING_RUN_STATUSES = ["queued", "running"] as const;
 const ACTIVE_TRAINING_RUN_STATUS_SET = new Set<string>(
   ACTIVE_TRAINING_RUN_STATUSES,
 );
@@ -125,11 +120,6 @@ const trainingRunStateSchema = z.discriminatedUnion("status", [
     leaseExpiresAt: z.string().datetime({ offset: true }),
     phase: z.enum(TRAINING_PHASES),
     progress: z.number().finite().min(0).max(1),
-  }),
-  z.strictObject({
-    status: z.literal("publishing"),
-    workerId: versionIdSchema,
-    sessionId: versionIdSchema,
   }),
   z.strictObject({
     status: z.literal("succeeded"),

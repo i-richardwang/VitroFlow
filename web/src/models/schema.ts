@@ -23,17 +23,6 @@ const inferenceSettingsSchema = z.strictObject({
   endToEnd: z.boolean(),
 });
 
-const artifactPathSchema = z
-  .string()
-  .min(1)
-  .refine(
-    (value) =>
-      !value.startsWith("/") &&
-      !value.includes("\\") &&
-      !value.split("/").includes(".."),
-    "Artifact path must be relative",
-  );
-
 const trainingIdentitySchema = z.strictObject({
   baseModel: z.strictObject({
     reference: z.string().min(1),
@@ -46,58 +35,76 @@ const trainingIdentitySchema = z.strictObject({
   }),
 });
 
-export const modelArtifactSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("traditional"),
-    digest: fingerprintSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("ultralytics"),
+const traditionalArtifactSchema = z.strictObject({
+  kind: z.literal("traditional"),
+  digest: fingerprintSchema,
+});
+
+const ultralyticsArtifactSchema = z.strictObject({
+  kind: z.literal("ultralytics"),
+  digest: fingerprintSchema,
+  weights: z.strictObject({
     digest: fingerprintSchema,
     bytes: z.number().int().positive(),
-    path: artifactPathSchema,
-    inference: inferenceSettingsSchema,
-    validation: detectionValidationSchema,
-    training: trainingIdentitySchema,
   }),
+  inference: inferenceSettingsSchema,
+  validation: detectionValidationSchema,
+  training: trainingIdentitySchema,
+});
+
+export const modelArtifactSchema = z.discriminatedUnion("kind", [
+  traditionalArtifactSchema,
+  ultralyticsArtifactSchema,
 ]);
 
-const modelVersionSourceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("builtin"),
-    definition: versionIdSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("training_run"),
-    trainingRunId: versionIdSchema,
-    datasetSnapshotId: versionIdSchema,
-  }),
-]);
-
-export const modelVersionSchema = z.strictObject({
+const modelVersionIdentity = {
   schemaVersion: z.literal(1),
   id: versionIdSchema,
   modelId: versionIdSchema,
   name: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
-  source: modelVersionSourceSchema,
-  artifact: modelArtifactSchema,
-});
+};
+
+export const modelVersionSchema = z.union([
+  z.strictObject({
+    ...modelVersionIdentity,
+    source: z.strictObject({
+      kind: z.literal("builtin"),
+      definition: versionIdSchema,
+    }),
+    artifact: traditionalArtifactSchema,
+  }),
+  z.strictObject({
+    ...modelVersionIdentity,
+    source: z.strictObject({
+      kind: z.literal("training_run"),
+      trainingRunId: versionIdSchema,
+      trainingAttempt: z.number().int().positive(),
+      datasetSnapshotId: versionIdSchema,
+    }),
+    artifact: ultralyticsArtifactSchema,
+  }),
+]);
 
 export type Model = z.infer<typeof modelSchema>;
 export type ModelVersion = z.infer<typeof modelVersionSchema>;
 export type ModelArtifact = z.infer<typeof modelArtifactSchema>;
 
-/** Parsed documents have canonical key order, so serialised equality is structural. */
 export function sameModel(left: Model, right: Model): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return (
+    JSON.stringify(modelSchema.parse(left)) ===
+    JSON.stringify(modelSchema.parse(right))
+  );
 }
 
 export function sameModelVersion(
   left: ModelVersion,
   right: ModelVersion,
 ): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return (
+    JSON.stringify(modelVersionSchema.parse(left)) ===
+    JSON.stringify(modelVersionSchema.parse(right))
+  );
 }
 
 export function supportsRuntime(

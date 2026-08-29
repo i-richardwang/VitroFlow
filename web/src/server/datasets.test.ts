@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { documentFromPrelabel } from "../annotation/prelabel";
 import { makeResult } from "../annotation/testing";
 import type { InferenceWorkerRecord } from "../inference/workers";
-import { blobExists, contentDigest, imageBlobKey, readBlob } from "./blobs";
+import { blobExists, contentDigest, imageBlobKey, requireBlob } from "./blobs";
 import {
   findImage,
   listDatasets,
@@ -123,7 +123,7 @@ describe("uploads", () => {
     expect((await findImage({ dataset: "right", digest }))?.filename).toBe(
       "renamed.jpg",
     );
-    expect(contentDigest(readBlob(imageBlobKey(digest)))).toBe(digest);
+    expect(contentDigest(await requireBlob(imageBlobKey(digest)))).toBe(digest);
   });
 
   test("a source that is not a photograph writes nothing", async () => {
@@ -140,7 +140,7 @@ describe("uploads", () => {
       addImage("rejected", await imageSource("y", "..\\up.jpg")),
     ).rejects.toThrow(/filename/);
     expect(await readDataset("rejected")).toBeNull();
-    expect(blobExists(imageBlobKey(await imageDigest("y")))).toBe(false);
+    expect(await blobExists(imageBlobKey(await imageDigest("y")))).toBe(false);
   });
 
   test("serializes concurrent uploads into a new dataset", async () => {
@@ -290,15 +290,15 @@ describe("removal", () => {
     expect(await collectUnreferencedImages()).not.toContain(digest);
     expect(await findImage({ dataset: "share-b", digest })).not.toBeNull();
     await removeImage({ dataset: "share-b", digest });
-    expect(blobExists(imageBlobKey(digest))).toBe(true);
+    expect(await blobExists(imageBlobKey(digest))).toBe(true);
     expect(await collectUnreferencedImages()).toContain(digest);
-    expect(blobExists(imageBlobKey(digest))).toBe(false);
+    expect(await blobExists(imageBlobKey(digest))).toBe(false);
 
     const { image } = await addImage(
       "share-c",
       await imageSource("shared-bytes", "third.jpg"),
     );
     expect(image.digest).toBe(digest);
-    expect(contentDigest(readBlob(imageBlobKey(digest)))).toBe(digest);
+    expect(contentDigest(await requireBlob(imageBlobKey(digest)))).toBe(digest);
   });
 });

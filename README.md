@@ -18,32 +18,33 @@ Training Worker fine-tunes and validates YOLO26
 Server publishes a candidate ModelVersion
 ```
 
-Postgres holds every record the stages exchange; the data directory holds only binary content the records reference:
+Postgres holds every record the stages exchange; one S3-compatible bucket holds only binary content the records reference:
 
-| Table | Owner | Contents |
-|---|---|---|
-| `datasets`, `models`, `model_versions` | Server | a Dataset, its logical Model, and immutable executable ModelVersions |
-| `images` | Server | one row per canonical photograph, identified by the SHA-256 of its bytes |
-| `dataset_images` | Server | an image's membership in a dataset and its stable train/validation split |
-| `prelabels` | Inference Worker | detector output for an image in a dataset, untouched by humans |
-| `labels` | Reviewer | reviewed box annotations with a revision counter |
-| `inference_workers`, `training_workers` | Workers | latest heartbeat per process |
-| `dataset_snapshots`, `dataset_snapshot_images` | Server | immutable sets of reviewed training inputs |
-| `training_runs` | Server | leased training state machines; a partial unique index allows one active run per model |
-| `training_epochs` | Training Worker | one row per finished epoch and attempt: losses, precision, recall, mAP, fitness, learning rate |
+| Table                                          | Owner            | Contents                                                                                       |
+| ---------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `datasets`, `models`, `model_versions`         | Server           | a Dataset, its logical Model, and immutable executable ModelVersions                           |
+| `images`                                       | Server           | one row per canonical photograph, identified by the SHA-256 of its bytes                       |
+| `dataset_images`                               | Server           | an image's membership in a dataset and its stable train/validation split                       |
+| `prelabels`                                    | Inference Worker | detector output for an image in a dataset, untouched by humans                                 |
+| `labels`                                       | Reviewer         | reviewed box annotations with a revision counter                                               |
+| `inference_workers`, `training_workers`        | Workers          | latest heartbeat per process                                                                   |
+| `dataset_snapshots`, `dataset_snapshot_images` | Server           | immutable sets of reviewed training inputs                                                     |
+| `training_runs`                                | Server           | leased training state machines; a partial unique index allows one active run per model         |
+| `training_epochs`                              | Training Worker  | one row per finished epoch and attempt: losses, precision, recall, mAP, fitness, learning rate |
 
 ```text
-data/
-├── images/<xx>/<sha256>             immutable canonical AVIF photographs, addressed by content
-├── training-staging/<run>/          uploaded but unpublished model artifacts
-└── model-artifacts/<version>/       server-published YOLO weights and settings
+<bucket>/
+├── images/<xx>/<sha256>                              immutable canonical AVIF photographs, addressed by content
+└── model-weights/<run-id>/<attempt>/<sha256>          immutable weights owned by one training attempt
 ```
+
+Objects are immutable: every write is conditional and can only create a missing key; repeating identical content is idempotent and different content can never replace it. A Training Worker uploads weights under its TrainingRun attempt before one short database transaction registers the resulting ModelVersion and completes the run. That attempt is recorded in the version source and fenced again when the publication commits. The Worker-authored manifest is validated and normalized into the version rather than persisted as a second blob. `bun run blobs:collect` (in `web/`) removes image bytes with no image row and weight objects owned by neither the current running attempt nor its published version; each decision uses the same database lock as the corresponding writer.
 
 A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions for prelabelling. The dataset page lists every candidate version with its validation metrics and the Workers serving it, and switches the selected version explicitly. The dataset's training page starts runs from the reviewed annotations, shows the recipe, and opens each TrainingRun on its own page with per-epoch loss and metric curves, the parameters it fixed, and the version it published. The Training page reports exact totals and lists the 100 most recent runs across datasets with their state and best metrics. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
 
 JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
 
-An uploaded file is a source, not yet an image. The Server accepts one JPEG, PNG, or TIFF photograph up to 64 MiB and 40 megapixels, applies its orientation, converts its colours to sRGB, composites transparency onto white, and encodes one opaque AVIF. Those canonical bytes define the image digest, pixel dimensions, browser view, inference input, and training input. Repeating the same source therefore produces the same image under any filename, while the original filename belongs only to each Dataset membership and is shown, never matched. One image can belong to several datasets and snapshots at once. An upload reports which memberships it created and which already existed. A dataset removal drops the membership and its review documents; the image row goes once nothing refers to it, and its bytes stay on disk until `bun run images:collect` (in `web/`) removes the bytes of images no row refers to, deciding each digest under the same lock uploads take. Because a digest names immutable content, image URLs (`/img/<digest>`) are cached indefinitely.
+An uploaded file is a source, not yet an image. The Server accepts one JPEG, PNG, or TIFF photograph up to 64 MiB and 40 megapixels, applies its orientation, converts its colours to sRGB, composites transparency onto white, and encodes one opaque AVIF. Those canonical bytes define the image digest, pixel dimensions, browser view, inference input, and training input. Repeating the same source therefore produces the same image under any filename, while the original filename belongs only to each Dataset membership and is shown, never matched. One image can belong to several datasets and snapshots at once. An upload reports which memberships it created and which already existed. A dataset removal drops the membership and its review documents; the image row goes once nothing refers to it, while the shared collector removes its bytes later. Because a digest names immutable content, image URLs (`/img/<digest>`) are cached indefinitely.
 
 An image's state within a dataset follows from which rows exist for it there. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
 
@@ -96,12 +97,12 @@ Uploading images to a dataset is all it takes to request prelabels. A named Infe
 
 The inference protocol uses a dedicated credential:
 
-| Call | Purpose |
-|---|---|
-| `POST api/inference/heartbeat` | advertises runtime capabilities and reports loaded/current work |
-| `GET api/inference/pending?workerId=<id>` | compatible assignments with versioned execution manifests |
-| `GET api/inference/images/<digest>` | canonical image bytes |
-| `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document |
+| Call                                                           | Purpose                                                         |
+| -------------------------------------------------------------- | --------------------------------------------------------------- |
+| `POST api/inference/heartbeat`                                 | advertises runtime capabilities and reports loaded/current work |
+| `GET api/inference/pending?workerId=<id>`                      | compatible assignments with versioned execution manifests       |
+| `GET api/inference/images/<digest>`                            | canonical image bytes                                           |
+| `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document                                     |
 
 On each polling interval the Worker heartbeats, fetches one snapshot of pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped until the next interval so the other assignments proceed without creating a hot retry loop. Invalid YOLO cache entries are discarded and rebuilt from verified Server bytes. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
 
@@ -144,8 +145,9 @@ Stopping a profile is cooperative: inference finishes its current image, while t
 Workbench configuration lives in the environment; `.env.example` lists every variable.
 
 - `DATABASE_URL`: the Postgres connection. The workbench applies the SQL migrations in `web/drizzle/` on startup. `pglite://<dir>` runs an embedded Postgres in that directory for single-machine development; `pglite://` alone keeps it in memory.
-- `VITROFLOW_DATA_ROOT`: the blob store (default: `../data` relative to `web/`).
+- `VITROFLOW_BLOB_ENDPOINT` and `VITROFLOW_BLOB_BUCKET`: the HTTP(S) endpoint and bucket holding image and model bytes. The AWS SDK uses its standard credential and region provider chain, including `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION`. `memory://` as the endpoint keeps blobs in the server process for tests. Any S3-compatible store works; Compose runs RustFS.
 - Schema changes: edit `web/src/db/schema.ts`, then generate the migration with `bun run db:generate`.
+- `bun test` (in `web/`) runs against an in-process database and blob store and needs nothing running. The BlobStore contract can also run against RustFS by setting `VITROFLOW_TEST_S3_ENDPOINT` and `VITROFLOW_TEST_S3_BUCKET` together with the standard AWS credentials; `docker compose up -d rustfs bucket` serves one locally.
 
 For a Server deployment:
 
@@ -153,7 +155,7 @@ For a Server deployment:
 docker compose up --build
 ```
 
-`compose.yaml` runs Postgres 17, mounts `./data` at `/data`, and serves port 3000. `VITROFLOW_PASSWORD` protects the workbench. `VITROFLOW_INFERENCE_WORKER_TOKEN` and `VITROFLOW_TRAINING_WORKER_TOKEN` are independent machine credentials for Workers. `VITROFLOW_EXPORT_TOKEN` is a developer/admin credential for `vitroflow dataset pull`; it is never given to a Worker. The workbench runs as a single replica; Workers scale independently because they only reach it over HTTP.
+`compose.yaml` runs Postgres 17 and RustFS, creates the bucket before the workbench starts, and serves port 3000. `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, and `BLOB_BUCKET` name the bucket both services share. `VITROFLOW_PASSWORD` protects the workbench. `VITROFLOW_INFERENCE_WORKER_TOKEN` and `VITROFLOW_TRAINING_WORKER_TOKEN` are independent machine credentials for Workers. `VITROFLOW_EXPORT_TOKEN` is a developer/admin credential for `vitroflow dataset pull`; it is never given to a Worker. The workbench runs as a single replica; Workers scale independently because they only reach it over HTTP.
 
 The same Compose deployment can be used as a local acceptance Server with real Worker tokens. Run the Workers natively against `http://localhost:3000` to exercise authentication and the complete control-plane protocol while retaining macOS MPS acceleration.
 
@@ -161,7 +163,7 @@ The same Compose deployment can be used as a local acceptance Server with real W
 
 The training page's Train action creates a TrainingRun from the `complete` annotations with the recipe's parameters, of which epochs, image size, batch, patience, and learning rate can be changed per run; one run per model is active at a time. The Server freezes the reviewed annotations into a DatasetSnapshot that references images by digest, keeps train/validation assignments stable across later snapshots, and leases queued work to a dedicated Training Worker. Claim is reentrant for the Worker's active lease; the immutable snapshot is fetched as a separate resource. The Worker downloads and verifies each image, materializes YOLO data through the same canonical exporter used by local workflows, and trains through the Ultralytics Python API.
 
-Every TrainingRun pins the base-weight digest, the complete set of Ultralytics training arguments, and the Ultralytics version; the Server validates the Web contract, while one Python recipe parser is shared by the local training entry point, Training Worker, and inference model loader. The published manifest records that identity verbatim. The Worker advances through `preparing → training → validating`; the Server owns the phase order and maps completed epochs onto one monotonic overall progress scale. After each saved epoch's validation pass the Worker posts framework-neutral box, classification, and regression losses together with precision, recall, mAP50, mAP50-95, fitness, and learning rate. The adapter maps either Ultralytics `l1_loss` or `dfl_loss` into regression loss. Lease renewal is a separate operation that cannot rewrite phase or progress, and it covers snapshot preparation, training, and final best-weight validation. A stable Worker ID identifies the machine profile, while a fresh process-session ID fences ownership after every daemon restart; the new process can reclaim its unfinished run immediately as a new attempt, and the previous process can no longer write. Worker protocol responses distinguish malformed requests (`400`), missing runs (`404`), ownership or state conflicts (`409`), invalid artifacts (`422`), and unexpected Server failures (`500`). An unexpected execution error marks the run failed; an intentional shutdown or lost lease remains recoverable. A reclaimed run keeps the earlier attempt's epochs in its history. The Worker then uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. Only the Server publishes the resulting candidate ModelVersion; an interrupted `publishing` state is reconciled before the next claim, and publication never changes the Dataset selection automatically.
+Every TrainingRun pins the base-weight digest, the complete set of Ultralytics training arguments, and the Ultralytics version; the Server validates the Web contract, while one Python recipe parser is shared by the local training entry point, Training Worker, and inference model loader. The published ModelVersion records that identity verbatim. The Worker advances through `preparing → training → validating`; the Server owns the phase order and maps completed epochs onto one monotonic overall progress scale. After each saved epoch's validation pass the Worker posts framework-neutral box, classification, and regression losses together with precision, recall, mAP50, mAP50-95, fitness, and learning rate. The adapter maps either Ultralytics `l1_loss` or `dfl_loss` into regression loss. Lease renewal is a separate operation that cannot rewrite phase or progress, and it covers snapshot preparation, training, and final best-weight validation. A stable Worker ID identifies the machine profile, while a fresh process-session ID fences ownership after every daemon restart; the new process can reclaim its unfinished run immediately as a new attempt, and the previous process can no longer write. Worker protocol responses distinguish malformed requests (`400`), missing runs (`404`), ownership or state conflicts (`409`), invalid artifacts (`422`), and unexpected Server failures (`500`). An unexpected execution error marks the run failed; an intentional shutdown or lost lease remains recoverable. A reclaimed run keeps the earlier attempt's epochs in its history. The Worker uploads `best.pt` and `inference.json` through one idempotent artifact endpoint. The Server stores only the immutable weights owned by that attempt, normalizes the manifest into a candidate ModelVersion, and completes the run in one database transaction; publication never changes the Dataset selection automatically.
 
 Training uses the native profile configured above; neither Worker requires the Server's filesystem. The V1 service host is macOS `launchd`, which preserves native MPS access. A Linux/CUDA deployment should add its own host adapter when it is actually required instead of introducing a second Worker execution interface now.
 

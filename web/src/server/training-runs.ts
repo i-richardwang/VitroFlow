@@ -20,6 +20,7 @@ import {
   trainingRuns,
   trainingWorkers,
 } from "../db/schema";
+import { sameModelVersion, type ModelVersion } from "../models/schema";
 import {
   ACTIVE_TRAINING_RUN_STATUSES,
   inferencePublicationSchema,
@@ -40,13 +41,13 @@ import {
   TrainingRunConflictError,
   TrainingRunNotFoundError,
 } from "../training/errors";
-import { blobExists, moveBlobDirectory, readBlob, writeBlob } from "./blobs";
+import { contentDigest, modelWeightsBlobKey, putImmutableBlob } from "./blobs";
 import {
   createDatasetSnapshot,
   readDatasetSnapshot,
 } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
-import { registerModelVersion } from "./model-registry";
+import { readModelVersion, registerModelVersion } from "./model-registry";
 
 const LEASE_MILLISECONDS = 5 * 60 * 1000;
 const PHASE_PROGRESS: Record<TrainingPhase, number> = {
@@ -70,14 +71,6 @@ type EpochRow = typeof trainingEpochs.$inferSelect;
 type RunningTrainingRun = TrainingRun & {
   state: Extract<TrainingRun["state"], { status: "running" }>;
 };
-
-function stagingKey(runId: string, file: string): string {
-  return `training-staging/${runId}/${file}`;
-}
-
-function artifactKey(versionId: string, file: string): string {
-  return `model-artifacts/${versionId}/${file}`;
-}
 
 /** The version a run publishes; fixed by the run identity before training starts. */
 function trainedVersionId(run: Pick<TrainingRun, "modelId" | "id">): string {
@@ -103,12 +96,6 @@ function toRun(row: Row): TrainingRun {
           leaseExpiresAt: row.leaseExpiresAt?.toISOString(),
           phase: row.phase,
           progress: row.progress,
-        };
-      case "publishing":
-        return {
-          status: row.status,
-          workerId: row.workerId,
-          sessionId: row.sessionId,
         };
       case "succeeded":
         return { status: row.status, modelVersionId: row.modelVersionId };
@@ -187,13 +174,6 @@ function stateColumns(
         leaseExpiresAt: new Date(state.leaseExpiresAt),
         phase: state.phase,
         progress: state.progress,
-      };
-    case "publishing":
-      return {
-        ...cleared,
-        status: state.status,
-        workerId: state.workerId,
-        sessionId: state.sessionId,
       };
     case "succeeded":
       return {
@@ -297,24 +277,61 @@ function artifactDigest(
   return hash.digest("hex");
 }
 
-function assertMatchingArtifact(
-  key: (file: string) => string,
+function trainedModelVersion(
+  run: TrainingRun,
   weights: Uint8Array,
   publication: InferencePublication,
-  runId: string,
-): void {
-  const storedWeights = readBlob(key("weights/best.pt"));
-  const storedPublication = inferencePublicationSchema.parse(
-    JSON.parse(new TextDecoder().decode(readBlob(key("inference.json")))),
-  );
-  if (
-    !Buffer.from(weights).equals(storedWeights) ||
-    canonical(publication) !== canonical(storedPublication)
-  ) {
+): ModelVersion {
+  const versionId = trainedVersionId(run);
+  const weightsDigest = contentDigest(weights);
+  return {
+    schemaVersion: 1,
+    id: versionId,
+    modelId: run.modelId,
+    name: `YOLO26 ${run.createdAt}`,
+    createdAt: run.createdAt,
+    source: {
+      kind: "training_run",
+      trainingRunId: run.id,
+      trainingAttempt: run.attempt,
+      datasetSnapshotId: run.datasetSnapshotId,
+    },
+    artifact: {
+      kind: "ultralytics",
+      digest: artifactDigest(weights, publication),
+      weights: { digest: weightsDigest, bytes: weights.byteLength },
+      inference: {
+        confidence: publication.inference.confidence,
+        imageSize: publication.inference.imgsz,
+        maxDetections: publication.inference.max_det,
+        endToEnd: publication.inference.end2end,
+      },
+      validation: publication.validation,
+      training: {
+        baseModel: {
+          reference: publication.training.base_model.reference,
+          digest: publication.training.base_model.digest,
+        },
+        parameters: publication.training.parameters,
+        runtime: publication.training.runtime,
+      },
+    },
+  };
+}
+
+async function assertPublishedVersion(
+  run: TrainingRun,
+  modelVersionId: string,
+  expected: ModelVersion,
+  db: Executor,
+): Promise<TrainingRun> {
+  const existing = await readModelVersion(modelVersionId, db);
+  if (!existing || !sameModelVersion(existing, expected)) {
     throw new TrainingRunConflictError(
-      `Training run ${runId} already has a different artifact`,
+      `Training run ${run.id} already has a different artifact`,
     );
   }
+  return run;
 }
 
 export async function readTrainingRun(
@@ -435,7 +452,7 @@ export async function latestTrainingRun(
   return row ? toRun(row) : null;
 }
 
-/** The run still queued, leased, or publishing for a model; at most one exists. */
+/** The run still queued or leased for a model; at most one exists. */
 export async function activeTrainingRun(
   modelId: string,
   db?: Executor,
@@ -490,14 +507,6 @@ export async function claimTrainingRun(
   owner: TrainingWorkerIdentity,
   at: Date = new Date(),
 ): Promise<TrainingRun | null> {
-  const recovery = await recoverTrainingPublications();
-  if (recovery.failed.length > 0) {
-    throw new Error(
-      `Training publication recovery failed for ${recovery.failed
-        .map(({ runId }) => runId)
-        .join(", ")}`,
-    );
-  }
   return transaction(async (tx) => {
     const [worker] = await tx
       .select({ sessionId: trainingWorkers.sessionId })
@@ -567,11 +576,24 @@ async function ownedRunningRun(
   owner: TrainingWorkerIdentity,
   db: Executor,
 ): Promise<RunningTrainingRun> {
+  return requireOwnedRunningRun(
+    runId,
+    await readTrainingRun(runId, db),
+    owner,
+    db,
+  );
+}
+
+async function requireOwnedRunningRun(
+  runId: string,
+  run: TrainingRun | null,
+  owner: TrainingWorkerIdentity,
+  db: Executor,
+): Promise<RunningTrainingRun> {
   const [worker] = await db
     .select({ sessionId: trainingWorkers.sessionId })
     .from(trainingWorkers)
     .where(eq(trainingWorkers.id, owner.workerId));
-  const run = await readTrainingRun(runId, db);
   if (
     worker?.sessionId !== owner.sessionId ||
     !run ||
@@ -757,7 +779,13 @@ export async function failTrainingRun(
   );
 }
 
-async function stageTrainingArtifact(
+/**
+ * Stores immutable weights under the current training attempt before a short
+ * transaction makes the resulting version visible. Publication and garbage
+ * collection serialize on the TrainingRun row, so an active attempt remains a
+ * root until it either publishes a version or is superseded.
+ */
+export async function publishTrainingArtifact(
   runId: string,
   owner: TrainingWorkerIdentity,
   weights: Uint8Array,
@@ -768,189 +796,68 @@ async function stageTrainingArtifact(
     throw new TrainingArtifactValidationError(parsed.error.message);
   }
   const publication = parsed.data;
-  return transaction(async (tx) => {
-    const current = await readTrainingRun(runId, tx);
-    if (!current)
-      throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
-    if (
-      canonical(publication.training) !==
-      canonical({
-        base_model: current.recipe.baseModel,
-        parameters: current.recipe.parameters,
-        runtime: current.recipe.runtime,
-      })
-    ) {
-      throw new TrainingArtifactValidationError(
-        "Training artifact identity does not match the run recipe",
-      );
-    }
-    if (current.state.status === "publishing") {
-      if (
-        current.state.workerId !== owner.workerId ||
-        current.state.sessionId !== owner.sessionId
-      ) {
-        throw new TrainingRunConflictError(
-          `Training run ${runId} is not owned by ${owner.workerId}/${owner.sessionId}`,
-        );
-      }
-      assertMatchingArtifact(
-        (file) => stagingKey(runId, file),
-        weights,
-        publication,
-        runId,
-      );
-      return current;
-    }
-    if (current.state.status === "succeeded") {
-      assertMatchingArtifact(
-        (file) => artifactKey(trainedVersionId(current), file),
-        weights,
-        publication,
-        runId,
-      );
-      return current;
-    }
-    const staged = await ownedTransition(
-      runId,
-      owner,
-      {
-        status: "publishing",
-        workerId: owner.workerId,
-        sessionId: owner.sessionId,
-      },
-      tx,
+  const weightsDigest = contentDigest(weights);
+  const db = await database();
+  const current = await readTrainingRun(runId, db);
+  if (!current) {
+    throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
+  }
+  if (
+    canonical(publication.training) !==
+    canonical({
+      base_model: current.recipe.baseModel,
+      parameters: current.recipe.parameters,
+      runtime: current.recipe.runtime,
+    })
+  ) {
+    throw new TrainingArtifactValidationError(
+      "Training artifact identity does not match the run recipe",
     );
-    writeBlob(stagingKey(runId, "weights/best.pt"), weights);
-    writeBlob(
-      stagingKey(runId, "inference.json"),
-      `${JSON.stringify(publication, null, 2)}\n`,
+  }
+  const version = trainedModelVersion(current, weights, publication);
+  if (current.state.status === "succeeded") {
+    return assertPublishedVersion(
+      current,
+      current.state.modelVersionId,
+      version,
+      db,
     );
-    return staged;
-  });
-}
+  }
+  await requireOwnedRunningRun(runId, current, owner, db);
+  const trainingAttempt = current.attempt;
+  await putImmutableBlob(
+    modelWeightsBlobKey(runId, trainingAttempt, weightsDigest),
+    weights,
+  );
 
-/** Upload and server-side publication are one recoverable, idempotent operation. */
-export async function publishTrainingArtifact(
-  runId: string,
-  owner: TrainingWorkerIdentity,
-  weights: Uint8Array,
-  inference: unknown,
-): Promise<TrainingRun> {
-  await stageTrainingArtifact(runId, owner, weights, inference);
-  return finalizeTrainingPublication(runId);
-}
-
-/**
- * Moves the staged artifact into place, then registers the version and
- * completes the run in one transaction. The row lock serialises the worker's
- * upload with server-side recovery, and repeating any step is harmless.
- */
-async function finalizeTrainingPublication(
-  runId: string,
-): Promise<TrainingRun> {
   return transaction(async (tx) => {
     const [row] = await tx
       .select()
       .from(trainingRuns)
       .where(eq(trainingRuns.id, runId))
       .for("update");
-    const current = returned(row, runId);
-    if (current.state.status === "succeeded") return current;
-    if (current.state.status !== "publishing") {
+    const locked = returned(row, runId);
+    if (locked.state.status === "succeeded") {
+      return assertPublishedVersion(
+        locked,
+        locked.state.modelVersionId,
+        version,
+        tx,
+      );
+    }
+    if (locked.attempt !== trainingAttempt) {
       throw new TrainingRunConflictError(
-        `Training run ${runId} is not ready to publish`,
+        `Training run ${runId} attempt ${trainingAttempt} was superseded`,
       );
     }
-    const snapshot = await readDatasetSnapshot(current.datasetSnapshotId, tx);
-    if (!snapshot)
-      throw new Error(`Missing snapshot ${current.datasetSnapshotId}`);
-    const versionId = trainedVersionId(current);
-    if (!blobExists(artifactKey(versionId, "weights/best.pt"))) {
-      if (!blobExists(stagingKey(runId, "weights/best.pt"))) {
-        throw new Error(`Missing staged artifact for training run ${runId}`);
-      }
-      moveBlobDirectory(
-        `training-staging/${runId}`,
-        `model-artifacts/${versionId}`,
-      );
-    }
-    const weights = readBlob(artifactKey(versionId, "weights/best.pt"));
-    const publication = inferencePublicationSchema.parse(
-      JSON.parse(
-        new TextDecoder().decode(
-          readBlob(artifactKey(versionId, "inference.json")),
-        ),
-      ),
-    );
-    const version = await registerModelVersion(
-      {
-        schemaVersion: 1,
-        id: versionId,
-        modelId: current.modelId,
-        name: `YOLO26 ${current.createdAt}`,
-        createdAt: current.createdAt,
-        source: {
-          kind: "training_run",
-          trainingRunId: current.id,
-          datasetSnapshotId: snapshot.id,
-        },
-        artifact: {
-          kind: "ultralytics",
-          digest: artifactDigest(weights, publication),
-          bytes: weights.byteLength,
-          path: artifactKey(versionId, "weights/best.pt"),
-          inference: {
-            confidence: publication.inference.confidence,
-            imageSize: publication.inference.imgsz,
-            maxDetections: publication.inference.max_det,
-            endToEnd: publication.inference.end2end,
-          },
-          validation: publication.validation,
-          training: {
-            baseModel: {
-              reference: publication.training.base_model.reference,
-              digest: publication.training.base_model.digest,
-            },
-            parameters: publication.training.parameters,
-            runtime: publication.training.runtime,
-          },
-        },
-      },
-      tx,
-    );
+    await requireOwnedRunningRun(runId, locked, owner, tx);
+    const registered = await registerModelVersion(version, tx);
     return transition(
       runId,
-      { status: "succeeded", modelVersionId: version.id },
+      { status: "succeeded", modelVersionId: registered.id },
       tx,
     );
   });
-}
-
-export interface TrainingPublicationRecovery {
-  recovered: string[];
-  failed: Array<{ runId: string; error: string }>;
-}
-
-/** Completes publications a server interruption left in `publishing`. */
-export async function recoverTrainingPublications(): Promise<TrainingPublicationRecovery> {
-  const result: TrainingPublicationRecovery = { recovered: [], failed: [] };
-  const db = await database();
-  const rows = await db
-    .select({ id: trainingRuns.id })
-    .from(trainingRuns)
-    .where(eq(trainingRuns.status, "publishing"));
-  for (const { id } of rows) {
-    try {
-      await finalizeTrainingPublication(id);
-      result.recovered.push(id);
-    } catch (error) {
-      result.failed.push({
-        runId: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-  return result;
 }
 
 export async function snapshotForRun(

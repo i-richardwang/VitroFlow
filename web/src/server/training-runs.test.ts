@@ -1,12 +1,17 @@
 import { expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
 
-import { database } from "../db/client";
-import { trainingRuns } from "../db/schema";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { contentDigest, imageBlobKey, readBlob, writeBlob } from "./blobs";
+import {
+  blobExists,
+  contentDigest,
+  imageBlobKey,
+  modelWeightsBlobKey,
+  putImmutableBlob,
+  requireBlob,
+} from "./blobs";
 import { readDatasetSnapshot } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
+import { collectUnreferencedModelWeights } from "./model-weight-collection";
 import { readModelVersion } from "./model-registry";
 import {
   claimTrainingRun,
@@ -18,9 +23,7 @@ import {
   listTrainingEpochs,
   listTrainingRunSummaries,
   publishTrainingArtifact,
-  readTrainingRun,
   recordTrainingEpoch,
-  recoverTrainingPublications,
   renewTrainingLease,
 } from "./training-runs";
 import { recordTrainingHeartbeat } from "./training-worker-store";
@@ -170,7 +173,7 @@ test("a training run owns an immutable self-contained snapshot", async () => {
     new Set(["train", "val"]),
   );
   for (const image of snapshot.images) {
-    expect(contentDigest(readBlob(imageBlobKey(image.digest)))).toBe(
+    expect(contentDigest(await requireBlob(imageBlobKey(image.digest)))).toBe(
       image.digest,
     );
     expect(image.annotation.image.digest).toBe(image.digest);
@@ -227,48 +230,98 @@ test("the server publishes a candidate version idempotently without selecting it
   expect(version?.source).toEqual({
     kind: "training_run",
     trainingRunId: run.id,
+    trainingAttempt: completed.attempt,
     datasetSnapshotId: run.datasetSnapshotId,
   });
   expect(version?.artifact.kind).toBe("ultralytics");
+  if (
+    !version ||
+    version.source.kind !== "training_run" ||
+    version.artifact.kind !== "ultralytics"
+  ) {
+    throw new Error("missing ultralytics version");
+  }
   expect((await readDataset("publish-contract"))?.selectedModelVersionId).toBe(
     dataset.selectedModelVersionId,
   );
   expect(
     new TextDecoder().decode(
-      readBlob(
-        `model-artifacts/${completed.state.modelVersionId}/weights/best.pt`,
+      await requireBlob(
+        modelWeightsBlobKey(
+          run.id,
+          version.source.trainingAttempt,
+          version.artifact.weights.digest,
+        ),
       ),
     ),
   ).toBe("trained-weights");
 });
 
-test("server recovery completes an interrupted durable publication", async () => {
-  await reviewedDataset("recovery-contract");
-  const run = await createTrainingRun("recovery-contract", recipe);
-  await trainer("recovery-publisher");
-  const claimed = await claimTrainingRun(owner("recovery-publisher"));
-  if (!claimed) throw new Error("run was not claimed");
-  writeBlob(`training-staging/${run.id}/weights/best.pt`, "recovered-weights");
-  writeBlob(
-    `training-staging/${run.id}/inference.json`,
-    `${JSON.stringify(publication, null, 2)}\n`,
-  );
-  const db = await database();
-  await db
-    .update(trainingRuns)
-    .set({
-      status: "publishing",
-      leaseExpiresAt: null,
-      phase: null,
-      progress: null,
-    })
-    .where(eq(trainingRuns.id, run.id));
+test("an interrupted upload cannot constrain a reclaimed run", async () => {
+  await reviewedDataset("publication-reclaim");
+  const run = await createTrainingRun("publication-reclaim", recipe);
+  await trainer("original-publisher");
+  await trainer("replacement-publisher");
+  const started = new Date("2026-08-27T00:00:00.000Z");
+  const original = await claimTrainingRun(owner("original-publisher"), started);
+  if (!original) throw new Error("run was not claimed");
 
-  expect(await recoverTrainingPublications()).toEqual({
-    recovered: [run.id],
-    failed: [],
-  });
-  expect((await readTrainingRun(run.id))?.state.status).toBe("succeeded");
+  const abandoned = new TextEncoder().encode("abandoned-weights");
+  await putImmutableBlob(
+    modelWeightsBlobKey(run.id, original.attempt, contentDigest(abandoned)),
+    abandoned,
+  );
+  const replacement = new TextEncoder().encode("replacement-weights");
+  const reclaimed = await claimTrainingRun(
+    owner("replacement-publisher"),
+    new Date(started.getTime() + 6 * 60 * 1000),
+  );
+  expect(reclaimed?.id).toBe(run.id);
+  if (!reclaimed) throw new Error("run was not reclaimed");
+  const completed = await publishTrainingArtifact(
+    run.id,
+    owner("replacement-publisher"),
+    replacement,
+    publication,
+  );
+
+  expect(completed.state.status).toBe("succeeded");
+  const abandonedKey = modelWeightsBlobKey(
+    run.id,
+    original.attempt,
+    contentDigest(abandoned),
+  );
+  const replacementKey = modelWeightsBlobKey(
+    run.id,
+    reclaimed.attempt,
+    contentDigest(replacement),
+  );
+  expect(await collectUnreferencedModelWeights()).toContain(abandonedKey);
+  expect(await blobExists(abandonedKey)).toBeFalse();
+  expect(
+    await requireBlob(replacementKey),
+  ).toEqual(replacement);
+});
+
+test("model weights remain rooted by their active attempt", async () => {
+  await reviewedDataset("publication-active-root");
+  const run = await createTrainingRun("publication-active-root", recipe);
+  await trainer("active-publisher");
+  const active = await claimTrainingRun(owner("active-publisher"));
+  if (!active) throw new Error("run was not claimed");
+  const weights = new TextEncoder().encode("in-flight-weights");
+  const key = modelWeightsBlobKey(
+    run.id,
+    active.attempt,
+    contentDigest(weights),
+  );
+  await putImmutableBlob(key, weights);
+
+  expect(await collectUnreferencedModelWeights()).not.toContain(key);
+  expect(await requireBlob(key)).toEqual(weights);
+  await failTrainingRun(run.id, owner("active-publisher"), "stopped");
+  expect(await collectUnreferencedModelWeights()).toContain(key);
+  expect(await blobExists(key)).toBeFalse();
 });
 
 test("epochs carry the run's progress and survive a reclaimed attempt", async () => {

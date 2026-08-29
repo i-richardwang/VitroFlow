@@ -25,7 +25,7 @@ export interface TrainingOverview {
   total: number;
   /** Newest first. */
   runs: TrainingRunSummary[];
-  /** Runs queued, training, or publishing. */
+  /** Runs queued or training. */
   inProgress: number;
   workersOnline: number;
 }

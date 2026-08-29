@@ -140,7 +140,6 @@ CREATE TABLE "training_runs" (
 	CONSTRAINT "training_runs_state_check" CHECK (case "training_runs"."status"
         when 'queued' then "training_runs"."worker_id" is null and "training_runs"."session_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is null
         when 'running' then "training_runs"."worker_id" is not null and "training_runs"."session_id" is not null and "training_runs"."lease_expires_at" is not null and "training_runs"."phase" in ('preparing', 'training', 'validating') and "training_runs"."progress" is not null and "training_runs"."progress" between 0 and 1 and "training_runs"."error" is null and "training_runs"."model_version_id" is null
-        when 'publishing' then "training_runs"."worker_id" is not null and "training_runs"."session_id" is not null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is null
         when 'succeeded' then "training_runs"."worker_id" is null and "training_runs"."session_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and "training_runs"."error" is null and "training_runs"."model_version_id" is not null
         when 'failed' then "training_runs"."worker_id" is null and "training_runs"."session_id" is null and "training_runs"."lease_expires_at" is null and "training_runs"."phase" is null and "training_runs"."progress" is null and length("training_runs"."error") between 1 and 2000 and "training_runs"."model_version_id" is null
         else false
@@ -183,7 +182,7 @@ CREATE INDEX "inference_workers_seen_idx" ON "inference_workers" USING btree ("l
 CREATE INDEX "labels_dataset_status_idx" ON "labels" USING btree ("dataset_id","status");--> statement-breakpoint
 CREATE INDEX "model_versions_model_idx" ON "model_versions" USING btree ("model_id","created_at");--> statement-breakpoint
 CREATE INDEX "prelabels_version_idx" ON "prelabels" USING btree ("model_version_id","artifact_digest");--> statement-breakpoint
-CREATE UNIQUE INDEX "training_runs_one_active_per_model" ON "training_runs" USING btree ("model_id") WHERE "training_runs"."status" in ('queued', 'running', 'publishing');--> statement-breakpoint
+CREATE UNIQUE INDEX "training_runs_one_active_per_model" ON "training_runs" USING btree ("model_id") WHERE "training_runs"."status" in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "training_runs_model_idx" ON "training_runs" USING btree ("model_id","created_at");--> statement-breakpoint
 CREATE INDEX "training_runs_claimable_idx" ON "training_runs" USING btree ("created_at") WHERE "training_runs"."status" in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "training_workers_seen_idx" ON "training_workers" USING btree ("last_seen_at");

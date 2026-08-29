@@ -242,8 +242,8 @@ function StatusPage() {
         </Widget.Header>
         <Widget.Content>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-            <dt className="text-muted">Data root</dt>
-            <dd className="font-mono">{server.dataRoot}</dd>
+            <dt className="text-muted">Blob store</dt>
+            <dd className="font-mono">{server.blobStore}</dd>
             <dt className="text-muted">Password</dt>
             <dd>
               <Configured value={server.passwordConfigured} />

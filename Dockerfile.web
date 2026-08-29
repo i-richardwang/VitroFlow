@@ -14,7 +14,6 @@ RUN bun run build
 FROM oven/bun:1-slim
 WORKDIR /app/web
 ENV NODE_ENV=production
-ENV VITROFLOW_DATA_ROOT=/data
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY --from=build /app/web/node_modules/@heroui-pro/react ./node_modules/@heroui-pro/react

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -174,8 +175,10 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
     artifact = {
         "kind": "ultralytics",
         "digest": reference.artifact_digest,
-        "bytes": len(b"weights"),
-        "path": "model-artifacts/set.yolo-v1/weights/best.pt",
+        "weights": {
+            "digest": hashlib.sha256(b"weights").hexdigest(),
+            "bytes": len(b"weights"),
+        },
         "inference": {
             "confidence": 0.42,
             "imageSize": 768,
@@ -205,10 +208,11 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
     class Source:
         def __init__(self) -> None:
             self.requested: list[str] = []
+            self.content = b"weights"
 
         def weights(self, version_id: str) -> bytes:
             self.requested.append(version_id)
-            return b"weights"
+            return self.content
 
     source = Source()
     store = ModelStore(source, tmp_path / "worker", "cpu")
@@ -236,3 +240,9 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
     assert source.requested == ["set.yolo-v1", "set.yolo-v1"]
     assert repaired.artifact_digest == reference.artifact_digest
     assert weights.read_bytes() == b"weights"
+
+    store.unload()
+    weights.write_bytes(b"corrupt")
+    source.content = b"WEIGHTS"
+    with pytest.raises(ValueError, match="unexpected digest"):
+        store.load(manifest)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import shutil
@@ -32,13 +33,6 @@ LOGGER = logging.getLogger(__name__)
 
 class WeightsSource(Protocol):
     def weights(self, version_id: str) -> bytes: ...
-
-
-def _relative_artifact_path(value: Any, context: str) -> str:
-    path = as_string(value, context)
-    if path.startswith("/") or "\\" in path or ".." in path.split("/"):
-        raise ValueError(f"{context} must be a relative artifact path")
-    return path
 
 
 def _inference_settings(value: Any, context: str) -> None:
@@ -82,16 +76,17 @@ def _model_artifact(value: Any, context: str) -> dict[str, Any]:
             {
                 "kind",
                 "digest",
-                "bytes",
-                "path",
+                "weights",
                 "inference",
                 "validation",
                 "training",
             },
             context,
         )
-        as_integer(artifact["bytes"], f"{context}.bytes", 1)
-        _relative_artifact_path(artifact["path"], f"{context}.path")
+        weights = as_object(artifact["weights"], f"{context}.weights")
+        expect_fields(weights, {"digest", "bytes"}, f"{context}.weights")
+        as_digest(weights["digest"], f"{context}.weights.digest")
+        as_integer(weights["bytes"], f"{context}.weights.bytes", 1)
         _inference_settings(artifact["inference"], f"{context}.inference")
         _validation_metrics(artifact["validation"], f"{context}.validation")
         parse_training_recipe(artifact["training"], f"{context}.training")
@@ -201,8 +196,10 @@ class ModelStore:
             weights = temporary / "weights" / "best.pt"
             weights.parent.mkdir(parents=True)
             content = self._source.weights(version_id)
-            if len(content) != artifact["bytes"]:
+            if len(content) != artifact["weights"]["bytes"]:
                 raise ValueError("Downloaded YOLO weights have an unexpected size")
+            if hashlib.sha256(content).hexdigest() != artifact["weights"]["digest"]:
+                raise ValueError("Downloaded YOLO weights have an unexpected digest")
             weights.write_bytes(content)
             inference = artifact["inference"]
             training = artifact["training"]

@@ -12,7 +12,7 @@ import {
   prelabels,
   trainingRuns,
 } from "../db/schema";
-import { DATA_ROOT } from "./blobs";
+import { blobStoreDescription } from "./blobs";
 import { listDatasets } from "./datasets";
 import {
   inferenceWorkerPresence,
@@ -148,7 +148,7 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
         : null,
     })),
     server: {
-      dataRoot: DATA_ROOT,
+      blobStore: blobStoreDescription(),
       passwordConfigured: Boolean(process.env.VITROFLOW_PASSWORD),
       inferenceWorkerTokenConfigured: Boolean(
         process.env.VITROFLOW_INFERENCE_WORKER_TOKEN,

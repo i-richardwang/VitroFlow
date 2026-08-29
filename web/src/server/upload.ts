@@ -4,7 +4,7 @@ import { transaction } from "../db/client";
 import { datasetImages, images } from "../db/schema";
 import { DATASET_NAME } from "../datasets/schema";
 import { MAX_SOURCE_IMAGE_BYTES } from "../images/canonical";
-import { blobExists, imageBlobKey, writeBlob } from "./blobs";
+import { imageBlobKey, putImmutableBlob } from "./blobs";
 import {
   ensureDataset,
   membershipQuery,
@@ -87,8 +87,7 @@ export async function addImage(
         uploadedAt,
       })
       .onConflictDoNothing();
-    const key = imageBlobKey(digest);
-    if (!blobExists(key)) writeBlob(key, bytes);
+    await putImmutableBlob(imageBlobKey(digest), bytes);
     const [membership] = await tx
       .insert(datasetImages)
       .values({

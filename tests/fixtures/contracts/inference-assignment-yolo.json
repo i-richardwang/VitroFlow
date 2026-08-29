@@ -5,8 +5,10 @@
     "artifact": {
       "kind": "ultralytics",
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "bytes": 1024,
-      "path": "model-artifacts/set.yolo-v1/weights/best.pt",
+      "weights": {
+        "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "bytes": 1024
+      },
       "inference": {
         "confidence": 0.42,
         "imageSize": 768,

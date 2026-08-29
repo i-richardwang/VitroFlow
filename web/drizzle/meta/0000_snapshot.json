@@ -1,5 +1,5 @@
 {
-  "id": "ab5f5543-27bf-4395-896a-0178b1bc0d0b",
+  "id": "959a6d39-d501-4900-9884-850ec69bf5a0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1165,7 +1165,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"training_runs\".\"status\" in ('queued', 'running', 'publishing')",
+          "where": "\"training_runs\".\"status\" in ('queued', 'running')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1263,7 +1263,7 @@
         },
         "training_runs_state_check": {
           "name": "training_runs_state_check",
-          "value": "case \"training_runs\".\"status\"\n        when 'queued' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'running' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"session_id\" is not null and \"training_runs\".\"lease_expires_at\" is not null and \"training_runs\".\"phase\" in ('preparing', 'training', 'validating') and \"training_runs\".\"progress\" is not null and \"training_runs\".\"progress\" between 0 and 1 and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'publishing' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"session_id\" is not null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'succeeded' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is not null\n        when 'failed' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and length(\"training_runs\".\"error\") between 1 and 2000 and \"training_runs\".\"model_version_id\" is null\n        else false\n      end"
+          "value": "case \"training_runs\".\"status\"\n        when 'queued' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'running' then \"training_runs\".\"worker_id\" is not null and \"training_runs\".\"session_id\" is not null and \"training_runs\".\"lease_expires_at\" is not null and \"training_runs\".\"phase\" in ('preparing', 'training', 'validating') and \"training_runs\".\"progress\" is not null and \"training_runs\".\"progress\" between 0 and 1 and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is null\n        when 'succeeded' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and \"training_runs\".\"error\" is null and \"training_runs\".\"model_version_id\" is not null\n        when 'failed' then \"training_runs\".\"worker_id\" is null and \"training_runs\".\"session_id\" is null and \"training_runs\".\"lease_expires_at\" is null and \"training_runs\".\"phase\" is null and \"training_runs\".\"progress\" is null and length(\"training_runs\".\"error\") between 1 and 2000 and \"training_runs\".\"model_version_id\" is null\n        else false\n      end"
         }
       },
       "isRLSEnabled": false

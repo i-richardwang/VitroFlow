@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
+import { modelVersionSchema, sameModelVersion } from "../models/schema";
 
 import {
   listModels,
@@ -27,13 +28,13 @@ test("registry lists immutable versions under their logical model", async () => 
     source: {
       kind: "training_run" as const,
       trainingRunId: "train-registry",
+      trainingAttempt: 1,
       datasetSnapshotId: "snapshot-registry",
     },
     artifact: {
       kind: "ultralytics" as const,
       digest: "d".repeat(64),
-      bytes: 10,
-      path: "model-artifacts/registry-detector-v1/weights/best.pt",
+      weights: { digest: "c".repeat(64), bytes: 10 },
       inference: {
         confidence: 0.4,
         imageSize: 768,
@@ -55,6 +56,23 @@ test("registry lists immutable versions under their logical model", async () => 
   expect(await listModels()).toContainEqual(model);
   expect(await listModelVersions(model.id)).toEqual([version]);
   expect(await readModelVersion(version.id)).toEqual(version);
+  expect(
+    sameModelVersion(version, {
+      artifact: candidate.artifact,
+      source: candidate.source,
+      createdAt: candidate.createdAt,
+      name: candidate.name,
+      modelId: candidate.modelId,
+      id: candidate.id,
+      schemaVersion: candidate.schemaVersion,
+    }),
+  ).toBeTrue();
+  expect(
+    modelVersionSchema.safeParse({
+      ...candidate,
+      artifact: { kind: "traditional", digest: "c".repeat(64) },
+    }).success,
+  ).toBeFalse();
   await expect(
     registerModelVersion({
       ...candidate,

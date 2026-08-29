@@ -14,7 +14,7 @@ import { lockImage } from "./image-lock";
  */
 export async function collectUnreferencedImages(): Promise<string[]> {
   const collected: string[] = [];
-  for (const key of listBlobs("images")) {
+  for (const key of await listBlobs("images/")) {
     const parsed = imageDigestSchema.safeParse(key.split("/").at(-1));
     if (!parsed.success || key !== imageBlobKey(parsed.data)) continue;
     const digest = parsed.data;
@@ -25,7 +25,7 @@ export async function collectUnreferencedImages(): Promise<string[]> {
         .from(images)
         .where(eq(images.id, digest));
       if (row) return false;
-      removeBlob(key);
+      await removeBlob(key);
       return true;
     });
     if (removed) collected.push(digest);

@@ -334,7 +334,6 @@ export const trainingRuns = pgTable(
       sql`case ${table.status}
         when 'queued' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
         when 'running' then ${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null and ${table.phase} in ('preparing', 'training', 'validating') and ${table.progress} is not null and ${table.progress} between 0 and 1 and ${table.error} is null and ${table.modelVersionId} is null
-        when 'publishing' then ${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
         when 'succeeded' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is not null
         when 'failed' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and length(${table.error}) between 1 and 2000 and ${table.modelVersionId} is null
         else false
@@ -343,7 +342,7 @@ export const trainingRuns = pgTable(
     /** A model trains one run at a time. */
     uniqueIndex("training_runs_one_active_per_model")
       .on(table.modelId)
-      .where(sql`${table.status} in ('queued', 'running', 'publishing')`),
+      .where(sql`${table.status} in ('queued', 'running')`),
     index("training_runs_model_idx").on(table.modelId, table.createdAt),
     index("training_runs_claimable_idx")
       .on(table.createdAt)

@@ -7,14 +7,17 @@ services:
         HEROUI_KEY: ${HEROUI_KEY:?HEROUI_KEY is required to build the workbench}
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-vitroflow}:${POSTGRES_PASSWORD:-vitroflow}@postgres:5432/${POSTGRES_DB:-vitroflow}
+      VITROFLOW_BLOB_ENDPOINT: http://rustfs:9000
+      VITROFLOW_BLOB_BUCKET: ${BLOB_BUCKET:-vitroflow}
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-vitroflow}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-vitroflow}
+      AWS_REGION: us-east-1
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
       VITROFLOW_INFERENCE_WORKER_TOKEN: ${VITROFLOW_INFERENCE_WORKER_TOKEN:-}
       VITROFLOW_TRAINING_WORKER_TOKEN: ${VITROFLOW_TRAINING_WORKER_TOKEN:-}
       VITROFLOW_EXPORT_TOKEN: ${VITROFLOW_EXPORT_TOKEN:-}
     ports:
       - "3000:3000"
-    volumes:
-      - ./data:/data
     healthcheck:
       test:
         - CMD
@@ -28,6 +31,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      bucket:
+        condition: service_completed_successfully
 
   postgres:
     image: postgres:17
@@ -38,10 +43,49 @@ services:
     volumes:
       - postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vitroflow} -d ${POSTGRES_DB:-vitroflow}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-vitroflow} -d ${POSTGRES_DB:-vitroflow}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  rustfs:
+    image: rustfs/rustfs:1.0.0-beta.12
+    # Published so that a workbench run from source shares this bucket.
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-vitroflow}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-vitroflow}
+    volumes:
+      - rustfs:/data
+
+  # The bucket the workbench addresses, created once before it starts.
+  bucket:
+    image: amazon/aws-cli:2.36.34
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-vitroflow}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-vitroflow}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        endpoint=http://rustfs:9000
+        bucket=${BLOB_BUCKET:-vitroflow}
+        for attempt in $$(seq 1 30); do
+          aws --endpoint-url "$$endpoint" s3api head-bucket --bucket "$$bucket" 2>/dev/null && exit 0
+          aws --endpoint-url "$$endpoint" s3api create-bucket --bucket "$$bucket" && exit 0
+          sleep 2
+        done
+        echo "RustFS did not accept a bucket at $$endpoint" >&2
+        exit 1
+    depends_on:
+      - rustfs
+
 volumes:
   postgres:
+  rustfs:

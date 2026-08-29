@@ -4,10 +4,11 @@ import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/training/artifact";
 const CLIENT_DIR = `${import.meta.dir}/dist/client`;
 const port = Number(process.env.PORT ?? 3000);
 
-// Connect and migrate before accepting traffic, so a bad DATABASE_URL fails the start.
+// Reach the database and the blob store before accepting traffic, so a bad
+// DATABASE_URL or blob-store configuration fails the start rather than a request.
 const health = await handler.fetch(new Request("http://localhost/healthz"));
 if (!health.ok) {
-  throw new Error(`Database is not ready: ${await health.text()}`);
+  throw new Error(`Server is not ready: ${await health.text()}`);
 }
 
 Bun.serve({

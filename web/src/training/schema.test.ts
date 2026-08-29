@@ -28,7 +28,7 @@ function snapshotImage(digest: string, split: "train" | "val") {
   };
 }
 
-test("active training states include recoverable publication", () => {
+test("only queued and running training states are active", () => {
   expect(isTrainingRunActive({ state: { status: "queued" } })).toBeTrue();
   expect(
     isTrainingRunActive({
@@ -39,15 +39,6 @@ test("active training states include recoverable publication", () => {
         leaseExpiresAt: "2026-08-28T00:00:00.000Z",
         phase: "training",
         progress: 0.5,
-      },
-    }),
-  ).toBeTrue();
-  expect(
-    isTrainingRunActive({
-      state: {
-        status: "publishing",
-        workerId: "trainer",
-        sessionId: "trainer-session",
       },
     }),
   ).toBeTrue();

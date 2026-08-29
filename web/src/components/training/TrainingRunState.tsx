@@ -2,7 +2,7 @@ import { Chip } from "@heroui/react";
 
 import type { TrainingRun } from "../../training/schema";
 
-type Tone = "default" | "accent" | "warning" | "success" | "danger";
+type Tone = "default" | "accent" | "success" | "danger";
 
 const PHASE_LABELS = {
   preparing: "Preparing",
@@ -16,8 +16,6 @@ function tone(status: TrainingRun["state"]["status"]): Tone {
       return "default";
     case "running":
       return "accent";
-    case "publishing":
-      return "warning";
     case "succeeded":
       return "success";
     case "failed":
