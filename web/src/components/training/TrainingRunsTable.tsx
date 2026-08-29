@@ -4,6 +4,7 @@ import { Link, Table } from "@heroui/react";
 import { versionSlug } from "../../models/schema";
 import type { TrainingRunSummary } from "../../server/training-runs";
 import { trainingRunLabel } from "../../training/schema";
+import { Hint } from "../Hint";
 import { TrainingIcon } from "../icons";
 import { Metric } from "./Metric";
 import { TrainingRunState } from "./TrainingRunState";
@@ -70,7 +71,13 @@ export function TrainingRunsTable({
                   <Table.Cell className="font-mono">{dataset}</Table.Cell>
                 )}
                 <Table.Cell>
-                  <TrainingRunState run={run} />
+                  <Hint
+                    text={
+                      run.state.status === "failed" ? run.state.error : null
+                    }
+                  >
+                    <TrainingRunState run={run} />
+                  </Hint>
                 </Table.Cell>
                 <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums">
                   {completed}

@@ -86,24 +86,33 @@ function instanceMetrics(
   annotation: AnnotationDocument,
   selected: SeedInstance | null,
 ): Metric[] {
-  const count = {
-    label: "Count",
-    value: String(annotation.instances.length),
-  };
-  if (!selected) {
-    return [count, { label: "Selected", value: "—" }];
-  }
-  return [
-    count,
+  const rows: Metric[] = [
+    {
+      label: "Count",
+      value: String(annotation.instances.length),
+    },
     {
       label: "Selected",
-      value: `#${annotation.instances.indexOf(selected) + 1}`,
+      value: selected
+        ? `#${annotation.instances.indexOf(selected) + 1}`
+        : "—",
     },
-    { label: "x", value: selected.bbox.x.toFixed(1) },
-    { label: "y", value: selected.bbox.y.toFixed(1) },
-    { label: "Width", value: selected.bbox.width.toFixed(1) },
-    { label: "Height", value: selected.bbox.height.toFixed(1) },
   ];
+  if (annotation.status === "excluded") {
+    rows.push({
+      label: "Excluded",
+      value: annotation.excludedReason ?? "—",
+    });
+  }
+  if (selected) {
+    rows.push(
+      { label: "x", value: selected.bbox.x.toFixed(1) },
+      { label: "y", value: selected.bbox.y.toFixed(1) },
+      { label: "Width", value: selected.bbox.width.toFixed(1) },
+      { label: "Height", value: selected.bbox.height.toFixed(1) },
+    );
+  }
+  return rows;
 }
 
 function diagnosticMetrics(result: PrelabelResult): Metric[] {

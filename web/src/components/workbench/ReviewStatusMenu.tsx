@@ -5,6 +5,7 @@ import {
   Label,
   Modal,
   TextField,
+  toast,
 } from "@heroui/react";
 import { useState } from "react";
 
@@ -38,27 +39,19 @@ export function ReviewStatusMenu({
 }) {
   const [excluding, setExcluding] = useState(false);
   const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   const review = (event: ReviewEvent) => {
     try {
       onReview(event);
-      setError(null);
     } catch (cause) {
-      setError(
+      toast.danger(
         cause instanceof ReviewTransitionError ? cause.message : String(cause),
       );
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-danger">{error}</span>}
-      {annotation.excludedReason && (
-        <span className="max-w-48 truncate text-xs text-muted">
-          {annotation.excludedReason}
-        </span>
-      )}
+    <>
       <Dropdown>
         <Button variant="ghost">
           <ImageStateDot state={annotation.status} />
@@ -126,6 +119,6 @@ export function ReviewStatusMenu({
           </Modal.Container>
         </Modal.Backdrop>
       </Modal>
-    </div>
+    </>
   );
 }

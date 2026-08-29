@@ -9,6 +9,7 @@ import { DatasetOverview } from "../../components/dataset/DatasetOverview";
 import { PrelabelVersion } from "../../components/dataset/PrelabelVersion";
 import { UploadDialog } from "../../components/dataset/UploadDialog";
 import { VersionsDialog } from "../../components/dataset/VersionsDialog";
+import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
@@ -129,22 +130,18 @@ function DatasetPage() {
                   className="cursor-(--cursor-interactive)"
                 >
                   <Table.Cell className="font-mono font-medium">
-                    {image.filename}
-                    <PrelabelVersion
-                      dataset={overview.dataset}
-                      versionId={image.modelVersionId}
-                    />
-                    {image.error && (
-                      <span
-                        className="mt-1 block max-w-72 truncate font-sans text-xs font-normal text-danger"
-                        title={image.error}
-                      >
-                        {image.error}
-                      </span>
-                    )}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{image.filename}</span>
+                      <PrelabelVersion
+                        dataset={overview.dataset}
+                        versionId={image.modelVersionId}
+                      />
+                    </span>
                   </Table.Cell>
                   <Table.Cell>
-                    <ImageStateChip state={image.state} />
+                    <Hint text={image.error}>
+                      <ImageStateChip state={image.state} />
+                    </Hint>
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
                     <Count value={image.detectionCount} />

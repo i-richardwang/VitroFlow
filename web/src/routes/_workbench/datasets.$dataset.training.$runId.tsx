@@ -2,7 +2,7 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Widget } from "@heroui-pro/react/widget";
-import { Link } from "@heroui/react";
+import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
@@ -60,6 +60,16 @@ function TrainingRunPage() {
         </>
       }
     >
+      {run.state.status === "failed" ? (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Training failed</Alert.Title>
+            <Alert.Description>{run.state.error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : null}
+
       <KPIGroup>
         <KPI>
           <KPI.Header>

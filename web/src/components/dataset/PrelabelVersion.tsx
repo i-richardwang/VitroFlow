@@ -1,7 +1,10 @@
+import { Chip } from "@heroui/react";
+
 import type { Dataset } from "../../datasets/schema";
 import { versionSlug } from "../../models/schema";
+import { Hint } from "../Hint";
 
-/** Shown under an image name only when its prelabel is not the selected version. */
+/** Warning when this image's prelabel is not the selected version. */
 export function PrelabelVersion({
   dataset,
   versionId,
@@ -13,11 +16,10 @@ export function PrelabelVersion({
     return null;
   }
   return (
-    <span
-      className="mt-1 block font-mono text-xs font-normal text-warning"
-      title={`${versionId} is no longer the selected version`}
-    >
-      {versionSlug({ id: versionId, modelId: dataset.modelId })}
-    </span>
+    <Hint text="Not the selected prelabel version">
+      <Chip color="warning" variant="soft" size="sm">
+        {versionSlug({ id: versionId, modelId: dataset.modelId })}
+      </Chip>
+    </Hint>
   );
 }

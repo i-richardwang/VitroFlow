@@ -1,5 +1,5 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Button } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -83,44 +83,47 @@ function Notice({
   description: string;
   action?: { label: string; run: () => Promise<unknown> };
 }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const perform = async () => {
-    if (!action) {
-      return;
-    }
-    setBusy(true);
-    try {
-      await action.run();
-      await router.invalidate();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <EmptyState>
       <EmptyState.Header>
         <EmptyState.Title>{title}</EmptyState.Title>
         <EmptyState.Description>{description}</EmptyState.Description>
       </EmptyState.Header>
-      {action && (
+      {action ? (
         <EmptyState.Content>
-          <Button
-            variant="primary"
-            size="sm"
-            isDisabled={busy}
-            onPress={perform}
-          >
-            {action.label}
-          </Button>
-          {error && <span className="text-xs text-danger">{error}</span>}
+          <NoticeAction action={action} />
         </EmptyState.Content>
-      )}
+      ) : null}
     </EmptyState>
+  );
+}
+
+function NoticeAction({
+  action,
+}: {
+  action: { label: string; run: () => Promise<unknown> };
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Button
+      variant="primary"
+      size="sm"
+      isDisabled={busy}
+      onPress={async () => {
+        setBusy(true);
+        try {
+          await action.run();
+          await router.invalidate();
+        } catch (cause) {
+          toast.danger(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {action.label}
+    </Button>
   );
 }

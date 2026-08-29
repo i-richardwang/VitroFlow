@@ -1,6 +1,7 @@
 import { Button } from "@heroui/react";
 
 import type { SaveState } from "../../hooks/useAnnotation";
+import { Hint } from "../Hint";
 
 export function SaveIndicator({
   state,
@@ -14,9 +15,9 @@ export function SaveIndicator({
   if (state === "failed") {
     return (
       <span className="flex items-center gap-2 text-xs">
-        <span className="text-danger" title={error ?? undefined}>
-          Save failed
-        </span>
+        <Hint text={error}>
+          <span className="text-danger">Save failed</span>
+        </Hint>
         <Button variant="danger-soft" onPress={onRetry}>
           Retry
         </Button>
