@@ -15,18 +15,18 @@ from .config import PipelineConfig
 from .dataset_pull import DatasetPullError, pull_dataset
 from .files import atomic_directory
 from .manifest import load_dataset_manifest, manifest_path, verified_blob
-from .prelabel import (
-    PreparedImage,
-    evaluate_candidate_model,
-    evaluate_proposals,
-    prepare_images,
-    train_candidate_model,
-)
 from .scoring import (
     DEFAULT_MODEL,
     CandidateModel,
     load_candidate_model,
     write_candidate_model,
+)
+from .traditional_training import (
+    PreparedImage,
+    evaluate_candidate_model,
+    evaluate_proposals,
+    prepare_images,
+    train_candidate_model,
 )
 from .worker_command import add_worker_commands
 from .yolo import export_yolo_dataset
@@ -79,7 +79,7 @@ def _prepared_images(
     return prepare_images([image.annotation for image in labelled], data_root, config)
 
 
-def _evaluate_prelabel(args: argparse.Namespace) -> int:
+def _evaluate_traditional(args: argparse.Namespace) -> int:
     config = _pipeline_config(args.config)
     images = _prepared_images(args, config)
     model = _candidate_model(args.model)
@@ -203,20 +203,22 @@ def _parser() -> argparse.ArgumentParser:
     _add_pipeline_options(recognize)
     recognize.set_defaults(handler=_recognize)
 
-    prelabel = commands.add_parser(
-        "prelabel", help="Evaluate and train candidate scoring"
+    traditional = commands.add_parser(
+        "traditional", help="Evaluate and train candidate scoring"
     )
-    prelabel_commands = prelabel.add_subparsers(dest="prelabel_command", required=True)
+    traditional_commands = traditional.add_subparsers(
+        dest="traditional_command", required=True
+    )
 
-    evaluate = prelabel_commands.add_parser(
+    evaluate = traditional_commands.add_parser(
         "evaluate", help="Evaluate a model on complete annotations"
     )
     _add_dataset_options(evaluate)
     _add_pipeline_options(evaluate)
     evaluate.add_argument("--model", help="Candidate model JSON")
-    evaluate.set_defaults(handler=_evaluate_prelabel)
+    evaluate.set_defaults(handler=_evaluate_traditional)
 
-    train = prelabel_commands.add_parser(
+    train = traditional_commands.add_parser(
         "train", help="Train a model from complete annotations"
     )
     _add_dataset_options(train)

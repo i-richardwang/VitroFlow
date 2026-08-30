@@ -1,7 +1,12 @@
 import { and, asc, eq, lte, sql } from "drizzle-orm";
 
 import { database, transaction } from "../db/client";
-import { datasetImages, datasetSnapshotImages, images } from "../db/schema";
+import {
+  datasetImages,
+  datasetSnapshotImages,
+  experimentPhotos,
+  images,
+} from "../db/schema";
 import { imageDigestSchema } from "../datasets/schema";
 import { imageBlobKey, listBlobs, removeBlob } from "./blobs";
 import { lockImage } from "./image-lock";
@@ -13,10 +18,11 @@ import { lockImage } from "./image-lock";
  */
 const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
 
-/** No dataset and no snapshot refers to the image. */
+/** No dataset, snapshot, or experiment refers to the image. */
 function unclaimed() {
   return sql`not exists (select 1 from ${datasetImages} where ${datasetImages.imageId} = ${images.id})
-    and not exists (select 1 from ${datasetSnapshotImages} where ${datasetSnapshotImages.imageId} = ${images.id})`;
+    and not exists (select 1 from ${datasetSnapshotImages} where ${datasetSnapshotImages.imageId} = ${images.id})
+    and not exists (select 1 from ${experimentPhotos} where ${experimentPhotos.imageId} = ${images.id})`;
 }
 
 /**

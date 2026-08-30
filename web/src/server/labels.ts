@@ -4,11 +4,10 @@ import {
   annotationSchema,
   type AnnotationDocument,
 } from "../annotation/schema";
-import { documentFromPrelabel } from "../annotation/prelabel";
+import { documentFromDetection } from "../annotation/detection";
 import { database, transaction, type Executor } from "../db/client";
 import { labels } from "../db/schema";
 import type { ImageRef } from "../datasets/schema";
-import { isFailure } from "../detection/schema";
 import { atRef, describeRef, notInDataset } from "./datasets";
 import { assertDocumentImage } from "./image-documents";
 import { lockImageRecord } from "./summaries";
@@ -24,7 +23,7 @@ export async function readLabel(
   return row?.document ?? null;
 }
 
-/** Starts a review; the image row lock freezes the prelabel it starts from. */
+/** Starts a review from a document the caller assembled. */
 export async function createLabel(
   ref: ImageRef,
   document: AnnotationDocument,
@@ -47,8 +46,8 @@ export async function createLabel(
   });
 }
 
-/** Starts a review from the image's prelabel, atomically with reading it. */
-export async function createLabelFromPrelabel(
+/** Starts a review from the selected version's detection, atomically with reading it. */
+export async function createLabelFromDetection(
   ref: ImageRef,
 ): Promise<AnnotationDocument> {
   return transaction(async (tx) => {
@@ -57,11 +56,11 @@ export async function createLabelFromPrelabel(
     if (record.label) {
       throw new Error(`Label already exists for ${describeRef(ref)}`);
     }
-    if (!record.prelabel || isFailure(record.prelabel)) {
+    if (!record.detection) {
       throw new Error("The image has no detections to start from");
     }
     const created = annotationSchema.parse({
-      ...documentFromPrelabel(record.prelabel),
+      ...documentFromDetection(record.detection),
       revision: 0,
     });
     await tx.insert(labels).values({
@@ -87,6 +86,7 @@ export async function updateLabel(
   const next = annotationSchema.parse({
     ...document,
     image: current.image,
+    source: current.source,
     revision: current.revision + 1,
   });
   const updated = await db

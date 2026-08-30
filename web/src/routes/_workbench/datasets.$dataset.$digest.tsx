@@ -20,23 +20,25 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
 
 function ImagePage() {
   const image = Route.useParams();
-  const { summary, prelabel, label } = Route.useLoaderData();
+  const { summary, detection, failure, label } = Route.useLoaderData();
   const router = useRouter();
 
+  const waiting = detection === null && failure === null && label === null;
   useEffect(() => {
-    if (prelabel !== null) {
+    if (!waiting) {
       return;
     }
     const timer = window.setInterval(() => void router.invalidate(), 5000);
     return () => window.clearInterval(timer);
-  }, [prelabel, router]);
+  }, [waiting, router]);
 
   return (
     <ImageWorkbench
       key={`${image.dataset}/${image.digest}`}
       image={image}
       filename={summary.filename}
-      prelabel={prelabel}
+      detection={detection}
+      failure={failure}
       label={label}
     />
   );

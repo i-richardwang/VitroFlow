@@ -35,7 +35,7 @@ function toRecord(
     startedAt: row.startedAt.toISOString(),
     runtimes: row.runtimes,
     loaded: row.loadedModelVersionId,
-    current: row.current,
+    current: row.currentImageId,
     lastSeenAt: row.lastSeenAt.toISOString(),
   });
 }
@@ -60,7 +60,7 @@ export async function recordInferenceHeartbeat(
     startedAt: new Date(worker.startedAt),
     runtimes: worker.runtimes,
     loadedModelVersionId: worker.loaded,
-    current: worker.current,
+    currentImageId: worker.current,
     lastSeenAt: at,
   };
   const [stored] = await db

@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
+import { documentFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { selectModelVersion } from "./datasets";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
 import { createLabel, readLabel, updateLabel } from "./labels";
+import { recordInferenceOutcome } from "./detections";
 import { registerModelVersion } from "./model-registry";
 import { datasetOverview } from "./overview";
-import { writePrelabel } from "./prelabels";
 import {
   claimTrainingRun,
   createTrainingRun,
@@ -27,22 +27,25 @@ async function datasetWithImages(datasetId: string, names: string[]) {
     testHeartbeat(`${datasetId}-worker`),
     HEARTBEAT_AT,
   );
-  const prelabelFor = (name: string) => resultFor(version, name);
-  return { dataset, version, worker, prelabelFor };
+  const detectionFor = (name: string) => resultFor(version, name);
+  return { dataset, version, worker, detectionFor };
 }
 
 test("the overview derives versions, serving workers, and training readiness", async () => {
   const at = OVERVIEW_AT;
-  const { version, worker, prelabelFor } = await datasetWithImages("overview", [
-    "a",
-    "b",
-    "c",
-  ]);
+  const { version, worker, detectionFor } = await datasetWithImages(
+    "overview",
+    ["a", "b", "c"],
+  );
   for (const name of ["a", "b"]) {
     const ref = { dataset: "overview", digest: await imageDigest(name) };
-    await writePrelabel(ref, await prelabelFor(name), worker);
+    await recordInferenceOutcome(
+      { versionId: version.id, digest: ref.digest },
+      await detectionFor(name),
+      worker,
+    );
     await createLabel(ref, {
-      ...documentFromPrelabel(await prelabelFor(name)),
+      ...documentFromDetection(await detectionFor(name)),
       status: "complete",
     });
   }
@@ -50,9 +53,9 @@ test("the overview derives versions, serving workers, and training readiness", a
   let overview = await datasetOverview("overview", at);
   if (!overview) throw new Error("missing overview");
   expect(overview.counts).toMatchObject({ pending: 1, complete: 2 });
-  expect(overview.images.map((image) => image.modelVersionId)).toEqual([
-    version.id,
-    version.id,
+  expect(overview.images.map((image) => image.detectionCount)).toEqual([
+    0,
+    0,
     null,
   ]);
   expect(overview.versions).toEqual([

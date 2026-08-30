@@ -71,6 +71,7 @@ export function ImageDropZone({
         <DropZone.Trigger isDisabled={busy}>Select images</DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
+        aria-label="Select images"
         accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
         disabled={busy}
         multiple

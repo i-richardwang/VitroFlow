@@ -13,10 +13,10 @@ import numpy as np
 from ..annotations import BoundingBox
 from ..yolo.runtime import load_yolo
 from .contract import (
-    PredictionProducer,
-    PrelabelInstance,
-    PrelabelQuality,
-    PrelabelResult,
+    DetectionInstance,
+    DetectionProducer,
+    DetectionQuality,
+    DetectionResult,
     RuntimeDescriptor,
 )
 
@@ -123,7 +123,7 @@ def _runtime_fingerprint() -> str:
     digest.update(b"\0ultralytics\0")
     digest.update(ultralytics_version.encode())
     package = Path(__file__).parent
-    for name in ("contract.py", "yolo.py"):
+    for name in ("contract.py", "ultralytics.py"):
         digest.update(b"\0")
         digest.update(name.encode())
         digest.update(b"\0")
@@ -131,14 +131,14 @@ def _runtime_fingerprint() -> str:
     return digest.hexdigest()
 
 
-def yolo_runtime_descriptor() -> RuntimeDescriptor:
+def ultralytics_runtime_descriptor() -> RuntimeDescriptor:
     """The runtime identity this process would sign YOLO predictions with."""
     load_yolo()
     return RuntimeDescriptor(adapter="ultralytics", fingerprint=_runtime_fingerprint())
 
 
 @dataclass
-class YoloPrelabeler:
+class UltralyticsDetector:
     """Runs one validated YOLO training artifact through the shared contract."""
 
     weights: Path
@@ -155,7 +155,7 @@ class YoloPrelabeler:
             raise FileNotFoundError(self.weights)
         self._runtime = load_yolo()
         self._artifact_digest = _artifact_digest(self.weights, self.settings)
-        self._runtime_descriptor = yolo_runtime_descriptor()
+        self._runtime_descriptor = ultralytics_runtime_descriptor()
 
     @classmethod
     def from_run(
@@ -163,7 +163,7 @@ class YoloPrelabeler:
         run_dir: str | Path,
         *,
         device: str | None = None,
-    ) -> YoloPrelabeler:
+    ) -> UltralyticsDetector:
         run = Path(run_dir).resolve()
         weights, settings = load_yolo_inference_settings(run)
         return cls(
@@ -186,8 +186,8 @@ class YoloPrelabeler:
         return self._model
 
     def predict(
-        self, image_path: Path, digest: str, producer: PredictionProducer
-    ) -> PrelabelResult:
+        self, image_path: Path, digest: str, producer: DetectionProducer
+    ) -> DetectionResult:
         options: dict[str, object] = {
             "source": str(image_path),
             "conf": self.settings.confidence,
@@ -231,17 +231,17 @@ class YoloPrelabeler:
                 if right <= left or bottom <= top:
                     continue
                 instances.append(
-                    PrelabelInstance(
+                    DetectionInstance(
                         instance_id=str(len(instances)),
                         bbox=BoundingBox(left, top, right - left, bottom - top),
                         score=score,
                     )
                 )
-        return PrelabelResult(
+        return DetectionResult(
             digest=digest,
             width=width,
             height=height,
             producer=producer,
             instances=tuple(instances),
-            quality=PrelabelQuality("ok"),
+            quality=DetectionQuality("ok"),
         )

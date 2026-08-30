@@ -1,4 +1,5 @@
 import handler from "./dist/server/server.js";
+import { resolve } from "node:path";
 import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/training/artifact";
 
 const CLIENT_DIR = `${process.cwd()}/dist/client`;
@@ -16,11 +17,17 @@ Bun.serve({
   maxRequestBodySize: MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
   async fetch(request) {
     const { pathname } = new URL(request.url);
-    if (pathname.startsWith("/assets/")) {
-      const asset = Bun.file(`${CLIENT_DIR}${pathname}`);
-      if (await asset.exists()) {
+    if (request.method === "GET" || request.method === "HEAD") {
+      const path = resolve(CLIENT_DIR, `.${pathname}`);
+      const asset = Bun.file(path);
+      if (path.startsWith(`${CLIENT_DIR}/`) && (await asset.exists())) {
         return new Response(asset, {
-          headers: { "Cache-Control": "public, max-age=31536000, immutable" },
+          headers: {
+            "Cache-Control": pathname.startsWith("/assets/")
+              ? "public, max-age=31536000, immutable"
+              : "public, max-age=3600",
+            "Content-Type": asset.type,
+          },
         });
       }
     }

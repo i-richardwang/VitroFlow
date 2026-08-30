@@ -10,20 +10,19 @@ import httpx
 import pytest
 
 from vitroflow.annotations import BoundingBox
+from vitroflow.detectors import (
+    DetectionInstance,
+    DetectionProducer,
+    DetectionQuality,
+    DetectionResult,
+    RuntimeDescriptor,
+)
 from vitroflow.inference_models import ModelManifest
 from vitroflow.inference_worker import (
     Assignment,
-    PendingImage,
     WorkerClient,
     WorkerRuntime,
     run_pass,
-)
-from vitroflow.prelabelers import (
-    PredictionProducer,
-    PrelabelInstance,
-    PrelabelQuality,
-    PrelabelResult,
-    RuntimeDescriptor,
 )
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
@@ -41,56 +40,56 @@ OTHER_MANIFEST = {
 }
 
 
-class FakePrelabeler:
+class FakeDetector:
     artifact_digest = "a" * 64
     runtime = RUNTIME
 
     def predict(
-        self, image_path: Path, digest: str, producer: PredictionProducer
-    ) -> PrelabelResult:
+        self, image_path: Path, digest: str, producer: DetectionProducer
+    ) -> DetectionResult:
         assert image_path.read_bytes() == IMAGE
         assert image_path.name == f"{digest}{image_path.suffix}"
-        return PrelabelResult(
+        return DetectionResult(
             digest,
             100,
             80,
             producer,
-            (PrelabelInstance("1", BoundingBox(10, 20, 8, 6), 0.9),),
-            PrelabelQuality("ok"),
+            (DetectionInstance("1", BoundingBox(10, 20, 8, 6), 0.9),),
+            DetectionQuality("ok"),
         )
 
 
-class FailingPrelabeler(FakePrelabeler):
+class FailingDetector(FakeDetector):
     def predict(
-        self, image_path: Path, digest: str, producer: PredictionProducer
-    ) -> PrelabelResult:
+        self, image_path: Path, digest: str, producer: DetectionProducer
+    ) -> DetectionResult:
         raise ValueError("dish not found")
 
 
 class FakeStore:
-    """Serves one prelabeler per version id and refuses the others."""
+    """Serves one detector per version id and refuses the others."""
 
-    def __init__(self, prelabelers: dict[str, Any]) -> None:
-        self.prelabelers = prelabelers
+    def __init__(self, detectors: dict[str, Any]) -> None:
+        self.detectors = detectors
         self.loaded: str | None = None
         self.loads: list[str] = []
 
     def load(self, manifest: ModelManifest) -> Any:
         version_id = manifest.model_version_id
         self.loads.append(version_id)
-        if version_id not in self.prelabelers:
+        if version_id not in self.detectors:
             raise RuntimeError(f"no weights for {version_id}")
         self.loaded = version_id
-        return self.prelabelers[version_id]
+        return self.detectors[version_id]
 
 
-PRELABELER = FakePrelabeler()
+DETECTOR = FakeDetector()
 WORKER = WorkerRuntime("test-worker", "2026-08-27T00:00:00+00:00", (RUNTIME,))
-PRODUCER = PredictionProducer("set.traditional-v1", "a" * 64, RUNTIME)
+PRODUCER = DetectionProducer("set.traditional-v1", "a" * 64, RUNTIME)
 
 
-def store(prelabeler: Any = PRELABELER) -> FakeStore:
-    return FakeStore({"set.traditional-v1": prelabeler})
+def store(detector: Any = DETECTOR) -> FakeStore:
+    return FakeStore({"set.traditional-v1": detector})
 
 
 class Workbench:
@@ -98,11 +97,11 @@ class Workbench:
         self,
         assignments: list[dict[str, Any]],
         *,
-        prelabel_status: int = 200,
+        result_status: int = 200,
         image: bytes = IMAGE,
     ) -> None:
         self.assignments = assignments
-        self.prelabel_status = prelabel_status
+        self.result_status = result_status
         self.image = image
         self.requests: list[httpx.Request] = []
 
@@ -116,8 +115,8 @@ class Workbench:
             return httpx.Response(200, json={"assignments": self.assignments})
         if path.startswith("/api/inference/images/"):
             return httpx.Response(200, content=self.image)
-        if path.startswith("/api/inference/prelabels/"):
-            return httpx.Response(self.prelabel_status, json={})
+        if path.startswith("/api/inference/results/"):
+            return httpx.Response(self.result_status, json={})
         return httpx.Response(404)
 
     def client(self) -> WorkerClient:
@@ -138,7 +137,7 @@ class Workbench:
             if request.url.path == "/api/inference/heartbeat"
         ]
 
-    def prelabel_bodies(self) -> list[dict[str, object]]:
+    def result_bodies(self) -> list[dict[str, object]]:
         return [
             json.loads(request.read())
             for request in self.requests
@@ -146,21 +145,15 @@ class Workbench:
         ]
 
 
-PENDING = [
-    {"dataset": "set", "digest": DIGEST},
-    {"dataset": "set", "digest": DIGEST},
-]
+PENDING = [DIGEST, DIGEST]
 ASSIGNMENTS = [{"manifest": MANIFEST, "images": PENDING}]
 
 
-def test_pending_image_requires_every_field() -> None:
-    assert PendingImage.parse(PENDING[0]) == PendingImage("set", DIGEST)
-    with pytest.raises(ValueError, match="missing digest"):
-        PendingImage.parse({"dataset": "set"})
-    with pytest.raises(ValueError, match="digest must be a SHA-256"):
-        PendingImage.parse({"dataset": "set", "digest": "images/set/a.jpg"})
-    with pytest.raises(ValueError, match="dataset is invalid"):
-        PendingImage.parse({"dataset": "not/a/name", "digest": DIGEST})
+def test_assignment_images_are_digests() -> None:
+    with pytest.raises(ValueError, match="must be a SHA-256 digest"):
+        Assignment.parse({"manifest": MANIFEST, "images": ["images/set/a.jpg"]})
+    with pytest.raises(ValueError, match="must be a non-empty string"):
+        Assignment.parse({"manifest": MANIFEST, "images": [{"digest": DIGEST}]})
 
 
 @pytest.mark.parametrize(
@@ -205,18 +198,18 @@ def test_assignment_validates_its_manifest() -> None:
 
 
 def test_heartbeat_describes_runtimes_and_loaded_version() -> None:
-    heartbeat = WORKER.heartbeat("set.traditional-v1", PendingImage("set", DIGEST))
+    heartbeat = WORKER.heartbeat("set.traditional-v1", DIGEST)
     assert heartbeat == {
         "workerId": "test-worker",
         "startedAt": "2026-08-27T00:00:00+00:00",
         "runtimes": [RUNTIME.to_dict()],
         "loaded": "set.traditional-v1",
-        "current": {"dataset": "set", "digest": DIGEST},
+        "current": DIGEST,
     }
     assert WORKER.heartbeat(None, None)["loaded"] is None
 
 
-def test_pass_prelabels_every_assigned_image(tmp_path: Path) -> None:
+def test_pass_detects_every_assigned_image(tmp_path: Path) -> None:
     workbench = Workbench(ASSIGNMENTS)
     client = workbench.client()
     models = store()
@@ -230,10 +223,10 @@ def test_pass_prelabels_every_assigned_image(tmp_path: Path) -> None:
         ("GET", "/api/inference/pending"),
         ("POST", "/api/inference/heartbeat"),
         ("GET", f"/api/inference/images/{DIGEST}"),
-        ("PUT", f"/api/inference/prelabels/set/{DIGEST}"),
+        ("PUT", f"/api/inference/results/set.traditional-v1/{DIGEST}"),
         ("POST", "/api/inference/heartbeat"),
         ("GET", f"/api/inference/images/{DIGEST}"),
-        ("PUT", f"/api/inference/prelabels/set/{DIGEST}"),
+        ("PUT", f"/api/inference/results/set.traditional-v1/{DIGEST}"),
         ("POST", "/api/inference/heartbeat"),
     ]
     assert models.loads == ["set.traditional-v1"]
@@ -245,7 +238,7 @@ def test_pass_prelabels_every_assigned_image(tmp_path: Path) -> None:
     ]
     assert dict(workbench.requests[1].url.params) == {"workerId": "test-worker"}
     assert dict(workbench.requests[4].url.params) == {"workerId": "test-worker"}
-    for body in workbench.prelabel_bodies():
+    for body in workbench.result_bodies():
         assert body["schema_version"] == 1
         assert body["image"] == {"digest": DIGEST, "width": 100, "height": 80}
         assert body["producer"] == PRODUCER.to_dict()
@@ -266,7 +259,7 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
     finally:
         client.close()
     assert models.loads == ["set.traditional-v2", "set.traditional-v1"]
-    assert [body["producer"] for body in workbench.prelabel_bodies()] == [
+    assert [body["producer"] for body in workbench.result_bodies()] == [
         PRODUCER.to_dict()
     ]
 
@@ -281,17 +274,17 @@ def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> No
             run_pass(client, tmp_path, store())
     finally:
         client.close()
-    assert workbench.prelabel_bodies() == []
+    assert workbench.result_bodies() == []
 
 
 def test_pass_records_a_failure_document(tmp_path: Path) -> None:
     workbench = Workbench([{"manifest": MANIFEST, "images": PENDING[:1]}])
     client = workbench.client()
     try:
-        run_pass(client, tmp_path, store(FailingPrelabeler()))
+        run_pass(client, tmp_path, store(FailingDetector()))
     finally:
         client.close()
-    assert workbench.prelabel_bodies() == [
+    assert workbench.result_bodies() == [
         {
             "schema_version": 1,
             "image": {"digest": DIGEST},
@@ -301,21 +294,10 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
     ]
 
 
-@pytest.mark.parametrize("status", [200, 409])
-def test_pass_accepts_stored_or_superseded_results(tmp_path: Path, status: int) -> None:
+@pytest.mark.parametrize("status", [400, 409, 422])
+def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "images": PENDING[:1]}], prelabel_status=status
-    )
-    client = workbench.client()
-    try:
-        run_pass(client, tmp_path, store())
-    finally:
-        client.close()
-
-
-def test_pass_propagates_http_errors(tmp_path: Path) -> None:
-    workbench = Workbench(
-        [{"manifest": MANIFEST, "images": PENDING[:1]}], prelabel_status=400
+        [{"manifest": MANIFEST, "images": PENDING[:1]}], result_status=status
     )
     client = workbench.client()
     try:

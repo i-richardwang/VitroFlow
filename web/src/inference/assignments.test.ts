@@ -22,7 +22,8 @@ test("inference assignment contract loads both shared artifact variants", () => 
   expect(
     assignments.map((assignment) => assignment.manifest.artifact.kind),
   ).toEqual(["traditional", "ultralytics"]);
-  expect(
-    assignments.every((assignment) => assignment.images[0]?.dataset === "set"),
-  ).toBe(true);
+  expect(assignments.map((assignment) => assignment.images)).toEqual([
+    ["c".repeat(64)],
+    ["d".repeat(64)],
+  ]);
 });

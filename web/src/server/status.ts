@@ -1,15 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
-import { count, and, eq, inArray, or } from "drizzle-orm";
+import { asc, count, eq, inArray } from "drizzle-orm";
 
 import { database } from "../db/client";
 import {
   datasetImages,
   datasetSnapshots,
   datasets,
+  detections,
+  experimentPhotos,
   images,
   labels,
   modelVersions,
-  prelabels,
   trainingRuns,
 } from "../db/schema";
 import { blobStoreDescription } from "./blobs";
@@ -53,41 +54,41 @@ async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((row) => [row.runId, row.dataset]));
 }
 
-/** Filename each live inference assignment is stored under. */
-async function imageFilenames(
-  refs: Array<{ dataset: string; digest: string }>,
-): Promise<Map<string, string>> {
-  const unique = [
-    ...new Map(
-      refs.map((ref) => [`${ref.dataset}/${ref.digest}`, ref] as const),
-    ).values(),
-  ];
-  if (unique.length === 0) return new Map();
+/** A deterministic membership filename for every current dataset or experiment image. */
+async function imageFilenames(digests: string[]): Promise<Map<string, string>> {
+  if (digests.length === 0) return new Map();
   const db = await database();
-  const rows = await db
-    .select({
-      datasetId: datasetImages.datasetId,
-      imageId: datasetImages.imageId,
-      filename: datasetImages.filename,
-    })
-    .from(datasetImages)
-    .where(
-      or(
-        ...unique.map((ref) =>
-          and(
-            eq(datasetImages.datasetId, ref.dataset),
-            eq(datasetImages.imageId, ref.digest),
-          ),
-        ),
+  const [datasetRows, experimentRows] = await Promise.all([
+    db
+      .select({
+        imageId: datasetImages.imageId,
+        filename: datasetImages.filename,
+      })
+      .from(datasetImages)
+      .where(inArray(datasetImages.imageId, digests))
+      .orderBy(asc(datasetImages.addedAt), asc(datasetImages.datasetId)),
+    db
+      .select({
+        imageId: experimentPhotos.imageId,
+        filename: experimentPhotos.filename,
+      })
+      .from(experimentPhotos)
+      .where(inArray(experimentPhotos.imageId, digests))
+      .orderBy(
+        asc(experimentPhotos.experimentId),
+        asc(experimentPhotos.roundId),
+        asc(experimentPhotos.dishLabel),
       ),
-    );
-  return new Map(
-    rows.map((row) => [`${row.datasetId}/${row.imageId}`, row.filename]),
-  );
+  ]);
+  const names = new Map<string, string>();
+  for (const row of [...datasetRows, ...experimentRows]) {
+    if (!names.has(row.imageId)) names.set(row.imageId, row.filename);
+  }
+  return names;
 }
 
 async function countRows(
-  table: typeof images | typeof prelabels | typeof labels,
+  table: typeof images | typeof detections | typeof labels,
 ) {
   const db = await database();
   const [row] = await db.select({ count: count() }).from(table);
@@ -118,10 +119,10 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
       ),
     ),
   ]);
-  const [imageCount, prelabelCount, labelCount, trainingRunCount] =
+  const [imageCount, detectionCount, labelCount, trainingRunCount] =
     await Promise.all([
       countRows(images),
-      countRows(prelabels),
+      countRows(detections),
       countRows(labels),
       countTrainingRuns(),
     ]);
@@ -131,9 +132,7 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
       presence: inferenceWorkerPresence(worker, at),
       lastSeenSeconds: age(worker.lastSeenAt),
       currentFilename: worker.current
-        ? (filenames.get(
-            `${worker.current.dataset}/${worker.current.digest}`,
-          ) ?? null)
+        ? (filenames.get(worker.current) ?? null)
         : null,
       loadedDataset: worker.loaded
         ? (datasetsByVersion.get(worker.loaded) ?? null)
@@ -158,7 +157,7 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
       ),
       datasets: datasetIds.length,
       images: imageCount,
-      prelabels: prelabelCount,
+      detections: detectionCount,
       labels: labelCount,
       trainingRuns: trainingRunCount,
     },

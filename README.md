@@ -7,7 +7,7 @@ VitroFlow turns petri-dish photographs into reviewed seed bounding boxes. The We
 ```text
 Upload a dataset of images in the workbench
           ↓
-Inference Worker prelabels every pending image
+Inference Worker detects seeds in every pending image
           ↓
 Reviewer completes box annotations
           ↓
@@ -20,17 +20,18 @@ Server publishes a candidate ModelVersion
 
 Postgres holds every record the stages exchange; one S3-compatible bucket holds only binary content the records reference:
 
-| Table                                          | Owner            | Contents                                                                                       |
-| ---------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
-| `datasets`, `models`, `model_versions`         | Server           | a Dataset, its logical Model, and immutable executable ModelVersions                           |
-| `images`                                       | Server           | one row per canonical photograph, identified by the SHA-256 of its bytes                       |
-| `dataset_images`                               | Server           | an image's membership in a dataset and its stable train/validation split                       |
-| `prelabels`                                    | Inference Worker | detector output for an image in a dataset, untouched by humans                                 |
-| `labels`                                       | Reviewer         | reviewed box annotations with a revision counter                                               |
-| `inference_workers`, `training_workers`        | Workers          | latest heartbeat per process                                                                   |
-| `dataset_snapshots`, `dataset_snapshot_images` | Server           | immutable sets of reviewed training inputs                                                     |
-| `training_runs`                                | Server           | leased training state machines; a partial unique index allows one active run per model         |
-| `training_epochs`                              | Training Worker  | one row per finished epoch and attempt: losses, precision, recall, mAP, fitness, learning rate |
+| Table                                                                        | Owner            | Contents                                                                                       |
+| ---------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `datasets`, `models`, `model_versions`                                       | Server           | a Dataset, its logical Model, and immutable executable ModelVersions                           |
+| `images`                                                                     | Server           | one row per canonical photograph, identified by the SHA-256 of its bytes                       |
+| `dataset_images`                                                             | Server           | an image's membership in a dataset and its stable train/validation split                       |
+| `detections`, `detection_failures`                                           | Inference Worker | the canonical result for one image/version pair; its most recent execution failure             |
+| `labels`                                                                     | Reviewer         | reviewed box annotations with a revision counter                                               |
+| `experiments`, `experiment_dishes`, `experiment_rounds`, `experiment_photos` | Server           | a seed count over the same dishes on successive occasions, fixed to one trained ModelVersion   |
+| `inference_workers`, `training_workers`                                      | Workers          | latest heartbeat per process                                                                   |
+| `dataset_snapshots`, `dataset_snapshot_images`                               | Server           | immutable sets of reviewed training inputs                                                     |
+| `training_runs`                                                              | Server           | leased training state machines; a partial unique index allows one active run per model         |
+| `training_epochs`                                                            | Training Worker  | one row per finished epoch and attempt: losses, precision, recall, mAP, fitness, learning rate |
 
 ```text
 <bucket>/
@@ -40,19 +41,23 @@ Postgres holds every record the stages exchange; one S3-compatible bucket holds 
 
 Objects are immutable: every write is conditional and can only create a missing key; repeating identical content is idempotent and different content can never replace it. A Training Worker uploads weights under its TrainingRun attempt before one short database transaction registers the resulting ModelVersion and completes the run. That attempt is recorded in the version source and fenced again when the publication commits. The Worker-authored manifest is validated and normalized into the version rather than persisted as a second blob. The Server deployment runs one Maintenance process that collects unreferenced objects every hour, independently of HTTP traffic. `bun run blobs:collect` (in `web/`) performs the same maintenance once: it expires unclaimed Image rows, sweeps image objects with no committed row, and removes weight objects owned by neither the current running attempt nor its published version; each decision uses the same database lock as the corresponding writer.
 
-A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions for prelabelling. The dataset page lists every candidate version with its validation metrics and the Workers serving it, and switches the selected version explicitly. The dataset's training page starts runs from the reviewed annotations, shows the recipe, and opens each TrainingRun on its own page with per-epoch loss and metric curves, the parameters it fixed, and the version it published. The Training page reports exact totals and lists the 100 most recent runs across datasets with their state and best metrics. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
+A Dataset owns one logical Model—the purpose of the model, not one artifact—and selects one of its immutable ModelVersions to detect with. The dataset page lists every candidate version with its validation metrics and the Workers serving it, and switches the selected version explicitly. The dataset's training page starts runs from the reviewed annotations, shows the recipe, and opens each TrainingRun on its own page with per-epoch loss and metric curves, the parameters it fixed, and the version it published. The Training page reports exact totals and lists the 100 most recent runs across datasets with their state and best metrics. A version records business identity and artifact identity; the Worker heartbeat separately records the runtime adapter and code fingerprint. Inference Workers can only serve versions already published by the Server. Training Workers can only claim TrainingRuns already created from immutable DatasetSnapshots. Successful training publishes a candidate version and never changes the Dataset selection automatically.
 
-JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (`prelabel` and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
+JSON naming follows ownership rather than implementation language: Worker-authored artifact documents (detection outcomes and `inference.json`) use `snake_case`; Server control-plane and review documents use `camelCase`. The Server performs the explicit translation when it promotes an artifact into a ModelVersion.
 
 An uploaded file is a source, not yet an image. The Server accepts one JPEG, PNG, or TIFF photograph up to 64 MiB and 40 megapixels, applies its orientation, converts its colours to sRGB, composites transparency onto white, and encodes one opaque AVIF. Those canonical bytes define the image digest, pixel dimensions, browser view, inference input, and training input. Repeating the same source therefore produces the same image under any filename, while the original filename belongs only to each Dataset membership and is shown, never matched. One image can belong to several datasets and snapshots at once. Storing a photograph and claiming it are separate requests, so bytes travel and encode while the dataset they will join is still being chosen: the Web client posts each source to `/api/images` as soon as it is picked, one request per photograph, and submitting posts the resulting digests and filenames to the dataset in one atomic claim that reports which memberships it created and which already existed. A dataset removal drops the membership and its review documents; the photograph itself outlives it. References are what keep an image alive. Collection forgets an unreferenced Image row once its bytes last arrived more than a day ago; a separate Blob sweep then removes every immutable image object no committed row roots, including objects left by interrupted stores. Because a digest names immutable content, image URLs (`/img/<digest>`) are cached indefinitely.
 
-An image's state within a dataset follows from which rows exist for it there. Without a prelabel it is `pending`; a prelabel carrying an `error` is `failed`; a result is `prelabeled`; once a label exists, the label status applies and its source prelabel is frozen. Changing a Dataset's selected version makes its unlabelled images pending for that version.
+A detection is addressed by its canonical business key, the image and the ModelVersion, and belongs to neither dataset nor experiment: every consumer that needs that pair reads the same row, and it is written once. Resubmitting an identical result is accepted; a different result for the same pair is refused as an inconsistency between Workers. A failure means execution did not produce a valid result; zero detected instances is a successful detection. Failure state is replaceable by the next attempt, removable by an explicit retry, and always outranked by a detection arriving later. Both success and failure documents bind their producer's artifact digest to the registered ModelVersion in the database.
+
+An Experiment has a server-generated identity and a user-facing name, and counts the same dishes on successive occasions with one trained ModelVersion chosen at creation. There is no operation that changes the version, so every count in the experiment remains comparable. The first round of photographs names the dishes: the filename stem is the dish label, `A3.jpg` in every round is dish `A3`, and the roster keeps natural order. A round has its own opaque identity, descriptive label, and explicit capture time; grids order rounds by capture time rather than upload order. Each round is one atomic upload and may photograph any subset of the established roster. A request that names an unknown dish, names one dish twice, repeats a round label, or reuses a photograph already present anywhere in the experiment is refused explicitly. The Experiments page renders dishes by captured rounds; each cell shows the count, `pending`, or `failed`, and opens the photograph with its detections outlined. Experiment photographs are pending work for the same Worker protocol as dataset images and read the same `detections` row, so a photograph a dataset also holds under that version is counted once. They are references that keep an image alive like memberships and snapshots. The traditional baseline is not selectable for experiments: its output changes with imperceptible pixel differences, so its counts cannot be compared across rounds. The database enforces that restriction with the ModelVersion artifact kind, independently of the UI selector.
+
+An image's state within a dataset follows from the rows that exist for it under the dataset's selected version. Without a detection or failure it is `pending`; a failure is `failed`; a detection is `detected`; once a label exists, the label status applies and the review keeps showing the detection it started from. Changing a Dataset's selected version makes its unlabelled images pending for that version unless it has already detected them.
 
 Annotation documents marked `complete` are the canonical training data. Editing a completed annotation returns it to `in_progress`; excluded images are kept in review state but omitted from training and from the YOLO export (`dataset export-yolo`); a dataset pull mirrors all review state, exclusions included.
 
 ## Local recognition
 
-Local commands read a pulled data root: `blobs/<xx>/<sha256>` holds canonical AVIF bytes shared by every dataset, and `datasets/<dataset>.json` records each image's digest, dimensions, filename, split, prelabel, and label. Install the environment and pull one Dataset from the workbench with the export credential:
+Local commands read a pulled data root: `blobs/<xx>/<sha256>` holds canonical AVIF bytes shared by every dataset, and `datasets/<dataset>.json` records each image's digest, dimensions, filename, split, detection, and label. Install the environment and pull one Dataset from the workbench with the export credential:
 
 ```bash
 uv sync
@@ -93,18 +98,18 @@ bun install
 bun run dev
 ```
 
-Uploading images to a dataset is all it takes to request prelabels. A named Inference Worker profile is a runtime, not a deployment: it advertises the adapters it can execute (the traditional baseline always, Ultralytics when installed) and the Server hands it pending images grouped by the immutable ModelVersion each dataset currently selects. The Worker loads versions on demand, holding one in memory at a time and caching downloaded YOLO weights under its work directory after verifying their digests; the traditional baseline is verified against the artifact bundled with the package. Changing a dataset's version in the workbench is therefore all it takes to redirect prelabelling. The built-in baseline and every published YOLO version implement the same box-first prelabeler contract and therefore use the same review API.
+Adding an image to a dataset or experiment is all it takes to request its required detection. A named Inference Worker profile is a runtime, not a deployment: it advertises the adapters it can execute (the traditional baseline always, Ultralytics when installed), and the Server derives outstanding image/version pairs from current dataset and experiment demand. SQL set semantics remove a pair needed by more than one consumer before it reaches the Worker. The Worker loads versions on demand, holding one in memory at a time and caching downloaded YOLO weights under its work directory after verifying their digests; the traditional baseline is verified against the artifact bundled with the package. Changing a dataset's version in the workbench is therefore all it takes to redirect its unreviewed images. The built-in baseline and every published YOLO version implement the same box-first detection contract and therefore use the same upload API.
 
 The inference protocol uses a dedicated credential:
 
-| Call                                                           | Purpose                                                         |
-| -------------------------------------------------------------- | --------------------------------------------------------------- |
-| `POST api/inference/heartbeat`                                 | advertises runtime capabilities and reports loaded/current work |
-| `GET api/inference/pending?workerId=<id>`                      | compatible assignments with versioned execution manifests       |
-| `GET api/inference/images/<digest>`                            | canonical image bytes                                           |
-| `PUT api/inference/prelabels/<dataset>/<digest>?workerId=<id>` | versioned prelabel document                                     |
+| Call                                                         | Purpose                                                         |
+| ------------------------------------------------------------ | --------------------------------------------------------------- |
+| `POST api/inference/heartbeat`                               | advertises runtime capabilities and reports loaded/current work |
+| `GET api/inference/pending?workerId=<id>`                    | compatible assignments with versioned execution manifests       |
+| `GET api/inference/images/<digest>`                          | canonical image bytes                                           |
+| `PUT api/inference/results/<version>/<digest>?workerId=<id>` | the outcome for that pair: a detection or a failure document    |
 
-On each polling interval the Worker heartbeats, fetches one snapshot of pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped until the next interval so the other assignments proceed without creating a hot retry loop. Invalid YOLO cache entries are discarded and rebuilt from verified Server bytes. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. Persisted prelabels and annotations carry a schema version and are parsed against one contract. Prelabels are JSON only; rendered views belong to local recognition.
+On each polling interval the Worker heartbeats, fetches one snapshot of pending assignments, then per version loads the model and per image heartbeats, downloads, detects, and uploads. A version that fails to load is skipped until the next interval so the other assignments proceed without creating a hot retry loop. Invalid YOLO cache entries are discarded and rebuilt from verified Server bytes. Successful documents contain the producer identity and canonical seed bounding boxes; implementation-specific warnings and traditional-only metrics or dish geometry use the generic quality/diagnostics boundary. A detection error becomes a failure document (`schema_version`, `image`, `producer`, `error`), the image shows as `failed`, and the pass continues. The Server verifies that the path, the producer, the registered artifact, and the Worker's advertised runtimes agree before recording either document; a detection that differs from the one already recorded for the pair is refused with 409, which the Worker surfaces as an error rather than a stale assignment. Persisted detections and annotations carry a schema version and are parsed against one contract. Detections are JSON only; rendered views belong to local recognition.
 
 The Status page lists each Worker profile with its presence, current image, loaded version, and runtimes.
 
@@ -167,14 +172,14 @@ Every TrainingRun pins the base-weight digest, the complete set of Ultralytics t
 
 Training uses the native profile configured above; neither Worker requires the Server's filesystem. The supported service host is macOS `launchd`, which preserves native MPS access. A Linux/CUDA deployment should add its own host adapter when it is actually required instead of introducing a second Worker execution interface now.
 
-## Prelabel workflow
+## Traditional detector development
 
-The traditional prelabeler generates candidate centers and candidate-local evidence. Its candidate model combines a regularized global classifier with bounded local calibration. The adapter turns scale-aware deduplicated centers into the same canonical seed boxes that future YOLO prelabelers will emit.
+The traditional detector generates candidate centers and candidate-local evidence. Its candidate model combines a regularized global classifier with bounded local calibration. Its adapter and the Ultralytics adapter both emit the same canonical seed-box contract.
 
 Evaluate the current model on all complete annotations:
 
 ```bash
-uv run vitroflow prelabel evaluate --data-root data --dataset fixtures
+uv run vitroflow traditional evaluate --data-root data --dataset fixtures
 ```
 
 The report separates proposal recall from final detection precision and recall. Proposal recall measures whether candidate generation reaches each reviewed box; final metrics measure the corrections required after scoring and deduplication.
@@ -182,12 +187,12 @@ The report separates proposal recall from final detection precision and recall. 
 Train with leave-one-image-out selection of model form, regularization, and confidence threshold, then evaluate the resulting artifact:
 
 ```bash
-uv run vitroflow prelabel train \
+uv run vitroflow traditional train \
   --data-root data \
   --dataset fixtures \
   --output output/models/candidate-seedness
 
-uv run vitroflow prelabel evaluate \
+uv run vitroflow traditional evaluate \
   --data-root data \
   --dataset fixtures \
   --model output/models/candidate-seedness/model.json \
@@ -214,16 +219,16 @@ The export contains the canonical AVIF images named by digest, normalized YOLO l
 ## YOLO26 fine-tuning
 
 Until complete human-reviewed labels are available, build a temporary dataset from
-a dataset's prelabels. During this bootstrap phase they are treated as training
+a dataset's detections. During this bootstrap phase they are treated as training
 targets, so validation metrics measure agreement with the traditional algorithm
 rather than final real-world accuracy. Failure documents are skipped. Pull the
-dataset first so the prelabels are on disk:
+dataset first so the detections are on disk:
 
 ```bash
-uv run python scripts/build_yolo_prelabels.py \
+uv run python scripts/build_yolo_detections.py \
   --dataset <dataset> \
   --data-root data \
-  --output output/yolo/prelabels-smoke \
+  --output output/yolo/detections-smoke \
   --seed 42
 ```
 
@@ -234,7 +239,7 @@ recipe through the Ultralytics Python API:
 uv sync --extra yolo
 
 uv run python scripts/train_yolo.py \
-  --data output/yolo/prelabels-smoke/dataset.yaml \
+  --data output/yolo/detections-smoke/dataset.yaml \
   --output output/yolo/train-seed-small \
   --device mps
 ```
@@ -320,18 +325,18 @@ src/vitroflow/
 ├── artifacts.py      Result and view serialization
 ├── files.py          Atomic artifact publication
 ├── annotations.py    Canonical reviewed-label loading
-├── prelabel/
+├── traditional_training/
 │   ├── data.py       Candidate labels from reviewed boxes
 │   ├── evaluation.py Proposal and detection metrics
 │   └── training.py   Model and threshold selection
-├── prelabelers/
+├── detectors/
 │   ├── contract.py   Shared box-first runtime boundary
 │   ├── documents.py  Strict persisted-document parser
 │   ├── traditional.py Traditional-vision adapter
-│   └── yolo.py       Validated Ultralytics inference adapter
+│   └── ultralytics.py Validated Ultralytics inference adapter
 ├── yolo/
 │   ├── dataset.py    Canonical reviewed-label export
-│   ├── bootstrap.py  Prelabel bootstrap adapter
+│   ├── bootstrap.py  Detection bootstrap adapter
 │   ├── runtime.py    Lazy Ultralytics runtime loading
 │   └── training.py   Ultralytics training and validation
 ├── cli.py            Local workflows
@@ -350,7 +355,8 @@ web/
     ├── db/           Drizzle schema and connection
     ├── datasets/     Dataset identity, image references, derived image states
     ├── models/       Logical Model and immutable ModelVersion contracts
-    ├── detection/    Prelabel document contract
+    ├── detection/    Detection outcome contract
+    ├── experiments/  Experiment, dish label, and round contracts
     ├── inference/    Runtime and inference heartbeat contracts
     ├── training/     DatasetSnapshot, TrainingRun, parameter, and epoch contracts
     ├── annotation/   Box annotation domain

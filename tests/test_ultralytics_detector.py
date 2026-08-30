@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from vitroflow.detectors import DetectionProducer, UltralyticsDetector
+from vitroflow.detectors import ultralytics as ultralytics_module
 from vitroflow.inference_models import ModelManifest, ModelStore
-from vitroflow.prelabelers import PredictionProducer, YoloPrelabeler
-from vitroflow.prelabelers import yolo as yolo_module
 
 PARAMETERS = {
     "epochs": 50,
@@ -81,7 +81,7 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
     return run
 
 
-def test_yolo_prelabeler_uses_published_inference_settings(
+def test_ultralytics_detector_uses_published_inference_settings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
@@ -105,15 +105,15 @@ def test_yolo_prelabeler_uses_published_inference_settings(
             )
             return [SimpleNamespace(orig_shape=(80, 100), boxes=boxes)]
 
-    monkeypatch.setattr(yolo_module, "load_yolo", lambda: FakeYolo)
-    prelabeler = YoloPrelabeler.from_run(_run(tmp_path), device="mps")
-    producer = PredictionProducer(
-        "set.yolo-v1", prelabeler.artifact_digest, prelabeler.runtime
+    monkeypatch.setattr(ultralytics_module, "load_yolo", lambda: FakeYolo)
+    detector = UltralyticsDetector.from_run(_run(tmp_path), device="mps")
+    producer = DetectionProducer(
+        "set.yolo-v1", detector.artifact_digest, detector.runtime
     )
 
-    result = prelabeler.predict(tmp_path / "source.jpg", "c" * 64, producer)
+    result = detector.predict(tmp_path / "source.jpg", "c" * 64, producer)
 
-    assert prelabeler.runtime.adapter == "ultralytics"
+    assert detector.runtime.adapter == "ultralytics"
     assert result.producer == producer
     assert calls == [
         (
@@ -146,18 +146,18 @@ def test_yolo_prelabeler_uses_published_inference_settings(
     ]
 
 
-def test_yolo_prelabeler_rejects_an_uncalibrated_run(tmp_path: Path) -> None:
+def test_ultralytics_detector_rejects_an_uncalibrated_run(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="not ready"):
-        YoloPrelabeler.from_run(_run(tmp_path, ready=False))
+        UltralyticsDetector.from_run(_run(tmp_path, ready=False))
 
 
 def test_yolo_fingerprint_covers_weights_and_inference_settings(tmp_path: Path) -> None:
     run = _run(tmp_path)
-    baseline = YoloPrelabeler.from_run(run)
+    baseline = UltralyticsDetector.from_run(run)
     document = json.loads((run / "inference.json").read_text())
     document["inference"]["confidence"] = 0.5
     (run / "inference.json").write_text(json.dumps(document))
-    changed = YoloPrelabeler.from_run(run)
+    changed = UltralyticsDetector.from_run(run)
 
     assert baseline.artifact_digest != changed.artifact_digest
     assert baseline.runtime == changed.runtime
@@ -170,8 +170,8 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
         def __init__(self, weights: str) -> None:
             self.weights = weights
 
-    monkeypatch.setattr(yolo_module, "load_yolo", lambda: FakeYolo)
-    reference = YoloPrelabeler.from_run(_run(tmp_path))
+    monkeypatch.setattr(ultralytics_module, "load_yolo", lambda: FakeYolo)
+    reference = UltralyticsDetector.from_run(_run(tmp_path))
     artifact = {
         "kind": "ultralytics",
         "digest": reference.artifact_digest,

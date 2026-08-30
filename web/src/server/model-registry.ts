@@ -135,6 +135,17 @@ export async function listModelVersions(
   return rows.map(toModelVersion);
 }
 
+/** Every trained version across models, newest first. */
+export async function listTrainedVersions(): Promise<ModelVersion[]> {
+  const db = await database();
+  const rows = await db
+    .select()
+    .from(modelVersions)
+    .where(eq(modelVersions.artifactKind, "ultralytics"))
+    .orderBy(desc(modelVersions.createdAt), desc(modelVersions.id));
+  return rows.map(toModelVersion);
+}
+
 /** Registers one immutable executable version; the same contents again is a no-op. */
 export async function registerModelVersion(
   value: ModelVersion,

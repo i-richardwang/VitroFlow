@@ -1,5 +1,5 @@
 {
-  "id": "9d2b33c7-1b85-4773-b3ae-b464c4a82ffd",
+  "id": "030a4349-7a70-429b-b331-87bf0a27da7f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -376,6 +376,599 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.detection_failures": {
+      "name": "detection_failures",
+      "schema": "",
+      "columns": {
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_version_id": {
+          "name": "model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document": {
+          "name": "document",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failed_at": {
+          "name": "failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artifact_digest": {
+          "name": "artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'producer'->>'artifact_digest'",
+            "type": "stored"
+          }
+        }
+      },
+      "indexes": {
+        "detection_failures_version_idx": {
+          "name": "detection_failures_version_idx",
+          "columns": [
+            {
+              "expression": "model_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "detection_failures_image_id_images_id_fk": {
+          "name": "detection_failures_image_id_images_id_fk",
+          "tableFrom": "detection_failures",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "detection_failures_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk": {
+          "name": "detection_failures_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
+          "tableFrom": "detection_failures",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "model_version_id",
+            "artifact_digest"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_digest"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "detection_failures_image_id_model_version_id_pk": {
+          "name": "detection_failures_image_id_model_version_id_pk",
+          "columns": [
+            "image_id",
+            "model_version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "detection_failures_image_check": {
+          "name": "detection_failures_image_check",
+          "value": "document->'image'->>'digest' = \"detection_failures\".\"image_id\" and document->'producer'->>'model_version_id' = \"detection_failures\".\"model_version_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.detections": {
+      "name": "detections",
+      "schema": "",
+      "columns": {
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_version_id": {
+          "name": "model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document": {
+          "name": "document",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artifact_digest": {
+          "name": "artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'producer'->>'artifact_digest'",
+            "type": "stored"
+          }
+        }
+      },
+      "indexes": {
+        "detections_version_idx": {
+          "name": "detections_version_idx",
+          "columns": [
+            {
+              "expression": "model_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "detections_image_id_images_id_fk": {
+          "name": "detections_image_id_images_id_fk",
+          "tableFrom": "detections",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "detections_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk": {
+          "name": "detections_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
+          "tableFrom": "detections",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "model_version_id",
+            "artifact_digest"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_digest"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "detections_image_id_model_version_id_pk": {
+          "name": "detections_image_id_model_version_id_pk",
+          "columns": [
+            "image_id",
+            "model_version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "detections_image_check": {
+          "name": "detections_image_check",
+          "value": "document->'image'->>'digest' = \"detections\".\"image_id\" and document->'producer'->>'model_version_id' = \"detections\".\"model_version_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.experiment_dishes": {
+      "name": "experiment_dishes",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "experiment_dishes_experiment_id_experiments_id_fk": {
+          "name": "experiment_dishes_experiment_id_experiments_id_fk",
+          "tableFrom": "experiment_dishes",
+          "tableTo": "experiments",
+          "columnsFrom": [
+            "experiment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_dishes_experiment_id_label_pk": {
+          "name": "experiment_dishes_experiment_id_label_pk",
+          "columns": [
+            "experiment_id",
+            "label"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "experiment_dishes_position": {
+          "name": "experiment_dishes_position",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "position"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "experiment_dishes_label_check": {
+          "name": "experiment_dishes_label_check",
+          "value": "\"experiment_dishes\".\"label\" = btrim(\"experiment_dishes\".\"label\") and length(\"experiment_dishes\".\"label\") between 1 and 255"
+        },
+        "experiment_dishes_position_check": {
+          "name": "experiment_dishes_position_check",
+          "value": "\"experiment_dishes\".\"position\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.experiment_photos": {
+      "name": "experiment_photos",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dish_label": {
+          "name": "dish_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "round_id": {
+          "name": "round_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filename": {
+          "name": "filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiment_photos_image_idx": {
+          "name": "experiment_photos_image_idx",
+          "columns": [
+            {
+              "expression": "image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiment_photos_image_id_images_id_fk": {
+          "name": "experiment_photos_image_id_images_id_fk",
+          "tableFrom": "experiment_photos",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "experiment_photos_experiment_id_dish_label_experiment_dishes_experiment_id_label_fk": {
+          "name": "experiment_photos_experiment_id_dish_label_experiment_dishes_experiment_id_label_fk",
+          "tableFrom": "experiment_photos",
+          "tableTo": "experiment_dishes",
+          "columnsFrom": [
+            "experiment_id",
+            "dish_label"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "label"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "experiment_photos_experiment_id_round_id_experiment_rounds_experiment_id_id_fk": {
+          "name": "experiment_photos_experiment_id_round_id_experiment_rounds_experiment_id_id_fk",
+          "tableFrom": "experiment_photos",
+          "tableTo": "experiment_rounds",
+          "columnsFrom": [
+            "experiment_id",
+            "round_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_photos_experiment_id_dish_label_round_id_pk": {
+          "name": "experiment_photos_experiment_id_dish_label_round_id_pk",
+          "columns": [
+            "experiment_id",
+            "dish_label",
+            "round_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "experiment_photos_image": {
+          "name": "experiment_photos_image",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "image_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.experiment_rounds": {
+      "name": "experiment_rounds",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiment_rounds_captured_idx": {
+          "name": "experiment_rounds_captured_idx",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "captured_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiment_rounds_experiment_id_experiments_id_fk": {
+          "name": "experiment_rounds_experiment_id_experiments_id_fk",
+          "tableFrom": "experiment_rounds",
+          "tableTo": "experiments",
+          "columnsFrom": [
+            "experiment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_rounds_experiment_id_id_pk": {
+          "name": "experiment_rounds_experiment_id_id_pk",
+          "columns": [
+            "experiment_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "experiment_rounds_label": {
+          "name": "experiment_rounds_label",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "label"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "experiment_rounds_label_check": {
+          "name": "experiment_rounds_label_check",
+          "value": "\"experiment_rounds\".\"label\" = btrim(\"experiment_rounds\".\"label\") and length(\"experiment_rounds\".\"label\") between 1 and 80"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.experiments": {
+      "name": "experiments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_version_id": {
+          "name": "model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_artifact_kind": {
+          "name": "model_artifact_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "'ultralytics'::text",
+            "type": "stored"
+          }
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiments_version_idx": {
+          "name": "experiments_version_idx",
+          "columns": [
+            {
+              "expression": "model_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiments_model_version_id_model_artifact_kind_model_versions_id_artifact_kind_fk": {
+          "name": "experiments_model_version_id_model_artifact_kind_model_versions_id_artifact_kind_fk",
+          "tableFrom": "experiments",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "model_version_id",
+            "model_artifact_kind"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_kind"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "experiments_name_check": {
+          "name": "experiments_name_check",
+          "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.images": {
       "name": "images",
       "schema": "",
@@ -476,9 +1069,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "current": {
-          "name": "current",
-          "type": "jsonb",
+        "current_image_id": {
+          "name": "current_image_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -518,6 +1111,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inference_workers_current_image_id_images_id_fk": {
+          "name": "inference_workers_current_image_id_images_id_fk",
+          "tableFrom": "inference_workers",
+          "tableTo": "images",
+          "columnsFrom": [
+            "current_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -574,6 +1180,26 @@
             "as": "(document->>'revision')::integer",
             "type": "stored"
           }
+        },
+        "source_model_version_id": {
+          "name": "source_model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'source'->>'modelVersionId'",
+            "type": "stored"
+          }
+        },
+        "source_artifact_digest": {
+          "name": "source_artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'source'->>'artifactDigest'",
+            "type": "stored"
+          }
         }
       },
       "indexes": {
@@ -613,6 +1239,21 @@
             "image_id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "labels_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk": {
+          "name": "labels_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk",
+          "tableFrom": "labels",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "source_model_version_id",
+            "source_artifact_digest"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_digest"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -692,6 +1333,16 @@
             "as": "artifact->>'digest'",
             "type": "stored"
           }
+        },
+        "artifact_kind": {
+          "name": "artifact_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "artifact->>'kind'",
+            "type": "stored"
+          }
         }
       },
       "indexes": {
@@ -749,6 +1400,14 @@
             "id",
             "artifact_digest"
           ]
+        },
+        "model_versions_id_kind": {
+          "name": "model_versions_id_kind",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "artifact_kind"
+          ]
         }
       },
       "policies": {},
@@ -756,6 +1415,10 @@
         "model_versions_digest_check": {
           "name": "model_versions_digest_check",
           "value": "\"model_versions\".\"artifact_digest\" ~ '^[0-9a-f]{64}$'"
+        },
+        "model_versions_kind_check": {
+          "name": "model_versions_kind_check",
+          "value": "\"model_versions\".\"artifact_kind\" in ('traditional', 'ultralytics')"
         }
       },
       "isRLSEnabled": false
@@ -795,152 +1458,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.prelabels": {
-      "name": "prelabels",
-      "schema": "",
-      "columns": {
-        "dataset_id": {
-          "name": "dataset_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "image_id": {
-          "name": "image_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document": {
-          "name": "document",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "model_version_id": {
-          "name": "model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->'producer'->>'model_version_id'",
-            "type": "stored"
-          }
-        },
-        "artifact_digest": {
-          "name": "artifact_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->'producer'->>'artifact_digest'",
-            "type": "stored"
-          }
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "generated": {
-            "as": "document->>'error'",
-            "type": "stored"
-          }
-        }
-      },
-      "indexes": {
-        "prelabels_version_idx": {
-          "name": "prelabels_version_idx",
-          "columns": [
-            {
-              "expression": "model_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "artifact_digest",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "prelabels_model_version_id_model_versions_id_fk": {
-          "name": "prelabels_model_version_id_model_versions_id_fk",
-          "tableFrom": "prelabels",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "model_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "prelabels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk": {
-          "name": "prelabels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk",
-          "tableFrom": "prelabels",
-          "tableTo": "dataset_images",
-          "columnsFrom": [
-            "dataset_id",
-            "image_id"
-          ],
-          "columnsTo": [
-            "dataset_id",
-            "image_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "prelabels_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk": {
-          "name": "prelabels_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
-          "tableFrom": "prelabels",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "model_version_id",
-            "artifact_digest"
-          ],
-          "columnsTo": [
-            "id",
-            "artifact_digest"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "prelabels_dataset_id_image_id_pk": {
-          "name": "prelabels_dataset_id_image_id_pk",
-          "columns": [
-            "dataset_id",
-            "image_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "prelabels_image_check": {
-          "name": "prelabels_image_check",
-          "value": "document->'image'->>'digest' = \"prelabels\".\"image_id\""
-        }
-      },
       "isRLSEnabled": false
     },
     "public.training_epochs": {

@@ -143,8 +143,8 @@ export async function ensureDataset(
 }
 
 /**
- * Points the dataset at another version of its model. The dataset row lock
- * excludes prelabels being accepted for the previous version meanwhile.
+ * Points the dataset at another version of its model. Detections already
+ * recorded under that version apply immediately; the rest become pending.
  */
 export async function selectModelVersion(
   datasetId: string,

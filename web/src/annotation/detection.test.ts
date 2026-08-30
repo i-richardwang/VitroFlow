@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import { annotationSchema } from "./schema";
-import { documentFromPrelabel, initialBoxSide } from "./prelabel";
+import { documentFromDetection, initialBoxSide } from "./detection";
 import { makeResult } from "./testing";
 
 describe("initialBoxSide", () => {
-  test("uses the median prelabel box size", () => {
+  test("uses the median detection box size", () => {
     const result = makeResult(
       [
         { id: 1, x: 100, y: 100 },
@@ -16,18 +16,18 @@ describe("initialBoxSide", () => {
     expect(initialBoxSide(result)).toBe(50);
   });
 
-  test("falls back to image size when a prelabel has no boxes", () => {
+  test("falls back to image size when a detection has no boxes", () => {
     expect(initialBoxSide(makeResult([]))).toBe(37.5);
   });
 });
 
-describe("documentFromPrelabel", () => {
+describe("documentFromDetection", () => {
   test("copies canonical boxes and records their producing version", () => {
     const result = makeResult([
       { id: 1, x: 100, y: 100 },
       { id: 2, x: 300, y: 200 },
     ]);
-    const document = documentFromPrelabel(result);
+    const document = documentFromDetection(result);
     expect(annotationSchema.safeParse(document).success).toBe(true);
     expect(document.status).toBe("in_progress");
     expect(document.revision).toBe(0);

@@ -6,6 +6,7 @@ import {
   FIXTURE_EDGE,
   imageDigest,
   imageSource,
+  selectedVersion,
   uploadSources,
 } from "./testing";
 
@@ -29,14 +30,30 @@ const document: AnnotationDocument = {
 describe("labels", () => {
   test("creates, reads, and updates with revision checks", async () => {
     await uploadSources("set", [await imageSource("a", "a.jpg")]);
+    const { version } = await selectedVersion("set");
+    const validDocument = {
+      ...document,
+      source: {
+        modelVersionId: version.id,
+        artifactDigest: version.artifact.digest,
+        runtime: document.source.runtime,
+      },
+    };
     const ref = { dataset: "set", digest };
     expect(await readLabel(ref)).toBeNull();
-    const created = await createLabel(ref, { ...document, revision: 7 });
+    const created = await createLabel(ref, { ...validDocument, revision: 7 });
     expect(created.revision).toBe(0);
-    await expect(createLabel(ref, document)).rejects.toThrow(/already exists/);
+    await expect(createLabel(ref, validDocument)).rejects.toThrow(
+      /already exists/,
+    );
 
-    const updated = await updateLabel(ref, { ...created, instances: [] });
+    const updated = await updateLabel(ref, {
+      ...created,
+      source: { ...created.source, artifactDigest: "f".repeat(64) },
+      instances: [],
+    });
     expect(updated.revision).toBe(1);
+    expect(updated.source).toEqual(created.source);
     expect((await readLabel(ref))?.instances).toEqual([]);
     await expect(updateLabel(ref, created)).rejects.toThrow(/stale/);
   });
@@ -68,5 +85,26 @@ describe("labels", () => {
         },
       ),
     ).rejects.toThrow(/1x1/);
+  });
+
+  test("binds the review source to the registered model artifact", async () => {
+    await uploadSources("label-source", [await imageSource("label-source")]);
+    const image = await imageDigest("label-source");
+    const { version } = await selectedVersion("label-source");
+
+    await expect(
+      createLabel(
+        { dataset: "label-source", digest: image },
+        {
+          ...document,
+          image: { digest: image, width: FIXTURE_EDGE, height: FIXTURE_EDGE },
+          source: {
+            modelVersionId: version.id,
+            artifactDigest: "f".repeat(64),
+            runtime: document.source.runtime,
+          },
+        },
+      ),
+    ).rejects.toThrow();
   });
 });

@@ -1,16 +1,23 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
-import { datasetImages, images, labels, prelabels } from "../db/schema";
+import {
+  datasetImages,
+  datasets,
+  detectionFailures,
+  detections,
+  images,
+  labels,
+} from "../db/schema";
 import {
   IMAGE_STATES,
   type ImageRef,
   type ImageState,
 } from "../datasets/schema";
-import {
-  isFailure,
-  type Prelabel,
-  type SeedQuality,
+import type {
+  DetectionFailure,
+  DetectionResult,
+  SeedQuality,
 } from "../detection/schema";
 import type { AnnotationDocument } from "../annotation/schema";
 import {
@@ -29,8 +36,6 @@ export interface ImageSummary extends ImageRef {
   instanceCount: number | null;
   quality: SeedQuality | null;
   error: string | null;
-  /** The model version that produced the prelabel, if one exists. */
-  modelVersionId: string | null;
 }
 
 export interface DatasetSummary {
@@ -39,10 +44,17 @@ export interface DatasetSummary {
   counts: Record<ImageState, number>;
 }
 
-/** A dataset image with both documents that decide its state, loaded in one query. */
+/**
+ * A dataset image with the documents that decide its state, loaded in one
+ * query. The detection is the one a review started from once a label
+ * exists, and the one under the dataset's selected version until then; the
+ * failure is always the selected version's.
+ */
 export interface ImageRecord {
   image: DatasetImage;
-  prelabel: Prelabel | null;
+  selectedModelVersionId: string;
+  detection: DetectionResult | null;
+  failure: DetectionFailure | null;
   label: AnnotationDocument | null;
 }
 
@@ -51,53 +63,74 @@ export interface ReviewedRecord extends ImageRecord {
   label: AnnotationDocument;
 }
 
-/** State follows from the documents: a worker's prelabel, then a reviewer's label. */
-function imageState({ prelabel, label }: ImageRecord): ImageState {
+/** State follows from the documents: a worker's outcome, then a reviewer's label. */
+function imageState({ detection, failure, label }: ImageRecord): ImageState {
   if (label) return label.status;
-  if (prelabel === null) return "pending";
-  return isFailure(prelabel) ? "failed" : "prelabeled";
+  if (detection) return "detected";
+  return failure ? "failed" : "pending";
 }
 
 export function summarize(record: ImageRecord): ImageSummary {
-  const { image, prelabel, label } = record;
-  const detected = prelabel && !isFailure(prelabel) ? prelabel : null;
+  const { image, detection, failure, label } = record;
   return {
     dataset: image.dataset,
     digest: image.digest,
     filename: image.filename,
     state: imageState(record),
-    detectionCount: detected?.instances.length ?? null,
+    detectionCount: detection?.instances.length ?? null,
     instanceCount: label?.instances.length ?? null,
-    quality: detected?.quality ?? null,
-    error: prelabel && isFailure(prelabel) ? prelabel.error : null,
-    modelVersionId: prelabel?.producer.model_version_id ?? null,
+    quality: detection?.quality ?? null,
+    error: label || detection ? null : (failure?.error ?? null),
   };
 }
 
-/** Memberships with their images and both review documents. */
+/** The version whose detection the record shows. */
+const shownVersion = sql`coalesce(${labels.sourceModelVersionId}, ${datasets.selectedModelVersionId})`;
+
+/** Memberships with their images and the documents that decide their state. */
 export function recordQuery(db: Executor) {
   return db
     .select({
       membership: datasetImages,
       image: images,
-      prelabel: prelabels.document,
+      selectedModelVersionId: datasets.selectedModelVersionId,
+      detection: detections.document,
+      failure: detectionFailures.document,
       label: labels.document,
     })
     .from(datasetImages)
     .innerJoin(images, eq(images.id, datasetImages.imageId))
-    .leftJoin(prelabels, sameMembership(prelabels, datasetImages))
-    .leftJoin(labels, sameMembership(labels, datasetImages));
+    .innerJoin(datasets, eq(datasets.id, datasetImages.datasetId))
+    .leftJoin(labels, sameMembership(labels, datasetImages))
+    .leftJoin(
+      detections,
+      and(
+        eq(detections.imageId, datasetImages.imageId),
+        eq(detections.modelVersionId, shownVersion),
+      ),
+    )
+    .leftJoin(
+      detectionFailures,
+      and(
+        eq(detectionFailures.imageId, datasetImages.imageId),
+        eq(detectionFailures.modelVersionId, datasets.selectedModelVersionId),
+      ),
+    );
 }
 
 function toRecord(
   row: MembershipRow & {
-    prelabel: Prelabel | null;
+    selectedModelVersionId: string;
+    detection: DetectionResult | null;
+    failure: DetectionFailure | null;
     label: AnnotationDocument | null;
   },
 ): ImageRecord {
   return {
     image: toDatasetImage(row),
-    prelabel: row.prelabel,
+    selectedModelVersionId: row.selectedModelVersionId,
+    detection: row.detection,
+    failure: row.failure,
     label: row.label,
   };
 }
@@ -152,8 +185,8 @@ export async function readImageRecord(
 
 /**
  * The record with its membership row locked for the transaction. Every
- * operation that decides on the presence of a prelabel or label takes this
- * lock, so the decision holds until it commits.
+ * operation that decides on the presence of a label takes this lock, so the
+ * decision holds until it commits.
  */
 export async function lockImageRecord(
   ref: ImageRef,

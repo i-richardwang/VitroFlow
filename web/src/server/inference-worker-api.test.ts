@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
+import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import { inferenceAssignmentSchema } from "../inference/assignments";
 import { Route as ClaimRoute } from "../routes/api.datasets.$dataset.images";
@@ -9,12 +9,12 @@ import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
 import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
-import { Route as PrelabelRoute } from "../routes/api.inference.prelabels.$dataset.$digest";
+import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
 import { readDataset } from "./datasets";
 import { readInferenceWorker } from "./inference-worker-store";
 import { createLabel } from "./labels";
 import { readModelVersion } from "./model-registry";
-import { readPrelabel } from "./prelabels";
+import { readDetection } from "./detections";
 import { contentDigest } from "./blobs";
 import { FIXTURE_EDGE, imageBytes, imageDigest } from "./testing";
 
@@ -34,7 +34,7 @@ function handler(
 const digest = await imageDigest("image");
 const ref = { dataset: "api", digest };
 
-test("inference HTTP routes carry an image from upload to prelabel", async () => {
+test("inference HTTP routes carry an image from upload to detection", async () => {
   const upload = await imageBytes("image");
   const stored = await handler(
     StoreRoute,
@@ -81,12 +81,12 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
         startedAt: "2026-01-01T00:00:00Z",
         runtimes: [runtime],
         loaded: null,
-        current: ref,
+        current: digest,
       }),
     }),
   } as never);
   expect(heartbeatResponse.status).toBe(200);
-  expect((await readInferenceWorker("api-worker"))?.current).toEqual(ref);
+  expect((await readInferenceWorker("api-worker"))?.current).toBe(digest);
 
   const pendingUrl =
     "http://localhost/api/inference/pending?workerId=api-worker";
@@ -108,7 +108,7 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
     modelVersionId: version.id,
     artifact: version.artifact,
   });
-  expect(assignment.images).toContainEqual(ref);
+  expect(assignment.images).toContain(digest);
   expect(
     (
       await handler(
@@ -143,17 +143,19 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
       runtime,
     },
   };
-  const put = (body: unknown) =>
+  const target = { versionId: version.id, digest };
+  const put = (body: unknown, workerId = "api-worker") =>
     handler(
-      PrelabelRoute,
+      ResultRoute,
       "PUT",
     )({
-      params: ref,
+      params: target,
       request: new Request(
-        `http://localhost/api/inference/prelabels/api/${digest}?workerId=api-worker`,
+        `http://localhost/api/inference/results/${version.id}/${digest}?workerId=${workerId}`,
         { method: "PUT", body: JSON.stringify(body) },
       ),
     } as never);
+  expect((await put(result, "unknown-worker")).status).toBe(409);
   expect(
     (
       await put({
@@ -162,11 +164,46 @@ test("inference HTTP routes carry an image from upload to prelabel", async () =>
       })
     ).status,
   ).toBe(400);
+  const missingDigest = "f".repeat(64);
+  const missing = await handler(
+    ResultRoute,
+    "PUT",
+  )({
+    params: { versionId: version.id, digest: missingDigest },
+    request: new Request(
+      `http://localhost/api/inference/results/${version.id}/${missingDigest}?workerId=api-worker`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          ...result,
+          image: { ...result.image, digest: missingDigest },
+        }),
+      },
+    ),
+  } as never);
+  expect(missing.status).toBe(404);
+  expect(
+    (
+      await put({
+        ...result,
+        producer: { ...result.producer, artifact_digest: "d".repeat(64) },
+      })
+    ).status,
+  ).toBe(422);
   expect((await put(result)).status).toBe(200);
-  expect(await readPrelabel(ref)).toEqual(result);
+  expect(await readDetection(target)).toEqual(result);
+  expect((await put(result)).status).toBe(200);
+  expect(
+    (
+      await put({
+        ...result,
+        quality: { status: "review_required", warnings: [] },
+      })
+    ).status,
+  ).toBe(409);
 
-  await createLabel(ref, documentFromPrelabel(result));
-  expect((await put(result)).status).toBe(409);
+  await createLabel(ref, documentFromDetection(result));
+  expect((await put(result)).status).toBe(200);
 });
 
 test("an inference heartbeat cannot load an unknown model version", async () => {

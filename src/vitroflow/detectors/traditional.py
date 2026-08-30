@@ -11,12 +11,12 @@ from ..identity import ExecutionIdentity
 from ..pipeline import count_seeds
 from ..scoring import DEFAULT_MODEL, CandidateModel
 from .contract import (
+    DetectionDiagnostics,
+    DetectionInstance,
+    DetectionProducer,
+    DetectionQuality,
+    DetectionResult,
     DishGeometry,
-    PredictionProducer,
-    PrelabelDiagnostics,
-    PrelabelInstance,
-    PrelabelQuality,
-    PrelabelResult,
     RuntimeDescriptor,
 )
 
@@ -64,7 +64,7 @@ def _box_around(
 
 
 @dataclass(frozen=True)
-class TraditionalPrelabeler:
+class TraditionalDetector:
     """Adapts the existing candidate pipeline to the canonical box contract."""
 
     config: PipelineConfig = field(default_factory=PipelineConfig)
@@ -84,8 +84,8 @@ class TraditionalPrelabeler:
         )
 
     def predict(
-        self, image_path: Path, digest: str, producer: PredictionProducer
-    ) -> PrelabelResult:
+        self, image_path: Path, digest: str, producer: DetectionProducer
+    ) -> DetectionResult:
         result = count_seeds(image_path, config=self.config, model=self.model)
         side = result.dish_radius * _BOX_SIDE_FRACTION
         instances = []
@@ -99,23 +99,23 @@ class TraditionalPrelabeler:
             )
             if bbox is not None:
                 instances.append(
-                    PrelabelInstance(
+                    DetectionInstance(
                         instance_id=str(detection.detection_id),
                         bbox=bbox,
                         score=detection.score,
                     )
                 )
-        return PrelabelResult(
+        return DetectionResult(
             digest=digest,
             width=result.width,
             height=result.height,
             producer=producer,
             instances=tuple(instances),
-            quality=PrelabelQuality(
+            quality=DetectionQuality(
                 status=result.quality.status,
                 warnings=result.quality.warnings,
             ),
-            diagnostics=PrelabelDiagnostics(
+            diagnostics=DetectionDiagnostics(
                 dish=DishGeometry(
                     center_x=result.dish_center[0],
                     center_y=result.dish_center[1],

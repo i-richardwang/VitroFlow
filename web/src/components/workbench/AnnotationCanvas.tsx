@@ -10,13 +10,13 @@ import {
   type Handle,
   type Point,
 } from "../../annotation/geometry";
-import { initialBoxSide, instanceFromBox } from "../../annotation/prelabel";
+import { initialBoxSide, instanceFromBox } from "../../annotation/detection";
 import type {
   AnnotationDocument,
   BoundingBox,
   SeedInstance,
 } from "../../annotation/schema";
-import type { PrelabelResult } from "../../detection/schema";
+import type { DetectionResult } from "../../detection/schema";
 import {
   CANVAS_COLORS,
   TOOL_SPECS,
@@ -69,7 +69,7 @@ export function AnnotationCanvas({
   onInstancesChange,
 }: {
   filename: string;
-  result: PrelabelResult;
+  result: DetectionResult;
   annotation: AnnotationDocument;
   tool: Tool;
   /** Space is held: every press pans regardless of the active tool. */
@@ -210,7 +210,7 @@ export function AnnotationCanvas({
   };
 
   /**
-   * Places the same square the prelabel step builds around a detection, so
+   * Places the same square the detector builds around a seed, so
    * added seeds share one box convention. The tool stays active for the next
    * seed; switching to select exposes the handles for the rare seed the
    * standard box does not contain.
@@ -289,7 +289,7 @@ export function AnnotationCanvas({
                 fill={CANVAS_COLORS.detection}
                 pointerEvents="none"
               >
-                <title>{`prelabel #${instance.id} · score ${instance.score}`}</title>
+                <title>{`detection #${instance.id} · score ${instance.score}`}</title>
               </circle>
             ))}
           {layers.has("boxes") &&

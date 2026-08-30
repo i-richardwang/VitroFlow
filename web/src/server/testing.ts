@@ -1,28 +1,72 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
+import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
-import type { PrelabelResult } from "../detection/schema";
+import type { DetectionResult } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { ModelVersion } from "../models/schema";
-import type { ImageRef } from "../datasets/schema";
 import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { canonicalize } from "./image-ingest";
 import { claimImages, readDataset } from "./datasets";
 import { storeImage } from "./image-store";
 import { createLabel } from "./labels";
-import { readModelVersion } from "./model-registry";
+import { readModelVersion, registerModelVersion } from "./model-registry";
+import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 
 export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
   fingerprint: "b".repeat(64),
 };
 
+export const ULTRALYTICS_RUNTIME: RuntimeDescriptor = {
+  adapter: "ultralytics",
+  fingerprint: "e".repeat(64),
+};
+
+/** Registers a trained version of `modelId`, as a training run would publish it. */
+export async function registerTrainedVersion(
+  modelId: string,
+  slug = "yolo-v1",
+): Promise<ModelVersion> {
+  return registerModelVersion({
+    schemaVersion: 1,
+    id: `${modelId}.${slug}`,
+    modelId,
+    name: `YOLO ${slug}`,
+    createdAt: "2026-08-27T02:00:00.000Z",
+    source: {
+      kind: "training_run",
+      trainingRunId: `${modelId}.train-${slug}`,
+      trainingAttempt: 1,
+      datasetSnapshotId: `${modelId}.snapshot-${slug}`,
+    },
+    artifact: {
+      kind: "ultralytics",
+      digest: createHash("sha256").update(`${modelId}.${slug}`).digest("hex"),
+      weights: { digest: "c".repeat(64), bytes: 10 },
+      inference: {
+        confidence: 0.4,
+        imageSize: 768,
+        maxDetections: 500,
+        endToEnd: false,
+      },
+      validation: {
+        precision: 0.6,
+        recall: 0.5,
+        map50: 0.8,
+        map50_95: 0.4,
+        fitness: 0.44,
+      },
+      training: YOLO26_SEED_SMALL_RECIPE,
+    },
+  });
+}
+
 /** A heartbeat from a worker that executes only `TEST_RUNTIME`. */
 export function testHeartbeat(
   workerId: string,
-  current: ImageRef | null = null,
+  current: string | null = null,
 ): InferenceWorkerHeartbeat {
   return {
     workerId,
@@ -105,6 +149,15 @@ export async function uploadSources(
   return claimImages({ dataset: datasetId, images: entries });
 }
 
+/** Stores one deterministic source per text, returning the digests in order. */
+export async function storeTexts(contents: string[]): Promise<string[]> {
+  const digests = [];
+  for (const content of contents) {
+    digests.push((await storeImage(await imageBytes(content))).digest);
+  }
+  return digests;
+}
+
 /** Uploads one deterministic source per text; tests use its canonical digest. */
 export async function uploadTexts(datasetId: string, contents: string[]) {
   await uploadSources(
@@ -119,7 +172,7 @@ export async function resultFor(
   version: ModelVersion,
   content: string,
   runtime = TEST_RUNTIME,
-): Promise<PrelabelResult> {
+): Promise<DetectionResult> {
   return {
     ...makeResult([{ id: 0, x: 10, y: 10 }], {
       digest: await imageDigest(content),
@@ -142,7 +195,7 @@ export async function reviewedDataset(datasetId: string, contents: string[]) {
     await createLabel(
       { dataset: datasetId, digest: await imageDigest(content) },
       {
-        ...documentFromPrelabel(await resultFor(selected.version, content)),
+        ...documentFromDetection(await resultFor(selected.version, content)),
         status: "complete",
       },
     );

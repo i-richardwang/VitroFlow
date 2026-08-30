@@ -3,9 +3,9 @@ from pathlib import Path
 import pytest
 from conftest import (
     annotation_document,
+    detection_document,
     encoded_image,
     manifest_entry,
-    prelabel_document,
     write_blob,
     write_manifest,
 )
@@ -21,7 +21,7 @@ from vitroflow.yolo import (
     DatasetImage,
     assign_splits,
     export_dataset_images,
-    export_prelabel_yolo_dataset,
+    export_detection_yolo_dataset,
     export_yolo_dataset,
 )
 
@@ -34,7 +34,7 @@ def _labelled(digest: str, split: str | None = None) -> LabelledImage:
         filename=f"{digest[:4]}.jpg",
         bytes=1,
         split=split,
-        prelabel=None,
+        detection=None,
         label=None,
     )
     annotation = annotation_document(
@@ -198,19 +198,19 @@ def test_export_reads_recorded_splits_from_the_manifest(tmp_path: Path) -> None:
     assert {entry["digest"]: entry["split"] for entry in manifest["images"]} == recorded
 
 
-def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) -> None:
+def test_detection_export_builds_standard_boxes_from_detections(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     entries = []
     for variant in range(2):
         digest = write_blob(data_root, encoded_image(1000, 800, variant))
-        entries.append(manifest_entry(digest, prelabel=prelabel_document(digest)))
+        entries.append(manifest_entry(digest, detection=detection_document(digest)))
     entries.append(
         manifest_entry(
             "c" * 64,
-            prelabel={
+            detection={
                 "schema_version": 1,
                 "image": {"digest": "c" * 64},
-                "producer": prelabel_document("c" * 64)["producer"],
+                "producer": detection_document("c" * 64)["producer"],
                 "error": "dish not found",
             },
         )
@@ -219,7 +219,7 @@ def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) ->
     manifest_path = write_manifest(data_root, "batch", entries)
 
     output = tmp_path / "yolo"
-    manifest = export_prelabel_yolo_dataset(manifest_path, data_root, output, seed=3)
+    manifest = export_detection_yolo_dataset(manifest_path, data_root, output, seed=3)
 
     assert len(manifest["images"]) == 2
     assert all("revision" not in entry for entry in manifest["images"])
@@ -234,21 +234,21 @@ def test_prelabel_export_builds_standard_boxes_from_prelabels(tmp_path: Path) ->
     ]
 
 
-def test_prelabel_export_rejects_an_unversioned_document(tmp_path: Path) -> None:
+def test_detection_export_rejects_an_unversioned_document(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
-    payload = prelabel_document("1" * 64)
+    payload = detection_document("1" * 64)
     del payload["schema_version"]
     manifest_path = write_manifest(
         data_root,
         "batch",
         [
-            manifest_entry("1" * 64, prelabel=payload),
-            manifest_entry("2" * 64, prelabel=payload),
+            manifest_entry("1" * 64, detection=payload),
+            manifest_entry("2" * 64, detection=payload),
         ],
     )
 
     output = tmp_path / "yolo"
     with pytest.raises(ValueError, match="missing schema_version"):
-        export_prelabel_yolo_dataset(manifest_path, data_root, output)
+        export_detection_yolo_dataset(manifest_path, data_root, output)
 
     assert not output.exists()

@@ -7,19 +7,19 @@ import pytest
 
 from vitroflow.annotations import BoundingBox
 from vitroflow.config import DecisionConfig, PipelineConfig
-from vitroflow.prelabelers import (
-    PredictionProducer,
-    PrelabelInstance,
-    PrelabelQuality,
-    PrelabelResult,
+from vitroflow.detectors import (
+    DetectionInstance,
+    DetectionProducer,
+    DetectionQuality,
+    DetectionResult,
     RuntimeDescriptor,
-    TraditionalPrelabeler,
-    parse_prelabel_document,
+    TraditionalDetector,
+    parse_inference_outcome,
 )
 from vitroflow.scoring import DEFAULT_MODEL
 
-CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "prelabel.json"
-PRODUCER = PredictionProducer(
+CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "detection.json"
+PRODUCER = DetectionProducer(
     model_version_id="set.traditional-v1",
     artifact_digest="a" * 64,
     runtime=RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64),
@@ -33,36 +33,36 @@ def test_traditional_manifest_matches_the_default_artifact() -> None:
         "schemaVersion": 1,
         "definition": "traditional-v1",
         "createdAt": "2026-08-27T00:00:00.000Z",
-        "artifactDigest": TraditionalPrelabeler().artifact_digest,
+        "artifactDigest": TraditionalDetector().artifact_digest,
     }
 
 
-def test_shared_prelabel_contract() -> None:
-    document = PrelabelResult(
+def test_shared_detection_contract() -> None:
+    document = DetectionResult(
         digest="c" * 64,
         width=100,
         height=80,
         producer=PRODUCER,
-        instances=(PrelabelInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9),),
-        quality=PrelabelQuality("ok"),
+        instances=(DetectionInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9),),
+        quality=DetectionQuality("ok"),
     ).to_dict()
     fixture = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     assert document == fixture
-    assert parse_prelabel_document(fixture).to_dict() == fixture
+    assert parse_inference_outcome(fixture).to_dict() == fixture
 
 
 def test_parser_rejects_unknown_contract_fields() -> None:
     document = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     document["unexpected"] = True
     with pytest.raises(ValueError, match="unknown unexpected"):
-        parse_prelabel_document(document)
+        parse_inference_outcome(document)
 
 
-def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
+def test_traditional_detector_adapts_detections_to_boxes(monkeypatch) -> None:
     config = PipelineConfig()
-    prelabeler = TraditionalPrelabeler(config, DEFAULT_MODEL)
-    producer = PredictionProducer(
-        "set.traditional-v1", prelabeler.artifact_digest, prelabeler.runtime
+    detector = TraditionalDetector(config, DEFAULT_MODEL)
+    producer = DetectionProducer(
+        "set.traditional-v1", detector.artifact_digest, detector.runtime
     )
     result = SimpleNamespace(
         width=100,
@@ -75,11 +75,11 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        "vitroflow.prelabelers.traditional.count_seeds",
+        "vitroflow.detectors.traditional.count_seeds",
         lambda *args, **kwargs: result,
     )
 
-    document = prelabeler.predict(Path("a.jpg"), "c" * 64, producer).to_dict()
+    document = detector.predict(Path("a.jpg"), "c" * 64, producer).to_dict()
 
     assert document["schema_version"] == 1
     assert document["image"] == {"digest": "c" * 64, "width": 100, "height": 80}
@@ -103,8 +103,8 @@ def test_traditional_prelabeler_adapts_detections_to_boxes(monkeypatch) -> None:
 
 
 def test_traditional_artifact_identity_covers_model_and_configuration() -> None:
-    baseline = TraditionalPrelabeler()
-    changed = TraditionalPrelabeler(
+    baseline = TraditionalDetector()
+    changed = TraditionalDetector(
         PipelineConfig(decision=DecisionConfig(confidence_threshold=0.5)),
         DEFAULT_MODEL,
     )
@@ -115,14 +115,14 @@ def test_traditional_artifact_identity_covers_model_and_configuration() -> None:
 @pytest.mark.parametrize(
     ("factory", "message"),
     [
-        (lambda: PrelabelQuality("unknown"), "quality status"),
-        (lambda: PrelabelQuality("ok", ("Not A Code",)), "warning code"),
+        (lambda: DetectionQuality("unknown"), "quality status"),
+        (lambda: DetectionQuality("ok", ("Not A Code",)), "warning code"),
         (
-            lambda: PrelabelInstance("seed", BoundingBox(0, 0, 1, 1), math.inf),
+            lambda: DetectionInstance("seed", BoundingBox(0, 0, 1, 1), math.inf),
             "score must be finite",
         ),
         (
-            lambda: PrelabelInstance("seed", BoundingBox(0, 0, 1, 1), 1.1),
+            lambda: DetectionInstance("seed", BoundingBox(0, 0, 1, 1), 1.1),
             "between zero and one",
         ),
     ],
@@ -134,35 +134,35 @@ def test_contract_rejects_values_the_web_cannot_accept(factory, message) -> None
 
 def test_result_requires_a_content_digest() -> None:
     with pytest.raises(ValueError, match="SHA-256"):
-        PrelabelResult(
+        DetectionResult(
             "images/set/example.jpg",
             100,
             80,
             PRODUCER,
             (),
-            PrelabelQuality("ok"),
+            DetectionQuality("ok"),
         )
 
 
 def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
-    outside = PrelabelInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
+    outside = DetectionInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="exceeds image bounds"):
-        PrelabelResult(
+        DetectionResult(
             "c" * 64,
             100,
             80,
             PRODUCER,
             (outside,),
-            PrelabelQuality("ok"),
+            DetectionQuality("ok"),
         )
 
-    instance = PrelabelInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9)
+    instance = DetectionInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="Duplicate"):
-        PrelabelResult(
+        DetectionResult(
             "c" * 64,
             100,
             80,
             PRODUCER,
             (instance, instance),
-            PrelabelQuality("ok"),
+            DetectionQuality("ok"),
         )

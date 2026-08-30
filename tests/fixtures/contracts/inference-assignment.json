@@ -8,9 +8,6 @@
     }
   },
   "images": [
-    {
-      "dataset": "set",
-      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-    }
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
   ]
 }

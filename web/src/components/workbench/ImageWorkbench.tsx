@@ -5,8 +5,8 @@ import { useState } from "react";
 
 import type { AnnotationDocument } from "../../annotation/schema";
 import type { ImageRef } from "../../datasets/schema";
-import { isFailure, type Prelabel } from "../../detection/schema";
-import { initializeLabel, retryPrelabel } from "../../server/images";
+import type { DetectionFailure, DetectionResult } from "../../detection/schema";
+import { initializeLabel, retryImageDetection } from "../../server/images";
 import { NavbarEnd } from "../shell";
 import { QualityWarnings } from "../QualityWarnings";
 import { AnnotationEditor } from "./AnnotationEditor";
@@ -14,28 +14,30 @@ import { AnnotationEditor } from "./AnnotationEditor";
 export function ImageWorkbench({
   image,
   filename,
-  prelabel,
+  detection,
+  failure,
   label,
 }: {
   image: ImageRef;
   filename: string;
-  prelabel: Prelabel | null;
+  detection: DetectionResult | null;
+  failure: DetectionFailure | null;
   label: AnnotationDocument | null;
 }) {
-  if (label && prelabel && !isFailure(prelabel)) {
+  if (label && detection) {
     return (
       <div className="flex h-full flex-col">
         <AnnotationEditor
           image={image}
           filename={filename}
-          result={prelabel}
+          result={detection}
           label={label}
         />
       </div>
     );
   }
 
-  const quality = prelabel && !isFailure(prelabel) ? prelabel.quality : null;
+  const quality = detection?.quality ?? null;
 
   return (
     <div className="flex h-full flex-col">
@@ -45,28 +47,33 @@ export function ImageWorkbench({
         </NavbarEnd>
       )}
       <div className="flex flex-1 items-center justify-center p-6">
-        {prelabel === null ? (
+        {detection ? (
           <Notice
-            title="Waiting for a worker"
-            description="A connected worker will detect seeds in this image."
+            title="No annotation yet"
+            description={`Start from ${detection.instances.length} detections, then review each seed.`}
+            action={{
+              label: "Initialize from detections",
+              run: () => initializeLabel({ data: image }),
+            }}
           />
-        ) : isFailure(prelabel) ? (
+        ) : label ? (
+          <Notice
+            title="Detection unavailable"
+            description="The detection this review started from is no longer stored."
+          />
+        ) : failure ? (
           <Notice
             title="Detection failed"
-            description={prelabel.error}
+            description={failure.error}
             action={{
               label: "Try again",
-              run: () => retryPrelabel({ data: image }),
+              run: () => retryImageDetection({ data: image }),
             }}
           />
         ) : (
           <Notice
-            title="No annotation yet"
-            description={`Start from ${prelabel.instances.length} prelabels, then review each seed.`}
-            action={{
-              label: "Initialize from prelabels",
-              run: () => initializeLabel({ data: image }),
-            }}
+            title="Waiting for a worker"
+            description="A connected worker will detect seeds in this image."
           />
         )}
       </div>

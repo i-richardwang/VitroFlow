@@ -1,7 +1,7 @@
 import { Button, Header, Switch, SwitchGroup } from "@heroui/react";
 
 import type { AnnotationDocument, SeedInstance } from "../../annotation/schema";
-import type { PrelabelResult } from "../../detection/schema";
+import type { DetectionResult } from "../../detection/schema";
 import { LAYERS, type LayerKey } from "./controls";
 
 interface Metric {
@@ -17,7 +17,7 @@ export function InspectorPanel({
   selected,
   onDeleteSelected,
 }: {
-  result: PrelabelResult;
+  result: DetectionResult;
   annotation: AnnotationDocument;
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
@@ -113,11 +113,11 @@ function instanceMetrics(
   return rows;
 }
 
-function diagnosticMetrics(result: PrelabelResult): Metric[] {
+function diagnosticMetrics(result: DetectionResult): Metric[] {
   const metrics = result.diagnostics?.metrics;
   const dish = result.diagnostics?.dish;
   return [
-    { label: "Prelabels", value: String(result.instances.length) },
+    { label: "Detections", value: String(result.instances.length) },
     {
       label: "Threshold",
       value: String(metrics?.confidence_threshold ?? "—"),

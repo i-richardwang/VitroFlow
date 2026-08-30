@@ -3,24 +3,24 @@ import path from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
-import { prelabelSchema } from "./schema";
+import { inferenceOutcomeSchema } from "./schema";
 
 const CONTRACT_FIXTURE = path.resolve(
   import.meta.dir,
-  "../../../tests/fixtures/contracts/prelabel.json",
+  "../../../tests/fixtures/contracts/detection.json",
 );
 
-describe("prelabel contract", () => {
+describe("detection contract", () => {
   test("loads the shared box-first contract fixture", () => {
-    const prelabel = prelabelSchema.parse(
+    const outcome = inferenceOutcomeSchema.parse(
       JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8")),
     );
-    if ("error" in prelabel) {
+    if ("error" in outcome) {
       throw new Error("unexpected failure fixture");
     }
 
-    expect(prelabel.producer.model_version_id).toBe("set.traditional-v1");
-    expect(prelabel.instances[0].bbox).toEqual({
+    expect(outcome.producer.model_version_id).toBe("set.traditional-v1");
+    expect(outcome.instances[0].bbox).toEqual({
       x: 10,
       y: 20,
       width: 8,
@@ -32,7 +32,7 @@ describe("prelabel contract", () => {
     const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
     document.instances[0].bbox.x = 99;
 
-    expect(prelabelSchema.safeParse(document).success).toBe(false);
+    expect(inferenceOutcomeSchema.safeParse(document).success).toBe(false);
   });
 
   test("accepts implementation-specific warning codes", () => {
@@ -40,16 +40,16 @@ describe("prelabel contract", () => {
     document.quality.status = "review_required";
     document.quality.warnings = ["low_model_confidence"];
 
-    expect(prelabelSchema.safeParse(document).success).toBe(true);
+    expect(inferenceOutcomeSchema.safeParse(document).success).toBe(true);
   });
 
   test("rejects invalid scores and malformed image digests", () => {
     const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
     document.instances[0].score = 1.1;
-    expect(prelabelSchema.safeParse(document).success).toBe(false);
+    expect(inferenceOutcomeSchema.safeParse(document).success).toBe(false);
 
     document.instances[0].score = 0.9;
     document.image.digest = "example.jpg";
-    expect(prelabelSchema.safeParse(document).success).toBe(false);
+    expect(inferenceOutcomeSchema.safeParse(document).success).toBe(false);
   });
 });

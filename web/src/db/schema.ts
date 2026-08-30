@@ -14,14 +14,18 @@ import {
   timestamp,
   unique,
   uniqueIndex,
+  uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
-import type { ImageRef } from "../datasets/schema";
-import type { Prelabel } from "../detection/schema";
+import type { DetectionFailure, DetectionResult } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
-import type { ModelArtifact, ModelVersion } from "../models/schema";
+import {
+  MODEL_ARTIFACT_KINDS,
+  type ModelArtifact,
+  type ModelVersion,
+} from "../models/schema";
 import {
   IMAGE_SPLITS,
   TRAINING_PHASES,
@@ -30,11 +34,11 @@ import {
 } from "../training/schema";
 
 /**
- * Control plane and review state live in Postgres; photographs and model
- * weights are blobs addressed by relative key. Relationships between rows are
- * declared here so that no combination of rows the domain forbids can exist.
- * Images are atomic assets that datasets and snapshots refer to by digest;
- * the references, not the rows, keep an image alive.
+ * Control plane, detections, and review state live in Postgres; photographs
+ * and model weights are blobs addressed by relative key. Relationships between
+ * rows are declared here so that no combination of rows the domain forbids can
+ * exist. Images are atomic assets that datasets and snapshots refer to by
+ * digest; the references, not the rows, keep an image alive.
  */
 
 const instant = (name: string) =>
@@ -61,6 +65,9 @@ export const modelVersions = pgTable(
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`artifact->>'digest'`),
+    artifactKind: text("artifact_kind", { enum: MODEL_ARTIFACT_KINDS })
+      .notNull()
+      .generatedAlwaysAs(sql`artifact->>'kind'`),
   },
   (table) => [
     index("model_versions_model_idx").on(table.modelId, table.createdAt),
@@ -68,9 +75,15 @@ export const modelVersions = pgTable(
     unique("model_versions_id_model").on(table.id, table.modelId),
     /** Runtime records bind to executable content, not just a version name. */
     unique("model_versions_id_digest").on(table.id, table.artifactDigest),
+    /** Lets referencing rows restrict themselves to one kind of artifact. */
+    unique("model_versions_id_kind").on(table.id, table.artifactKind),
     check(
       "model_versions_digest_check",
       sql`${table.artifactDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "model_versions_kind_check",
+      sql`${table.artifactKind} in ('traditional', 'ultralytics')`,
     ),
   ],
 );
@@ -100,7 +113,7 @@ export const datasets = pgTable(
 
 /**
  * A photograph, identified by the SHA-256 digest of its bytes. Images belong
- * to no dataset; datasets, snapshots, and future experiments refer to them.
+ * to no dataset; datasets, snapshots, and experiments refer to them.
  * Every column describes the bytes themselves.
  *
  * An image with no reference is unclaimed: bytes may arrive before their
@@ -164,38 +177,70 @@ function membershipReference(table: {
   }).onDelete("cascade");
 }
 
-export const prelabels = pgTable(
-  "prelabels",
+/**
+ * What a model version found in an image, addressed by its canonical business
+ * key. Datasets read the row under the version they select, and experiments
+ * read the row under the version they were created with; neither owns it. A
+ * row is written once: an identical resubmission is accepted and a different
+ * one refused, so the result stays a record and never a cache.
+ */
+export const detections = pgTable(
+  "detections",
   {
-    datasetId: text("dataset_id").notNull(),
-    imageId: text("image_id").notNull(),
-    document: jsonb("document").$type<Prelabel>().notNull(),
-    createdAt: instant("created_at"),
-    /** Projections of `document` the workbench queries by. */
-    modelVersionId: text("model_version_id")
+    imageId: text("image_id")
       .notNull()
-      .references(() => modelVersions.id)
-      .generatedAlwaysAs(sql`document->'producer'->>'model_version_id'`),
+      .references(() => images.id, { onDelete: "cascade" }),
+    modelVersionId: text("model_version_id").notNull(),
+    document: jsonb("document").$type<DetectionResult>().notNull(),
+    createdAt: instant("created_at"),
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`document->'producer'->>'artifact_digest'`),
-    error: text("error").generatedAlwaysAs(sql`document->>'error'`),
   },
   (table) => [
-    primaryKey({ columns: [table.datasetId, table.imageId] }),
-    membershipReference(table),
+    primaryKey({ columns: [table.imageId, table.modelVersionId] }),
+    index("detections_version_idx").on(table.modelVersionId),
+    /** The document was produced by the registered artifact of its version. */
     foreignKey({
       columns: [table.modelVersionId, table.artifactDigest],
       foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
     }),
-    index("prelabels_version_idx").on(
-      table.modelVersionId,
-      table.artifactDigest,
-    ),
-    /** The document describes the image it is stored under. */
     check(
-      "prelabels_image_check",
-      sql`document->'image'->>'digest' = ${table.imageId}`,
+      "detections_image_check",
+      sql`document->'image'->>'digest' = ${table.imageId} and document->'producer'->>'model_version_id' = ${table.modelVersionId}`,
+    ),
+  ],
+);
+
+/**
+ * The most recent attempt that failed before it could produce a valid result
+ * for the pair. Zero instances is a successful detection. A failure is
+ * execution state, not a fact about the image: it is replaced by the next
+ * attempt, removed by an explicit retry, and outranked by a later detection.
+ */
+export const detectionFailures = pgTable(
+  "detection_failures",
+  {
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id, { onDelete: "cascade" }),
+    modelVersionId: text("model_version_id").notNull(),
+    document: jsonb("document").$type<DetectionFailure>().notNull(),
+    failedAt: instant("failed_at"),
+    artifactDigest: text("artifact_digest")
+      .notNull()
+      .generatedAlwaysAs(sql`document->'producer'->>'artifact_digest'`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.imageId, table.modelVersionId] }),
+    index("detection_failures_version_idx").on(table.modelVersionId),
+    foreignKey({
+      columns: [table.modelVersionId, table.artifactDigest],
+      foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
+    }),
+    check(
+      "detection_failures_image_check",
+      sql`document->'image'->>'digest' = ${table.imageId} and document->'producer'->>'model_version_id' = ${table.modelVersionId}`,
     ),
   ],
 );
@@ -214,10 +259,21 @@ export const labels = pgTable(
     revision: integer("revision")
       .notNull()
       .generatedAlwaysAs(sql`(document->>'revision')::integer`),
+    /** The version whose detection the review started from. */
+    sourceModelVersionId: text("source_model_version_id")
+      .notNull()
+      .generatedAlwaysAs(sql`document->'source'->>'modelVersionId'`),
+    sourceArtifactDigest: text("source_artifact_digest")
+      .notNull()
+      .generatedAlwaysAs(sql`document->'source'->>'artifactDigest'`),
   },
   (table) => [
     primaryKey({ columns: [table.datasetId, table.imageId] }),
     membershipReference(table),
+    foreignKey({
+      columns: [table.sourceModelVersionId, table.sourceArtifactDigest],
+      foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
+    }),
     index("labels_dataset_status_idx").on(table.datasetId, table.status),
     check(
       "labels_status_check",
@@ -232,9 +288,124 @@ export const labels = pgTable(
 );
 
 /**
+ * A count of seeds over the same dishes on successive occasions. The version
+ * is fixed when the experiment is created, so every count in it comes from
+ * the same model; only trained versions qualify, because the traditional
+ * detector's output is not repeatable enough to compare across rounds.
+ */
+export const experiments = pgTable(
+  "experiments",
+  {
+    id: uuid("id").primaryKey(),
+    name: text("name").notNull(),
+    modelVersionId: text("model_version_id").notNull(),
+    modelArtifactKind: text("model_artifact_kind", {
+      enum: MODEL_ARTIFACT_KINDS,
+    })
+      .notNull()
+      .generatedAlwaysAs(sql`'ultralytics'::text`),
+    createdAt: instant("created_at"),
+  },
+  (table) => [
+    index("experiments_version_idx").on(table.modelVersionId),
+    foreignKey({
+      columns: [table.modelVersionId, table.modelArtifactKind],
+      foreignColumns: [modelVersions.id, modelVersions.artifactKind],
+    }),
+    check(
+      "experiments_name_check",
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
+    ),
+  ],
+);
+
+/** The dishes an experiment follows, labelled as the first round named them. */
+export const experimentDishes = pgTable(
+  "experiment_dishes",
+  {
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    /** Where the dish sits in the roster; rows are shown in this order. */
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.experimentId, table.label] }),
+    unique("experiment_dishes_position").on(table.experimentId, table.position),
+    check(
+      "experiment_dishes_label_check",
+      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 255`,
+    ),
+    check("experiment_dishes_position_check", sql`${table.position} >= 1`),
+  ],
+);
+
+/** One business occasion on which some or all dishes were photographed. */
+export const experimentRounds = pgTable(
+  "experiment_rounds",
+  {
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    id: uuid("id").notNull(),
+    label: text("label").notNull(),
+    capturedAt: instant("captured_at"),
+    createdAt: instant("created_at"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.experimentId, table.id] }),
+    unique("experiment_rounds_label").on(table.experimentId, table.label),
+    index("experiment_rounds_captured_idx").on(
+      table.experimentId,
+      table.capturedAt,
+      table.id,
+    ),
+    check(
+      "experiment_rounds_label_check",
+      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 80`,
+    ),
+  ],
+);
+
+/**
+ * The photograph of one dish in one round. It refers to the image the way a
+ * membership does, and the experiment reads the detection under its version.
+ */
+export const experimentPhotos = pgTable(
+  "experiment_photos",
+  {
+    experimentId: uuid("experiment_id").notNull(),
+    dishLabel: text("dish_label").notNull(),
+    roundId: uuid("round_id").notNull(),
+    /** An experiment photo is an image reference root; deletion is refused. */
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id),
+    filename: text("filename").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.experimentId, table.dishLabel, table.roundId],
+    }),
+    foreignKey({
+      columns: [table.experimentId, table.dishLabel],
+      foreignColumns: [experimentDishes.experimentId, experimentDishes.label],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.experimentId, table.roundId],
+      foreignColumns: [experimentRounds.experimentId, experimentRounds.id],
+    }).onDelete("cascade"),
+    /** The same photograph cannot stand for two dishes or two occasions. */
+    unique("experiment_photos_image").on(table.experimentId, table.imageId),
+    index("experiment_photos_image_idx").on(table.imageId),
+  ],
+);
+
+/**
  * An inference process by the runtimes it can execute. Which versions it
- * prelabels with follows from the datasets' selections; the version it holds
- * in memory is reported for display only.
+ * detects with follows from current demand; the version it holds in memory is
+ * reported for display only.
  */
 export const inferenceWorkers = pgTable(
   "inference_workers",
@@ -245,7 +416,10 @@ export const inferenceWorkers = pgTable(
     loadedModelVersionId: text("loaded_model_version_id").references(
       () => modelVersions.id,
     ),
-    current: jsonb("current").$type<ImageRef | null>(),
+    /** The image being processed, by digest. */
+    currentImageId: text("current_image_id").references(() => images.id, {
+      onDelete: "set null",
+    }),
     lastSeenAt: instant("last_seen_at"),
   },
   (table) => [index("inference_workers_seen_idx").on(table.lastSeenAt)],

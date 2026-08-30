@@ -14,24 +14,19 @@ import cv2
 import httpx
 
 from .config import PipelineConfig
-from .documents import (
-    as_digest,
-    as_list,
-    as_object,
-    as_string,
-    expect_fields,
+from .detectors import (
+    DetectionFailure,
+    DetectionProducer,
+    Detector,
+    InferenceOutcome,
+    RuntimeDescriptor,
+    TraditionalDetector,
+    ultralytics_runtime_descriptor,
 )
-from .identifiers import DATASET_NAME, WORKER_DEVICE, WORKER_ID
+from .documents import as_digest, as_list, as_object, expect_fields
+from .identifiers import WORKER_DEVICE, WORKER_ID
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .inference_models import ModelManifest, ModelStore
-from .prelabelers import (
-    PredictionProducer,
-    Prelabeler,
-    PrelabelFailure,
-    RuntimeDescriptor,
-    TraditionalPrelabeler,
-    yolo_runtime_descriptor,
-)
 from .scoring import DEFAULT_MODEL
 from .worker_runtime import shutdown_signals
 
@@ -64,41 +59,18 @@ class InferenceWorkerSettings:
 
 
 @dataclass(frozen=True)
-class PendingImage:
-    """An image the workbench wants a prelabel for."""
-
-    dataset: str
-    digest: str
-
-    @classmethod
-    def parse(cls, value: Any, context: str = "pending image") -> PendingImage:
-        entry = as_object(value, context)
-        expect_fields(entry, {"dataset", "digest"}, context)
-        dataset = as_string(entry["dataset"], f"{context}.dataset")
-        if not DATASET_NAME.fullmatch(dataset):
-            raise ValueError(f"{context}.dataset is invalid")
-        return cls(
-            dataset=dataset,
-            digest=as_digest(entry["digest"], f"{context}.digest"),
-        )
-
-    def to_dict(self) -> dict[str, str]:
-        return {"dataset": self.dataset, "digest": self.digest}
-
-
-@dataclass(frozen=True)
 class Assignment:
-    """The images the Server wants prelabelled with one model version."""
+    """The images, by digest, the Server wants detected with one model version."""
 
     manifest: ModelManifest
-    images: tuple[PendingImage, ...]
+    images: tuple[str, ...]
 
     @classmethod
     def parse(cls, value: Any, context: str = "assignment") -> Assignment:
         entry = as_object(value, context)
         expect_fields(entry, {"manifest", "images"}, context)
         images = tuple(
-            PendingImage.parse(item, f"{context}.images[{index}]")
+            as_digest(item, f"{context}.images[{index}]")
             for index, item in enumerate(as_list(entry["images"], f"{context}.images"))
         )
         if not images:
@@ -115,9 +87,9 @@ class Assignment:
 
 def available_runtimes() -> tuple[RuntimeDescriptor, ...]:
     """The adapters this process can execute; YOLO only when Ultralytics is installed."""
-    runtimes = [TraditionalPrelabeler(PipelineConfig(), DEFAULT_MODEL).runtime]
+    runtimes = [TraditionalDetector(PipelineConfig(), DEFAULT_MODEL).runtime]
     try:
-        runtimes.append(yolo_runtime_descriptor())
+        runtimes.append(ultralytics_runtime_descriptor())
     except RuntimeError:
         pass
     return tuple(runtimes)
@@ -135,15 +107,13 @@ class WorkerRuntime:
     def create(cls, worker_id: str) -> WorkerRuntime:
         return cls(worker_id, datetime.now(UTC).isoformat(), available_runtimes())
 
-    def heartbeat(
-        self, loaded: str | None, current: PendingImage | None
-    ) -> dict[str, object]:
+    def heartbeat(self, loaded: str | None, current: str | None) -> dict[str, object]:
         return {
             "workerId": self.worker_id,
             "startedAt": self.started_at,
             "runtimes": [runtime.to_dict() for runtime in self.runtimes],
             "loaded": loaded,
-            "current": current.to_dict() if current else None,
+            "current": current,
         }
 
 
@@ -184,7 +154,7 @@ class WorkerClient:
             time.sleep(0.5 * 2**attempt)
         raise RuntimeError("HTTP retry loop ended without a response")
 
-    def heartbeat(self, loaded: str | None, current: PendingImage | None) -> None:
+    def heartbeat(self, loaded: str | None, current: str | None) -> None:
         response = self._request(
             "POST",
             "api/inference/heartbeat",
@@ -217,27 +187,31 @@ class WorkerClient:
         response.raise_for_status()
         return response.content
 
-    def download(self, image: PendingImage) -> bytes:
-        response = self._request("GET", f"api/inference/images/{image.digest}")
+    def download(self, digest: str) -> bytes:
+        response = self._request("GET", f"api/inference/images/{digest}")
         response.raise_for_status()
-        return verify_digest(response.content, image.digest)
+        return verify_digest(response.content, digest)
 
-    def put_prelabel(self, image: PendingImage, document: dict[str, object]) -> bool:
-        """Store a prelabel; False means review or a new version owns the image."""
+    def put_result(
+        self, version_id: str, digest: str, document: dict[str, object]
+    ) -> None:
+        """
+        Records the outcome for the pair. The Server accepts a repeated
+        identical detection and a failure that arrives after a detection; it
+        refuses a detection that differs from the one it already holds, which
+        is an inconsistency worth surfacing rather than a stale assignment.
+        """
         response = self._request(
             "PUT",
-            f"api/inference/prelabels/{image.dataset}/{image.digest}",
+            f"api/inference/results/{version_id}/{digest}",
             params={"workerId": self.runtime.worker_id},
             json=document,
         )
-        if response.status_code == 409:
-            return False
         response.raise_for_status()
-        return True
 
 
 def report_heartbeat(
-    client: WorkerClient, loaded: str | None, current: PendingImage | None
+    client: WorkerClient, loaded: str | None, current: str | None
 ) -> None:
     """A missed heartbeat only delays the status shown in the workbench."""
     try:
@@ -246,63 +220,61 @@ def report_heartbeat(
         LOGGER.warning("heartbeat failed: %s", error)
 
 
-def failure_document(
-    image: PendingImage, producer: PredictionProducer, error: Exception
-) -> dict[str, object]:
-    """The prelabel recorded when detection cannot produce a result."""
-    return PrelabelFailure(
-        digest=image.digest,
-        producer=producer,
-        error=str(error)[:_ERROR_MESSAGE_LIMIT],
-    ).to_dict()
-
-
-def prelabel_document(
-    image: PendingImage,
+def inference_outcome(
+    digest: str,
     image_path: Path,
-    producer: PredictionProducer,
-    prelabeler: Prelabeler,
-) -> dict[str, object]:
+    producer: DetectionProducer,
+    detector: Detector,
+) -> InferenceOutcome:
     try:
-        result = prelabeler.predict(image_path, image.digest, producer)
+        result = detector.predict(image_path, digest, producer)
     except DETECTION_ERRORS as error:
-        LOGGER.error("detection failed for %s: %s", image.digest, error)
-        return failure_document(image, producer, error)
-    return result.to_dict()
+        LOGGER.error("detection failed for %s: %s", digest, error)
+        return DetectionFailure(
+            digest=digest,
+            producer=producer,
+            error=str(error)[:_ERROR_MESSAGE_LIMIT],
+        )
+    return result
 
 
 def process_image(
     client: WorkerClient,
-    image: PendingImage,
+    digest: str,
     work_dir: Path,
-    producer: PredictionProducer,
-    prelabeler: Prelabeler,
+    producer: DetectionProducer,
+    detector: Detector,
 ) -> None:
-    report_heartbeat(client, producer.model_version_id, image)
-    image_path = work_dir / f"{image.digest}{CANONICAL_EXTENSION}"
-    image_path.write_bytes(client.download(image))
+    report_heartbeat(client, producer.model_version_id, digest)
+    image_path = work_dir / f"{digest}{CANONICAL_EXTENSION}"
+    image_path.write_bytes(client.download(digest))
     try:
-        document = prelabel_document(image, image_path, producer, prelabeler)
+        outcome = inference_outcome(digest, image_path, producer, detector)
     finally:
         image_path.unlink(missing_ok=True)
-    if client.put_prelabel(image, document):
-        LOGGER.info("prelabelled %s/%s", image.dataset, image.digest)
+    client.put_result(producer.model_version_id, digest, outcome.to_dict())
+    if isinstance(outcome, DetectionFailure):
+        LOGGER.info(
+            "recorded failure for %s with %s", digest, producer.model_version_id
+        )
+    else:
+        LOGGER.info("detected %s with %s", digest, producer.model_version_id)
 
 
 def process_assignment(
     client: WorkerClient,
     assignment: Assignment,
     work_dir: Path,
-    prelabeler: Prelabeler,
+    detector: Detector,
     stopped: threading.Event | None,
 ) -> None:
-    producer = PredictionProducer(
-        assignment.version_id, prelabeler.artifact_digest, prelabeler.runtime
+    producer = DetectionProducer(
+        assignment.version_id, detector.artifact_digest, detector.runtime
     )
-    for image in assignment.images:
+    for digest in assignment.images:
         if stopped and stopped.is_set():
             return
-        process_image(client, image, work_dir, producer, prelabeler)
+        process_image(client, digest, work_dir, producer, detector)
 
 
 def run_pass(
@@ -329,11 +301,11 @@ def run_pass(
             if stopped and stopped.is_set():
                 break
             try:
-                prelabeler = store.load(assignment.manifest)
+                detector = store.load(assignment.manifest)
             except WORKER_ERRORS as error:
                 LOGGER.error("cannot load %s: %s", assignment.version_id, error)
                 continue
-            process_assignment(client, assignment, Path(temporary), prelabeler, stopped)
+            process_assignment(client, assignment, Path(temporary), detector, stopped)
     report_heartbeat(client, store.loaded, None)
 
 

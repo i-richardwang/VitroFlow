@@ -9,7 +9,7 @@ from typing import Protocol
 from ..annotations import BoundingBox
 from ..identifiers import FINGERPRINT, VERSION_ID, WARNING_CODE
 
-PRELABEL_SCHEMA_VERSION = 1
+DETECTION_SCHEMA_VERSION = 1
 
 _QUALITY_STATUSES = {"ok", "review_required"}
 _RUNTIME_ADAPTERS = {"traditional", "ultralytics"}
@@ -24,7 +24,7 @@ def _finite(value: float, context: str) -> None:
 
 def _validate_digest(digest: str) -> None:
     if not isinstance(digest, str) or not FINGERPRINT.fullmatch(digest):
-        raise ValueError("Prelabel image digest must be a SHA-256 digest")
+        raise ValueError("Detection image digest must be a SHA-256 digest")
 
 
 @dataclass(frozen=True)
@@ -48,8 +48,8 @@ class RuntimeDescriptor:
 
 
 @dataclass(frozen=True)
-class PredictionProducer:
-    """Business model identity plus the exact runtime used for one prediction."""
+class DetectionProducer:
+    """Business model identity plus the exact runtime used for one detection."""
 
     model_version_id: str
     artifact_digest: str
@@ -70,30 +70,30 @@ class PredictionProducer:
 
 
 @dataclass(frozen=True)
-class PrelabelQuality:
+class DetectionQuality:
     status: str
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.status not in _QUALITY_STATUSES:
-            raise ValueError(f"Unknown prelabel quality status: {self.status}")
+            raise ValueError(f"Unknown detection quality status: {self.status}")
         for warning in self.warnings:
             if not isinstance(warning, str) or not WARNING_CODE.fullmatch(warning):
-                raise ValueError(f"Invalid prelabel warning code: {warning}")
+                raise ValueError(f"Invalid detection warning code: {warning}")
 
     def to_dict(self) -> dict[str, object]:
         return {"status": self.status, "warnings": list(self.warnings)}
 
 
 @dataclass(frozen=True)
-class PrelabelInstance:
+class DetectionInstance:
     instance_id: str
     bbox: BoundingBox
     score: float
 
     def __post_init__(self) -> None:
         if not self.instance_id:
-            raise ValueError("Prelabel instance id must not be empty")
+            raise ValueError("Detection instance id must not be empty")
         for name, value in (
             ("bbox.x", self.bbox.x),
             ("bbox.y", self.bbox.y),
@@ -103,11 +103,11 @@ class PrelabelInstance:
         ):
             _finite(value, name)
         if self.bbox.x < 0 or self.bbox.y < 0:
-            raise ValueError("Prelabel bounding box coordinates must be non-negative")
+            raise ValueError("Detection bounding box coordinates must be non-negative")
         if self.bbox.width <= 0 or self.bbox.height <= 0:
-            raise ValueError("Prelabel bounding box dimensions must be positive")
+            raise ValueError("Detection bounding box dimensions must be positive")
         if not 0 <= self.score <= 1:
-            raise ValueError("Prelabel score must be between zero and one")
+            raise ValueError("Detection score must be between zero and one")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -145,7 +145,7 @@ class DishGeometry:
 
 
 @dataclass(frozen=True)
-class PrelabelDiagnostics:
+class DetectionDiagnostics:
     dish: DishGeometry | None = None
     metrics: Mapping[str, float] = field(default_factory=dict)
 
@@ -165,14 +165,14 @@ class PrelabelDiagnostics:
 
 
 @dataclass(frozen=True)
-class PrelabelResult:
+class DetectionResult:
     digest: str
     width: int
     height: int
-    producer: PredictionProducer
-    instances: tuple[PrelabelInstance, ...]
-    quality: PrelabelQuality
-    diagnostics: PrelabelDiagnostics = field(default_factory=PrelabelDiagnostics)
+    producer: DetectionProducer
+    instances: tuple[DetectionInstance, ...]
+    quality: DetectionQuality
+    diagnostics: DetectionDiagnostics = field(default_factory=DetectionDiagnostics)
 
     def __post_init__(self) -> None:
         if (
@@ -183,24 +183,24 @@ class PrelabelResult:
             or not isinstance(self.height, int)
             or self.height <= 0
         ):
-            raise ValueError("Prelabel image dimensions must be positive integers")
+            raise ValueError("Detection image dimensions must be positive integers")
         _validate_digest(self.digest)
         identifiers: set[str] = set()
         for instance in self.instances:
             if instance.instance_id in identifiers:
                 raise ValueError(
-                    f"Duplicate prelabel instance id: {instance.instance_id}"
+                    f"Duplicate detection instance id: {instance.instance_id}"
                 )
             identifiers.add(instance.instance_id)
             if (
                 instance.bbox.x + instance.bbox.width > self.width
                 or instance.bbox.y + instance.bbox.height > self.height
             ):
-                raise ValueError("Prelabel bounding box exceeds image bounds")
+                raise ValueError("Detection bounding box exceeds image bounds")
 
     def to_dict(self) -> dict[str, object]:
         document: dict[str, object] = {
-            "schema_version": PRELABEL_SCHEMA_VERSION,
+            "schema_version": DETECTION_SCHEMA_VERSION,
             "image": {
                 "digest": self.digest,
                 "width": self.width,
@@ -217,27 +217,29 @@ class PrelabelResult:
 
 
 @dataclass(frozen=True)
-class PrelabelFailure:
+class DetectionFailure:
     digest: str
-    producer: PredictionProducer
+    producer: DetectionProducer
     error: str
 
     def __post_init__(self) -> None:
         _validate_digest(self.digest)
         if not self.error or len(self.error) > 2000:
-            raise ValueError("Prelabel failure error must contain 1 to 2000 characters")
+            raise ValueError(
+                "Detection failure error must contain 1 to 2000 characters"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema_version": PRELABEL_SCHEMA_VERSION,
+            "schema_version": DETECTION_SCHEMA_VERSION,
             "image": {"digest": self.digest},
             "producer": self.producer.to_dict(),
             "error": self.error,
         }
 
 
-class Prelabeler(Protocol):
-    """An executable model version that emits the canonical prelabel contract."""
+class Detector(Protocol):
+    """An executable model version that emits the canonical detection contract."""
 
     @property
     def runtime(self) -> RuntimeDescriptor: ...
@@ -246,5 +248,5 @@ class Prelabeler(Protocol):
     def artifact_digest(self) -> str: ...
 
     def predict(
-        self, image_path: Path, digest: str, producer: PredictionProducer
-    ) -> PrelabelResult: ...
+        self, image_path: Path, digest: str, producer: DetectionProducer
+    ) -> DetectionResult: ...

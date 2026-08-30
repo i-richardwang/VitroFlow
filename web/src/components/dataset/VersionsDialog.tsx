@@ -3,7 +3,7 @@ import { Button, Modal } from "@heroui/react";
 import type { DatasetOverview } from "../../server/overview";
 import { VersionsTable } from "./VersionsTable";
 
-/** Switches which version prelabels this dataset. */
+/** Switches which version detects for this dataset. */
 export function VersionsDialog({ overview }: { overview: DatasetOverview }) {
   if (overview.versions.length === 0) {
     return null;

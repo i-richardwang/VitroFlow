@@ -92,14 +92,10 @@ function StatusPage() {
                       </Table.Cell>
                       <Table.Cell>
                         {worker.current ? (
-                          <Link
-                            href={`/datasets/${worker.current.dataset}/${worker.current.digest}`}
-                            className="font-mono text-xs font-medium"
-                          >
-                            {worker.current.dataset}/
+                          <span className="font-mono text-xs font-medium">
                             {worker.currentFilename ??
-                              worker.current.digest.slice(0, 12)}
-                          </Link>
+                              worker.current.slice(0, 12)}
+                          </span>
                         ) : (
                           <span className="text-sm text-muted">Idle</span>
                         )}

@@ -13,18 +13,18 @@ from ..documents import (
     expect_schema_version,
 )
 from .contract import (
-    PRELABEL_SCHEMA_VERSION,
+    DETECTION_SCHEMA_VERSION,
+    DetectionDiagnostics,
+    DetectionFailure,
+    DetectionInstance,
+    DetectionProducer,
+    DetectionQuality,
+    DetectionResult,
     DishGeometry,
-    PredictionProducer,
-    PrelabelDiagnostics,
-    PrelabelFailure,
-    PrelabelInstance,
-    PrelabelQuality,
-    PrelabelResult,
     RuntimeDescriptor,
 )
 
-PrelabelDocument = PrelabelResult | PrelabelFailure
+InferenceOutcome = DetectionResult | DetectionFailure
 
 
 def _runtime(value: Any, context: str) -> RuntimeDescriptor:
@@ -36,10 +36,10 @@ def _runtime(value: Any, context: str) -> RuntimeDescriptor:
     )
 
 
-def _producer(value: Any, context: str) -> PredictionProducer:
+def _producer(value: Any, context: str) -> DetectionProducer:
     producer = as_object(value, context)
     expect_fields(producer, {"model_version_id", "artifact_digest", "runtime"}, context)
-    return PredictionProducer(
+    return DetectionProducer(
         model_version_id=as_string(
             producer["model_version_id"], f"{context}.model_version_id"
         ),
@@ -50,7 +50,7 @@ def _producer(value: Any, context: str) -> PredictionProducer:
     )
 
 
-def _diagnostics(value: Any, context: str) -> PrelabelDiagnostics:
+def _diagnostics(value: Any, context: str) -> DetectionDiagnostics:
     diagnostics = as_object(value, context)
     expect_fields(diagnostics, set(), context, {"dish", "metrics"})
     dish = None
@@ -71,10 +71,10 @@ def _diagnostics(value: Any, context: str) -> PrelabelDiagnostics:
             )
             for name, metric in raw_metrics.items()
         }
-    return PrelabelDiagnostics(dish=dish, metrics=metrics)
+    return DetectionDiagnostics(dish=dish, metrics=metrics)
 
 
-def _instance(value: Any, context: str) -> PrelabelInstance:
+def _instance(value: Any, context: str) -> DetectionInstance:
     instance = as_object(value, context)
     expect_fields(instance, {"id", "class", "bbox", "score"}, context)
     if instance["class"] != "seed":
@@ -82,7 +82,7 @@ def _instance(value: Any, context: str) -> PrelabelInstance:
     bbox_context = f"{context}.bbox"
     raw_bbox = as_object(instance["bbox"], bbox_context)
     expect_fields(raw_bbox, {"x", "y", "width", "height"}, bbox_context)
-    return PrelabelInstance(
+    return DetectionInstance(
         instance_id=as_string(instance["id"], f"{context}.id"),
         bbox=BoundingBox(
             x=as_number(raw_bbox["x"], f"{bbox_context}.x"),
@@ -94,9 +94,9 @@ def _instance(value: Any, context: str) -> PrelabelInstance:
     )
 
 
-def parse_prelabel_document(value: Any, context: str = "prelabel") -> PrelabelDocument:
+def parse_inference_outcome(value: Any, context: str = "outcome") -> InferenceOutcome:
     payload = as_object(value, context)
-    expect_schema_version(payload, "schema_version", PRELABEL_SCHEMA_VERSION, context)
+    expect_schema_version(payload, "schema_version", DETECTION_SCHEMA_VERSION, context)
     image_context = f"{context}.image"
     image = as_object(payload.get("image"), image_context)
     producer = _producer(payload.get("producer"), f"{context}.producer")
@@ -106,7 +106,7 @@ def parse_prelabel_document(value: Any, context: str = "prelabel") -> PrelabelDo
             payload, {"schema_version", "image", "producer", "error"}, context
         )
         expect_fields(image, {"digest"}, image_context)
-        return PrelabelFailure(
+        return DetectionFailure(
             digest=as_string(image["digest"], f"{image_context}.digest"),
             producer=producer,
             error=as_string(payload["error"], f"{context}.error"),
@@ -124,7 +124,7 @@ def parse_prelabel_document(value: Any, context: str = "prelabel") -> PrelabelDo
     expect_fields(quality, {"status", "warnings"}, quality_context)
     warnings = as_list(quality["warnings"], f"{quality_context}.warnings")
 
-    return PrelabelResult(
+    return DetectionResult(
         digest=as_string(image["digest"], f"{image_context}.digest"),
         width=as_integer(image["width"], f"{image_context}.width", 1),
         height=as_integer(image["height"], f"{image_context}.height", 1),
@@ -135,7 +135,7 @@ def parse_prelabel_document(value: Any, context: str = "prelabel") -> PrelabelDo
                 as_list(payload["instances"], f"{context}.instances")
             )
         ),
-        quality=PrelabelQuality(
+        quality=DetectionQuality(
             status=as_string(quality["status"], f"{quality_context}.status"),
             warnings=tuple(
                 as_string(warning, f"{quality_context}.warnings[{index}]")
@@ -145,6 +145,6 @@ def parse_prelabel_document(value: Any, context: str = "prelabel") -> PrelabelDo
         diagnostics=(
             _diagnostics(payload["diagnostics"], f"{context}.diagnostics")
             if "diagnostics" in payload
-            else PrelabelDiagnostics()
+            else DetectionDiagnostics()
         ),
     )

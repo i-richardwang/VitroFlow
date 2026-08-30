@@ -1,4 +1,4 @@
-import type { PrelabelResult } from "../detection/schema";
+import type { DetectionResult } from "../detection/schema";
 import { boxAround } from "./geometry";
 
 export function makeResult(
@@ -9,7 +9,7 @@ export function makeResult(
     width = 4000,
     height = 3000,
   } = {},
-): PrelabelResult {
+): DetectionResult {
   const image = { digest, width, height };
   const side = dishRadius * 0.025;
   return {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { DATASET_NAME, imageRefSchema } from "../datasets/schema";
+import { DATASET_NAME, imageDigestSchema } from "../datasets/schema";
 import { runtimeDescriptorSchema, versionIdSchema } from "./schema";
 
 /** The adapters one process can execute, each at most once. */
@@ -21,7 +21,8 @@ export const heartbeatSchema = z
     runtimes: runtimesSchema,
     /** The version held in memory, if any. */
     loaded: versionIdSchema.nullable(),
-    current: imageRefSchema.nullable(),
+    /** The image being processed, if any. */
+    current: imageDigestSchema.nullable(),
   })
   .strict();
 

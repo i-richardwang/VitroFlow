@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { imageRefSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../datasets/schema";
 import { modelArtifactSchema, type ModelVersion } from "../models/schema";
 import { versionIdSchema } from "./schema";
 
@@ -14,7 +14,7 @@ export const inferenceModelManifestSchema = z.strictObject({
 /** One Server assignment: a loadable model and the images to run through it. */
 export const inferenceAssignmentSchema = z.strictObject({
   manifest: inferenceModelManifestSchema,
-  images: z.array(imageRefSchema).min(1),
+  images: z.array(imageDigestSchema).min(1),
 });
 
 export type InferenceModelManifest = z.infer<

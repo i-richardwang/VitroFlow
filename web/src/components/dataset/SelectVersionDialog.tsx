@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { selectDatasetModelVersion } from "../../server/models";
 
-/** Makes a candidate version the one the dataset prelabels with. */
+/** Makes a candidate version the one the dataset detects with. */
 export function SelectVersionDialog({
   dataset,
   versionId,
@@ -30,14 +30,15 @@ export function SelectVersionDialog({
                 <AlertDialog.Header>
                   <AlertDialog.Icon />
                   <AlertDialog.Heading>
-                    Prelabel with {label}?
+                    Detect with {label}?
                   </AlertDialog.Heading>
                 </AlertDialog.Header>
                 <AlertDialog.Body>
                   Images in {dataset} that are not yet under review become
-                  pending for this version. Reviewed annotations keep their
-                  original prelabels. An inference worker able to run this kind
-                  of model picks the images up on its next pass.
+                  pending for this version unless it has already detected them.
+                  Reviewed annotations keep the detections they started from. An
+                  inference worker able to run this kind of model picks the
+                  images up on its next pass.
                 </AlertDialog.Body>
                 <AlertDialog.Footer>
                   <Button variant="tertiary" size="sm" onPress={close}>

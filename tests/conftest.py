@@ -43,7 +43,7 @@ def annotation_document(
     }
 
 
-def prelabel_document(
+def detection_document(
     digest: str, *, width: int = 1000, height: int = 800
 ) -> dict[str, Any]:
     return {
@@ -73,7 +73,7 @@ def manifest_entry(
     height: int = 80,
     size: int = 1,
     split: str | None = None,
-    prelabel: dict[str, Any] | None = None,
+    detection: dict[str, Any] | None = None,
     label: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -83,7 +83,7 @@ def manifest_entry(
         "filename": f"{digest[:4]}.jpg",
         "bytes": size,
         "split": split,
-        "prelabel": prelabel,
+        "detection": detection,
         "label": label,
     }
 

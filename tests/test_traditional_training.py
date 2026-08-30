@@ -3,15 +3,15 @@ import numpy as np
 from vitroflow.annotations import BoundingBox, ReviewedImage
 from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
 from vitroflow.config import DecisionConfig, PipelineConfig
-from vitroflow.prelabel import (
+from vitroflow.proposals import SeedProposal
+from vitroflow.scoring import CandidateModel
+from vitroflow.traditional_training import (
     PreparedImage,
     evaluate_candidate_model,
     label_candidates,
     match_boxes,
     train_candidate_model,
 )
-from vitroflow.proposals import SeedProposal
-from vitroflow.scoring import CandidateModel
 
 
 def _evidence(response: float) -> CandidateEvidence:
@@ -89,7 +89,7 @@ def test_every_candidate_inside_an_instance_is_positive() -> None:
     assert labels.tolist() == [1, 1, 0]
 
 
-def test_training_selects_a_model_that_reduces_prelabel_corrections() -> None:
+def test_training_selects_a_model_that_reduces_traditional_corrections() -> None:
     images = [_image(index) for index in range(3)]
     config = PipelineConfig(
         decision=DecisionConfig(

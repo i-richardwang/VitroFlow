@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 
 import { Count } from "../../components/Count";
 import { DatasetOverview } from "../../components/dataset/DatasetOverview";
-import { PrelabelVersion } from "../../components/dataset/PrelabelVersion";
 import { UploadDialog } from "../../components/dataset/UploadDialog";
 import { VersionsDialog } from "../../components/dataset/VersionsDialog";
 import { Hint } from "../../components/Hint";
@@ -130,13 +129,7 @@ function DatasetPage() {
                   className="cursor-(--cursor-interactive)"
                 >
                   <Table.Cell className="font-mono font-medium">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate">{image.filename}</span>
-                      <PrelabelVersion
-                        dataset={overview.dataset}
-                        versionId={image.modelVersionId}
-                      />
-                    </span>
+                    <span className="truncate">{image.filename}</span>
                   </Table.Cell>
                   <Table.Cell>
                     <Hint text={image.error}>

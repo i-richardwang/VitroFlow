@@ -14,7 +14,13 @@ import { createPortal } from "react-dom";
 
 import { trainingRunLabel } from "../training/schema";
 import { BrandLogo } from "./BrandLogo";
-import { DatasetsIcon, LogoutIcon, StatusIcon, TrainingIcon } from "./icons";
+import {
+  DatasetsIcon,
+  ExperimentsIcon,
+  LogoutIcon,
+  StatusIcon,
+  TrainingIcon,
+} from "./icons";
 
 const NAV = [
   { href: "/", label: "Datasets", icon: DatasetsIcon, match: "datasets" },
@@ -23,6 +29,12 @@ const NAV = [
     label: "Training",
     icon: TrainingIcon,
     match: "training",
+  },
+  {
+    href: "/experiments",
+    label: "Experiments",
+    icon: ExperimentsIcon,
+    match: "experiments",
   },
   { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
@@ -82,9 +94,22 @@ function AppNavbar({
     from: "/_workbench/datasets/$dataset/$digest",
     shouldThrow: false,
   });
+  const experiment = useMatch({
+    from: "/_workbench/experiments/$experiment/",
+    shouldThrow: false,
+  });
+  const experimentPhoto = useMatch({
+    from: "/_workbench/experiments/$experiment/$dish/$round",
+    shouldThrow: false,
+  });
   const crumbs = workbenchCrumbs(
     pathname,
     image?.loaderData?.summary.filename ?? null,
+    experimentPhoto?.loaderData?.experimentName ??
+      experiment?.loaderData?.experiment.name ??
+      null,
+    experimentPhoto?.loaderData?.ref.dish ?? null,
+    experimentPhoto?.loaderData?.round.label ?? null,
   );
 
   return (
@@ -205,15 +230,26 @@ function SidebarContents({
 
 type Crumb = { label: string; href?: string; mono?: boolean };
 
-function workbenchCrumbs(pathname: string, filename: string | null): Crumb[] {
+function workbenchCrumbs(
+  pathname: string,
+  filename: string | null,
+  experimentName: string | null,
+  dishLabel: string | null,
+  roundLabel: string | null,
+): Crumb[] {
   const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] === "experiments" && parts.length >= 2) {
+    return experimentCrumbs(parts, experimentName, dishLabel, roundLabel);
+  }
   if (parts[0] !== "datasets" || parts.length < 2) {
     const section =
       parts[0] === "training"
         ? "Training"
         : parts[0] === "status"
           ? "Status"
-          : "Datasets";
+          : parts[0] === "experiments"
+            ? "Experiments"
+            : "Datasets";
     return [{ label: section }];
   }
 
@@ -247,6 +283,30 @@ function workbenchCrumbs(pathname: string, filename: string | null): Crumb[] {
     crumbs.push({
       label: trainingRunLabel({ id: parts[3] }),
       mono: true,
+    });
+  }
+  return crumbs;
+}
+
+function experimentCrumbs(
+  parts: string[],
+  experimentName: string | null,
+  dishLabel: string | null,
+  roundLabel: string | null,
+): Crumb[] {
+  const experiment = parts[1]!;
+  const crumbs: Crumb[] = [
+    { label: "Experiments", href: "/experiments" },
+    {
+      label: experimentName ?? experiment.slice(0, 8),
+      href: parts.length > 2 ? `/experiments/${experiment}` : undefined,
+      mono: experimentName === null,
+    },
+  ];
+  if (parts.length >= 4) {
+    crumbs.push({
+      label: `${dishLabel ?? "Dish"}, ${roundLabel ?? parts[3]!.slice(0, 8)}`,
+      mono: dishLabel === null || roundLabel === null,
     });
   }
   return crumbs;

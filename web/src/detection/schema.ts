@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { boundingBoxSchema } from "../annotation/schema";
 import { imageDigestSchema } from "../datasets/schema";
-import { predictionProducerSchema } from "../inference/schema";
+import { detectionProducerSchema } from "../inference/schema";
 
 const warningCodeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
 
@@ -11,7 +11,7 @@ const seedQualitySchema = z.strictObject({
   warnings: z.array(warningCodeSchema),
 });
 
-const prelabelInstanceSchema = z.strictObject({
+const detectionInstanceSchema = z.strictObject({
   id: z.string().min(1),
   class: z.literal("seed"),
   bbox: boundingBoxSchema,
@@ -29,7 +29,12 @@ const diagnosticsSchema = z.strictObject({
   metrics: z.record(z.string().min(1), z.number().finite()).optional(),
 });
 
-const resultSchema = z
+/**
+ * What one model version found in one image. The producer records the
+ * version, its artifact, and the runtime that executed it; the image block
+ * repeats the dimensions the boxes are expressed in.
+ */
+export const detectionResultSchema = z
   .strictObject({
     schema_version: z.literal(1),
     image: z.strictObject({
@@ -37,8 +42,8 @@ const resultSchema = z
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
-    producer: predictionProducerSchema,
-    instances: z.array(prelabelInstanceSchema),
+    producer: detectionProducerSchema,
+    instances: z.array(detectionInstanceSchema),
     quality: seedQualitySchema,
     diagnostics: diagnosticsSchema.optional(),
   })
@@ -63,26 +68,33 @@ const resultSchema = z
         context.addIssue({
           code: "custom",
           path: ["instances", index, "bbox"],
-          message: "Prelabel bounding box exceeds image bounds",
+          message: "Detection bounding box exceeds image bounds",
         });
       }
     });
   });
 
-const failureSchema = z.strictObject({
+/** Why one attempt failed before it could produce a valid detection result. */
+export const detectionFailureSchema = z.strictObject({
   schema_version: z.literal(1),
   image: z.strictObject({ digest: imageDigestSchema }),
-  producer: predictionProducerSchema,
+  producer: detectionProducerSchema,
   error: z.string().min(1).max(2000),
 });
 
-export const prelabelSchema = z.union([resultSchema, failureSchema]);
+/** Everything an Inference Worker reports back for one image. */
+export const inferenceOutcomeSchema = z.union([
+  detectionResultSchema,
+  detectionFailureSchema,
+]);
 
-export type PrelabelResult = z.infer<typeof resultSchema>;
+export type DetectionResult = z.infer<typeof detectionResultSchema>;
 export type SeedQuality = z.infer<typeof seedQualitySchema>;
-export type PrelabelFailure = z.infer<typeof failureSchema>;
-export type Prelabel = z.infer<typeof prelabelSchema>;
+export type DetectionFailure = z.infer<typeof detectionFailureSchema>;
+export type InferenceOutcome = z.infer<typeof inferenceOutcomeSchema>;
 
-export function isFailure(prelabel: Prelabel): prelabel is PrelabelFailure {
-  return "error" in prelabel;
+export function isFailure(
+  outcome: InferenceOutcome,
+): outcome is DetectionFailure {
+  return "error" in outcome;
 }

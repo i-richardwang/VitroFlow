@@ -1,7 +1,7 @@
 """The dataset manifest: one workbench dataset described by content-addressed images.
 
 A data root holds every image as a blob named by the SHA-256 digest of its bytes
-and one manifest per dataset listing those digests together with the prelabel and
+and one manifest per dataset listing those digests together with the detection and
 label documents recorded for them.
 """
 
@@ -36,7 +36,7 @@ class ManifestImage:
     filename: str
     bytes: int
     split: str | None
-    prelabel: dict[str, Any] | None
+    detection: dict[str, Any] | None
     label: dict[str, Any] | None
 
 
@@ -92,7 +92,7 @@ def _image(value: Any, context: str) -> ManifestImage:
             "filename",
             "bytes",
             "split",
-            "prelabel",
+            "detection",
             "label",
         },
         context,
@@ -108,7 +108,7 @@ def _image(value: Any, context: str) -> ManifestImage:
             if entry["split"] is None
             else as_split(entry["split"], f"{context}.split")
         ),
-        prelabel=_optional_object(entry["prelabel"], f"{context}.prelabel"),
+        detection=_optional_object(entry["detection"], f"{context}.detection"),
         label=_optional_object(entry["label"], f"{context}.label"),
     )
 

@@ -52,6 +52,8 @@ const ultralyticsArtifactSchema = z.strictObject({
   training: trainingIdentitySchema,
 });
 
+export const MODEL_ARTIFACT_KINDS = ["traditional", "ultralytics"] as const;
+
 export const modelArtifactSchema = z.discriminatedUnion("kind", [
   traditionalArtifactSchema,
   ultralyticsArtifactSchema,

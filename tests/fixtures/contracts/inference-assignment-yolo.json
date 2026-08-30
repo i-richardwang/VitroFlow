@@ -50,9 +50,6 @@
     }
   },
   "images": [
-    {
-      "dataset": "set",
-      "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-    }
+    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
   ]
 }

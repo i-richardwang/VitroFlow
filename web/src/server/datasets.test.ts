@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { documentFromPrelabel } from "../annotation/prelabel";
+import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import {
@@ -22,11 +22,14 @@ import {
 import { createLabel, readLabel } from "./labels";
 import { registerModelVersion, readModelVersion } from "./model-registry";
 import {
-  discardPrelabel,
+  DetectionConflictError,
+  ProducerMismatchError,
   pendingAssignments,
-  readPrelabel,
-  writePrelabel,
-} from "./prelabels";
+  readDetection,
+  readDetectionFailure,
+  recordInferenceOutcome,
+  retryDatasetDetection,
+} from "./detections";
 import { readImageRecord, summarize } from "./summaries";
 import { collectImages } from "./image-collection";
 import { canonicalize } from "./image-ingest";
@@ -234,131 +237,210 @@ describe("collection", () => {
   });
 });
 
-describe("prelabels", () => {
-  test("a dataset assigns work only to its selected model version", async () => {
+describe("detections", () => {
+  /** Pending digests per version of the dataset's own model. */
+  async function pendingFor(datasetId: string) {
+    return (await pendingAssignments(worker)).flatMap((assignment) =>
+      assignment.manifest.modelVersionId.startsWith(`${datasetId}.`)
+        ? [[assignment.manifest.modelVersionId, assignment.images]]
+        : [],
+    );
+  }
+
+  test("a dataset needs detections from its selected version only", async () => {
     await uploadSources("pend", [await imageSource("a", "a.jpg")]);
     await uploadSources("pend", [await imageSource("b", "b.jpg")]);
     const a = { dataset: "pend", digest: await imageDigest("a") };
     const b = { dataset: "pend", digest: await imageDigest("b") };
-    const pending = async () =>
-      (await pendingAssignments(worker)).flatMap((assignment) => {
-        const images = assignment.images.filter(
-          (image) => image.dataset === "pend",
-        );
-        return images.length
-          ? [
-              [
-                assignment.manifest.modelVersionId,
-                images.map((i) => i.filename),
-              ],
-            ]
-          : [];
-      });
     const { version } = await selectedVersion("pend");
-    expect(await pending()).toEqual([[version.id, ["a.jpg", "b.jpg"]]]);
-    const original = await resultFor("pend", b.digest);
+    const targetA = { versionId: version.id, digest: a.digest };
+    const targetB = { versionId: version.id, digest: b.digest };
+    expect(await pendingFor("pend")).toEqual([
+      [version.id, [a.digest, b.digest].sort()],
+    ]);
 
-    await writePrelabel(a, await resultFor("pend", a.digest), worker);
-    expect(await stateOf(a)).toBe("prelabeled");
+    const original = await resultFor("pend", b.digest);
+    await recordInferenceOutcome(
+      targetA,
+      await resultFor("pend", a.digest),
+      worker,
+    );
+    expect(await stateOf(a)).toBe("detected");
     const failure = {
       schema_version: 1,
       image: { digest: b.digest },
       producer: original.producer,
       error: "boom",
     };
-    await writePrelabel(b, failure, worker);
+    await recordInferenceOutcome(targetB, failure, worker);
     expect(await stateOf(b)).toBe("failed");
-    await discardPrelabel(b);
-    expect(await pending()).toEqual([[version.id, ["b.jpg"]]]);
+    expect(await pendingFor("pend")).toEqual([]);
+    await retryDatasetDetection(b);
+    expect(await readDetectionFailure(targetB)).toBeNull();
+    expect(await pendingFor("pend")).toEqual([[version.id, [b.digest]]]);
 
     const next = await nextTraditionalVersion("pend");
     await selectModelVersion("pend", next.id);
-    expect(await pending()).toEqual([[next.id, ["a.jpg", "b.jpg"]]]);
-    await expect(writePrelabel(b, original, worker)).rejects.toThrow(
-      /assigned to another model version/,
-    );
+    expect(await pendingFor("pend")).toEqual([
+      [next.id, [a.digest, b.digest].sort()],
+    ]);
+    expect(await stateOf(a)).toBe("pending");
+    await selectModelVersion("pend", version.id);
+    expect(await stateOf(a)).toBe("detected");
     expect(
-      await pendingAssignments({
-        runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
-      }),
+      (
+        await pendingAssignments({
+          runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
+        })
+      ).filter((a) => a.manifest.modelVersionId.startsWith("pend.")),
     ).toEqual([]);
   });
 
-  test("a prelabel must describe the image it is stored under", async () => {
+  test("a detection is recorded once and a later failure defers to it", async () => {
+    await uploadSources("once", [await imageSource("a", "a.jpg")]);
+    const ref = { dataset: "once", digest: await imageDigest("a") };
+    const { version } = await selectedVersion("once");
+    const target = { versionId: version.id, digest: ref.digest };
+    const result = await resultFor("once", ref.digest);
+    const failure = {
+      schema_version: 1,
+      image: { digest: ref.digest },
+      producer: result.producer,
+      error: "first attempt",
+    };
+    await recordInferenceOutcome(target, failure, worker);
+    expect(await stateOf(ref)).toBe("failed");
+
+    expect(await recordInferenceOutcome(target, result, worker)).toEqual(
+      result,
+    );
+    expect(await readDetectionFailure(target)).toBeNull();
+    expect(await recordInferenceOutcome(target, result, worker)).toEqual(
+      result,
+    );
+    await expect(
+      recordInferenceOutcome(
+        target,
+        { ...result, quality: { status: "review_required", warnings: [] } },
+        worker,
+      ),
+    ).rejects.toBeInstanceOf(DetectionConflictError);
+    expect(await recordInferenceOutcome(target, failure, worker)).toEqual(
+      result,
+    );
+    expect(await readDetection(target)).toEqual(result);
+    expect(await stateOf(ref)).toBe("detected");
+  });
+
+  test("an outcome must describe its image and its producer", async () => {
     await uploadSources("mismatch", [await imageSource("a", "a.jpg")]);
     const ref = { dataset: "mismatch", digest: await imageDigest("a") };
+    const { version } = await selectedVersion("mismatch");
+    const target = { versionId: version.id, digest: ref.digest };
     await expect(
-      writePrelabel(
-        ref,
+      recordInferenceOutcome(
+        target,
         await resultFor("mismatch", await imageDigest("b")),
         worker,
       ),
     ).rejects.toThrow(/describes/);
 
-    const wrongSize = await resultFor("mismatch", ref.digest);
+    const result = await resultFor("mismatch", ref.digest);
     await expect(
-      writePrelabel(
-        ref,
+      recordInferenceOutcome(
+        target,
         {
-          ...wrongSize,
+          ...result,
           image: { digest: ref.digest, width: 1, height: 1 },
           instances: [],
         },
         worker,
       ),
     ).rejects.toThrow(/1x1/);
+    await expect(
+      recordInferenceOutcome(
+        { ...target, versionId: (await nextTraditionalVersion("mismatch")).id },
+        result,
+        worker,
+      ),
+    ).rejects.toBeInstanceOf(ProducerMismatchError);
+    await expect(
+      recordInferenceOutcome(
+        target,
+        {
+          ...result,
+          producer: { ...result.producer, artifact_digest: "d".repeat(64) },
+        },
+        worker,
+      ),
+    ).rejects.toBeInstanceOf(ProducerMismatchError);
+    await expect(
+      recordInferenceOutcome(target, result, {
+        runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
+      }),
+    ).rejects.toBeInstanceOf(ProducerMismatchError);
+    const wrongRuntime = {
+      adapter: "ultralytics" as const,
+      fingerprint: "c".repeat(64),
+    };
+    await expect(
+      recordInferenceOutcome(
+        target,
+        { ...result, producer: { ...result.producer, runtime: wrongRuntime } },
+        { runtimes: [wrongRuntime] },
+      ),
+    ).rejects.toBeInstanceOf(ProducerMismatchError);
+    expect(await readDetection(target)).toBeNull();
   });
 
-  test("freezes a prelabel after review begins", async () => {
-    await uploadSources("frozen", [await imageSource("a", "a.jpg")]);
-    const ref = { dataset: "frozen", digest: await imageDigest("a") };
-    const original = await writePrelabel(
-      ref,
-      await resultFor("frozen", ref.digest),
+  test("a review keeps the detection it started from", async () => {
+    await uploadSources("kept", [await imageSource("a", "a.jpg")]);
+    const ref = { dataset: "kept", digest: await imageDigest("a") };
+    const { version } = await selectedVersion("kept");
+    const original = await resultFor("kept", ref.digest);
+    await recordInferenceOutcome(
+      { versionId: version.id, digest: ref.digest },
+      original,
       worker,
     );
-    if ("error" in original) throw new Error("unexpected failure document");
-    await createLabel(ref, documentFromPrelabel(original));
+    await createLabel(ref, documentFromDetection(original));
 
-    await selectModelVersion(
-      "frozen",
-      (await nextTraditionalVersion("frozen")).id,
-    );
-    await expect(discardPrelabel(ref)).rejects.toThrow(/frozen/);
-    expect(await readPrelabel(ref)).toEqual(original);
+    await selectModelVersion("kept", (await nextTraditionalVersion("kept")).id);
+    const record = await readImageRecord(ref);
+    expect(record?.detection).toEqual(original);
     expect(await stateOf(ref)).toBe("in_progress");
+    expect(await pendingFor("kept")).toEqual([]);
   });
 
   test("review state is per dataset", async () => {
     await uploadSources("ctx-one", [await imageSource("ctx", "ctx.jpg")]);
     await uploadSources("ctx-two", [await imageSource("ctx", "ctx.jpg")]);
     const digest = await imageDigest("ctx");
-    await writePrelabel(
-      { dataset: "ctx-one", digest },
+    const { version } = await selectedVersion("ctx-one");
+    await recordInferenceOutcome(
+      { versionId: version.id, digest },
       await resultFor("ctx-one", digest),
       worker,
     );
-    expect(await stateOf({ dataset: "ctx-one", digest })).toBe("prelabeled");
+    expect(await stateOf({ dataset: "ctx-one", digest })).toBe("detected");
     expect(await stateOf({ dataset: "ctx-two", digest })).toBe("pending");
   });
 });
 
 describe("removal", () => {
-  test("removes the membership with its prelabel and label", async () => {
+  test("removes the membership with its label; the detection stays with the image", async () => {
     await uploadSources("rm", [await imageSource("rm-bytes", "a.jpg")]);
     const ref = { dataset: "rm", digest: await imageDigest("rm-bytes") };
-    const prelabel = await writePrelabel(
-      ref,
-      await resultFor("rm", ref.digest),
-      worker,
-    );
-    if ("error" in prelabel) throw new Error("unexpected failure document");
-    await createLabel(ref, documentFromPrelabel(prelabel));
+    const { version } = await selectedVersion("rm");
+    const target = { versionId: version.id, digest: ref.digest };
+    const result = await resultFor("rm", ref.digest);
+    await recordInferenceOutcome(target, result, worker);
+    await createLabel(ref, documentFromDetection(result));
 
     await removeImage(ref);
     expect(await findImage(ref)).toBeNull();
-    expect(await readPrelabel(ref)).toBeNull();
     expect(await readLabel(ref)).toBeNull();
+    expect(await readDetection(target)).toEqual(result);
     await expect(removeImage(ref)).rejects.toThrow(/not in dataset/);
   });
 

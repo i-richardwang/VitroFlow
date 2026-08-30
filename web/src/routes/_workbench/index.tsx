@@ -64,7 +64,7 @@ function DatasetsPage() {
                   <Table.Cell className="text-right font-mono tabular-nums">
                     <Count
                       value={
-                        dataset.counts.prelabeled + dataset.counts.in_progress
+                        dataset.counts.detected + dataset.counts.in_progress
                       }
                     />
                   </Table.Cell>

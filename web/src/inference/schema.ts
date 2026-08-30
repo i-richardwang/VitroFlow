@@ -9,7 +9,7 @@ export const runtimeDescriptorSchema = z.strictObject({
   fingerprint: fingerprintSchema,
 });
 
-export const predictionProducerSchema = z.strictObject({
+export const detectionProducerSchema = z.strictObject({
   model_version_id: versionIdSchema,
   artifact_digest: fingerprintSchema,
   runtime: runtimeDescriptorSchema,

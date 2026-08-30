@@ -27,7 +27,7 @@ function WorkbenchNotFound() {
     <WorkbenchShell signedIn={signedIn}>
       <WorkbenchNotice
         title="Not found"
-        description="The dataset, image, or run is not in this workbench."
+        description="The dataset, image, experiment, or run is not in this workbench."
       />
     </WorkbenchShell>
   );

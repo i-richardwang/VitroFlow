@@ -61,13 +61,14 @@ export const imageClaimRequestSchema = z.strictObject({
 export type ImageClaimRequest = z.infer<typeof imageClaimRequestSchema>;
 
 /**
- * An image's state within a dataset follows from the documents attached to
- * it there: a worker's prelabel, then a reviewer's label.
+ * An image's state within a dataset follows from the documents that exist
+ * for it: the selected version's detection or failure, then the reviewer's
+ * label.
  */
 export const IMAGE_STATES = [
   "pending",
   "failed",
-  "prelabeled",
+  "detected",
   "in_progress",
   "complete",
   "excluded",

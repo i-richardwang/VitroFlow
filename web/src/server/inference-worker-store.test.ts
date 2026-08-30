@@ -73,3 +73,13 @@ test("a loaded version must exist and match the worker's runtimes", async () => 
   });
   expect(worker.loaded).toBe(version.id);
 });
+
+test("the current digest must name a stored image", async () => {
+  await expect(
+    recordInferenceHeartbeat({
+      ...heartbeat,
+      workerId: "unknown-image-worker",
+      current: "0".repeat(64),
+    }),
+  ).rejects.toThrow();
+});

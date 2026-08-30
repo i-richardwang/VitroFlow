@@ -1,4 +1,4 @@
-import type { PrelabelResult } from "../detection/schema";
+import type { DetectionResult } from "../detection/schema";
 import {
   newInstanceId,
   type AnnotationDocument,
@@ -7,11 +7,11 @@ import {
 } from "./schema";
 
 /**
- * Default square for manually added seeds. Existing prelabel boxes are the
+ * Default square for manually added seeds. Existing detection boxes are the
  * strongest size prior; an image-relative fallback also supports zero-box
- * prelabels and future detectors without dish diagnostics.
+ * detections and future detectors without dish diagnostics.
  */
-export function initialBoxSide(result: PrelabelResult): number {
+export function initialBoxSide(result: DetectionResult): number {
   const sides = result.instances
     .map(({ bbox }) => Math.sqrt(bbox.width * bbox.height))
     .sort((left, right) => left - right);
@@ -28,8 +28,9 @@ export function instanceFromBox(bbox: BoundingBox): SeedInstance {
   return { id: newInstanceId(), class: "seed", bbox };
 }
 
-export function documentFromPrelabel(
-  result: PrelabelResult,
+/** A review that starts from every box the detection found. */
+export function documentFromDetection(
+  result: DetectionResult,
 ): AnnotationDocument {
   return {
     schemaVersion: 1,

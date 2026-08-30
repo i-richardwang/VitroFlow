@@ -5,11 +5,11 @@ import { versionSlug } from "../../models/schema";
 import type { DatasetOverview as Overview } from "../../server/overview";
 import { ServingChip } from "./ServingChip";
 
-/** Review progress and the version currently prelabelling this dataset. */
+/** Review progress and the version currently detecting for this dataset. */
 export function DatasetOverview({ overview }: { overview: Overview }) {
   const { counts, versions, inference } = overview;
   const selected = versions.find((entry) => entry.selected);
-  const toReview = counts.prelabeled + counts.in_progress;
+  const toReview = counts.detected + counts.in_progress;
 
   return (
     <KPIGroup>
@@ -29,7 +29,7 @@ export function DatasetOverview({ overview }: { overview: Overview }) {
       <KPIGroup.Separator />
       <KPI>
         <KPI.Header>
-          <KPI.Title>Prelabel</KPI.Title>
+          <KPI.Title>Detector</KPI.Title>
         </KPI.Header>
         <KPI.Content>
           {selected ? (

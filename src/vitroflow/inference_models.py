@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .config import PipelineConfig
+from .detectors import Detector, TraditionalDetector, UltralyticsDetector
 from .documents import (
     as_digest,
     as_integer,
@@ -22,7 +23,6 @@ from .documents import (
     expect_schema_version,
 )
 from .identifiers import VERSION_ID
-from .prelabelers import Prelabeler, TraditionalPrelabeler, YoloPrelabeler
 from .scoring import DEFAULT_MODEL
 from .training_recipe import parse_training_recipe
 
@@ -135,7 +135,7 @@ def _release_accelerator() -> None:
 
 class ModelStore:
     """
-    Materializes assigned versions into prelabelers. Downloaded YOLO
+    Materializes assigned versions into detectors. Downloaded YOLO
     artifacts stay on disk under ``model-artifacts/<version>``; only the
     most recently loaded model stays in memory.
     """
@@ -144,46 +144,46 @@ class ModelStore:
         self._source = source
         self._artifacts = work_dir / "model-artifacts"
         self._device = device
-        self._loaded: tuple[str, Prelabeler] | None = None
+        self._loaded: tuple[str, Detector] | None = None
 
     @property
     def loaded(self) -> str | None:
         return self._loaded[0] if self._loaded else None
 
-    def load(self, manifest: ModelManifest) -> Prelabeler:
+    def load(self, manifest: ModelManifest) -> Detector:
         version_id = manifest.model_version_id
         if self._loaded and self._loaded[0] == version_id:
             return self._loaded[1]
         self.unload()
         artifact = manifest.artifact
         if artifact["kind"] == "ultralytics":
-            prelabeler: Prelabeler = self._yolo_prelabeler(version_id, artifact)
+            detector: Detector = self._ultralytics_detector(version_id, artifact)
         else:
-            prelabeler = TraditionalPrelabeler(PipelineConfig(), DEFAULT_MODEL)
-        if prelabeler.artifact_digest != artifact["digest"]:
+            detector = TraditionalDetector(PipelineConfig(), DEFAULT_MODEL)
+        if detector.artifact_digest != artifact["digest"]:
             raise ValueError(
                 f"Local artifact for {version_id} does not match the published digest"
             )
-        self._loaded = (version_id, prelabeler)
+        self._loaded = (version_id, detector)
         LOGGER.info("loaded %s", version_id)
-        return prelabeler
+        return detector
 
     def unload(self) -> None:
         if self._loaded is None:
             return
-        _, prelabeler = self._loaded
+        _, detector = self._loaded
         self._loaded = None
-        del prelabeler
+        del detector
         _release_accelerator()
 
-    def _yolo_prelabeler(
+    def _ultralytics_detector(
         self, version_id: str, artifact: dict[str, Any]
-    ) -> YoloPrelabeler:
+    ) -> UltralyticsDetector:
         expected_digest = artifact["digest"]
         destination = self._artifacts / version_id
         if destination.exists():
             try:
-                return self._verified_yolo_prelabeler(destination, expected_digest)
+                return self._verified_ultralytics_detector(destination, expected_digest)
             except CACHE_VALIDATION_ERRORS as error:
                 LOGGER.warning("discarding invalid cache for %s: %s", version_id, error)
                 self._discard_cache_entry(destination)
@@ -227,20 +227,20 @@ class ModelStore:
                 + "\n",
                 encoding="utf-8",
             )
-            self._verified_yolo_prelabeler(temporary, expected_digest)
+            self._verified_ultralytics_detector(temporary, expected_digest)
             try:
                 temporary.rename(destination)
             except FileExistsError:
-                return self._verified_yolo_prelabeler(destination, expected_digest)
+                return self._verified_ultralytics_detector(destination, expected_digest)
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
-        return self._verified_yolo_prelabeler(destination, expected_digest)
+        return self._verified_ultralytics_detector(destination, expected_digest)
 
-    def _verified_yolo_prelabeler(
+    def _verified_ultralytics_detector(
         self, run: Path, expected_digest: str
-    ) -> YoloPrelabeler:
-        cached = YoloPrelabeler.from_run(run, device=self._device)
+    ) -> UltralyticsDetector:
+        cached = UltralyticsDetector.from_run(run, device=self._device)
         if cached.artifact_digest != expected_digest:
             raise ValueError("YOLO artifact does not match its published digest")
         return cached

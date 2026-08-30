@@ -7,7 +7,7 @@ type Tone = "default" | "warning" | "success" | "danger" | "accent";
 const DISPLAY: Record<ImageState, { label: string; tone: Tone }> = {
   pending: { label: "Pending", tone: "default" },
   failed: { label: "Failed", tone: "danger" },
-  prelabeled: { label: "To review", tone: "accent" },
+  detected: { label: "To review", tone: "accent" },
   in_progress: { label: "In progress", tone: "warning" },
   complete: { label: "Complete", tone: "success" },
   excluded: { label: "Excluded", tone: "default" },
