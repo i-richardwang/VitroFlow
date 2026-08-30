@@ -89,6 +89,7 @@ def test_ultralytics_detector_uses_published_inference_settings(
     class FakeYolo:
         def __init__(self, weights: str) -> None:
             self.weights = weights
+            self.names = {0: "seed", 1: "germinated"}
 
         def predict(self, **options: object) -> list[object]:
             calls.append((self.weights, options))
@@ -106,7 +107,9 @@ def test_ultralytics_detector_uses_published_inference_settings(
             return [SimpleNamespace(orig_shape=(80, 100), boxes=boxes)]
 
     monkeypatch.setattr(ultralytics_module, "load_yolo", lambda: FakeYolo)
-    detector = UltralyticsDetector.from_run(_run(tmp_path), device="mps")
+    detector = UltralyticsDetector.from_run(
+        _run(tmp_path), ("seed", "germinated"), device="mps"
+    )
     producer = DetectionProducer(
         "set.yolo-v1", detector.artifact_digest, detector.runtime
     )
@@ -124,7 +127,6 @@ def test_ultralytics_detector_uses_published_inference_settings(
                 "imgsz": 768,
                 "max_det": 500,
                 "end2end": False,
-                "classes": [0],
                 "verbose": False,
                 "device": "mps",
             },
@@ -139,6 +141,12 @@ def test_ultralytics_detector_uses_published_inference_settings(
         },
         {
             "id": "1",
+            "class": "germinated",
+            "bbox": {"x": 30.0, "y": 40.0, "width": 5.0, "height": 5.0},
+            "score": 0.8,
+        },
+        {
+            "id": "2",
             "class": "seed",
             "bbox": {"x": 99.0, "y": 79.0, "width": 1.0, "height": 1.0},
             "score": 0.7,
@@ -146,18 +154,35 @@ def test_ultralytics_detector_uses_published_inference_settings(
     ]
 
 
+def test_ultralytics_detector_binds_weight_classes_to_the_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeYolo:
+        def __init__(self, _weights: str) -> None:
+            self.names = {0: "germinated", 1: "seed"}
+
+    monkeypatch.setattr(ultralytics_module, "load_yolo", lambda: FakeYolo)
+    detector = UltralyticsDetector.from_run(_run(tmp_path), ("seed", "germinated"))
+    producer = DetectionProducer(
+        "set.yolo-v1", detector.artifact_digest, detector.runtime
+    )
+
+    with pytest.raises(RuntimeError, match="weight classes differ"):
+        detector.predict(tmp_path / "source.jpg", "c" * 64, producer)
+
+
 def test_ultralytics_detector_rejects_an_uncalibrated_run(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="not ready"):
-        UltralyticsDetector.from_run(_run(tmp_path, ready=False))
+        UltralyticsDetector.from_run(_run(tmp_path, ready=False), ("seed",))
 
 
 def test_yolo_fingerprint_covers_weights_and_inference_settings(tmp_path: Path) -> None:
     run = _run(tmp_path)
-    baseline = UltralyticsDetector.from_run(run)
+    baseline = UltralyticsDetector.from_run(run, ("seed",))
     document = json.loads((run / "inference.json").read_text())
     document["inference"]["confidence"] = 0.5
     (run / "inference.json").write_text(json.dumps(document))
-    changed = UltralyticsDetector.from_run(run)
+    changed = UltralyticsDetector.from_run(run, ("seed",))
 
     assert baseline.artifact_digest != changed.artifact_digest
     assert baseline.runtime == changed.runtime
@@ -171,7 +196,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
             self.weights = weights
 
     monkeypatch.setattr(ultralytics_module, "load_yolo", lambda: FakeYolo)
-    reference = UltralyticsDetector.from_run(_run(tmp_path))
+    reference = UltralyticsDetector.from_run(_run(tmp_path), ("seed",))
     artifact = {
         "kind": "ultralytics",
         "digest": reference.artifact_digest,
@@ -221,6 +246,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
         {
             "schemaVersion": 1,
             "modelVersionId": "set.yolo-v1",
+            "classes": ["seed"],
             "artifact": artifact,
         }
     )

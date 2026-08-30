@@ -23,19 +23,15 @@ const NEW_DATASET = "\0new";
 
 /**
  * Puts experiment photographs into a training set for the model they were
- * counted with. An existing dataset of that model can be chosen; a new name
+ * read with. An existing dataset of that model can be chosen; a new name
  * creates one.
  */
 export function AddToDatasetDialog({
-  modelId,
   photos,
   datasets,
   label = "Add to dataset",
 }: {
-  /** The model the photographs were counted with; their dataset trains it. */
-  modelId: string;
   photos: PhotoRef[];
-  /** Existing datasets that train `modelId`. */
   datasets: string[];
   label?: string;
 }) {
@@ -57,11 +53,7 @@ export function AddToDatasetDialog({
                 <Modal.Header>
                   <Modal.Heading>{label}</Modal.Heading>
                   <Description>
-                    {photos.length}{" "}
-                    {photos.length === 1 ? "photograph" : "photographs"} join a
-                    training set for{" "}
-                    <span className="font-mono">{modelId}</span>. Reviews
-                    already made for this model come with them.
+                    Reviewed boxes for this model come with the photographs.
                   </Description>
                 </Modal.Header>
                 <Modal.Body>
@@ -99,9 +91,10 @@ export function AddToDatasetDialog({
                         });
                     }}
                   >
-                    <Fieldset>
+                    <Fieldset className="w-full">
                       <Fieldset.Group>
                         <Select
+                          variant="secondary"
                           fullWidth
                           isDisabled={busy}
                           selectedKey={choice}
@@ -138,6 +131,7 @@ export function AddToDatasetDialog({
                         </Select>
                         {choice === NEW_DATASET ? (
                           <TextField
+                            variant="secondary"
                             fullWidth
                             isRequired
                             isDisabled={busy}
@@ -154,6 +148,9 @@ export function AddToDatasetDialog({
                         ) : null}
                       </Fieldset.Group>
                       <Fieldset.Actions>
+                        <Button variant="tertiary" onPress={close}>
+                          Cancel
+                        </Button>
                         <Button
                           type="submit"
                           variant="primary"

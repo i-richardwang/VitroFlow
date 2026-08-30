@@ -8,10 +8,11 @@ import {
 import { documentFromDetection } from "../annotation/detection";
 import { database, transaction, type Executor } from "../db/client";
 import { images, labels } from "../db/schema";
+import { assertInstanceClasses } from "../models/readings";
 import { readDetection } from "./detections";
 import { assertDocumentImage } from "./image-documents";
 import { lockImage } from "./image-lock";
-import { readModelVersion } from "./model-registry";
+import { readModel, readModelVersion } from "./model-registry";
 
 export function atLabel({ digest, model }: LabelRef) {
   return and(eq(labels.imageId, digest), eq(labels.modelId, model));
@@ -56,6 +57,9 @@ async function insertLabel(
       `Version ${created.source.modelVersionId} is not a version of ${ref.model}`,
     );
   }
+  const model = await readModel(ref.model, tx);
+  if (!model) throw new Error(`Unknown model: ${ref.model}`);
+  assertInstanceClasses(model.classes, created.instances, "Label");
   if (await readLabel(ref, tx)) {
     throw new Error(`Label already exists for ${describeLabel(ref)}`);
   }
@@ -78,7 +82,7 @@ export async function createLabel(
 
 /**
  * Starts a review from what one version of the model found, atomically with
- * reading it. The version is the one whose count the reviewer is looking at.
+ * reading it. The version is the one whose result the reviewer is looking at.
  */
 export async function createLabelFromDetection(
   ref: LabelRef,
@@ -112,6 +116,9 @@ export async function updateLabel(
     source: current.source,
     revision: current.revision + 1,
   });
+  const model = await readModel(ref.model, db);
+  if (!model) throw new Error(`Unknown model: ${ref.model}`);
+  assertInstanceClasses(model.classes, next.instances, "Label");
   const updated = await db
     .update(labels)
     .set({ document: next, updatedAt: new Date() })

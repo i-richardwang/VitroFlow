@@ -22,11 +22,12 @@ import {
 } from "../inference/assignments";
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
-import { supportsRuntime } from "../models/schema";
+import { assertInstanceClasses } from "../models/readings";
+import { supportsRuntime, type Model } from "../models/schema";
 import { lockDetection } from "./detection-lock";
 import { assertDocumentImage } from "./image-documents";
 import { canExecute } from "./inference-worker-store";
-import { toModelVersion } from "./model-registry";
+import { readModel, toModelVersion } from "./model-registry";
 
 /** One image under one model version: the pair a detection is recorded for. */
 export interface DetectionTarget {
@@ -104,7 +105,7 @@ async function assertProducer(
   outcome: InferenceOutcome,
   worker: Pick<InferenceWorkerRecord, "runtimes">,
   tx: Executor,
-): Promise<void> {
+): Promise<Model> {
   const { producer } = outcome;
   if (producer.model_version_id !== target.versionId) {
     throw new ProducerMismatchError(
@@ -115,6 +116,7 @@ async function assertProducer(
     .select({
       artifact: modelVersions.artifact,
       artifactDigest: modelVersions.artifactDigest,
+      modelId: modelVersions.modelId,
     })
     .from(modelVersions)
     .where(eq(modelVersions.id, target.versionId));
@@ -142,6 +144,11 @@ async function assertProducer(
       "Outcome was produced by a runtime the worker does not advertise",
     );
   }
+  const model = await readModel(version.modelId, tx);
+  if (!model) {
+    throw new ProducerMismatchError(`Unknown model: ${version.modelId}`);
+  }
+  return model;
 }
 
 /**
@@ -178,7 +185,16 @@ export async function recordInferenceOutcome(
         error instanceof Error ? error.message : String(error),
       );
     }
-    await assertProducer(target, outcome, worker, tx);
+    const model = await assertProducer(target, outcome, worker, tx);
+    if (!isFailure(outcome)) {
+      try {
+        assertInstanceClasses(model.classes, outcome.instances, "Outcome");
+      } catch (error) {
+        throw new InvalidDetectionOutcomeError(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
     const existing = await readDetection(target, tx);
     if (isFailure(outcome)) {
       if (existing) return existing;
@@ -242,7 +258,7 @@ export interface Assignment {
   images: string[];
 }
 
-/** Pairs experiments need: their photographs under the versions they count with, each once. */
+/** Pairs experiments need: their photographs under the versions they read with, each once. */
 function experimentDemand(db: Executor) {
   return db
     .selectDistinct({
@@ -294,8 +310,12 @@ export async function pendingAssignments(
   for (const version of versions) {
     const modelVersion = toModelVersion(version);
     if (!canExecute(worker, modelVersion.artifact)) continue;
+    const model = await readModel(modelVersion.modelId, db);
+    if (!model) {
+      throw new Error(`Version ${modelVersion.id} has no model`);
+    }
     assignments.push({
-      manifest: inferenceModelManifest(modelVersion),
+      manifest: inferenceModelManifest(modelVersion, model),
       images: byVersion.get(version.id)!.sort(),
     });
   }

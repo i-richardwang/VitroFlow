@@ -21,6 +21,7 @@ import { createLabel, readLabel } from "./labels";
 import { registerModel, registerModelVersion } from "./model-registry";
 import {
   DetectionConflictError,
+  InvalidDetectionOutcomeError,
   ProducerMismatchError,
   pendingAssignments,
   readDetection,
@@ -125,7 +126,7 @@ describe("datasets", () => {
     ).toMatchObject({ added: 0, existing: 1 });
   });
 
-  test("a dataset trains the model its photographs were counted with", async () => {
+  test("a dataset trains the model its photographs were read with", async () => {
     const seed = await photographRound("model photos", ["modelled"]);
     await addExperimentPhotos({ dataset: "one-model", photos: seed.photos });
     await registerModel({
@@ -134,6 +135,9 @@ describe("datasets", () => {
       name: "Other task",
       task: "object_detection",
       classes: ["seed"],
+      readings: [
+        { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
+      ],
     });
     const otherVersion = await registerTrainedVersion("other-task");
     const other = await photographRound(
@@ -366,6 +370,23 @@ describe("detections", () => {
     ).rejects.toThrow(/describes/);
 
     const result = await resultFor(version, "mismatch");
+    await expect(
+      recordInferenceOutcome(
+        target,
+        {
+          ...result,
+          instances: [
+            {
+              id: "unknown",
+              class: "debris",
+              bbox: { x: 1, y: 1, width: 5, height: 5 },
+              score: 0.9,
+            },
+          ],
+        },
+        worker,
+      ),
+    ).rejects.toBeInstanceOf(InvalidDetectionOutcomeError);
     await expect(
       recordInferenceOutcome(
         target,

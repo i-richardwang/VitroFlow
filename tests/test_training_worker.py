@@ -48,6 +48,7 @@ def _snapshot(images: list[dict[str, object]]) -> dict[str, object]:
         "id": "snapshot-one",
         "datasetId": "set",
         "modelId": "set",
+        "classes": ["seed"],
         "createdAt": "2026-08-27T00:00:00.000Z",
         "images": images,
     }

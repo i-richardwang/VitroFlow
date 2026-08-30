@@ -3,6 +3,7 @@ import { z } from "zod";
 import { annotationSchema } from "../annotation/schema";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
+import { classListSchema } from "../models/readings";
 import { trainingParametersSchema } from "./parameters";
 
 /** A snapshot needs one training and one validation image. */
@@ -56,14 +57,36 @@ const snapshotImageSchema = z
     }
   });
 
-export const datasetSnapshotSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  id: resourceIdSchema,
-  datasetId: resourceIdSchema,
-  modelId: resourceIdSchema,
-  createdAt: z.string().datetime({ offset: true }),
-  images: z.array(snapshotImageSchema).min(MIN_SNAPSHOT_IMAGES),
-});
+export const datasetSnapshotSchema = z
+  .strictObject({
+    schemaVersion: z.literal(1),
+    id: resourceIdSchema,
+    datasetId: resourceIdSchema,
+    modelId: resourceIdSchema,
+    classes: classListSchema,
+    createdAt: z.string().datetime({ offset: true }),
+    images: z.array(snapshotImageSchema).min(MIN_SNAPSHOT_IMAGES),
+  })
+  .superRefine((snapshot, context) => {
+    const known = new Set(snapshot.classes);
+    snapshot.images.forEach((image, imageIndex) => {
+      image.annotation.instances.forEach((instance, instanceIndex) => {
+        if (known.has(instance.class)) return;
+        context.addIssue({
+          code: "custom",
+          path: [
+            "images",
+            imageIndex,
+            "annotation",
+            "instances",
+            instanceIndex,
+            "class",
+          ],
+          message: `Snapshot annotation uses unknown class ${instance.class}`,
+        });
+      });
+    });
+  });
 
 export const trainingRecipeSchema = z.strictObject({
   baseModel: z.strictObject({

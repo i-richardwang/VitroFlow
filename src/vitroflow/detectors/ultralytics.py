@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from ..annotations import BoundingBox
+from ..identifiers import CLASS_NAME
 from ..yolo.runtime import load_yolo
 from .contract import (
     DetectionInstance,
@@ -143,6 +144,7 @@ class UltralyticsDetector:
 
     weights: Path
     settings: YoloInferenceSettings
+    class_names: tuple[str, ...]
     device: str | None = None
     _model: Any = field(default=None, init=False, repr=False)
     _runtime: type = field(init=False, repr=False)
@@ -153,6 +155,11 @@ class UltralyticsDetector:
         self.weights = self.weights.resolve()
         if not self.weights.is_file():
             raise FileNotFoundError(self.weights)
+        if not self.class_names or len(set(self.class_names)) != len(self.class_names):
+            raise ValueError("YOLO class names must be non-empty and unique")
+        for name in self.class_names:
+            if not CLASS_NAME.fullmatch(name):
+                raise ValueError(f"Invalid YOLO class name: {name}")
         self._runtime = load_yolo()
         self._artifact_digest = _artifact_digest(self.weights, self.settings)
         self._runtime_descriptor = ultralytics_runtime_descriptor()
@@ -161,6 +168,7 @@ class UltralyticsDetector:
     def from_run(
         cls,
         run_dir: str | Path,
+        class_names: tuple[str, ...],
         *,
         device: str | None = None,
     ) -> UltralyticsDetector:
@@ -169,6 +177,7 @@ class UltralyticsDetector:
         return cls(
             weights,
             settings,
+            class_names,
             device,
         )
 
@@ -182,7 +191,20 @@ class UltralyticsDetector:
 
     def _predictor(self) -> Any:
         if self._model is None:
-            self._model = self._runtime(str(self.weights))
+            model = self._runtime(str(self.weights))
+            names = getattr(model, "names", None)
+            if isinstance(names, dict) and set(names) == set(range(len(names))):
+                artifact_classes = tuple(names[index] for index in range(len(names)))
+            elif isinstance(names, (list, tuple)):
+                artifact_classes = tuple(names)
+            else:
+                raise RuntimeError("YOLO weights do not declare an ordered class list")
+            if artifact_classes != self.class_names:
+                raise RuntimeError(
+                    "YOLO weight classes differ from the assigned model: "
+                    f"{artifact_classes!r} != {self.class_names!r}"
+                )
+            self._model = model
         return self._model
 
     def predict(
@@ -194,7 +216,6 @@ class UltralyticsDetector:
             "imgsz": self.settings.image_size,
             "max_det": self.settings.max_detections,
             "end2end": self.settings.end_to_end,
-            "classes": [0],
             "verbose": False,
         }
         if self.device is not None:
@@ -221,9 +242,14 @@ class UltralyticsDetector:
             ):
                 x1, y1, x2, y2 = map(float, coordinates)
                 score = float(score)
-                class_id = float(class_id)
-                if int(class_id) != 0:
-                    continue
+                numeric_class = float(class_id)
+                class_index = int(numeric_class)
+                if numeric_class != class_index or not 0 <= class_index < len(
+                    self.class_names
+                ):
+                    raise RuntimeError(
+                        f"YOLO returned unknown class index {numeric_class}"
+                    )
                 left = min(max(x1, 0.0), float(width))
                 top = min(max(y1, 0.0), float(height))
                 right = min(max(x2, 0.0), float(width))
@@ -233,6 +259,7 @@ class UltralyticsDetector:
                 instances.append(
                     DetectionInstance(
                         instance_id=str(len(instances)),
+                        class_name=self.class_names[class_index],
                         bbox=BoundingBox(left, top, right - left, bottom - top),
                         score=score,
                     )

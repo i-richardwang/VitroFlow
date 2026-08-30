@@ -16,6 +16,7 @@ import {
   ExperimentPhotoAlreadyUsedError,
   listExperiments,
   readExperimentGrid,
+  readExperimentDish,
   readExperimentPhoto,
   retryExperimentDetection,
   RoundRejectedError,
@@ -33,6 +34,7 @@ import {
 } from "./testing";
 
 const CAPTURED_1 = "2026-08-01T09:00:00.000Z";
+const CAPTURED_2 = "2026-08-02T09:00:00.000Z";
 const CAPTURED_3 = "2026-08-03T09:00:00.000Z";
 const CAPTURED_5 = "2026-08-05T09:00:00.000Z";
 
@@ -49,6 +51,9 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
     name: `${modelId} detector`,
     task: "object_detection",
     classes: ["seed"],
+    readings: [
+      { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
+    ],
   });
   return registerTrainedVersion(modelId);
 }
@@ -212,7 +217,7 @@ describe("experiments", () => {
     );
     expect(summary?.dishes).toBe(3);
     expect(summary?.rounds).toBe(3);
-    expect(summary?.counts).toEqual({ pending: 6, failed: 0, counted: 0 });
+    expect(summary?.counts).toEqual({ pending: 6, failed: 0, observed: 0 });
   });
 
   test("rejects a photograph already used anywhere in the experiment", async () => {
@@ -249,10 +254,10 @@ describe("experiments", () => {
     expect((await readExperimentGrid(experiment.id))?.rounds).toHaveLength(1);
   });
 
-  test("detects photos under the experiment version and exposes counts", async () => {
-    const version = await trainedVersion("exp-count");
+  test("detects photos under the experiment version and exposes tallies", async () => {
+    const version = await trainedVersion("exp-readings");
     const experiment = await createExperiment({
-      name: "Count",
+      name: "Readings",
       modelVersionId: version.id,
     });
     const added = await round(experiment.id, "Day 1", CAPTURED_1, {
@@ -289,11 +294,11 @@ describe("experiments", () => {
       grid?.photos.map((photo) => [
         photo.dish,
         photo.state,
-        photo.count,
+        photo.observed,
         photo.error,
       ]),
     ).toEqual([
-      ["D1", "counted", 3, null],
+      ["D1", "observed", { seed: 3 }, null],
       ["D2", "failed", null, "no dish found"],
     ]);
 
@@ -320,7 +325,43 @@ describe("experiments", () => {
     ).toHaveLength(3);
   });
 
-  test("two experiments counting one photograph with one version share one pair", async () => {
+  test("a dish page shows its newest photographed round and walks the roster", async () => {
+    const version = await trainedVersion("exp-dish");
+    const experiment = await createExperiment({
+      name: "Dish series",
+      modelVersionId: version.id,
+    });
+    const first = await round(experiment.id, "Day 1", CAPTURED_1, {
+      "S1.jpg": "s-d1-s1",
+      "S2.jpg": "s-d1-s2",
+    });
+    const second = await round(experiment.id, "Day 3", CAPTURED_2, {
+      "S1.jpg": "s-d3-s1",
+    });
+    const ref = { experiment: experiment.id, dish: "S1" };
+
+    const newest = await readExperimentDish(ref);
+    expect(newest?.model.readings[0]?.id).toBe("seeds");
+    expect(newest?.shown?.round.id).toBe(second.round.id);
+    expect(newest?.rounds.map((item) => item.photo?.state ?? null)).toEqual([
+      "pending",
+      "pending",
+    ]);
+    expect([newest?.previous, newest?.next]).toEqual([null, "S2"]);
+
+    const earlier = await readExperimentDish(ref, first.round.id);
+    expect(earlier?.shown?.digest).toBe(await imageDigest("s-d1-s1"));
+
+    const lonely = await readExperimentDish({ ...ref, dish: "S2" });
+    expect(lonely?.shown?.round.id).toBe(first.round.id);
+    expect(lonely?.rounds[1]?.photo).toBeNull();
+    expect(
+      await readExperimentDish({ ...ref, dish: "S2" }, second.round.id),
+    ).toBeNull();
+    expect(await readExperimentDish({ ...ref, dish: "S9" })).toBeNull();
+  });
+
+  test("two experiments reading one photograph with one version share one pair", async () => {
     const version = await trainedVersion("exp-shared");
     const [digest] = await storeTexts(["shared-photo"]);
     for (const name of ["Shared demand A", "Shared demand B"]) {

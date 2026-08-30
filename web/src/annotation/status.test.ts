@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { AnnotationDocument } from "./schema";
-import { ReviewTransitionError, transition } from "./status";
+import { isCompletedReview, ReviewTransitionError, transition } from "./status";
 
 const base: AnnotationDocument = {
   schemaVersion: 1,
@@ -19,6 +19,12 @@ const base: AnnotationDocument = {
 };
 
 describe("transition", () => {
+  test("only completed reviews are settled observations", () => {
+    expect(isCompletedReview(base)).toBeFalse();
+    expect(isCompletedReview({ ...base, status: "complete" })).toBeTrue();
+    expect(isCompletedReview({ ...base, status: "excluded" })).toBeFalse();
+  });
+
   test("edit sends a completed image back to in_progress", () => {
     expect(
       transition({ ...base, status: "complete" }, { type: "edit" }).status,

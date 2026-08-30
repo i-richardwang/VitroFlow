@@ -49,14 +49,23 @@ export type ExperimentRound = z.infer<typeof experimentRoundSchema>;
 
 const dishLabelSchema = z.string().min(1).max(255);
 
-/** One dish in one round: the cell of the grid a photograph fills. */
-export const photoRefSchema = z.strictObject({
+/** One dish of an experiment: a row of the grid, photographed round by round. */
+export const dishRefSchema = z.strictObject({
   experiment: experimentIdSchema,
   dish: dishLabelSchema,
-  round: roundIdSchema,
 });
 
+export type DishRef = z.infer<typeof dishRefSchema>;
+
+/** One dish in one round: the cell of the grid a photograph fills. */
+export const photoRefSchema = dishRefSchema.extend({ round: roundIdSchema });
+
 export type PhotoRef = z.infer<typeof photoRefSchema>;
+
+/** A dish page shows one of its rounds; without a choice, the newest. */
+export const dishRequestSchema = dishRefSchema.extend({
+  round: roundIdSchema.optional(),
+});
 
 const photoFilenameSchema = z
   .string()
@@ -102,6 +111,6 @@ export function compareDishLabels(left: string, right: string): number {
 }
 
 /** What the experiment knows about one cell of its grid. */
-export const PHOTO_STATES = ["pending", "failed", "counted"] as const;
+export const PHOTO_STATES = ["pending", "failed", "observed"] as const;
 
 export type PhotoState = (typeof PHOTO_STATES)[number];

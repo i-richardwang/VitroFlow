@@ -16,6 +16,7 @@ import {
 } from "../training/schema";
 import { contentDigest } from "./blobs";
 import { readDataset } from "./datasets";
+import { readModel } from "./model-registry";
 import { listReviewedRecords, type ReviewedRecord } from "./summaries";
 
 /**
@@ -101,11 +102,14 @@ export async function readDatasetSnapshot(
     .from(datasetSnapshots)
     .where(eq(datasetSnapshots.id, snapshotId));
   if (!row) return null;
+  const model = await readModel(row.modelId, executor);
+  if (!model) throw new Error(`Unknown model: ${row.modelId}`);
   return datasetSnapshotSchema.parse({
     schemaVersion: 1,
     id: row.id,
     datasetId: row.datasetId,
     modelId: row.modelId,
+    classes: model.classes,
     createdAt: row.createdAt.toISOString(),
     images: await snapshotImages(snapshotId, executor),
   });

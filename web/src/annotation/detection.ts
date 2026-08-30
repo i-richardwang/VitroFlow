@@ -3,11 +3,11 @@ import {
   newInstanceId,
   type AnnotationDocument,
   type BoundingBox,
-  type SeedInstance,
+  type LabelInstance,
 } from "./schema";
 
 /**
- * Default square for manually added seeds. Existing detection boxes are the
+ * Default square for manually added instances. Existing detection boxes are the
  * strongest size prior; an image-relative fallback also supports zero-box
  * detections and future detectors without dish diagnostics.
  */
@@ -24,8 +24,11 @@ export function initialBoxSide(result: DetectionResult): number {
     : (sides[middle - 1] + sides[middle]) / 2;
 }
 
-export function instanceFromBox(bbox: BoundingBox): SeedInstance {
-  return { id: newInstanceId(), class: "seed", bbox };
+export function instanceFromBox(
+  className: string,
+  bbox: BoundingBox,
+): LabelInstance {
+  return { id: newInstanceId(), class: className, bbox };
 }
 
 /** A review that starts from every box the detection found. */

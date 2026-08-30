@@ -1,8 +1,6 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Link } from "@heroui/react";
 
-import { EmptyStateHeading } from "./EmptyStateHeading";
-
 /** Full-area empty state with a way back to the experiments list. */
 export function WorkbenchNotice({
   title,
@@ -15,7 +13,7 @@ export function WorkbenchNotice({
     <div className="flex flex-1 items-center justify-center p-6">
       <EmptyState>
         <EmptyState.Header>
-          <EmptyStateHeading>{title}</EmptyStateHeading>
+          <EmptyState.Title>{title}</EmptyState.Title>
           <EmptyState.Description>{description}</EmptyState.Description>
         </EmptyState.Header>
         <EmptyState.Content>

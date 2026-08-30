@@ -4,7 +4,6 @@ import { Table } from "@heroui/react";
 import { validationMetric, versionSlug } from "../../models/schema";
 import type { VersionOverview } from "../../server/training-console";
 import { Count } from "../Count";
-import { EmptyStateHeading } from "../EmptyStateHeading";
 import { Metric } from "../training/Metric";
 import { Timestamp } from "../Timestamp";
 import { ModelKindChip } from "./ModelKindChip";
@@ -32,7 +31,7 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
             renderEmptyState={() => (
               <EmptyState size="sm">
                 <EmptyState.Header>
-                  <EmptyStateHeading>No versions</EmptyStateHeading>
+                  <EmptyState.Title>No versions</EmptyState.Title>
                 </EmptyState.Header>
               </EmptyState>
             )}

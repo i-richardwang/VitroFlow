@@ -144,7 +144,8 @@ CREATE TABLE "models" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"task" text NOT NULL,
-	"classes" jsonb NOT NULL
+	"classes" jsonb NOT NULL,
+	"readings" jsonb NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "training_epochs" (

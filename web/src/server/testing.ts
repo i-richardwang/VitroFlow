@@ -158,10 +158,10 @@ export async function photographRound(
   contents: string[],
   version?: ModelVersion,
 ): Promise<PhotographedRound> {
-  const counted = version ?? (await baselineVersion());
+  const selectedVersion = version ?? (await baselineVersion());
   const experiment = await createExperiment({
     name: experimentName,
-    modelVersionId: counted.id,
+    modelVersionId: selectedVersion.id,
   });
   const digests = await storeTexts(contents);
   const { round } = await addRound({
@@ -175,7 +175,7 @@ export async function photographRound(
   });
   return {
     experiment,
-    version: counted,
+    version: selectedVersion,
     digests,
     photos: contents.map((content) => ({
       experiment: experiment.id,

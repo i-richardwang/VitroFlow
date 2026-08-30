@@ -38,7 +38,7 @@ export function makeResult(
         ? [
             {
               id: String(detection.id),
-              class: "seed" as const,
+              class: "seed",
               bbox,
               score: 0.9,
             },

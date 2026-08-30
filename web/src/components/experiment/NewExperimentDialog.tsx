@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   FieldError,
   Fieldset,
   Form,
@@ -15,19 +14,18 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { versionSlug, type ModelVersion } from "../../models/schema";
+import type { Model, ModelVersion } from "../../models/schema";
 import { startExperiment } from "../../functions/experiments";
-import { ModelKindChip } from "../dataset/ModelKindChip";
 
 /**
- * Starts an experiment that counts with one version. Versions are listed
+ * Starts an experiment that reads with one version. Versions are listed
  * newest first, so the latest trained one is preselected and the baseline
  * is the choice only until training has produced something better.
  */
 export function NewExperimentDialog({
   versions,
 }: {
-  versions: ModelVersion[];
+  versions: Array<{ model: Model; version: ModelVersion }>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -43,10 +41,6 @@ export function NewExperimentDialog({
                 <Modal.CloseTrigger />
                 <Modal.Header>
                   <Modal.Heading>New experiment</Modal.Heading>
-                  <Description>
-                    Every count in the experiment comes from the version chosen
-                    here.
-                  </Description>
                 </Modal.Header>
                 <Modal.Body>
                   <Form
@@ -80,9 +74,10 @@ export function NewExperimentDialog({
                         });
                     }}
                   >
-                    <Fieldset>
+                    <Fieldset className="w-full">
                       <Fieldset.Group>
                         <TextField
+                          variant="secondary"
                           fullWidth
                           isRequired
                           isDisabled={busy}
@@ -93,33 +88,33 @@ export function NewExperimentDialog({
                           <FieldError />
                         </TextField>
                         <Select
+                          variant="secondary"
                           fullWidth
                           isRequired
                           isDisabled={busy}
                           name="version"
-                          defaultSelectedKey={versions[0]?.id}
+                          defaultSelectedKey={versions[0]?.version.id}
                           placeholder="Choose a version"
                         >
-                          <Label>Model version</Label>
+                          <Label>Version</Label>
                           <Select.Trigger>
                             <Select.Value />
                             <Select.Indicator />
                           </Select.Trigger>
                           <Select.Popover>
                             <ListBox>
-                              {versions.map((version) => (
+                              {versions.map(({ model, version }) => (
                                 <ListBox.Item
                                   key={version.id}
                                   id={version.id}
-                                  textValue={version.id}
+                                  textValue={`${model.name} ${version.name}`}
                                 >
-                                  <Label className="flex items-center gap-2 font-mono">
-                                    {version.modelId} · {versionSlug(version)}
-                                    <ModelKindChip
-                                      kind={version.artifact.kind}
-                                    />
-                                  </Label>
-                                  <Description>{version.name}</Description>
+                                  <span className="flex min-w-0 flex-col">
+                                    <Label>{model.name}</Label>
+                                    <span className="truncate text-xs text-muted">
+                                      {version.name}
+                                    </span>
+                                  </span>
                                   <ListBox.ItemIndicator />
                                 </ListBox.Item>
                               ))}
@@ -129,6 +124,9 @@ export function NewExperimentDialog({
                         </Select>
                       </Fieldset.Group>
                       <Fieldset.Actions>
+                        <Button variant="tertiary" onPress={close}>
+                          Cancel
+                        </Button>
                         <Button
                           type="submit"
                           variant="primary"

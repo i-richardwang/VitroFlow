@@ -1,18 +1,16 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Link, Table } from "@heroui/react";
+import { Label, Link, ListBox, Select, Table, Tooltip } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import { AddToDatasetDialog } from "../../components/dataset/AddToDatasetDialog";
-import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { RoundDialog } from "../../components/experiment/RoundDialog";
-import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
-import { Timestamp } from "../../components/Timestamp";
 import { experimentIdSchema } from "../../experiments/schema";
-import { versionSlug } from "../../models/schema";
 import { getExperimentGrid } from "../../functions/experiments";
-import type { PhotoCell } from "../../server/experiments";
+import { formatReading, read, type Reading } from "../../models/readings";
+import { primaryReading } from "../../models/schema";
+import type { ExperimentGrid, PhotoCell } from "../../server/experiments";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   loader: async ({ params }) => {
@@ -25,13 +23,26 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
     if (!grid) throw notFound();
     return grid;
   },
+  staticData: {
+    crumbs: ({ loaderData }) => {
+      const { experiment } = loaderData as ExperimentGrid;
+      return [
+        { label: "Experiments", href: "/experiments" },
+        { label: experiment.name },
+      ];
+    },
+  },
   component: ExperimentPage,
 });
 
 function ExperimentPage() {
-  const { experiment, version, dishes, rounds, photos, datasets } =
+  const { experiment, model, version, dishes, rounds, photos, datasets } =
     Route.useLoaderData();
   const router = useRouter();
+  const [readingId, setReadingId] = useState(primaryReading(model).id);
+  const reading =
+    model.readings.find((item) => item.id === readingId) ??
+    primaryReading(model);
 
   const waiting = photos.some((photo) => photo.state === "pending");
   useEffect(() => {
@@ -47,25 +58,41 @@ function ExperimentPage() {
   return (
     <Page
       title={experiment.name}
-      description={
-        <>
-          Counting with{" "}
-          <span className="font-mono">
-            {version.modelId} / {versionSlug(version)}
-          </span>
-          {rounds.length > 0 ? (
-            <>
-              , {dishes.length} {dishes.length === 1 ? "dish" : "dishes"} over{" "}
-              {rounds.length} {rounds.length === 1 ? "round" : "rounds"}
-            </>
-          ) : null}
-        </>
-      }
+      description={version.name}
       actions={
         <>
+          {model.readings.length > 1 && (
+            <Select
+              aria-label="Reading"
+              className="w-44"
+              variant="secondary"
+              selectedKey={reading.id}
+              onSelectionChange={(key) =>
+                key !== null && setReadingId(String(key))
+              }
+            >
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {model.readings.map((item) => (
+                    <ListBox.Item
+                      key={item.id}
+                      id={item.id}
+                      textValue={item.name}
+                    >
+                      <Label>{item.name}</Label>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          )}
           {photos.length > 0 ? (
             <AddToDatasetDialog
-              modelId={version.modelId}
               photos={photos.map((photo) => ({
                 experiment: experiment.id,
                 dish: photo.dish,
@@ -84,17 +111,12 @@ function ExperimentPage() {
     >
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label={`Counts in ${experiment.name}`}>
+          <Table.Content aria-label={`${reading.name} in ${experiment.name}`}>
             <Table.Header>
               <Table.Column isRowHeader>Dish</Table.Column>
               {rounds.map((round) => (
                 <Table.Column key={round.id} className="text-right">
-                  <span className="flex flex-col items-end">
-                    <span>{round.label}</span>
-                    <span className="text-xs font-normal text-muted">
-                      <Timestamp value={round.capturedAt} />
-                    </span>
-                  </span>
+                  {round.label}
                 </Table.Column>
               ))}
             </Table.Header>
@@ -102,7 +124,7 @@ function ExperimentPage() {
               renderEmptyState={() => (
                 <EmptyState size="sm">
                   <EmptyState.Header>
-                    <EmptyStateHeading>No rounds yet</EmptyStateHeading>
+                    <EmptyState.Title>No rounds yet</EmptyState.Title>
                     <EmptyState.Description>
                       Add the first round to name the dishes.
                     </EmptyState.Description>
@@ -113,7 +135,11 @@ function ExperimentPage() {
               {dishes.map((dish) => (
                 <Table.Row key={dish.label}>
                   <Table.Cell className="font-mono font-medium">
-                    {dish.label}
+                    <Link
+                      href={`/experiments/${experiment.id}/${encodeURIComponent(dish.label)}`}
+                    >
+                      {dish.label}
+                    </Link>
                   </Table.Cell>
                   {rounds.map((round) => (
                     <Table.Cell
@@ -122,6 +148,7 @@ function ExperimentPage() {
                     >
                       <Cell
                         experiment={experiment.id}
+                        reading={reading}
                         photo={cells.get(cellKey(dish.label, round.id))}
                       />
                     </Table.Cell>
@@ -140,39 +167,52 @@ function cellKey(dish: string, round: string): string {
   return `${round}\0${dish}`;
 }
 
-/**
- * A cell shows the reviewed count once a review of the photograph is
- * complete, and the version's count until then.
- */
+/** The reviewer's reading once a review is complete; otherwise the version's. */
 function Cell({
   experiment,
+  reading,
   photo,
 }: {
   experiment: string;
+  reading: Reading;
   photo: PhotoCell | undefined;
 }) {
-  if (!photo) return <span className="text-muted">-</span>;
-  const href = `/experiments/${experiment}/${encodeURIComponent(photo.dish)}/${photo.round}`;
-  if (photo.reviewed !== null) {
-    return (
-      <Hint text={`Reviewed; the version counted ${photo.count ?? "nothing"}`}>
-        <Link href={href} className="font-semibold text-success">
-          {photo.reviewed}
-        </Link>
-      </Hint>
+  if (!photo) return <span className="text-muted">—</span>;
+  const href = `/experiments/${experiment}/${encodeURIComponent(photo.dish)}?round=${photo.round}`;
+  const value = (counts: NonNullable<PhotoCell["observed"]>) =>
+    formatReading(reading, read(reading, counts));
+  if (photo.reviewed) {
+    return explain(
+      photo.observed && `Version read ${value(photo.observed)}`,
+      <Link href={href} className="font-semibold">
+        {value(photo.reviewed)}
+      </Link>,
     );
   }
-  if (photo.state === "counted") {
-    return <Link href={href}>{photo.count}</Link>;
+  if (photo.observed) {
+    return <Link href={href}>{value(photo.observed)}</Link>;
+  }
+  if (photo.state === "failed") {
+    return explain(
+      photo.error,
+      <Link href={href} className="text-danger">
+        Failed
+      </Link>,
+    );
   }
   return (
-    <Hint text={photo.error}>
-      <Link
-        href={href}
-        className={photo.state === "failed" ? "text-danger" : "text-muted"}
-      >
-        {photo.state}
-      </Link>
-    </Hint>
+    <Link href={href} className="text-muted">
+      —
+    </Link>
+  );
+}
+
+function explain(text: string | null, control: ReactElement) {
+  if (!text) return control;
+  return (
+    <Tooltip delay={0}>
+      {control}
+      <Tooltip.Content className="max-w-xs">{text}</Tooltip.Content>
+    </Tooltip>
   );
 }

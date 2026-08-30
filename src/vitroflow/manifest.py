@@ -21,7 +21,7 @@ from .documents import (
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import DATASET_NAME
+from .identifiers import CLASS_NAME, DATASET_NAME, VERSION_ID
 from .image_io import content_digest
 
 MANIFEST_SCHEMA_VERSION = 1
@@ -43,6 +43,8 @@ class ManifestImage:
 @dataclass(frozen=True)
 class DatasetManifest:
     dataset: str
+    model_id: str
+    classes: tuple[str, ...]
     images: tuple[ManifestImage, ...]
 
 
@@ -115,11 +117,27 @@ def _image(value: Any, context: str) -> ManifestImage:
 
 def parse_dataset_manifest(value: Any, context: str = "manifest") -> DatasetManifest:
     document = as_object(value, context)
-    expect_fields(document, {"schemaVersion", "dataset", "images"}, context)
+    expect_fields(document, {"schemaVersion", "dataset", "model", "images"}, context)
     expect_schema_version(document, "schemaVersion", MANIFEST_SCHEMA_VERSION, context)
     dataset = as_string(document["dataset"], f"{context}.dataset")
     if not DATASET_NAME.fullmatch(dataset):
         raise ValueError(f"{context}.dataset is invalid")
+    model = as_object(document["model"], f"{context}.model")
+    expect_fields(model, {"id", "classes"}, f"{context}.model")
+    model_id = as_string(model["id"], f"{context}.model.id")
+    if not VERSION_ID.fullmatch(model_id):
+        raise ValueError(f"{context}.model.id is invalid")
+    classes = tuple(
+        as_string(item, f"{context}.model.classes[{index}]")
+        for index, item in enumerate(
+            as_list(model["classes"], f"{context}.model.classes")
+        )
+    )
+    if not classes or len(set(classes)) != len(classes):
+        raise ValueError(f"{context}.model.classes must be non-empty and unique")
+    for name in classes:
+        if not CLASS_NAME.fullmatch(name):
+            raise ValueError(f"{context}.model.classes contains invalid class {name}")
     images = tuple(
         _image(raw, f"{context}.images[{index}]")
         for index, raw in enumerate(as_list(document["images"], f"{context}.images"))
@@ -127,7 +145,9 @@ def parse_dataset_manifest(value: Any, context: str = "manifest") -> DatasetMani
     digests = [image.digest for image in images]
     if len(set(digests)) != len(digests):
         raise ValueError(f"{context} lists an image digest more than once")
-    return DatasetManifest(dataset=dataset, images=images)
+    return DatasetManifest(
+        dataset=dataset, model_id=model_id, classes=classes, images=images
+    )
 
 
 def load_dataset_manifest(path: str | Path) -> DatasetManifest:

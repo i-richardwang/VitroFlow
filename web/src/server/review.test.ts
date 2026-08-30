@@ -45,6 +45,9 @@ test("a review starts from the version the reviewer arrived from", async () => {
     name: "Other task",
     task: "object_detection",
     classes: ["seed"],
+    readings: [
+      { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
+    ],
   });
   const foreign = await registerTrainedVersion("review-other");
   expect(await readReview(ref, foreign.id)).toBeNull();

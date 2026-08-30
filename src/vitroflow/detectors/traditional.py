@@ -101,6 +101,7 @@ class TraditionalDetector:
                 instances.append(
                     DetectionInstance(
                         instance_id=str(detection.detection_id),
+                        class_name="seed",
                         bbox=bbox,
                         score=detection.score,
                     )

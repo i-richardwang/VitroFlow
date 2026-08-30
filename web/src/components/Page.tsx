@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+/** A document screen: a titled, width-limited column that scrolls. */
 export function Page({
   title,
   description,
@@ -12,7 +13,7 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <main className="mx-auto w-full max-w-5xl px-8 pt-10 pb-12">
+    <div className="mx-auto w-full max-w-5xl px-8 pt-10 pb-12">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
@@ -25,6 +26,6 @@ export function Page({
         ) : null}
       </div>
       <div className="mt-8 flex flex-col gap-6">{children}</div>
-    </main>
+    </div>
   );
 }

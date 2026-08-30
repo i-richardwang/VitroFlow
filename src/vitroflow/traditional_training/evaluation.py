@@ -94,7 +94,7 @@ def evaluate_proposals(images: Sequence[PreparedImage]) -> ProposalMetrics:
     metrics = ProposalMetrics()
     for image in images:
         metrics += ProposalMetrics(
-            truth=len(image.annotation.boxes),
+            truth=len(image.boxes),
             matched=image.matched_boxes,
         )
     return metrics
@@ -114,10 +114,10 @@ def evaluate_candidate_model(
             config.decision,
         )
         assignments = match_boxes(
-            image.annotation.boxes,
+            image.boxes,
             [(item.x, item.y) for item in detection.detections],
         )
-        truth = len(image.annotation.boxes)
+        truth = len(image.boxes)
         predicted = len(detection.detections)
         true_positive = len(assignments)
         metrics += DetectionMetrics(

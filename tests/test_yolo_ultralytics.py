@@ -45,7 +45,7 @@ def test_ultralytics_resolves_exported_dataset_from_its_yaml(tmp_path: Path) -> 
     labelled = load_complete_annotations(write_manifest(data_root, "batch", entries))
 
     output = tmp_path / "dataset"
-    export_yolo_dataset(labelled, data_root, output)
+    export_yolo_dataset(labelled, ("seed",), data_root, output)
 
     loaded = check_det_dataset(str((output / "dataset.yaml").resolve()))
 

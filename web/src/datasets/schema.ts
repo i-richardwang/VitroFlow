@@ -37,7 +37,7 @@ export type Dataset = z.infer<typeof datasetSchema>;
 /**
  * Experiment photographs joining a dataset. Each is named by where it was
  * taken, so the dataset files it under that filename and trains the model the
- * experiment counted with; the dataset is created for that model on first use.
+ * experiment reads with; the dataset is created for that model on first use.
  */
 export const datasetPhotoAdditionSchema = z.strictObject({
   dataset: datasetIdSchema,

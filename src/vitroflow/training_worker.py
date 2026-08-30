@@ -25,7 +25,7 @@ from .documents import (
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import WORKER_DEVICE, WORKER_ID
+from .identifiers import CLASS_NAME, WORKER_DEVICE, WORKER_ID
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .manifest import as_split
 from .training_recipe import TrainingRecipe, parse_training_recipe
@@ -116,6 +116,7 @@ class TrainingSnapshot:
     id: str
     dataset_id: str
     model_id: str
+    classes: tuple[str, ...]
     images: tuple[SnapshotImage, ...]
 
 
@@ -148,7 +149,15 @@ def parse_training_snapshot(value: Any, context: str = "snapshot") -> TrainingSn
     document = as_object(value, context)
     expect_fields(
         document,
-        {"schemaVersion", "id", "datasetId", "modelId", "createdAt", "images"},
+        {
+            "schemaVersion",
+            "id",
+            "datasetId",
+            "modelId",
+            "classes",
+            "createdAt",
+            "images",
+        },
         context,
     )
     expect_schema_version(document, "schemaVersion", SNAPSHOT_SCHEMA_VERSION, context)
@@ -159,10 +168,27 @@ def parse_training_snapshot(value: Any, context: str = "snapshot") -> TrainingSn
     digests = [image.digest for image in images]
     if len(set(digests)) != len(digests):
         raise ValueError(f"{context} lists an image digest more than once")
+    classes = tuple(
+        as_string(item, f"{context}.classes[{index}]")
+        for index, item in enumerate(as_list(document["classes"], f"{context}.classes"))
+    )
+    if not classes or len(set(classes)) != len(classes):
+        raise ValueError(f"{context}.classes must be non-empty and unique")
+    for name in classes:
+        if not CLASS_NAME.fullmatch(name):
+            raise ValueError(f"{context}.classes contains invalid class {name}")
+    known = set(classes)
+    for image in images:
+        for instance in image.annotation.instances:
+            if instance.class_name not in known:
+                raise ValueError(
+                    f"{context} annotation uses unknown class {instance.class_name}"
+                )
     return TrainingSnapshot(
         id=as_string(document["id"], f"{context}.id"),
         dataset_id=as_string(document["datasetId"], f"{context}.datasetId"),
         model_id=as_string(document["modelId"], f"{context}.modelId"),
+        classes=classes,
         images=images,
     )
 
@@ -354,13 +380,13 @@ def materialize_snapshot(
                 digest=image.digest,
                 width=image.annotation.width,
                 height=image.annotation.height,
-                boxes=image.annotation.boxes,
+                instances=image.annotation.instances,
                 split=image.split,
                 revision=image.annotation.revision,
                 file_path=downloaded,
             )
         )
-    export_dataset_images(dataset_images, output.parent, output)
+    export_dataset_images(dataset_images, snapshot.classes, output.parent, output)
     return output / "dataset.yaml"
 
 

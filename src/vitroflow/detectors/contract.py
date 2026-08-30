@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from ..annotations import BoundingBox
-from ..identifiers import FINGERPRINT, VERSION_ID, WARNING_CODE
+from ..identifiers import CLASS_NAME, FINGERPRINT, VERSION_ID, WARNING_CODE
 
 DETECTION_SCHEMA_VERSION = 1
 
@@ -88,12 +88,15 @@ class DetectionQuality:
 @dataclass(frozen=True)
 class DetectionInstance:
     instance_id: str
+    class_name: str
     bbox: BoundingBox
     score: float
 
     def __post_init__(self) -> None:
         if not self.instance_id:
             raise ValueError("Detection instance id must not be empty")
+        if not CLASS_NAME.fullmatch(self.class_name):
+            raise ValueError(f"Invalid detection class: {self.class_name}")
         for name, value in (
             ("bbox.x", self.bbox.x),
             ("bbox.y", self.bbox.y),
@@ -112,7 +115,7 @@ class DetectionInstance:
     def to_dict(self) -> dict[str, object]:
         return {
             "id": self.instance_id,
-            "class": "seed",
+            "class": self.class_name,
             "bbox": {
                 "x": self.bbox.x,
                 "y": self.bbox.y,

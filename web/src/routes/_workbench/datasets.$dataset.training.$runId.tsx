@@ -6,7 +6,6 @@ import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
 import { Timestamp } from "../../components/Timestamp";
 import { EpochCharts } from "../../components/training/EpochCharts";
@@ -26,6 +25,21 @@ export const Route = createFileRoute(
     });
     if (!detail) throw notFound();
     return detail;
+  },
+  staticData: {
+    crumbs: ({ params }) => [
+      { label: "Datasets", href: "/datasets" },
+      {
+        label: params.dataset,
+        href: `/datasets/${params.dataset}`,
+        mono: true,
+      },
+      {
+        label: "Training",
+        href: `/datasets/${params.dataset}/training`,
+      },
+      { label: trainingRunLabel({ id: params.runId }), mono: true },
+    ],
   },
   component: TrainingRunPage,
 });
@@ -54,12 +68,7 @@ function TrainingRunPage() {
           <TrainingRunState run={run} />
         </span>
       }
-      description={
-        <>
-          Created <Timestamp value={run.createdAt} />
-          {"workerId" in run.state ? ` · ${run.state.workerId}` : null}
-        </>
-      }
+      description={<Timestamp value={run.createdAt} />}
     >
       {run.state.status === "failed" ? (
         <Alert status="danger">
@@ -118,11 +127,11 @@ function TrainingRunPage() {
           ) : (
             <EmptyState size="sm">
               <EmptyState.Header>
-                <EmptyStateHeading>
+                <EmptyState.Title>
                   {run.state.status === "failed"
                     ? "No epochs finished"
                     : "Waiting for the first epoch"}
-                </EmptyStateHeading>
+                </EmptyState.Title>
                 <EmptyState.Description>
                   {run.state.status === "failed"
                     ? "The run failed before finishing an epoch."

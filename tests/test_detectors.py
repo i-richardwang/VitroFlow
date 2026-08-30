@@ -43,7 +43,9 @@ def test_shared_detection_contract() -> None:
         width=100,
         height=80,
         producer=PRODUCER,
-        instances=(DetectionInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9),),
+        instances=(
+            DetectionInstance("seed-1", "seed", BoundingBox(10, 20, 8, 6), 0.9),
+        ),
         quality=DetectionQuality("ok"),
     ).to_dict()
     fixture = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
@@ -118,11 +120,13 @@ def test_traditional_artifact_identity_covers_model_and_configuration() -> None:
         (lambda: DetectionQuality("unknown"), "quality status"),
         (lambda: DetectionQuality("ok", ("Not A Code",)), "warning code"),
         (
-            lambda: DetectionInstance("seed", BoundingBox(0, 0, 1, 1), math.inf),
+            lambda: DetectionInstance(
+                "seed", "seed", BoundingBox(0, 0, 1, 1), math.inf
+            ),
             "score must be finite",
         ),
         (
-            lambda: DetectionInstance("seed", BoundingBox(0, 0, 1, 1), 1.1),
+            lambda: DetectionInstance("seed", "seed", BoundingBox(0, 0, 1, 1), 1.1),
             "between zero and one",
         ),
     ],
@@ -145,7 +149,7 @@ def test_result_requires_a_content_digest() -> None:
 
 
 def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
-    outside = DetectionInstance("seed-1", BoundingBox(95, 20, 8, 6), 0.9)
+    outside = DetectionInstance("seed-1", "seed", BoundingBox(95, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="exceeds image bounds"):
         DetectionResult(
             "c" * 64,
@@ -156,7 +160,7 @@ def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
             DetectionQuality("ok"),
         )
 
-    instance = DetectionInstance("seed-1", BoundingBox(10, 20, 8, 6), 0.9)
+    instance = DetectionInstance("seed-1", "seed", BoundingBox(10, 20, 8, 6), 0.9)
     with pytest.raises(ValueError, match="Duplicate"):
         DetectionResult(
             "c" * 64,

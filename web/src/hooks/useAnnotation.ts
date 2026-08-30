@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AnnotationDocument,
   LabelRef,
-  SeedInstance,
+  LabelInstance,
 } from "../annotation/schema";
 import { transition, type ReviewEvent } from "../annotation/status";
 import { saveLabel } from "../functions/review";
@@ -15,7 +15,7 @@ interface AnnotationState {
   annotation: AnnotationDocument;
   saveState: SaveState;
   error: string | null;
-  setInstances: (instances: SeedInstance[]) => void;
+  setInstances: (instances: LabelInstance[]) => void;
   review: (event: ReviewEvent) => void;
   retry: () => void;
 }

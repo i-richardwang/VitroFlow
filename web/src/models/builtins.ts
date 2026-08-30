@@ -15,9 +15,9 @@ export const TRADITIONAL_MODEL_MANIFEST =
   traditionalManifestSchema.parse(traditionalManifest);
 
 /**
- * The models are the tasks the workbench counts: one logical model per
+ * Models are the tasks the workbench reads: one logical model per
  * purpose, each with many versions. Seed detection ships with the package as
- * a traditional detector, so a deployment counts from its first minute; every
+ * a traditional detector, so a deployment can read from its first minute; every
  * trained version joins the same model and replaces nothing.
  */
 export const SEED_DETECTOR_MODEL_ID = "seed-detector";
@@ -29,6 +29,7 @@ export const SEED_DETECTOR = modelSchema.parse({
   name: "Seed detector",
   task: "object_detection",
   classes: ["seed"],
+  readings: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
 });
 
 export const SEED_DETECTOR_BASELINE = modelVersionSchema.parse({

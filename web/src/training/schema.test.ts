@@ -62,6 +62,7 @@ test("snapshot dimensions describe the canonical images", () => {
     id: "snapshot-seeds",
     datasetId: "seeds",
     modelId: "seeds",
+    classes: ["seed"],
     createdAt: "2026-08-28T00:00:00.000Z",
     images,
   };
@@ -81,4 +82,37 @@ test("snapshot dimensions describe the canonical images", () => {
       ],
     }),
   ).toThrow(/dimensions/);
+});
+
+test("snapshot annotations use only the model's classes", () => {
+  const images = [
+    snapshotImage(DIGESTS[0]!, "train"),
+    snapshotImage(DIGESTS[1]!, "val"),
+  ];
+  expect(() =>
+    datasetSnapshotSchema.parse({
+      schemaVersion: 1,
+      id: "snapshot-seeds",
+      datasetId: "seeds",
+      modelId: "seeds",
+      classes: ["seed"],
+      createdAt: "2026-08-28T00:00:00.000Z",
+      images: [
+        {
+          ...images[0],
+          annotation: {
+            ...images[0]!.annotation,
+            instances: [
+              {
+                id: "foreign-1",
+                class: "foreign",
+                bbox: { x: 1, y: 1, width: 2, height: 2 },
+              },
+            ],
+          },
+        },
+        images[1],
+      ],
+    }),
+  ).toThrow(/unknown class foreign/);
 });

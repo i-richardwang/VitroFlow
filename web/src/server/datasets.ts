@@ -169,7 +169,7 @@ function atPhoto({ experiment, dish, round }: PhotoRef) {
 
 /**
  * Adds experiment photographs to a dataset of the model their experiments
- * counted with, creating the dataset on first use. Each joins under the
+ * reads with, creating the dataset on first use. Each joins under the
  * filename it was photographed as; a photograph taken in several places joins
  * once, under the first reference. The sorted digest locks serialize the
  * addition with image collection, and the dataset gains every photograph or
@@ -218,7 +218,7 @@ export async function addExperimentPhotos(
     const modelIds = [...new Set(resolved.map((row) => row.modelId))];
     if (modelIds.length > 1) {
       throw new DatasetModelError(
-        `The photographs were counted with different models: ${modelIds.join(", ")}`,
+        `The photographs were read with different models: ${modelIds.join(", ")}`,
       );
     }
     const joining = new Map<string, string>();

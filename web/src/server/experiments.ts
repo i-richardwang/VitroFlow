@@ -1,6 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
@@ -23,16 +32,18 @@ import {
   experimentRoundSchema,
   experimentSchema,
   roundRequestSchema,
+  type DishRef,
   type Experiment,
   type ExperimentRound,
   type PhotoRef,
   type PhotoState,
 } from "../experiments/schema";
-import type { ModelVersion } from "../models/schema";
+import type { Tally } from "../models/readings";
+import type { Model, ModelVersion } from "../models/schema";
 import { imageBlobKey } from "./blobs";
 import { clearDetectionFailure } from "./detections";
 import { lockImage } from "./image-lock";
-import { readModelVersion, toModelVersion } from "./model-registry";
+import { readModel, readModelVersion, toModelVersion } from "./model-registry";
 
 export interface ExperimentDish {
   label: string;
@@ -40,9 +51,10 @@ export interface ExperimentDish {
 }
 
 /**
- * One grid cell with only the projections the grid needs. `count` is what the
- * experiment's version found; `reviewed` is the reviewer's count for that
- * model once a review of the photograph is complete.
+ * One grid cell with only the projections the grid needs: instances per
+ * class as the experiment's version found them, and as the reviewer left
+ * them once a review of the photograph for the model is complete. The model's
+ * readings turn either tally into the numbers the grid shows.
  */
 export interface PhotoCell {
   dish: string;
@@ -50,17 +62,39 @@ export interface PhotoCell {
   digest: string;
   filename: string;
   state: PhotoState;
-  count: number | null;
-  reviewed: number | null;
+  observed: Tally | null;
+  reviewed: Tally | null;
   error: string | null;
 }
 
 export interface ExperimentGrid {
   experiment: Experiment;
+  model: Model;
   version: ModelVersion;
   dishes: ExperimentDish[];
   rounds: ExperimentRound[];
   photos: PhotoCell[];
+}
+
+/** One round of a dish's series, whether or not it photographed the dish. */
+export interface DishRound {
+  round: ExperimentRound;
+  photo: PhotoCell | null;
+}
+
+/**
+ * A dish page: the dish's place in the roster, its readings round by round,
+ * and the photograph of the round being shown.
+ */
+export interface ExperimentDishSeries {
+  experiment: Experiment;
+  model: Model;
+  version: ModelVersion;
+  dish: ExperimentDish;
+  previous: string | null;
+  next: string | null;
+  rounds: DishRound[];
+  shown: ExperimentPhoto | null;
 }
 
 export interface ExperimentSummary {
@@ -158,19 +192,21 @@ export async function createExperiment(value: unknown): Promise<Experiment> {
   return toExperiment(row);
 }
 
-/** Grid rows never load full detection documents merely to show a count. */
+/** Instances per class of one stored document, tallied in the database. */
+function tallyOf(document: SQL | AnyColumn) {
+  return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
+}
+
+/** Grid rows never load outcome documents merely to show readings. */
 function photoGridQuery(db: Executor) {
   return db
     .select({
       photo: experimentPhotos,
       detectionImageId: detections.imageId,
       failureImageId: detectionFailures.imageId,
-      count: sql<
-        number | null
-      >`case when ${detections.imageId} is null then null else jsonb_array_length(${detections.document}->'instances') end`,
-      reviewed: sql<
-        number | null
-      >`case when ${labels.status} = 'complete' then jsonb_array_length(${labels.document}->'instances') end`,
+      observed: tallyOf(detections.document),
+      reviewed: tallyOf(labels.document),
+      reviewComplete: sql<boolean | null>`${labels.status} = 'complete'`,
       error: sql<string | null>`${detectionFailures.document}->>'error'`,
     })
     .from(experimentPhotos)
@@ -203,7 +239,7 @@ type PhotoGridRow = Awaited<ReturnType<typeof photoGridQuery>>[number];
 
 function toCell(row: PhotoGridRow): PhotoCell {
   const state: PhotoState = row.detectionImageId
-    ? "counted"
+    ? "observed"
     : row.failureImageId
       ? "failed"
       : "pending";
@@ -213,8 +249,8 @@ function toCell(row: PhotoGridRow): PhotoCell {
     digest: row.photo.imageId,
     filename: row.photo.filename,
     state,
-    count: row.count == null ? null : Number(row.count),
-    reviewed: row.reviewed == null ? null : Number(row.reviewed),
+    observed: row.detectionImageId ? (row.observed ?? {}) : null,
+    reviewed: row.reviewComplete ? (row.reviewed ?? {}) : null,
     error: row.error,
   };
 }
@@ -261,16 +297,78 @@ export async function readExperimentGrid(
   const db = await database();
   const experiment = await readExperiment(experimentId, db);
   if (!experiment) return null;
-  const version = await readModelVersion(experiment.modelVersionId, db);
-  if (!version) {
-    throw new Error(`Unknown model version: ${experiment.modelVersionId}`);
-  }
+  const { model, version } = await readTask(experiment, db);
   const [dishes, rounds, photos] = await Promise.all([
     listDishes(experimentId, db),
     listRounds(experimentId, db),
     listCells(experimentId, db),
   ]);
-  return { experiment, version, dishes, rounds, photos };
+  return { experiment, model, version, dishes, rounds, photos };
+}
+
+async function readTask(
+  experiment: Experiment,
+  db: Executor,
+): Promise<{ model: Model; version: ModelVersion }> {
+  const version = await readModelVersion(experiment.modelVersionId, db);
+  if (!version) {
+    throw new Error(`Unknown model version: ${experiment.modelVersionId}`);
+  }
+  const model = await readModel(version.modelId, db);
+  if (!model) throw new Error(`Unknown model: ${version.modelId}`);
+  return { model, version };
+}
+
+/**
+ * The series of one dish, showing `roundId` when given and otherwise the
+ * newest round that photographed the dish. A round that did not is not a page.
+ */
+export async function readExperimentDish(
+  ref: DishRef,
+  roundId?: string,
+): Promise<ExperimentDishSeries | null> {
+  const db = await database();
+  const experiment = await readExperiment(ref.experiment, db);
+  if (!experiment) return null;
+  const roster = await listDishes(ref.experiment, db);
+  const position = roster.findIndex((dish) => dish.label === ref.dish);
+  if (position < 0) return null;
+  const dish = roster[position]!;
+  const [{ model, version }, rounds, cells] = await Promise.all([
+    readTask(experiment, db),
+    listRounds(ref.experiment, db),
+    photoGridQuery(db)
+      .where(
+        and(
+          eq(experimentPhotos.experimentId, ref.experiment),
+          eq(experimentPhotos.dishLabel, ref.dish),
+        ),
+      )
+      .then((rows) => rows.map(toCell)),
+  ]);
+  const byRound = new Map(cells.map((cell) => [cell.round, cell]));
+  const series = rounds.map((round) => ({
+    round,
+    photo: byRound.get(round.id) ?? null,
+  }));
+  const chosen =
+    roundId === undefined
+      ? [...series].reverse().find((item) => item.photo !== null)
+      : series.find((item) => item.round.id === roundId && item.photo);
+  if (roundId !== undefined && !chosen) return null;
+  const shown = chosen
+    ? await readExperimentPhoto({ ...ref, round: chosen.round.id }, db)
+    : null;
+  return {
+    experiment,
+    model,
+    version,
+    dish,
+    previous: roster[position - 1]?.label ?? null,
+    next: roster[position + 1]?.label ?? null,
+    rounds: series,
+    shown,
+  };
 }
 
 /** Fixed-size aggregate queries; summaries never fetch outcome documents. */
@@ -308,7 +406,7 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
         experimentId: experimentPhotos.experimentId,
         pending: sql<number>`count(*) filter (where ${detections.imageId} is null and ${detectionFailures.imageId} is null)`,
         failed: sql<number>`count(*) filter (where ${detections.imageId} is null and ${detectionFailures.imageId} is not null)`,
-        counted: sql<number>`count(${detections.imageId})`,
+        observed: sql<number>`count(${detections.imageId})`,
       })
       .from(experimentPhotos)
       .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
@@ -340,7 +438,7 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
       {
         pending: Number(row.pending),
         failed: Number(row.failed),
-        counted: Number(row.counted),
+        observed: Number(row.observed),
       },
     ]),
   );
@@ -352,7 +450,7 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
     counts: counts.get(row.experiment.id) ?? {
       pending: 0,
       failed: 0,
-      counted: 0,
+      observed: 0,
     },
   }));
 }

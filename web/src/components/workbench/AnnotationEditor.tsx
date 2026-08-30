@@ -1,26 +1,27 @@
 import {
   Button,
   Kbd,
+  Label,
+  ListBox,
+  Select,
   Separator,
   ToggleButton,
   ToggleButtonGroup,
   Toolbar,
   Tooltip,
 } from "@heroui/react";
-import { Resizable } from "@heroui-pro/react/resizable";
-import { Sheet } from "@heroui-pro/react/sheet";
 import { useCallback, useEffect, useState } from "react";
 
 import type {
   AnnotationDocument,
   LabelRef,
-  SeedInstance,
+  LabelInstance,
 } from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
 import { useHistory } from "../../hooks/useHistory";
-import { PanelRightIcon, RedoIcon, UndoIcon } from "../icons";
-import { NavbarEnd } from "../shell";
+import type { Model } from "../../models/schema";
+import { RedoIcon, UndoIcon } from "../icons";
 import { QualityWarnings } from "../QualityWarnings";
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import {
@@ -33,37 +34,39 @@ import {
 import { InspectorPanel } from "./InspectorPanel";
 import { ReviewStatusMenu } from "./ReviewStatusMenu";
 import { SaveIndicator } from "./SaveIndicator";
+import { Workbench } from "../Workbench";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 
 export function AnnotationEditor({
   subject,
+  model,
   filename,
   result,
   label,
 }: {
   subject: LabelRef;
+  model: Model;
   filename: string;
   result: DetectionResult;
   label: AnnotationDocument;
 }) {
   const { annotation, saveState, error, setInstances, review, retry } =
     useAnnotation(subject, label);
-  const history = useHistory<SeedInstance[]>();
+  const history = useHistory<LabelInstance[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [panning, setPanning] = useState(false);
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(DEFAULT_LAYERS),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const wide = useMediaQuery("(min-width: 768px)");
+  const [activeClass, setActiveClass] = useState(model.classes[0]!);
 
   const selected =
     annotation.instances.find((instance) => instance.id === selectedId) ?? null;
 
   const editInstances = useCallback(
-    (instances: SeedInstance[]) => {
+    (instances: LabelInstance[]) => {
       history.record(annotation.instances);
       setInstances(instances);
     },
@@ -92,6 +95,21 @@ export function AnnotationEditor({
     setSelectedId(null);
   }, [annotation.instances, selectedId, editInstances]);
 
+  const changeClass = useCallback(
+    (className: string) => {
+      setActiveClass(className);
+      if (!selected || selected.class === className) return;
+      editInstances(
+        annotation.instances.map((instance) =>
+          instance.id === selected.id
+            ? { ...instance, class: className }
+            : instance,
+        ),
+      );
+    },
+    [annotation.instances, editInstances, selected],
+  );
+
   /** Escape leaves the add tool and drops the selection in one press. */
   const cancelEditing = useCallback(() => {
     setSelectedId(null);
@@ -107,204 +125,156 @@ export function AnnotationEditor({
     onRedo: redo,
   });
 
-  const canvas = (
-    <CanvasStage
-      filename={filename}
-      result={result}
-      annotation={annotation}
-      tool={tool}
-      panning={panning}
-      layers={layers}
-      selectedId={selectedId}
-      history={history}
-      onSelect={setSelectedId}
-      onInstancesChange={editInstances}
-      onToolChange={setTool}
-      onUndo={undo}
-      onRedo={redo}
-    />
-  );
-  const inspector = (
-    <InspectorPanel
-      result={result}
-      annotation={annotation}
-      layers={layers}
-      onLayersChange={setLayers}
-      selected={selected}
-      onDeleteSelected={deleteSelected}
-    />
-  );
-
   return (
-    <>
-      <NavbarEnd>
-        {result.quality && <QualityWarnings quality={result.quality} />}
-        {!wide && (
-          <Tooltip delay={0}>
-            <Button
-              variant="ghost"
-              isIconOnly
-              aria-label="Details"
-              onPress={() => setInspectorOpen(true)}
-            >
-              <PanelRightIcon />
-            </Button>
-            <Tooltip.Content>Details</Tooltip.Content>
-          </Tooltip>
-        )}
-        <SaveIndicator state={saveState} error={error} onRetry={retry} />
-        <ReviewStatusMenu annotation={annotation} onReview={review} />
-      </NavbarEnd>
-      {wide ? (
-        <Resizable
-          autoSaveId="vitroflow-inspector"
-          className="h-full min-h-0 flex-1"
-          orientation="horizontal"
-        >
-          <Resizable.Panel minSize={40}>{canvas}</Resizable.Panel>
-          <Resizable.Handle />
-          <Resizable.Panel
-            className="border-l border-separator"
-            defaultSize="288px"
-            maxSize="420px"
-            minSize="220px"
-          >
-            {inspector}
-          </Resizable.Panel>
-        </Resizable>
-      ) : (
-        <div className="flex min-h-0 flex-1">
-          {canvas}
-          <Sheet
-            isOpen={inspectorOpen}
-            placement="right"
-            onOpenChange={setInspectorOpen}
-          >
-            <Sheet.Backdrop variant="blur">
-              <Sheet.Content className="w-full max-w-sm">
-                <Sheet.Dialog className="h-dvh p-0">
-                  <Sheet.Header>
-                    <Sheet.Heading>Details</Sheet.Heading>
-                    <Sheet.CloseTrigger />
-                  </Sheet.Header>
-                  <Sheet.Body className="p-0">{inspector}</Sheet.Body>
-                </Sheet.Dialog>
-              </Sheet.Content>
-            </Sheet.Backdrop>
-          </Sheet>
-        </div>
-      )}
-    </>
+    <Workbench
+      title={`Review ${filename} for ${model.name}`}
+      actions={
+        <>
+          <QualityWarnings quality={result.quality} />
+          <SaveIndicator state={saveState} error={error} onRetry={retry} />
+          <ReviewStatusMenu annotation={annotation} onReview={review} />
+        </>
+      }
+      toolbar={
+        <EditorToolbar
+          tool={tool}
+          history={history}
+          onToolChange={setTool}
+          onUndo={undo}
+          onRedo={redo}
+          classes={model.classes}
+          className={selected?.class ?? activeClass}
+          onClassChange={changeClass}
+        />
+      }
+      inspector={
+        <InspectorPanel
+          model={model}
+          result={result}
+          annotation={annotation}
+          layers={layers}
+          onLayersChange={setLayers}
+          selected={selected}
+          onDeleteSelected={deleteSelected}
+        />
+      }
+    >
+      <AnnotationCanvas
+        image={annotation.image}
+        filename={filename}
+        result={result}
+        instances={annotation.instances}
+        layers={layers}
+        editing={{
+          tool,
+          panning,
+          className: activeClass,
+          selectedId,
+          onSelect: setSelectedId,
+          onInstancesChange: editInstances,
+        }}
+      />
+    </Workbench>
   );
 }
 
-function CanvasStage({
-  filename,
-  result,
-  annotation,
+function EditorToolbar({
   tool,
-  panning,
-  layers,
-  selectedId,
   history,
-  onSelect,
-  onInstancesChange,
   onToolChange,
   onUndo,
   onRedo,
+  classes,
+  className,
+  onClassChange,
 }: {
-  filename: string;
-  result: DetectionResult;
-  annotation: AnnotationDocument;
   tool: Tool;
-  panning: boolean;
-  layers: ReadonlySet<LayerKey>;
-  selectedId: string | null;
   history: { canUndo: boolean; canRedo: boolean };
-  onSelect: (id: string | null) => void;
-  onInstancesChange: (instances: SeedInstance[]) => void;
   onToolChange: (tool: Tool) => void;
   onUndo: () => void;
   onRedo: () => void;
+  classes: string[];
+  className: string;
+  onClassChange: (className: string) => void;
 }) {
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-1">
-      <AnnotationCanvas
-        filename={filename}
-        result={result}
-        annotation={annotation}
-        tool={tool}
-        panning={panning}
-        layers={layers}
-        selectedId={selectedId}
-        onSelect={onSelect}
-        onInstancesChange={onInstancesChange}
-      />
-      <Toolbar isAttached aria-label="Tools" className="absolute top-3 left-3">
-        <ToggleButtonGroup
-          aria-label="Tool"
-          size="sm"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={new Set([tool])}
-          onSelectionChange={(keys) => onToolChange([...keys][0] as Tool)}
+    <Toolbar aria-label="Tools" className="px-3 py-1.5">
+      <ToggleButtonGroup
+        aria-label="Tool"
+        size="sm"
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={new Set([tool])}
+        onSelectionChange={(keys) => onToolChange([...keys][0] as Tool)}
+      >
+        {TOOLS.map((id, index) => {
+          const { label: name, shortcut, icon: Icon } = TOOL_SPECS[id];
+          return (
+            <ShortcutTooltip key={id} label={name} shortcut={shortcut}>
+              <ToggleButton id={id} isIconOnly aria-label={name}>
+                {index > 0 && <ToggleButtonGroup.Separator />}
+                <Icon />
+              </ToggleButton>
+            </ShortcutTooltip>
+          );
+        })}
+      </ToggleButtonGroup>
+      <Separator orientation="vertical" className="mx-1 h-5" />
+      {classes.length > 1 ? (
+        <Select
+          aria-label="Box class"
+          className="w-44"
+          variant="secondary"
+          selectedKey={className}
+          onSelectionChange={(key) =>
+            key !== null && onClassChange(String(key))
+          }
         >
-          {TOOLS.map((id, index) => {
-            const { label: name, shortcut, icon: Icon } = TOOL_SPECS[id];
-            return (
-              <ShortcutTooltip key={id} label={name} shortcut={shortcut}>
-                <ToggleButton id={id} isIconOnly aria-label={name}>
-                  {index > 0 && <ToggleButtonGroup.Separator />}
-                  <Icon />
-                </ToggleButton>
-              </ShortcutTooltip>
-            );
-          })}
-        </ToggleButtonGroup>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {classes.map((name) => (
+                <ListBox.Item key={name} id={name} textValue={name}>
+                  <Label>{name}</Label>
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+      ) : null}
+      {classes.length > 1 ? (
         <Separator orientation="vertical" className="mx-1 h-5" />
-        <ShortcutTooltip label="Undo" shortcut="⌘Z">
-          <Button
-            variant="tertiary"
-            size="sm"
-            isIconOnly
-            aria-label="Undo"
-            isDisabled={!history.canUndo}
-            onPress={onUndo}
-          >
-            <UndoIcon />
-          </Button>
-        </ShortcutTooltip>
-        <ShortcutTooltip label="Redo" shortcut="⇧⌘Z">
-          <Button
-            variant="tertiary"
-            size="sm"
-            isIconOnly
-            aria-label="Redo"
-            isDisabled={!history.canRedo}
-            onPress={onRedo}
-          >
-            <RedoIcon />
-          </Button>
-        </ShortcutTooltip>
-      </Toolbar>
-    </div>
+      ) : null}
+      <ShortcutTooltip label="Undo" shortcut="⌘Z">
+        <Button
+          variant="tertiary"
+          size="sm"
+          isIconOnly
+          aria-label="Undo"
+          isDisabled={!history.canUndo}
+          onPress={onUndo}
+        >
+          <UndoIcon />
+        </Button>
+      </ShortcutTooltip>
+      <ShortcutTooltip label="Redo" shortcut="⇧⌘Z">
+        <Button
+          variant="tertiary"
+          size="sm"
+          isIconOnly
+          aria-label="Redo"
+          isDisabled={!history.canRedo}
+          onPress={onRedo}
+        >
+          <RedoIcon />
+        </Button>
+      </ShortcutTooltip>
+    </Toolbar>
   );
-}
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() =>
-    typeof window === "undefined" ? true : window.matchMedia(query).matches,
-  );
-
-  useEffect(() => {
-    const media = window.matchMedia(query);
-    const listener = (event: MediaQueryListEvent) => setMatches(event.matches);
-    setMatches(media.matches);
-    media.addEventListener("change", listener);
-    return () => media.removeEventListener("change", listener);
-  }, [query]);
-
-  return matches;
 }
 
 function ShortcutTooltip({

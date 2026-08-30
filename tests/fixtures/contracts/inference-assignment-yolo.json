@@ -2,6 +2,7 @@
   "manifest": {
     "schemaVersion": 1,
     "modelVersionId": "set.yolo-v1",
+    "classes": ["seed"],
     "artifact": {
       "kind": "ultralytics",
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

@@ -17,6 +17,17 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
       if (!console) throw notFound();
       return console;
     },
+    staticData: {
+      crumbs: ({ params }) => [
+        { label: "Datasets", href: "/datasets" },
+        {
+          label: params.dataset,
+          href: `/datasets/${params.dataset}`,
+          mono: true,
+        },
+        { label: "Training" },
+      ],
+    },
     component: TrainingPage,
   },
 );

@@ -3,13 +3,13 @@ import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Count } from "../../components/Count";
-import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
 import { DatasetsIcon } from "../../components/icons";
 import { getDatasets } from "../../functions/datasets";
 
 export const Route = createFileRoute("/_workbench/datasets/")({
   loader: () => getDatasets(),
+  staticData: { crumbs: [{ label: "Datasets" }] },
   component: DatasetsPage,
 });
 
@@ -17,10 +17,7 @@ function DatasetsPage() {
   const datasets = Route.useLoaderData();
 
   return (
-    <Page
-      title="Datasets"
-      description="Training sets. Add photographs to one from an experiment; reviewed photographs train the next version of its model."
-    >
+    <Page title="Datasets">
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label="Datasets">
@@ -40,7 +37,7 @@ function DatasetsPage() {
                     <EmptyState.Media variant="icon">
                       <DatasetsIcon />
                     </EmptyState.Media>
-                    <EmptyStateHeading>No datasets yet</EmptyStateHeading>
+                    <EmptyState.Title>No datasets yet</EmptyState.Title>
                     <EmptyState.Description>
                       Open an experiment and add its photographs to a dataset.
                     </EmptyState.Description>

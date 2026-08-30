@@ -17,6 +17,7 @@ from ..proposals import SeedProposal
 @dataclass(frozen=True)
 class PreparedImage:
     annotation: ReviewedImage
+    boxes: tuple[BoundingBox, ...]
     proposals: tuple[SeedProposal, ...]
     evidence: tuple[CandidateEvidence, ...]
     labels: np.ndarray
@@ -85,6 +86,15 @@ def _prepare_image(
     data_root: str | Path,
     config: PipelineConfig,
 ) -> PreparedImage:
+    foreign_classes = sorted(
+        {instance.class_name for instance in annotation.instances} - {"seed"}
+    )
+    if foreign_classes:
+        raise ValueError(
+            "Traditional training requires seed instances; found "
+            + ", ".join(foreign_classes)
+        )
+    boxes = tuple(instance.bbox for instance in annotation.instances)
     analysis = analyze_candidates(verified_blob(data_root, annotation.digest), config)
     height, width = analysis.image.shape[:2]
     if (width, height) != (annotation.width, annotation.height):
@@ -94,14 +104,15 @@ def _prepare_image(
         )
     proposals = tuple(analysis.proposals)
     assignments = match_boxes(
-        annotation.boxes,
+        boxes,
         [(proposal.x, proposal.y) for proposal in proposals],
     )
     return PreparedImage(
         annotation=annotation,
+        boxes=boxes,
         proposals=proposals,
         evidence=tuple(analysis.evidence),
-        labels=label_candidates(annotation.boxes, proposals),
+        labels=label_candidates(boxes, proposals),
         matched_boxes=len(assignments),
     )
 

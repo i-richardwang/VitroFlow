@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..annotations import ReviewedInstance
 from ..detectors import DetectionResult, parse_inference_outcome
 from ..manifest import load_dataset_manifest
 from .dataset import DatasetImage, YoloDatasetManifest, export_dataset_images
@@ -15,8 +16,9 @@ def export_detection_yolo_dataset(
     seed: int = 0,
 ) -> YoloDatasetManifest:
     """Adapt a dataset's detections into a temporary YOLO dataset."""
+    dataset = load_dataset_manifest(manifest)
     images = []
-    for index, image in enumerate(load_dataset_manifest(manifest).images):
+    for index, image in enumerate(dataset.images):
         if image.detection is None:
             continue
         document = parse_inference_outcome(
@@ -31,7 +33,14 @@ def export_detection_yolo_dataset(
                 digest=image.digest,
                 width=document.width,
                 height=document.height,
-                boxes=tuple(instance.bbox for instance in document.instances),
+                instances=tuple(
+                    ReviewedInstance(
+                        instance_id=instance.instance_id,
+                        class_name=instance.class_name,
+                        bbox=instance.bbox,
+                    )
+                    for instance in document.instances
+                ),
                 split=image.split,
             )
         )
@@ -39,6 +48,7 @@ def export_detection_yolo_dataset(
         raise ValueError("Detection YOLO export requires at least two results")
     return export_dataset_images(
         images,
+        dataset.classes,
         data_root,
         output_dir,
         validation_fraction=validation_fraction,

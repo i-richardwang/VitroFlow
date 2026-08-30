@@ -10,6 +10,7 @@ import { getTrainingOverview } from "../../functions/training";
 
 export const Route = createFileRoute("/_workbench/training")({
   loader: () => getTrainingOverview(),
+  staticData: { crumbs: [{ label: "Training" }] },
   component: TrainingPage,
 });
 

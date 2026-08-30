@@ -20,6 +20,7 @@ import {
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
 import type { DetectionFailure, DetectionResult } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
+import type { Reading } from "../models/readings";
 import type { ModelArtifact, ModelVersion } from "../models/schema";
 import {
   IMAGE_SPLITS,
@@ -44,6 +45,7 @@ export const models = pgTable("models", {
   name: text("name").notNull(),
   task: text("task").notNull(),
   classes: jsonb("classes").$type<string[]>().notNull(),
+  readings: jsonb("readings").$type<Reading[]>().notNull(),
 });
 
 export const modelVersions = pgTable(
@@ -273,8 +275,8 @@ export const labels = pgTable(
 );
 
 /**
- * A count over the same dishes on successive occasions. The version is fixed
- * when the experiment is created, so every count in it comes from the same
+ * Readings of the same dishes on successive occasions. The version is fixed
+ * when the experiment is created, so every observation comes from the same
  * model: the builtin baseline until a trained version exists, and whichever
  * version the experiment was started with after that.
  */

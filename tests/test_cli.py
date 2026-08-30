@@ -77,6 +77,35 @@ def test_recognize_refuses_a_blob_that_fails_its_digest(
     assert not output.exists()
 
 
+def test_traditional_recognition_requires_a_seed_only_model(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    data_root = tmp_path / "data"
+    digest = write_blob(data_root, encoded_image())
+    write_manifest(
+        data_root,
+        "germination",
+        [manifest_entry(digest)],
+        model_id="germination-detector",
+        classes=["seed", "germinated"],
+    )
+
+    exit_code = main(
+        [
+            "recognize",
+            "--dataset",
+            "germination",
+            "--data-root",
+            str(data_root),
+            "--output",
+            str(tmp_path / "run"),
+        ]
+    )
+
+    assert exit_code == 2
+    assert "seed-only dataset" in capsys.readouterr().err
+
+
 def test_recognize_requires_a_new_output_directory(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -7,7 +7,6 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { Count } from "../../components/Count";
-import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
@@ -24,6 +23,12 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
     });
     if (!overview) throw notFound();
     return overview;
+  },
+  staticData: {
+    crumbs: ({ params }) => [
+      { label: "Datasets", href: "/datasets" },
+      { label: params.dataset, mono: true },
+    ],
   },
   component: DatasetPage,
 });
@@ -136,11 +141,11 @@ function DatasetPage() {
               renderEmptyState={() => (
                 <EmptyState size="sm">
                   <EmptyState.Header>
-                    <EmptyStateHeading>
+                    <EmptyState.Title>
                       {images.length === 0
                         ? "No images yet"
                         : "No images in this state"}
-                    </EmptyStateHeading>
+                    </EmptyState.Title>
                     <EmptyState.Description>
                       {images.length === 0
                         ? "Add photographs from an experiment."

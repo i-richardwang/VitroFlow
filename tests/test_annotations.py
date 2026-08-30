@@ -37,7 +37,7 @@ def test_complete_annotations_are_the_training_source(tmp_path: Path) -> None:
     annotation = complete[0].annotation
     assert (complete[0].entry.width, complete[0].entry.height) == (100, 80)
     assert annotation.digest == "1" * 64
-    assert annotation.boxes[0].center == (14.0, 23.0)
+    assert annotation.instances[0].bbox.center == (14.0, 23.0)
     assert annotation.revision == 3
 
 
@@ -48,7 +48,7 @@ def test_shared_annotation_contract() -> None:
 
     assert annotation.digest == "c" * 64
     assert annotation.status == "complete"
-    assert len(annotation.boxes) == 1
+    assert len(annotation.instances) == 1
 
 
 def test_label_must_describe_its_manifest_image(tmp_path: Path) -> None:
@@ -58,6 +58,20 @@ def test_label_must_describe_its_manifest_image(tmp_path: Path) -> None:
         [manifest_entry("1" * 64, label=annotation_document("2" * 64))],
     )
     with pytest.raises(ValueError, match="differs from its image"):
+        load_annotations(manifest)
+
+
+def test_label_classes_belong_to_the_manifest_model(tmp_path: Path) -> None:
+    label = annotation_document("1" * 64)
+    label["instances"][0]["class"] = "germinated"
+    manifest = write_manifest(
+        tmp_path,
+        "batch",
+        [manifest_entry("1" * 64, label=label)],
+        classes=["seed"],
+    )
+
+    with pytest.raises(ValueError, match="unknown class: germinated"):
         load_annotations(manifest)
 
 

@@ -14,7 +14,12 @@ from .artifacts import create_image_artifacts, write_image_artifacts
 from .config import PipelineConfig
 from .dataset_pull import DatasetPullError, pull_dataset
 from .files import atomic_directory
-from .manifest import load_dataset_manifest, manifest_path, verified_blob
+from .manifest import (
+    DatasetManifest,
+    load_dataset_manifest,
+    manifest_path,
+    verified_blob,
+)
 from .scoring import (
     DEFAULT_MODEL,
     CandidateModel,
@@ -40,6 +45,13 @@ def _candidate_model(path: str | None) -> CandidateModel:
     return load_candidate_model(path) if path else DEFAULT_MODEL
 
 
+def _traditional_manifest(path: Path) -> DatasetManifest:
+    manifest = load_dataset_manifest(path)
+    if manifest.classes != ("seed",):
+        raise ValueError("Traditional recognition requires a seed-only dataset")
+    return manifest
+
+
 def _recognize(args: argparse.Namespace) -> int:
     """Run the pipeline over a pulled dataset.
 
@@ -47,7 +59,7 @@ def _recognize(args: argparse.Namespace) -> int:
     sees the same pixels a worker does.
     """
     data_root = Path(args.data_root)
-    manifest = load_dataset_manifest(manifest_path(data_root, args.dataset))
+    manifest = _traditional_manifest(manifest_path(data_root, args.dataset))
     inputs = [verified_blob(data_root, image.digest) for image in manifest.images]
     if not inputs:
         raise ValueError(f"{args.dataset} holds no images")
@@ -73,7 +85,9 @@ def _prepared_images(
     args: argparse.Namespace, config: PipelineConfig
 ) -> list[PreparedImage]:
     data_root = Path(args.data_root)
-    labelled = load_complete_annotations(manifest_path(data_root, args.dataset))
+    source = manifest_path(data_root, args.dataset)
+    _traditional_manifest(source)
+    labelled = load_complete_annotations(source)
     if not labelled:
         raise ValueError("No complete annotations found")
     return prepare_images([image.annotation for image in labelled], data_root, config)
@@ -123,7 +137,7 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
                         {
                             "digest": image.annotation.digest,
                             "revision": image.annotation.revision,
-                            "instances": len(image.annotation.boxes),
+                            "instances": len(image.boxes),
                             "model_version_id": image.annotation.model_version_id,
                             "artifact_digest": image.annotation.artifact_digest,
                             "runtime": {
@@ -166,9 +180,12 @@ def _pull_dataset(args: argparse.Namespace) -> int:
 
 def _export_yolo(args: argparse.Namespace) -> int:
     data_root = Path(args.data_root)
-    labelled = load_complete_annotations(manifest_path(data_root, args.dataset))
+    source = manifest_path(data_root, args.dataset)
+    dataset = load_dataset_manifest(source)
+    labelled = load_complete_annotations(source)
     manifest = export_yolo_dataset(
         labelled,
+        dataset.classes,
         data_root,
         args.output,
         validation_fraction=args.validation_fraction,

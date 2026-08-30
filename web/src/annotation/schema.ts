@@ -3,6 +3,7 @@ import { z } from "zod";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
+import { classNameSchema } from "../models/readings";
 
 export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
@@ -25,9 +26,10 @@ export const boundingBoxSchema = z.strictObject({
   height: z.number().positive(),
 });
 
-const seedInstanceSchema = z.strictObject({
+/** One box a reviewer keeps, with the class the model's task defines. */
+const labelInstanceSchema = z.strictObject({
   id: z.string().min(1),
-  class: z.literal("seed"),
+  class: classNameSchema,
   bbox: boundingBoxSchema,
 });
 
@@ -47,7 +49,7 @@ export const annotationSchema = z
     status: z.enum(REVIEW_STATUSES),
     excludedReason: z.string().min(1).optional(),
     revision: z.number().int().nonnegative(),
-    instances: z.array(seedInstanceSchema),
+    instances: z.array(labelInstanceSchema),
   })
   .superRefine((document, context) => {
     if (
@@ -87,7 +89,7 @@ export const annotationSchema = z
   });
 
 export type BoundingBox = z.infer<typeof boundingBoxSchema>;
-export type SeedInstance = z.infer<typeof seedInstanceSchema>;
+export type LabelInstance = z.infer<typeof labelInstanceSchema>;
 export type AnnotationDocument = z.infer<typeof annotationSchema>;
 export type ReviewStatus = AnnotationDocument["status"];
 export type ImageSize = Pick<AnnotationDocument["image"], "width" | "height">;

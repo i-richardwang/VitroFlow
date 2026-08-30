@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from ..annotations import BoundingBox, LabelledImage
+from ..annotations import LabelledImage, ReviewedInstance
 from ..files import atomic_directory
+from ..identifiers import CLASS_NAME
 from ..image_io import CANONICAL_EXTENSION, read_image
 from ..manifest import verified_blob
 
@@ -32,7 +33,7 @@ class YoloDatasetManifest(TypedDict):
 
 @dataclass(frozen=True)
 class DatasetImage:
-    """Image and boxes in the canonical pixel-coordinate domain.
+    """Image and classified boxes in the canonical pixel-coordinate domain.
 
     ``split`` carries the stable assignment the server recorded for the image;
     images without one are assigned locally from the seed and validation fraction.
@@ -41,18 +42,25 @@ class DatasetImage:
     digest: str
     width: int
     height: int
-    boxes: tuple[BoundingBox, ...]
+    instances: tuple[ReviewedInstance, ...]
     split: str | None = None
     revision: int | None = None
     file_path: Path | None = None
 
 
-def _label_text(image: DatasetImage) -> str:
+def _label_text(image: DatasetImage, class_indices: dict[str, int]) -> str:
     rows = []
-    for box in image.boxes:
+    for instance in image.instances:
+        try:
+            class_index = class_indices[instance.class_name]
+        except KeyError as error:
+            raise ValueError(
+                f"Image {image.digest} uses unknown class {instance.class_name}"
+            ) from error
+        box = instance.bbox
         center_x, center_y = box.center
         rows.append(
-            "0 "
+            f"{class_index} "
             f"{center_x / image.width:.8f} "
             f"{center_y / image.height:.8f} "
             f"{box.width / image.width:.8f} "
@@ -98,18 +106,26 @@ def assign_splits(
 
 def export_dataset_images(
     images: Sequence[DatasetImage],
+    class_names: Sequence[str],
     data_root: str | Path,
     output_dir: str | Path,
     *,
     validation_fraction: float = 0.2,
     seed: int = 0,
 ) -> YoloDatasetManifest:
-    """Publish a self-contained one-class YOLO dataset atomically."""
+    """Publish a self-contained YOLO detection dataset atomically."""
     if len(images) < 2:
         raise ValueError("YOLO export requires at least two images")
     digests = [image.digest for image in images]
     if len(set(digests)) != len(digests):
         raise ValueError("YOLO export requires unique image digests")
+    classes = tuple(class_names)
+    if not classes or len(set(classes)) != len(classes):
+        raise ValueError("YOLO export class names must be non-empty and unique")
+    for name in classes:
+        if not CLASS_NAME.fullmatch(name):
+            raise ValueError(f"Invalid YOLO class name: {name}")
+    class_indices = {name: index for index, name in enumerate(classes)}
     if not 0.0 < validation_fraction < 1.0:
         raise ValueError("Validation fraction must be between zero and one")
 
@@ -136,21 +152,23 @@ def export_dataset_images(
             image_destination.parent.mkdir(parents=True, exist_ok=True)
             label_destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, image_destination)
-            label_destination.write_text(_label_text(image), encoding="utf-8")
+            label_destination.write_text(
+                _label_text(image, class_indices), encoding="utf-8"
+            )
 
             entry = YoloManifestImage(
                 digest=image.digest,
                 split=split,
                 image=image_destination.relative_to(working).as_posix(),
                 label=label_destination.relative_to(working).as_posix(),
-                instances=len(image.boxes),
+                instances=len(image.instances),
             )
             if image.revision is not None:
                 entry["revision"] = image.revision
             manifest_images.append(entry)
 
         manifest = YoloDatasetManifest(
-            class_names=["seed"],
+            class_names=list(classes),
             seed=seed,
             validation_fraction=validation_fraction,
             images=manifest_images,
@@ -158,15 +176,16 @@ def export_dataset_images(
         (working / "manifest.json").write_text(
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
         )
+        names = "".join(f"  {index}: {name}\n" for index, name in enumerate(classes))
         (working / "dataset.yaml").write_text(
-            "train: images/train\nval: images/val\nnames:\n  0: seed\n",
-            encoding="utf-8",
+            f"train: images/train\nval: images/val\nnames:\n{names}", encoding="utf-8"
         )
     return manifest
 
 
 def export_yolo_dataset(
     labelled: Sequence[LabelledImage],
+    class_names: Sequence[str],
     data_root: str | Path,
     output_dir: str | Path,
     validation_fraction: float = 0.2,
@@ -178,7 +197,7 @@ def export_yolo_dataset(
             digest=image.entry.digest,
             width=image.annotation.width,
             height=image.annotation.height,
-            boxes=image.annotation.boxes,
+            instances=image.annotation.instances,
             split=image.entry.split,
             revision=image.annotation.revision,
         )
@@ -186,6 +205,7 @@ def export_yolo_dataset(
     ]
     return export_dataset_images(
         images,
+        class_names,
         data_root,
         output_dir,
         validation_fraction=validation_fraction,

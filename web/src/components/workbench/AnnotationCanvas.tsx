@@ -12,9 +12,9 @@ import {
 } from "../../annotation/geometry";
 import { initialBoxSide, instanceFromBox } from "../../annotation/detection";
 import type {
-  AnnotationDocument,
   BoundingBox,
-  SeedInstance,
+  ImageSize,
+  LabelInstance,
 } from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
 import {
@@ -57,30 +57,47 @@ const HANDLE_CURSORS: Record<Handle, string> = {
   w: "ew-resize",
 };
 
-export function AnnotationCanvas({
-  filename,
-  result,
-  annotation,
-  tool,
-  panning,
-  layers,
-  selectedId,
-  onSelect,
-  onInstancesChange,
-}: {
-  filename: string;
-  result: DetectionResult;
-  annotation: AnnotationDocument;
+/** What the review editor adds to a canvas that otherwise only shows boxes. */
+export interface Editing {
   tool: Tool;
   /** Space is held: every press pans regardless of the active tool. */
   panning: boolean;
-  layers: ReadonlySet<LayerKey>;
+  /** The class an added box gets. */
+  className: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  onInstancesChange: (instances: SeedInstance[]) => void;
+  onInstancesChange: (instances: LabelInstance[]) => void;
+}
+
+/**
+ * One photograph with its boxes, panned and zoomed in place. Without
+ * `editing` every press pans; with it the boxes can be selected, moved,
+ * resized, added, and the detection result sizes the added ones.
+ */
+export function AnnotationCanvas({
+  image,
+  filename,
+  result,
+  instances,
+  layers,
+  editing,
+}: {
+  image: ImageSize & { digest: string };
+  filename: string;
+  result: DetectionResult | null;
+  instances: LabelInstance[];
+  layers: ReadonlySet<LayerKey>;
+  editing?: Editing;
 }) {
-  const { containerRef, transform, fit, panTo, panOrigin, toImagePoint } =
-    useViewport(annotation.image);
+  const {
+    containerRef,
+    transform,
+    isFitted,
+    fit,
+    panTo,
+    panOrigin,
+    toImagePoint,
+  } = useViewport(image);
   const [gesture, setGesture] = useState<Gesture | null>(null);
   const pressRef = useRef<{
     clientX: number;
@@ -88,7 +105,13 @@ export function AnnotationCanvas({
     moved: boolean;
   } | null>(null);
 
-  const { width, height } = annotation.image;
+  // Without an editor every press pans, nothing is selectable.
+  const tool: Tool = editing?.tool ?? "select";
+  const panning = editing?.panning ?? true;
+  const selectedId = editing?.selectedId ?? null;
+  const onSelect = editing?.onSelect;
+  const onInstancesChange = editing?.onInstancesChange;
+  const { width, height } = image;
 
   const startPan = (event: React.PointerEvent): Gesture => {
     const origin = panOrigin(event.clientX, event.clientY);
@@ -120,7 +143,7 @@ export function AnnotationCanvas({
     const id =
       target.closest("[data-instance-id]")?.getAttribute("data-instance-id") ??
       null;
-    const instance = annotation.instances.find((item) => item.id === id);
+    const instance = instances.find((item) => item.id === id);
     if (handle && instance) {
       setGesture({
         kind: "resize",
@@ -133,7 +156,7 @@ export function AnnotationCanvas({
       return;
     }
     if (instance) {
-      onSelect(instance.id);
+      onSelect?.(instance.id);
       setGesture({
         kind: "move",
         pointerId: event.pointerId,
@@ -166,18 +189,16 @@ export function AnnotationCanvas({
       x: point.x - gesture.start.x,
       y: point.y - gesture.start.y,
     };
-    const box = annotation.instances.find(
-      (item) => item.id === gesture.id,
-    )?.bbox;
+    const box = instances.find((item) => item.id === gesture.id)?.bbox;
     if (!box) {
       return;
     }
     setGesture(
       gesture.kind === "move"
-        ? { ...gesture, box: moveBox(box, delta, annotation.image) }
+        ? { ...gesture, box: moveBox(box, delta, image) }
         : {
             ...gesture,
-            box: resizeBox(box, gesture.handle, delta, annotation.image),
+            box: resizeBox(box, gesture.handle, delta, image),
           },
     );
   };
@@ -195,14 +216,14 @@ export function AnnotationCanvas({
         if (tool === "add") {
           addBoxAt(toImagePoint(event));
         } else {
-          onSelect(null);
+          onSelect?.(null);
         }
       }
       return;
     }
     if (gesture.kind === "move" || gesture.kind === "resize") {
-      onInstancesChange(
-        annotation.instances.map((item) =>
+      onInstancesChange?.(
+        instances.map((item) =>
           item.id === gesture.id ? { ...item, bbox: gesture.box } : item,
         ),
       );
@@ -210,19 +231,19 @@ export function AnnotationCanvas({
   };
 
   /**
-   * Places the same square the detector builds around a seed, so
-   * added seeds share one box convention. The tool stays active for the next
-   * seed; switching to select exposes the handles for the rare seed the
-   * standard box does not contain.
+   * Places the same square the detector uses for existing instances, so added
+   * boxes share one convention. The tool stays active for the next instance;
+   * switching to select exposes the resize handles.
    */
   const addBoxAt = (center: Point) => {
-    const box = boxAround(center, initialBoxSide(result), annotation.image);
+    if (!editing || !result) return;
+    const box = boxAround(center, initialBoxSide(result), image);
     if (!box) {
       return;
     }
-    const instance = instanceFromBox(box);
-    onInstancesChange([...annotation.instances, instance]);
-    onSelect(instance.id);
+    const instance = instanceFromBox(editing.className, box);
+    editing.onInstancesChange([...instances, instance]);
+    editing.onSelect(instance.id);
   };
 
   const draft =
@@ -240,7 +261,7 @@ export function AnnotationCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative flex-1 overflow-hidden bg-neutral-950 select-none"
+      className="relative h-full min-h-0 w-full flex-1 overflow-hidden select-none"
       style={{ cursor }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -256,7 +277,7 @@ export function AnnotationCanvas({
         }}
       >
         <img
-          src={`/img/${annotation.image.digest}`}
+          src={`/img/${image.digest}`}
           alt={filename}
           width={width}
           height={height}
@@ -267,7 +288,7 @@ export function AnnotationCanvas({
           viewBox={`0 0 ${width} ${height}`}
           className="absolute inset-0 h-full w-full overflow-visible"
         >
-          {layers.has("dish") && result.diagnostics?.dish && (
+          {layers.has("dish") && result?.diagnostics?.dish && (
             <circle
               cx={result.diagnostics.dish.center_x}
               cy={result.diagnostics.dish.center_y}
@@ -280,7 +301,7 @@ export function AnnotationCanvas({
             />
           )}
           {layers.has("detections") &&
-            result.instances.map((instance) => (
+            result?.instances.map((instance) => (
               <circle
                 key={instance.id}
                 cx={instance.bbox.x + instance.bbox.width / 2}
@@ -293,7 +314,7 @@ export function AnnotationCanvas({
               </circle>
             ))}
           {layers.has("boxes") &&
-            annotation.instances.map((instance, index) => {
+            instances.map((instance, index) => {
               const box = draft?.id === instance.id ? draft.box : instance.bbox;
               const selected = instance.id === selectedId;
               return (
@@ -357,12 +378,12 @@ export function AnnotationCanvas({
       <Toolbar
         isAttached
         aria-label="Zoom"
-        className="absolute bottom-3 left-3"
+        className="absolute bottom-3 left-1/2 -translate-x-1/2"
       >
         <span className="w-12 text-center font-mono text-xs tabular-nums text-muted">
           {Math.round(transform.scale * 100)}%
         </span>
-        <Button variant="ghost" size="sm" onPress={fit}>
+        <Button variant="ghost" size="sm" isDisabled={isFitted} onPress={fit}>
           Fit
         </Button>
       </Toolbar>

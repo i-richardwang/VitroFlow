@@ -4,7 +4,6 @@ import { Chip, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
 import { getStatus } from "../../functions/status";
 import { trainingRunLabel } from "../../training/schema";
@@ -13,6 +12,7 @@ import type { WorkerPresence } from "../../workers/presence";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
+  staticData: { crumbs: [{ label: "Status" }] },
   component: StatusPage,
 });
 
@@ -55,9 +55,9 @@ function StatusPage() {
                   renderEmptyState={() => (
                     <EmptyState size="sm">
                       <EmptyState.Header>
-                        <EmptyStateHeading>
+                        <EmptyState.Title>
                           No inference workers
-                        </EmptyStateHeading>
+                        </EmptyState.Title>
                         <EmptyState.Description>
                           Start one with the workbench URL and worker token.
                         </EmptyState.Description>
@@ -140,9 +140,7 @@ function StatusPage() {
                   renderEmptyState={() => (
                     <EmptyState size="sm">
                       <EmptyState.Header>
-                        <EmptyStateHeading>
-                          No training workers
-                        </EmptyStateHeading>
+                        <EmptyState.Title>No training workers</EmptyState.Title>
                         <EmptyState.Description>
                           Training workers can run on a separate GPU machine.
                         </EmptyState.Description>

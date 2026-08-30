@@ -88,18 +88,45 @@ def manifest_entry(
     }
 
 
-def manifest_document(dataset: str, images: list[dict[str, Any]]) -> dict[str, Any]:
+def manifest_document(
+    dataset: str,
+    images: list[dict[str, Any]],
+    *,
+    model_id: str = "seed-detector",
+    classes: list[str] | None = None,
+) -> dict[str, Any]:
     return {
         "schemaVersion": MANIFEST_SCHEMA_VERSION,
         "dataset": dataset,
+        "model": {
+            "id": model_id,
+            "classes": classes if classes is not None else ["seed"],
+        },
         "images": images,
     }
 
 
-def write_manifest(data_root: Path, dataset: str, images: list[dict[str, Any]]) -> Path:
+def write_manifest(
+    data_root: Path,
+    dataset: str,
+    images: list[dict[str, Any]],
+    *,
+    model_id: str = "seed-detector",
+    classes: list[str] | None = None,
+) -> Path:
     path = manifest_path(data_root, dataset)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(manifest_document(dataset, images)), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            manifest_document(
+                dataset,
+                images,
+                model_id=model_id,
+                classes=classes,
+            )
+        ),
+        encoding="utf-8",
+    )
     return path
 
 

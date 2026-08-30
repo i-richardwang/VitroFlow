@@ -16,7 +16,7 @@ from .documents import (
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import FINGERPRINT, VERSION_ID
+from .identifiers import CLASS_NAME, FINGERPRINT, VERSION_ID
 from .manifest import ManifestImage, load_dataset_manifest
 
 ANNOTATION_SCHEMA_VERSION = 1
@@ -41,6 +41,13 @@ class BoundingBox:
 
 
 @dataclass(frozen=True)
+class ReviewedInstance:
+    instance_id: str
+    class_name: str
+    bbox: BoundingBox
+
+
+@dataclass(frozen=True)
 class ReviewedImage:
     digest: str
     width: int
@@ -51,7 +58,7 @@ class ReviewedImage:
     runtime_fingerprint: str
     status: str
     revision: int
-    boxes: tuple[BoundingBox, ...]
+    instances: tuple[ReviewedInstance, ...]
 
 
 @dataclass(frozen=True)
@@ -85,9 +92,9 @@ def _parse_box(
 
 def _parse_instances(
     value: Any, image_width: int, image_height: int, context: str
-) -> tuple[BoundingBox, ...]:
+) -> tuple[ReviewedInstance, ...]:
     identifiers: set[str] = set()
-    boxes: list[BoundingBox] = []
+    instances: list[ReviewedInstance] = []
     for index, raw_instance in enumerate(as_list(value, context)):
         instance_context = f"{context}[{index}]"
         instance = as_object(raw_instance, instance_context)
@@ -96,14 +103,22 @@ def _parse_instances(
         if identifier in identifiers:
             raise ValueError(f"{instance_context}.id is a duplicate: {identifier}")
         identifiers.add(identifier)
-        if instance["class"] != "seed":
-            raise ValueError(f"{instance_context}.class must be seed")
-        boxes.append(
-            _parse_box(
-                instance["bbox"], image_width, image_height, f"{instance_context}.bbox"
+        class_name = as_string(instance["class"], f"{instance_context}.class")
+        if not CLASS_NAME.fullmatch(class_name):
+            raise ValueError(f"{instance_context}.class is invalid")
+        instances.append(
+            ReviewedInstance(
+                instance_id=identifier,
+                class_name=class_name,
+                bbox=_parse_box(
+                    instance["bbox"],
+                    image_width,
+                    image_height,
+                    f"{instance_context}.bbox",
+                ),
             )
         )
-    return tuple(boxes)
+    return tuple(instances)
 
 
 def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
@@ -167,7 +182,7 @@ def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
         runtime_fingerprint=runtime_fingerprint,
         status=status,
         revision=as_integer(payload["revision"], f"{context}.revision"),
-        boxes=_parse_instances(
+        instances=_parse_instances(
             payload["instances"], image_width, image_height, f"{context}.instances"
         ),
     )
@@ -175,13 +190,23 @@ def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
 
 def load_annotations(manifest: str | Path) -> list[LabelledImage]:
     """Every labelled image of a dataset manifest, in manifest order."""
+    dataset = load_dataset_manifest(manifest)
+    known_classes = set(dataset.classes)
     labelled = []
-    for index, entry in enumerate(load_dataset_manifest(manifest).images):
+    for index, entry in enumerate(dataset.images):
         if entry.label is None:
             continue
         annotation = parse_annotation(entry.label, f"{manifest}: images[{index}].label")
         if annotation.digest != entry.digest:
             raise ValueError(f"Label digest differs from its image: {entry.digest}")
+        unknown = sorted(
+            {instance.class_name for instance in annotation.instances} - known_classes
+        )
+        if unknown:
+            raise ValueError(
+                f"Label for {entry.digest} uses unknown class"
+                f"{'es' if len(unknown) > 1 else ''}: {', '.join(unknown)}"
+            )
         labelled.append(LabelledImage(entry, annotation))
     return labelled
 

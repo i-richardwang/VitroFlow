@@ -5,9 +5,8 @@ import { useState } from "react";
 
 import type { Review } from "../../server/review";
 import { initializeLabel } from "../../functions/review";
-import { EmptyStateHeading } from "../EmptyStateHeading";
-import { NavbarEnd } from "../shell";
 import { QualityWarnings } from "../QualityWarnings";
+import { Workbench } from "../Workbench";
 import { AnnotationEditor } from "./AnnotationEditor";
 
 /**
@@ -17,41 +16,29 @@ import { AnnotationEditor } from "./AnnotationEditor";
  */
 export function ImageWorkbench({ review }: { review: Review }) {
   const { ref, filename, detection, label } = review;
-  const heading = (
-    <h1 className="sr-only">
-      Review {filename} for {review.model.name}
-    </h1>
-  );
 
   if (label && detection) {
     return (
-      <div className="flex h-full flex-col">
-        {heading}
-        <AnnotationEditor
-          subject={ref}
-          filename={filename}
-          result={detection}
-          label={label}
-        />
-      </div>
+      <AnnotationEditor
+        subject={ref}
+        model={review.model}
+        filename={filename}
+        result={detection}
+        label={label}
+      />
     );
   }
 
-  const quality = detection?.quality ?? null;
-
   return (
-    <div className="flex h-full flex-col">
-      {heading}
-      {quality && (
-        <NavbarEnd>
-          <QualityWarnings quality={quality} />
-        </NavbarEnd>
-      )}
-      <div className="flex flex-1 items-center justify-center p-6">
+    <Workbench
+      title={`Review ${filename} for ${review.model.name}`}
+      actions={detection && <QualityWarnings quality={detection.quality} />}
+    >
+      <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
         {detection ? (
           <Notice
             title="No review yet"
-            description={`Start from the ${detection.instances.length} ${detection.instances.length === 1 ? "box" : "boxes"} ${detection.producer.model_version_id} found, then correct each one.`}
+            description={`Start from the ${detection.instances.length} ${detection.instances.length === 1 ? "box" : "boxes"} this version found.`}
             action={{
               label: "Start review",
               run: () =>
@@ -71,11 +58,11 @@ export function ImageWorkbench({ review }: { review: Review }) {
         ) : (
           <Notice
             title="Nothing to review yet"
-            description={`No version of ${review.model.name} has detected this photograph. A connected worker detects it for the experiment it belongs to.`}
+            description={`No version of ${review.model.name} has detected this photograph yet.`}
           />
         )}
       </div>
-    </div>
+    </Workbench>
   );
 }
 
@@ -91,7 +78,7 @@ function Notice({
   return (
     <EmptyState>
       <EmptyState.Header>
-        <EmptyStateHeading>{title}</EmptyStateHeading>
+        <EmptyState.Title>{title}</EmptyState.Title>
         <EmptyState.Description>{description}</EmptyState.Description>
       </EmptyState.Header>
       {action ? (
@@ -114,7 +101,6 @@ function NoticeAction({
   return (
     <Button
       variant="primary"
-      size="sm"
       isDisabled={busy}
       onPress={async () => {
         setBusy(true);

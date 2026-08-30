@@ -31,11 +31,13 @@ DIGEST = hashlib.sha256(IMAGE).hexdigest()
 MANIFEST = {
     "schemaVersion": 1,
     "modelVersionId": "set.traditional-v1",
+    "classes": ["seed"],
     "artifact": {"kind": "traditional", "digest": "a" * 64},
 }
 OTHER_MANIFEST = {
     "schemaVersion": 1,
     "modelVersionId": "set.traditional-v2",
+    "classes": ["seed"],
     "artifact": {"kind": "traditional", "digest": "c" * 64},
 }
 
@@ -54,7 +56,7 @@ class FakeDetector:
             100,
             80,
             producer,
-            (DetectionInstance("1", BoundingBox(10, 20, 8, 6), 0.9),),
+            (DetectionInstance("1", "seed", BoundingBox(10, 20, 8, 6), 0.9),),
             DetectionQuality("ok"),
         )
 
@@ -177,6 +179,7 @@ def test_assignment_validates_its_manifest() -> None:
                 "manifest": {
                     "schemaVersion": 1,
                     "modelVersionId": "set.v1",
+                    "classes": ["seed"],
                     "artifact": {"kind": "onnx", "digest": "a" * 64},
                 },
                 "images": PENDING[:1],
@@ -188,6 +191,7 @@ def test_assignment_validates_its_manifest() -> None:
                 "manifest": {
                     "schemaVersion": 1,
                     "modelVersionId": "/set",
+                    "classes": ["seed"],
                     "artifact": {"kind": "traditional", "digest": "a" * 64},
                 },
                 "images": PENDING[:1],

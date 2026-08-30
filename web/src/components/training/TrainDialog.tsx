@@ -86,12 +86,11 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
                   ) : null}
                 </Modal.Body>
                 <Modal.Footer>
-                  <Button variant="tertiary" size="sm" onPress={close}>
+                  <Button variant="tertiary" onPress={close}>
                     Cancel
                   </Button>
                   <Button
                     variant="primary"
-                    size="sm"
                     isDisabled={busy || !valid}
                     onPress={() => {
                       setBusy(true);

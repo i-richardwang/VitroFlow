@@ -1,6 +1,6 @@
 import numpy as np
 
-from vitroflow.annotations import BoundingBox, ReviewedImage
+from vitroflow.annotations import BoundingBox, ReviewedImage, ReviewedInstance
 from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
 from vitroflow.config import DecisionConfig, PipelineConfig
 from vitroflow.proposals import SeedProposal
@@ -52,10 +52,11 @@ def _image(index: int) -> PreparedImage:
         runtime_fingerprint="b" * 64,
         status="complete",
         revision=1,
-        boxes=(BoundingBox(5, 5, 10, 10),),
+        instances=(ReviewedInstance("seed-1", "seed", BoundingBox(5, 5, 10, 10)),),
     )
     return PreparedImage(
         annotation=annotation,
+        boxes=(BoundingBox(5, 5, 10, 10),),
         proposals=(
             SeedProposal(10, 10, 4, 1, 1),
             SeedProposal(50, 50, 4, 1, 1),

@@ -1,6 +1,6 @@
 import { Chip } from "@heroui/react";
 
-import type { SeedQuality } from "../detection/schema";
+import type { DetectionQuality } from "../detection/schema";
 
 const WARNING_LABELS: Record<string, string> = {
   dish_detection_failed: "Dish not detected",
@@ -8,7 +8,7 @@ const WARNING_LABELS: Record<string, string> = {
   low_focus: "Low focus",
 };
 
-export function QualityWarnings({ quality }: { quality: SeedQuality }) {
+export function QualityWarnings({ quality }: { quality: DetectionQuality }) {
   if (quality.status === "ok") {
     return null;
   }

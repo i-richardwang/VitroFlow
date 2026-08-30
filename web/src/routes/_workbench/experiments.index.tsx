@@ -3,7 +3,6 @@ import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Count } from "../../components/Count";
-import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { NewExperimentDialog } from "../../components/experiment/NewExperimentDialog";
 import { ExperimentsIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
@@ -22,6 +21,7 @@ export const Route = createFileRoute("/_workbench/experiments/")({
     ]);
     return { experiments, versions };
   },
+  staticData: { crumbs: [{ label: "Experiments" }] },
   component: ExperimentsPage,
 });
 
@@ -44,7 +44,7 @@ function ExperimentsPage() {
               <Table.Column className="text-right">Rounds</Table.Column>
               <Table.Column className="text-right">Pending</Table.Column>
               <Table.Column className="text-right">Failed</Table.Column>
-              <Table.Column className="text-right">Counted</Table.Column>
+              <Table.Column className="text-right">Observed</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -53,7 +53,7 @@ function ExperimentsPage() {
                     <EmptyState.Media variant="icon">
                       <ExperimentsIcon />
                     </EmptyState.Media>
-                    <EmptyStateHeading>No experiments yet</EmptyStateHeading>
+                    <EmptyState.Title>No experiments yet</EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
               )}
@@ -71,8 +71,8 @@ function ExperimentsPage() {
                     <Table.Cell className="text-muted">
                       <Timestamp value={experiment.createdAt} />
                     </Table.Cell>
-                    <Table.Cell className="font-mono text-muted">
-                      {version.modelId} / {versionSlug(version)}
+                    <Table.Cell className="truncate font-mono text-muted">
+                      {versionSlug(version)}
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums text-muted">
                       {dishes}
@@ -87,7 +87,7 @@ function ExperimentsPage() {
                       <Count value={counts.failed} />
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums">
-                      <Count value={counts.counted} />
+                      <Count value={counts.observed} />
                     </Table.Cell>
                   </Table.Row>
                 ),

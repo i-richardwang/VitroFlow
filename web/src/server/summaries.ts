@@ -13,7 +13,7 @@ import {
   type DatasetImageRef,
   type ImageState,
 } from "../datasets/schema";
-import type { DetectionResult, SeedQuality } from "../detection/schema";
+import type { DetectionQuality, DetectionResult } from "../detection/schema";
 import type { AnnotationDocument } from "../annotation/schema";
 import {
   atRef,
@@ -28,7 +28,7 @@ export interface ImageSummary extends DatasetImageRef {
   state: ImageState;
   detectionCount: number | null;
   instanceCount: number | null;
-  quality: SeedQuality | null;
+  quality: DetectionQuality | null;
 }
 
 export interface DatasetSummary {

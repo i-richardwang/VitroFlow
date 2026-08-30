@@ -4,14 +4,55 @@ import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import { trainingParametersSchema } from "../training/parameters";
 import { detectionValidationSchema } from "../training/schema";
+import {
+  classListSchema,
+  readingClasses,
+  readingSchema,
+  type Reading,
+} from "./readings";
 
-export const modelSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  id: resourceIdSchema,
-  name: z.string().min(1),
-  task: z.literal("object_detection"),
-  classes: z.tuple([z.literal("seed")]),
-});
+/**
+ * A model is a task: what it looks for in a photograph and what an experiment
+ * reads off the result. Every version of the model finds the same classes and
+ * supports the same readings; versions differ only in how well they find them.
+ */
+export const modelSchema = z
+  .strictObject({
+    schemaVersion: z.literal(1),
+    id: resourceIdSchema,
+    name: z.string().min(1),
+    task: z.literal("object_detection"),
+    classes: classListSchema,
+    readings: z.array(readingSchema).min(1),
+  })
+  .superRefine((model, context) => {
+    const ids = new Set<string>();
+    const known = new Set(model.classes);
+    model.readings.forEach((reading, index) => {
+      if (ids.has(reading.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["readings", index, "id"],
+          message: `Duplicate reading id: ${reading.id}`,
+        });
+      }
+      ids.add(reading.id);
+      for (const name of readingClasses(reading)) {
+        if (!known.has(name)) {
+          context.addIssue({
+            code: "custom",
+            path: ["readings", index],
+            message: `Reading ${reading.id} uses unknown class ${name}`,
+          });
+        }
+      }
+    });
+  });
+
+/** The reading an experiment grid shows by default. */
+export function primaryReading(model: Pick<Model, "readings">): Reading {
+  return model.readings[0]!;
+}
 
 const inferenceSettingsSchema = z.strictObject({
   confidence: z.number().finite().min(0).max(1),

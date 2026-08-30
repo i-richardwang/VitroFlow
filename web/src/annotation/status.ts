@@ -9,6 +9,13 @@ export type ReviewEvent =
 
 export class ReviewTransitionError extends Error {}
 
+/** Only a completed review is a settled observation outside the editor. */
+export function isCompletedReview(
+  document: AnnotationDocument,
+): document is AnnotationDocument & { status: "complete" } {
+  return document.status === "complete";
+}
+
 /** Applies a review event; editing a completed image sends it back to review. */
 export function transition(
   document: AnnotationDocument,

@@ -77,13 +77,12 @@ def _diagnostics(value: Any, context: str) -> DetectionDiagnostics:
 def _instance(value: Any, context: str) -> DetectionInstance:
     instance = as_object(value, context)
     expect_fields(instance, {"id", "class", "bbox", "score"}, context)
-    if instance["class"] != "seed":
-        raise ValueError(f"{context}.class must be seed")
     bbox_context = f"{context}.bbox"
     raw_bbox = as_object(instance["bbox"], bbox_context)
     expect_fields(raw_bbox, {"x", "y", "width", "height"}, bbox_context)
     return DetectionInstance(
         instance_id=as_string(instance["id"], f"{context}.id"),
+        class_name=as_string(instance["class"], f"{context}.class"),
         bbox=BoundingBox(
             x=as_number(raw_bbox["x"], f"{bbox_context}.x"),
             y=as_number(raw_bbox["y"], f"{bbox_context}.y"),

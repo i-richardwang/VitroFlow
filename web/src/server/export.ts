@@ -2,11 +2,13 @@ import type { AnnotationDocument } from "../annotation/schema";
 import type { DetectionResult } from "../detection/schema";
 import type { ImageSplit } from "../training/schema";
 import { readDataset } from "./datasets";
+import { readModel } from "./model-registry";
 import { listImageRecords } from "./summaries";
 
 export interface DatasetExport {
   schemaVersion: 1;
   dataset: string;
+  model: { id: string; classes: string[] };
   images: DatasetExportImage[];
 }
 
@@ -26,11 +28,15 @@ interface DatasetExportImage {
 export async function exportDataset(
   datasetId: string,
 ): Promise<DatasetExport | null> {
-  if (!(await readDataset(datasetId))) return null;
+  const dataset = await readDataset(datasetId);
+  if (!dataset) return null;
+  const model = await readModel(dataset.modelId);
+  if (!model) throw new Error(`Unknown model: ${dataset.modelId}`);
   const records = await listImageRecords(datasetId);
   return {
     schemaVersion: 1,
     dataset: datasetId,
+    model: { id: model.id, classes: model.classes },
     images: records.map(({ image, detection, label }) => ({
       digest: image.digest,
       width: image.width,

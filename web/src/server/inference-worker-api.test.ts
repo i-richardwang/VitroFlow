@@ -113,6 +113,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   expect(assignment.manifest).toEqual({
     schemaVersion: 1,
     modelVersionId: version.id,
+    classes: ["seed"],
     artifact: version.artifact,
   });
   expect(assignment.images).toContain(digest);

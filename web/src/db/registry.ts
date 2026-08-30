@@ -26,6 +26,7 @@ export function toModel(row: typeof models.$inferSelect): Model {
     name: row.name,
     task: row.task,
     classes: row.classes,
+    readings: row.readings,
   });
 }
 
@@ -74,6 +75,7 @@ export async function registerModel(
       name: model.name,
       task: model.task,
       classes: [...model.classes],
+      readings: [...model.readings],
     })
     .onConflictDoNothing()
     .returning();

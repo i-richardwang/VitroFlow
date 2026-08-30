@@ -101,6 +101,33 @@ describe("labels", () => {
     ).rejects.toThrow(/1x1/);
   });
 
+  test("rejects instances outside the model's classes", async () => {
+    const { version } = await photographRound("label-classes", ["classed"]);
+    const image = await imageDigest("classed");
+    const ref = { digest: image, model: version.modelId };
+    const invalid = {
+      ...document,
+      image: { digest: image, width: FIXTURE_EDGE, height: FIXTURE_EDGE },
+      source: {
+        ...document.source,
+        modelVersionId: version.id,
+        artifactDigest: version.artifact.digest,
+      },
+      instances: document.instances.map((instance) => ({
+        ...instance,
+        class: "debris",
+      })),
+    };
+    await expect(createLabel(ref, invalid)).rejects.toThrow(
+      /unknown class: debris/,
+    );
+
+    const created = await createLabel(ref, { ...invalid, instances: [] });
+    await expect(
+      updateLabel(ref, { ...created, instances: invalid.instances }),
+    ).rejects.toThrow(/unknown class: debris/);
+  });
+
   test("binds the review source to a registered artifact of its model", async () => {
     const { version } = await photographRound("label-source", ["label-source"]);
     const image = await imageDigest("label-source");
@@ -128,6 +155,9 @@ describe("labels", () => {
       name: "Germination detector",
       task: "object_detection",
       classes: ["seed"],
+      readings: [
+        { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
+      ],
     });
     const germination = await registerTrainedVersion("germination");
     await expect(

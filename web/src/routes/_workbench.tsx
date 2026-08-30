@@ -1,9 +1,10 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { WorkbenchNotice } from "../components/WorkbenchNotice";
-import { WorkbenchShell } from "../components/shell";
+import { Shell } from "../components/shell";
 import { getSession } from "../functions/session";
 
+/** Every signed-in screen fills this chrome. */
 export const Route = createFileRoute("/_workbench")({
   loader: () => getSession(),
   component: WorkbenchLayout,
@@ -12,35 +13,31 @@ export const Route = createFileRoute("/_workbench")({
 });
 
 function WorkbenchLayout() {
-  const { signedIn } = Route.useLoaderData();
-
   return (
-    <WorkbenchShell signedIn={signedIn}>
+    <Shell>
       <Outlet />
-    </WorkbenchShell>
+    </Shell>
   );
 }
 
 function WorkbenchNotFound() {
-  const { signedIn } = Route.useLoaderData();
   return (
-    <WorkbenchShell signedIn={signedIn}>
+    <Shell>
       <WorkbenchNotice
         title="Not found"
         description="The dataset, image, experiment, or run is not in this workbench."
       />
-    </WorkbenchShell>
+    </Shell>
   );
 }
 
 function WorkbenchError({ error }: { error: Error }) {
-  const { signedIn } = Route.useLoaderData();
   return (
-    <WorkbenchShell signedIn={signedIn}>
+    <Shell>
       <WorkbenchNotice
         title="Something went wrong"
         description={error.message}
       />
-    </WorkbenchShell>
+    </Shell>
   );
 }

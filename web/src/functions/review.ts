@@ -6,7 +6,7 @@ import { resourceIdSchema } from "../identifiers/schema";
 import { createLabelFromDetection, updateLabel } from "../server/labels";
 import { readReview } from "../server/review";
 
-/** Names a review, and the version whose count the reviewer arrived from. */
+/** Names a review and the version whose observation the reviewer arrived from. */
 export const reviewRequestSchema = labelRefSchema.extend({
   version: resourceIdSchema.optional(),
 });

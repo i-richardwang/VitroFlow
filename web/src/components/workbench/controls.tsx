@@ -1,12 +1,12 @@
 import { AddBoxIcon, CursorIcon } from "../icons";
 
-/** Colors shared by the canvas drawing and the layer legend. */
+/** Theme colors shared by the canvas drawing and the layer legend. */
 export const CANVAS_COLORS = {
-  box: "#22c55e",
-  selected: "#3b82f6",
-  detection: "#facc15",
-  dish: "#a3a3a3",
-  handle: "#ffffff",
+  box: "var(--success)",
+  selected: "var(--accent)",
+  detection: "var(--warning)",
+  dish: "var(--muted)",
+  handle: "var(--background)",
 } as const;
 
 export const TOOLS = ["select", "add"] as const;

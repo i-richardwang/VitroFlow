@@ -1,5 +1,5 @@
 {
-  "id": "99e66372-5d5f-4896-9c3d-1cd3b50863cf",
+  "id": "c2ffce09-ed00-4f55-a66e-13b4b42b9dd8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1395,6 +1395,12 @@
         },
         "classes": {
           "name": "classes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "readings": {
+          "name": "readings",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true

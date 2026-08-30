@@ -26,7 +26,7 @@ export interface Review {
 /**
  * A review that has started shows the detection it started from. Before
  * that, it shows the detection of `versionId` when the reviewer arrived from
- * a count of that version, so the boxes are the ones they just looked at;
+ * a reading of that version, so the boxes are the ones they just looked at;
  * otherwise the newest of the model's versions that has detected the image.
  * A version of another model names no review.
  */

@@ -8,7 +8,7 @@ const DISPLAY: Record<
 > = {
   pending: { label: "Pending", tone: "default" },
   failed: { label: "Failed", tone: "danger" },
-  counted: { label: "Counted", tone: "success" },
+  observed: { label: "Observed", tone: "success" },
 };
 
 export function PhotoStateChip({ state }: { state: PhotoState }) {

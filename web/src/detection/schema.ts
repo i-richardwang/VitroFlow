@@ -3,17 +3,18 @@ import { z } from "zod";
 import { boundingBoxSchema } from "../annotation/schema";
 import { imageDigestSchema } from "../images/schema";
 import { detectionProducerSchema } from "../inference/schema";
+import { classNameSchema } from "../models/readings";
 
 const warningCodeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
 
-const seedQualitySchema = z.strictObject({
+const detectionQualitySchema = z.strictObject({
   status: z.enum(["ok", "review_required"]),
   warnings: z.array(warningCodeSchema),
 });
 
 const detectionInstanceSchema = z.strictObject({
   id: z.string().min(1),
-  class: z.literal("seed"),
+  class: classNameSchema,
   bbox: boundingBoxSchema,
   score: z.number().finite().min(0).max(1),
 });
@@ -44,7 +45,7 @@ export const detectionResultSchema = z
     }),
     producer: detectionProducerSchema,
     instances: z.array(detectionInstanceSchema),
-    quality: seedQualitySchema,
+    quality: detectionQualitySchema,
     diagnostics: diagnosticsSchema.optional(),
   })
   .superRefine((result, context) => {
@@ -89,7 +90,7 @@ export const inferenceOutcomeSchema = z.union([
 ]);
 
 export type DetectionResult = z.infer<typeof detectionResultSchema>;
-export type SeedQuality = z.infer<typeof seedQualitySchema>;
+export type DetectionQuality = z.infer<typeof detectionQualitySchema>;
 export type DetectionFailure = z.infer<typeof detectionFailureSchema>;
 export type InferenceOutcome = z.infer<typeof inferenceOutcomeSchema>;
 

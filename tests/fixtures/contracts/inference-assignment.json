@@ -2,6 +2,7 @@
   "manifest": {
     "schemaVersion": 1,
     "modelVersionId": "set.traditional-v1",
+    "classes": ["seed"],
     "artifact": {
       "kind": "traditional",
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

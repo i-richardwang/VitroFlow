@@ -1,4 +1,4 @@
-import { Button, Form, toast } from "@heroui/react";
+import { Button, Fieldset, Form, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 
@@ -28,6 +28,7 @@ export function RoundForm({
   fields,
   submitLabel,
   busyLabel,
+  onCancel,
   onSubmit,
   onComplete,
 }: {
@@ -35,6 +36,7 @@ export function RoundForm({
   fields?: (busy: boolean) => ReactNode;
   submitLabel: string;
   busyLabel: string;
+  onCancel?: () => void;
   /** Hands the stored photographs over; resolves to the message to show. */
   onSubmit: (photos: StoredPhoto[], form: FormData) => Promise<string>;
   onComplete?: () => void;
@@ -104,13 +106,13 @@ export function RoundForm({
         const form = new FormData(event.currentTarget);
         setBusy(true);
         void onSubmit(ready, form)
-          .then(async (summary) => {
+          .then((summary) => {
             setImages((current) =>
               current.filter((image) => image.state.status !== "stored"),
             );
             toast.success(summary);
-            await router.invalidate();
             if (!hasFailures) onComplete?.();
+            void router.invalidate();
           })
           .catch((cause: unknown) => {
             toast.danger("Nothing was added", { description: message(cause) });
@@ -120,7 +122,7 @@ export function RoundForm({
           });
       }}
     >
-      <div className="flex w-full flex-col gap-3">
+      <Fieldset className="w-full">
         {fields?.(busy)}
         <ImageDropZone
           images={images}
@@ -128,14 +130,21 @@ export function RoundForm({
           onRemove={onRemove}
           busy={busy}
         />
-        <Button
-          type="submit"
-          variant="primary"
-          isDisabled={busy || storing || ready.length === 0}
-        >
-          {busy ? busyLabel : storing ? "Preparing…" : submitLabel}
-        </Button>
-      </div>
+        <Fieldset.Actions>
+          {onCancel ? (
+            <Button variant="tertiary" onPress={onCancel}>
+              Cancel
+            </Button>
+          ) : null}
+          <Button
+            type="submit"
+            variant="primary"
+            isDisabled={busy || storing || ready.length === 0}
+          >
+            {busy ? busyLabel : storing ? "Preparing…" : submitLabel}
+          </Button>
+        </Fieldset.Actions>
+      </Fieldset>
     </Form>
   );
 }

@@ -16,13 +16,14 @@ from .detectors import Detector, TraditionalDetector, UltralyticsDetector
 from .documents import (
     as_digest,
     as_integer,
+    as_list,
     as_number,
     as_object,
     as_string,
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import VERSION_ID
+from .identifiers import CLASS_NAME, VERSION_ID
 from .scoring import DEFAULT_MODEL
 from .training_recipe import parse_training_recipe
 
@@ -101,13 +102,16 @@ class ModelManifest:
     """The immutable model identity and artifact an assignment executes."""
 
     model_version_id: str
+    classes: tuple[str, ...]
     artifact: dict[str, Any]
 
     @classmethod
     def parse(cls, value: Any, context: str = "model manifest") -> ModelManifest:
         manifest = as_object(value, context)
         expect_fields(
-            manifest, {"schemaVersion", "modelVersionId", "artifact"}, context
+            manifest,
+            {"schemaVersion", "modelVersionId", "classes", "artifact"},
+            context,
         )
         expect_schema_version(
             manifest,
@@ -118,8 +122,22 @@ class ModelManifest:
         version_id = as_string(manifest["modelVersionId"], f"{context}.modelVersionId")
         if not VERSION_ID.fullmatch(version_id):
             raise ValueError(f"{context}.modelVersionId is invalid")
+        classes = tuple(
+            as_string(item, f"{context}.classes[{index}]")
+            for index, item in enumerate(
+                as_list(manifest["classes"], f"{context}.classes")
+            )
+        )
+        if not classes:
+            raise ValueError(f"{context}.classes must not be empty")
+        if len(set(classes)) != len(classes):
+            raise ValueError(f"{context}.classes must be unique")
+        for name in classes:
+            if not CLASS_NAME.fullmatch(name):
+                raise ValueError(f"{context}.classes contains invalid class {name}")
         return cls(
             model_version_id=version_id,
+            classes=classes,
             artifact=_model_artifact(manifest["artifact"], f"{context}.artifact"),
         )
 
@@ -157,8 +175,12 @@ class ModelStore:
         self.unload()
         artifact = manifest.artifact
         if artifact["kind"] == "ultralytics":
-            detector: Detector = self._ultralytics_detector(version_id, artifact)
+            detector: Detector = self._ultralytics_detector(
+                version_id, manifest.classes, artifact
+            )
         else:
+            if manifest.classes != ("seed",):
+                raise ValueError("Traditional detector only executes the seed class")
             detector = TraditionalDetector(PipelineConfig(), DEFAULT_MODEL)
         if detector.artifact_digest != artifact["digest"]:
             raise ValueError(
@@ -177,13 +199,15 @@ class ModelStore:
         _release_accelerator()
 
     def _ultralytics_detector(
-        self, version_id: str, artifact: dict[str, Any]
+        self, version_id: str, classes: tuple[str, ...], artifact: dict[str, Any]
     ) -> UltralyticsDetector:
         expected_digest = artifact["digest"]
         destination = self._artifacts / version_id
         if destination.exists():
             try:
-                return self._verified_ultralytics_detector(destination, expected_digest)
+                return self._verified_ultralytics_detector(
+                    destination, classes, expected_digest
+                )
             except CACHE_VALIDATION_ERRORS as error:
                 LOGGER.warning("discarding invalid cache for %s: %s", version_id, error)
                 self._discard_cache_entry(destination)
@@ -227,20 +251,24 @@ class ModelStore:
                 + "\n",
                 encoding="utf-8",
             )
-            self._verified_ultralytics_detector(temporary, expected_digest)
+            self._verified_ultralytics_detector(temporary, classes, expected_digest)
             try:
                 temporary.rename(destination)
             except FileExistsError:
-                return self._verified_ultralytics_detector(destination, expected_digest)
+                return self._verified_ultralytics_detector(
+                    destination, classes, expected_digest
+                )
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
-        return self._verified_ultralytics_detector(destination, expected_digest)
+        return self._verified_ultralytics_detector(
+            destination, classes, expected_digest
+        )
 
     def _verified_ultralytics_detector(
-        self, run: Path, expected_digest: str
+        self, run: Path, classes: tuple[str, ...], expected_digest: str
     ) -> UltralyticsDetector:
-        cached = UltralyticsDetector.from_run(run, device=self._device)
+        cached = UltralyticsDetector.from_run(run, classes, device=self._device)
         if cached.artifact_digest != expected_digest:
             raise ValueError("YOLO artifact does not match its published digest")
         return cached

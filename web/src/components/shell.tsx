@@ -2,17 +2,21 @@ import { AppLayout } from "@heroui-pro/react/app-layout";
 import { Navbar } from "@heroui-pro/react/navbar";
 import { Sidebar } from "@heroui-pro/react/sidebar";
 import { Breadcrumbs, Button } from "@heroui/react";
-import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  getRouteApi,
+  useMatches,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   createContext,
-  useContext,
+  use,
   useCallback,
   useState,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 
-import { trainingRunLabel } from "../training/schema";
 import { BrandLogo } from "./BrandLogo";
 import {
   DatasetsIcon,
@@ -44,27 +48,31 @@ const NAV = [
   { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
 
-const NavbarEndContext = createContext<HTMLElement | null>(null);
+const workbenchRoute = getRouteApi("/_workbench");
 
-/** Page actions that belong in the shared AppLayout navbar. */
-export function NavbarEnd({ children }: { children: ReactNode }) {
-  const target = useContext(NavbarEndContext);
-  if (target == null) {
+const ActionsSlot = createContext<HTMLElement | null>(null);
+
+/** One step in the navbar trail. Leaf routes declare the trail they sit on. */
+export type Crumb = { label: string; href?: string; mono?: boolean };
+
+/** Puts a screen's actions in the navbar. The layout owns the slot. */
+export function ShellActions({ children }: { children: ReactNode }) {
+  const slot = use(ActionsSlot);
+  if (!slot) {
     return null;
   }
-  return createPortal(children, target);
+  return createPortal(children, slot);
 }
 
-export function WorkbenchShell({
-  signedIn,
-  children,
-}: {
-  signedIn: boolean;
-  children: React.ReactNode;
-}) {
+/**
+ * Navigation, breadcrumbs, and the main column. Document screens and
+ * photograph screens both fill the column.
+ */
+export function Shell({ children }: { children: ReactNode }) {
+  const { signedIn } = workbenchRoute.useLoaderData();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [navbarEnd, setNavbarEnd] = useState<HTMLElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const go = useCallback(
     (href: string) => {
       void navigate({ to: href });
@@ -73,76 +81,89 @@ export function WorkbenchShell({
   );
 
   return (
-    <NavbarEndContext.Provider value={navbarEnd}>
+    <ActionsSlot.Provider value={actionsSlot}>
       <AppLayout
-        className="h-full min-h-0 flex-1"
         navigate={go}
         scrollMode="content"
         sidebar={<AppSidebar pathname={pathname} signedIn={signedIn} />}
         sidebarCollapsible="icon"
-        navbar={<AppNavbar pathname={pathname} endRef={setNavbarEnd} />}
+        navbar={<AppNavbar onActionsSlot={setActionsSlot} />}
       >
         {children}
       </AppLayout>
-    </NavbarEndContext.Provider>
+    </ActionsSlot.Provider>
   );
 }
 
 function AppNavbar({
-  pathname,
-  endRef,
+  onActionsSlot,
 }: {
-  pathname: string;
-  endRef: (node: HTMLElement | null) => void;
+  onActionsSlot: (node: HTMLDivElement | null) => void;
 }) {
-  const review = useMatch({
-    from: "/_workbench/review/$model/$digest",
-    shouldThrow: false,
-  });
-  const experiment = useMatch({
-    from: "/_workbench/experiments/$experiment/",
-    shouldThrow: false,
-  });
-  const experimentPhoto = useMatch({
-    from: "/_workbench/experiments/$experiment/$dish/$round",
-    shouldThrow: false,
-  });
-  const crumbs = workbenchCrumbs(
-    pathname,
-    review?.loaderData?.filename ?? null,
-    experimentPhoto?.loaderData?.experimentName ??
-      experiment?.loaderData?.experiment.name ??
-      null,
-    experimentPhoto?.loaderData?.ref.dish ?? null,
-    experimentPhoto?.loaderData?.round.label ?? null,
-  );
+  const crumbs = trail(useMatches());
 
   return (
     <Navbar maxWidth="full">
       <Navbar.Header>
         <AppLayout.MenuToggle />
         <Sidebar.Trigger aria-label="Toggle navigation" />
-        <Breadcrumbs className="min-w-0">
-          {crumbs.map((crumb, index) => {
-            const last = index === crumbs.length - 1;
-            return (
-              <Breadcrumbs.Item
-                key={`${crumb.label}:${crumb.href ?? "current"}`}
-                href={last ? undefined : crumb.href}
-                className={`min-w-0 ${last ? "font-semibold" : "text-muted"} ${crumb.mono ? "font-mono" : ""}`}
-              >
-                <span className="truncate">{crumb.label}</span>
-              </Breadcrumbs.Item>
-            );
-          })}
-        </Breadcrumbs>
+        {crumbs.length > 0 ? (
+          <Breadcrumbs className="min-w-0">
+            {crumbs.map((crumb, index) => {
+              const last = index === crumbs.length - 1;
+              return (
+                <Breadcrumbs.Item
+                  key={`${crumb.label}:${crumb.href ?? "current"}`}
+                  href={last ? undefined : crumb.href}
+                  className={`min-w-0 no-underline ${last ? "font-semibold" : "text-muted"} ${crumb.mono ? "font-mono" : ""}`}
+                >
+                  <span className="truncate">{crumb.label}</span>
+                </Breadcrumbs.Item>
+              );
+            })}
+          </Breadcrumbs>
+        ) : null}
+        <Navbar.Spacer />
+        <Navbar.Content>
+          <div ref={onActionsSlot} className="flex items-center gap-3" />
+        </Navbar.Content>
       </Navbar.Header>
-      <Navbar.Spacer />
-      <Navbar.Content>
-        <div ref={endRef} className="flex items-center gap-3" />
-      </Navbar.Content>
     </Navbar>
   );
+}
+
+function trail(
+  matches: ReadonlyArray<{
+    loaderData: unknown;
+    params: unknown;
+    staticData: {
+      crumbs?:
+        | Crumb[]
+        | ((match: {
+            loaderData: unknown;
+            params: Record<string, string>;
+          }) => Crumb[]);
+    };
+  }>,
+): Crumb[] {
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const match = matches[i]!;
+    const spec = match.staticData.crumbs;
+    if (!spec) {
+      continue;
+    }
+    if (typeof spec !== "function") {
+      return spec;
+    }
+    if (match.loaderData === undefined) {
+      continue;
+    }
+    return spec({
+      loaderData: match.loaderData,
+      params: match.params as Record<string, string>,
+    });
+  }
+  return [];
 }
 
 function AppSidebar({
@@ -152,7 +173,7 @@ function AppSidebar({
   pathname: string;
   signedIn: boolean;
 }) {
-  const section = pathname.split("/")[1] || "datasets";
+  const section = pathname.split("/")[1] || "experiments";
 
   return (
     <>
@@ -188,7 +209,7 @@ function SidebarContents({
             <div className="truncate text-sm font-semibold text-foreground">
               VitroFlow
             </div>
-            <div className="truncate text-xs text-muted">Seed annotation</div>
+            <div className="truncate text-xs text-muted">Detection review</div>
           </div>
         </div>
       </Sidebar.Header>
@@ -231,83 +252,4 @@ function SidebarContents({
       )}
     </>
   );
-}
-
-type Crumb = { label: string; href?: string; mono?: boolean };
-
-function workbenchCrumbs(
-  pathname: string,
-  filename: string | null,
-  experimentName: string | null,
-  dishLabel: string | null,
-  roundLabel: string | null,
-): Crumb[] {
-  const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] === "experiments" && parts.length >= 2) {
-    return experimentCrumbs(parts, experimentName, dishLabel, roundLabel);
-  }
-  if (parts[0] === "review" && parts.length >= 3) {
-    return [{ label: filename ?? parts[2]!.slice(0, 12), mono: true }];
-  }
-  if (parts[0] !== "datasets" || parts.length < 2) {
-    const section =
-      parts[0] === "training"
-        ? "Training"
-        : parts[0] === "status"
-          ? "Status"
-          : parts[0] === "datasets"
-            ? "Datasets"
-            : "Experiments";
-    return [{ label: section }];
-  }
-
-  const dataset = parts[1]!;
-  const crumbs: Crumb[] = [
-    { label: "Datasets", href: "/datasets" },
-    {
-      label: dataset,
-      href: parts.length > 2 ? `/datasets/${dataset}` : undefined,
-      mono: true,
-    },
-  ];
-
-  if (parts[2] !== "training") {
-    return crumbs;
-  }
-
-  crumbs.push({
-    label: "Training",
-    href: parts.length > 3 ? `/datasets/${dataset}/training` : undefined,
-  });
-  if (parts[3]) {
-    crumbs.push({
-      label: trainingRunLabel({ id: parts[3] }),
-      mono: true,
-    });
-  }
-  return crumbs;
-}
-
-function experimentCrumbs(
-  parts: string[],
-  experimentName: string | null,
-  dishLabel: string | null,
-  roundLabel: string | null,
-): Crumb[] {
-  const experiment = parts[1]!;
-  const crumbs: Crumb[] = [
-    { label: "Experiments", href: "/experiments" },
-    {
-      label: experimentName ?? experiment.slice(0, 8),
-      href: parts.length > 2 ? `/experiments/${experiment}` : undefined,
-      mono: experimentName === null,
-    },
-  ];
-  if (parts.length >= 4) {
-    crumbs.push({
-      label: `${dishLabel ?? "Dish"}, ${roundLabel ?? parts[3]!.slice(0, 8)}`,
-      mono: dishLabel === null || roundLabel === null,
-    });
-  }
-  return crumbs;
 }
