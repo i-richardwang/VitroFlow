@@ -1,20 +1,21 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
+import { KPI } from "@heroui-pro/react/kpi";
+import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Segment } from "@heroui-pro/react/segment";
 import { AlertDialog, Button, Table, toast } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { Count } from "../../components/Count";
-import { DatasetOverview } from "../../components/dataset/DatasetOverview";
-import { UploadDialog } from "../../components/dataset/UploadDialog";
-import { VersionsDialog } from "../../components/dataset/VersionsDialog";
-import { Hint } from "../../components/Hint";
+import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
 import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
-import { deleteImage } from "../../server/images";
-import { getDatasetOverview } from "../../server/models";
+import {
+  getDatasetOverview,
+  removeFromDataset,
+} from "../../functions/datasets";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   loader: async ({ params }) => {
@@ -31,13 +32,11 @@ type Filter = ImageState | "all";
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const overview = Route.useLoaderData();
-  const { images, counts } = overview;
+  const { model, images, counts, training } = Route.useLoaderData();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
 
-  // Worker presence and training leases are time-derived, so the console
-  // refreshes on a fixed interval.
+  // Training leases are time-derived, so the page refreshes on a fixed interval.
   useEffect(() => {
     const timer = window.setInterval(() => void router.invalidate(), 10_000);
     return () => window.clearInterval(timer);
@@ -49,33 +48,62 @@ function DatasetPage() {
       : images.filter((image) => image.state === filter);
   const countOf = (state: Filter) =>
     state === "all" ? images.length : counts[state];
-
   const filters = (["all", ...IMAGE_STATES] as const).filter(
     (state) => state === "all" || state === filter || countOf(state) > 0,
   );
+  const toReview = counts.unreviewed + counts.in_progress;
 
   return (
     <Page
       title={<span className="block truncate font-mono">{dataset}</span>}
-      actions={
+      description={
         <>
-          <UploadDialog dataset={dataset} />
-          <VersionsDialog overview={overview} />
-          <Button
-            variant="ghost"
-            onPress={() => {
-              void router.navigate({
-                to: "/datasets/$dataset/training",
-                params: { dataset },
-              });
-            }}
-          >
-            Training
-          </Button>
+          Trains <span className="font-mono">{model.id}</span>
         </>
       }
+      actions={
+        <Button
+          variant="primary"
+          onPress={() => {
+            void router.navigate({
+              to: "/datasets/$dataset/training",
+              params: { dataset },
+            });
+          }}
+        >
+          Training
+        </Button>
+      }
     >
-      <DatasetOverview overview={overview} />
+      <KPIGroup>
+        <KPI>
+          <KPI.Header>
+            <KPI.Title>Reviewed</KPI.Title>
+          </KPI.Header>
+          <KPI.Content>
+            <KPI.Value maximumFractionDigits={0} value={counts.complete} />
+          </KPI.Content>
+          {toReview > 0 ? (
+            <KPI.Footer>
+              {toReview} {toReview === 1 ? "image" : "images"} to review
+            </KPI.Footer>
+          ) : null}
+        </KPI>
+        <KPIGroup.Separator />
+        <KPI>
+          <KPI.Header>
+            <KPI.Title>Training runs</KPI.Title>
+          </KPI.Header>
+          <KPI.Content>
+            <KPI.Value maximumFractionDigits={0} value={training.runs} />
+          </KPI.Content>
+          {training.reviewedSinceLastRun > 0 ? (
+            <KPI.Footer>
+              {training.reviewedSinceLastRun} reviewed since the last run
+            </KPI.Footer>
+          ) : null}
+        </KPI>
+      </KPIGroup>
 
       <Segment
         aria-label="Image state"
@@ -108,16 +136,16 @@ function DatasetPage() {
               renderEmptyState={() => (
                 <EmptyState size="sm">
                   <EmptyState.Header>
-                    <EmptyState.Title>
+                    <EmptyStateHeading>
                       {images.length === 0
                         ? "No images yet"
                         : "No images in this state"}
-                    </EmptyState.Title>
-                    {images.length > 0 ? (
-                      <EmptyState.Description>
-                        Choose another filter to see images.
-                      </EmptyState.Description>
-                    ) : null}
+                    </EmptyStateHeading>
+                    <EmptyState.Description>
+                      {images.length === 0
+                        ? "Add photographs from an experiment."
+                        : "Choose another filter to see images."}
+                    </EmptyState.Description>
                   </EmptyState.Header>
                 </EmptyState>
               )}
@@ -125,16 +153,14 @@ function DatasetPage() {
               {visible.map((image) => (
                 <Table.Row
                   key={image.digest}
-                  href={`/datasets/${dataset}/${image.digest}`}
+                  href={`/review/${model.id}/${image.digest}`}
                   className="cursor-(--cursor-interactive)"
                 >
                   <Table.Cell className="font-mono font-medium">
                     <span className="truncate">{image.filename}</span>
                   </Table.Cell>
                   <Table.Cell>
-                    <Hint text={image.error}>
-                      <ImageStateChip state={image.state} />
-                    </Hint>
+                    <ImageStateChip state={image.state} />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
                     <Count value={image.detectionCount} />
@@ -150,7 +176,7 @@ function DatasetPage() {
                     )}
                   </Table.Cell>
                   <Table.Cell className="text-right">
-                    <DeleteImageButton dataset={dataset} image={image} />
+                    <RemoveImageButton dataset={dataset} image={image} />
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -162,7 +188,7 @@ function DatasetPage() {
   );
 }
 
-function DeleteImageButton({
+function RemoveImageButton({
   dataset,
   image,
 }: {
@@ -189,8 +215,8 @@ function DeleteImageButton({
                   </AlertDialog.Heading>
                 </AlertDialog.Header>
                 <AlertDialog.Body>
-                  The image leaves {dataset} together with its detections and
-                  annotation.
+                  The photograph leaves {dataset}. Its review stays with the
+                  photograph and returns with it.
                 </AlertDialog.Body>
                 <AlertDialog.Footer>
                   <Button variant="tertiary" size="sm" onPress={close}>
@@ -202,7 +228,7 @@ function DeleteImageButton({
                     isDisabled={busy}
                     onPress={() => {
                       setBusy(true);
-                      void deleteImage({
+                      void removeFromDataset({
                         data: { dataset, digest: image.digest },
                       })
                         .then(async () => {

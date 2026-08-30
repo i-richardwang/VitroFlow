@@ -11,8 +11,10 @@ import {
   experimentRounds,
   experiments,
   images,
+  labels,
   modelVersions,
 } from "../db/schema";
+import type { AnnotationDocument } from "../annotation/schema";
 import type { DetectionFailure, DetectionResult } from "../detection/schema";
 import {
   compareDishLabels,
@@ -28,7 +30,6 @@ import {
 } from "../experiments/schema";
 import type { ModelVersion } from "../models/schema";
 import { imageBlobKey } from "./blobs";
-import { ImagesNotStoredError } from "./datasets";
 import { clearDetectionFailure } from "./detections";
 import { lockImage } from "./image-lock";
 import { readModelVersion, toModelVersion } from "./model-registry";
@@ -38,7 +39,11 @@ export interface ExperimentDish {
   position: number;
 }
 
-/** One grid cell with only the result projection the grid needs. */
+/**
+ * One grid cell with only the projections the grid needs. `count` is what the
+ * experiment's version found; `reviewed` is the reviewer's count for that
+ * model once a review of the photograph is complete.
+ */
 export interface PhotoCell {
   dish: string;
   round: string;
@@ -46,6 +51,7 @@ export interface PhotoCell {
   filename: string;
   state: PhotoState;
   count: number | null;
+  reviewed: number | null;
   error: string | null;
 }
 
@@ -65,7 +71,7 @@ export interface ExperimentSummary {
   counts: Record<PhotoState, number>;
 }
 
-/** A photograph with the documents needed by its read-only detail page. */
+/** A photograph with the documents its page shows. */
 export interface ExperimentPhoto {
   ref: PhotoRef;
   experimentName: string;
@@ -76,11 +82,15 @@ export interface ExperimentPhoto {
   height: number;
   blobKey: string;
   modelVersionId: string;
+  modelId: string;
   detection: DetectionResult | null;
   failure: DetectionFailure | null;
+  /** The review of this photograph for the experiment's model. */
+  label: AnnotationDocument | null;
 }
 
 export class ExperimentNotFoundError extends Error {}
+export class ImagesNotStoredError extends Error {}
 export class ExperimentPhotoNotFoundError extends Error {}
 export class RoundRejectedError extends Error {}
 
@@ -133,14 +143,11 @@ export async function readExperiment(
   return row ? toExperiment(row) : null;
 }
 
-/** Creates one experiment with a Server-owned identity and fixed trained version. */
+/** Creates one experiment with a Server-owned identity and a fixed version. */
 export async function createExperiment(value: unknown): Promise<Experiment> {
   const { name, modelVersionId } = experimentRequestSchema.parse(value);
   const version = await readModelVersion(modelVersionId);
   if (!version) throw new Error(`Unknown model version: ${modelVersionId}`);
-  if (version.artifact.kind !== "ultralytics") {
-    throw new Error("Experiments count with trained versions only");
-  }
   const [row] = await (
     await database()
   )
@@ -161,10 +168,21 @@ function photoGridQuery(db: Executor) {
       count: sql<
         number | null
       >`case when ${detections.imageId} is null then null else jsonb_array_length(${detections.document}->'instances') end`,
+      reviewed: sql<
+        number | null
+      >`case when ${labels.status} = 'complete' then jsonb_array_length(${labels.document}->'instances') end`,
       error: sql<string | null>`${detectionFailures.document}->>'error'`,
     })
     .from(experimentPhotos)
     .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
+    .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
+    .leftJoin(
+      labels,
+      and(
+        eq(labels.imageId, experimentPhotos.imageId),
+        eq(labels.modelId, modelVersions.modelId),
+      ),
+    )
     .leftJoin(
       detections,
       and(
@@ -196,6 +214,7 @@ function toCell(row: PhotoGridRow): PhotoCell {
     filename: row.photo.filename,
     state,
     count: row.count == null ? null : Number(row.count),
+    reviewed: row.reviewed == null ? null : Number(row.reviewed),
     error: row.error,
   };
 }
@@ -503,13 +522,23 @@ export async function readExperimentPhoto(
       image: images,
       experimentName: experiments.name,
       modelVersionId: experiments.modelVersionId,
+      modelId: modelVersions.modelId,
       round: experimentRounds,
       detection: detections.document,
       failure: detectionFailures.document,
+      label: labels.document,
     })
     .from(experimentPhotos)
     .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
+    .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
     .innerJoin(images, eq(images.id, experimentPhotos.imageId))
+    .leftJoin(
+      labels,
+      and(
+        eq(labels.imageId, experimentPhotos.imageId),
+        eq(labels.modelId, modelVersions.modelId),
+      ),
+    )
     .innerJoin(
       experimentRounds,
       and(
@@ -543,8 +572,10 @@ export async function readExperimentPhoto(
     height: row.image.height,
     blobKey: imageBlobKey(row.image.id),
     modelVersionId: row.modelVersionId,
+    modelId: row.modelId,
     detection: row.detection,
     failure: row.failure,
+    label: row.label,
   };
 }
 

@@ -1,0 +1,56 @@
+import { expect, test } from "bun:test";
+
+import { documentFromDetection } from "../annotation/detection";
+import { recordInferenceOutcome } from "./detections";
+import { createLabel } from "./labels";
+import { registerModel } from "./model-registry";
+import { readReview } from "./review";
+import {
+  TEST_RUNTIME,
+  ULTRALYTICS_RUNTIME,
+  photographRound,
+  registerTrainedVersion,
+  resultFor,
+  testHeartbeat,
+} from "./testing";
+import { recordInferenceHeartbeat } from "./inference-worker-store";
+
+test("a review starts from the version the reviewer arrived from", async () => {
+  const worker = await recordInferenceHeartbeat({
+    ...testHeartbeat("review-worker"),
+    runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
+  });
+  const first = await photographRound("review v1", ["rv"]);
+  const next = await registerTrainedVersion(first.version.modelId, "review-v2");
+  await photographRound("review v2", ["rv"], next);
+  const digest = first.digests[0]!;
+  const ref = { digest, model: first.version.modelId };
+  const older = await resultFor(first.version, "rv");
+  const newer = await resultFor(next, "rv", ULTRALYTICS_RUNTIME);
+  await recordInferenceOutcome(
+    { versionId: first.version.id, digest },
+    older,
+    worker,
+  );
+  await recordInferenceOutcome({ versionId: next.id, digest }, newer, worker);
+
+  expect((await readReview(ref))?.detection).toEqual(newer);
+  expect((await readReview(ref, first.version.id))?.detection).toEqual(older);
+  expect((await readReview(ref, next.id))?.detection).toEqual(newer);
+  expect((await readReview(ref))?.filename).toBe("rv.jpg");
+
+  await registerModel({
+    schemaVersion: 1,
+    id: "review-other",
+    name: "Other task",
+    task: "object_detection",
+    classes: ["seed"],
+  });
+  const foreign = await registerTrainedVersion("review-other");
+  expect(await readReview(ref, foreign.id)).toBeNull();
+  expect(await readReview(ref, "review-nowhere")).toBeNull();
+
+  await createLabel(ref, documentFromDetection(older));
+  expect((await readReview(ref, next.id))?.detection).toEqual(older);
+  expect((await readReview(ref))?.detection).toEqual(older);
+});

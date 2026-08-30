@@ -4,6 +4,7 @@ import { Link, Table } from "@heroui/react";
 import { versionSlug } from "../../models/schema";
 import type { TrainingRunSummary } from "../../server/training-runs";
 import { trainingRunLabel } from "../../training/schema";
+import { EmptyStateHeading } from "../EmptyStateHeading";
 import { Hint } from "../Hint";
 import { TrainingIcon } from "../icons";
 import { Metric } from "./Metric";
@@ -43,14 +44,14 @@ export function TrainingRunsTable({
                   <EmptyState.Media variant="icon">
                     <TrainingIcon />
                   </EmptyState.Media>
-                  <EmptyState.Title>No training runs yet</EmptyState.Title>
+                  <EmptyStateHeading>No training runs yet</EmptyStateHeading>
                   {emptyHint ? (
                     <EmptyState.Description>{emptyHint}</EmptyState.Description>
                   ) : null}
                 </EmptyState.Header>
                 {datasetColumn ? (
                   <EmptyState.Content>
-                    <Link href="/" className="text-sm font-medium">
+                    <Link href="/datasets" className="text-sm font-medium">
                       Open datasets
                     </Link>
                   </EmptyState.Content>

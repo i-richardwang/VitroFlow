@@ -6,23 +6,25 @@ import {
   datasetSnapshotImages,
   experimentPhotos,
   images,
+  labels,
 } from "../db/schema";
-import { imageDigestSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../images/schema";
 import { imageBlobKey, listBlobs, removeBlob } from "./blobs";
 import { lockImage } from "./image-lock";
 
 /**
  * How long a photograph nobody has claimed is kept. Bytes are stored before
- * the dataset they will join is chosen, so the period covers a person filling
- * in the rest of the form, changing their mind, and coming back to it.
+ * the round they belong to is submitted, so the period covers a person
+ * filling in the rest of the form, changing their mind, and coming back to it.
  */
 const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
 
-/** No dataset, snapshot, or experiment refers to the image. */
+/** No experiment, dataset, snapshot, or review refers to the image. */
 function unclaimed() {
-  return sql`not exists (select 1 from ${datasetImages} where ${datasetImages.imageId} = ${images.id})
+  return sql`not exists (select 1 from ${experimentPhotos} where ${experimentPhotos.imageId} = ${images.id})
+    and not exists (select 1 from ${datasetImages} where ${datasetImages.imageId} = ${images.id})
     and not exists (select 1 from ${datasetSnapshotImages} where ${datasetSnapshotImages.imageId} = ${images.id})
-    and not exists (select 1 from ${experimentPhotos} where ${experimentPhotos.imageId} = ${images.id})`;
+    and not exists (select 1 from ${labels} where ${labels.imageId} = ${images.id})`;
 }
 
 /**

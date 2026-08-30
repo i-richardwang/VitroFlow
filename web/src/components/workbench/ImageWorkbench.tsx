@@ -3,32 +3,32 @@ import { Button, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { AnnotationDocument } from "../../annotation/schema";
-import type { ImageRef } from "../../datasets/schema";
-import type { DetectionFailure, DetectionResult } from "../../detection/schema";
-import { initializeLabel, retryImageDetection } from "../../server/images";
+import type { Review } from "../../server/review";
+import { initializeLabel } from "../../functions/review";
+import { EmptyStateHeading } from "../EmptyStateHeading";
 import { NavbarEnd } from "../shell";
 import { QualityWarnings } from "../QualityWarnings";
 import { AnnotationEditor } from "./AnnotationEditor";
 
-export function ImageWorkbench({
-  image,
-  filename,
-  detection,
-  failure,
-  label,
-}: {
-  image: ImageRef;
-  filename: string;
-  detection: DetectionResult | null;
-  failure: DetectionFailure | null;
-  label: AnnotationDocument | null;
-}) {
+/**
+ * The review of one image for one model. Once the review has started, the
+ * editor owns it; before that, the page offers to start from what the
+ * model's version found.
+ */
+export function ImageWorkbench({ review }: { review: Review }) {
+  const { ref, filename, detection, label } = review;
+  const heading = (
+    <h1 className="sr-only">
+      Review {filename} for {review.model.name}
+    </h1>
+  );
+
   if (label && detection) {
     return (
       <div className="flex h-full flex-col">
+        {heading}
         <AnnotationEditor
-          image={image}
+          subject={ref}
           filename={filename}
           result={detection}
           label={label}
@@ -41,6 +41,7 @@ export function ImageWorkbench({
 
   return (
     <div className="flex h-full flex-col">
+      {heading}
       {quality && (
         <NavbarEnd>
           <QualityWarnings quality={quality} />
@@ -49,11 +50,17 @@ export function ImageWorkbench({
       <div className="flex flex-1 items-center justify-center p-6">
         {detection ? (
           <Notice
-            title="No annotation yet"
-            description={`Start from ${detection.instances.length} detections, then review each seed.`}
+            title="No review yet"
+            description={`Start from the ${detection.instances.length} ${detection.instances.length === 1 ? "box" : "boxes"} ${detection.producer.model_version_id} found, then correct each one.`}
             action={{
-              label: "Initialize from detections",
-              run: () => initializeLabel({ data: image }),
+              label: "Start review",
+              run: () =>
+                initializeLabel({
+                  data: {
+                    ...ref,
+                    versionId: detection.producer.model_version_id,
+                  },
+                }),
             }}
           />
         ) : label ? (
@@ -61,19 +68,10 @@ export function ImageWorkbench({
             title="Detection unavailable"
             description="The detection this review started from is no longer stored."
           />
-        ) : failure ? (
-          <Notice
-            title="Detection failed"
-            description={failure.error}
-            action={{
-              label: "Try again",
-              run: () => retryImageDetection({ data: image }),
-            }}
-          />
         ) : (
           <Notice
-            title="Waiting for a worker"
-            description="A connected worker will detect seeds in this image."
+            title="Nothing to review yet"
+            description={`No version of ${review.model.name} has detected this photograph. A connected worker detects it for the experiment it belongs to.`}
           />
         )}
       </div>
@@ -93,7 +91,7 @@ function Notice({
   return (
     <EmptyState>
       <EmptyState.Header>
-        <EmptyState.Title>{title}</EmptyState.Title>
+        <EmptyStateHeading>{title}</EmptyStateHeading>
         <EmptyState.Description>{description}</EmptyState.Description>
       </EmptyState.Header>
       {action ? (

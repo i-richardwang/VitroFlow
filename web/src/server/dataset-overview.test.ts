@@ -2,12 +2,11 @@ import { expect, test } from "bun:test";
 
 import { documentFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { selectModelVersion } from "./datasets";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
 import { createLabel, readLabel, updateLabel } from "./labels";
 import { recordInferenceOutcome } from "./detections";
-import { registerModelVersion } from "./model-registry";
-import { datasetOverview } from "./overview";
+import { datasetOverview } from "./dataset-overview";
+import { trainingOverview } from "./training-console";
 import {
   claimTrainingRun,
   createTrainingRun,
@@ -19,49 +18,39 @@ import { testHeartbeat, imageDigest, resultFor, uploadTexts } from "./testing";
 /** This test's clock; workers heartbeating at wall-clock time are offline here. */
 const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
 const OVERVIEW_AT = new Date(HEARTBEAT_AT.getTime() + 10_000);
-const LATER_AT = new Date(HEARTBEAT_AT.getTime() + 60 * 60 * 1000);
 
-async function datasetWithImages(datasetId: string, names: string[]) {
-  const { dataset, version } = await uploadTexts(datasetId, names);
+test("the overview derives review progress and training readiness", async () => {
+  const at = OVERVIEW_AT;
+  const { version } = await uploadTexts("overview", ["ov-a", "ov-b", "ov-c"]);
   const worker = await recordInferenceHeartbeat(
-    testHeartbeat(`${datasetId}-worker`),
+    testHeartbeat("overview-worker"),
     HEARTBEAT_AT,
   );
-  const detectionFor = (name: string) => resultFor(version, name);
-  return { dataset, version, worker, detectionFor };
-}
-
-test("the overview derives versions, serving workers, and training readiness", async () => {
-  const at = OVERVIEW_AT;
-  const { version, worker, detectionFor } = await datasetWithImages(
-    "overview",
-    ["a", "b", "c"],
-  );
-  for (const name of ["a", "b"]) {
-    const ref = { dataset: "overview", digest: await imageDigest(name) };
+  for (const name of ["ov-a", "ov-b"]) {
+    const digest = await imageDigest(name);
     await recordInferenceOutcome(
-      { versionId: version.id, digest: ref.digest },
-      await detectionFor(name),
+      { versionId: version.id, digest },
+      await resultFor(version, name),
       worker,
     );
-    await createLabel(ref, {
-      ...documentFromDetection(await detectionFor(name)),
-      status: "complete",
-    });
+    await createLabel(
+      { digest, model: version.modelId },
+      {
+        ...documentFromDetection(await resultFor(version, name)),
+        status: "complete",
+      },
+    );
   }
 
   let overview = await datasetOverview("overview", at);
   if (!overview) throw new Error("missing overview");
-  expect(overview.counts).toMatchObject({ pending: 1, complete: 2 });
+  expect(overview.model.id).toBe(version.modelId);
+  expect(overview.counts).toMatchObject({ unreviewed: 1, complete: 2 });
   expect(overview.images.map((image) => image.detectionCount)).toEqual([
     0,
     0,
     null,
   ]);
-  expect(overview.versions).toEqual([
-    { version, selected: true, trainingImages: null },
-  ]);
-  expect(overview.inference).toEqual({ online: 1, stale: 0 });
   expect(overview.training).toEqual({
     runs: 0,
     active: null,
@@ -95,7 +84,7 @@ test("the overview derives versions, serving workers, and training readiness", a
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workersOnline).toBe(1);
 
-  const a = { dataset: "overview", digest: await imageDigest("a") };
+  const a = { digest: await imageDigest("ov-a"), model: version.modelId };
   const label = await readLabel(a);
   if (!label) throw new Error("missing label");
   await updateLabel(a, label);
@@ -103,33 +92,14 @@ test("the overview derives versions, serving workers, and training readiness", a
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);
 
-  const next = await registerModelVersion({
-    schemaVersion: 1,
-    id: "overview.traditional-v2",
-    modelId: "overview",
-    name: "Traditional vision v2",
-    createdAt: LATER_AT.toISOString(),
-    source: { kind: "builtin", definition: "traditional-v2" },
-    artifact: { kind: "traditional", digest: "c".repeat(64) },
-  });
-  await selectModelVersion("overview", next.id);
-  overview = await datasetOverview("overview", at);
+  const training = await trainingOverview(at);
+  expect(training.versions.map(({ version }) => version.id)).toContain(
+    version.id,
+  );
+  expect(training.runs.map((summary) => summary.run.id)).toContain(run.id);
   expect(
-    overview?.versions.map(({ version, selected }) => [version.id, selected]),
-  ).toEqual([
-    [next.id, true],
-    [version.id, false],
-  ]);
-  expect(overview?.inference).toEqual({ online: 1, stale: 0 });
-  const staleAt = new Date(HEARTBEAT_AT.getTime() + 60_000);
-  expect((await datasetOverview("overview", staleAt))?.inference).toEqual({
-    online: 0,
-    stale: 1,
-  });
-  expect((await datasetOverview("overview", LATER_AT))?.inference).toEqual({
-    online: 0,
-    stale: 0,
-  });
+    training.runs.find((summary) => summary.run.id === run.id)?.dataset,
+  ).toBe("overview");
 });
 
 test("the overview is absent for unknown datasets", async () => {

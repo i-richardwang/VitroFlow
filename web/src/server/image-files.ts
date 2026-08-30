@@ -1,4 +1,4 @@
-import { imageDigestSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../images/schema";
 import { CANONICAL_IMAGE_MEDIA_TYPE } from "../images/canonical";
 import { imageBlobKey, openBlob } from "./blobs";
 

@@ -3,9 +3,10 @@ import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { VersionsTable } from "../../components/dataset/VersionsTable";
 import { Page } from "../../components/Page";
 import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
-import { getTrainingOverview } from "../../server/models";
+import { getTrainingOverview } from "../../functions/training";
 
 export const Route = createFileRoute("/_workbench/training")({
   loader: () => getTrainingOverview(),
@@ -13,7 +14,8 @@ export const Route = createFileRoute("/_workbench/training")({
 });
 
 function TrainingPage() {
-  const { total, runs, inProgress, workersOnline } = Route.useLoaderData();
+  const { versions, total, runs, inProgress, workersOnline } =
+    Route.useLoaderData();
   const router = useRouter();
 
   // Run states and worker presence change on their own clocks.
@@ -52,6 +54,8 @@ function TrainingPage() {
           </KPI.Content>
         </KPI>
       </KPIGroup>
+
+      <VersionsTable versions={versions} />
 
       <TrainingRunsTable
         runs={runs}

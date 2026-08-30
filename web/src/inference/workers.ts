@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { DATASET_NAME, imageDigestSchema } from "../datasets/schema";
-import { runtimeDescriptorSchema, versionIdSchema } from "./schema";
+import { resourceIdSchema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
+import { runtimeDescriptorSchema } from "./schema";
 
 /** The adapters one process can execute, each at most once. */
 const runtimesSchema = z
@@ -16,11 +17,11 @@ const runtimesSchema = z
 
 export const heartbeatSchema = z
   .object({
-    workerId: z.string().regex(DATASET_NAME),
+    workerId: resourceIdSchema,
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
     /** The version held in memory, if any. */
-    loaded: versionIdSchema.nullable(),
+    loaded: resourceIdSchema.nullable(),
     /** The image being processed, if any. */
     current: imageDigestSchema.nullable(),
   })

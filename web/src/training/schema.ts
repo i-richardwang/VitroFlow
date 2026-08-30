@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { annotationSchema } from "../annotation/schema";
-import { imageDigestSchema } from "../datasets/schema";
-import { fingerprintSchema, versionIdSchema } from "../inference/schema";
+import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
 import { trainingParametersSchema } from "./parameters";
 
 /** A snapshot needs one training and one validation image. */
@@ -58,9 +58,9 @@ const snapshotImageSchema = z
 
 export const datasetSnapshotSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  id: versionIdSchema,
-  datasetId: versionIdSchema,
-  modelId: versionIdSchema,
+  id: resourceIdSchema,
+  datasetId: resourceIdSchema,
+  modelId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
   images: z.array(snapshotImageSchema).min(MIN_SNAPSHOT_IMAGES),
 });
@@ -68,7 +68,7 @@ export const datasetSnapshotSchema = z.strictObject({
 export const trainingRecipeSchema = z.strictObject({
   baseModel: z.strictObject({
     reference: z.string().min(1),
-    digest: fingerprintSchema,
+    digest: sha256Schema,
   }),
   parameters: trainingParametersSchema,
   runtime: z.strictObject({
@@ -115,15 +115,15 @@ const trainingRunStateSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("queued") }),
   z.strictObject({
     status: z.literal("running"),
-    workerId: versionIdSchema,
-    sessionId: versionIdSchema,
+    workerId: resourceIdSchema,
+    sessionId: resourceIdSchema,
     leaseExpiresAt: z.string().datetime({ offset: true }),
     phase: z.enum(TRAINING_PHASES),
     progress: z.number().finite().min(0).max(1),
   }),
   z.strictObject({
     status: z.literal("succeeded"),
-    modelVersionId: versionIdSchema,
+    modelVersionId: resourceIdSchema,
   }),
   z.strictObject({
     status: z.literal("failed"),
@@ -133,9 +133,9 @@ const trainingRunStateSchema = z.discriminatedUnion("status", [
 
 export const trainingRunSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  id: versionIdSchema,
-  modelId: versionIdSchema,
-  datasetSnapshotId: versionIdSchema,
+  id: resourceIdSchema,
+  modelId: resourceIdSchema,
+  datasetSnapshotId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
   attempt: z.number().int().nonnegative(),
   recipe: trainingRecipeSchema,
@@ -156,7 +156,7 @@ export const inferencePublicationSchema = z.strictObject({
   training: z.strictObject({
     base_model: z.strictObject({
       reference: z.string().min(1),
-      digest: fingerprintSchema,
+      digest: sha256Schema,
     }),
     parameters: trainingParametersSchema,
     runtime: z.strictObject({

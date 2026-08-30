@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { versionIdSchema } from "../inference/schema";
+import { resourceIdSchema } from "../identifiers/schema";
 
 export const trainingWorkerIdentitySchema = z.strictObject({
-  workerId: versionIdSchema,
-  sessionId: versionIdSchema,
+  workerId: resourceIdSchema,
+  sessionId: resourceIdSchema,
 });
 
 export const trainingWorkerHeartbeatSchema =
@@ -13,7 +13,7 @@ export const trainingWorkerHeartbeatSchema =
     device: z.string().min(1),
     /** Memory the accelerator offers a training process. */
     memoryBytes: z.number().int().positive(),
-    currentTrainingRunId: versionIdSchema.nullable(),
+    currentTrainingRunId: resourceIdSchema.nullable(),
   });
 
 export const trainingWorkerRecordSchema = trainingWorkerHeartbeatSchema.extend({

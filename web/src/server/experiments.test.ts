@@ -9,7 +9,6 @@ import type { InferenceWorkerRecord } from "../inference/workers";
 import type { ModelVersion } from "../models/schema";
 import { blobExists, imageBlobKey } from "./blobs";
 import { collectImages } from "./image-collection";
-import { selectModelVersion } from "./datasets";
 import { pendingAssignments, recordInferenceOutcome } from "./detections";
 import {
   addRound,
@@ -21,15 +20,16 @@ import {
   retryExperimentDetection,
   RoundRejectedError,
 } from "./experiments";
-import { registerModel } from "./model-registry";
+import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
+import { listAllModelVersions, registerModel } from "./model-registry";
 import {
   FIXTURE_EDGE,
   ULTRALYTICS_RUNTIME,
+  baselineVersion,
   imageDigest,
   registerTrainedVersion,
   storeTexts,
   testHeartbeat,
-  uploadTexts,
 } from "./testing";
 
 const CAPTURED_1 = "2026-08-01T09:00:00.000Z";
@@ -104,7 +104,19 @@ async function round(
 }
 
 describe("experiments", () => {
-  test("have server-owned identities, user-facing names, and trained versions", async () => {
+  test("start on a fresh deployment with the builtin seed detector", async () => {
+    const offered = await listAllModelVersions();
+    expect(offered.map((version) => version.id)).toContain(
+      SEED_DETECTOR_BASELINE_VERSION_ID,
+    );
+    const experiment = await createExperiment({
+      name: "Day one",
+      modelVersionId: SEED_DETECTOR_BASELINE_VERSION_ID,
+    });
+    expect(experiment.modelVersionId).toBe(SEED_DETECTOR_BASELINE_VERSION_ID);
+  });
+
+  test("have server-owned identities, user-facing names, and one fixed version", async () => {
     const version = await trainedVersion("exp-kind");
     const first = await createExperiment({
       name: "  Germination A  ",
@@ -122,25 +134,22 @@ describe("experiments", () => {
     expect(first.name).toBe("Germination A");
     expect(first.modelVersionId).toBe(version.id);
 
-    const { version: traditional } = await uploadTexts("exp-kind-dataset", [
-      "traditional",
-    ]);
-    await expect(
-      createExperiment({
-        name: "Traditional",
-        modelVersionId: traditional.id,
-      }),
-    ).rejects.toThrow("trained versions only");
+    const traditional = await baselineVersion();
+    const baseline = await createExperiment({
+      name: "Baseline",
+      modelVersionId: traditional.id,
+    });
+    expect(baseline.modelVersionId).toBe(traditional.id);
 
-    const invalidExperiment = (async () => {
+    const unknownVersion = (async () => {
       await (await database()).insert(experiments).values({
         id: randomUUID(),
         name: "Bypass",
-        modelVersionId: traditional.id,
+        modelVersionId: "nobody.v9",
         createdAt: new Date(),
       });
     })();
-    await expect(invalidExperiment).rejects.toThrow();
+    await expect(unknownVersion).rejects.toThrow();
 
     const invalidDish = (async () => {
       await (await database()).insert(experimentDishes).values({
@@ -311,21 +320,21 @@ describe("experiments", () => {
     ).toHaveLength(3);
   });
 
-  test("shared dataset and experiment demand produces one image/version pair", async () => {
-    await uploadTexts("exp-shared", ["shared-photo"]);
-    const version = await registerTrainedVersion("exp-shared");
-    await selectModelVersion("exp-shared", version.id);
-    const experiment = await createExperiment({
-      name: "Shared demand",
-      modelVersionId: version.id,
-    });
-    const digest = await imageDigest("shared-photo");
-    await addRound({
-      experiment: experiment.id,
-      label: "Day 1",
-      capturedAt: CAPTURED_1,
-      photos: [{ digest, filename: "S1.jpg" }],
-    });
+  test("two experiments counting one photograph with one version share one pair", async () => {
+    const version = await trainedVersion("exp-shared");
+    const [digest] = await storeTexts(["shared-photo"]);
+    for (const name of ["Shared demand A", "Shared demand B"]) {
+      const experiment = await createExperiment({
+        name,
+        modelVersionId: version.id,
+      });
+      await addRound({
+        experiment: experiment.id,
+        label: "Day 1",
+        capturedAt: CAPTURED_1,
+        photos: [{ digest: digest!, filename: "S1.jpg" }],
+      });
+    }
 
     const assignment = (await pendingAssignments(worker)).find(
       (item) => item.manifest.modelVersionId === version.id,

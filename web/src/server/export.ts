@@ -17,7 +17,7 @@ interface DatasetExportImage {
   filename: string;
   bytes: number;
   split: ImageSplit | null;
-  /** The detection under the version the review started from, or the selected one. */
+  /** The detection the review started from, or the model's newest one. */
   detection: DetectionResult | null;
   label: AnnotationDocument | null;
 }

@@ -15,17 +15,12 @@ import {
   unique,
   uniqueIndex,
   uuid,
-  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
 import type { DetectionFailure, DetectionResult } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
-import {
-  MODEL_ARTIFACT_KINDS,
-  type ModelArtifact,
-  type ModelVersion,
-} from "../models/schema";
+import type { ModelArtifact, ModelVersion } from "../models/schema";
 import {
   IMAGE_SPLITS,
   TRAINING_PHASES,
@@ -65,9 +60,6 @@ export const modelVersions = pgTable(
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`artifact->>'digest'`),
-    artifactKind: text("artifact_kind", { enum: MODEL_ARTIFACT_KINDS })
-      .notNull()
-      .generatedAlwaysAs(sql`artifact->>'kind'`),
   },
   (table) => [
     index("model_versions_model_idx").on(table.modelId, table.createdAt),
@@ -75,51 +67,41 @@ export const modelVersions = pgTable(
     unique("model_versions_id_model").on(table.id, table.modelId),
     /** Runtime records bind to executable content, not just a version name. */
     unique("model_versions_id_digest").on(table.id, table.artifactDigest),
-    /** Lets referencing rows restrict themselves to one kind of artifact. */
-    unique("model_versions_id_kind").on(table.id, table.artifactKind),
     check(
       "model_versions_digest_check",
       sql`${table.artifactDigest} ~ '^[0-9a-f]{64}$'`,
     ),
-    check(
-      "model_versions_kind_check",
-      sql`${table.artifactKind} in ('traditional', 'ultralytics')`,
-    ),
   ],
 );
 
+/**
+ * A training set for one model: the photographs whose reviews for that model
+ * train its next version. Datasets draw from experiment photographs; they
+ * never receive uploads of their own.
+ */
 export const datasets = pgTable(
   "datasets",
   {
     id: text("id").primaryKey(),
-    /** Each dataset trains exactly one logical model. */
     modelId: text("model_id")
       .notNull()
-      .unique()
       .references(() => models.id),
-    selectedModelVersionId: text("selected_model_version_id").notNull(),
     createdAt: instant("created_at"),
   },
   (table) => [
+    /** Lets snapshot rows assert that they froze this dataset for its model. */
     unique("datasets_id_model").on(table.id, table.modelId),
-    index("datasets_selected_version_idx").on(table.selectedModelVersionId),
-    /** The selected version is one of the dataset's own model. */
-    foreignKey({
-      columns: [table.selectedModelVersionId, table.modelId],
-      foreignColumns: [modelVersions.id, modelVersions.modelId],
-    }),
   ],
 );
 
 /**
  * A photograph, identified by the SHA-256 digest of its bytes. Images belong
- * to no dataset; datasets, snapshots, and experiments refer to them.
+ * to nothing; experiments, datasets, snapshots, and labels refer to them.
  * Every column describes the bytes themselves.
  *
- * An image with no reference is unclaimed: bytes may arrive before their
- * dataset is known, and losing the last membership returns an image to that
- * state. `receivedAt` is when the bytes last arrived and bounds how long an
- * initial claim may still be in progress.
+ * An image with no reference is unclaimed: bytes arrive before the round they
+ * join is submitted. `receivedAt` is when the bytes last arrived and bounds
+ * how long that submission may still be in progress.
  */
 export const images = pgTable(
   "images",
@@ -140,7 +122,7 @@ export const images = pgTable(
   ],
 );
 
-/** An image's membership in a dataset; review state hangs off this row. */
+/** An image's membership in a dataset, with the split it keeps across snapshots. */
 export const datasetImages = pgTable(
   "dataset_images",
   {
@@ -166,21 +148,10 @@ export const datasetImages = pgTable(
   ],
 );
 
-/** Review documents disappear together with the membership they describe. */
-function membershipReference(table: {
-  datasetId: AnyPgColumn;
-  imageId: AnyPgColumn;
-}) {
-  return foreignKey({
-    columns: [table.datasetId, table.imageId],
-    foreignColumns: [datasetImages.datasetId, datasetImages.imageId],
-  }).onDelete("cascade");
-}
-
 /**
  * What a model version found in an image, addressed by its canonical business
- * key. Datasets read the row under the version they select, and experiments
- * read the row under the version they were created with; neither owns it. A
+ * key. Experiments read the row under the version they were created with, and
+ * reviews under the version they started from; neither owns it. A
  * row is written once: an identical resubmission is accepted and a different
  * one refused, so the result stays a record and never a cache.
  */
@@ -245,11 +216,23 @@ export const detectionFailures = pgTable(
   ],
 );
 
+/**
+ * What a reviewer decided about one image for one model: the human truth the
+ * model's next version trains on. The review is the same document whether it
+ * is opened from an experiment or from a dataset, because it belongs to the
+ * image and the model, not to the place it was opened from. The version the
+ * review started from is one of that model's, and its artifact is the one
+ * registered for it.
+ */
 export const labels = pgTable(
   "labels",
   {
-    datasetId: text("dataset_id").notNull(),
-    imageId: text("image_id").notNull(),
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id),
+    modelId: text("model_id")
+      .notNull()
+      .references(() => models.id),
     document: jsonb("document").$type<AnnotationDocument>().notNull(),
     updatedAt: instant("updated_at"),
     /** Projections of `document` the workbench queries by. */
@@ -259,7 +242,6 @@ export const labels = pgTable(
     revision: integer("revision")
       .notNull()
       .generatedAlwaysAs(sql`(document->>'revision')::integer`),
-    /** The version whose detection the review started from. */
     sourceModelVersionId: text("source_model_version_id")
       .notNull()
       .generatedAlwaysAs(sql`document->'source'->>'modelVersionId'`),
@@ -268,13 +250,16 @@ export const labels = pgTable(
       .generatedAlwaysAs(sql`document->'source'->>'artifactDigest'`),
   },
   (table) => [
-    primaryKey({ columns: [table.datasetId, table.imageId] }),
-    membershipReference(table),
+    primaryKey({ columns: [table.imageId, table.modelId] }),
+    foreignKey({
+      columns: [table.sourceModelVersionId, table.modelId],
+      foreignColumns: [modelVersions.id, modelVersions.modelId],
+    }),
     foreignKey({
       columns: [table.sourceModelVersionId, table.sourceArtifactDigest],
       foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
     }),
-    index("labels_dataset_status_idx").on(table.datasetId, table.status),
+    index("labels_model_status_idx").on(table.modelId, table.status),
     check(
       "labels_status_check",
       sql`${table.status} in ('in_progress', 'complete', 'excluded')`,
@@ -288,30 +273,23 @@ export const labels = pgTable(
 );
 
 /**
- * A count of seeds over the same dishes on successive occasions. The version
- * is fixed when the experiment is created, so every count in it comes from
- * the same model; only trained versions qualify, because the traditional
- * detector's output is not repeatable enough to compare across rounds.
+ * A count over the same dishes on successive occasions. The version is fixed
+ * when the experiment is created, so every count in it comes from the same
+ * model: the builtin baseline until a trained version exists, and whichever
+ * version the experiment was started with after that.
  */
 export const experiments = pgTable(
   "experiments",
   {
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
-    modelVersionId: text("model_version_id").notNull(),
-    modelArtifactKind: text("model_artifact_kind", {
-      enum: MODEL_ARTIFACT_KINDS,
-    })
+    modelVersionId: text("model_version_id")
       .notNull()
-      .generatedAlwaysAs(sql`'ultralytics'::text`),
+      .references(() => modelVersions.id),
     createdAt: instant("created_at"),
   },
   (table) => [
     index("experiments_version_idx").on(table.modelVersionId),
-    foreignKey({
-      columns: [table.modelVersionId, table.modelArtifactKind],
-      foreignColumns: [modelVersions.id, modelVersions.artifactKind],
-    }),
     check(
       "experiments_name_check",
       sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,

@@ -1,60 +1,53 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import {
   datasetImages,
   datasets,
-  detectionFailures,
   detections,
   images,
   labels,
 } from "../db/schema";
 import {
   IMAGE_STATES,
-  type ImageRef,
+  type DatasetImageRef,
   type ImageState,
 } from "../datasets/schema";
-import type {
-  DetectionFailure,
-  DetectionResult,
-  SeedQuality,
-} from "../detection/schema";
+import type { DetectionResult, SeedQuality } from "../detection/schema";
 import type { AnnotationDocument } from "../annotation/schema";
 import {
   atRef,
   membershipOrder,
-  sameMembership,
   toDatasetImage,
   type DatasetImage,
   type MembershipRow,
 } from "./datasets";
 
-export interface ImageSummary extends ImageRef {
+export interface ImageSummary extends DatasetImageRef {
   filename: string;
   state: ImageState;
   detectionCount: number | null;
   instanceCount: number | null;
   quality: SeedQuality | null;
-  error: string | null;
 }
 
 export interface DatasetSummary {
   dataset: string;
+  modelId: string;
   imageCount: number;
   counts: Record<ImageState, number>;
 }
 
 /**
  * A dataset image with the documents that decide its state, loaded in one
- * query. The detection is the one a review started from once a label
- * exists, and the one under the dataset's selected version until then; the
- * failure is always the selected version's.
+ * query. The label is the review for the dataset's model; the detection is
+ * the one that review started from, or the model's newest for the image
+ * until a review exists.
  */
 export interface ImageRecord {
   image: DatasetImage;
-  selectedModelVersionId: string;
+  modelId: string;
   detection: DetectionResult | null;
-  failure: DetectionFailure | null;
   label: AnnotationDocument | null;
 }
 
@@ -63,29 +56,37 @@ export interface ReviewedRecord extends ImageRecord {
   label: AnnotationDocument;
 }
 
-/** State follows from the documents: a worker's outcome, then a reviewer's label. */
-function imageState({ detection, failure, label }: ImageRecord): ImageState {
-  if (label) return label.status;
-  if (detection) return "detected";
-  return failure ? "failed" : "pending";
-}
-
 export function summarize(record: ImageRecord): ImageSummary {
-  const { image, detection, failure, label } = record;
+  const { image, detection, label } = record;
   return {
     dataset: image.dataset,
     digest: image.digest,
     filename: image.filename,
-    state: imageState(record),
+    state: label?.status ?? "unreviewed",
     detectionCount: detection?.instances.length ?? null,
     instanceCount: label?.instances.length ?? null,
     quality: detection?.quality ?? null,
-    error: label || detection ? null : (failure?.error ?? null),
   };
 }
 
-/** The version whose detection the record shows. */
-const shownVersion = sql`coalesce(${labels.sourceModelVersionId}, ${datasets.selectedModelVersionId})`;
+/**
+ * The version whose detection an image shows for a model: the one its review
+ * started from, otherwise the newest of the model's versions that has
+ * detected it.
+ */
+export function shownVersion(
+  imageId: SQLWrapper,
+  modelId: SQLWrapper | string,
+) {
+  return sql`coalesce(${labels.sourceModelVersionId}, (
+    select d.model_version_id
+    from detections d
+    join model_versions v on v.id = d.model_version_id
+    where d.image_id = ${imageId} and v.model_id = ${modelId}
+    order by v.created_at desc, v.id desc
+    limit 1
+  ))`;
+}
 
 /** Memberships with their images and the documents that decide their state. */
 export function recordQuery(db: Executor) {
@@ -93,44 +94,43 @@ export function recordQuery(db: Executor) {
     .select({
       membership: datasetImages,
       image: images,
-      selectedModelVersionId: datasets.selectedModelVersionId,
+      modelId: datasets.modelId,
       detection: detections.document,
-      failure: detectionFailures.document,
       label: labels.document,
     })
     .from(datasetImages)
     .innerJoin(images, eq(images.id, datasetImages.imageId))
     .innerJoin(datasets, eq(datasets.id, datasetImages.datasetId))
-    .leftJoin(labels, sameMembership(labels, datasetImages))
+    .leftJoin(
+      labels,
+      and(
+        eq(labels.imageId, datasetImages.imageId),
+        eq(labels.modelId, datasets.modelId),
+      ),
+    )
     .leftJoin(
       detections,
       and(
         eq(detections.imageId, datasetImages.imageId),
-        eq(detections.modelVersionId, shownVersion),
-      ),
-    )
-    .leftJoin(
-      detectionFailures,
-      and(
-        eq(detectionFailures.imageId, datasetImages.imageId),
-        eq(detectionFailures.modelVersionId, datasets.selectedModelVersionId),
+        eq(
+          detections.modelVersionId,
+          shownVersion(datasetImages.imageId, datasets.modelId),
+        ),
       ),
     );
 }
 
 function toRecord(
   row: MembershipRow & {
-    selectedModelVersionId: string;
+    modelId: string;
     detection: DetectionResult | null;
-    failure: DetectionFailure | null;
     label: AnnotationDocument | null;
   },
 ): ImageRecord {
   return {
     image: toDatasetImage(row),
-    selectedModelVersionId: row.selectedModelVersionId,
+    modelId: row.modelId,
     detection: row.detection,
-    failure: row.failure,
     label: row.label,
   };
 }
@@ -174,27 +174,12 @@ export async function listReviewedRecords(
 }
 
 export async function readImageRecord(
-  ref: ImageRef,
+  ref: DatasetImageRef,
   db?: Executor,
 ): Promise<ImageRecord | null> {
   const [row] = await recordQuery(db ?? (await database())).where(
     atRef(datasetImages, ref),
   );
-  return row ? toRecord(row) : null;
-}
-
-/**
- * The record with its membership row locked for the transaction. Every
- * operation that decides on the presence of a label takes this lock, so the
- * decision holds until it commits.
- */
-export async function lockImageRecord(
-  ref: ImageRef,
-  tx: Executor,
-): Promise<ImageRecord | null> {
-  const [row] = await recordQuery(tx)
-    .where(atRef(datasetImages, ref))
-    .for("update", { of: datasetImages });
   return row ? toRecord(row) : null;
 }
 
@@ -212,10 +197,12 @@ export function countImageStates(
 
 export async function summarizeDataset(
   datasetId: string,
+  modelId: string,
 ): Promise<DatasetSummary> {
   const images = (await listImageRecords(datasetId)).map(summarize);
   return {
     dataset: datasetId,
+    modelId,
     imageCount: images.length,
     counts: countImageStates(images),
   };

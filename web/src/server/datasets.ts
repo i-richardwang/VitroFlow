@@ -1,20 +1,27 @@
-import { and, asc, eq, inArray, type Column } from "drizzle-orm";
+import { and, asc, eq, or, type Column } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
-import { datasetImages, datasets, images } from "../db/schema";
 import {
+  datasetImages,
+  datasets,
+  experimentPhotos,
+  experiments,
+  images,
+  modelVersions,
+} from "../db/schema";
+import {
+  datasetPhotoAdditionSchema,
   datasetSchema,
-  imageClaimRequestSchema,
   type Dataset,
-  type ImageRef,
+  type DatasetImageRef,
 } from "../datasets/schema";
+import type { PhotoRef } from "../experiments/schema";
 import type { ImageSplit } from "../training/schema";
 import { imageBlobKey } from "./blobs";
 import { lockImage } from "./image-lock";
-import { ensureDatasetModel, readModelVersion } from "./model-registry";
 
 /** An image as seen through its membership in one dataset. */
-export interface DatasetImage extends ImageRef {
+export interface DatasetImage extends DatasetImageRef {
   filename: string;
   width: number;
   height: number;
@@ -24,12 +31,17 @@ export interface DatasetImage extends ImageRef {
   split: ImageSplit | null;
 }
 
-export interface ImageClaimResult {
+export interface DatasetPhotoAdditionResult {
+  dataset: Dataset;
   added: number;
   existing: number;
 }
 
-export class ImagesNotStoredError extends Error {}
+/** Thrown when a reference names no experiment photograph. */
+export class NotPhotographedError extends Error {}
+
+/** Thrown when photographs would join a dataset training another model. */
+export class DatasetModelError extends Error {}
 
 export type MembershipRow = {
   membership: typeof datasetImages.$inferSelect;
@@ -52,14 +64,6 @@ export function toDatasetImage({
   };
 }
 
-/** Memberships joined to their images. */
-export function membershipQuery(db: Executor) {
-  return db
-    .select({ membership: datasetImages, image: images })
-    .from(datasetImages)
-    .innerJoin(images, eq(images.id, datasetImages.imageId));
-}
-
 /** Membership creation time, then filename and digest. */
 export function membershipOrder() {
   return [
@@ -76,23 +80,14 @@ interface MembershipKeyed {
 }
 
 /** The row of `table` that belongs to one membership. */
-export function atRef(table: MembershipKeyed, { dataset, digest }: ImageRef) {
+export function atRef(
+  table: MembershipKeyed,
+  { dataset, digest }: DatasetImageRef,
+) {
   return and(eq(table.datasetId, dataset), eq(table.imageId, digest));
 }
 
-/** Joins two membership-keyed tables on the same membership. */
-export function sameMembership(left: MembershipKeyed, right: MembershipKeyed) {
-  return and(
-    eq(left.datasetId, right.datasetId),
-    eq(left.imageId, right.imageId),
-  );
-}
-
-export function describeRef({ dataset, digest }: ImageRef): string {
-  return `${dataset}/${digest}`;
-}
-
-export function notInDataset(ref: ImageRef): Error {
+export function notInDataset(ref: DatasetImageRef): Error {
   return new Error(`Image ${ref.digest} is not in dataset ${ref.dataset}`);
 }
 
@@ -101,7 +96,6 @@ function toDataset(row: typeof datasets.$inferSelect): Dataset {
     schemaVersion: 1,
     id: row.id,
     modelId: row.modelId,
-    selectedModelVersionId: row.selectedModelVersionId,
   });
 }
 
@@ -116,144 +110,149 @@ export async function readDataset(
   return row ? toDataset(row) : null;
 }
 
-/** A dataset, its logical model, and the builtin baseline version, created together. */
-export async function ensureDataset(
+export async function listDatasets(db?: Executor): Promise<Dataset[]> {
+  const rows = await (db ?? (await database()))
+    .select()
+    .from(datasets)
+    .orderBy(asc(datasets.id));
+  return rows.map(toDataset);
+}
+
+/** Datasets whose reviews train one model. */
+export async function listDatasetsForModel(
+  modelId: string,
+  db?: Executor,
+): Promise<Dataset[]> {
+  const rows = await (db ?? (await database()))
+    .select()
+    .from(datasets)
+    .where(eq(datasets.modelId, modelId))
+    .orderBy(asc(datasets.id));
+  return rows.map(toDataset);
+}
+
+/** The dataset, created for the model if it does not exist yet. */
+async function ensureDataset(
   datasetId: string,
+  modelId: string,
   db: Executor,
 ): Promise<Dataset> {
   const existing = await readDataset(datasetId, db);
-  if (existing) return existing;
-  const baseline = await ensureDatasetModel(datasetId, db);
+  if (existing) {
+    if (existing.modelId !== modelId) {
+      throw new DatasetModelError(
+        `Dataset ${datasetId} trains ${existing.modelId}, not ${modelId}`,
+      );
+    }
+    return existing;
+  }
   const [row] = await db
     .insert(datasets)
-    .values({
-      id: datasetId,
-      modelId: datasetId,
-      selectedModelVersionId: baseline.id,
-      createdAt: new Date(),
-    })
+    .values({ id: datasetId, modelId, createdAt: new Date() })
     .onConflictDoNothing()
     .returning();
   if (row) return toDataset(row);
-  const current = await readDataset(datasetId, db);
-  if (!current || current.modelId !== datasetId) {
-    throw new Error(`Dataset ${datasetId} conflicts with another model`);
-  }
-  return current;
+  return ensureDataset(datasetId, modelId, db);
 }
 
-/**
- * Points the dataset at another version of its model. Detections already
- * recorded under that version apply immediately; the rest become pending.
- */
-export async function selectModelVersion(
-  datasetId: string,
-  versionId: string,
-): Promise<Dataset> {
-  return transaction(async (tx) => {
-    const [locked] = await tx
-      .select()
-      .from(datasets)
-      .where(eq(datasets.id, datasetId))
-      .for("update");
-    const current = locked ? toDataset(locked) : null;
-    if (!current) throw new Error(`Unknown dataset: ${datasetId}`);
-    const version = await readModelVersion(versionId, tx);
-    if (!version) throw new Error(`Unknown model version: ${versionId}`);
-    if (version.modelId !== current.modelId) {
-      throw new Error(
-        `Model version ${versionId} belongs to ${version.modelId}, not ${current.modelId}`,
-      );
-    }
-    const [row] = await tx
-      .update(datasets)
-      .set({ selectedModelVersionId: versionId })
-      .where(eq(datasets.id, datasetId))
-      .returning();
-    if (!row) throw new Error(`Unknown dataset: ${datasetId}`);
-    return toDataset(row);
-  });
+function describePhoto({ experiment, dish, round }: PhotoRef): string {
+  return `${experiment}/${dish}/${round}`;
 }
 
-export async function listDatasets(): Promise<string[]> {
-  const db = await database();
-  const rows = await db
-    .select({ id: datasets.id })
-    .from(datasets)
-    .orderBy(asc(datasets.id));
-  return rows.map((row) => row.id);
-}
-
-export async function listImages(
-  datasetId: string,
-  db?: Executor,
-): Promise<DatasetImage[]> {
-  const rows = await membershipQuery(db ?? (await database()))
-    .where(eq(datasetImages.datasetId, datasetId))
-    .orderBy(...membershipOrder());
-  return rows.map(toDatasetImage);
-}
-
-export async function findImage(
-  ref: ImageRef,
-  db?: Executor,
-): Promise<DatasetImage | null> {
-  const [row] = await membershipQuery(db ?? (await database())).where(
-    atRef(datasetImages, ref),
+function atPhoto({ experiment, dish, round }: PhotoRef) {
+  return and(
+    eq(experimentPhotos.experimentId, experiment),
+    eq(experimentPhotos.dishLabel, dish),
+    eq(experimentPhotos.roundId, round),
   );
-  return row ? toDatasetImage(row) : null;
 }
 
 /**
- * Claims stored photographs for one dataset under that dataset's filenames.
- * The sorted digest locks serialize the whole claim with image collection;
- * every membership is created in one transaction or none is.
+ * Adds experiment photographs to a dataset of the model their experiments
+ * counted with, creating the dataset on first use. Each joins under the
+ * filename it was photographed as; a photograph taken in several places joins
+ * once, under the first reference. The sorted digest locks serialize the
+ * addition with image collection, and the dataset gains every photograph or
+ * none.
  */
-export async function claimImages(value: unknown): Promise<ImageClaimResult> {
-  const { dataset, images: claims } = imageClaimRequestSchema.parse(value);
-  const names = new Map<string, string>();
-  for (const { digest, filename } of claims) {
-    if (!names.has(digest)) names.set(digest, filename);
-  }
-  const digests = [...names.keys()].sort();
+export async function addExperimentPhotos(
+  value: unknown,
+): Promise<DatasetPhotoAdditionResult> {
+  const { dataset: datasetId, photos } =
+    datasetPhotoAdditionSchema.parse(value);
   const addedAt = new Date();
   return transaction(async (tx) => {
-    await ensureDataset(dataset, tx);
-    for (const digest of digests) await lockImage(digest, tx);
-    const stored = await tx
-      .select({ id: images.id })
-      .from(images)
-      .where(inArray(images.id, digests));
-    if (stored.length !== digests.length) {
-      throw new ImagesNotStoredError(
-        "Some images are no longer stored; upload them again",
+    const photographed = await tx
+      .select({
+        experimentId: experimentPhotos.experimentId,
+        dishLabel: experimentPhotos.dishLabel,
+        roundId: experimentPhotos.roundId,
+        digest: experimentPhotos.imageId,
+        filename: experimentPhotos.filename,
+        modelId: modelVersions.modelId,
+      })
+      .from(experimentPhotos)
+      .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
+      .innerJoin(
+        modelVersions,
+        eq(modelVersions.id, experiments.modelVersionId),
+      )
+      .where(or(...photos.map(atPhoto)));
+    const byRef = new Map(
+      photographed.map((row) => [
+        describePhoto({
+          experiment: row.experimentId,
+          dish: row.dishLabel,
+          round: row.roundId,
+        }),
+        row,
+      ]),
+    );
+    const missing = photos.filter((photo) => !byRef.has(describePhoto(photo)));
+    if (missing.length > 0) {
+      throw new NotPhotographedError(
+        `Not experiment photographs: ${missing.map(describePhoto).join(", ")}`,
       );
     }
+    const resolved = photos.map((photo) => byRef.get(describePhoto(photo))!);
+    const modelIds = [...new Set(resolved.map((row) => row.modelId))];
+    if (modelIds.length > 1) {
+      throw new DatasetModelError(
+        `The photographs were counted with different models: ${modelIds.join(", ")}`,
+      );
+    }
+    const joining = new Map<string, string>();
+    for (const row of resolved) {
+      if (!joining.has(row.digest)) joining.set(row.digest, row.filename);
+    }
+    const dataset = await ensureDataset(datasetId, modelIds[0]!, tx);
+    const sorted = [...joining.keys()].sort();
+    for (const digest of sorted) await lockImage(digest, tx);
     const created = await tx
       .insert(datasetImages)
       .values(
-        digests.map((digest) => ({
-          datasetId: dataset,
+        sorted.map((digest) => ({
+          datasetId,
           imageId: digest,
-          filename: names.get(digest)!,
+          filename: joining.get(digest)!,
           addedAt,
         })),
       )
       .onConflictDoNothing()
       .returning({ imageId: datasetImages.imageId });
     return {
+      dataset,
       added: created.length,
-      existing: digests.length - created.length,
+      existing: sorted.length - created.length,
     };
   });
 }
 
 /**
- * Removes the image from the dataset together with its review documents. The
- * photograph itself outlives the membership: another dataset may hold it, and
- * `collectImages` is what decides when bytes nothing refers to go.
+ * Removes the image from the dataset. Its review belongs to the image and
+ * the model, so it survives; the photograph outlives the membership too.
  */
-export async function removeImage(ref: ImageRef): Promise<void> {
+export async function removeDatasetImage(ref: DatasetImageRef): Promise<void> {
   const [membership] = await (
     await database()
   )

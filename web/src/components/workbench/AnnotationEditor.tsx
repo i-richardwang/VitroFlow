@@ -11,8 +11,11 @@ import { Resizable } from "@heroui-pro/react/resizable";
 import { Sheet } from "@heroui-pro/react/sheet";
 import { useCallback, useEffect, useState } from "react";
 
-import type { AnnotationDocument, SeedInstance } from "../../annotation/schema";
-import type { ImageRef } from "../../datasets/schema";
+import type {
+  AnnotationDocument,
+  LabelRef,
+  SeedInstance,
+} from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
 import { useHistory } from "../../hooks/useHistory";
@@ -34,18 +37,18 @@ import { SaveIndicator } from "./SaveIndicator";
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 
 export function AnnotationEditor({
-  image,
+  subject,
   filename,
   result,
   label,
 }: {
-  image: ImageRef;
+  subject: LabelRef;
   filename: string;
   result: DetectionResult;
   label: AnnotationDocument;
 }) {
   const { annotation, saveState, error, setInstances, review, retry } =
-    useAnnotation(image, label);
+    useAnnotation(subject, label);
   const history = useHistory<SeedInstance[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [panning, setPanning] = useState(false);

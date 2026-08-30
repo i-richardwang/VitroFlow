@@ -4,8 +4,9 @@ import { Chip, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
-import { getStatus } from "../../server/status";
+import { getStatus } from "../../functions/status";
 import { trainingRunLabel } from "../../training/schema";
 import { formatGibibytes } from "../../workers/memory";
 import type { WorkerPresence } from "../../workers/presence";
@@ -54,9 +55,9 @@ function StatusPage() {
                   renderEmptyState={() => (
                     <EmptyState size="sm">
                       <EmptyState.Header>
-                        <EmptyState.Title>
+                        <EmptyStateHeading>
                           No inference workers
-                        </EmptyState.Title>
+                        </EmptyStateHeading>
                         <EmptyState.Description>
                           Start one with the workbench URL and worker token.
                         </EmptyState.Description>
@@ -101,20 +102,7 @@ function StatusPage() {
                         )}
                       </Table.Cell>
                       <Table.Cell className="font-mono text-sm text-muted">
-                        {worker.loaded ? (
-                          worker.loadedDataset ? (
-                            <Link
-                              href={`/datasets/${worker.loadedDataset}`}
-                              className="text-xs font-medium"
-                            >
-                              {worker.loaded}
-                            </Link>
-                          ) : (
-                            worker.loaded
-                          )
-                        ) : (
-                          "Nothing loaded"
-                        )}
+                        {worker.loaded ? worker.loaded : "Nothing loaded"}
                       </Table.Cell>
                       <Table.Cell>
                         <span
@@ -152,7 +140,9 @@ function StatusPage() {
                   renderEmptyState={() => (
                     <EmptyState size="sm">
                       <EmptyState.Header>
-                        <EmptyState.Title>No training workers</EmptyState.Title>
+                        <EmptyStateHeading>
+                          No training workers
+                        </EmptyStateHeading>
                         <EmptyState.Description>
                           Training workers can run on a separate GPU machine.
                         </EmptyState.Description>

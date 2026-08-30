@@ -1,16 +1,13 @@
 import { z } from "zod";
 
-import {
-  fingerprintSchema,
-  versionIdSchema,
-  type RuntimeDescriptor,
-} from "../inference/schema";
+import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
+import type { RuntimeDescriptor } from "../inference/schema";
 import { trainingParametersSchema } from "../training/parameters";
 import { detectionValidationSchema } from "../training/schema";
 
 export const modelSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  id: versionIdSchema,
+  id: resourceIdSchema,
   name: z.string().min(1),
   task: z.literal("object_detection"),
   classes: z.tuple([z.literal("seed")]),
@@ -26,7 +23,7 @@ const inferenceSettingsSchema = z.strictObject({
 const trainingIdentitySchema = z.strictObject({
   baseModel: z.strictObject({
     reference: z.string().min(1),
-    digest: fingerprintSchema,
+    digest: sha256Schema,
   }),
   parameters: trainingParametersSchema,
   runtime: z.strictObject({
@@ -37,22 +34,20 @@ const trainingIdentitySchema = z.strictObject({
 
 const traditionalArtifactSchema = z.strictObject({
   kind: z.literal("traditional"),
-  digest: fingerprintSchema,
+  digest: sha256Schema,
 });
 
 const ultralyticsArtifactSchema = z.strictObject({
   kind: z.literal("ultralytics"),
-  digest: fingerprintSchema,
+  digest: sha256Schema,
   weights: z.strictObject({
-    digest: fingerprintSchema,
+    digest: sha256Schema,
     bytes: z.number().int().positive(),
   }),
   inference: inferenceSettingsSchema,
   validation: detectionValidationSchema,
   training: trainingIdentitySchema,
 });
-
-export const MODEL_ARTIFACT_KINDS = ["traditional", "ultralytics"] as const;
 
 export const modelArtifactSchema = z.discriminatedUnion("kind", [
   traditionalArtifactSchema,
@@ -61,8 +56,8 @@ export const modelArtifactSchema = z.discriminatedUnion("kind", [
 
 const modelVersionIdentity = {
   schemaVersion: z.literal(1),
-  id: versionIdSchema,
-  modelId: versionIdSchema,
+  id: resourceIdSchema,
+  modelId: resourceIdSchema,
   name: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
 };
@@ -72,7 +67,7 @@ export const modelVersionSchema = z.union([
     ...modelVersionIdentity,
     source: z.strictObject({
       kind: z.literal("builtin"),
-      definition: versionIdSchema,
+      definition: resourceIdSchema,
     }),
     artifact: traditionalArtifactSchema,
   }),
@@ -80,9 +75,9 @@ export const modelVersionSchema = z.union([
     ...modelVersionIdentity,
     source: z.strictObject({
       kind: z.literal("training_run"),
-      trainingRunId: versionIdSchema,
+      trainingRunId: resourceIdSchema,
       trainingAttempt: z.number().int().positive(),
-      datasetSnapshotId: versionIdSchema,
+      datasetSnapshotId: resourceIdSchema,
     }),
     artifact: ultralyticsArtifactSchema,
   }),

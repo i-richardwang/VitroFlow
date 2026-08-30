@@ -16,9 +16,14 @@ import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { versionSlug, type ModelVersion } from "../../models/schema";
-import { startExperiment } from "../../server/experiment-views";
+import { startExperiment } from "../../functions/experiments";
+import { ModelKindChip } from "../dataset/ModelKindChip";
 
-/** Starts an experiment that counts with one trained version. */
+/**
+ * Starts an experiment that counts with one version. Versions are listed
+ * newest first, so the latest trained one is preselected and the baseline
+ * is the choice only until training has produced something better.
+ */
 export function NewExperimentDialog({
   versions,
 }: {
@@ -29,9 +34,7 @@ export function NewExperimentDialog({
 
   return (
     <Modal>
-      <Button variant="primary" isDisabled={versions.length === 0}>
-        New experiment
-      </Button>
+      <Button variant="primary">New experiment</Button>
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
@@ -94,7 +97,8 @@ export function NewExperimentDialog({
                           isRequired
                           isDisabled={busy}
                           name="version"
-                          placeholder="Choose a trained version"
+                          defaultSelectedKey={versions[0]?.id}
+                          placeholder="Choose a version"
                         >
                           <Label>Model version</Label>
                           <Select.Trigger>
@@ -109,8 +113,11 @@ export function NewExperimentDialog({
                                   id={version.id}
                                   textValue={version.id}
                                 >
-                                  <Label className="font-mono">
+                                  <Label className="flex items-center gap-2 font-mono">
                                     {version.modelId} · {versionSlug(version)}
+                                    <ModelKindChip
+                                      kind={version.artifact.kind}
+                                    />
                                   </Label>
                                   <Description>{version.name}</Description>
                                   <ListBox.ItemIndicator />

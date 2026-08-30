@@ -1,13 +1,22 @@
 import { z } from "zod";
 
-import { imageDigestSchema } from "../datasets/schema";
-import {
-  fingerprintSchema,
-  runtimeDescriptorSchema,
-  versionIdSchema,
-} from "../inference/schema";
+import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
+import { runtimeDescriptorSchema } from "../inference/schema";
 
 export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
+
+/**
+ * A review is addressed by the image and the model it is for. The same
+ * photograph reviewed for two models has two documents; the same photograph
+ * opened from an experiment or a dataset has one.
+ */
+export const labelRefSchema = z.strictObject({
+  digest: imageDigestSchema,
+  model: resourceIdSchema,
+});
+
+export type LabelRef = z.infer<typeof labelRefSchema>;
 
 export const boundingBoxSchema = z.strictObject({
   x: z.number().finite(),
@@ -31,8 +40,8 @@ export const annotationSchema = z
       height: z.number().int().positive(),
     }),
     source: z.strictObject({
-      modelVersionId: versionIdSchema,
-      artifactDigest: fingerprintSchema,
+      modelVersionId: resourceIdSchema,
+      artifactDigest: sha256Schema,
       runtime: runtimeDescriptorSchema,
     }),
     status: z.enum(REVIEW_STATUSES),

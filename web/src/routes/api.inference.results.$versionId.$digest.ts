@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { imageDigestSchema } from "../datasets/schema";
-import { versionIdSchema } from "../inference/schema";
+import { resourceIdSchema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
 import {
   DetectionConflictError,
   DetectionImageNotFoundError,
@@ -13,7 +13,7 @@ import {
 import { readInferenceWorker } from "../server/inference-worker-store";
 
 const targetSchema = z.strictObject({
-  versionId: versionIdSchema,
+  versionId: resourceIdSchema,
   digest: imageDigestSchema,
 });
 

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { versionIdSchema } from "../inference/schema";
+import { resourceIdSchema } from "../identifiers/schema";
 import { publishTrainingArtifact } from "../server/training-runs";
 import {
   parseTrainingForm,
@@ -53,10 +53,10 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
             return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
           owner = {
-            workerId: parseTrainingValue(worker, versionIdSchema, "workerId"),
+            workerId: parseTrainingValue(worker, resourceIdSchema, "workerId"),
             sessionId: parseTrainingValue(
               session,
-              versionIdSchema,
+              resourceIdSchema,
               "sessionId",
             ),
           };

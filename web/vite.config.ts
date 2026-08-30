@@ -7,5 +7,14 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  plugins: [tanstackStart(), viteReact(), tailwindcss()],
+  plugins: [
+    tanstackStart({
+      importProtection: {
+        behavior: "error",
+        client: { files: ["**/src/server/**", "**/src/db/**"] },
+      },
+    }),
+    viteReact(),
+    tailwindcss(),
+  ],
 });

@@ -2,17 +2,13 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
-  datasetImages,
-  datasets,
   detectionFailures,
   detections,
   experimentPhotos,
   experiments,
   images,
-  labels,
   modelVersions,
 } from "../db/schema";
-import type { ImageRef } from "../datasets/schema";
 import {
   inferenceOutcomeSchema,
   isFailure,
@@ -27,12 +23,10 @@ import {
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import { supportsRuntime } from "../models/schema";
-import { notInDataset, sameMembership } from "./datasets";
 import { lockDetection } from "./detection-lock";
 import { assertDocumentImage } from "./image-documents";
 import { canExecute } from "./inference-worker-store";
 import { toModelVersion } from "./model-registry";
-import { lockImageRecord } from "./summaries";
 
 /** One image under one model version: the pair a detection is recorded for. */
 export interface DetectionTarget {
@@ -226,22 +220,6 @@ export async function recordInferenceOutcome(
   });
 }
 
-/**
- * Forgets the failure recorded for the dataset's selected version, so the
- * next worker pass attempts the image again.
- */
-export async function retryDatasetDetection(ref: ImageRef): Promise<void> {
-  await transaction(async (tx) => {
-    const record = await lockImageRecord(ref, tx);
-    if (!record) throw notInDataset(ref);
-    const target = {
-      versionId: record.selectedModelVersionId,
-      digest: ref.digest,
-    };
-    await clearDetectionFailure(target, tx);
-  });
-}
-
 /** Removes one failed attempt while holding the pair lock in the caller's transaction. */
 export async function clearDetectionFailure(
   target: DetectionTarget,
@@ -264,43 +242,10 @@ export interface Assignment {
   images: string[];
 }
 
-/** Pairs a dataset needs: unreviewed images under the version it selects. */
-function datasetDemand(db: Executor) {
-  return db
-    .select({
-      digest: datasetImages.imageId,
-      versionId: datasets.selectedModelVersionId,
-    })
-    .from(datasetImages)
-    .innerJoin(datasets, eq(datasets.id, datasetImages.datasetId))
-    .leftJoin(labels, sameMembership(labels, datasetImages))
-    .leftJoin(
-      detections,
-      and(
-        eq(detections.imageId, datasetImages.imageId),
-        eq(detections.modelVersionId, datasets.selectedModelVersionId),
-      ),
-    )
-    .leftJoin(
-      detectionFailures,
-      and(
-        eq(detectionFailures.imageId, datasetImages.imageId),
-        eq(detectionFailures.modelVersionId, datasets.selectedModelVersionId),
-      ),
-    )
-    .where(
-      and(
-        isNull(labels.imageId),
-        isNull(detections.imageId),
-        isNull(detectionFailures.imageId),
-      ),
-    );
-}
-
-/** Pairs an experiment needs: its photographs under the version it counts with. */
+/** Pairs experiments need: their photographs under the versions they count with, each once. */
 function experimentDemand(db: Executor) {
   return db
-    .select({
+    .selectDistinct({
       digest: experimentPhotos.imageId,
       versionId: experiments.modelVersionId,
     })
@@ -324,14 +269,14 @@ function experimentDemand(db: Executor) {
 }
 
 /**
- * Pairs that have neither a detection nor a failure. SQL UNION makes demand
- * ownership-independent and removes pairs shared by a dataset and experiment.
+ * Pairs that have neither a detection nor a failure. Experiments are the only
+ * source of demand: a dataset reviews detections its images already have.
  */
 export async function pendingAssignments(
   worker: Pick<InferenceWorkerRecord, "runtimes">,
 ): Promise<Assignment[]> {
   const db = await database();
-  const pairs = await datasetDemand(db).union(experimentDemand(db));
+  const pairs = await experimentDemand(db);
   if (pairs.length === 0) return [];
   const versionIds = [...new Set(pairs.map((pair) => pair.versionId))].sort();
   const versions = await db

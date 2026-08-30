@@ -2,7 +2,7 @@ import { Button, Form, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 
-import { ImageDropZone, type ListedImage } from "./ImageDropZone";
+import { ImageDropZone, type ListedImage } from "../ImageDropZone";
 
 /** A stored photograph as the submission will hand it over. */
 export interface StoredPhoto {
@@ -18,13 +18,13 @@ export interface StoredPhoto {
 const UPLOAD_LANES = 2;
 
 /**
- * Collects photographs for one submission. Storing a photograph and using it
+ * Collects the photographs of one round. Storing a photograph and using it
  * are separate acts, and the form follows them: bytes go up as soon as they
- * are chosen, so the seconds spent filling in the rest of the form are the
- * seconds they travel and encode in. Submitting hands over only what is
- * already stored, which is one small request the caller makes.
+ * are chosen, so the seconds spent naming the round are the seconds they
+ * travel and encode in. Submitting hands over only what is already stored,
+ * which is one small request the caller makes.
  */
-export function ImageBatchForm({
+export function RoundForm({
   fields,
   submitLabel,
   busyLabel,

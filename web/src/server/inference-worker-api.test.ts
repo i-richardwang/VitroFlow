@@ -3,20 +3,24 @@ import { expect, test } from "bun:test";
 import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import { inferenceAssignmentSchema } from "../inference/assignments";
-import { Route as ClaimRoute } from "../routes/api.datasets.$dataset.images";
+import { Route as RoundRoute } from "../routes/api.experiments.$experiment.rounds";
 import { Route as StoreRoute } from "../routes/api.images";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
 import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
-import { readDataset } from "./datasets";
 import { readInferenceWorker } from "./inference-worker-store";
 import { createLabel } from "./labels";
-import { readModelVersion } from "./model-registry";
+import { createExperiment } from "./experiments";
 import { readDetection } from "./detections";
 import { contentDigest } from "./blobs";
-import { FIXTURE_EDGE, imageBytes, imageDigest } from "./testing";
+import {
+  FIXTURE_EDGE,
+  baselineVersion,
+  imageBytes,
+  imageDigest,
+} from "./testing";
 
 type Handler = (context: never) => Response | Promise<Response>;
 
@@ -32,7 +36,6 @@ function handler(
 }
 
 const digest = await imageDigest("image");
-const ref = { dataset: "api", digest };
 
 test("inference HTTP routes carry an image from upload to detection", async () => {
   const upload = await imageBytes("image");
@@ -49,23 +52,27 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   expect(stored.status).toBe(200);
   expect(await stored.json()).toMatchObject({ digest });
 
-  const claimed = await handler(
-    ClaimRoute,
+  const version = await baselineVersion();
+  const experiment = await createExperiment({
+    name: "API",
+    modelVersionId: version.id,
+  });
+  const round = await handler(
+    RoundRoute,
     "POST",
   )({
-    params: { dataset: "api" },
-    request: new Request("http://localhost/api/datasets/api/images", {
+    params: { experiment: experiment.id },
+    request: new Request("http://localhost/rounds", {
       method: "POST",
-      body: JSON.stringify({ images: [{ digest, filename: "api.jpg" }] }),
+      body: JSON.stringify({
+        label: "Day 1",
+        capturedAt: "2026-08-01T09:00:00.000Z",
+        photos: [{ digest, filename: "api.jpg" }],
+      }),
     }),
   } as never);
-  expect(claimed.status).toBe(200);
-  expect(await claimed.json()).toEqual({ added: 1, existing: 0 });
-
-  const dataset = await readDataset("api");
-  if (!dataset) throw new Error("missing dataset");
-  const version = await readModelVersion(dataset.selectedModelVersionId);
-  if (!version) throw new Error("missing model version");
+  expect(round.status).toBe(200);
+  expect(await round.json()).toMatchObject({ photos: 1 });
   const runtime = {
     adapter: "traditional" as const,
     fingerprint: "b".repeat(64),
@@ -202,7 +209,10 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     ).status,
   ).toBe(409);
 
-  await createLabel(ref, documentFromDetection(result));
+  await createLabel(
+    { digest, model: version.modelId },
+    documentFromDetection(result),
+  );
   expect((await put(result)).status).toBe(200);
 });
 
@@ -251,17 +261,18 @@ test("storing an image rejects an absent or excessive declared body before readi
   expect(excessive.status).toBe(413);
 });
 
-test("image claims distinguish invalid requests from expired stored images", async () => {
+test("round submissions distinguish invalid requests from expired stored images", async () => {
+  const experiment = await createExperiment({
+    name: "Round boundary",
+    modelVersionId: (await baselineVersion()).id,
+  });
   const post = (body: string) =>
     handler(
-      ClaimRoute,
+      RoundRoute,
       "POST",
     )({
-      params: { dataset: "claim-boundary" },
-      request: new Request(
-        "http://localhost/api/datasets/claim-boundary/images",
-        { method: "POST", body },
-      ),
+      params: { experiment: experiment.id },
+      request: new Request("http://localhost/rounds", { method: "POST", body }),
     } as never);
 
   expect((await post("not json")).status).toBe(400);
@@ -270,12 +281,24 @@ test("image claims distinguish invalid requests from expired stored images", asy
   expect(await nonObject.json()).toEqual({
     error: "Request body must be a JSON object",
   });
-  expect((await post(JSON.stringify({ images: [] }))).status).toBe(400);
   expect(
     (
       await post(
         JSON.stringify({
-          images: [{ digest: "a".repeat(64), filename: "a.jpg" }],
+          label: "Day 1",
+          capturedAt: "2026-08-01T09:00:00.000Z",
+          photos: [],
+        }),
+      )
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await post(
+        JSON.stringify({
+          label: "Day 1",
+          capturedAt: "2026-08-01T09:00:00.000Z",
+          photos: [{ digest: "a".repeat(64), filename: "a.jpg" }],
         }),
       )
     ).status,

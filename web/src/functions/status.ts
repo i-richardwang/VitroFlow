@@ -1,43 +1,26 @@
 import { createServerFn } from "@tanstack/react-start";
-import { asc, count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 
 import { database } from "../db/client";
 import {
-  datasetImages,
   datasetSnapshots,
-  datasets,
   detections,
-  experimentPhotos,
   images,
   labels,
-  modelVersions,
   trainingRuns,
 } from "../db/schema";
-import { blobStoreDescription } from "./blobs";
-import { listDatasets } from "./datasets";
+import { blobStoreDescription } from "../server/blobs";
+import { listDatasets } from "../server/datasets";
+import { imageFilenames } from "../server/image-names";
 import {
   inferenceWorkerPresence,
   listInferenceWorkers,
-} from "./inference-worker-store";
-import { countTrainingRuns } from "./training-runs";
+} from "../server/inference-worker-store";
+import { countTrainingRuns } from "../server/training-runs";
 import {
   listTrainingWorkers,
   trainingWorkerPresence,
-} from "./training-worker-store";
-
-/** The dataset each loaded version belongs to, in one query. */
-async function versionDatasets(
-  versionIds: string[],
-): Promise<Map<string, string>> {
-  if (versionIds.length === 0) return new Map();
-  const db = await database();
-  const rows = await db
-    .select({ versionId: modelVersions.id, dataset: datasets.id })
-    .from(modelVersions)
-    .innerJoin(datasets, eq(datasets.modelId, modelVersions.modelId))
-    .where(inArray(modelVersions.id, versionIds));
-  return new Map(rows.map((row) => [row.versionId, row.dataset]));
-}
+} from "../server/training-worker-store";
 
 /** The dataset each run trains on, in one query. */
 async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
@@ -52,39 +35,6 @@ async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
     )
     .where(inArray(trainingRuns.id, runIds));
   return new Map(rows.map((row) => [row.runId, row.dataset]));
-}
-
-/** A deterministic membership filename for every current dataset or experiment image. */
-async function imageFilenames(digests: string[]): Promise<Map<string, string>> {
-  if (digests.length === 0) return new Map();
-  const db = await database();
-  const [datasetRows, experimentRows] = await Promise.all([
-    db
-      .select({
-        imageId: datasetImages.imageId,
-        filename: datasetImages.filename,
-      })
-      .from(datasetImages)
-      .where(inArray(datasetImages.imageId, digests))
-      .orderBy(asc(datasetImages.addedAt), asc(datasetImages.datasetId)),
-    db
-      .select({
-        imageId: experimentPhotos.imageId,
-        filename: experimentPhotos.filename,
-      })
-      .from(experimentPhotos)
-      .where(inArray(experimentPhotos.imageId, digests))
-      .orderBy(
-        asc(experimentPhotos.experimentId),
-        asc(experimentPhotos.roundId),
-        asc(experimentPhotos.dishLabel),
-      ),
-  ]);
-  const names = new Map<string, string>();
-  for (const row of [...datasetRows, ...experimentRows]) {
-    if (!names.has(row.imageId)) names.set(row.imageId, row.filename);
-  }
-  return names;
 }
 
 async function countRows(
@@ -104,10 +54,7 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
     listTrainingWorkers(at),
     listDatasets(),
   ]);
-  const [datasetsByVersion, datasetsByRun, filenames] = await Promise.all([
-    versionDatasets(
-      inferenceWorkers.flatMap((w) => (w.loaded ? [w.loaded] : [])),
-    ),
+  const [datasetsByRun, filenames] = await Promise.all([
     runDatasets(
       trainingWorkers.flatMap((w) =>
         w.currentTrainingRunId ? [w.currentTrainingRunId] : [],
@@ -133,9 +80,6 @@ export const getStatus = createServerFn({ method: "GET" }).handler(async () => {
       lastSeenSeconds: age(worker.lastSeenAt),
       currentFilename: worker.current
         ? (filenames.get(worker.current) ?? null)
-        : null,
-      loadedDataset: worker.loaded
-        ? (datasetsByVersion.get(worker.loaded) ?? null)
         : null,
     })),
     trainingWorkers: trainingWorkers.map((worker) => ({

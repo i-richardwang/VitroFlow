@@ -23,18 +23,23 @@ import {
 } from "./icons";
 
 const NAV = [
-  { href: "/", label: "Datasets", icon: DatasetsIcon, match: "datasets" },
-  {
-    href: "/training",
-    label: "Training",
-    icon: TrainingIcon,
-    match: "training",
-  },
   {
     href: "/experiments",
     label: "Experiments",
     icon: ExperimentsIcon,
     match: "experiments",
+  },
+  {
+    href: "/datasets",
+    label: "Datasets",
+    icon: DatasetsIcon,
+    match: "datasets",
+  },
+  {
+    href: "/training",
+    label: "Training",
+    icon: TrainingIcon,
+    match: "training",
   },
   { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
@@ -90,8 +95,8 @@ function AppNavbar({
   pathname: string;
   endRef: (node: HTMLElement | null) => void;
 }) {
-  const image = useMatch({
-    from: "/_workbench/datasets/$dataset/$digest",
+  const review = useMatch({
+    from: "/_workbench/review/$model/$digest",
     shouldThrow: false,
   });
   const experiment = useMatch({
@@ -104,7 +109,7 @@ function AppNavbar({
   });
   const crumbs = workbenchCrumbs(
     pathname,
-    image?.loaderData?.summary.filename ?? null,
+    review?.loaderData?.filename ?? null,
     experimentPhoto?.loaderData?.experimentName ??
       experiment?.loaderData?.experiment.name ??
       null,
@@ -241,35 +246,30 @@ function workbenchCrumbs(
   if (parts[0] === "experiments" && parts.length >= 2) {
     return experimentCrumbs(parts, experimentName, dishLabel, roundLabel);
   }
+  if (parts[0] === "review" && parts.length >= 3) {
+    return [{ label: filename ?? parts[2]!.slice(0, 12), mono: true }];
+  }
   if (parts[0] !== "datasets" || parts.length < 2) {
     const section =
       parts[0] === "training"
         ? "Training"
         : parts[0] === "status"
           ? "Status"
-          : parts[0] === "experiments"
-            ? "Experiments"
-            : "Datasets";
+          : parts[0] === "datasets"
+            ? "Datasets"
+            : "Experiments";
     return [{ label: section }];
   }
 
   const dataset = parts[1]!;
   const crumbs: Crumb[] = [
-    { label: "Datasets", href: "/" },
+    { label: "Datasets", href: "/datasets" },
     {
       label: dataset,
       href: parts.length > 2 ? `/datasets/${dataset}` : undefined,
       mono: true,
     },
   ];
-
-  if (parts.length >= 3 && parts[2] !== "training") {
-    crumbs.push({
-      label: filename ?? parts[2]!.slice(0, 12),
-      mono: true,
-    });
-    return crumbs;
-  }
 
   if (parts[2] !== "training") {
     return crumbs;

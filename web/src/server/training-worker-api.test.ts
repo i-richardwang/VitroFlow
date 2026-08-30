@@ -13,7 +13,6 @@ import { Route as ReadyRoute } from "../routes/api.training.ready";
 import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$digest";
 import { Route as SnapshotRoute } from "../routes/api.training.runs.$runId.snapshot";
 import { contentDigest } from "./blobs";
-import { readDataset } from "./datasets";
 import { reviewedDataset } from "./testing";
 import { createTrainingRun } from "./training-runs";
 
@@ -222,9 +221,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     }),
   } as never);
   expect(await repeated.json()).toEqual(published);
-  expect((await readDataset(datasetId))?.selectedModelVersionId).toBe(
-    selected.id,
-  );
+  expect(published.modelId).toBe(selected.modelId);
 
   const versionId = published.state.modelVersionId;
   const weights = await handler(

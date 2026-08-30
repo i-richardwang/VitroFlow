@@ -3,14 +3,18 @@ import sharp from "sharp";
 
 import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
+import type { Dataset } from "../datasets/schema";
 import type { DetectionResult } from "../detection/schema";
+import type { Experiment, PhotoRef } from "../experiments/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { ModelVersion } from "../models/schema";
 import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { canonicalize } from "./image-ingest";
-import { claimImages, readDataset } from "./datasets";
+import { addExperimentPhotos } from "./datasets";
+import { addRound, createExperiment } from "./experiments";
 import { storeImage } from "./image-store";
-import { createLabel } from "./labels";
+import { createLabel, readLabel } from "./labels";
+import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { readModelVersion, registerModelVersion } from "./model-registry";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 
@@ -23,6 +27,13 @@ export const ULTRALYTICS_RUNTIME: RuntimeDescriptor = {
   adapter: "ultralytics",
   fingerprint: "e".repeat(64),
 };
+
+/** The builtin seed detector every deployment starts with. */
+export async function baselineVersion(): Promise<ModelVersion> {
+  const version = await readModelVersion(SEED_DETECTOR_BASELINE_VERSION_ID);
+  if (!version) throw new Error("builtin models are not registered");
+  return version;
+}
 
 /** Registers a trained version of `modelId`, as a training run would publish it. */
 export async function registerTrainedVersion(
@@ -115,38 +126,9 @@ export async function imageBytes(
   return bytes;
 }
 
-/** The transport-neutral source accepted by the image ingestion domain. */
-export async function imageSource(
-  content: string,
-  filename = `${content}.jpg`,
-) {
-  return { filename, bytes: await imageBytes(content) };
-}
-
-/** The digest `imageSource(content)` is stored under once it is canonicalised. */
+/** The digest `imageBytes(content)` is stored under once it is canonicalised. */
 export async function imageDigest(content: string): Promise<string> {
   return (await canonicalize(await imageBytes(content))).digest;
-}
-
-/** The dataset and the model version it currently selects. */
-export async function selectedVersion(datasetId: string) {
-  const dataset = await readDataset(datasetId);
-  if (!dataset) throw new Error(`missing dataset ${datasetId}`);
-  const version = await readModelVersion(dataset.selectedModelVersionId);
-  if (!version) throw new Error(`missing version for ${datasetId}`);
-  return { dataset, version };
-}
-
-/** Stores the sources and claims them for the dataset, as an upload does. */
-export async function uploadSources(
-  datasetId: string,
-  sources: { filename: string; bytes: Uint8Array }[],
-) {
-  const entries = [];
-  for (const { filename, bytes } of sources) {
-    entries.push({ digest: (await storeImage(bytes)).digest, filename });
-  }
-  return claimImages({ dataset: datasetId, images: entries });
 }
 
 /** Stores one deterministic source per text, returning the digests in order. */
@@ -158,13 +140,67 @@ export async function storeTexts(contents: string[]): Promise<string[]> {
   return digests;
 }
 
-/** Uploads one deterministic source per text; tests use its canonical digest. */
-export async function uploadTexts(datasetId: string, contents: string[]) {
-  await uploadSources(
-    datasetId,
-    await Promise.all(contents.map((content) => imageSource(content))),
-  );
-  return selectedVersion(datasetId);
+export interface PhotographedRound {
+  experiment: Experiment;
+  version: ModelVersion;
+  /** In the order of `contents`. */
+  digests: string[];
+  /** In the order of `contents`. */
+  photos: PhotoRef[];
+}
+
+/**
+ * Photographs each text as one dish of a new experiment's first round, named
+ * `<content>.jpg`, so the images enter the system the way photographs do.
+ */
+export async function photographRound(
+  experimentName: string,
+  contents: string[],
+  version?: ModelVersion,
+): Promise<PhotographedRound> {
+  const counted = version ?? (await baselineVersion());
+  const experiment = await createExperiment({
+    name: experimentName,
+    modelVersionId: counted.id,
+  });
+  const digests = await storeTexts(contents);
+  const { round } = await addRound({
+    experiment: experiment.id,
+    label: "Round 1",
+    capturedAt: "2026-08-01T09:00:00.000Z",
+    photos: contents.map((content, index) => ({
+      digest: digests[index]!,
+      filename: `${content}.jpg`,
+    })),
+  });
+  return {
+    experiment,
+    version: counted,
+    digests,
+    photos: contents.map((content) => ({
+      experiment: experiment.id,
+      dish: content,
+      round: round.id,
+    })),
+  };
+}
+
+export interface SeededDataset extends PhotographedRound {
+  dataset: Dataset;
+}
+
+/** Photographs the texts in an experiment and adds them to the dataset. */
+export async function uploadTexts(
+  datasetId: string,
+  contents: string[],
+  version?: ModelVersion,
+): Promise<SeededDataset> {
+  const round = await photographRound(`${datasetId} photos`, contents, version);
+  const { dataset } = await addExperimentPhotos({
+    dataset: datasetId,
+    photos: round.photos,
+  });
+  return { ...round, dataset };
 }
 
 /** A result `version` would produce for the image with these bytes. */
@@ -188,17 +224,26 @@ export async function resultFor(
   };
 }
 
-/** Uploads the texts and completes a review of each, ready for training. */
-export async function reviewedDataset(datasetId: string, contents: string[]) {
-  const selected = await uploadTexts(datasetId, contents);
+/**
+ * Uploads the texts and completes a review of each, ready for training. A
+ * review belongs to the image and the model, so texts already reviewed by an
+ * earlier call keep the review they have.
+ */
+export async function reviewedDataset(
+  datasetId: string,
+  contents: string[],
+): Promise<SeededDataset> {
+  const seeded = await uploadTexts(datasetId, contents);
   for (const content of contents) {
-    await createLabel(
-      { dataset: datasetId, digest: await imageDigest(content) },
-      {
-        ...documentFromDetection(await resultFor(selected.version, content)),
-        status: "complete",
-      },
-    );
+    const ref = {
+      digest: await imageDigest(content),
+      model: seeded.version.modelId,
+    };
+    if (await readLabel(ref)) continue;
+    await createLabel(ref, {
+      ...documentFromDetection(await resultFor(seeded.version, content)),
+      status: "complete",
+    });
   }
-  return selected;
+  return seeded;
 }

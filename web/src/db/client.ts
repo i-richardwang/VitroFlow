@@ -2,6 +2,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import { migrate as migratePostgres } from "drizzle-orm/postgres-js/migrator";
 
+import { installBuiltins } from "./registry";
 import * as schema from "./schema";
 
 /** A database handle or a transaction on it; modules never depend on the driver. */
@@ -35,6 +36,7 @@ async function open(): Promise<Executor> {
       ? drizzle({ connection: { dataDir }, schema })
       : drizzle({ schema });
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    await installBuiltins(db);
     return db;
   }
   const db = drizzlePostgres({
@@ -42,10 +44,11 @@ async function open(): Promise<Executor> {
     schema,
   });
   await migratePostgres(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  await installBuiltins(db);
   return db;
 }
 
-/** The migrated application database, opened on first use. */
+/** The migrated application database with its builtin models, opened on first use. */
 export function database(): Promise<Executor> {
   ready ??= open().catch((error: unknown) => {
     ready = undefined;

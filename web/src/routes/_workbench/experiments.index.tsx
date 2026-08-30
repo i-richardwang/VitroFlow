@@ -3,6 +3,7 @@ import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Count } from "../../components/Count";
+import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { NewExperimentDialog } from "../../components/experiment/NewExperimentDialog";
 import { ExperimentsIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
@@ -10,14 +11,14 @@ import { Timestamp } from "../../components/Timestamp";
 import { versionSlug } from "../../models/schema";
 import {
   getExperiments,
-  getTrainedVersions,
-} from "../../server/experiment-views";
+  getExperimentVersions,
+} from "../../functions/experiments";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
   loader: async () => {
     const [experiments, versions] = await Promise.all([
       getExperiments(),
-      getTrainedVersions(),
+      getExperimentVersions(),
     ]);
     return { experiments, versions };
   },
@@ -30,11 +31,6 @@ function ExperimentsPage() {
   return (
     <Page
       title="Experiments"
-      description={
-        versions.length === 0
-          ? "Train a version of a dataset's model first; experiments count with trained versions."
-          : undefined
-      }
       actions={<NewExperimentDialog versions={versions} />}
     >
       <Table>
@@ -57,7 +53,7 @@ function ExperimentsPage() {
                     <EmptyState.Media variant="icon">
                       <ExperimentsIcon />
                     </EmptyState.Media>
-                    <EmptyState.Title>No experiments yet</EmptyState.Title>
+                    <EmptyStateHeading>No experiments yet</EmptyStateHeading>
                   </EmptyState.Header>
                 </EmptyState>
               )}

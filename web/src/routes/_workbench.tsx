@@ -2,7 +2,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { WorkbenchNotice } from "../components/WorkbenchNotice";
 import { WorkbenchShell } from "../components/shell";
-import { getSession } from "../server/auth";
+import { getSession } from "../functions/session";
 
 export const Route = createFileRoute("/_workbench")({
   loader: () => getSession(),

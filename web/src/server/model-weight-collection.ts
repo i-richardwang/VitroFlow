@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { transaction } from "../db/client";
 import { trainingRuns } from "../db/schema";
-import { fingerprintSchema, versionIdSchema } from "../inference/schema";
+import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { listBlobs, modelWeightsBlobKey, removeBlob } from "./blobs";
 import { readModelVersion } from "./model-registry";
 
@@ -14,8 +14,8 @@ interface ModelWeightsRef {
 
 function parseModelWeightsKey(key: string): ModelWeightsRef | null {
   const [prefix, runIdValue, attemptValue, digestValue, extra] = key.split("/");
-  const runId = versionIdSchema.safeParse(runIdValue);
-  const digest = fingerprintSchema.safeParse(digestValue);
+  const runId = resourceIdSchema.safeParse(runIdValue);
+  const digest = sha256Schema.safeParse(digestValue);
   const trainingAttempt = Number(attemptValue);
   if (
     prefix !== "model-weights" ||

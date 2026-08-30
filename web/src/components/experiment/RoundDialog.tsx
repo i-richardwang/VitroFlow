@@ -9,7 +9,7 @@ import {
   TextField,
 } from "@heroui/react";
 
-import { ImageBatchForm, postJson } from "../ImageBatchForm";
+import { RoundForm, postJson } from "./RoundForm";
 import type { ExperimentRound } from "../../experiments/schema";
 
 function localDateTimeValue(date: Date): string {
@@ -50,7 +50,7 @@ export function RoundDialog({
                   </Description>
                 </Modal.Header>
                 <Modal.Body>
-                  <ImageBatchForm
+                  <RoundForm
                     fields={(busy) => (
                       <Fieldset.Group>
                         <TextField

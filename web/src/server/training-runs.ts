@@ -15,7 +15,7 @@ import {
 
 import { database, transaction, type Executor } from "../db/client";
 import {
-  datasets,
+  datasetSnapshots,
   trainingEpochs,
   trainingRuns,
   trainingWorkers,
@@ -356,7 +356,7 @@ export interface TrainingRunSummary {
 
 /** The newest bounded page of runs, with current-attempt metrics aggregated by SQL. */
 export async function listTrainingRunSummaries(
-  options: { modelId?: string; limit?: number } = {},
+  options: { datasetId?: string; limit?: number } = {},
 ): Promise<TrainingRunSummary[]> {
   const limit = options.limit ?? TRAINING_RUN_LIST_LIMIT;
   if (
@@ -371,7 +371,7 @@ export async function listTrainingRunSummaries(
   const db = await database();
   const rows = await db
     .select({
-      dataset: datasets.id,
+      dataset: datasetSnapshots.datasetId,
       run: trainingRuns,
       completed: sql<number>`(
         select count(*)::integer
@@ -397,9 +397,14 @@ export async function listTrainingRunSummaries(
       )`,
     })
     .from(trainingRuns)
-    .innerJoin(datasets, eq(datasets.modelId, trainingRuns.modelId))
+    .innerJoin(
+      datasetSnapshots,
+      eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
+    )
     .where(
-      options.modelId ? eq(trainingRuns.modelId, options.modelId) : undefined,
+      options.datasetId
+        ? eq(datasetSnapshots.datasetId, options.datasetId)
+        : undefined,
     )
     .orderBy(desc(trainingRuns.createdAt), desc(trainingRuns.id))
     .limit(limit);
@@ -414,12 +419,17 @@ export async function listTrainingRunSummaries(
   }));
 }
 
-export async function countTrainingRuns(modelId?: string): Promise<number> {
+/** Runs across all datasets, or the runs trained from one dataset's snapshots. */
+export async function countTrainingRuns(datasetId?: string): Promise<number> {
   const db = await database();
   const [row] = await db
     .select({ count: count() })
     .from(trainingRuns)
-    .where(modelId ? eq(trainingRuns.modelId, modelId) : undefined);
+    .innerJoin(
+      datasetSnapshots,
+      eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
+    )
+    .where(datasetId ? eq(datasetSnapshots.datasetId, datasetId) : undefined);
   return row?.count ?? 0;
 }
 
@@ -438,18 +448,22 @@ export async function countActiveTrainingRuns(
   return row?.count ?? 0;
 }
 
-/** The newest run for a model, if it has ever trained. */
+/** The newest run trained from a dataset, if it has ever trained. */
 export async function latestTrainingRun(
-  modelId: string,
+  datasetId: string,
 ): Promise<TrainingRun | null> {
   const db = await database();
   const [row] = await db
-    .select()
+    .select({ run: trainingRuns })
     .from(trainingRuns)
-    .where(eq(trainingRuns.modelId, modelId))
+    .innerJoin(
+      datasetSnapshots,
+      eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
+    )
+    .where(eq(datasetSnapshots.datasetId, datasetId))
     .orderBy(desc(trainingRuns.createdAt), desc(trainingRuns.id))
     .limit(1);
-  return row ? toRun(row) : null;
+  return row ? toRun(row.run) : null;
 }
 
 /** The run still queued or leased for a model; at most one exists. */

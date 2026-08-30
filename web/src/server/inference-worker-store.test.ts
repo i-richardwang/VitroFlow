@@ -9,10 +9,9 @@ import {
   listInferenceWorkers,
   recordInferenceHeartbeat,
 } from "./inference-worker-store";
-import { database } from "../db/client";
-import { ensureDatasetModel } from "./model-registry";
+import { baselineVersion } from "./testing";
 
-const version = await ensureDatasetModel("presence", await database());
+const version = await baselineVersion();
 const heartbeat = {
   workerId: "presence-worker",
   startedAt: "2026-01-01T00:00:00+00:00",

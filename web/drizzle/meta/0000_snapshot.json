@@ -1,5 +1,5 @@
 {
-  "id": "030a4349-7a70-429b-b331-87bf0a27da7f",
+  "id": "99e66372-5d5f-4896-9c3d-1cd3b50863cf",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -294,12 +294,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_model_version_id": {
-          "name": "selected_model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -307,23 +301,7 @@
           "notNull": true
         }
       },
-      "indexes": {
-        "datasets_selected_version_idx": {
-          "name": "datasets_selected_version_idx",
-          "columns": [
-            {
-              "expression": "selected_model_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "datasets_model_id_models_id_fk": {
           "name": "datasets_model_id_models_id_fk",
@@ -337,32 +315,10 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "datasets_selected_model_version_id_model_id_model_versions_id_model_id_fk": {
-          "name": "datasets_selected_model_version_id_model_id_model_versions_id_model_id_fk",
-          "tableFrom": "datasets",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "selected_model_version_id",
-            "model_id"
-          ],
-          "columnsTo": [
-            "id",
-            "model_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "datasets_model_id_unique": {
-          "name": "datasets_model_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "model_id"
-          ]
-        },
         "datasets_id_model": {
           "name": "datasets_id_model",
           "nullsNotDistinct": false,
@@ -907,16 +863,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "model_artifact_kind": {
-          "name": "model_artifact_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "'ultralytics'::text",
-            "type": "stored"
-          }
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -942,17 +888,15 @@
         }
       },
       "foreignKeys": {
-        "experiments_model_version_id_model_artifact_kind_model_versions_id_artifact_kind_fk": {
-          "name": "experiments_model_version_id_model_artifact_kind_model_versions_id_artifact_kind_fk",
+        "experiments_model_version_id_model_versions_id_fk": {
+          "name": "experiments_model_version_id_model_versions_id_fk",
           "tableFrom": "experiments",
           "tableTo": "model_versions",
           "columnsFrom": [
-            "model_version_id",
-            "model_artifact_kind"
+            "model_version_id"
           ],
           "columnsTo": [
-            "id",
-            "artifact_kind"
+            "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -1137,14 +1081,14 @@
       "name": "labels",
       "schema": "",
       "columns": {
-        "dataset_id": {
-          "name": "dataset_id",
+        "image_id": {
+          "name": "image_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "image_id": {
-          "name": "image_id",
+        "model_id": {
+          "name": "model_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1203,11 +1147,11 @@
         }
       },
       "indexes": {
-        "labels_dataset_status_idx": {
-          "name": "labels_dataset_status_idx",
+        "labels_model_status_idx": {
+          "name": "labels_model_status_idx",
           "columns": [
             {
-              "expression": "dataset_id",
+              "expression": "model_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1226,19 +1170,45 @@
         }
       },
       "foreignKeys": {
-        "labels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk": {
-          "name": "labels_dataset_id_image_id_dataset_images_dataset_id_image_id_fk",
+        "labels_image_id_images_id_fk": {
+          "name": "labels_image_id_images_id_fk",
           "tableFrom": "labels",
-          "tableTo": "dataset_images",
+          "tableTo": "images",
           "columnsFrom": [
-            "dataset_id",
             "image_id"
           ],
           "columnsTo": [
-            "dataset_id",
-            "image_id"
+            "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "labels_model_id_models_id_fk": {
+          "name": "labels_model_id_models_id_fk",
+          "tableFrom": "labels",
+          "tableTo": "models",
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "labels_source_model_version_id_model_id_model_versions_id_model_id_fk": {
+          "name": "labels_source_model_version_id_model_id_model_versions_id_model_id_fk",
+          "tableFrom": "labels",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "source_model_version_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "labels_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk": {
@@ -1258,11 +1228,11 @@
         }
       },
       "compositePrimaryKeys": {
-        "labels_dataset_id_image_id_pk": {
-          "name": "labels_dataset_id_image_id_pk",
+        "labels_image_id_model_id_pk": {
+          "name": "labels_image_id_model_id_pk",
           "columns": [
-            "dataset_id",
-            "image_id"
+            "image_id",
+            "model_id"
           ]
         }
       },
@@ -1333,16 +1303,6 @@
             "as": "artifact->>'digest'",
             "type": "stored"
           }
-        },
-        "artifact_kind": {
-          "name": "artifact_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "artifact->>'kind'",
-            "type": "stored"
-          }
         }
       },
       "indexes": {
@@ -1400,14 +1360,6 @@
             "id",
             "artifact_digest"
           ]
-        },
-        "model_versions_id_kind": {
-          "name": "model_versions_id_kind",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "artifact_kind"
-          ]
         }
       },
       "policies": {},
@@ -1415,10 +1367,6 @@
         "model_versions_digest_check": {
           "name": "model_versions_digest_check",
           "value": "\"model_versions\".\"artifact_digest\" ~ '^[0-9a-f]{64}$'"
-        },
-        "model_versions_kind_check": {
-          "name": "model_versions_kind_check",
-          "value": "\"model_versions\".\"artifact_kind\" in ('traditional', 'ultralytics')"
         }
       },
       "isRLSEnabled": false

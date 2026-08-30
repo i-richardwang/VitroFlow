@@ -3,85 +3,108 @@ import { and, eq } from "drizzle-orm";
 import {
   annotationSchema,
   type AnnotationDocument,
+  type LabelRef,
 } from "../annotation/schema";
 import { documentFromDetection } from "../annotation/detection";
 import { database, transaction, type Executor } from "../db/client";
-import { labels } from "../db/schema";
-import type { ImageRef } from "../datasets/schema";
-import { atRef, describeRef, notInDataset } from "./datasets";
+import { images, labels } from "../db/schema";
+import { readDetection } from "./detections";
 import { assertDocumentImage } from "./image-documents";
-import { lockImageRecord } from "./summaries";
+import { lockImage } from "./image-lock";
+import { readModelVersion } from "./model-registry";
+
+export function atLabel({ digest, model }: LabelRef) {
+  return and(eq(labels.imageId, digest), eq(labels.modelId, model));
+}
+
+export function describeLabel({ digest, model }: LabelRef): string {
+  return `${digest} for ${model}`;
+}
 
 export async function readLabel(
-  ref: ImageRef,
+  ref: LabelRef,
   db?: Executor,
 ): Promise<AnnotationDocument | null> {
   const [row] = await (db ?? (await database()))
     .select({ document: labels.document })
     .from(labels)
-    .where(atRef(labels, ref));
+    .where(atLabel(ref));
   return row?.document ?? null;
+}
+
+async function lockedImage(digest: string, tx: Executor) {
+  await lockImage(digest, tx);
+  const [image] = await tx
+    .select({ digest: images.id, width: images.width, height: images.height })
+    .from(images)
+    .where(eq(images.id, digest));
+  if (!image) throw new Error(`Image ${digest} is not stored`);
+  return image;
+}
+
+async function insertLabel(
+  ref: LabelRef,
+  document: AnnotationDocument,
+  tx: Executor,
+): Promise<AnnotationDocument> {
+  const created = annotationSchema.parse({ ...document, revision: 0 });
+  const image = await lockedImage(ref.digest, tx);
+  assertDocumentImage("Label", created.image, image);
+  const version = await readModelVersion(created.source.modelVersionId, tx);
+  if (!version || version.modelId !== ref.model) {
+    throw new Error(
+      `Version ${created.source.modelVersionId} is not a version of ${ref.model}`,
+    );
+  }
+  if (await readLabel(ref, tx)) {
+    throw new Error(`Label already exists for ${describeLabel(ref)}`);
+  }
+  await tx.insert(labels).values({
+    imageId: ref.digest,
+    modelId: ref.model,
+    document: created,
+    updatedAt: new Date(),
+  });
+  return created;
 }
 
 /** Starts a review from a document the caller assembled. */
 export async function createLabel(
-  ref: ImageRef,
+  ref: LabelRef,
   document: AnnotationDocument,
 ): Promise<AnnotationDocument> {
-  const created = annotationSchema.parse({ ...document, revision: 0 });
-  return transaction(async (tx) => {
-    const record = await lockImageRecord(ref, tx);
-    if (!record) throw notInDataset(ref);
-    assertDocumentImage("Label", created.image, record.image);
-    if (record.label) {
-      throw new Error(`Label already exists for ${describeRef(ref)}`);
-    }
-    await tx.insert(labels).values({
-      datasetId: ref.dataset,
-      imageId: ref.digest,
-      document: created,
-      updatedAt: new Date(),
-    });
-    return created;
-  });
+  return transaction((tx) => insertLabel(ref, document, tx));
 }
 
-/** Starts a review from the selected version's detection, atomically with reading it. */
+/**
+ * Starts a review from what one version of the model found, atomically with
+ * reading it. The version is the one whose count the reviewer is looking at.
+ */
 export async function createLabelFromDetection(
-  ref: ImageRef,
+  ref: LabelRef,
+  versionId: string,
 ): Promise<AnnotationDocument> {
   return transaction(async (tx) => {
-    const record = await lockImageRecord(ref, tx);
-    if (!record) throw notInDataset(ref);
-    if (record.label) {
-      throw new Error(`Label already exists for ${describeRef(ref)}`);
+    const detection = await readDetection(
+      { versionId, digest: ref.digest },
+      tx,
+    );
+    if (!detection) {
+      throw new Error(`${versionId} has not detected ${ref.digest}`);
     }
-    if (!record.detection) {
-      throw new Error("The image has no detections to start from");
-    }
-    const created = annotationSchema.parse({
-      ...documentFromDetection(record.detection),
-      revision: 0,
-    });
-    await tx.insert(labels).values({
-      datasetId: ref.dataset,
-      imageId: ref.digest,
-      document: created,
-      updatedAt: new Date(),
-    });
-    return created;
+    return insertLabel(ref, documentFromDetection(detection), tx);
   });
 }
 
 /** Replaces the label only when the caller edited its current revision. */
 export async function updateLabel(
-  ref: ImageRef,
+  ref: LabelRef,
   document: AnnotationDocument,
 ): Promise<AnnotationDocument> {
   const db = await database();
   const current = await readLabel(ref, db);
   if (!current) {
-    throw new Error(`No label exists for ${describeRef(ref)}`);
+    throw new Error(`No label exists for ${describeLabel(ref)}`);
   }
   const next = annotationSchema.parse({
     ...document,
@@ -92,7 +115,7 @@ export async function updateLabel(
   const updated = await db
     .update(labels)
     .set({ document: next, updatedAt: new Date() })
-    .where(and(atRef(labels, ref), eq(labels.revision, document.revision)))
+    .where(and(atLabel(ref), eq(labels.revision, document.revision)))
     .returning({ revision: labels.revision });
   if (updated.length === 0) {
     throw new Error(

@@ -2,9 +2,9 @@ import type { ModelVersion } from "../models/schema";
 import type { TrainingRecipe } from "../training/schema";
 import type { TrainingEpoch, TrainingRun } from "../training/schema";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
+import { readDatasetSnapshot, snapshotImageCounts } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
-import { readModelVersion } from "./model-registry";
-import { trainingSummary, type TrainingSummary } from "./overview";
+import { listAllModelVersions, readModelVersion } from "./model-registry";
 import { countImageStates, listImageRecords, summarize } from "./summaries";
 import {
   countActiveTrainingRuns,
@@ -14,13 +14,22 @@ import {
   readTrainingRun,
   type TrainingRunSummary,
 } from "./training-runs";
+import { trainingSummary, type TrainingSummary } from "./training-summary";
 import {
   listTrainingWorkers,
   trainingWorkerPresence,
 } from "./training-worker-store";
 
-/** Every dataset's runs on one page. */
+export interface VersionOverview {
+  version: ModelVersion;
+  /** Reviewed images the version was trained on; none for builtin versions. */
+  trainingImages: number | null;
+}
+
+/** Every model's versions and every dataset's runs on one page. */
 export interface TrainingOverview {
+  /** Newest first, across models. */
+  versions: VersionOverview[];
   /** Exact count across the full history. */
   total: number;
   /** Newest first. */
@@ -30,16 +39,36 @@ export interface TrainingOverview {
   workersOnline: number;
 }
 
+export async function listVersionOverviews(): Promise<VersionOverview[]> {
+  const versions = await listAllModelVersions();
+  const trainingImages = await snapshotImageCounts(
+    versions.flatMap((version) =>
+      version.source.kind === "training_run"
+        ? [version.source.datasetSnapshotId]
+        : [],
+    ),
+  );
+  return versions.map((version) => ({
+    version,
+    trainingImages:
+      version.source.kind === "training_run"
+        ? (trainingImages.get(version.source.datasetSnapshotId) ?? null)
+        : null,
+  }));
+}
+
 export async function trainingOverview(
   at: Date = new Date(),
 ): Promise<TrainingOverview> {
-  const [runs, total, inProgress, workers] = await Promise.all([
+  const [versions, runs, total, inProgress, workers] = await Promise.all([
+    listVersionOverviews(),
     listTrainingRunSummaries(),
     countTrainingRuns(),
     countActiveTrainingRuns(),
     listTrainingWorkers(at),
   ]);
   return {
+    versions,
     total,
     runs,
     inProgress,
@@ -66,12 +95,12 @@ export async function trainingConsole(
   const dataset = await readDataset(datasetId);
   if (!dataset) return null;
   const records = await listImageRecords(datasetId);
-  const runs = await listTrainingRunSummaries({ modelId: dataset.modelId });
+  const runs = await listTrainingRunSummaries({ datasetId: dataset.id });
   return {
     dataset: dataset.id,
     complete: countImageStates(records.map(summarize)).complete,
     recipe: YOLO26_SEED_SMALL_RECIPE,
-    training: await trainingSummary(dataset.modelId, records, at),
+    training: await trainingSummary(dataset, records, at),
     runs,
   };
 }
@@ -90,7 +119,9 @@ export async function trainingRunDetail(
 ): Promise<TrainingRunDetail | null> {
   const dataset = await readDataset(datasetId);
   const run = await readTrainingRun(runId);
-  if (!dataset || !run || run.modelId !== dataset.modelId) return null;
+  if (!dataset || !run) return null;
+  const snapshot = await readDatasetSnapshot(run.datasetSnapshotId);
+  if (snapshot?.datasetId !== dataset.id) return null;
   return {
     dataset: dataset.id,
     run,

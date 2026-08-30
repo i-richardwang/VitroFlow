@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { versionIdSchema } from "../inference/schema";
+import { resourceIdSchema } from "../identifiers/schema";
 import { pendingAssignments } from "../server/detections";
 import { readInferenceWorker } from "../server/inference-worker-store";
 
 const querySchema = z.object({
-  workerId: versionIdSchema,
+  workerId: resourceIdSchema,
 });
 
 export const Route = createFileRoute("/api/inference/pending")({

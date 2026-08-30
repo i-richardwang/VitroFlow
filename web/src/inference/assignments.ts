@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-import { imageDigestSchema } from "../datasets/schema";
+import { resourceIdSchema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
 import { modelArtifactSchema, type ModelVersion } from "../models/schema";
-import { versionIdSchema } from "./schema";
 
 /** The immutable inputs an Inference Worker needs to execute one version. */
 export const inferenceModelManifestSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  modelVersionId: versionIdSchema,
+  modelVersionId: resourceIdSchema,
   artifact: modelArtifactSchema,
 });
 

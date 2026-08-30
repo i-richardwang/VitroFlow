@@ -9,7 +9,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { startTrainingRun } from "../../server/models";
+import { startTrainingRun } from "../../functions/training";
 import type { TrainingConsole } from "../../server/training-console";
 import {
   PARAMETER_FIELDS,

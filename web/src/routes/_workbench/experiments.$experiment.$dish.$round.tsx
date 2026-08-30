@@ -3,6 +3,8 @@ import { Button, toast } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { AddToDatasetDialog } from "../../components/dataset/AddToDatasetDialog";
+import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { PhotoStateChip } from "../../components/experiment/PhotoState";
 import { PhotoView } from "../../components/experiment/PhotoView";
 import { Page } from "../../components/Page";
@@ -12,13 +14,17 @@ import { photoRefSchema, type PhotoRef } from "../../experiments/schema";
 import {
   getExperimentPhoto,
   retryPhotoDetection,
-} from "../../server/experiment-views";
+} from "../../functions/experiments";
 
 export const Route = createFileRoute(
   "/_workbench/experiments/$experiment/$dish/$round",
 )({
   loader: async ({ params }) => {
-    const ref = photoRefSchema.safeParse(params);
+    const ref = photoRefSchema.safeParse({
+      experiment: params.experiment,
+      dish: params.dish,
+      round: params.round,
+    });
     if (!ref.success) throw notFound();
     const photo = await getExperimentPhoto({ data: ref.data });
     if (!photo) throw notFound();
@@ -30,7 +36,7 @@ export const Route = createFileRoute(
 function PhotoPage() {
   const photo = Route.useLoaderData();
   const router = useRouter();
-  const { detection, failure } = photo;
+  const { detection, failure, label } = photo;
 
   const waiting = detection === null && failure === null;
   useEffect(() => {
@@ -63,14 +69,43 @@ function PhotoPage() {
               <QualityWarnings quality={detection.quality} />
             </>
           ) : null}
+          {label ? (
+            <span className="text-success">
+              {label.status === "complete" ? "Reviewed" : "Review in progress"}:{" "}
+              {label.instances.length}
+            </span>
+          ) : null}
         </span>
       }
-      actions={failure ? <RetryButton photo={photo.ref} /> : undefined}
+      actions={
+        <>
+          <AddToDatasetDialog
+            modelId={photo.modelId}
+            photos={[photo.ref]}
+            datasets={photo.datasets}
+          />
+          {failure ? <RetryButton photo={photo.ref} /> : null}
+          {detection || label ? (
+            <Button
+              variant="primary"
+              onPress={() => {
+                void router.navigate({
+                  to: "/review/$model/$digest",
+                  params: { model: photo.modelId, digest: photo.digest },
+                  search: { version: photo.modelVersionId },
+                });
+              }}
+            >
+              {label ? "Open review" : "Review"}
+            </Button>
+          ) : null}
+        </>
+      }
     >
       {failure ? (
         <EmptyState size="sm">
           <EmptyState.Header>
-            <EmptyState.Title>Detection failed</EmptyState.Title>
+            <EmptyStateHeading>Detection failed</EmptyStateHeading>
             <EmptyState.Description>{failure.error}</EmptyState.Description>
           </EmptyState.Header>
         </EmptyState>
@@ -91,7 +126,7 @@ function RetryButton({ photo }: { photo: PhotoRef }) {
   const [busy, setBusy] = useState(false);
   return (
     <Button
-      variant="primary"
+      variant="secondary"
       isDisabled={busy}
       onPress={async () => {
         setBusy(true);

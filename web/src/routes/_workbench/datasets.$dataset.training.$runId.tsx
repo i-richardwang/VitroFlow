@@ -6,13 +6,14 @@ import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { Page } from "../../components/Page";
 import { Timestamp } from "../../components/Timestamp";
 import { EpochCharts } from "../../components/training/EpochCharts";
 import { ParametersList } from "../../components/training/ParametersList";
 import { TrainingRunState } from "../../components/training/TrainingRunState";
 import { versionSlug } from "../../models/schema";
-import { getTrainingRun } from "../../server/models";
+import { getTrainingRun } from "../../functions/training";
 import { bestEpoch } from "../../training/metrics";
 import { isTrainingRunActive, trainingRunLabel } from "../../training/schema";
 
@@ -117,11 +118,11 @@ function TrainingRunPage() {
           ) : (
             <EmptyState size="sm">
               <EmptyState.Header>
-                <EmptyState.Title>
+                <EmptyStateHeading>
                   {run.state.status === "failed"
                     ? "No epochs finished"
                     : "Waiting for the first epoch"}
-                </EmptyState.Title>
+                </EmptyStateHeading>
                 <EmptyState.Description>
                   {run.state.status === "failed"
                     ? "The run failed before finishing an epoch."

@@ -1,10 +1,13 @@
 import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { AnnotationDocument, SeedInstance } from "../annotation/schema";
+import type {
+  AnnotationDocument,
+  LabelRef,
+  SeedInstance,
+} from "../annotation/schema";
 import { transition, type ReviewEvent } from "../annotation/status";
-import type { ImageRef } from "../datasets/schema";
-import { saveLabel } from "../server/images";
+import { saveLabel } from "../functions/review";
 
 export type SaveState = "saved" | "saving" | "failed";
 
@@ -24,7 +27,7 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * Owns the annotation document for one image and persists every change.
+ * Owns the review document for one image and model and persists every change.
  *
  * Saves run through a single serial queue: each save carries the last
  * acknowledged revision, and edits made while one is in flight are flushed
@@ -33,7 +36,7 @@ function delay(ms: number): Promise<void> {
  * queue and page unload asks for confirmation.
  */
 export function useAnnotation(
-  image: ImageRef,
+  subject: LabelRef,
   initial: AnnotationDocument,
 ): AnnotationState {
   const [annotation, setAnnotation] = useState(initial);
@@ -50,7 +53,7 @@ export function useAnnotation(
       try {
         const saved = await saveLabel({
           data: {
-            image,
+            ref: subject,
             document: {
               ...latest.current,
               revision: acknowledgedRevision.current,
@@ -69,7 +72,7 @@ export function useAnnotation(
         await delay(RETRY_DELAYS_MS[attempt]);
       }
     }
-  }, [image]);
+  }, [subject]);
 
   const flush = useCallback(() => {
     setSaveState("saving");

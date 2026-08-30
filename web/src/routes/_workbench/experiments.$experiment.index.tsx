@@ -3,20 +3,25 @@ import { Link, Table } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { AddToDatasetDialog } from "../../components/dataset/AddToDatasetDialog";
+import { EmptyStateHeading } from "../../components/EmptyStateHeading";
 import { RoundDialog } from "../../components/experiment/RoundDialog";
 import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
 import { Timestamp } from "../../components/Timestamp";
-import { experimentRefSchema } from "../../experiments/schema";
+import { experimentIdSchema } from "../../experiments/schema";
 import { versionSlug } from "../../models/schema";
-import { getExperimentGrid } from "../../server/experiment-views";
+import { getExperimentGrid } from "../../functions/experiments";
 import type { PhotoCell } from "../../server/experiments";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   loader: async ({ params }) => {
-    const ref = experimentRefSchema.safeParse(params);
-    if (!ref.success) throw notFound();
-    const grid = await getExperimentGrid({ data: ref.data });
+    if (!experimentIdSchema.safeParse(params.experiment).success) {
+      throw notFound();
+    }
+    const grid = await getExperimentGrid({
+      data: { experiment: params.experiment },
+    });
     if (!grid) throw notFound();
     return grid;
   },
@@ -24,7 +29,8 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
 });
 
 function ExperimentPage() {
-  const { experiment, version, dishes, rounds, photos } = Route.useLoaderData();
+  const { experiment, version, dishes, rounds, photos, datasets } =
+    Route.useLoaderData();
   const router = useRouter();
 
   const waiting = photos.some((photo) => photo.state === "pending");
@@ -56,15 +62,29 @@ function ExperimentPage() {
         </>
       }
       actions={
-        <RoundDialog
-          experiment={experiment.id}
-          firstRound={rounds.length === 0}
-        />
+        <>
+          {photos.length > 0 ? (
+            <AddToDatasetDialog
+              modelId={version.modelId}
+              photos={photos.map((photo) => ({
+                experiment: experiment.id,
+                dish: photo.dish,
+                round: photo.round,
+              }))}
+              datasets={datasets}
+              label="Add all to dataset"
+            />
+          ) : null}
+          <RoundDialog
+            experiment={experiment.id}
+            firstRound={rounds.length === 0}
+          />
+        </>
       }
     >
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label={`Seed counts in ${experiment.name}`}>
+          <Table.Content aria-label={`Counts in ${experiment.name}`}>
             <Table.Header>
               <Table.Column isRowHeader>Dish</Table.Column>
               {rounds.map((round) => (
@@ -82,7 +102,7 @@ function ExperimentPage() {
               renderEmptyState={() => (
                 <EmptyState size="sm">
                   <EmptyState.Header>
-                    <EmptyState.Title>No rounds yet</EmptyState.Title>
+                    <EmptyStateHeading>No rounds yet</EmptyStateHeading>
                     <EmptyState.Description>
                       Add the first round to name the dishes.
                     </EmptyState.Description>
@@ -120,6 +140,10 @@ function cellKey(dish: string, round: string): string {
   return `${round}\0${dish}`;
 }
 
+/**
+ * A cell shows the reviewed count once a review of the photograph is
+ * complete, and the version's count until then.
+ */
 function Cell({
   experiment,
   photo,
@@ -129,6 +153,15 @@ function Cell({
 }) {
   if (!photo) return <span className="text-muted">-</span>;
   const href = `/experiments/${experiment}/${encodeURIComponent(photo.dish)}/${photo.round}`;
+  if (photo.reviewed !== null) {
+    return (
+      <Hint text={`Reviewed; the version counted ${photo.count ?? "nothing"}`}>
+        <Link href={href} className="font-semibold text-success">
+          {photo.reviewed}
+        </Link>
+      </Hint>
+    );
+  }
   if (photo.state === "counted") {
     return <Link href={href}>{photo.count}</Link>;
   }

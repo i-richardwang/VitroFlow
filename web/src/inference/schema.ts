@@ -1,17 +1,15 @@
 import { z } from "zod";
 
-const VERSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-export const versionIdSchema = z.string().regex(VERSION_ID_PATTERN);
-export const fingerprintSchema = z.string().regex(/^[a-f0-9]{64}$/);
+import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 
 export const runtimeDescriptorSchema = z.strictObject({
   adapter: z.enum(["traditional", "ultralytics"]),
-  fingerprint: fingerprintSchema,
+  fingerprint: sha256Schema,
 });
 
 export const detectionProducerSchema = z.strictObject({
-  model_version_id: versionIdSchema,
-  artifact_digest: fingerprintSchema,
+  model_version_id: resourceIdSchema,
+  artifact_digest: sha256Schema,
   runtime: runtimeDescriptorSchema,
 });
 

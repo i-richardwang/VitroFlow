@@ -10,7 +10,6 @@ import {
   requireBlob,
 } from "./blobs";
 import { readDatasetSnapshot } from "./dataset-snapshots";
-import { readDataset } from "./datasets";
 import { collectUnreferencedModelWeights } from "./model-weight-collection";
 import { readModelVersion } from "./model-registry";
 import {
@@ -113,7 +112,7 @@ const publication = {
 test("a model has at most one active training run", async () => {
   await reviewedDataset("exclusive-run");
   const run = await createTrainingRun("exclusive-run", recipe);
-  expect(await countTrainingRuns(run.modelId)).toBe(1);
+  expect(await countTrainingRuns("exclusive-run")).toBe(1);
   expect(await countActiveTrainingRuns(run.modelId)).toBe(1);
   await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
     /still active/,
@@ -129,9 +128,9 @@ test("a model has at most one active training run", async () => {
   expect(next.id).not.toBe(run.id);
   expect((await claimTrainingRun(trainerOwner))?.id).toBe(next.id);
   await failTrainingRun(next.id, trainerOwner, "stopped");
-  expect(await countTrainingRuns(run.modelId)).toBe(2);
+  expect(await countTrainingRuns("exclusive-run")).toBe(2);
   await expect(
-    listTrainingRunSummaries({ modelId: run.modelId, limit: 101 }),
+    listTrainingRunSummaries({ datasetId: "exclusive-run", limit: 101 }),
   ).rejects.toThrow(/between 1 and 100/);
 });
 
@@ -241,9 +240,7 @@ test("the server publishes a candidate version idempotently without selecting it
   ) {
     throw new Error("missing ultralytics version");
   }
-  expect((await readDataset("publish-contract"))?.selectedModelVersionId).toBe(
-    dataset.selectedModelVersionId,
-  );
+  expect(dataset.modelId).toBe(version.modelId);
   expect(
     new TextDecoder().decode(
       await requireBlob(
@@ -421,7 +418,7 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
     learningRate: 0.001,
   });
   expect(
-    await listTrainingRunSummaries({ modelId: run.modelId, limit: 1 }),
+    await listTrainingRunSummaries({ datasetId: "epoch-history", limit: 1 }),
   ).toMatchObject([
     {
       dataset: "epoch-history",

@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { Page } from "../../components/Page";
 import { TrainDialog } from "../../components/training/TrainDialog";
 import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
-import { getTrainingConsole } from "../../server/models";
+import { getTrainingConsole } from "../../functions/training";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
   {

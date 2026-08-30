@@ -1,31 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
 
-import { DATASET_NAME } from "../datasets/schema";
-import { versionIdSchema } from "../inference/schema";
+import { datasetRefSchema } from "../datasets/schema";
+import { resourceIdSchema } from "../identifiers/schema";
 import { trainingOverridesSchema } from "../training/parameters";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { selectModelVersion } from "./datasets";
-import { datasetOverview } from "./overview";
 import {
   trainingConsole,
   trainingOverview,
   trainingRunDetail,
-} from "./training-console";
-import { createTrainingRun } from "./training-runs";
-
-const datasetInput = z.object({ dataset: z.string().regex(DATASET_NAME) });
-
-export const getDatasetOverview = createServerFn({ method: "GET" })
-  .validator(datasetInput)
-  .handler(({ data }) => datasetOverview(data.dataset));
-
-export const selectDatasetModelVersion = createServerFn({ method: "POST" })
-  .validator(datasetInput.extend({ versionId: versionIdSchema }))
-  .handler(({ data }) => selectModelVersion(data.dataset, data.versionId));
+} from "../server/training-console";
+import { createTrainingRun } from "../server/training-runs";
 
 export const getTrainingConsole = createServerFn({ method: "GET" })
-  .validator(datasetInput)
+  .validator(datasetRefSchema)
   .handler(({ data }) => trainingConsole(data.dataset));
 
 export const getTrainingOverview = createServerFn({ method: "GET" }).handler(
@@ -33,7 +20,7 @@ export const getTrainingOverview = createServerFn({ method: "GET" }).handler(
 );
 
 export const getTrainingRun = createServerFn({ method: "GET" })
-  .validator(datasetInput.extend({ runId: versionIdSchema }))
+  .validator(datasetRefSchema.extend({ runId: resourceIdSchema }))
   .handler(({ data }) => trainingRunDetail(data.dataset, data.runId));
 
 /**
@@ -41,7 +28,7 @@ export const getTrainingRun = createServerFn({ method: "GET" })
  * of the recipe with the chosen parameters.
  */
 export const startTrainingRun = createServerFn({ method: "POST" })
-  .validator(datasetInput.extend({ overrides: trainingOverridesSchema }))
+  .validator(datasetRefSchema.extend({ overrides: trainingOverridesSchema }))
   .handler(({ data }) =>
     createTrainingRun(data.dataset, {
       ...YOLO26_SEED_SMALL_RECIPE,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { boundingBoxSchema } from "../annotation/schema";
-import { imageDigestSchema } from "../datasets/schema";
+import { imageDigestSchema } from "../images/schema";
 import { detectionProducerSchema } from "../inference/schema";
 
 const warningCodeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);

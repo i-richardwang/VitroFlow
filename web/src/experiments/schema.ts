@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { imageDigestSchema } from "../datasets/schema";
-import { versionIdSchema } from "../inference/schema";
+import { resourceIdSchema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
 
 export const experimentIdSchema = z.uuid();
 export const roundIdSchema = z.uuid();
@@ -22,7 +22,7 @@ export const experimentSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: experimentIdSchema,
   name: experimentNameSchema,
-  modelVersionId: versionIdSchema,
+  modelVersionId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -30,7 +30,7 @@ export type Experiment = z.infer<typeof experimentSchema>;
 
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
-  modelVersionId: versionIdSchema,
+  modelVersionId: resourceIdSchema,
 });
 
 /** One experiment resource addressed by a workbench route. */
