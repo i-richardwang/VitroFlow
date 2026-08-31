@@ -14,7 +14,7 @@ import { useState } from "react";
 import { startExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import type { Model, ModelVersion } from "../../models/schema";
-import { ExperimentFields } from "./ExperimentFields";
+import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
 export function NewExperimentDialog({
   versions,
@@ -66,8 +66,7 @@ function NewExperimentModal({
                     () =>
                       startExperiment({
                         data: {
-                          name: String(form.get("name") ?? ""),
-                          description: String(form.get("description") ?? ""),
+                          ...readExperimentFields(form),
                           modelVersionId: String(form.get("version") ?? ""),
                         },
                       }),
@@ -102,18 +101,13 @@ function NewExperimentModal({
                       </Select.Trigger>
                       <Select.Popover>
                         <ListBox>
-                          {versions.map(({ model, version }) => (
+                          {versions.map(({ version }) => (
                             <ListBox.Item
                               key={version.id}
                               id={version.id}
-                              textValue={`${model.name} ${version.name}`}
+                              textValue={version.name}
                             >
-                              <span className="flex min-w-0 flex-col">
-                                <Label>{model.name}</Label>
-                                <span className="truncate text-xs text-muted">
-                                  {version.name}
-                                </span>
-                              </span>
+                              <Label>{version.name}</Label>
                               <ListBox.ItemIndicator />
                             </ListBox.Item>
                           ))}

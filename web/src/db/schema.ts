@@ -333,7 +333,14 @@ export const experiments = pgTable(
   {
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
-    description: text("description").notNull(),
+    /** The plant under culture: species, cultivar, or line. */
+    material: text("material").notNull(),
+    /** The tissue the dishes were started from. */
+    explant: text("explant").notNull(),
+    /** The base medium every treatment shares. */
+    medium: text("medium").notNull(),
+    /** The rest of the notebook page: conditions, goals, remarks. */
+    notes: text("notes").notNull(),
     modelVersionId: text("model_version_id")
       .notNull()
       .references(() => modelVersions.id),
@@ -346,8 +353,20 @@ export const experiments = pgTable(
       sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
     ),
     check(
-      "experiments_description_check",
-      sql`${table.description} = btrim(${table.description}) and length(${table.description}) <= 2000`,
+      "experiments_material_check",
+      sql`${table.material} = btrim(${table.material}) and length(${table.material}) <= 120`,
+    ),
+    check(
+      "experiments_explant_check",
+      sql`${table.explant} = btrim(${table.explant}) and length(${table.explant}) <= 120`,
+    ),
+    check(
+      "experiments_medium_check",
+      sql`${table.medium} = btrim(${table.medium}) and length(${table.medium}) <= 200`,
+    ),
+    check(
+      "experiments_notes_check",
+      sql`${table.notes} = btrim(${table.notes}) and length(${table.notes}) <= 2000`,
     ),
   ],
 );
@@ -364,6 +383,8 @@ export const experimentTreatments = pgTable(
       .references(() => experiments.id, { onDelete: "cascade" }),
     id: uuid("id").notNull(),
     name: text("name").notNull(),
+    /** How this condition differs from the others: the recipe, dose, or setting. */
+    description: text("description").notNull(),
     /** Where the treatment sits in the design; groups are shown in this order. */
     position: integer("position").notNull(),
   },
@@ -377,6 +398,10 @@ export const experimentTreatments = pgTable(
     check(
       "experiment_treatments_name_check",
       sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
+    ),
+    check(
+      "experiment_treatments_description_check",
+      sql`${table.description} = btrim(${table.description}) and length(${table.description}) <= 1000`,
     ),
     check("experiment_treatments_position_check", sql`${table.position} >= 1`),
   ],

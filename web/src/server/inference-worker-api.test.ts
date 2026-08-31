@@ -54,7 +54,10 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   const version = await baselineVersion();
   const experiment = await createExperiment({
     name: "API",
-    description: "",
+    material: "",
+    explant: "",
+    medium: "",
+    notes: "",
     modelVersionId: version.id,
   });
   await addRound({

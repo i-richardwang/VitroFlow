@@ -14,7 +14,7 @@ import type {
   ExperimentDishSeries,
   ExperimentPhoto,
 } from "../../experiments/contracts";
-import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
+import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 import { QualityWarnings } from "../QualityWarnings";
 import { Timestamp } from "../Timestamp";
@@ -63,7 +63,7 @@ export function DishWorkbench({
           <>
             {detection && <QualityWarnings quality={detection.quality} />}
             {(detection || shown.label) && <ReviewButton photo={shown} />}
-            <AddToDatasetDialog photos={[shown.ref]} datasets={datasets} />
+            <AddToDatasetButton photos={[shown.ref]} datasets={datasets} />
           </>
         ) : undefined
       }

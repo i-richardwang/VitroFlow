@@ -13,17 +13,41 @@ export const experimentNameSchema = z
   .min(1, "Experiment name is required")
   .max(120, "Experiment name must be at most 120 characters");
 
-/** What was done to the dishes and how they were kept, as the notebook says it. */
-export const experimentDescriptionSchema = z
+/** The plant under culture: species, cultivar, or line. */
+export const experimentMaterialSchema = z
   .string()
   .trim()
-  .max(2000, "Description must be at most 2000 characters");
+  .max(120, "Material must be at most 120 characters");
+
+/** The tissue the dishes were started from. */
+export const experimentExplantSchema = z
+  .string()
+  .trim()
+  .max(120, "Explant must be at most 120 characters");
+
+/** The base medium every treatment shares. */
+export const experimentMediumSchema = z
+  .string()
+  .trim()
+  .max(200, "Medium must be at most 200 characters");
+
+/** The rest of the notebook page: conditions, goals, remarks. */
+export const experimentNotesSchema = z
+  .string()
+  .trim()
+  .max(2000, "Notes must be at most 2000 characters");
 
 export const treatmentNameSchema = z
   .string()
   .trim()
   .min(1, "Treatment name is required")
   .max(120, "Treatment name must be at most 120 characters");
+
+/** How this condition differs from the others: the recipe, dose, or setting. */
+export const treatmentDescriptionSchema = z
+  .string()
+  .trim()
+  .max(1000, "Treatment description must be at most 1000 characters");
 
 export const roundLabelSchema = z
   .string()
@@ -34,7 +58,10 @@ export const roundLabelSchema = z
 export const experimentSchema = z.strictObject({
   id: experimentIdSchema,
   name: experimentNameSchema,
-  description: experimentDescriptionSchema,
+  material: experimentMaterialSchema,
+  explant: experimentExplantSchema,
+  medium: experimentMediumSchema,
+  notes: experimentNotesSchema,
   modelVersionId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
 });
@@ -43,7 +70,10 @@ export type Experiment = z.infer<typeof experimentSchema>;
 
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
-  description: experimentDescriptionSchema.default(""),
+  material: experimentMaterialSchema.default(""),
+  explant: experimentExplantSchema.default(""),
+  medium: experimentMediumSchema.default(""),
+  notes: experimentNotesSchema.default(""),
   modelVersionId: resourceIdSchema,
 });
 
@@ -54,7 +84,10 @@ export type ExperimentRequestInput = z.input<typeof experimentRequestSchema>;
 export const experimentUpdateSchema = z.strictObject({
   experiment: experimentIdSchema,
   name: experimentNameSchema,
-  description: experimentDescriptionSchema,
+  material: experimentMaterialSchema,
+  explant: experimentExplantSchema,
+  medium: experimentMediumSchema,
+  notes: experimentNotesSchema,
 });
 
 export type ExperimentUpdate = z.infer<typeof experimentUpdateSchema>;
@@ -97,6 +130,7 @@ export type RoundUpdate = z.infer<typeof roundUpdateSchema>;
 export const treatmentSchema = z.strictObject({
   id: treatmentIdSchema,
   name: treatmentNameSchema,
+  description: treatmentDescriptionSchema,
   position: z.number().int().min(1),
 });
 
@@ -112,12 +146,14 @@ export type TreatmentRef = z.infer<typeof treatmentRefSchema>;
 export const treatmentRequestSchema = z.strictObject({
   experiment: experimentIdSchema,
   name: treatmentNameSchema,
+  description: treatmentDescriptionSchema.default(""),
 });
 
 export type TreatmentRequest = z.infer<typeof treatmentRequestSchema>;
 
 export const treatmentUpdateSchema = treatmentRefSchema.extend({
   name: treatmentNameSchema,
+  description: treatmentDescriptionSchema,
 });
 
 export type TreatmentUpdate = z.infer<typeof treatmentUpdateSchema>;
@@ -132,8 +168,10 @@ export const dishRefSchema = z.strictObject({
 
 export type DishRef = z.infer<typeof dishRefSchema>;
 
-/** Which treatment a dish replicates; none returns it to the unassigned rows. */
-export const dishAssignmentSchema = dishRefSchema.extend({
+/** Which treatment the dishes replicate; none returns them to the unassigned rows. */
+export const dishAssignmentSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  dishes: z.array(dishLabelSchema).min(1),
   treatment: treatmentIdSchema.nullable(),
 });
 

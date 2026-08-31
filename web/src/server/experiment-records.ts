@@ -22,7 +22,10 @@ export function toExperiment(row: typeof experiments.$inferSelect): Experiment {
   return experimentSchema.parse({
     id: row.id,
     name: row.name,
-    description: row.description,
+    material: row.material,
+    explant: row.explant,
+    medium: row.medium,
+    notes: row.notes,
     modelVersionId: row.modelVersionId,
     createdAt: row.createdAt.toISOString(),
   });
@@ -34,6 +37,7 @@ export function toTreatment(
   return treatmentSchema.parse({
     id: row.id,
     name: row.name,
+    description: row.description,
     position: row.position,
   });
 }

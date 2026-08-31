@@ -22,17 +22,16 @@ import { useAsyncAction } from "../../hooks/useAsyncAction";
 
 const NEW_DATASET = "\0new";
 
-export function AddToDatasetDialog({
+export function AddToDatasetButton({
   photos,
   datasets,
-  label = "Add to dataset",
+  heading = "Add to dataset",
 }: {
   photos: PhotoRef[];
   datasets: string[];
-  label?: string;
+  heading?: string;
 }) {
   const [open, setOpen] = useState(false);
-
   return (
     <>
       <Button
@@ -40,29 +39,30 @@ export function AddToDatasetDialog({
         isDisabled={photos.length === 0}
         onPress={() => setOpen(true)}
       >
-        {label}
+        {heading}
       </Button>
-      {open ? (
-        <AddToDatasetModal
-          photos={photos}
-          datasets={datasets}
-          label={label}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
+      <AddToDatasetDialog
+        isOpen={open}
+        photos={photos}
+        datasets={datasets}
+        heading={heading}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }
 
-function AddToDatasetModal({
+export function AddToDatasetDialog({
+  isOpen,
   photos,
   datasets,
-  label,
+  heading = "Add to dataset",
   onClose,
 }: {
+  isOpen: boolean;
   photos: PhotoRef[];
   datasets: string[];
-  label: string;
+  heading?: string;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -70,13 +70,13 @@ function AddToDatasetModal({
   const [choice, setChoice] = useState(datasets[0] ?? NEW_DATASET);
 
   return (
-    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>{label}</Modal.Heading>
+              <Modal.Heading>{heading}</Modal.Heading>
               <Description>
                 Reviewed boxes for this model come with the photographs.
               </Description>

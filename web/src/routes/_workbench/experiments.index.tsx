@@ -38,6 +38,7 @@ function ExperimentsPage() {
           <Table.Content aria-label="Experiments">
             <Table.Header>
               <Table.Column isRowHeader>Experiment</Table.Column>
+              <Table.Column>Material</Table.Column>
               <Table.Column>Created</Table.Column>
               <Table.Column>Version</Table.Column>
               <Table.Column className="text-right">Dishes</Table.Column>
@@ -67,6 +68,9 @@ function ExperimentsPage() {
                   >
                     <Table.Cell className="font-medium">
                       {experiment.name}
+                    </Table.Cell>
+                    <Table.Cell className="truncate text-muted">
+                      {experiment.material || "—"}
                     </Table.Cell>
                     <Table.Cell className="text-muted">
                       <Timestamp value={experiment.createdAt} />

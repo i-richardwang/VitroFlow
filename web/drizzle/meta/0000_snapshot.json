@@ -1,5 +1,5 @@
 {
-  "id": "3a4d70c0-9be0-4d0e-a9b6-477c11be1017",
+  "id": "10d1c943-16e9-4cfb-8e1c-88372f72f0d6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -756,6 +756,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "position": {
           "name": "position",
           "type": "integer",
@@ -812,6 +818,10 @@
           "name": "experiment_treatments_name_check",
           "value": "\"experiment_treatments\".\"name\" = btrim(\"experiment_treatments\".\"name\") and length(\"experiment_treatments\".\"name\") between 1 and 120"
         },
+        "experiment_treatments_description_check": {
+          "name": "experiment_treatments_description_check",
+          "value": "\"experiment_treatments\".\"description\" = btrim(\"experiment_treatments\".\"description\") and length(\"experiment_treatments\".\"description\") <= 1000"
+        },
         "experiment_treatments_position_check": {
           "name": "experiment_treatments_position_check",
           "value": "\"experiment_treatments\".\"position\" >= 1"
@@ -835,8 +845,26 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
+        "material": {
+          "name": "material",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "explant": {
+          "name": "explant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "medium": {
+          "name": "medium",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -894,9 +922,21 @@
           "name": "experiments_name_check",
           "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120"
         },
-        "experiments_description_check": {
-          "name": "experiments_description_check",
-          "value": "\"experiments\".\"description\" = btrim(\"experiments\".\"description\") and length(\"experiments\".\"description\") <= 2000"
+        "experiments_material_check": {
+          "name": "experiments_material_check",
+          "value": "\"experiments\".\"material\" = btrim(\"experiments\".\"material\") and length(\"experiments\".\"material\") <= 120"
+        },
+        "experiments_explant_check": {
+          "name": "experiments_explant_check",
+          "value": "\"experiments\".\"explant\" = btrim(\"experiments\".\"explant\") and length(\"experiments\".\"explant\") <= 120"
+        },
+        "experiments_medium_check": {
+          "name": "experiments_medium_check",
+          "value": "\"experiments\".\"medium\" = btrim(\"experiments\".\"medium\") and length(\"experiments\".\"medium\") <= 200"
+        },
+        "experiments_notes_check": {
+          "name": "experiments_notes_check",
+          "value": "\"experiments\".\"notes\" = btrim(\"experiments\".\"notes\") and length(\"experiments\".\"notes\") <= 2000"
         }
       },
       "isRLSEnabled": false

@@ -201,7 +201,10 @@ export async function photographRound(
   const selectedVersion = version ?? (await baselineVersion());
   const experiment = await createExperiment({
     name: experimentName,
-    description: "",
+    material: "",
+    explant: "",
+    medium: "",
+    notes: "",
     modelVersionId: selectedVersion.id,
   });
   const digests = await storeTexts(contents);

@@ -1,17 +1,41 @@
+import { ActionBar } from "@heroui-pro/react/action-bar";
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Label, Link, ListBox, Select, Table, Tooltip } from "@heroui/react";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Chip,
+  Dropdown,
+  Label,
+  Link,
+  ListBox,
+  Select,
+  Separator,
+  Table,
+  toast,
+  Tooltip,
+  type Selection,
+} from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { z } from "zod";
 
-import { AddToDatasetDialog } from "../../components/dataset/AddToDatasetDialog";
+import { DishTreatmentMenu } from "../../components/experiment/DishTreatmentMenu";
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
 import { RoundDialog } from "../../components/experiment/RoundDialog";
 import { RoundMenu } from "../../components/experiment/RoundMenu";
-import { TreatmentsDialog } from "../../components/experiment/TreatmentsDialog";
+import { TreatmentChoices } from "../../components/experiment/TreatmentChoices";
+import { TreatmentDot } from "../../components/experiment/TreatmentDot";
+import { CloseIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
+import { inferTreatments } from "../../experiments/naming";
 import { experimentIdSchema, type Treatment } from "../../experiments/schema";
-import { getExperimentGrid } from "../../functions/experiments";
+import {
+  getExperimentGrid,
+  groupDishesByName,
+  placeDishes,
+} from "../../functions/experiments";
+import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import {
   formatReading,
@@ -20,7 +44,7 @@ import {
   type Reading,
   type Tally,
 } from "../../models/readings";
-import { primaryReading } from "../../models/schema";
+import { primaryReading, versionSlug } from "../../models/schema";
 import type {
   ExperimentDish,
   ExperimentGrid,
@@ -75,21 +99,27 @@ function ExperimentPage() {
   const cells = new Map<string, PhotoCell>();
   for (const photo of photos)
     cells.set(cellKey(photo.dish, photo.round), photo);
+
+  const hasTreatments = treatments.length > 0;
   const groups = groupDishes(treatments, dishes);
+  const roster = groups.flatMap((group) => group.dishes);
+  const summaryKeys = hasTreatments
+    ? groups.map((group) => groupKey(group.treatment))
+    : [];
+  const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
+  const selected = pickedLabels(selectedKeys, roster);
 
   return (
     <Page
       title={experiment.name}
-      description={
-        <span className="flex flex-col gap-1">
-          {experiment.description ? (
-            <span className="whitespace-pre-line">
-              {experiment.description}
-            </span>
-          ) : null}
-          <span className="font-mono text-xs">{version.name}</span>
-        </span>
-      }
+      description={[
+        experiment.material,
+        experiment.explant,
+        experiment.medium,
+        versionSlug(version),
+      ]
+        .filter(Boolean)
+        .join(" · ")}
       actions={
         <>
           {model.readings.length > 1 && (
@@ -130,27 +160,16 @@ function ExperimentPage() {
               </Select.Popover>
             </Select>
           )}
-          {photos.length > 0 ? (
-            <AddToDatasetDialog
-              photos={photos.map((photo) => ({
-                experiment: experiment.id,
-                dish: photo.dish,
-                round: photo.round,
-              }))}
-              datasets={datasets}
-              label="Add all to dataset"
-            />
-          ) : null}
-          <TreatmentsDialog
-            experiment={experiment.id}
-            treatments={treatments}
-            dishes={dishes}
-          />
           <RoundDialog
             experiment={experiment.id}
             firstRound={rounds.length === 0}
           />
-          <ExperimentMenu experiment={experiment} />
+          <ExperimentMenu
+            experiment={experiment}
+            treatments={treatments}
+            photos={photos}
+            datasets={datasets}
+          />
         </>
       }
     >
@@ -164,80 +183,260 @@ function ExperimentPage() {
           </EmptyState.Header>
         </EmptyState>
       ) : (
-        <Table>
-          <Table.ScrollContainer>
-            <Table.Content aria-label={`${reading.name} in ${experiment.name}`}>
-              <Table.Header>
-                <Table.Column isRowHeader>Dish</Table.Column>
-                {rounds.map((round) => (
-                  <Table.Column key={round.id} className="text-right">
-                    <RoundMenu experiment={experiment.id} round={round} />
-                  </Table.Column>
-                ))}
-              </Table.Header>
-              <Table.Body>
-                {groups.flatMap((group) => [
-                  ...(group.kind === "treatment"
-                    ? [
-                        <Table.Row key={groupKey(group.treatment)}>
-                          <Table.Cell className="font-medium">
-                            {group.treatment?.name ?? (
-                              <span className="text-muted">Unassigned</span>
-                            )}
-                          </Table.Cell>
-                          {rounds.map((round) => (
-                            <Table.Cell
-                              key={round.id}
-                              className="text-right font-mono font-medium tabular-nums"
-                            >
-                              {group.treatment ? (
-                                <MeanCell
-                                  reading={reading}
-                                  photos={group.dishes.flatMap(
-                                    (dish) =>
-                                      cells.get(
-                                        cellKey(dish.label, round.id),
-                                      ) ?? [],
-                                  )}
+        <>
+          <UnassignedAlert experiment={experiment.id} dishes={dishes} />
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content
+                aria-label={`${reading.name} in ${experiment.name}`}
+                selectionMode={hasTreatments ? "multiple" : "none"}
+                disabledKeys={summaryKeys}
+                selectedKeys={selectedKeys}
+                onSelectionChange={setSelectedKeys}
+              >
+                <Table.Header>
+                  {hasTreatments ? (
+                    <Table.Column className="pe-0">
+                      <Checkbox aria-label="Select all dishes" slot="selection">
+                        <Checkbox.Content>
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                        </Checkbox.Content>
+                      </Checkbox>
+                    </Table.Column>
+                  ) : null}
+                  <Table.Column isRowHeader>Dish</Table.Column>
+                  {rounds.map((round) => (
+                    <Table.Column key={round.id} className="text-right">
+                      <RoundMenu experiment={experiment.id} round={round} />
+                    </Table.Column>
+                  ))}
+                </Table.Header>
+                <Table.Body>
+                  {groups.flatMap((group) => [
+                    ...(hasTreatments
+                      ? [
+                          <Table.Row
+                            key={groupKey(group.treatment)}
+                            id={groupKey(group.treatment)}
+                            className="bg-surface/30 [--disabled-opacity:1]"
+                          >
+                            <Table.Cell className="pe-0" />
+                            <Table.Cell className="font-medium">
+                              <span className="flex items-center gap-2">
+                                <TreatmentDot
+                                  position={group.treatment?.position ?? null}
                                 />
-                              ) : null}
+                                {group.treatment?.name ?? (
+                                  <span className="text-muted">Unassigned</span>
+                                )}
+                              </span>
                             </Table.Cell>
-                          ))}
-                        </Table.Row>,
-                      ]
-                    : []),
-                  ...group.dishes.map((dish) => (
-                    <Table.Row key={dish.label}>
-                      <Table.Cell
-                        className={`font-mono font-medium ${group.kind === "treatment" ? "pl-8" : ""}`}
+                            {rounds.map((round) => (
+                              <Table.Cell
+                                key={round.id}
+                                className="text-right font-mono font-medium tabular-nums"
+                              >
+                                {group.treatment ? (
+                                  <MeanCell
+                                    reading={reading}
+                                    photos={group.dishes.flatMap(
+                                      (dish) =>
+                                        cells.get(
+                                          cellKey(dish.label, round.id),
+                                        ) ?? [],
+                                    )}
+                                  />
+                                ) : null}
+                              </Table.Cell>
+                            ))}
+                          </Table.Row>,
+                        ]
+                      : []),
+                    ...group.dishes.map((dish) => (
+                      <Table.Row
+                        key={dishKey(dish.label)}
+                        id={dishKey(dish.label)}
                       >
-                        <Link
-                          href={`/experiments/${experiment.id}/${encodeURIComponent(dish.label)}`}
-                        >
-                          {dish.label}
-                        </Link>
-                      </Table.Cell>
-                      {rounds.map((round) => (
+                        {hasTreatments ? (
+                          <Table.Cell className="pe-0">
+                            <Checkbox
+                              aria-label={`Select dish ${dish.label}`}
+                              slot="selection"
+                              variant="secondary"
+                            >
+                              <Checkbox.Content>
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                              </Checkbox.Content>
+                            </Checkbox>
+                          </Table.Cell>
+                        ) : null}
                         <Table.Cell
-                          key={round.id}
-                          className="text-right font-mono tabular-nums"
+                          className={`font-mono font-medium ${hasTreatments ? "pl-8" : ""}`}
                         >
-                          <Cell
-                            experiment={experiment.id}
-                            reading={reading}
-                            photo={cells.get(cellKey(dish.label, round.id))}
-                          />
+                          <span className="flex items-center gap-1">
+                            {hasTreatments ? (
+                              <DishTreatmentMenu
+                                experiment={experiment.id}
+                                dish={dish}
+                                treatments={treatments}
+                              />
+                            ) : null}
+                            <Link
+                              href={`/experiments/${experiment.id}/${encodeURIComponent(dish.label)}`}
+                            >
+                              {dish.label}
+                            </Link>
+                          </span>
                         </Table.Cell>
-                      ))}
-                    </Table.Row>
-                  )),
-                ])}
-              </Table.Body>
-            </Table.Content>
-          </Table.ScrollContainer>
-        </Table>
+                        {rounds.map((round) => (
+                          <Table.Cell
+                            key={round.id}
+                            className="text-right font-mono tabular-nums"
+                          >
+                            <Cell
+                              experiment={experiment.id}
+                              reading={reading}
+                              photo={cells.get(cellKey(dish.label, round.id))}
+                            />
+                          </Table.Cell>
+                        ))}
+                      </Table.Row>
+                    )),
+                  ])}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+          {hasTreatments ? (
+            <AssignmentBar
+              experiment={experiment.id}
+              treatments={treatments}
+              selected={selected}
+              onDone={() => setSelectedKeys(new Set())}
+            />
+          ) : null}
+        </>
       )}
     </Page>
+  );
+}
+
+function AssignmentBar({
+  experiment,
+  treatments,
+  selected,
+  onDone,
+}: {
+  experiment: string;
+  treatments: Treatment[];
+  selected: string[];
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const { busy, run } = useAsyncAction();
+  return (
+    <ActionBar isOpen={selected.length > 0} aria-label="Selected dishes">
+      <ActionBar.Prefix>
+        <Chip size="sm" className="tabular-nums">
+          {selected.length}
+        </Chip>
+      </ActionBar.Prefix>
+      <Separator />
+      <ActionBar.Content>
+        <Dropdown>
+          <Button size="sm" variant="ghost" isDisabled={busy}>
+            Assign to…
+          </Button>
+          <TreatmentChoices
+            label={`Treatment of ${selected.length} selected dishes`}
+            treatments={treatments}
+            onPick={(treatment) => {
+              void run(
+                () =>
+                  placeDishes({
+                    data: { experiment, dishes: selected, treatment },
+                  }),
+                "Dishes not assigned",
+              ).then(async (result) => {
+                if (!result.ok) return;
+                onDone();
+                await router.invalidate();
+              });
+            }}
+          />
+        </Dropdown>
+      </ActionBar.Content>
+      <Separator />
+      <ActionBar.Suffix>
+        <Tooltip delay={0}>
+          <Button
+            size="sm"
+            variant="ghost"
+            isIconOnly
+            isDisabled={busy}
+            aria-label="Clear selection"
+            onPress={onDone}
+          >
+            <CloseIcon />
+          </Button>
+          <Tooltip.Content>Clear</Tooltip.Content>
+        </Tooltip>
+      </ActionBar.Suffix>
+    </ActionBar>
+  );
+}
+
+function UnassignedAlert({
+  experiment,
+  dishes,
+}: {
+  experiment: string;
+  dishes: ExperimentDish[];
+}) {
+  const router = useRouter();
+  const { busy, run } = useAsyncAction();
+  const unassigned = dishes.filter((dish) => dish.treatment === null);
+  if (unassigned.length === 0) return null;
+  const unassignedNames = new Set(unassigned.map((dish) => dish.label));
+  const groupable = inferTreatments(dishes.map((dish) => dish.label)).some(
+    (group) => group.dishes.some((dish) => unassignedNames.has(dish)),
+  );
+  return (
+    <Alert status="warning">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>
+          {unassigned.length === 1
+            ? "1 dish is not assigned"
+            : `${unassigned.length} dishes are not assigned`}
+        </Alert.Title>
+      </Alert.Content>
+      {groupable ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={busy}
+          onPress={() => {
+            void run(
+              () => groupDishesByName({ data: { experiment } }),
+              "Dishes not grouped",
+            ).then(async (result) => {
+              if (!result.ok) return;
+              toast.success(
+                `${result.value} ${result.value === 1 ? "dish" : "dishes"} grouped by name`,
+              );
+              await router.invalidate();
+            });
+          }}
+        >
+          Group by dish name
+        </Button>
+      ) : null}
+    </Alert>
   );
 }
 
@@ -245,32 +444,40 @@ function cellKey(dish: string, round: string): string {
   return `${round}\0${dish}`;
 }
 
-type DishGroup =
-  | { kind: "flat"; dishes: ExperimentDish[] }
-  | {
-      kind: "treatment";
-      treatment: Treatment | null;
-      dishes: ExperimentDish[];
-    };
+interface DishGroup {
+  treatment: Treatment | null;
+  dishes: ExperimentDish[];
+}
 
 function groupDishes(
   treatments: Treatment[],
   dishes: ExperimentDish[],
 ): DishGroup[] {
-  if (treatments.length === 0) return [{ kind: "flat", dishes }];
+  if (treatments.length === 0) return [{ treatment: null, dishes }];
   const groups: DishGroup[] = treatments.map((treatment) => ({
-    kind: "treatment",
     treatment,
     dishes: dishes.filter((dish) => dish.treatment === treatment.id),
   }));
   const unassigned = dishes.filter((dish) => dish.treatment === null);
   if (unassigned.length > 0)
-    groups.push({ kind: "treatment", treatment: null, dishes: unassigned });
+    groups.push({ treatment: null, dishes: unassigned });
   return groups;
 }
 
 function groupKey(treatment: Treatment | null): string {
-  return treatment ? `treatment:${treatment.id}` : "unassigned";
+  return treatment ? `group:${treatment.id}` : "group:unassigned";
+}
+
+function dishKey(label: string): string {
+  return `dish:${label}`;
+}
+
+function pickedLabels(keys: Selection, dishes: ExperimentDish[]): string[] {
+  if (keys === "all") return dishes.map((dish) => dish.label);
+  const labels = new Map(
+    dishes.map((dish) => [dishKey(dish.label), dish.label]),
+  );
+  return [...keys].flatMap((key) => labels.get(String(key)) ?? []);
 }
 
 function tallyShown(photo: PhotoCell): Tally | null {
@@ -284,16 +491,19 @@ function MeanCell({
   reading: Reading;
   photos: PhotoCell[];
 }) {
-  const tallies = photos.flatMap((photo) => {
-    const counts = tallyShown(photo);
-    return counts ? [counts] : [];
-  });
-  if (tallies.length === 0) return <span className="text-muted">—</span>;
+  const tallies = photos
+    .map(tallyShown)
+    .filter((tally): tally is Tally => tally !== null);
   const summary = summarize(reading, tallies);
   if (summary.value === null) return <span className="text-muted">—</span>;
-  return explain(
-    `Mean of ${summary.sampleSize} ${summary.sampleSize === 1 ? "dish" : "dishes"}`,
-    <span>{formatReading(reading, summary.value)}</span>,
+  const formatted = formatReading(reading, summary.value);
+  return (
+    <span
+      aria-label={`${formatted}, mean of ${summary.sampleSize} ${summary.sampleSize === 1 ? "dish" : "dishes"}`}
+    >
+      {formatted}
+      <span className="ml-1 text-xs text-muted">n={summary.sampleSize}</span>
+    </span>
   );
 }
 

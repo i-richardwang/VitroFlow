@@ -1,76 +1,53 @@
 import {
   Button,
   Description,
+  Fieldset,
   Form,
   Input,
   Label,
-  ListBox,
   Modal,
-  Select,
-  Separator,
   TextField,
+  Tooltip,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { Treatment } from "../../experiments/schema";
+import {
+  treatmentDescriptionSchema,
+  treatmentNameSchema,
+  type Treatment,
+} from "../../experiments/schema";
 import {
   createTreatment,
   editTreatment,
-  placeDish,
   removeTreatment,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import type { ExperimentDish } from "../../experiments/contracts";
 import { DeleteDialog } from "../DeleteDialog";
 import { CloseIcon } from "../icons";
-
-const UNASSIGNED = "unassigned";
+import { TreatmentDot } from "./TreatmentDot";
 
 export function TreatmentsDialog({
   experiment,
   treatments,
-  dishes,
-}: {
-  experiment: string;
-  treatments: Treatment[];
-  dishes: ExperimentDish[];
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Button variant="secondary" onPress={() => setOpen(true)}>
-        Treatments
-      </Button>
-      {open ? (
-        <TreatmentsModal
-          experiment={experiment}
-          treatments={treatments}
-          dishes={dishes}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function TreatmentsModal({
-  experiment,
-  treatments,
-  dishes,
+  isOpen,
   onClose,
 }: {
   experiment: string;
   treatments: Treatment[];
-  dishes: ExperimentDish[];
+  isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<Treatment | null>(null);
   const { busy, run } = useAsyncAction();
 
-  const mutate = async (work: () => Promise<unknown>, failure: string) => {
+  const close = () => {
+    setDeleting(null);
+    onClose();
+  };
+
+  const mutate = async <T,>(work: () => Promise<T>, failure: string) => {
     const result = await run(work, failure);
     if (result.ok) await router.invalidate();
     return result;
@@ -78,7 +55,7 @@ function TreatmentsModal({
 
   return (
     <>
-      <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <Modal isOpen={isOpen} onOpenChange={(next) => !next && close()}>
         <Modal.Backdrop>
           <Modal.Container size="md">
             <Modal.Dialog>
@@ -86,150 +63,96 @@ function TreatmentsModal({
               <Modal.Header>
                 <Modal.Heading>Treatments</Modal.Heading>
                 <Description>
-                  The conditions this experiment compares. Dishes under one
-                  treatment are its replicates; the grid groups and averages
-                  them.
+                  The conditions dishes replicate. Assign each dish from the
+                  color on its row.
                 </Description>
               </Modal.Header>
-              <Modal.Body className="flex flex-col gap-5">
-                <ul className="flex flex-col gap-2">
-                  {treatments.map((treatment) => (
-                    <li key={treatment.id} className="flex items-center gap-2">
-                      <TextField
-                        aria-label={`Treatment ${treatment.position}`}
-                        variant="secondary"
-                        fullWidth
-                        isDisabled={busy}
-                        defaultValue={treatment.name}
-                        onBlur={(event) => {
-                          const name = event.currentTarget.value.trim();
-                          if (!name || name === treatment.name) return;
-                          void mutate(
-                            () =>
-                              editTreatment({
-                                data: {
-                                  experiment,
-                                  treatment: treatment.id,
-                                  name,
-                                },
-                              }),
-                            "Treatment not renamed",
-                          );
-                        }}
-                      >
-                        <Input />
-                      </TextField>
-                      <Button
-                        variant="ghost"
-                        isIconOnly
-                        aria-label={`Remove ${treatment.name}`}
-                        isDisabled={busy}
-                        onPress={() => setDeleting(treatment)}
-                      >
-                        <CloseIcon />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
+              <Modal.Body
+                key={isOpen ? "open" : "closed"}
+                className="flex flex-col gap-6"
+              >
+                {treatments.length > 0 ? (
+                  <Fieldset className="w-full">
+                    <Fieldset.Group>
+                      {treatments.map((treatment) => (
+                        <TreatmentEditor
+                          key={`${treatment.id}:${treatment.name}:${treatment.description}`}
+                          treatment={treatment}
+                          busy={busy}
+                          onSave={async (name, description) => {
+                            const result = await mutate(
+                              () =>
+                                editTreatment({
+                                  data: {
+                                    experiment,
+                                    treatment: treatment.id,
+                                    name,
+                                    description,
+                                  },
+                                }),
+                              "Treatment not saved",
+                            );
+                            return result.ok ? result.value : null;
+                          }}
+                          onRemove={() => setDeleting(treatment)}
+                        />
+                      ))}
+                    </Fieldset.Group>
+                  </Fieldset>
+                ) : null}
                 <Form
-                  className="flex items-end gap-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const input = event.currentTarget;
-                    const name = String(new FormData(input).get("name") ?? "");
+                    const form = new FormData(input);
                     void mutate(
-                      () => createTreatment({ data: { experiment, name } }),
+                      () =>
+                        createTreatment({
+                          data: {
+                            experiment,
+                            name: String(form.get("name") ?? ""),
+                            description: String(form.get("description") ?? ""),
+                          },
+                        }),
                       "Treatment not added",
                     ).then((result) => {
                       if (result.ok) input.reset();
                     });
                   }}
                 >
-                  <TextField
-                    variant="secondary"
-                    fullWidth
-                    isRequired
-                    isDisabled={busy}
-                    name="name"
-                  >
-                    <Label>New treatment</Label>
-                    <Input placeholder="MS + 6-BA 1.0 mg/L" />
-                  </TextField>
-                  <Button type="submit" variant="secondary" isDisabled={busy}>
-                    Add
-                  </Button>
-                </Form>
-
-                {dishes.length > 0 && treatments.length > 0 ? (
-                  <>
-                    <Separator />
-                    <ul className="flex flex-col gap-2">
-                      {dishes.map((dish) => (
-                        <li
-                          key={dish.label}
-                          className="flex items-center justify-between gap-4"
+                  <Fieldset className="w-full">
+                    <Fieldset.Group>
+                      <div className="flex items-end gap-3">
+                        <TextField
+                          variant="secondary"
+                          className="w-36 shrink-0"
+                          isRequired
+                          isDisabled={busy}
+                          name="name"
                         >
-                          <span className="font-mono font-medium">
-                            {dish.label}
-                          </span>
-                          <Select
-                            aria-label={`Treatment of dish ${dish.label}`}
-                            variant="secondary"
-                            className="w-56"
-                            isDisabled={busy}
-                            selectedKey={dish.treatment ?? UNASSIGNED}
-                            onSelectionChange={(key) => {
-                              const treatment =
-                                key === null || key === UNASSIGNED
-                                  ? null
-                                  : String(key);
-                              if (treatment === dish.treatment) return;
-                              void mutate(
-                                () =>
-                                  placeDish({
-                                    data: {
-                                      experiment,
-                                      dish: dish.label,
-                                      treatment,
-                                    },
-                                  }),
-                                "Dish not assigned",
-                              );
-                            }}
-                          >
-                            <Select.Trigger>
-                              <Select.Value />
-                              <Select.Indicator />
-                            </Select.Trigger>
-                            <Select.Popover>
-                              <ListBox>
-                                <ListBox.Item
-                                  id={UNASSIGNED}
-                                  textValue="Unassigned"
-                                >
-                                  <Label className="text-muted">
-                                    Unassigned
-                                  </Label>
-                                  <ListBox.ItemIndicator />
-                                </ListBox.Item>
-                                {treatments.map((treatment) => (
-                                  <ListBox.Item
-                                    key={treatment.id}
-                                    id={treatment.id}
-                                    textValue={treatment.name}
-                                  >
-                                    <Label>{treatment.name}</Label>
-                                    <ListBox.ItemIndicator />
-                                  </ListBox.Item>
-                                ))}
-                              </ListBox>
-                            </Select.Popover>
-                          </Select>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                ) : null}
+                          <Label>Name</Label>
+                          <Input placeholder="T1" />
+                        </TextField>
+                        <TextField
+                          variant="secondary"
+                          className="min-w-0 flex-1"
+                          isDisabled={busy}
+                          name="description"
+                        >
+                          <Label>Description</Label>
+                          <Input placeholder="6-BA 1.0 + NAA 0.1 mg/L" />
+                        </TextField>
+                        <Button
+                          type="submit"
+                          variant="secondary"
+                          isDisabled={busy}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </Fieldset.Group>
+                  </Fieldset>
+                </Form>
               </Modal.Body>
             </Modal.Dialog>
           </Modal.Container>
@@ -237,7 +160,7 @@ function TreatmentsModal({
       </Modal>
       <DeleteDialog
         isOpen={deleting !== null}
-        onOpenChange={(isOpen) => !isOpen && setDeleting(null)}
+        onOpenChange={(next) => !next && setDeleting(null)}
         title={`Delete ${deleting?.name ?? "treatment"}?`}
         confirmLabel="Delete treatment"
         onConfirm={async () => {
@@ -251,5 +174,85 @@ function TreatmentsModal({
         Its dishes become unassigned. No photographs or reviews are removed.
       </DeleteDialog>
     </>
+  );
+}
+
+function TreatmentEditor({
+  treatment,
+  busy,
+  onSave,
+  onRemove,
+}: {
+  treatment: Treatment;
+  busy: boolean;
+  onSave: (name: string, description: string) => Promise<Treatment | null>;
+  onRemove: () => void;
+}) {
+  const [name, setName] = useState(treatment.name);
+  const [description, setDescription] = useState(treatment.description);
+  const normalized = { name: name.trim(), description: description.trim() };
+  const dirty =
+    normalized.name !== treatment.name ||
+    normalized.description !== treatment.description;
+  const valid =
+    treatmentNameSchema.safeParse(normalized.name).success &&
+    treatmentDescriptionSchema.safeParse(normalized.description).success;
+
+  return (
+    <Form
+      className="flex items-end gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!dirty || !valid) return;
+        void onSave(normalized.name, normalized.description).then((saved) => {
+          if (!saved) return;
+          setName(saved.name);
+          setDescription(saved.description);
+        });
+      }}
+    >
+      <TreatmentDot position={treatment.position} />
+      <TextField
+        aria-label={`${treatment.name} name`}
+        variant="secondary"
+        className="w-36 shrink-0"
+        isDisabled={busy}
+        value={name}
+        onChange={setName}
+      >
+        <Input />
+      </TextField>
+      <TextField
+        aria-label={`${treatment.name} description`}
+        variant="secondary"
+        className="min-w-0 flex-1"
+        isDisabled={busy}
+        value={description}
+        onChange={setDescription}
+      >
+        <Input placeholder="6-BA 1.0 + NAA 0.1 mg/L" />
+      </TextField>
+      <Button
+        type="submit"
+        size="sm"
+        variant="secondary"
+        isDisabled={busy || !dirty || !valid}
+      >
+        Save
+      </Button>
+      <Tooltip delay={0}>
+        <Button
+          type="button"
+          variant="ghost"
+          isIconOnly
+          aria-label={`Remove ${treatment.name}`}
+          isDisabled={busy}
+          onPress={onRemove}
+        >
+          <CloseIcon />
+        </Button>
+        <Tooltip.Content>Remove</Tooltip.Content>
+      </Tooltip>
+    </Form>
   );
 }

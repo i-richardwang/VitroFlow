@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { database, transaction } from "../db/client";
 import {
@@ -14,6 +14,7 @@ import {
   TreatmentNotFoundError,
   TreatmentRejectedError,
 } from "../experiments/errors";
+import { inferTreatments } from "../experiments/naming";
 import {
   type DishAssignment,
   type Experiment,
@@ -27,6 +28,7 @@ import {
 } from "../experiments/schema";
 import {
   atTreatment,
+  listDishes,
   listTreatments,
   lockExperiment,
   readExperimentRecord,
@@ -44,7 +46,7 @@ export async function readExperiment(
 export async function createExperiment(
   value: ExperimentRequest,
 ): Promise<Experiment> {
-  const { name, description, modelVersionId } = value;
+  const { name, material, explant, medium, notes, modelVersionId } = value;
   const version = await readModelVersion(modelVersionId);
   if (!version) throw new Error(`Unknown model version: ${modelVersionId}`);
   const [row] = await (
@@ -54,7 +56,10 @@ export async function createExperiment(
     .values({
       id: randomUUID(),
       name,
-      description,
+      material,
+      explant,
+      medium,
+      notes,
       modelVersionId,
       createdAt: new Date(),
     })
@@ -66,12 +71,12 @@ export async function createExperiment(
 export async function updateExperiment(
   value: ExperimentUpdate,
 ): Promise<Experiment> {
-  const { experiment, name, description } = value;
+  const { experiment, name, material, explant, medium, notes } = value;
   const [row] = await (
     await database()
   )
     .update(experiments)
-    .set({ name, description })
+    .set({ name, material, explant, medium, notes })
     .where(eq(experiments.id, experiment))
     .returning();
   if (!row) {
@@ -96,7 +101,7 @@ export async function deleteExperiment(value: ExperimentRef): Promise<void> {
 export async function addTreatment(
   value: TreatmentRequest,
 ): Promise<Treatment> {
-  const { experiment: experimentId, name } = value;
+  const { experiment: experimentId, name, description } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const existing = await listTreatments(experimentId, tx);
@@ -109,6 +114,7 @@ export async function addTreatment(
         experimentId,
         id: randomUUID(),
         name,
+        description,
         position: existing.length + 1,
       })
       .returning();
@@ -117,10 +123,15 @@ export async function addTreatment(
   });
 }
 
-export async function renameTreatment(
+export async function updateTreatment(
   value: TreatmentUpdate,
 ): Promise<Treatment> {
-  const { experiment: experimentId, treatment: treatmentId, name } = value;
+  const {
+    experiment: experimentId,
+    treatment: treatmentId,
+    name,
+    description,
+  } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const taken = (await listTreatments(experimentId, tx)).find(
@@ -131,7 +142,7 @@ export async function renameTreatment(
     }
     const [row] = await tx
       .update(experimentTreatments)
-      .set({ name })
+      .set({ name, description })
       .where(atTreatment(experimentId, treatmentId))
       .returning();
     if (!row) {
@@ -173,8 +184,77 @@ export async function deleteTreatment(value: TreatmentRef): Promise<void> {
   });
 }
 
-export async function assignDish(value: DishAssignment): Promise<void> {
-  const { experiment: experimentId, dish, treatment: treatmentId } = value;
+/**
+ * Groups the unassigned dishes by the treatments their names spell out,
+ * creating any treatment the roster names for the first time. Dishes whose
+ * names do not group, and dishes already assigned, are left alone.
+ */
+export async function assignDishesByName(
+  value: ExperimentRef,
+): Promise<number> {
+  const { experiment: experimentId } = value;
+  return transaction(async (tx) => {
+    await lockExperiment(experimentId, tx);
+    const dishes = await listDishes(experimentId, tx);
+    const plan = inferTreatments(dishes.map((dish) => dish.label));
+    if (plan.length === 0) {
+      throw new TreatmentRejectedError("Dish names spell out no treatments");
+    }
+    const unassigned = new Set(
+      dishes
+        .filter((dish) => dish.treatment === null)
+        .map((dish) => dish.label),
+    );
+    const pending = plan
+      .map((group) => ({
+        ...group,
+        dishes: group.dishes.filter((dish) => unassigned.has(dish)),
+      }))
+      .filter((group) => group.dishes.length > 0);
+    const existing = await listTreatments(experimentId, tx);
+    const byName = new Map(
+      existing.map((treatment) => [treatment.name, treatment.id]),
+    );
+    let position = existing.length;
+    for (const { name } of pending) {
+      if (byName.has(name)) continue;
+      position += 1;
+      const [row] = await tx
+        .insert(experimentTreatments)
+        .values({
+          experimentId,
+          id: randomUUID(),
+          name,
+          description: "",
+          position,
+        })
+        .returning();
+      if (!row) throw new Error("Treatment was not created");
+      byName.set(name, row.id);
+    }
+    let assigned = 0;
+    for (const { name, dishes: labels } of pending) {
+      const treatmentId = byName.get(name);
+      if (treatmentId === undefined) {
+        throw new Error(`Treatment ${name} was not created`);
+      }
+      await tx
+        .update(experimentDishes)
+        .set({ treatmentId })
+        .where(
+          and(
+            eq(experimentDishes.experimentId, experimentId),
+            inArray(experimentDishes.label, labels),
+          ),
+        );
+      assigned += labels.length;
+    }
+    return assigned;
+  });
+}
+
+export async function assignDishes(value: DishAssignment): Promise<void> {
+  const { experiment: experimentId, dishes, treatment: treatmentId } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     if (treatmentId !== null) {
@@ -186,16 +266,20 @@ export async function assignDish(value: DishAssignment): Promise<void> {
         throw new TreatmentNotFoundError(`Unknown treatment: ${treatmentId}`);
       }
     }
-    const [row] = await tx
+    const rows = await tx
       .update(experimentDishes)
       .set({ treatmentId })
       .where(
         and(
           eq(experimentDishes.experimentId, experimentId),
-          eq(experimentDishes.label, dish),
+          inArray(experimentDishes.label, dishes),
         ),
       )
       .returning({ label: experimentDishes.label });
-    if (!row) throw new DishNotFoundError(`Unknown dish: ${dish}`);
+    const updated = new Set(rows.map((row) => row.label));
+    const missing = dishes.filter((dish) => !updated.has(dish));
+    if (missing.length > 0) {
+      throw new DishNotFoundError(`Unknown dishes: ${missing.join(", ")}`);
+    }
   });
 }

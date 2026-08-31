@@ -49,9 +49,9 @@ Object creation is conditional. Identical writes are idempotent; content at an e
 
 A Model defines the classes detected in a photograph and the readings reduced from them. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
 
-An Experiment selects one ModelVersion when it is created. That version never changes, so readings remain comparable across rounds. The first round establishes the dish roster from filename stems. Later rounds may photograph any subset of that roster. Capture time determines round order.
+An Experiment records the plant material, explant, shared base medium, and notebook notes, and selects one ModelVersion when it is created. That version never changes, so readings remain comparable across rounds. The first round establishes the dish roster from filename stems. Later rounds may photograph any subset of that roster. Capture time determines round order.
 
-A Treatment groups replicate dishes. Each dish belongs to at most one treatment. Experiment grids show the selected reading per dish and the treatment mean across photographed replicates.
+A Treatment names and describes one experimental condition and groups its replicate dishes. Each dish belongs to at most one treatment. When a roster encodes at least two treatment names using `<treatment>-<replicate>`, `<treatment>_<replicate>`, or `<treatment> <replicate>`, those groups can be initialized explicitly. Experiment grids show the selected reading per dish and the arithmetic treatment mean across photographed replicates, preferring reviewed counts when present.
 
 An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. Those bytes determine the image digest, dimensions, browser view, inference input, and training input. Filenames describe experiment photographs; they do not identify image content.
 

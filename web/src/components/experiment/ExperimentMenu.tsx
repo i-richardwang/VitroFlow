@@ -5,37 +5,63 @@ import {
   Form,
   Label,
   Modal,
+  Separator,
   toast,
+  Tooltip,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { Experiment } from "../../experiments/schema";
+import type { PhotoCell } from "../../experiments/contracts";
+import type { Experiment, Treatment } from "../../experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DeleteDialog } from "../DeleteDialog";
 import { MoreIcon } from "../icons";
-import { ExperimentFields } from "./ExperimentFields";
+import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
+import { TreatmentsDialog } from "./TreatmentsDialog";
 
-type Action = "edit" | "delete";
+type Action = "treatments" | "dataset" | "edit" | "delete";
 
-export function ExperimentMenu({ experiment }: { experiment: Experiment }) {
+export function ExperimentMenu({
+  experiment,
+  treatments,
+  photos,
+  datasets,
+}: {
+  experiment: Experiment;
+  treatments: Treatment[];
+  photos: PhotoCell[];
+  datasets: string[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
+  const close = () => setOpen(null);
 
   return (
     <>
       <Dropdown>
-        <Button variant="ghost" isIconOnly aria-label="Experiment actions">
-          <MoreIcon />
-        </Button>
+        <Tooltip delay={0}>
+          <Button variant="ghost" isIconOnly aria-label="Experiment actions">
+            <MoreIcon />
+          </Button>
+          <Tooltip.Content>Actions</Tooltip.Content>
+        </Tooltip>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label="Experiment actions"
-            onAction={(key) => {
-              if (key === "edit" || key === "delete") setOpen(key);
-            }}
+            onAction={(key) => setOpen(String(key) as Action)}
           >
+            <Dropdown.Item id="treatments" textValue="Treatments">
+              <Label>Treatments…</Label>
+            </Dropdown.Item>
+            {photos.length > 0 ? (
+              <Dropdown.Item id="dataset" textValue="Add all to dataset">
+                <Label>Add all to dataset…</Label>
+              </Dropdown.Item>
+            ) : null}
+            <Separator />
             <Dropdown.Item id="edit" textValue="Edit details">
               <Label>Edit details…</Label>
             </Dropdown.Item>
@@ -50,16 +76,34 @@ export function ExperimentMenu({ experiment }: { experiment: Experiment }) {
         </Dropdown.Popover>
       </Dropdown>
 
-      {open === "edit" ? (
-        <EditExperimentModal
-          experiment={experiment}
-          onClose={() => setOpen(null)}
-        />
-      ) : null}
+      <TreatmentsDialog
+        experiment={experiment.id}
+        treatments={treatments}
+        isOpen={open === "treatments"}
+        onClose={close}
+      />
+
+      <AddToDatasetDialog
+        isOpen={open === "dataset"}
+        photos={photos.map((photo) => ({
+          experiment: experiment.id,
+          dish: photo.dish,
+          round: photo.round,
+        }))}
+        datasets={datasets}
+        heading="Add all to dataset"
+        onClose={close}
+      />
+
+      <EditExperimentDialog
+        experiment={experiment}
+        isOpen={open === "edit"}
+        onClose={close}
+      />
 
       <DeleteDialog
         isOpen={open === "delete"}
-        onOpenChange={(isOpen) => setOpen(isOpen ? "delete" : null)}
+        onOpenChange={(next) => setOpen(next ? "delete" : null)}
         title={`Delete ${experiment.name}?`}
         confirmLabel="Delete experiment"
         onConfirm={async () => {
@@ -76,18 +120,20 @@ export function ExperimentMenu({ experiment }: { experiment: Experiment }) {
   );
 }
 
-function EditExperimentModal({
+function EditExperimentDialog({
   experiment,
+  isOpen,
   onClose,
 }: {
   experiment: Experiment;
+  isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
 
   return (
-    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
@@ -95,7 +141,7 @@ function EditExperimentModal({
             <Modal.Header>
               <Modal.Heading>Edit experiment</Modal.Heading>
             </Modal.Header>
-            <Modal.Body>
+            <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -105,8 +151,7 @@ function EditExperimentModal({
                       editExperiment({
                         data: {
                           experiment: experiment.id,
-                          name: String(form.get("name") ?? ""),
-                          description: String(form.get("description") ?? ""),
+                          ...readExperimentFields(form),
                         },
                       }),
                     "Experiment not saved",

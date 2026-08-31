@@ -60,19 +60,15 @@ export function Workbench({
           >
             {children}
           </Card>
-          {inspector ? (
+          {inspector && !inspectorOpen ? (
             <Card className="hidden max-h-full w-80 shrink-0 gap-6 overflow-y-auto text-sm md:flex">
               {inspector}
             </Card>
           ) : null}
         </div>
       </div>
-      {inspector ? (
-        <Sheet
-          isOpen={inspectorOpen}
-          placement="right"
-          onOpenChange={setInspectorOpen}
-        >
+      {inspector && inspectorOpen ? (
+        <Sheet isOpen onOpenChange={setInspectorOpen} placement="right">
           <Sheet.Backdrop variant="blur">
             <Sheet.Content className="w-full max-w-sm">
               <Sheet.Dialog className="h-dvh">

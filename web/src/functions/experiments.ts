@@ -17,12 +17,13 @@ import {
 import { listDatasetsForModel } from "../server/datasets";
 import {
   addTreatment,
-  assignDish,
+  assignDishes,
+  assignDishesByName,
   createExperiment,
   deleteExperiment,
   deleteTreatment,
-  renameTreatment,
   updateExperiment,
+  updateTreatment,
 } from "../server/experiment-design";
 import {
   addRound,
@@ -98,15 +99,19 @@ export const createTreatment = createServerFn({ method: "POST" })
 
 export const editTreatment = createServerFn({ method: "POST" })
   .validator(treatmentUpdateSchema)
-  .handler(({ data }) => renameTreatment(data));
+  .handler(({ data }) => updateTreatment(data));
 
 export const removeTreatment = createServerFn({ method: "POST" })
   .validator(treatmentRefSchema)
   .handler(({ data }) => deleteTreatment(data));
 
-export const placeDish = createServerFn({ method: "POST" })
+export const placeDishes = createServerFn({ method: "POST" })
   .validator(dishAssignmentSchema)
-  .handler(({ data }) => assignDish(data));
+  .handler(({ data }) => assignDishes(data));
+
+export const groupDishesByName = createServerFn({ method: "POST" })
+  .validator(experimentRefSchema)
+  .handler(({ data }) => assignDishesByName(data));
 
 export const getExperimentDish = createServerFn({ method: "GET" })
   .validator(dishRequestSchema)

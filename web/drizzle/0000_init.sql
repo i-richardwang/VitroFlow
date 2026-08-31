@@ -72,22 +72,30 @@ CREATE TABLE "experiment_treatments" (
 	"experiment_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
 	"name" text NOT NULL,
+	"description" text NOT NULL,
 	"position" integer NOT NULL,
 	CONSTRAINT "experiment_treatments_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
 	CONSTRAINT "experiment_treatments_name" UNIQUE("experiment_id","name"),
 	CONSTRAINT "experiment_treatments_position" UNIQUE("experiment_id","position"),
 	CONSTRAINT "experiment_treatments_name_check" CHECK ("experiment_treatments"."name" = btrim("experiment_treatments"."name") and length("experiment_treatments"."name") between 1 and 120),
+	CONSTRAINT "experiment_treatments_description_check" CHECK ("experiment_treatments"."description" = btrim("experiment_treatments"."description") and length("experiment_treatments"."description") <= 1000),
 	CONSTRAINT "experiment_treatments_position_check" CHECK ("experiment_treatments"."position" >= 1)
 );
 --> statement-breakpoint
 CREATE TABLE "experiments" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
-	"description" text NOT NULL,
+	"material" text NOT NULL,
+	"explant" text NOT NULL,
+	"medium" text NOT NULL,
+	"notes" text NOT NULL,
 	"model_version_id" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "experiments_name_check" CHECK ("experiments"."name" = btrim("experiments"."name") and length("experiments"."name") between 1 and 120),
-	CONSTRAINT "experiments_description_check" CHECK ("experiments"."description" = btrim("experiments"."description") and length("experiments"."description") <= 2000)
+	CONSTRAINT "experiments_material_check" CHECK ("experiments"."material" = btrim("experiments"."material") and length("experiments"."material") <= 120),
+	CONSTRAINT "experiments_explant_check" CHECK ("experiments"."explant" = btrim("experiments"."explant") and length("experiments"."explant") <= 120),
+	CONSTRAINT "experiments_medium_check" CHECK ("experiments"."medium" = btrim("experiments"."medium") and length("experiments"."medium") <= 200),
+	CONSTRAINT "experiments_notes_check" CHECK ("experiments"."notes" = btrim("experiments"."notes") and length("experiments"."notes") <= 2000)
 );
 --> statement-breakpoint
 CREATE TABLE "images" (

@@ -8,6 +8,7 @@ import { experimentDishes, experiments, inferenceOutcomes } from "../db/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import type { ModelVersion } from "../models/schema";
 import {
+  DishNotFoundError,
   ExperimentNotFoundError,
   ExperimentPhotoAlreadyUsedError,
   RoundRejectedError,
@@ -27,12 +28,13 @@ import {
 } from "./inference-outcomes";
 import {
   addTreatment,
-  assignDish,
+  assignDishes,
+  assignDishesByName,
   createExperiment as createExperimentRecord,
   deleteExperiment,
   deleteTreatment,
   readExperiment,
-  renameTreatment,
+  updateTreatment,
   updateExperiment,
 } from "./experiment-design";
 import {
@@ -179,7 +181,10 @@ describe("experiments", () => {
       await (await database()).insert(experiments).values({
         id: randomUUID(),
         name: "Bypass",
-        description: "",
+        material: "",
+        explant: "",
+        medium: "",
+        notes: "",
         modelVersionId: "nobody.v9",
         createdAt: new Date(),
       });
@@ -395,10 +400,14 @@ describe("experiments", () => {
     const version = await trainedVersion("exp-treat");
     const experiment = await createExperiment({
       name: "Hormones",
-      description: "  Arabidopsis Col-0 seeds on MS  ",
+      material: "  Arabidopsis Col-0  ",
+      explant: "Seeds",
+      medium: "MS",
       modelVersionId: version.id,
     });
-    expect(experiment.description).toBe("Arabidopsis Col-0 seeds on MS");
+    expect(experiment.material).toBe("Arabidopsis Col-0");
+    expect([experiment.explant, experiment.medium]).toEqual(["Seeds", "MS"]);
+    expect(experiment.notes).toBe("");
     await round(experiment.id, "Day 1", CAPTURED_1, {
       "A1.jpg": "t-a1",
       "A2.jpg": "t-a2",
@@ -408,48 +417,65 @@ describe("experiments", () => {
     const control = await addTreatment({
       experiment: experiment.id,
       name: "Control",
+      description: "",
     });
     const auxin = await addTreatment(
       treatmentRequestSchema.parse({
         experiment: experiment.id,
         name: " IAA 1.0 ",
+        description: " IAA 1.0 mg/L on MS ",
       }),
     );
     expect([control.position, auxin.position]).toEqual([1, 2]);
     expect(auxin.name).toBe("IAA 1.0");
+    expect(auxin.description).toBe("IAA 1.0 mg/L on MS");
     await expect(
-      addTreatment({ experiment: experiment.id, name: "Control" }),
+      addTreatment({
+        experiment: experiment.id,
+        name: "Control",
+        description: "",
+      }),
     ).rejects.toThrow(TreatmentRejectedError);
     await expect(
-      renameTreatment({
+      updateTreatment({
         experiment: experiment.id,
         treatment: auxin.id,
         name: "Control",
+        description: auxin.description,
       }),
     ).rejects.toThrow(TreatmentRejectedError);
+    const dosed = await updateTreatment({
+      experiment: experiment.id,
+      treatment: control.id,
+      name: "Control",
+      description: "Hormone-free MS",
+    });
+    expect(dosed.description).toBe("Hormone-free MS");
 
-    await assignDish({
+    await assignDishes({
       experiment: experiment.id,
-      dish: "A1",
+      dishes: ["A1", "A2"],
       treatment: control.id,
     });
-    await assignDish({
+    await assignDishes({
       experiment: experiment.id,
-      dish: "A2",
-      treatment: control.id,
-    });
-    await assignDish({
-      experiment: experiment.id,
-      dish: "B1",
+      dishes: ["B1"],
       treatment: auxin.id,
     });
     await expect(
-      assignDish({
+      assignDishes({
         experiment: experiment.id,
-        dish: "A1",
+        dishes: ["A1"],
         treatment: randomUUID(),
       }),
     ).rejects.toThrow(TreatmentNotFoundError);
+    await expect(
+      assignDishes({
+        experiment: experiment.id,
+        dishes: ["A1", "Z9"],
+        treatment: auxin.id,
+      }),
+    ).rejects.toThrow(DishNotFoundError);
 
     const grouped = await readExperimentGrid(experiment.id);
     expect(grouped?.treatments.map((item) => item.name)).toEqual([
@@ -479,6 +505,91 @@ describe("experiments", () => {
     ]);
   });
 
+  test("dish names spell out treatments that one call groups", async () => {
+    const version = await trainedVersion("exp-name-group");
+    const experiment = await createExperiment({
+      name: "Named design",
+      modelVersionId: version.id,
+    });
+    await round(experiment.id, "Day 1", CAPTURED_1, {
+      "T1-1.jpg": "n-t1-1",
+      "T1-2.jpg": "n-t1-2",
+      "T2-1.jpg": "n-t2-1",
+      "CK-1.jpg": "n-ck-1",
+      "Extra.jpg": "n-extra",
+    });
+
+    expect(await assignDishesByName({ experiment: experiment.id })).toBe(4);
+
+    const grid = await readExperimentGrid(experiment.id);
+    expect(
+      grid?.treatments.map((treatment) => [treatment.name, treatment.position]),
+    ).toEqual([
+      ["CK", 1],
+      ["T1", 2],
+      ["T2", 3],
+    ]);
+    const byName = new Map(
+      grid!.treatments.map((treatment) => [treatment.name, treatment.id]),
+    );
+    expect(grid?.dishes.map((dish) => [dish.label, dish.treatment])).toEqual([
+      ["CK-1", byName.get("CK")!],
+      ["Extra", null],
+      ["T1-1", byName.get("T1")!],
+      ["T1-2", byName.get("T1")!],
+      ["T2-1", byName.get("T2")!],
+    ]);
+
+    expect(await assignDishesByName({ experiment: experiment.id })).toBe(0);
+    expect((await readExperimentGrid(experiment.id))?.treatments).toEqual(
+      grid!.treatments,
+    );
+
+    const flat = await createExperiment({
+      name: "Flat",
+      modelVersionId: version.id,
+    });
+    await round(flat.id, "Day 1", CAPTURED_1, {
+      "A1.jpg": "n-a1",
+      "A2.jpg": "n-a2",
+    });
+    await expect(assignDishesByName({ experiment: flat.id })).rejects.toThrow(
+      TreatmentRejectedError,
+    );
+  });
+
+  test("name grouping creates only treatments needed by unassigned dishes", async () => {
+    const version = await trainedVersion("exp-name-plan");
+    const experiment = await createExperiment({
+      name: "Partly designed",
+      modelVersionId: version.id,
+    });
+    await round(experiment.id, "Day 1", CAPTURED_1, {
+      "T1-1.jpg": "p-t1-1",
+      "T2-1.jpg": "p-t2-1",
+    });
+    const manual = await addTreatment({
+      experiment: experiment.id,
+      name: "Manual",
+      description: "",
+    });
+    await assignDishes({
+      experiment: experiment.id,
+      dishes: ["T2-1"],
+      treatment: manual.id,
+    });
+
+    expect(await assignDishesByName({ experiment: experiment.id })).toBe(1);
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.treatments.map((treatment) => treatment.name)).toEqual([
+      "Manual",
+      "T1",
+    ]);
+    expect(grid?.dishes.find((dish) => dish.label === "T2-1")?.treatment).toBe(
+      manual.id,
+    );
+  });
+
   test("an experiment's words and rounds can be revised, and both removed", async () => {
     const version = await trainedVersion("exp-maint");
     const experiment = await createExperiment({
@@ -495,10 +606,22 @@ describe("experiments", () => {
     const revised = await updateExperiment({
       experiment: experiment.id,
       name: "Final",
-      description: "Two rounds",
+      material: "Tobacco BY-2",
+      explant: "Leaf discs",
+      medium: "MS + 3% sucrose",
+      notes: "Two rounds",
     });
-    expect([revised.name, revised.description]).toEqual([
+    expect([
+      revised.name,
+      revised.material,
+      revised.explant,
+      revised.medium,
+      revised.notes,
+    ]).toEqual([
       "Final",
+      "Tobacco BY-2",
+      "Leaf discs",
+      "MS + 3% sucrose",
       "Two rounds",
     ]);
     expect(revised.modelVersionId).toBe(version.id);
