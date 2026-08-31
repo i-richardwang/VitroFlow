@@ -11,7 +11,7 @@ function failed(message: string, status: number): Response {
 /**
  * Stores one photograph. The request is its bytes and nothing else: a
  * photograph is identified by what it contains, and the name it is filed under
- * belongs to the experiment round that submits it, not to the image.
+ * belongs to the experiment observation that submits it, not to the image.
  */
 export const Route = createFileRoute("/api/images")({
   server: {

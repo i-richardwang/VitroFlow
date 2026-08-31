@@ -3,14 +3,14 @@ import { asc, and, eq, inArray } from "drizzle-orm";
 import { database, type Executor } from "../db/client";
 import {
   datasetImages,
+  experimentObservations,
   experimentPhotos,
-  experimentRounds,
 } from "../db/schema";
 
 /**
  * A display name for each image: the filename it was photographed under in
- * the earliest captured round, or failing that its earliest dataset
- * membership. Images carry no name of their own.
+ * the earliest observation, or failing that its earliest dataset membership.
+ * Images carry no name of their own.
  */
 export async function imageFilenames(
   digests: string[],
@@ -26,18 +26,21 @@ export async function imageFilenames(
       })
       .from(experimentPhotos)
       .innerJoin(
-        experimentRounds,
+        experimentObservations,
         and(
-          eq(experimentRounds.experimentId, experimentPhotos.experimentId),
-          eq(experimentRounds.id, experimentPhotos.roundId),
+          eq(
+            experimentObservations.experimentId,
+            experimentPhotos.experimentId,
+          ),
+          eq(experimentObservations.id, experimentPhotos.observationId),
         ),
       )
       .where(inArray(experimentPhotos.imageId, digests))
       .orderBy(
-        asc(experimentRounds.capturedAt),
-        asc(experimentRounds.createdAt),
+        asc(experimentObservations.observedOn),
+        asc(experimentObservations.createdAt),
         asc(experimentPhotos.experimentId),
-        asc(experimentPhotos.dishLabel),
+        asc(experimentPhotos.id),
       ),
     executor
       .select({

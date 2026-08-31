@@ -6,7 +6,6 @@ import { Count } from "../../components/Count";
 import { NewExperimentDialog } from "../../components/experiment/NewExperimentDialog";
 import { ExperimentsIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
-import { Timestamp } from "../../components/Timestamp";
 import { versionSlug } from "../../models/schema";
 import {
   getExperiments,
@@ -39,10 +38,11 @@ function ExperimentsPage() {
             <Table.Header>
               <Table.Column isRowHeader>Experiment</Table.Column>
               <Table.Column>Material</Table.Column>
-              <Table.Column>Created</Table.Column>
+              <Table.Column>Inoculated</Table.Column>
               <Table.Column>Version</Table.Column>
+              <Table.Column className="text-right">Treatments</Table.Column>
               <Table.Column className="text-right">Dishes</Table.Column>
-              <Table.Column className="text-right">Rounds</Table.Column>
+              <Table.Column className="text-right">Observations</Table.Column>
               <Table.Column className="text-right">Pending</Table.Column>
               <Table.Column className="text-right">Failed</Table.Column>
               <Table.Column className="text-right">Observed</Table.Column>
@@ -60,7 +60,14 @@ function ExperimentsPage() {
               )}
             >
               {experiments.map(
-                ({ experiment, version, dishes, rounds, counts }) => (
+                ({
+                  experiment,
+                  version,
+                  treatments,
+                  dishes,
+                  observations,
+                  counts,
+                }) => (
                   <Table.Row
                     key={experiment.id}
                     href={`/experiments/${experiment.id}`}
@@ -73,16 +80,19 @@ function ExperimentsPage() {
                       {experiment.material || "—"}
                     </Table.Cell>
                     <Table.Cell className="text-muted">
-                      <Timestamp value={experiment.createdAt} />
+                      {experiment.inoculatedOn}
                     </Table.Cell>
                     <Table.Cell className="truncate font-mono text-muted">
                       {versionSlug(version)}
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums text-muted">
+                      {treatments}
+                    </Table.Cell>
+                    <Table.Cell className="text-right font-mono tabular-nums text-muted">
                       {dishes}
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                      {rounds}
+                      {observations}
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums">
                       <Count value={counts.pending} />

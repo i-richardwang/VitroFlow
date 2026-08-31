@@ -25,7 +25,6 @@ function seriesColor(position: number): [light: string, dark: string] {
   ];
 }
 
-/** The color swatch of a treatment. Transparent is unassigned. */
 export function TreatmentDot({ position }: { position: number | null }) {
   const [light, dark] =
     position === null

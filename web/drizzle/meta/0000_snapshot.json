@@ -1,5 +1,5 @@
 {
-  "id": "10d1c943-16e9-4cfb-8e1c-88372f72f0d6",
+  "id": "7f852723-0cf6-485d-a056-9d1b8fb366c8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -392,6 +392,199 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.experiment_dish_events": {
+      "name": "experiment_dish_events",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dish_id": {
+          "name": "dish_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observation_id": {
+          "name": "observation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exclude_from_observation": {
+          "name": "exclude_from_observation",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "remove_after_observation": {
+          "name": "remove_after_observation",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "voided_at": {
+          "name": "voided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "void_reason": {
+          "name": "void_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiment_dish_events_dish_idx": {
+          "name": "experiment_dish_events_dish_idx",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dish_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "experiment_dish_events_one_active_kind": {
+          "name": "experiment_dish_events_one_active_kind",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dish_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "observation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"experiment_dish_events\".\"voided_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiment_dish_events_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk": {
+          "name": "experiment_dish_events_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk",
+          "tableFrom": "experiment_dish_events",
+          "tableTo": "experiment_dishes",
+          "columnsFrom": [
+            "experiment_id",
+            "dish_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "experiment_dish_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk": {
+          "name": "experiment_dish_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk",
+          "tableFrom": "experiment_dish_events",
+          "tableTo": "experiment_observations",
+          "columnsFrom": [
+            "experiment_id",
+            "observation_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_dish_events_experiment_id_id_pk": {
+          "name": "experiment_dish_events_experiment_id_id_pk",
+          "columns": [
+            "experiment_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "experiment_dish_events_note_check": {
+          "name": "experiment_dish_events_note_check",
+          "value": "\"experiment_dish_events\".\"note\" = btrim(\"experiment_dish_events\".\"note\") and length(\"experiment_dish_events\".\"note\") <= 500"
+        },
+        "experiment_dish_events_type_check": {
+          "name": "experiment_dish_events_type_check",
+          "value": "\"experiment_dish_events\".\"type\" in ('contaminated', 'dead', 'discarded', 'harvested', 'lost')"
+        },
+        "experiment_dish_events_void_check": {
+          "name": "experiment_dish_events_void_check",
+          "value": "(\"experiment_dish_events\".\"voided_at\" is null) = (\"experiment_dish_events\".\"void_reason\" = '')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.experiment_dishes": {
       "name": "experiment_dishes",
       "schema": "",
@@ -402,23 +595,39 @@
           "primaryKey": false,
           "notNull": true
         },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "label": {
           "name": "label",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "position": {
-          "name": "position",
-          "type": "integer",
+        "label_key": {
+          "name": "label_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "generated": {
+            "as": "trim(both '-' from lower(regexp_replace(normalize(label, NFKC), '[-[:space:]._]+', '-', 'g')))",
+            "type": "stored"
+          }
         },
         "treatment_id": {
           "name": "treatment_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "initial_explant_count": {
+          "name": "initial_explant_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -475,21 +684,21 @@
         }
       },
       "compositePrimaryKeys": {
-        "experiment_dishes_experiment_id_label_pk": {
-          "name": "experiment_dishes_experiment_id_label_pk",
+        "experiment_dishes_experiment_id_id_pk": {
+          "name": "experiment_dishes_experiment_id_id_pk",
           "columns": [
             "experiment_id",
-            "label"
+            "id"
           ]
         }
       },
       "uniqueConstraints": {
-        "experiment_dishes_position": {
-          "name": "experiment_dishes_position",
+        "experiment_dishes_label": {
+          "name": "experiment_dishes_label",
           "nullsNotDistinct": false,
           "columns": [
             "experiment_id",
-            "position"
+            "label_key"
           ]
         }
       },
@@ -497,11 +706,124 @@
       "checkConstraints": {
         "experiment_dishes_label_check": {
           "name": "experiment_dishes_label_check",
-          "value": "\"experiment_dishes\".\"label\" = btrim(\"experiment_dishes\".\"label\") and length(\"experiment_dishes\".\"label\") between 1 and 255"
+          "value": "\"experiment_dishes\".\"label\" = btrim(\"experiment_dishes\".\"label\") and length(\"experiment_dishes\".\"label\") between 1 and 60 and \"experiment_dishes\".\"label_key\" <> ''"
         },
-        "experiment_dishes_position_check": {
-          "name": "experiment_dishes_position_check",
-          "value": "\"experiment_dishes\".\"position\" >= 1"
+        "experiment_dishes_initial_explant_count_check": {
+          "name": "experiment_dishes_initial_explant_count_check",
+          "value": "\"experiment_dishes\".\"initial_explant_count\" between 1 and 10000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.experiment_observations": {
+      "name": "experiment_observations",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inoculated_on": {
+          "name": "inoculated_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_on": {
+          "name": "observed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiment_observations_observed_idx": {
+          "name": "experiment_observations_observed_idx",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "observed_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiment_observations_experiment_id_inoculated_on_experiments_id_inoculated_on_fk": {
+          "name": "experiment_observations_experiment_id_inoculated_on_experiments_id_inoculated_on_fk",
+          "tableFrom": "experiment_observations",
+          "tableTo": "experiments",
+          "columnsFrom": [
+            "experiment_id",
+            "inoculated_on"
+          ],
+          "columnsTo": [
+            "id",
+            "inoculated_on"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_observations_experiment_id_id_pk": {
+          "name": "experiment_observations_experiment_id_id_pk",
+          "columns": [
+            "experiment_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "experiment_observations_day": {
+          "name": "experiment_observations_day",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "observed_on"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "experiment_observations_note_check": {
+          "name": "experiment_observations_note_check",
+          "value": "\"experiment_observations\".\"note\" = btrim(\"experiment_observations\".\"note\") and length(\"experiment_observations\".\"note\") <= 500"
+        },
+        "experiment_observations_date_check": {
+          "name": "experiment_observations_date_check",
+          "value": "\"experiment_observations\".\"observed_on\" >= \"experiment_observations\".\"inoculated_on\""
         }
       },
       "isRLSEnabled": false
@@ -516,14 +838,20 @@
           "primaryKey": false,
           "notNull": true
         },
-        "dish_label": {
-          "name": "dish_label",
-          "type": "text",
+        "id": {
+          "name": "id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "round_id": {
-          "name": "round_id",
+        "dish_id": {
+          "name": "dish_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observation_id": {
+          "name": "observation_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -572,28 +900,28 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "experiment_photos_experiment_id_dish_label_experiment_dishes_experiment_id_label_fk": {
-          "name": "experiment_photos_experiment_id_dish_label_experiment_dishes_experiment_id_label_fk",
+        "experiment_photos_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk": {
+          "name": "experiment_photos_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk",
           "tableFrom": "experiment_photos",
           "tableTo": "experiment_dishes",
           "columnsFrom": [
             "experiment_id",
-            "dish_label"
+            "dish_id"
           ],
           "columnsTo": [
             "experiment_id",
-            "label"
+            "id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "experiment_photos_experiment_id_round_id_experiment_rounds_experiment_id_id_fk": {
-          "name": "experiment_photos_experiment_id_round_id_experiment_rounds_experiment_id_id_fk",
+        "experiment_photos_experiment_id_observation_id_experiment_observations_experiment_id_id_fk": {
+          "name": "experiment_photos_experiment_id_observation_id_experiment_observations_experiment_id_id_fk",
           "tableFrom": "experiment_photos",
-          "tableTo": "experiment_rounds",
+          "tableTo": "experiment_observations",
           "columnsFrom": [
             "experiment_id",
-            "round_id"
+            "observation_id"
           ],
           "columnsTo": [
             "experiment_id",
@@ -604,16 +932,24 @@
         }
       },
       "compositePrimaryKeys": {
-        "experiment_photos_experiment_id_dish_label_round_id_pk": {
-          "name": "experiment_photos_experiment_id_dish_label_round_id_pk",
+        "experiment_photos_experiment_id_id_pk": {
+          "name": "experiment_photos_experiment_id_id_pk",
           "columns": [
             "experiment_id",
-            "dish_label",
-            "round_id"
+            "id"
           ]
         }
       },
       "uniqueConstraints": {
+        "experiment_photos_cell": {
+          "name": "experiment_photos_cell",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "dish_id",
+            "observation_id"
+          ]
+        },
         "experiment_photos_image": {
           "name": "experiment_photos_image",
           "nullsNotDistinct": false,
@@ -625,113 +961,6 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.experiment_rounds": {
-      "name": "experiment_rounds",
-      "schema": "",
-      "columns": {
-        "experiment_id": {
-          "name": "experiment_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "experiment_rounds_captured_idx": {
-          "name": "experiment_rounds_captured_idx",
-          "columns": [
-            {
-              "expression": "experiment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "captured_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "experiment_rounds_experiment_id_experiments_id_fk": {
-          "name": "experiment_rounds_experiment_id_experiments_id_fk",
-          "tableFrom": "experiment_rounds",
-          "tableTo": "experiments",
-          "columnsFrom": [
-            "experiment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "experiment_rounds_experiment_id_id_pk": {
-          "name": "experiment_rounds_experiment_id_id_pk",
-          "columns": [
-            "experiment_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "experiment_rounds_label": {
-          "name": "experiment_rounds_label",
-          "nullsNotDistinct": false,
-          "columns": [
-            "experiment_id",
-            "label"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "experiment_rounds_label_check": {
-          "name": "experiment_rounds_label_check",
-          "value": "\"experiment_rounds\".\"label\" = btrim(\"experiment_rounds\".\"label\") and length(\"experiment_rounds\".\"label\") between 1 and 80"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.experiment_treatments": {
@@ -756,8 +985,24 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))",
+            "type": "stored"
+          }
+        },
+        "factors": {
+          "name": "factors",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -800,7 +1045,7 @@
           "nullsNotDistinct": false,
           "columns": [
             "experiment_id",
-            "name"
+            "name_key"
           ]
         },
         "experiment_treatments_position": {
@@ -816,11 +1061,15 @@
       "checkConstraints": {
         "experiment_treatments_name_check": {
           "name": "experiment_treatments_name_check",
-          "value": "\"experiment_treatments\".\"name\" = btrim(\"experiment_treatments\".\"name\") and length(\"experiment_treatments\".\"name\") between 1 and 120"
+          "value": "\"experiment_treatments\".\"name\" = btrim(\"experiment_treatments\".\"name\") and length(\"experiment_treatments\".\"name\") between 1 and 120 and \"experiment_treatments\".\"name_key\" <> ''"
         },
-        "experiment_treatments_description_check": {
-          "name": "experiment_treatments_description_check",
-          "value": "\"experiment_treatments\".\"description\" = btrim(\"experiment_treatments\".\"description\") and length(\"experiment_treatments\".\"description\") <= 1000"
+        "experiment_treatments_note_check": {
+          "name": "experiment_treatments_note_check",
+          "value": "\"experiment_treatments\".\"note\" = btrim(\"experiment_treatments\".\"note\") and length(\"experiment_treatments\".\"note\") <= 1000"
+        },
+        "experiment_treatments_factors_check": {
+          "name": "experiment_treatments_factors_check",
+          "value": "jsonb_typeof(\"experiment_treatments\".\"factors\") = 'array' and jsonb_array_length(\"experiment_treatments\".\"factors\") <= 12"
         },
         "experiment_treatments_position_check": {
           "name": "experiment_treatments_position_check",
@@ -866,6 +1115,12 @@
         "notes": {
           "name": "notes",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inoculated_on": {
+          "name": "inoculated_on",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -915,7 +1170,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "experiments_id_inoculated": {
+          "name": "experiments_id_inoculated",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "inoculated_on"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "experiments_name_check": {

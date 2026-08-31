@@ -67,14 +67,21 @@ describe("readings", () => {
     ).toBeFalse();
   });
 
-  test("summaries retain the number of contributing dishes", () => {
+  test("summaries carry the mean, the spread, and the contributing dishes", () => {
     expect(summarize(seeds, [{ seed: 2 }, {}, { seed: 4 }])).toEqual({
       value: 2,
+      deviation: 2,
       sampleSize: 3,
     });
     expect(summarize(rate, [{}, { seed: 3, germinated: 1 }])).toEqual({
       value: 0.25,
+      deviation: null,
       sampleSize: 1,
+    });
+    expect(summarize(seeds, [])).toEqual({
+      value: null,
+      deviation: null,
+      sampleSize: 0,
     });
   });
 });

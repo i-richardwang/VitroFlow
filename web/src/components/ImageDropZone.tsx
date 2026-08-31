@@ -1,6 +1,6 @@
 import { DropZone } from "@heroui-pro/react/drop-zone";
 import { toast } from "@heroui/react";
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 
 import {
   MAX_SOURCE_IMAGE_BYTES,
@@ -29,11 +29,14 @@ export function ImageDropZone({
   onAdd,
   onRemove,
   busy,
+  annotate,
 }: {
   images: ListedImage[];
   onAdd: (files: File[]) => void;
   onRemove: (id: number) => void;
   busy: boolean;
+  /** What each listed image is for, shown beside it while it uploads. */
+  annotate?: (image: ListedImage) => ReactNode;
 }) {
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -109,6 +112,7 @@ export function ImageDropZone({
                     </DropZone.FileProgress>
                   )}
                 </DropZone.FileInfo>
+                {annotate?.({ id, file, state })}
                 {!busy && (
                   <DropZone.FileRemoveTrigger
                     aria-label={`Remove ${file.name}`}

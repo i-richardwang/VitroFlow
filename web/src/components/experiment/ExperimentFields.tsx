@@ -1,10 +1,15 @@
+import type { DateValue } from "@internationalized/date";
 import { FieldError, Input, Label, TextArea, TextField } from "@heroui/react";
 
 import type { Experiment } from "../../experiments/schema";
+import { DayField } from "./DayField";
 
-export function readExperimentFields(
-  form: FormData,
-): Pick<Experiment, "name" | "material" | "explant" | "medium" | "notes"> {
+type NotebookPage = Pick<
+  Experiment,
+  "name" | "material" | "explant" | "medium" | "notes"
+>;
+
+export function readExperimentFields(form: FormData): NotebookPage {
   const text = (field: string) => String(form.get(field) ?? "");
   return {
     name: text("name"),
@@ -18,12 +23,15 @@ export function readExperimentFields(
 export function ExperimentFields({
   busy,
   defaults,
+  inoculatedOn,
+  onInoculatedOnChange,
+  protocolLocked = false,
 }: {
   busy: boolean;
-  defaults?: Pick<
-    Experiment,
-    "name" | "material" | "explant" | "medium" | "notes"
-  >;
+  defaults?: NotebookPage;
+  inoculatedOn: DateValue | null;
+  onInoculatedOnChange: (value: DateValue | null) => void;
+  protocolLocked?: boolean;
 }) {
   return (
     <>
@@ -43,7 +51,7 @@ export function ExperimentFields({
         <TextField
           variant="secondary"
           fullWidth
-          isDisabled={busy}
+          isDisabled={busy || protocolLocked}
           name="material"
           defaultValue={defaults?.material}
         >
@@ -54,7 +62,7 @@ export function ExperimentFields({
         <TextField
           variant="secondary"
           fullWidth
-          isDisabled={busy}
+          isDisabled={busy || protocolLocked}
           name="explant"
           defaultValue={defaults?.explant}
         >
@@ -63,17 +71,27 @@ export function ExperimentFields({
           <FieldError />
         </TextField>
       </div>
-      <TextField
-        variant="secondary"
-        fullWidth
-        isDisabled={busy}
-        name="medium"
-        defaultValue={defaults?.medium}
-      >
-        <Label>Base medium</Label>
-        <Input placeholder="MS + 3% sucrose, pH 5.8" />
-        <FieldError />
-      </TextField>
+      <div className="flex w-full gap-3">
+        <TextField
+          variant="secondary"
+          fullWidth
+          isDisabled={busy || protocolLocked}
+          name="medium"
+          defaultValue={defaults?.medium}
+        >
+          <Label>Base medium</Label>
+          <Input placeholder="MS + 3% sucrose, pH 5.8" />
+          <FieldError />
+        </TextField>
+        <div className="w-52 shrink-0">
+          <DayField
+            label="Inoculated"
+            busy={busy || protocolLocked}
+            value={inoculatedOn}
+            onChange={onInoculatedOnChange}
+          />
+        </div>
+      </div>
       <TextField
         variant="secondary"
         fullWidth

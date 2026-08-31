@@ -1,21 +1,8 @@
-import { Button, Fieldset, Form, toast } from "@heroui/react";
-import { useRouter } from "@tanstack/react-router";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { parseHttpJson } from "../../http/json";
 import { storedImageResponseSchema } from "../../images/schema";
-import { ImageDropZone, type ListedImage } from "../ImageDropZone";
-
-export interface StoredPhoto {
-  digest: string;
-  filename: string;
-}
+import type { ListedImage } from "../ImageDropZone";
 
 /**
  * Photographs travelling at once. A second request keeps the server encoding
@@ -24,33 +11,37 @@ export interface StoredPhoto {
  */
 const UPLOAD_LANES = 2;
 
-export function RoundForm({
-  fields,
-  submitLabel,
-  busyLabel,
-  onCancel,
-  onSubmit,
-  onComplete,
-}: {
-  fields?: (busy: boolean) => ReactNode;
-  submitLabel: string;
-  busyLabel: string;
-  onCancel?: () => void;
-  onSubmit: (photos: StoredPhoto[], form: FormData) => Promise<string>;
-  onComplete?: () => void;
-}) {
-  const router = useRouter();
+export interface Uploads {
+  images: ListedImage[];
+  add: (files: File[]) => void;
+  remove: (id: number) => void;
+  clearStored: () => void;
+  storing: boolean;
+  failed: boolean;
+}
+
+/**
+ * Photographs stored ahead of the record that will refer to them. Bytes go up
+ * as soon as they are dropped, so filing them afterwards is a decision rather
+ * than a wait.
+ */
+export function useUploads(): Uploads {
   const [images, setImages] = useState<ListedImage[]>([]);
-  const [busy, setBusy] = useState(false);
   const nextId = useRef(0);
   const queue = useRef<ListedImage[]>([]);
   const lanes = useRef(0);
-  const uploadAbort = useRef(new AbortController());
+  const abort = useRef<AbortController | null>(null);
 
+  /**
+   * Leaving the form cancels what is still on the wire. The controller is
+   * dropped with it, because an aborted one refuses every later upload and a
+   * remounted form is a form that uploads again.
+   */
   useEffect(
     () => () => {
       queue.current = [];
-      uploadAbort.current.abort();
+      abort.current?.abort();
+      abort.current = null;
     },
     [],
   );
@@ -61,7 +52,7 @@ export function RoundForm({
     );
   }, []);
 
-  const onAdd = useCallback(
+  const add = useCallback(
     (files: File[]) => {
       const added = files.map((file) => ({
         id: (nextId.current += 1),
@@ -70,22 +61,23 @@ export function RoundForm({
       }));
       setImages((current) => [...current, ...added]);
       queue.current.push(...added);
+      const { signal } = (abort.current ??= new AbortController());
       while (lanes.current < UPLOAD_LANES && queue.current.length > 0) {
         lanes.current += 1;
         void (async () => {
           for (let next = queue.current.shift(); next;) {
-            if (uploadAbort.current.signal.aborted) break;
+            if (signal.aborted) break;
             const { id, file } = next;
             try {
               const { digest } = await storeImage(
                 file,
                 (progress) => update(id, { status: "storing", progress }),
-                uploadAbort.current.signal,
+                signal,
               );
-              if (uploadAbort.current.signal.aborted) break;
+              if (signal.aborted) break;
               update(id, { status: "stored", digest });
             } catch (cause) {
-              if (!uploadAbort.current.signal.aborted) {
+              if (!signal.aborted) {
                 update(id, { status: "failed", reason: message(cause) });
               }
             }
@@ -98,71 +90,28 @@ export function RoundForm({
     [update],
   );
 
-  const onRemove = useCallback((id: number) => {
+  const remove = useCallback((id: number) => {
     queue.current = queue.current.filter((image) => image.id !== id);
     setImages((current) => current.filter((image) => image.id !== id));
   }, []);
 
-  const ready: StoredPhoto[] = images.flatMap(({ file, state }) =>
-    state.status === "stored"
-      ? [{ digest: state.digest, filename: file.name }]
-      : [],
-  );
-  const storing = images.some((image) => image.state.status === "storing");
-  const hasFailures = images.some((image) => image.state.status === "failed");
+  const clearStored = useCallback(() => {
+    setImages((current) =>
+      current.filter((image) => image.state.status !== "stored"),
+    );
+  }, []);
 
-  return (
-    <Form
-      className="w-full"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        setBusy(true);
-        void onSubmit(ready, form)
-          .then((summary) => {
-            setImages((current) =>
-              current.filter((image) => image.state.status !== "stored"),
-            );
-            toast.success(summary);
-            if (!hasFailures) onComplete?.();
-            void router.invalidate();
-          })
-          .catch((cause: unknown) => {
-            toast.danger("Nothing was added", { description: message(cause) });
-          })
-          .finally(() => {
-            setBusy(false);
-          });
-      }}
-    >
-      <Fieldset className="w-full">
-        {fields?.(busy)}
-        <ImageDropZone
-          images={images}
-          onAdd={onAdd}
-          onRemove={onRemove}
-          busy={busy}
-        />
-        <Fieldset.Actions>
-          {onCancel ? (
-            <Button variant="tertiary" onPress={onCancel}>
-              Cancel
-            </Button>
-          ) : null}
-          <Button
-            type="submit"
-            variant="primary"
-            isDisabled={busy || storing || ready.length === 0}
-          >
-            {busy ? busyLabel : storing ? "Preparing…" : submitLabel}
-          </Button>
-        </Fieldset.Actions>
-      </Fieldset>
-    </Form>
-  );
+  return {
+    images,
+    add,
+    remove,
+    clearStored,
+    storing: images.some((image) => image.state.status === "storing"),
+    failed: images.some((image) => image.state.status === "failed"),
+  };
 }
 
-function message(cause: unknown): string {
+export function message(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 

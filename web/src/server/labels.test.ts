@@ -7,14 +7,14 @@ import { recordInferenceOutcome } from "./inference-outcomes";
 import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
 import {
   imageDigest,
-  photographRound,
+  photographObservation,
   resultFor,
   testHeartbeat,
 } from "./testing";
 
 describe("labels", () => {
   test("starts from a successful inference and updates with revision checks", async () => {
-    const { version } = await photographRound("labels", ["lb-a"]);
+    const { version } = await photographObservation("labels", ["lb-a"]);
     const digest = await imageDigest("lb-a");
     const result = await resultFor(version, "lb-a");
     await recordInferenceOutcome({ versionId: version.id, digest }, result, {
@@ -41,7 +41,7 @@ describe("labels", () => {
   });
 
   test("cannot start before the requested version succeeds", async () => {
-    const { version } = await photographRound("label-missing-outcome", [
+    const { version } = await photographObservation("label-missing-outcome", [
       "missing-outcome",
     ]);
     const ref = {
@@ -54,7 +54,7 @@ describe("labels", () => {
   });
 
   test("the database rejects a label without its successful inference", async () => {
-    const { version } = await photographRound("label-db-outcome", [
+    const { version } = await photographObservation("label-db-outcome", [
       "db-outcome",
     ]);
     const digest = await imageDigest("db-outcome");
@@ -74,7 +74,7 @@ describe("labels", () => {
   });
 
   test("the database rejects a label backed only by a failed inference", async () => {
-    const { version } = await photographRound("label-db-failure", [
+    const { version } = await photographObservation("label-db-failure", [
       "db-failure",
     ]);
     const digest = await imageDigest("db-failure");

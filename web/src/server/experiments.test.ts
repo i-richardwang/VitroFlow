@@ -4,19 +4,31 @@ import { describe, expect, test } from "bun:test";
 
 import { makeResult } from "../annotation/testing";
 import { database } from "../db/client";
-import { experimentDishes, experiments, inferenceOutcomes } from "../db/schema";
+import {
+  experimentDishEvents,
+  experimentDishes,
+  experimentObservations,
+  experiments,
+  inferenceOutcomes,
+} from "../db/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import type { ModelVersion } from "../models/schema";
 import {
   DishNotFoundError,
+  DishRejectedError,
+  ExperimentDesignIncompleteError,
+  ExperimentDesignLockedError,
+  ExperimentHasRecordsError,
   ExperimentNotFoundError,
   ExperimentPhotoAlreadyUsedError,
-  RoundRejectedError,
+  PhotoRejectedError,
+  ObservationRejectedError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
 } from "../experiments/errors";
 import {
   experimentRequestSchema,
+  calendarDaySchema,
   treatmentRequestSchema,
   type ExperimentRequestInput,
 } from "../experiments/schema";
@@ -27,26 +39,35 @@ import {
   recordInferenceOutcome,
 } from "./inference-outcomes";
 import {
+  addDishes,
   addTreatment,
+  addTreatmentReplicates,
   assignDishes,
-  assignDishesByName,
   createExperiment as createExperimentRecord,
+  deleteDish,
   deleteExperiment,
   deleteTreatment,
   readExperiment,
+  updateDish,
   updateTreatment,
   updateExperiment,
 } from "./experiment-design";
+import { recordDishEvent, voidDishEvent } from "./experiment-events";
 import {
-  addRound,
-  deleteRound,
-  listExperiments,
-  readExperimentGrid,
-  readExperimentDish,
-  readExperimentPhoto,
+  addObservation,
+  deleteObservation,
+  filePhotos,
+  movePhoto,
+  removePhoto,
   retryExperimentDetection,
-  updateRound,
-} from "./experiments";
+  updateObservation,
+} from "./experiment-observations";
+import {
+  listExperiments,
+  readExperimentDish,
+  readExperimentGrid,
+  readExperimentPhoto,
+} from "./experiment-queries";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { listAllModelVersions } from "./model-registry";
 import {
@@ -60,10 +81,7 @@ import {
   testHeartbeat,
 } from "./testing";
 
-const CAPTURED_1 = "2026-08-01T09:00:00.000Z";
-const CAPTURED_2 = "2026-08-02T09:00:00.000Z";
-const CAPTURED_3 = "2026-08-03T09:00:00.000Z";
-const CAPTURED_5 = "2026-08-05T09:00:00.000Z";
+const INOCULATED = "2026-08-01";
 
 function createExperiment(value: ExperimentRequestInput) {
   return createExperimentRecord(experimentRequestSchema.parse(value));
@@ -120,46 +138,83 @@ function failureFor(version: ModelVersion, digest: string) {
   };
 }
 
-async function round(
+async function layOut(
   experiment: string,
-  label: string,
-  capturedAt: string,
-  names: Record<string, string>,
-) {
-  const entries = Object.entries(names);
-  const digests = await storeTexts(entries.map(([, content]) => content));
-  return addRound({
+  labels: string[],
+): Promise<Map<string, string>> {
+  const treatment = await addTreatment({
     experiment,
-    label,
-    capturedAt,
-    photos: entries.map(([filename], index) => ({
+    name: "Test",
+    factors: [],
+    note: "",
+    replicates: 0,
+    initialExplantCount: 1,
+  });
+  const dishes = await addDishes({
+    experiment,
+    treatment: treatment.id,
+    labels,
+    initialExplantCount: 1,
+  });
+  return new Map(dishes.map((dish) => [dish.label, dish.id]));
+}
+
+/** Photographs the named dishes in one observation, one image per dish. */
+async function photograph(
+  experiment: string,
+  observation: string,
+  dishes: Map<string, string>,
+  contents: Record<string, string>,
+) {
+  const entries = Object.entries(contents);
+  const digests = await storeTexts(entries.map(([, content]) => content));
+  return filePhotos({
+    experiment,
+    observation,
+    photos: entries.map(([label], index) => ({
+      dish: dishes.get(label)!,
       digest: digests[index]!,
-      filename,
+      filename: `${label}.jpg`,
     })),
   });
 }
 
+/** The photograph filed under each dish label, across every observation. */
+async function photosByDish(experiment: string): Promise<Map<string, string>> {
+  const grid = await readExperimentGrid(experiment);
+  const labels = new Map(grid!.dishes.map((dish) => [dish.id, dish.label]));
+  return new Map(
+    grid!.photos.map((photo) => [labels.get(photo.dish)!, photo.id]),
+  );
+}
+
 describe("experiments", () => {
   test("start on a fresh deployment with the builtin seed detector", async () => {
+    expect(calendarDaySchema.safeParse("2026-02-29").success).toBeFalse();
+    expect(calendarDaySchema.safeParse("2024-02-29").success).toBeTrue();
     const offered = await listAllModelVersions();
     expect(offered.map((version) => version.id)).toContain(
       SEED_DETECTOR_BASELINE_VERSION_ID,
     );
     const experiment = await createExperiment({
       name: "Day one",
+      inoculatedOn: INOCULATED,
       modelVersionId: SEED_DETECTOR_BASELINE_VERSION_ID,
     });
     expect(experiment.modelVersionId).toBe(SEED_DETECTOR_BASELINE_VERSION_ID);
+    expect(experiment.inoculatedOn).toBe(INOCULATED);
   });
 
   test("have server-owned identities, user-facing names, and one fixed version", async () => {
     const version = await trainedVersion("exp-kind");
     const first = await createExperiment({
       name: "  Germination A  ",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
     const second = await createExperiment({
       name: "Germination A",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
 
@@ -173,6 +228,7 @@ describe("experiments", () => {
     const traditional = await baselineVersion();
     const baseline = await createExperiment({
       name: "Baseline",
+      inoculatedOn: INOCULATED,
       modelVersionId: traditional.id,
     });
     expect(baseline.modelVersionId).toBe(traditional.id);
@@ -185,6 +241,7 @@ describe("experiments", () => {
         explant: "",
         medium: "",
         notes: "",
+        inoculatedOn: INOCULATED,
         modelVersionId: "nobody.v9",
         createdAt: new Date(),
       });
@@ -194,110 +251,771 @@ describe("experiments", () => {
     const invalidDish = (async () => {
       await (await database()).insert(experimentDishes).values({
         experimentId: first.id,
+        id: randomUUID(),
         label: " A1 ",
-        position: 1,
+        initialExplantCount: 1,
       });
     })();
     await expect(invalidDish).rejects.toThrow();
+
+    const invalidExplantCount = (async () => {
+      await (await database()).insert(experimentDishes).values({
+        experimentId: first.id,
+        id: randomUUID(),
+        label: "A2",
+        initialExplantCount: 0,
+      });
+    })();
+    await expect(invalidExplantCount).rejects.toThrow();
   });
 
-  test("the first round names the dishes and captured time orders later rounds", async () => {
-    const version = await trainedVersion("exp-grid");
+  test("the design lays out dishes before any photograph exists", async () => {
+    const version = await trainedVersion("exp-design");
     const experiment = await createExperiment({
-      name: "Grid",
+      name: "Hormones",
+      material: "  Arabidopsis Col-0  ",
+      explant: "Seeds",
+      medium: "MS",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
+    expect(experiment.material).toBe("Arabidopsis Col-0");
+    expect([experiment.explant, experiment.medium]).toEqual(["Seeds", "MS"]);
+    expect(experiment.notes).toBe("");
 
-    const day1 = await round(experiment.id, "Day 1", CAPTURED_1, {
-      "A10.jpg": "g-a10-1",
-      "A2.jpg": "g-a2-1",
-      "B1.png": "g-b1-1",
+    const control = await addTreatment({
+      experiment: experiment.id,
+      name: "CK",
+      factors: [],
+      note: "Hormone-free MS",
+      replicates: 2,
+      initialExplantCount: 4,
     });
-    expect(day1.photos).toBe(3);
-    expect(day1.round.label).toBe("Day 1");
-    expect(day1.round.capturedAt).toBe(CAPTURED_1);
-
-    await expect(
-      round(experiment.id, "Day 2", CAPTURED_3, {
-        "A2.jpg": "g-a2-2",
-        "C7.jpg": "g-c7-2",
+    const auxin = await addTreatment(
+      treatmentRequestSchema.parse({
+        experiment: experiment.id,
+        name: " T1 ",
+        factors: [{ name: " 6-BA ", level: "1.0", unit: " mg/L " }],
+        replicates: 3,
       }),
-    ).rejects.toThrow("Not dishes of this experiment: C7");
-    await expect(
-      round(experiment.id, "Day 2", CAPTURED_3, {
-        "A2.jpg": "g-a2-2",
-        "A2.png": "g-a2-2b",
-      }),
-    ).rejects.toThrow("both photograph dish A2");
-
-    const day5 = await round(experiment.id, "Day 5", CAPTURED_5, {
-      "A2.jpg": "g-a2-5",
-      "B1.jpg": "g-b1-5",
-    });
-    const day3 = await round(experiment.id, "Day 3", CAPTURED_3, {
-      "A10.jpg": "g-a10-3",
-    });
-    const grid = await readExperimentGrid(experiment.id);
-
-    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A2", "A10", "B1"]);
-    expect(grid?.rounds.map(({ id, label }) => [id, label])).toEqual([
-      [day1.round.id, "Day 1"],
-      [day3.round.id, "Day 3"],
-      [day5.round.id, "Day 5"],
+    );
+    expect([control.position, auxin.position]).toEqual([1, 2]);
+    expect(auxin.name).toBe("T1");
+    expect(auxin.factors).toEqual([
+      { name: "6-BA", level: "1.0", unit: "mg/L" },
     ]);
-    expect(grid?.photos).toHaveLength(6);
+
+    const empty = await readExperimentGrid(experiment.id);
+    expect(empty?.observations).toEqual([]);
+    expect(empty?.dishes.map((dish) => [dish.label, dish.position])).toEqual([
+      ["CK-1", 1],
+      ["CK-2", 2],
+      ["T1-1", 3],
+      ["T1-2", 4],
+      ["T1-3", 5],
+    ]);
+    expect(
+      empty?.dishes.every(
+        (dish) => dish.initialExplantCount >= 1 && dish.events.length === 0,
+      ),
+    ).toBeTrue();
 
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
-    expect(summary?.dishes).toBe(3);
-    expect(summary?.rounds).toBe(3);
-    expect(summary?.counts).toEqual({ pending: 6, failed: 0, observed: 0 });
+    expect([
+      summary?.treatments,
+      summary?.dishes,
+      summary?.observations,
+    ]).toEqual([2, 5, 0]);
   });
 
-  test("rejects a photograph already used anywhere in the experiment", async () => {
-    const version = await trainedVersion("exp-used");
+  test("an observation starts only from a complete experimental design", async () => {
+    const version = await trainedVersion("exp-complete-design");
     const experiment = await createExperiment({
-      name: "Used photo",
+      name: "Complete design",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const first = await round(experiment.id, "Day 1", CAPTURED_1, {
-      "A1.jpg": "used-photo",
+    const treatment = await addTreatment({
+      experiment: experiment.id,
+      name: "CK",
+      factors: [],
+      note: "",
+      replicates: 0,
+      initialExplantCount: 1,
     });
-    const digest = await imageDigest("used-photo");
+    await addDishes({
+      experiment: experiment.id,
+      treatment: null,
+      labels: ["A1"],
+      initialExplantCount: 1,
+    });
+
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-08",
+        note: "",
+      }),
+    ).rejects.toThrow(ExperimentDesignIncompleteError);
+
+    const [dish] = (await readExperimentGrid(experiment.id))!.dishes;
+    await assignDishes({
+      experiment: experiment.id,
+      dishes: [dish!.id],
+      treatment: treatment.id,
+    });
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-08",
+        note: "",
+      }),
+    ).resolves.toMatchObject({ day: 7 });
+  });
+
+  test("replicate labels and initial explant counts are owned by the design service", async () => {
+    const version = await trainedVersion("exp-replicates");
+    const experiment = await createExperiment({
+      name: "Replicates",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const treatment = await addTreatment({
+      experiment: experiment.id,
+      name: "T1",
+      factors: [],
+      note: "",
+      replicates: 1,
+      initialExplantCount: 3,
+    });
+    await Promise.all([
+      addTreatmentReplicates({
+        experiment: experiment.id,
+        treatment: treatment.id,
+        replicates: 2,
+        initialExplantCount: 4,
+      }),
+      addTreatmentReplicates({
+        experiment: experiment.id,
+        treatment: treatment.id,
+        replicates: 2,
+        initialExplantCount: 5,
+      }),
+    ]);
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.dishes.map((dish) => dish.label)).toEqual([
+      "T1-1",
+      "T1-2",
+      "T1-3",
+      "T1-4",
+      "T1-5",
+    ]);
+
+    const dish = grid!.dishes[0]!;
+    const updated = await updateDish({
+      experiment: experiment.id,
+      dish: dish.id,
+      label: dish.label,
+      initialExplantCount: 7,
+    });
+    expect(updated.initialExplantCount).toBe(7);
+  });
+
+  test("treatments are named once and dishes are labelled once", async () => {
+    const version = await trainedVersion("exp-unique");
+    const experiment = await createExperiment({
+      name: "Unique",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const control = await addTreatment({
+      experiment: experiment.id,
+      name: "CK",
+      factors: [],
+      note: "",
+      replicates: 1,
+      initialExplantCount: 1,
+    });
+    const treated = await addTreatment({
+      experiment: experiment.id,
+      name: "T1",
+      factors: [],
+      note: "",
+      replicates: 0,
+      initialExplantCount: 1,
+    });
+
+    await expect(
+      addTreatment({
+        experiment: experiment.id,
+        name: "ck",
+        factors: [],
+        note: "",
+        replicates: 0,
+        initialExplantCount: 1,
+      }),
+    ).rejects.toThrow(TreatmentRejectedError);
+    await expect(
+      updateTreatment({
+        experiment: experiment.id,
+        treatment: treated.id,
+        name: "CK",
+        factors: [],
+        note: "",
+      }),
+    ).rejects.toThrow(TreatmentRejectedError);
+    await expect(
+      addDishes({
+        experiment: experiment.id,
+        treatment: null,
+        labels: ["CK-1"],
+        initialExplantCount: 1,
+      }),
+    ).rejects.toThrow(DishRejectedError);
+    await expect(
+      addDishes({
+        experiment: experiment.id,
+        treatment: randomUUID(),
+        labels: ["X1"],
+        initialExplantCount: 1,
+      }),
+    ).rejects.toThrow(TreatmentNotFoundError);
+    await addDishes({
+      experiment: experiment.id,
+      treatment: null,
+      labels: ["A-1"],
+      initialExplantCount: 1,
+    });
+    await expect(
+      addDishes({
+        experiment: experiment.id,
+        treatment: null,
+        labels: ["a_1"],
+        initialExplantCount: 1,
+      }),
+    ).rejects.toThrow(DishRejectedError);
+
+    await assignDishes({
+      experiment: experiment.id,
+      dishes: (await readExperimentGrid(experiment.id))!.dishes.map(
+        (dish) => dish.id,
+      ),
+      treatment: treated.id,
+    });
+    await expect(
+      assignDishes({
+        experiment: experiment.id,
+        dishes: [randomUUID()],
+        treatment: treated.id,
+      }),
+    ).rejects.toThrow(DishNotFoundError);
+
+    await deleteTreatment({
+      experiment: experiment.id,
+      treatment: control.id,
+    });
+    const after = await readExperimentGrid(experiment.id);
+    expect(after?.treatments).toEqual([{ ...treated, position: 1 }]);
+    expect(after?.dishes.map((dish) => dish.treatment)).toEqual([
+      treated.id,
+      treated.id,
+    ]);
+  });
+
+  test("a dish keeps its photographs when its label is corrected", async () => {
+    const version = await trainedVersion("exp-rename");
+    const experiment = await createExperiment({
+      name: "Typo",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observation = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+    await photograph(experiment.id, observation.id, dishes, { A1: "r-a1" });
+
+    const renamed = await updateDish({
+      experiment: experiment.id,
+      dish: dishes.get("A1")!,
+      label: "A01",
+      initialExplantCount: 1,
+    });
+    expect(renamed.label).toBe("A01");
+    await expect(
+      updateDish({
+        experiment: experiment.id,
+        dish: dishes.get("A2")!,
+        label: "A01",
+        initialExplantCount: 1,
+      }),
+    ).rejects.toThrow(DishRejectedError);
+
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A01", "A2"]);
+    expect(grid?.photos).toHaveLength(1);
+    expect(grid?.photos[0]?.dish).toBe(dishes.get("A1")!);
+  });
+
+  test("observations are dated once and ordered by the day they happened", async () => {
+    const version = await trainedVersion("exp-observations");
+    const experiment = await createExperiment({
+      name: "Series",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const dishes = await layOut(experiment.id, ["A2", "A10", "B1"]);
+
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "First look",
+    });
+    expect([day7.ordinal, day7.day, day7.note]).toEqual([1, 7, "First look"]);
+
+    const day21 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-22",
+      note: "",
+    });
+    const day14 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
+    });
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-15",
+        note: "",
+      }),
+    ).rejects.toThrow(ObservationRejectedError);
+
+    await photograph(experiment.id, day7.id, dishes, {
+      A2: "s-a2-7",
+      A10: "s-a10-7",
+      B1: "s-b1-7",
+    });
+    await photograph(experiment.id, day14.id, dishes, { A2: "s-a2-14" });
+
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.observations.map(({ id, day }) => [id, day])).toEqual([
+      [day7.id, 7],
+      [day14.id, 14],
+      [day21.id, 21],
+    ]);
+    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A2", "A10", "B1"]);
+    expect(grid?.photos).toHaveLength(4);
+
+    const summary = (await listExperiments()).find(
+      ({ experiment: item }) => item.id === experiment.id,
+    );
+    expect(summary?.observations).toBe(3);
+    expect(summary?.counts).toEqual({ pending: 4, failed: 0, observed: 0 });
+  });
+
+  test("observations cannot precede inoculation at either boundary", async () => {
+    const version = await trainedVersion("exp-dates");
+    const experiment = await createExperiment({
+      name: "Dates",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-07-31",
+        note: "",
+      }),
+    ).rejects.toThrow(ObservationRejectedError);
+    await expect(
+      (async () => {
+        await (await database()).insert(experimentObservations).values({
+          experimentId: experiment.id,
+          id: randomUUID(),
+          inoculatedOn: INOCULATED,
+          observedOn: "2026-07-31",
+          note: "",
+          createdAt: new Date(),
+        });
+      })(),
+    ).rejects.toThrow();
+  });
+
+  test("the first observation fixes the structural design", async () => {
+    const version = await trainedVersion("exp-fixed-design");
+    const experiment = await createExperiment({
+      name: "Fixed design",
+      material: "Arabidopsis",
+      explant: "Leaf discs",
+      medium: "MS",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+
+    await expect(
+      addTreatment({
+        experiment: experiment.id,
+        name: "T1",
+        factors: [],
+        note: "",
+        replicates: 1,
+        initialExplantCount: 1,
+      }),
+    ).rejects.toThrow(ExperimentDesignLockedError);
+    await expect(
+      assignDishes({
+        experiment: experiment.id,
+        dishes: [dishes.get("A1")!],
+        treatment: null,
+      }),
+    ).rejects.toThrow(ExperimentDesignLockedError);
+    await expect(
+      deleteDish({ experiment: experiment.id, dish: dishes.get("A1")! }),
+    ).rejects.toThrow(ExperimentDesignLockedError);
+    await expect(
+      updateDish({
+        experiment: experiment.id,
+        dish: dishes.get("A1")!,
+        label: "A1",
+        initialExplantCount: 2,
+      }),
+    ).rejects.toThrow(ExperimentDesignLockedError);
+    await expect(
+      updateExperiment({
+        experiment: experiment.id,
+        name: experiment.name,
+        material: experiment.material,
+        explant: experiment.explant,
+        medium: "B5",
+        notes: experiment.notes,
+        inoculatedOn: experiment.inoculatedOn,
+      }),
+    ).rejects.toThrow(ExperimentDesignLockedError);
+    await expect(
+      deleteExperiment({ experiment: experiment.id }),
+    ).rejects.toThrow(ExperimentHasRecordsError);
+
+    const annotated = await updateExperiment({
+      experiment: experiment.id,
+      name: "Fixed design, first run",
+      material: experiment.material,
+      explant: experiment.explant,
+      medium: experiment.medium,
+      notes: "Protocol note corrected",
+      inoculatedOn: experiment.inoculatedOn,
+    });
+    expect([annotated.name, annotated.notes]).toEqual([
+      "Fixed design, first run",
+      "Protocol note corrected",
+    ]);
+  });
+
+  test("filing refuses a dish twice, a filled cell, and a photograph already used", async () => {
+    const version = await trainedVersion("exp-filing");
+    const experiment = await createExperiment({
+      name: "Filing",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+    const day14 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
+    });
+    const [first, other] = await storeTexts(["f-a1", "f-a2"]);
+
+    await expect(
+      filePhotos({
+        experiment: experiment.id,
+        observation: day7.id,
+        photos: [
+          { dish: dishes.get("A1")!, digest: first!, filename: "one.jpg" },
+          { dish: dishes.get("A1")!, digest: other!, filename: "two.jpg" },
+        ],
+      }),
+    ).rejects.toThrow(PhotoRejectedError);
+    await expect(
+      filePhotos({
+        experiment: experiment.id,
+        observation: day7.id,
+        photos: [
+          { dish: dishes.get("A1")!, digest: first!, filename: "one.jpg" },
+          { dish: dishes.get("A2")!, digest: first!, filename: "two.jpg" },
+        ],
+      }),
+    ).rejects.toThrow(PhotoRejectedError);
+    await expect(
+      filePhotos({
+        experiment: experiment.id,
+        observation: day7.id,
+        photos: [{ dish: randomUUID(), digest: first!, filename: "one.jpg" }],
+      }),
+    ).rejects.toThrow(DishNotFoundError);
+
+    const filed = await filePhotos({
+      experiment: experiment.id,
+      observation: day7.id,
+      photos: [
+        { dish: dishes.get("A1")!, digest: first!, filename: "IMG_0413.jpg" },
+      ],
+    });
+    expect([filed.photos, filed.observation.day]).toEqual([1, 7]);
+
+    await expect(
+      filePhotos({
+        experiment: experiment.id,
+        observation: day7.id,
+        photos: [
+          { dish: dishes.get("A1")!, digest: other!, filename: "again.jpg" },
+        ],
+      }),
+    ).rejects.toThrow(PhotoRejectedError);
 
     try {
-      await addRound({
+      await filePhotos({
         experiment: experiment.id,
-        label: "Day 3",
-        capturedAt: CAPTURED_3,
-        photos: [{ digest, filename: "A1.jpg" }],
+        observation: day14.id,
+        photos: [
+          { dish: dishes.get("A2")!, digest: first!, filename: "reuse.jpg" },
+        ],
       });
       throw new Error("Expected reused photo to be rejected");
     } catch (error) {
       expect(error).toBeInstanceOf(ExperimentPhotoAlreadyUsedError);
       expect((error as ExperimentPhotoAlreadyUsedError).photos).toEqual([
-        {
-          digest,
-          filename: "A1.jpg",
-          dish: "A1",
-          round: first.round.id,
-          roundLabel: "Day 1",
-        },
+        { digest: first!, filename: "IMG_0413.jpg", dish: "A1", day: 7 },
       ]);
     }
-    expect((await readExperimentGrid(experiment.id))?.rounds).toHaveLength(1);
+    expect((await readExperimentGrid(experiment.id))?.photos).toHaveLength(1);
+  });
+
+  test("a photograph filed under the wrong cell is refiled or taken back", async () => {
+    const version = await trainedVersion("exp-refile");
+    const experiment = await createExperiment({
+      name: "Refile",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+    await photograph(experiment.id, day7.id, dishes, {
+      A1: "w-a1",
+      A2: "w-a2",
+    });
+    const photos = await photosByDish(experiment.id);
+
+    await expect(
+      movePhoto({
+        experiment: experiment.id,
+        photo: photos.get("A1")!,
+        dish: dishes.get("A2")!,
+        observation: day7.id,
+      }),
+    ).rejects.toThrow(PhotoRejectedError);
+
+    await removePhoto({
+      experiment: experiment.id,
+      photo: photos.get("A2")!,
+    });
+    await movePhoto({
+      experiment: experiment.id,
+      photo: photos.get("A1")!,
+      dish: dishes.get("A2")!,
+      observation: day7.id,
+    });
+
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.photos.map((photo) => photo.dish)).toEqual([
+      dishes.get("A2")!,
+    ]);
+    expect(
+      await blobExists(imageBlobKey(await imageDigest("w-a2"))),
+    ).toBeTrue();
+  });
+
+  test("culture events preserve their effects and corrections", async () => {
+    const version = await trainedVersion("exp-lost");
+    const experiment = await createExperiment({
+      name: "Contamination",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+
+    const event = await recordDishEvent({
+      experiment: experiment.id,
+      dish: dishes.get("A1")!,
+      type: "contaminated",
+      observation: day7.id,
+      excludeFromObservation: true,
+      removeAfterObservation: false,
+      note: "Fungus on the medium",
+    });
+    expect([
+      event.type,
+      event.observation,
+      event.excludeFromObservation,
+      event.removeAfterObservation,
+      event.note,
+    ]).toEqual(["contaminated", day7.id, true, false, "Fungus on the medium"]);
+    await expect(
+      recordDishEvent({
+        experiment: experiment.id,
+        dish: dishes.get("A1")!,
+        type: "contaminated",
+        observation: day7.id,
+        excludeFromObservation: true,
+        removeAfterObservation: false,
+        note: "Duplicate",
+      }),
+    ).rejects.toThrow(DishRejectedError);
+
+    const corrected = await voidDishEvent({
+      experiment: experiment.id,
+      event: event.id,
+      reason: "Culture was clean on review",
+    });
+    expect(corrected.voidedAt).not.toBeNull();
+    expect(corrected.voidReason).toBe("Culture was clean on review");
+
+    const day14 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
+    });
+    const removed = await recordDishEvent({
+      experiment: experiment.id,
+      dish: dishes.get("A1")!,
+      type: "discarded",
+      observation: day7.id,
+      excludeFromObservation: false,
+      removeAfterObservation: true,
+      note: "Harvested after imaging",
+    });
+    const [futurePhoto] = await storeTexts(["removed-a1"]);
+    await expect(
+      filePhotos({
+        experiment: experiment.id,
+        observation: day14.id,
+        photos: [
+          {
+            dish: dishes.get("A1")!,
+            digest: futurePhoto!,
+            filename: "A1.jpg",
+          },
+        ],
+      }),
+    ).rejects.toThrow(PhotoRejectedError);
+    await voidDishEvent({
+      experiment: experiment.id,
+      event: removed.id,
+      reason: "Dish was retained",
+    });
+    await filePhotos({
+      experiment: experiment.id,
+      observation: day14.id,
+      photos: [
+        {
+          dish: dishes.get("A1")!,
+          digest: futurePhoto!,
+          filename: "A1.jpg",
+        },
+      ],
+    });
+
+    await expect(
+      recordDishEvent({
+        experiment: experiment.id,
+        dish: dishes.get("A1")!,
+        type: "harvested",
+        observation: day7.id,
+        excludeFromObservation: false,
+        removeAfterObservation: true,
+        note: "",
+      }),
+    ).rejects.toThrow("has records after this observation");
+
+    await recordDishEvent({
+      experiment: experiment.id,
+      dish: dishes.get("A2")!,
+      type: "contaminated",
+      observation: day14.id,
+      excludeFromObservation: false,
+      removeAfterObservation: false,
+      note: "Late contamination",
+    });
+    await expect(
+      recordDishEvent({
+        experiment: experiment.id,
+        dish: dishes.get("A2")!,
+        type: "discarded",
+        observation: day7.id,
+        excludeFromObservation: false,
+        removeAfterObservation: true,
+        note: "",
+      }),
+    ).rejects.toThrow("has records after this observation");
+
+    await expect(
+      recordDishEvent({
+        experiment: experiment.id,
+        dish: randomUUID(),
+        type: "lost",
+        observation: day7.id,
+        excludeFromObservation: true,
+        removeAfterObservation: true,
+        note: "",
+      }),
+    ).rejects.toThrow(DishNotFoundError);
+
+    const rows = await (await database()).select().from(experimentDishEvents);
+    expect(
+      rows.some((row) => row.id === event.id && row.voidedAt !== null),
+    ).toBeTrue();
   });
 
   test("detects photos under the experiment version and exposes tallies", async () => {
     const version = await trainedVersion("exp-readings");
     const experiment = await createExperiment({
       name: "Readings",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const added = await round(experiment.id, "Day 1", CAPTURED_1, {
-      "D1.jpg": "c-d1",
-      "D2.jpg": "c-d2",
+    const dishes = await layOut(experiment.id, ["D1", "D2"]);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+    await photograph(experiment.id, day7.id, dishes, {
+      D1: "c-d1",
+      D2: "c-d2",
     });
     const d1 = await imageDigest("c-d1");
     const d2 = await imageDigest("c-d2");
@@ -325,335 +1043,196 @@ describe("experiments", () => {
       worker,
     );
     const grid = await readExperimentGrid(experiment.id);
+    const labels = new Map(grid!.dishes.map((dish) => [dish.id, dish.label]));
     expect(
-      grid?.photos.map((photo) => [
-        photo.dish,
-        photo.state,
-        photo.observed,
-        photo.error,
-      ]),
+      grid?.photos
+        .map((photo) => [
+          labels.get(photo.dish)!,
+          photo.state,
+          photo.observed,
+          photo.error,
+        ])
+        .sort(),
     ).toEqual([
       ["D1", "observed", { seed: 3 }, null],
       ["D2", "failed", null, "no dish found"],
     ]);
 
-    const ref = {
-      experiment: experiment.id,
-      dish: "D2",
-      round: added.round.id,
-    };
-    await retryExperimentDetection(ref);
+    const photos = await photosByDish(experiment.id);
+    const failed = { experiment: experiment.id, photo: photos.get("D2")! };
+    await retryExperimentDetection(failed);
     expect(
       (await pendingAssignments(worker)).find(
         (item) => item.manifest.modelVersionId === version.id,
       )?.images,
     ).toEqual([d2]);
-    expect((await readExperimentPhoto(ref))?.failure).toBeNull();
-    expect((await readExperimentPhoto(ref))?.round.label).toBe("Day 1");
+    expect((await readExperimentPhoto(failed))?.failure).toBeNull();
+    expect((await readExperimentPhoto(failed))?.observation.day).toBe(7);
+    expect((await readExperimentPhoto(failed))?.dish.label).toBe("D2");
     expect(
       (
         await readExperimentPhoto({
-          ...ref,
-          dish: "D1",
+          experiment: experiment.id,
+          photo: photos.get("D1")!,
         })
       )?.detection?.instances,
     ).toHaveLength(3);
   });
 
-  test("a dish page shows its newest photographed round and walks the roster", async () => {
+  test("a dish page shows its newest photographed observation and walks the roster", async () => {
     const version = await trainedVersion("exp-dish");
     const experiment = await createExperiment({
       name: "Dish series",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const first = await round(experiment.id, "Day 1", CAPTURED_1, {
-      "S1.jpg": "s-d1-s1",
-      "S2.jpg": "s-d1-s2",
+    const dishes = await layOut(experiment.id, ["S1", "S2"]);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
     });
-    const second = await round(experiment.id, "Day 3", CAPTURED_2, {
-      "S1.jpg": "s-d3-s1",
+    const day14 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
     });
-    const ref = { experiment: experiment.id, dish: "S1" };
+    await photograph(experiment.id, day7.id, dishes, {
+      S1: "s-d1-s1",
+      S2: "s-d1-s2",
+    });
+    await photograph(experiment.id, day14.id, dishes, { S1: "s-d3-s1" });
+    const ref = { experiment: experiment.id, dish: dishes.get("S1")! };
 
     const newest = await readExperimentDish(ref);
     expect(newest?.model.readings[0]?.id).toBe("seeds");
-    expect(newest?.shown?.round.id).toBe(second.round.id);
-    expect(newest?.rounds.map((item) => item.photo?.state ?? null)).toEqual([
-      "pending",
-      "pending",
-    ]);
-    expect([newest?.previous, newest?.next]).toEqual([null, "S2"]);
+    expect(newest?.shown?.observation.id).toBe(day14.id);
+    expect(
+      newest?.observations.map((item) => item.photo?.state ?? null),
+    ).toEqual(["pending", "pending"]);
+    expect(newest?.roster.map((item) => item.label)).toEqual(["S1", "S2"]);
 
-    const earlier = await readExperimentDish(ref, first.round.id);
+    const earlier = await readExperimentDish(ref, day7.id);
     expect(earlier?.shown?.digest).toBe(await imageDigest("s-d1-s1"));
 
-    const lonely = await readExperimentDish({ ...ref, dish: "S2" });
-    expect(lonely?.shown?.round.id).toBe(first.round.id);
-    expect(lonely?.rounds[1]?.photo).toBeNull();
+    const lonely = await readExperimentDish({
+      ...ref,
+      dish: dishes.get("S2")!,
+    });
+    expect(lonely?.shown?.observation.id).toBe(day7.id);
+    expect(lonely?.observations[1]?.photo).toBeNull();
     expect(
-      await readExperimentDish({ ...ref, dish: "S2" }, second.round.id),
+      await readExperimentDish({ ...ref, dish: dishes.get("S2")! }, day14.id),
     ).toBeNull();
-    expect(await readExperimentDish({ ...ref, dish: "S9" })).toBeNull();
+    expect(await readExperimentDish({ ...ref, dish: randomUUID() })).toBeNull();
   });
 
-  test("treatments group dishes and outlive their assignments", async () => {
-    const version = await trainedVersion("exp-treat");
-    const experiment = await createExperiment({
-      name: "Hormones",
-      material: "  Arabidopsis Col-0  ",
-      explant: "Seeds",
-      medium: "MS",
-      modelVersionId: version.id,
-    });
-    expect(experiment.material).toBe("Arabidopsis Col-0");
-    expect([experiment.explant, experiment.medium]).toEqual(["Seeds", "MS"]);
-    expect(experiment.notes).toBe("");
-    await round(experiment.id, "Day 1", CAPTURED_1, {
-      "A1.jpg": "t-a1",
-      "A2.jpg": "t-a2",
-      "B1.jpg": "t-b1",
-    });
-
-    const control = await addTreatment({
-      experiment: experiment.id,
-      name: "Control",
-      description: "",
-    });
-    const auxin = await addTreatment(
-      treatmentRequestSchema.parse({
-        experiment: experiment.id,
-        name: " IAA 1.0 ",
-        description: " IAA 1.0 mg/L on MS ",
-      }),
-    );
-    expect([control.position, auxin.position]).toEqual([1, 2]);
-    expect(auxin.name).toBe("IAA 1.0");
-    expect(auxin.description).toBe("IAA 1.0 mg/L on MS");
-    await expect(
-      addTreatment({
-        experiment: experiment.id,
-        name: "Control",
-        description: "",
-      }),
-    ).rejects.toThrow(TreatmentRejectedError);
-    await expect(
-      updateTreatment({
-        experiment: experiment.id,
-        treatment: auxin.id,
-        name: "Control",
-        description: auxin.description,
-      }),
-    ).rejects.toThrow(TreatmentRejectedError);
-    const dosed = await updateTreatment({
-      experiment: experiment.id,
-      treatment: control.id,
-      name: "Control",
-      description: "Hormone-free MS",
-    });
-    expect(dosed.description).toBe("Hormone-free MS");
-
-    await assignDishes({
-      experiment: experiment.id,
-      dishes: ["A1", "A2"],
-      treatment: control.id,
-    });
-    await assignDishes({
-      experiment: experiment.id,
-      dishes: ["B1"],
-      treatment: auxin.id,
-    });
-    await expect(
-      assignDishes({
-        experiment: experiment.id,
-        dishes: ["A1"],
-        treatment: randomUUID(),
-      }),
-    ).rejects.toThrow(TreatmentNotFoundError);
-    await expect(
-      assignDishes({
-        experiment: experiment.id,
-        dishes: ["A1", "Z9"],
-        treatment: auxin.id,
-      }),
-    ).rejects.toThrow(DishNotFoundError);
-
-    const grouped = await readExperimentGrid(experiment.id);
-    expect(grouped?.treatments.map((item) => item.name)).toEqual([
-      "Control",
-      "IAA 1.0",
-    ]);
-    expect(grouped?.dishes.map((dish) => [dish.label, dish.treatment])).toEqual(
-      [
-        ["A1", control.id],
-        ["A2", control.id],
-        ["B1", auxin.id],
-      ],
-    );
-    const series = await readExperimentDish({
-      experiment: experiment.id,
-      dish: "B1",
-    });
-    expect(series?.treatment?.name).toBe("IAA 1.0");
-
-    await deleteTreatment({ experiment: experiment.id, treatment: control.id });
-    const after = await readExperimentGrid(experiment.id);
-    expect(after?.treatments).toEqual([{ ...auxin, position: 1 }]);
-    expect(after?.dishes.map((dish) => dish.treatment)).toEqual([
-      null,
-      null,
-      auxin.id,
-    ]);
-  });
-
-  test("dish names spell out treatments that one call groups", async () => {
-    const version = await trainedVersion("exp-name-group");
-    const experiment = await createExperiment({
-      name: "Named design",
-      modelVersionId: version.id,
-    });
-    await round(experiment.id, "Day 1", CAPTURED_1, {
-      "T1-1.jpg": "n-t1-1",
-      "T1-2.jpg": "n-t1-2",
-      "T2-1.jpg": "n-t2-1",
-      "CK-1.jpg": "n-ck-1",
-      "Extra.jpg": "n-extra",
-    });
-
-    expect(await assignDishesByName({ experiment: experiment.id })).toBe(4);
-
-    const grid = await readExperimentGrid(experiment.id);
-    expect(
-      grid?.treatments.map((treatment) => [treatment.name, treatment.position]),
-    ).toEqual([
-      ["CK", 1],
-      ["T1", 2],
-      ["T2", 3],
-    ]);
-    const byName = new Map(
-      grid!.treatments.map((treatment) => [treatment.name, treatment.id]),
-    );
-    expect(grid?.dishes.map((dish) => [dish.label, dish.treatment])).toEqual([
-      ["CK-1", byName.get("CK")!],
-      ["Extra", null],
-      ["T1-1", byName.get("T1")!],
-      ["T1-2", byName.get("T1")!],
-      ["T2-1", byName.get("T2")!],
-    ]);
-
-    expect(await assignDishesByName({ experiment: experiment.id })).toBe(0);
-    expect((await readExperimentGrid(experiment.id))?.treatments).toEqual(
-      grid!.treatments,
-    );
-
-    const flat = await createExperiment({
-      name: "Flat",
-      modelVersionId: version.id,
-    });
-    await round(flat.id, "Day 1", CAPTURED_1, {
-      "A1.jpg": "n-a1",
-      "A2.jpg": "n-a2",
-    });
-    await expect(assignDishesByName({ experiment: flat.id })).rejects.toThrow(
-      TreatmentRejectedError,
-    );
-  });
-
-  test("name grouping creates only treatments needed by unassigned dishes", async () => {
-    const version = await trainedVersion("exp-name-plan");
-    const experiment = await createExperiment({
-      name: "Partly designed",
-      modelVersionId: version.id,
-    });
-    await round(experiment.id, "Day 1", CAPTURED_1, {
-      "T1-1.jpg": "p-t1-1",
-      "T2-1.jpg": "p-t2-1",
-    });
-    const manual = await addTreatment({
-      experiment: experiment.id,
-      name: "Manual",
-      description: "",
-    });
-    await assignDishes({
-      experiment: experiment.id,
-      dishes: ["T2-1"],
-      treatment: manual.id,
-    });
-
-    expect(await assignDishesByName({ experiment: experiment.id })).toBe(1);
-    const grid = await readExperimentGrid(experiment.id);
-    expect(grid?.treatments.map((treatment) => treatment.name)).toEqual([
-      "Manual",
-      "T1",
-    ]);
-    expect(grid?.dishes.find((dish) => dish.label === "T2-1")?.treatment).toBe(
-      manual.id,
-    );
-  });
-
-  test("an experiment's words and rounds can be revised, and both removed", async () => {
+  test("drafts stay editable while recorded observations preserve history", async () => {
     const version = await trainedVersion("exp-maint");
     const experiment = await createExperiment({
       name: "Draft",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const day1 = await round(experiment.id, "Day 1", CAPTURED_1, {
-      "A1.jpg": "m-a1-1",
-    });
-    const day2 = await round(experiment.id, "Day 2", CAPTURED_2, {
-      "A1.jpg": "m-a1-2",
-    });
-
+    const dishes = await layOut(experiment.id, ["A1", "A2"]);
     const revised = await updateExperiment({
       experiment: experiment.id,
       name: "Final",
       material: "Tobacco BY-2",
       explant: "Leaf discs",
       medium: "MS + 3% sucrose",
-      notes: "Two rounds",
+      notes: "Draft protocol",
+      inoculatedOn: "2026-08-02",
     });
-    expect([
-      revised.name,
-      revised.material,
-      revised.explant,
-      revised.medium,
-      revised.notes,
-    ]).toEqual([
+    expect([revised.name, revised.inoculatedOn]).toEqual([
       "Final",
-      "Tobacco BY-2",
-      "Leaf discs",
-      "MS + 3% sucrose",
-      "Two rounds",
+      "2026-08-02",
     ]);
     expect(revised.modelVersionId).toBe(version.id);
 
-    await expect(
-      updateRound({
-        experiment: experiment.id,
-        round: day2.round.id,
-        label: "Day 1",
-        capturedAt: CAPTURED_2,
-      }),
-    ).rejects.toThrow(RoundRejectedError);
-    const redated = await updateRound({
+    const day7 = await addObservation({
       experiment: experiment.id,
-      round: day2.round.id,
-      label: "Day 0",
-      capturedAt: CAPTURED_5,
+      observedOn: "2026-08-08",
+      note: "",
     });
-    expect([redated.label, redated.capturedAt]).toEqual(["Day 0", CAPTURED_5]);
+    const day14 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
+    });
+    await photograph(experiment.id, day7.id, dishes, {
+      A1: "m-a1-1",
+      A2: "m-a2-1",
+    });
+    expect(
+      (await readExperimentGrid(experiment.id))?.observations[0]?.day,
+    ).toBe(6);
 
-    await deleteRound({ experiment: experiment.id, round: day1.round.id });
+    await expect(
+      updateObservation({
+        experiment: experiment.id,
+        observation: day14.id,
+        observedOn: "2026-08-08",
+        note: "",
+      }),
+    ).rejects.toThrow(ObservationRejectedError);
+    const redatedEmpty = await updateObservation({
+      experiment: experiment.id,
+      observation: day14.id,
+      observedOn: "2026-08-29",
+      note: "Final count",
+    });
+    expect([
+      redatedEmpty.observedOn,
+      redatedEmpty.day,
+      redatedEmpty.note,
+    ]).toEqual(["2026-08-29", 27, "Final count"]);
+    await expect(
+      updateObservation({
+        experiment: experiment.id,
+        observation: day7.id,
+        observedOn: "2026-08-09",
+        note: "",
+      }),
+    ).rejects.toThrow(ObservationRejectedError);
+    const annotated = await updateObservation({
+      experiment: experiment.id,
+      observation: day7.id,
+      observedOn: day7.observedOn,
+      note: "Images checked",
+    });
+    expect(annotated.note).toBe("Images checked");
+
+    await deleteObservation({
+      experiment: experiment.id,
+      observation: day14.id,
+    });
+    await expect(
+      deleteObservation({ experiment: experiment.id, observation: day7.id }),
+    ).rejects.toThrow(ObservationRejectedError);
+    await expect(
+      deleteDish({ experiment: experiment.id, dish: dishes.get("A2")! }),
+    ).rejects.toThrow(ExperimentDesignLockedError);
     const grid = await readExperimentGrid(experiment.id);
-    expect(grid?.rounds.map((item) => item.id)).toEqual([day2.round.id]);
-    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A1"]);
-    expect(grid?.photos).toHaveLength(1);
+    expect(grid?.observations.map((item) => item.id)).toEqual([day7.id]);
+    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A1", "A2"]);
+    expect(grid?.photos).toHaveLength(2);
     const first = await imageDigest("m-a1-1");
     expect(await blobExists(imageBlobKey(first))).toBeTrue();
 
-    await deleteExperiment({ experiment: experiment.id });
-    expect(await readExperiment(experiment.id)).toBeNull();
     await expect(
       deleteExperiment({ experiment: experiment.id }),
+    ).rejects.toThrow(ExperimentHasRecordsError);
+
+    const disposable = await createExperiment({
+      name: "Disposable draft",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    await deleteExperiment({ experiment: disposable.id });
+    expect(await readExperiment(disposable.id)).toBeNull();
+    await expect(
+      deleteExperiment({ experiment: disposable.id }),
     ).rejects.toThrow(ExperimentNotFoundError);
     expect(await blobExists(imageBlobKey(first))).toBeTrue();
   });
@@ -664,13 +1243,21 @@ describe("experiments", () => {
     for (const name of ["Shared demand A", "Shared demand B"]) {
       const experiment = await createExperiment({
         name,
+        inoculatedOn: INOCULATED,
         modelVersionId: version.id,
       });
-      await addRound({
+      const dishes = await layOut(experiment.id, ["S1"]);
+      const observation = await addObservation({
         experiment: experiment.id,
-        label: "Day 1",
-        capturedAt: CAPTURED_1,
-        photos: [{ digest: digest!, filename: "S1.jpg" }],
+        observedOn: "2026-08-08",
+        note: "",
+      });
+      await filePhotos({
+        experiment: experiment.id,
+        observation: observation.id,
+        photos: [
+          { dish: dishes.get("S1")!, digest: digest!, filename: "S1.jpg" },
+        ],
       });
     }
 
@@ -706,11 +1293,16 @@ describe("experiments", () => {
     const version = await trainedVersion("exp-gc");
     const experiment = await createExperiment({
       name: "GC",
+      inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    await round(experiment.id, "Day 1", CAPTURED_1, {
-      "E1.jpg": "gc-e1",
+    const dishes = await layOut(experiment.id, ["E1"]);
+    const observation = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
     });
+    await photograph(experiment.id, observation.id, dishes, { E1: "gc-e1" });
     const kept = await imageDigest("gc-e1");
     const [loose] = await storeTexts(["gc-loose"]);
     const later = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
@@ -719,26 +1311,5 @@ describe("experiments", () => {
     expect(collected).toContain(loose!);
     expect(collected).not.toContain(kept);
     expect(await blobExists(imageBlobKey(kept))).toBeTrue();
-  });
-
-  test("one photograph cannot fill two cells in one round", async () => {
-    const version = await trainedVersion("exp-dup");
-    const experiment = await createExperiment({
-      name: "Duplicate",
-      modelVersionId: version.id,
-    });
-    const [digest] = await storeTexts(["dup-same"]);
-
-    await expect(
-      addRound({
-        experiment: experiment.id,
-        label: "Day 1",
-        capturedAt: CAPTURED_1,
-        photos: [
-          { digest: digest!, filename: "F1.jpg" },
-          { digest: digest!, filename: "F2.jpg" },
-        ],
-      }),
-    ).rejects.toBeInstanceOf(RoundRejectedError);
   });
 });

@@ -14,7 +14,7 @@ import { lockImage } from "./image-lock";
 
 /**
  * How long a photograph nobody has claimed is kept. Bytes are stored before
- * the round they belong to is submitted, so the period covers a person
+ * the observation they belong to is submitted, so the period covers a person
  * filling in the rest of the form, changing their mind, and coming back to it.
  */
 const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;

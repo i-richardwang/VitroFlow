@@ -15,7 +15,8 @@ import {
   readDataset,
   removeDatasetImage,
 } from "./datasets";
-import { readExperimentGrid, retryExperimentDetection } from "./experiments";
+import { retryExperimentDetection } from "./experiment-observations";
+import { readExperimentGrid } from "./experiment-queries";
 import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
 import { registerModelVersion } from "./model-registry";
 import {
@@ -36,7 +37,7 @@ import {
   baselineVersion,
   imageBytes,
   imageDigest,
-  photographRound,
+  photographObservation,
   registerTestModel,
   registerTrainedVersion,
   resultFor,
@@ -76,7 +77,7 @@ async function stateOf(ref: { dataset: string; digest: string }) {
 }
 
 describe("datasets", () => {
-  test("a stored photograph belongs to nothing until a round is submitted", async () => {
+  test("a stored photograph belongs to nothing until an observation is submitted", async () => {
     const stored = await storeImage(await imageBytes("loose"));
     expect(stored).toEqual({
       digest: await imageDigest("loose"),
@@ -85,20 +86,23 @@ describe("datasets", () => {
       bytes: stored.bytes,
     });
     expect(await blobExists(imageBlobKey(stored.digest))).toBe(true);
-    const { experiment, photos } = await photographRound("loose photos", [
+    const { experiment } = await photographObservation("loose photos", [
       "loose-other",
     ]);
+    const missing = "11111111-1111-4111-8111-111111111111";
     await expect(
       addExperimentPhotos({
         dataset: "loose",
-        photos: [{ ...photos[0]!, dish: "loose" }],
+        photos: [{ experiment: experiment.id, photo: missing }],
       }),
-    ).rejects.toThrow(`Not experiment photographs: ${experiment.id}/loose/`);
+    ).rejects.toThrow(
+      `Not experiment photographs: ${experiment.id}/${missing}`,
+    );
     expect(await readDataset("loose")).toBeNull();
   });
 
   test("draws experiment photographs under the names they were photographed as", async () => {
-    const { digests, photos } = await photographRound("crop photos", [
+    const { digests, photos } = await photographObservation("crop photos", [
       "one",
       "two",
     ]);
@@ -133,7 +137,7 @@ describe("datasets", () => {
   });
 
   test("a dataset trains the model its photographs were read with", async () => {
-    const seed = await photographRound("model photos", ["modelled"]);
+    const seed = await photographObservation("model photos", ["modelled"]);
     await addExperimentPhotos({ dataset: "one-model", photos: seed.photos });
     await registerTestModel({
       schemaVersion: 1,
@@ -146,7 +150,7 @@ describe("datasets", () => {
       ],
     });
     const otherVersion = await registerTrainedVersion("other-task");
-    const other = await photographRound(
+    const other = await photographObservation(
       "other photos",
       ["modelled-elsewhere"],
       otherVersion,
@@ -174,12 +178,12 @@ describe("datasets", () => {
     ).rejects.toThrow(/different models/);
     expect(await readDataset("mixed")).toBeNull();
 
-    const sameSeed = await photographRound(
+    const sameSeed = await photographObservation(
       "same seed content",
       ["same-content"],
       seed.version,
     );
-    const sameOther = await photographRound(
+    const sameOther = await photographObservation(
       "same other content",
       ["same-content"],
       otherVersion,
@@ -199,7 +203,7 @@ describe("datasets", () => {
   });
 
   test("one image can belong to several datasets", async () => {
-    const { digests, photos } = await photographRound("shared photos", [
+    const { digests, photos } = await photographObservation("shared photos", [
       "shared",
     ]);
     for (const dataset of ["left", "right"]) {
@@ -223,8 +227,8 @@ describe("datasets", () => {
   });
 
   test("serializes concurrent additions to a new dataset", async () => {
-    const a = await photographRound("concurrent a", ["concurrent-a"]);
-    const b = await photographRound("concurrent b", ["concurrent-b"]);
+    const a = await photographObservation("concurrent a", ["concurrent-a"]);
+    const b = await photographObservation("concurrent b", ["concurrent-b"]);
     const [first, second] = await Promise.all([
       addExperimentPhotos({ dataset: "concurrent", photos: a.photos }),
       addExperimentPhotos({ dataset: "concurrent", photos: b.photos }),
@@ -239,20 +243,20 @@ describe("collection", () => {
   /** A moment past the period an unclaimed photograph is kept for. */
   const later = () => new Date(Date.now() + 25 * 60 * 60 * 1000);
 
-  test("keeps unclaimed bytes while a round is still being submitted", async () => {
+  test("keeps unclaimed bytes while an observation is still being submitted", async () => {
     const { digest } = await storeImage(await imageBytes("waiting"));
     expect(await collectImages()).not.toContain(digest);
     expect(await blobExists(imageBlobKey(digest))).toBe(true);
   });
 
-  test("collects photographs no round claimed", async () => {
+  test("collects photographs no observation claimed", async () => {
     const { digest } = await storeImage(await imageBytes("abandoned"));
     expect(await collectImages(later())).toContain(digest);
     expect(await blobExists(imageBlobKey(digest))).toBe(false);
   });
 
-  test("a round keeps its photographs", async () => {
-    const { digests } = await photographRound("kept photos", ["kept"]);
+  test("an observation keeps its photographs", async () => {
+    const { digests } = await photographObservation("kept photos", ["kept"]);
     expect(await collectImages(later())).not.toContain(digests[0]);
     expect(await blobExists(imageBlobKey(digests[0]!))).toBe(true);
   });
@@ -278,7 +282,7 @@ describe("detections", () => {
 
   test("an experiment needs detections from its version only", async () => {
     const next = await nextTraditionalVersion("pending-v2");
-    const { experiment, version, digests } = await photographRound(
+    const { experiment, version, digests } = await photographObservation(
       "pending",
       ["pend-a", "pend-b"],
       next,
@@ -325,7 +329,7 @@ describe("detections", () => {
   });
 
   test("a detection is recorded once and a later failure defers to it", async () => {
-    const { version, digests } = await photographRound("once", ["once"]);
+    const { version, digests } = await photographObservation("once", ["once"]);
     const digest = digests[0]!;
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "once");
@@ -361,7 +365,7 @@ describe("detections", () => {
   });
 
   test("an outcome must describe its image and its producer", async () => {
-    const { version, digests } = await photographRound("mismatch", [
+    const { version, digests } = await photographObservation("mismatch", [
       "mismatch",
     ]);
     const digest = digests[0]!;
@@ -512,7 +516,7 @@ describe("removal", () => {
     await expect(removeDatasetImage(ref)).rejects.toThrow(/not in dataset/);
   });
 
-  test("a review keeps the image alive after its last membership and round are gone", async () => {
+  test("a review keeps the image alive after its last membership and observation are gone", async () => {
     const { digests, photos } = await uploadTexts("share-a", ["shared-bytes"]);
     const digest = digests[0]!;
     await addExperimentPhotos({ dataset: "share-b", photos });
@@ -528,14 +532,15 @@ describe("removal", () => {
   });
 });
 
-/** The photo references of an experiment's first round, by dish. */
+/** The photo references of an experiment's photographs, by dish label. */
 async function listPhotoRefs(experimentId: string) {
   const grid = await readExperimentGrid(experimentId);
   if (!grid) throw new Error(`missing experiment ${experimentId}`);
+  const labels = new Map(grid.dishes.map((dish) => [dish.id, dish.label]));
   return new Map(
     grid.photos.map((photo) => [
-      photo.dish,
-      { experiment: experimentId, dish: photo.dish, round: photo.round },
+      labels.get(photo.dish)!,
+      { experiment: experimentId, photo: photo.id },
     ]),
   );
 }

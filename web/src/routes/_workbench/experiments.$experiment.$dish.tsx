@@ -2,30 +2,30 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { DishWorkbench } from "../../components/experiment/DishWorkbench";
-import { dishRefSchema, roundIdSchema } from "../../experiments/schema";
+import { dishRefSchema, observationIdSchema } from "../../experiments/schema";
 import { getExperimentDish } from "../../functions/experiments";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import type { ExperimentDishSeries } from "../../experiments/contracts";
 
-const dishSearchSchema = z.object({ round: z.unknown().optional() });
+const dishSearchSchema = z.object({ observation: z.unknown().optional() });
 
 export const Route = createFileRoute(
   "/_workbench/experiments/$experiment/$dish",
 )({
   validateSearch: dishSearchSchema,
-  loaderDeps: ({ search }) => ({ round: search.round }),
+  loaderDeps: ({ search }) => ({ observation: search.observation }),
   loader: async ({ params, deps }) => {
     const ref = dishRefSchema.safeParse({
       experiment: params.experiment,
       dish: params.dish,
     });
-    const round =
-      deps.round === undefined
+    const observation =
+      deps.observation === undefined
         ? undefined
-        : roundIdSchema.safeParse(deps.round);
-    if (!ref.success || (round && !round.success)) throw notFound();
+        : observationIdSchema.safeParse(deps.observation);
+    if (!ref.success || (observation && !observation.success)) throw notFound();
     const series = await getExperimentDish({
-      data: { ...ref.data, round: round?.data },
+      data: { ...ref.data, observation: observation?.data },
     });
     if (!series) throw notFound();
     return series;
@@ -55,7 +55,7 @@ function DishPage() {
 
   return (
     <DishWorkbench
-      key={`${series.experiment.id}/${series.dish.label}`}
+      key={`${series.experiment.id}/${series.dish.id}`}
       series={series}
       datasets={datasets}
     />

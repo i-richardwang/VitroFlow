@@ -8,12 +8,14 @@ import {
   Modal,
   Select,
 } from "@heroui/react";
+import type { DateValue } from "@internationalized/date";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { startExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import type { Model, ModelVersion } from "../../models/schema";
+import { currentDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
 export function NewExperimentDialog({
@@ -47,6 +49,9 @@ function NewExperimentModal({
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
+  const [inoculatedOn, setInoculatedOn] = useState<DateValue | null>(
+    currentDay,
+  );
 
   return (
     <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -61,12 +66,14 @@ function NewExperimentModal({
               <Form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  if (inoculatedOn === null) return;
                   const form = new FormData(event.currentTarget);
                   void run(
                     () =>
                       startExperiment({
                         data: {
                           ...readExperimentFields(form),
+                          inoculatedOn: toDay(inoculatedOn),
                           modelVersionId: String(form.get("version") ?? ""),
                         },
                       }),
@@ -84,7 +91,11 @@ function NewExperimentModal({
               >
                 <Fieldset className="w-full">
                   <Fieldset.Group>
-                    <ExperimentFields busy={busy} />
+                    <ExperimentFields
+                      busy={busy}
+                      inoculatedOn={inoculatedOn}
+                      onInoculatedOnChange={setInoculatedOn}
+                    />
                     <Select
                       variant="secondary"
                       fullWidth

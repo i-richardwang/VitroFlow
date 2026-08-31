@@ -104,11 +104,14 @@ export function read(reading: Reading, counts: Tally): number | null {
 }
 
 /**
- * The mean reading over replicates: what one dish of the treatment showed,
- * typically. Dishes without a value are not replicates of it.
+ * The reading over replicates: what one dish of the treatment showed,
+ * typically, and how far its replicates spread. Dishes without a value are
+ * not replicates of it. The spread is the sample standard deviation, which a
+ * single replicate does not have.
  */
 export interface ReadingSummary {
   value: number | null;
+  deviation: number | null;
   sampleSize: number;
 }
 
@@ -117,13 +120,18 @@ export function summarize(
   tallies: readonly Tally[],
 ): ReadingSummary {
   const values = tallies.flatMap((counts) => read(reading, counts) ?? []);
-  return {
-    value:
-      values.length === 0
-        ? null
-        : values.reduce((sum, value) => sum + value, 0) / values.length,
-    sampleSize: values.length,
-  };
+  if (values.length === 0) {
+    return { value: null, deviation: null, sampleSize: 0 };
+  }
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const spread =
+    values.length < 2
+      ? null
+      : Math.sqrt(
+          values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+            (values.length - 1),
+        );
+  return { value: mean, deviation: spread, sampleSize: values.length };
 }
 
 export function formatReading(reading: Reading, value: number | null): string {

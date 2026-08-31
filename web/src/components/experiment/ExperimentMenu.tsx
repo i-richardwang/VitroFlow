@@ -12,28 +12,30 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import type { DateValue } from "@internationalized/date";
+
 import type { PhotoCell } from "../../experiments/contracts";
-import type { Experiment, Treatment } from "../../experiments/schema";
+import type { Experiment } from "../../experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DeleteDialog } from "../DeleteDialog";
 import { MoreIcon } from "../icons";
+import { fromDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
-import { TreatmentsDialog } from "./TreatmentsDialog";
 
-type Action = "treatments" | "dataset" | "edit" | "delete";
+type Action = "dataset" | "edit" | "delete";
 
 export function ExperimentMenu({
   experiment,
-  treatments,
   photos,
   datasets,
+  designLocked,
 }: {
   experiment: Experiment;
-  treatments: Treatment[];
   photos: PhotoCell[];
   datasets: string[];
+  designLocked: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -53,9 +55,6 @@ export function ExperimentMenu({
             aria-label="Experiment actions"
             onAction={(key) => setOpen(String(key) as Action)}
           >
-            <Dropdown.Item id="treatments" textValue="Treatments">
-              <Label>Treatments…</Label>
-            </Dropdown.Item>
             {photos.length > 0 ? (
               <Dropdown.Item id="dataset" textValue="Add all to dataset">
                 <Label>Add all to dataset…</Label>
@@ -65,30 +64,24 @@ export function ExperimentMenu({
             <Dropdown.Item id="edit" textValue="Edit details">
               <Label>Edit details…</Label>
             </Dropdown.Item>
-            <Dropdown.Item
-              id="delete"
-              textValue="Delete experiment"
-              variant="danger"
-            >
-              <Label>Delete experiment…</Label>
-            </Dropdown.Item>
+            {!designLocked ? (
+              <Dropdown.Item
+                id="delete"
+                textValue="Delete experiment"
+                variant="danger"
+              >
+                <Label>Delete draft experiment…</Label>
+              </Dropdown.Item>
+            ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
-
-      <TreatmentsDialog
-        experiment={experiment.id}
-        treatments={treatments}
-        isOpen={open === "treatments"}
-        onClose={close}
-      />
 
       <AddToDatasetDialog
         isOpen={open === "dataset"}
         photos={photos.map((photo) => ({
           experiment: experiment.id,
-          dish: photo.dish,
-          round: photo.round,
+          photo: photo.id,
         }))}
         datasets={datasets}
         heading="Add all to dataset"
@@ -98,6 +91,7 @@ export function ExperimentMenu({
       <EditExperimentDialog
         experiment={experiment}
         isOpen={open === "edit"}
+        protocolLocked={designLocked}
         onClose={close}
       />
 
@@ -112,7 +106,7 @@ export function ExperimentMenu({
           await router.navigate({ to: "/experiments" });
         }}
       >
-        Its treatments, dishes, and rounds are removed. The photographs stay
+        Its design, dishes, and observations are removed. The photographs stay
         stored, with their detections and reviews, for the datasets that use
         them.
       </DeleteDialog>
@@ -124,13 +118,18 @@ function EditExperimentDialog({
   experiment,
   isOpen,
   onClose,
+  protocolLocked,
 }: {
   experiment: Experiment;
   isOpen: boolean;
   onClose: () => void;
+  protocolLocked: boolean;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
+  const [inoculatedOn, setInoculatedOn] = useState<DateValue | null>(() =>
+    fromDay(experiment.inoculatedOn),
+  );
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
@@ -140,18 +139,38 @@ function EditExperimentDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Edit experiment</Modal.Heading>
+              {protocolLocked ? (
+                <p className="text-sm text-muted">
+                  Material, explant, medium, and inoculation date are fixed
+                  after the first observation.
+                </p>
+              ) : null}
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  if (inoculatedOn === null) return;
                   const form = new FormData(event.currentTarget);
+                  const fields = readExperimentFields(form);
                   void run(
                     () =>
                       editExperiment({
                         data: {
                           experiment: experiment.id,
-                          ...readExperimentFields(form),
+                          ...fields,
+                          material: protocolLocked
+                            ? experiment.material
+                            : fields.material,
+                          explant: protocolLocked
+                            ? experiment.explant
+                            : fields.explant,
+                          medium: protocolLocked
+                            ? experiment.medium
+                            : fields.medium,
+                          inoculatedOn: protocolLocked
+                            ? experiment.inoculatedOn
+                            : toDay(inoculatedOn),
                         },
                       }),
                     "Experiment not saved",
@@ -165,7 +184,13 @@ function EditExperimentDialog({
               >
                 <Fieldset className="w-full">
                   <Fieldset.Group>
-                    <ExperimentFields busy={busy} defaults={experiment} />
+                    <ExperimentFields
+                      busy={busy}
+                      defaults={experiment}
+                      inoculatedOn={inoculatedOn}
+                      onInoculatedOnChange={setInoculatedOn}
+                      protocolLocked={protocolLocked}
+                    />
                   </Fieldset.Group>
                   <Fieldset.Actions>
                     <Button variant="tertiary" onPress={onClose}>

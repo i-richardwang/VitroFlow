@@ -4,11 +4,13 @@ import {
   foreignKey,
   type AnyPgColumn,
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
   pgTable,
   primaryKey,
+  date,
   doublePrecision,
   real,
   text,
@@ -19,6 +21,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
+import { DISH_EVENT_TYPES, type TreatmentFactor } from "../experiments/schema";
 import type { InferenceOutcome } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { Reading } from "../models/readings";
@@ -138,7 +141,7 @@ export const datasets = pgTable(
  * to nothing; experiments, datasets, snapshots, and labels refer to them.
  * Every column describes the bytes themselves.
  *
- * An image with no reference is unclaimed: bytes arrive before the round they
+ * An image with no reference is unclaimed: bytes arrive before the observation they
  * join is submitted. `receivedAt` is when the bytes last arrived and bounds
  * how long that submission may still be in progress.
  */
@@ -341,6 +344,8 @@ export const experiments = pgTable(
     medium: text("medium").notNull(),
     /** The rest of the notebook page: conditions, goals, remarks. */
     notes: text("notes").notNull(),
+    /** Day zero: when the explants went into the dishes. */
+    inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
     modelVersionId: text("model_version_id")
       .notNull()
       .references(() => modelVersions.id),
@@ -348,6 +353,7 @@ export const experiments = pgTable(
   },
   (table) => [
     index("experiments_version_idx").on(table.modelVersionId),
+    unique("experiments_id_inoculated").on(table.id, table.inoculatedOn),
     check(
       "experiments_name_check",
       sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
@@ -373,7 +379,8 @@ export const experiments = pgTable(
 
 /**
  * The conditions an experiment compares. Dishes under one treatment are its
- * replicates; a treatment may exist before any dish is assigned to it.
+ * replicates; a treatment exists from the moment the design names it, before
+ * any dish is laid out under it.
  */
 export const experimentTreatments = pgTable(
   "experiment_treatments",
@@ -383,45 +390,109 @@ export const experimentTreatments = pgTable(
       .references(() => experiments.id, { onDelete: "cascade" }),
     id: uuid("id").notNull(),
     name: text("name").notNull(),
-    /** How this condition differs from the others: the recipe, dose, or setting. */
-    description: text("description").notNull(),
+    nameKey: text("name_key")
+      .notNull()
+      .generatedAlwaysAs(
+        sql`trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))`,
+      ),
+    /** What this condition sets: regulator and dose, light, temperature. */
+    factors: jsonb("factors").$type<TreatmentFactor[]>().notNull(),
+    /** Remarks the factors do not already state. */
+    note: text("note").notNull(),
     /** Where the treatment sits in the design; groups are shown in this order. */
     position: integer("position").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
-    unique("experiment_treatments_name").on(table.experimentId, table.name),
+    unique("experiment_treatments_name").on(table.experimentId, table.nameKey),
     unique("experiment_treatments_position").on(
       table.experimentId,
       table.position,
     ),
     check(
       "experiment_treatments_name_check",
-      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120 and ${table.nameKey} <> ''`,
     ),
     check(
-      "experiment_treatments_description_check",
-      sql`${table.description} = btrim(${table.description}) and length(${table.description}) <= 1000`,
+      "experiment_treatments_note_check",
+      sql`${table.note} = btrim(${table.note}) and length(${table.note}) <= 1000`,
+    ),
+    check(
+      "experiment_treatments_factors_check",
+      sql`jsonb_typeof(${table.factors}) = 'array' and jsonb_array_length(${table.factors}) <= 12`,
     ),
     check("experiment_treatments_position_check", sql`${table.position} >= 1`),
   ],
 );
 
-/** The dishes an experiment follows, labelled as the first round named them. */
+/**
+ * One occasion on which the experiment was observed. The day it happened
+ * places it in the series and, against the inoculation date, names it.
+ */
+export const experimentObservations = pgTable(
+  "experiment_observations",
+  {
+    experimentId: uuid("experiment_id").notNull(),
+    id: uuid("id").notNull(),
+    inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
+    observedOn: date("observed_on", { mode: "string" }).notNull(),
+    note: text("note").notNull(),
+    createdAt: instant("created_at"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.experimentId, table.id] }),
+    foreignKey({
+      columns: [table.experimentId, table.inoculatedOn],
+      foreignColumns: [experiments.id, experiments.inoculatedOn],
+    })
+      .onDelete("cascade")
+      .onUpdate("cascade"),
+    /** An experiment observes its dishes once a day at most. */
+    unique("experiment_observations_day").on(
+      table.experimentId,
+      table.observedOn,
+    ),
+    index("experiment_observations_observed_idx").on(
+      table.experimentId,
+      table.observedOn,
+    ),
+    check(
+      "experiment_observations_note_check",
+      sql`${table.note} = btrim(${table.note}) and length(${table.note}) <= 500`,
+    ),
+    check(
+      "experiment_observations_date_check",
+      sql`${table.observedOn} >= ${table.inoculatedOn}`,
+    ),
+  ],
+);
+
+/**
+ * The dishes the design lays out. A dish exists before it is photographed
+ * and keeps its identity when it is relabelled, so photographs, treatment
+ * membership, and readings survive a correction to its name.
+ */
 export const experimentDishes = pgTable(
   "experiment_dishes",
   {
     experimentId: uuid("experiment_id")
       .notNull()
       .references(() => experiments.id, { onDelete: "cascade" }),
+    id: uuid("id").notNull(),
     label: text("label").notNull(),
-    /** Where the dish sits in the roster; rows are shown in this order. */
-    position: integer("position").notNull(),
+    labelKey: text("label_key")
+      .notNull()
+      .generatedAlwaysAs(
+        sql`trim(both '-' from lower(regexp_replace(normalize(label, NFKC), '[-[:space:]._]+', '-', 'g')))`,
+      ),
     /** The treatment this dish replicates, once the design assigns it. */
     treatmentId: uuid("treatment_id"),
+    /** Subsamples within this experimental unit; they do not increase n. */
+    initialExplantCount: integer("initial_explant_count").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.experimentId, table.label] }),
+    primaryKey({ columns: [table.experimentId, table.id] }),
+    unique("experiment_dishes_label").on(table.experimentId, table.labelKey),
     foreignKey({
       columns: [table.experimentId, table.treatmentId],
       foreignColumns: [
@@ -433,52 +504,87 @@ export const experimentDishes = pgTable(
       table.experimentId,
       table.treatmentId,
     ),
-    unique("experiment_dishes_position").on(table.experimentId, table.position),
     check(
       "experiment_dishes_label_check",
-      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 255`,
+      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 60 and ${table.labelKey} <> ''`,
     ),
-    check("experiment_dishes_position_check", sql`${table.position} >= 1`),
+    check(
+      "experiment_dishes_initial_explant_count_check",
+      sql`${table.initialExplantCount} between 1 and 10000`,
+    ),
   ],
 );
 
-/** One business occasion on which some or all dishes were photographed. */
-export const experimentRounds = pgTable(
-  "experiment_rounds",
+/** An observed culture event; corrections void the event without erasing it. */
+export const experimentDishEvents = pgTable(
+  "experiment_dish_events",
   {
-    experimentId: uuid("experiment_id")
-      .notNull()
-      .references(() => experiments.id, { onDelete: "cascade" }),
+    experimentId: uuid("experiment_id").notNull(),
     id: uuid("id").notNull(),
-    label: text("label").notNull(),
-    capturedAt: instant("captured_at"),
-    createdAt: instant("created_at"),
+    dishId: uuid("dish_id").notNull(),
+    observationId: uuid("observation_id").notNull(),
+    type: text("type", { enum: DISH_EVENT_TYPES }).notNull(),
+    /** Whether this dish leaves analysis from the recorded observation onward. */
+    excludeFromObservation: boolean("exclude_from_observation").notNull(),
+    /** Whether the dish is no longer available after the recorded observation. */
+    removeAfterObservation: boolean("remove_after_observation").notNull(),
+    note: text("note").notNull(),
+    recordedAt: instant("recorded_at"),
+    voidedAt: timestamp("voided_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    voidReason: text("void_reason").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
-    unique("experiment_rounds_label").on(table.experimentId, table.label),
-    index("experiment_rounds_captured_idx").on(
+    foreignKey({
+      columns: [table.experimentId, table.dishId],
+      foreignColumns: [experimentDishes.experimentId, experimentDishes.id],
+    }),
+    foreignKey({
+      columns: [table.experimentId, table.observationId],
+      foreignColumns: [
+        experimentObservations.experimentId,
+        experimentObservations.id,
+      ],
+    }),
+    index("experiment_dish_events_dish_idx").on(
       table.experimentId,
-      table.capturedAt,
-      table.id,
+      table.dishId,
+      table.recordedAt,
+    ),
+    uniqueIndex("experiment_dish_events_one_active_kind")
+      .on(table.experimentId, table.dishId, table.observationId, table.type)
+      .where(sql`${table.voidedAt} is null`),
+    check(
+      "experiment_dish_events_note_check",
+      sql`${table.note} = btrim(${table.note}) and length(${table.note}) <= 500`,
     ),
     check(
-      "experiment_rounds_label_check",
-      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 80`,
+      "experiment_dish_events_type_check",
+      sql`${table.type} in ('contaminated', 'dead', 'discarded', 'harvested', 'lost')`,
+    ),
+    check(
+      "experiment_dish_events_void_check",
+      sql`(${table.voidedAt} is null) = (${table.voidReason} = '')`,
     ),
   ],
 );
 
 /**
- * The photograph of one dish in one round. It refers to the image the way a
- * membership does, and the experiment reads the detection under its version.
+ * The photograph of one dish in one observation. It refers to the image the
+ * way a membership does, and the experiment reads the detection under its
+ * version. The filename records where the bytes came from and identifies
+ * nothing.
  */
 export const experimentPhotos = pgTable(
   "experiment_photos",
   {
     experimentId: uuid("experiment_id").notNull(),
-    dishLabel: text("dish_label").notNull(),
-    roundId: uuid("round_id").notNull(),
+    id: uuid("id").notNull(),
+    dishId: uuid("dish_id").notNull(),
+    observationId: uuid("observation_id").notNull(),
     /** An experiment photo is an image reference root; deletion is refused. */
     imageId: text("image_id")
       .notNull()
@@ -486,17 +592,24 @@ export const experimentPhotos = pgTable(
     filename: text("filename").notNull(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.experimentId, table.dishLabel, table.roundId],
-    }),
+    primaryKey({ columns: [table.experimentId, table.id] }),
     foreignKey({
-      columns: [table.experimentId, table.dishLabel],
-      foreignColumns: [experimentDishes.experimentId, experimentDishes.label],
+      columns: [table.experimentId, table.dishId],
+      foreignColumns: [experimentDishes.experimentId, experimentDishes.id],
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.experimentId, table.roundId],
-      foreignColumns: [experimentRounds.experimentId, experimentRounds.id],
+      columns: [table.experimentId, table.observationId],
+      foreignColumns: [
+        experimentObservations.experimentId,
+        experimentObservations.id,
+      ],
     }).onDelete("cascade"),
+    /** One dish yields one photograph per observation. */
+    unique("experiment_photos_cell").on(
+      table.experimentId,
+      table.dishId,
+      table.observationId,
+    ),
     /** The same photograph cannot stand for two dishes or two occasions. */
     unique("experiment_photos_image").on(table.experimentId, table.imageId),
     index("experiment_photos_image_idx").on(table.imageId),

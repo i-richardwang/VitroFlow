@@ -2,38 +2,55 @@ import { createServerFn } from "@tanstack/react-start";
 
 import {
   dishAssignmentSchema,
+  dishEventRequestSchema,
+  dishEventVoidSchema,
+  dishLayoutSchema,
+  dishRefSchema,
+  dishUpdateSchema,
   dishRequestSchema,
   experimentRefSchema,
   experimentRequestSchema,
   experimentUpdateSchema,
+  photoFilingSchema,
+  photoMoveSchema,
   photoRefSchema,
-  roundRefSchema,
-  roundRequestSchema,
-  roundUpdateSchema,
+  observationRefSchema,
+  observationRequestSchema,
+  observationUpdateSchema,
+  treatmentReplicatesSchema,
   treatmentRefSchema,
   treatmentRequestSchema,
   treatmentUpdateSchema,
 } from "../experiments/schema";
 import { listDatasetsForModel } from "../server/datasets";
 import {
+  addDishes,
   addTreatment,
+  addTreatmentReplicates,
   assignDishes,
-  assignDishesByName,
   createExperiment,
+  deleteDish,
   deleteExperiment,
   deleteTreatment,
+  updateDish,
   updateExperiment,
   updateTreatment,
 } from "../server/experiment-design";
+import { recordDishEvent, voidDishEvent } from "../server/experiment-events";
 import {
-  addRound,
-  deleteRound,
+  addObservation,
+  deleteObservation,
+  filePhotos,
+  movePhoto,
+  removePhoto,
+  retryExperimentDetection,
+  updateObservation,
+} from "../server/experiment-observations";
+import {
   listExperiments,
   readExperimentDish,
   readExperimentGrid,
-  retryExperimentDetection,
-  updateRound,
-} from "../server/experiments";
+} from "../server/experiment-queries";
 import { listAllModelVersions, listModels } from "../server/model-registry";
 
 /** The datasets that train the model, where its photographs may be added. */
@@ -81,18 +98,6 @@ export const removeExperiment = createServerFn({ method: "POST" })
   .validator(experimentRefSchema)
   .handler(({ data }) => deleteExperiment(data));
 
-export const editRound = createServerFn({ method: "POST" })
-  .validator(roundUpdateSchema)
-  .handler(({ data }) => updateRound(data));
-
-export const createRound = createServerFn({ method: "POST" })
-  .validator(roundRequestSchema)
-  .handler(({ data }) => addRound(data));
-
-export const removeRound = createServerFn({ method: "POST" })
-  .validator(roundRefSchema)
-  .handler(({ data }) => deleteRound(data));
-
 export const createTreatment = createServerFn({ method: "POST" })
   .validator(treatmentRequestSchema)
   .handler(({ data }) => addTreatment(data));
@@ -105,18 +110,62 @@ export const removeTreatment = createServerFn({ method: "POST" })
   .validator(treatmentRefSchema)
   .handler(({ data }) => deleteTreatment(data));
 
+export const createDishes = createServerFn({ method: "POST" })
+  .validator(dishLayoutSchema)
+  .handler(({ data }) => addDishes(data));
+
+export const createTreatmentReplicates = createServerFn({ method: "POST" })
+  .validator(treatmentReplicatesSchema)
+  .handler(({ data }) => addTreatmentReplicates(data));
+
+export const editDish = createServerFn({ method: "POST" })
+  .validator(dishUpdateSchema)
+  .handler(({ data }) => updateDish(data));
+
+export const createDishEvent = createServerFn({ method: "POST" })
+  .validator(dishEventRequestSchema)
+  .handler(({ data }) => recordDishEvent(data));
+
+export const correctDishEvent = createServerFn({ method: "POST" })
+  .validator(dishEventVoidSchema)
+  .handler(({ data }) => voidDishEvent(data));
+
+export const removeDish = createServerFn({ method: "POST" })
+  .validator(dishRefSchema)
+  .handler(({ data }) => deleteDish(data));
+
 export const placeDishes = createServerFn({ method: "POST" })
   .validator(dishAssignmentSchema)
   .handler(({ data }) => assignDishes(data));
 
-export const groupDishesByName = createServerFn({ method: "POST" })
-  .validator(experimentRefSchema)
-  .handler(({ data }) => assignDishesByName(data));
+export const createObservation = createServerFn({ method: "POST" })
+  .validator(observationRequestSchema)
+  .handler(({ data }) => addObservation(data));
+
+export const editObservation = createServerFn({ method: "POST" })
+  .validator(observationUpdateSchema)
+  .handler(({ data }) => updateObservation(data));
+
+export const removeObservation = createServerFn({ method: "POST" })
+  .validator(observationRefSchema)
+  .handler(({ data }) => deleteObservation(data));
+
+export const filePhotographs = createServerFn({ method: "POST" })
+  .validator(photoFilingSchema)
+  .handler(({ data }) => filePhotos(data));
+
+export const refilePhotograph = createServerFn({ method: "POST" })
+  .validator(photoMoveSchema)
+  .handler(({ data }) => movePhoto(data));
+
+export const removePhotograph = createServerFn({ method: "POST" })
+  .validator(photoRefSchema)
+  .handler(({ data }) => removePhoto(data));
 
 export const getExperimentDish = createServerFn({ method: "GET" })
   .validator(dishRequestSchema)
-  .handler(async ({ data: { round, ...ref } }) => {
-    const series = await readExperimentDish(ref, round);
+  .handler(async ({ data: { observation, ...ref } }) => {
+    const series = await readExperimentDish(ref, observation);
     if (!series) return null;
     return { ...series, datasets: await datasetsTraining(series.model.id) };
   });

@@ -6,7 +6,7 @@ import { readReview } from "./review";
 import {
   TEST_RUNTIME,
   ULTRALYTICS_RUNTIME,
-  photographRound,
+  photographObservation,
   registerTestModel,
   registerTrainedVersion,
   resultFor,
@@ -19,9 +19,9 @@ test("a review starts from the version the reviewer arrived from", async () => {
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
   });
-  const first = await photographRound("review v1", ["rv"]);
+  const first = await photographObservation("review v1", ["rv"]);
   const next = await registerTrainedVersion(first.version.modelId, "review-v2");
-  await photographRound("review v2", ["rv"], next);
+  await photographObservation("review v2", ["rv"], next);
   const digest = first.digests[0]!;
   const ref = { digest, model: first.version.modelId };
   const older = await resultFor(first.version, "rv");

@@ -11,8 +11,8 @@ import type { Model, ModelVersion } from "../models/schema";
 import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { canonicalize } from "./image-ingest";
 import { addExperimentPhotos } from "./datasets";
-import { createExperiment } from "./experiment-design";
-import { addRound } from "./experiments";
+import { addDishes, addTreatment, createExperiment } from "./experiment-design";
+import { addObservation, filePhotos } from "./experiment-observations";
 import { storeImage } from "./image-store";
 import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
 import { recordInferenceOutcome } from "./inference-outcomes";
@@ -21,7 +21,12 @@ import { readModelVersion, registerModelVersion } from "./model-registry";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { database, transaction } from "../db/client";
 import { registerModel as registerDatabaseModel } from "../db/registry";
-import { datasetSnapshots, datasets, trainingRuns } from "../db/schema";
+import {
+  datasetSnapshots,
+  datasets,
+  experimentPhotos,
+  trainingRuns,
+} from "../db/schema";
 
 export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
@@ -180,7 +185,7 @@ export async function storeTexts(contents: string[]): Promise<string[]> {
   return digests;
 }
 
-export interface PhotographedRound {
+export interface PhotographedObservation {
   experiment: Experiment;
   version: ModelVersion;
   /** In the order of `contents`. */
@@ -190,14 +195,15 @@ export interface PhotographedRound {
 }
 
 /**
- * Photographs each text as one dish of a new experiment's first round, named
- * `<content>.jpg`, so the images enter the system the way photographs do.
+ * Lays out one dish per text in a new experiment and photographs them all in
+ * its first observation, so the images enter the system the way photographs
+ * do: through a design that already knows its dishes.
  */
-export async function photographRound(
+export async function photographObservation(
   experimentName: string,
   contents: string[],
   version?: ModelVersion,
-): Promise<PhotographedRound> {
+): Promise<PhotographedObservation> {
   const selectedVersion = version ?? (await baselineVersion());
   const experiment = await createExperiment({
     name: experimentName,
@@ -205,31 +211,65 @@ export async function photographRound(
     explant: "",
     medium: "",
     notes: "",
+    inoculatedOn: "2026-08-01",
     modelVersionId: selectedVersion.id,
   });
-  const digests = await storeTexts(contents);
-  const { round } = await addRound({
+  const treatment = await addTreatment({
     experiment: experiment.id,
-    label: "Round 1",
-    capturedAt: "2026-08-01T09:00:00.000Z",
+    name: "Test",
+    factors: [],
+    note: "",
+    replicates: 0,
+    initialExplantCount: 1,
+  });
+  const dishes = await addDishes({
+    experiment: experiment.id,
+    treatment: treatment.id,
+    labels: contents,
+    initialExplantCount: 1,
+  });
+  const byLabel = new Map(dishes.map((dish) => [dish.label, dish.id]));
+  const digests = await storeTexts(contents);
+  const observation = await addObservation({
+    experiment: experiment.id,
+    observedOn: "2026-08-08",
+    note: "",
+  });
+  await filePhotos({
+    experiment: experiment.id,
+    observation: observation.id,
     photos: contents.map((content, index) => ({
+      dish: byLabel.get(content)!,
       digest: digests[index]!,
       filename: `${content}.jpg`,
     })),
   });
+  const cells = await listExperimentPhotos(experiment.id);
   return {
     experiment,
     version: selectedVersion,
     digests,
     photos: contents.map((content) => ({
       experiment: experiment.id,
-      dish: content,
-      round: round.id,
+      photo: cells.get(byLabel.get(content)!)!,
     })),
   };
 }
 
-export interface SeededDataset extends PhotographedRound {
+/** The photograph filed under each dish, by dish, across every observation. */
+async function listExperimentPhotos(
+  experimentId: string,
+): Promise<Map<string, string>> {
+  const rows = await (
+    await database()
+  )
+    .select({ dishId: experimentPhotos.dishId, id: experimentPhotos.id })
+    .from(experimentPhotos)
+    .where(eq(experimentPhotos.experimentId, experimentId));
+  return new Map(rows.map((row) => [row.dishId, row.id]));
+}
+
+export interface SeededDataset extends PhotographedObservation {
   dataset: Dataset;
 }
 
@@ -239,12 +279,16 @@ export async function uploadTexts(
   contents: string[],
   version?: ModelVersion,
 ): Promise<SeededDataset> {
-  const round = await photographRound(`${datasetId} photos`, contents, version);
+  const observation = await photographObservation(
+    `${datasetId} photos`,
+    contents,
+    version,
+  );
   const { dataset } = await addExperimentPhotos({
     dataset: datasetId,
-    photos: round.photos,
+    photos: observation.photos,
   });
-  return { ...round, dataset };
+  return { ...observation, dataset };
 }
 
 /** A result `version` would produce for the image with these bytes. */

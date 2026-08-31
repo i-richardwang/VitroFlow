@@ -10,8 +10,8 @@ import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
 import { readInferenceWorker } from "./inference-worker-store";
 import { createLabelFromDetection } from "./labels";
-import { createExperiment } from "./experiment-design";
-import { addRound } from "./experiments";
+import { addDishes, addTreatment, createExperiment } from "./experiment-design";
+import { addObservation, filePhotos } from "./experiment-observations";
 import { readDetection } from "./inference-outcomes";
 import { contentDigest } from "./blobs";
 import {
@@ -58,13 +58,32 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     explant: "",
     medium: "",
     notes: "",
+    inoculatedOn: "2026-08-01",
     modelVersionId: version.id,
   });
-  await addRound({
+  const treatment = await addTreatment({
     experiment: experiment.id,
-    label: "Day 1",
-    capturedAt: "2026-08-01T09:00:00.000Z",
-    photos: [{ digest, filename: "api.jpg" }],
+    name: "Test",
+    factors: [],
+    note: "",
+    replicates: 0,
+    initialExplantCount: 1,
+  });
+  const [dish] = await addDishes({
+    experiment: experiment.id,
+    treatment: treatment.id,
+    labels: ["A1"],
+    initialExplantCount: 1,
+  });
+  const observation = await addObservation({
+    experiment: experiment.id,
+    observedOn: "2026-08-08",
+    note: "",
+  });
+  await filePhotos({
+    experiment: experiment.id,
+    observation: observation.id,
+    photos: [{ dish: dish!.id, digest, filename: "api.jpg" }],
   });
   const runtime = {
     adapter: "traditional" as const,

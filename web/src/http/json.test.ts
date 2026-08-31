@@ -15,7 +15,7 @@ describe("parseHttpJson", () => {
   test("rejects malformed success and structured server failures", () => {
     expect(() => parseHttpJson('{"value":"3"}', 200, responseSchema)).toThrow();
     expect(() =>
-      parseHttpJson('{"error":"round rejected"}', 422, responseSchema),
-    ).toThrow("round rejected");
+      parseHttpJson('{"error":"observation rejected"}', 422, responseSchema),
+    ).toThrow("observation rejected");
   });
 });

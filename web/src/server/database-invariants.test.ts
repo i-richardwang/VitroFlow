@@ -8,7 +8,7 @@ import { datasetSnapshotImages, modelVersions } from "../db/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import {
   imageDigest,
-  photographRound,
+  photographObservation,
   registerTestModel,
   registerTrainedVersion,
   resultFor,
@@ -63,7 +63,7 @@ test("the database binds snapshot annotations to the snapshot model", async () =
   if (other.source.kind !== "training_run") {
     throw new Error("expected a trained model version");
   }
-  const { version } = await photographRound("snapshot-invariant", [
+  const { version } = await photographObservation("snapshot-invariant", [
     "snapshot-invariant-image",
   ]);
   const digest = await imageDigest("snapshot-invariant-image");

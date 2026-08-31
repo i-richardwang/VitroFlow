@@ -5,19 +5,20 @@ import { useState, type ReactNode } from "react";
 
 import type { LabelInstance } from "../../annotation/schema";
 import { isCompletedReview } from "../../annotation/status";
-import type { PhotoRef } from "../../experiments/schema";
+import { observationLabel, type PhotoRef } from "../../experiments/schema";
+import { DISH_EVENT_LABELS } from "../../experiments/dish-events";
 import { retryPhotoDetection } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { tally } from "../../models/readings";
 import { versionSlug } from "../../models/schema";
 import type {
+  DishStep,
   ExperimentDishSeries,
   ExperimentPhoto,
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 import { QualityWarnings } from "../QualityWarnings";
-import { Timestamp } from "../Timestamp";
 import { Workbench } from "../Workbench";
 import { AnnotationCanvas } from "../workbench/AnnotationCanvas";
 import type { LayerKey } from "../workbench/controls";
@@ -27,6 +28,7 @@ import {
   ReadingsSection,
   Section,
 } from "../workbench/inspector";
+import { PhotoMenu } from "./PhotoMenu";
 import { PhotoStateChip } from "./PhotoState";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
@@ -39,7 +41,8 @@ export function DishWorkbench({
   series: ExperimentDishSeries;
   datasets: string[];
 }) {
-  const { experiment, model, version, dish, treatment, shown } = series;
+  const { experiment, model, version, dish, treatment, roster, shown } = series;
+  const at = roster.findIndex((item) => item.id === dish.id);
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(DEFAULT_LAYERS),
   );
@@ -54,6 +57,9 @@ export function DishWorkbench({
       bbox,
     })) ??
     [];
+  const latestEvent = [...dish.events]
+    .reverse()
+    .find((event) => event.voidedAt === null);
 
   return (
     <Workbench
@@ -64,17 +70,28 @@ export function DishWorkbench({
             {detection && <QualityWarnings quality={detection.quality} />}
             {(detection || shown.label) && <ReviewButton photo={shown} />}
             <AddToDatasetButton photos={[shown.ref]} datasets={datasets} />
+            <PhotoMenu
+              photo={shown}
+              roster={roster}
+              observations={series.observations.map((item) => item.observation)}
+            />
           </>
         ) : undefined
       }
       toolbar={
-        <Toolbar aria-label="Dish and round" className="gap-3 px-3 py-1.5">
+        <Toolbar
+          aria-label="Dish and observation"
+          className="gap-3 px-3 py-1.5"
+        >
           <DishStepper
             experiment={experiment.id}
-            previous={series.previous}
-            next={series.next}
+            previous={roster[at - 1] ?? null}
+            next={roster[at + 1] ?? null}
           />
-          <RoundTabs series={series} shown={shown?.ref.round ?? null} />
+          <ObservationTabs
+            series={series}
+            shown={shown?.observation.id ?? null}
+          />
         </Toolbar>
       }
       inspector={
@@ -116,13 +133,27 @@ export function DishWorkbench({
                   {
                     label: "Treatment",
                     value: treatment?.name ?? (
-                      <span className="text-muted">Unassigned</span>
+                      <span className="text-muted">None</span>
                     ),
+                  },
+                  {
+                    label: "Dish",
+                    value: latestEvent ? (
+                      <span className="text-warning">
+                        {DISH_EVENT_LABELS[latestEvent.type]}
+                      </span>
+                    ) : (
+                      "Active"
+                    ),
+                  },
+                  {
+                    label: "Initial explants",
+                    value: dish.initialExplantCount,
                   },
                   { label: "File", value: shown.filename },
                   {
-                    label: "Captured",
-                    value: <Timestamp value={shown.round.capturedAt} />,
+                    label: "Observed",
+                    value: `${observationLabel(shown.observation)} · ${shown.observation.observedOn}`,
                   },
                   { label: "Version", value: versionSlug(version) },
                 ]}
@@ -165,7 +196,7 @@ export function DishWorkbench({
             <EmptyState.Header>
               <EmptyState.Title>Not photographed yet</EmptyState.Title>
               <EmptyState.Description>
-                No round has a photograph of dish {dish.label}.
+                No observation has a photograph of dish {dish.label}.
               </EmptyState.Description>
             </EmptyState.Header>
           </EmptyState>
@@ -175,18 +206,18 @@ export function DishWorkbench({
   );
 }
 
-function RoundTabs({
+function ObservationTabs({
   series,
   shown,
 }: {
   series: ExperimentDishSeries;
   shown: string | null;
 }) {
-  const base = `/experiments/${series.experiment.id}/${encodeURIComponent(series.dish.label)}`;
+  const base = `/experiments/${series.experiment.id}/${series.dish.id}`;
   return (
-    <nav aria-label="Rounds" className="flex items-center gap-1">
-      {series.rounds.map((item) => {
-        const selected = shown === item.round.id;
+    <nav aria-label="Observations" className="flex items-center gap-1">
+      {series.observations.map((item) => {
+        const selected = shown === item.observation.id;
         const className = `rounded-lg px-3 py-1.5 text-sm no-underline ${
           selected
             ? "bg-accent font-medium text-accent-foreground"
@@ -194,20 +225,20 @@ function RoundTabs({
         }`;
         return item.photo ? (
           <Link
-            key={item.round.id}
-            href={`${base}?round=${item.round.id}`}
+            key={item.observation.id}
+            href={`${base}?observation=${item.observation.id}`}
             aria-current={selected ? "page" : undefined}
             className={className}
           >
-            {item.round.label}
+            {observationLabel(item.observation)}
           </Link>
         ) : (
           <span
-            key={item.round.id}
+            key={item.observation.id}
             aria-disabled="true"
             className={`${className} cursor-not-allowed opacity-40`}
           >
-            {item.round.label}
+            {observationLabel(item.observation)}
           </span>
         );
       })}
@@ -221,8 +252,8 @@ function DishStepper({
   next,
 }: {
   experiment: string;
-  previous: string | null;
-  next: string | null;
+  previous: DishStep | null;
+  next: DishStep | null;
 }) {
   const router = useRouter();
   const go = (dish: string) =>
@@ -255,7 +286,7 @@ function DishStepButton({
   icon,
 }: {
   label: string;
-  dish: string | null;
+  dish: DishStep | null;
   onPress: (dish: string) => void;
   icon: ReactNode;
 }) {
@@ -266,7 +297,7 @@ function DishStepButton({
       isIconOnly
       aria-label={label}
       isDisabled={dish === null}
-      onPress={() => dish && onPress(dish)}
+      onPress={() => dish && onPress(dish.id)}
     >
       {icon}
     </Button>
@@ -275,7 +306,7 @@ function DishStepButton({
   return (
     <Tooltip delay={0}>
       {button}
-      <Tooltip.Content>{dish}</Tooltip.Content>
+      <Tooltip.Content>{dish.label}</Tooltip.Content>
     </Tooltip>
   );
 }

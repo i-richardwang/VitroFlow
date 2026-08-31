@@ -154,15 +154,14 @@ async function ensureDataset(
   return ensureDataset(datasetId, modelId, db);
 }
 
-function describePhoto({ experiment, dish, round }: PhotoRef): string {
-  return `${experiment}/${dish}/${round}`;
+function describePhoto({ experiment, photo }: PhotoRef): string {
+  return `${experiment}/${photo}`;
 }
 
-function atPhoto({ experiment, dish, round }: PhotoRef) {
+function atPhoto({ experiment, photo }: PhotoRef) {
   return and(
     eq(experimentPhotos.experimentId, experiment),
-    eq(experimentPhotos.dishLabel, dish),
-    eq(experimentPhotos.roundId, round),
+    eq(experimentPhotos.id, photo),
   );
 }
 
@@ -183,8 +182,7 @@ export async function addExperimentPhotos(
     const photographed = await tx
       .select({
         experimentId: experimentPhotos.experimentId,
-        dishLabel: experimentPhotos.dishLabel,
-        roundId: experimentPhotos.roundId,
+        photoId: experimentPhotos.id,
         digest: experimentPhotos.imageId,
         filename: experimentPhotos.filename,
         modelId: modelVersions.modelId,
@@ -198,11 +196,7 @@ export async function addExperimentPhotos(
       .where(or(...photos.map(atPhoto)));
     const byRef = new Map(
       photographed.map((row) => [
-        describePhoto({
-          experiment: row.experimentId,
-          dish: row.dishLabel,
-          round: row.roundId,
-        }),
+        describePhoto({ experiment: row.experimentId, photo: row.photoId }),
         row,
       ]),
     );
