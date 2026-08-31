@@ -210,7 +210,7 @@ export const inferenceOutcomes = pgTable(
       ),
     artifactDigest: text("artifact_digest")
       .notNull()
-      .generatedAlwaysAs(sql`document->'producer'->>'artifact_digest'`),
+      .generatedAlwaysAs(sql`document->'producer'->>'artifactDigest'`),
     successfulImageId: text("successful_image_id").generatedAlwaysAs(
       sql`case when document ? 'instances' then image_id end`,
     ),
@@ -222,7 +222,7 @@ export const inferenceOutcomes = pgTable(
     successfulArtifactDigest: text(
       "successful_artifact_digest",
     ).generatedAlwaysAs(
-      sql`case when document ? 'instances' then document->'producer'->>'artifact_digest' end`,
+      sql`case when document ? 'instances' then document->'producer'->>'artifactDigest' end`,
     ),
   },
   (table) => [
@@ -241,7 +241,7 @@ export const inferenceOutcomes = pgTable(
     }),
     check(
       "inference_outcomes_document_check",
-      sql`document->'image'->>'digest' = ${table.imageId} and document->'producer'->>'model_version_id' = ${table.modelVersionId}`,
+      sql`document->'image'->>'digest' = ${table.imageId} and document->'producer'->>'modelVersionId' = ${table.modelVersionId}`,
     ),
     check(
       "inference_outcomes_shape_check",

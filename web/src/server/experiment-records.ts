@@ -20,7 +20,6 @@ import {
 
 export function toExperiment(row: typeof experiments.$inferSelect): Experiment {
   return experimentSchema.parse({
-    schemaVersion: 1,
     id: row.id,
     name: row.name,
     description: row.description,

@@ -395,7 +395,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         (output / "weights").mkdir(parents=True)
         (output / "weights" / "best.pt").write_bytes(b"weights")
         summary = output / "inference.json"
-        summary.write_text(json.dumps({"schema_version": 1}))
+        summary.write_text(json.dumps({"schemaVersion": 1}))
         on_training_start()
         for epoch in (1, 2):
             on_epoch(
@@ -432,7 +432,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     ]
     assert [entry["epoch"] for _, entry in posted if "epoch" in entry] == [1, 2]
     assert [entry["lease"] for _, entry in posted if "lease" in entry] == ["renewed"]
-    assert artifacts == [("train-one", b"weights", {"schema_version": 1})]
+    assert artifacts == [("train-one", b"weights", {"schemaVersion": 1})]
 
 
 def test_training_job_reports_an_unexpected_adapter_failure(

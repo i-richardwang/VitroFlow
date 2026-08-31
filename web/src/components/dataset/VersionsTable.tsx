@@ -57,7 +57,7 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono tabular-nums">
                   <Metric
-                    value={validationMetric(version.artifact, "map50_95")}
+                    value={validationMetric(version.artifact, "map50To95")}
                   />
                 </Table.Cell>
               </Table.Row>

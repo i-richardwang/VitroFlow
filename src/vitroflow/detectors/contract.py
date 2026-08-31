@@ -63,8 +63,8 @@ class DetectionProducer:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "model_version_id": self.model_version_id,
-            "artifact_digest": self.artifact_digest,
+            "modelVersionId": self.model_version_id,
+            "artifactDigest": self.artifact_digest,
             "runtime": self.runtime.to_dict(),
         }
 
@@ -141,8 +141,8 @@ class DishGeometry:
 
     def to_dict(self) -> dict[str, float]:
         return {
-            "center_x": self.center_x,
-            "center_y": self.center_y,
+            "centerX": self.center_x,
+            "centerY": self.center_y,
             "radius": self.radius,
         }
 
@@ -203,7 +203,7 @@ class DetectionResult:
 
     def to_dict(self) -> dict[str, object]:
         document: dict[str, object] = {
-            "schema_version": DETECTION_SCHEMA_VERSION,
+            "schemaVersion": DETECTION_SCHEMA_VERSION,
             "image": {
                 "digest": self.digest,
                 "width": self.width,
@@ -234,7 +234,7 @@ class DetectionFailure:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema_version": DETECTION_SCHEMA_VERSION,
+            "schemaVersion": DETECTION_SCHEMA_VERSION,
             "image": {"digest": self.digest},
             "producer": self.producer.to_dict(),
             "error": self.error,

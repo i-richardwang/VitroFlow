@@ -21,6 +21,7 @@ import {
   trainingWorkers,
 } from "../db/schema";
 import { sameModelVersion, type ModelVersion } from "../models/schema";
+import { canonicalJson } from "../json/canonical";
 import {
   ACTIVE_TRAINING_RUN_STATUSES,
   inferencePublicationSchema,
@@ -249,17 +250,6 @@ function currentWorkerSession(owner: TrainingWorkerIdentity) {
   )`;
 }
 
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
 function artifactDigest(
   weights: Uint8Array,
   publication: InferencePublication,
@@ -268,11 +258,11 @@ function artifactDigest(
   // the canonical inference settings (`ready` is publication state, not a setting).
   const hash = createHash("sha256").update(weights).update("\0");
   hash.update(
-    canonical({
+    canonicalJson({
       confidence: publication.inference.confidence,
-      end2end: publication.inference.end2end,
-      imgsz: publication.inference.imgsz,
-      max_det: publication.inference.max_det,
+      endToEnd: publication.inference.endToEnd,
+      imageSize: publication.inference.imageSize,
+      maxDetections: publication.inference.maxDetections,
     }),
   );
   return hash.digest("hex");
@@ -303,15 +293,15 @@ function trainedModelVersion(
       weights: { digest: weightsDigest, bytes: weights.byteLength },
       inference: {
         confidence: publication.inference.confidence,
-        imageSize: publication.inference.imgsz,
-        maxDetections: publication.inference.max_det,
-        endToEnd: publication.inference.end2end,
+        imageSize: publication.inference.imageSize,
+        maxDetections: publication.inference.maxDetections,
+        endToEnd: publication.inference.endToEnd,
       },
       validation: publication.validation,
       training: {
         baseModel: {
-          reference: publication.training.base_model.reference,
-          digest: publication.training.base_model.digest,
+          reference: publication.training.baseModel.reference,
+          digest: publication.training.baseModel.digest,
         },
         parameters: publication.training.parameters,
         runtime: publication.training.runtime,
@@ -809,9 +799,9 @@ export async function publishTrainingArtifact(
     throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
   }
   if (
-    canonical(publication.training) !==
-    canonical({
-      base_model: current.recipe.baseModel,
+    canonicalJson(publication.training) !==
+    canonicalJson({
+      baseModel: current.recipe.baseModel,
       parameters: current.recipe.parameters,
       runtime: current.recipe.runtime,
     })

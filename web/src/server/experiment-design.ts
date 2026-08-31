@@ -15,15 +15,15 @@ import {
   TreatmentRejectedError,
 } from "../experiments/errors";
 import {
-  dishAssignmentSchema,
-  experimentRefSchema,
-  experimentRequestSchema,
-  experimentUpdateSchema,
-  treatmentRefSchema,
-  treatmentRequestSchema,
-  treatmentUpdateSchema,
+  type DishAssignment,
   type Experiment,
+  type ExperimentRef,
+  type ExperimentRequest,
+  type ExperimentUpdate,
   type Treatment,
+  type TreatmentRef,
+  type TreatmentRequest,
+  type TreatmentUpdate,
 } from "../experiments/schema";
 import {
   atTreatment,
@@ -41,9 +41,10 @@ export async function readExperiment(
   return readExperimentRecord(experimentId, await database());
 }
 
-export async function createExperiment(value: unknown): Promise<Experiment> {
-  const { name, description, modelVersionId } =
-    experimentRequestSchema.parse(value);
+export async function createExperiment(
+  value: ExperimentRequest,
+): Promise<Experiment> {
+  const { name, description, modelVersionId } = value;
   const version = await readModelVersion(modelVersionId);
   if (!version) throw new Error(`Unknown model version: ${modelVersionId}`);
   const [row] = await (
@@ -62,8 +63,10 @@ export async function createExperiment(value: unknown): Promise<Experiment> {
   return toExperiment(row);
 }
 
-export async function updateExperiment(value: unknown): Promise<Experiment> {
-  const { experiment, name, description } = experimentUpdateSchema.parse(value);
+export async function updateExperiment(
+  value: ExperimentUpdate,
+): Promise<Experiment> {
+  const { experiment, name, description } = value;
   const [row] = await (
     await database()
   )
@@ -77,8 +80,8 @@ export async function updateExperiment(value: unknown): Promise<Experiment> {
   return toExperiment(row);
 }
 
-export async function deleteExperiment(value: unknown): Promise<void> {
-  const { experiment } = experimentRefSchema.parse(value);
+export async function deleteExperiment(value: ExperimentRef): Promise<void> {
+  const { experiment } = value;
   const [row] = await (
     await database()
   )
@@ -90,9 +93,10 @@ export async function deleteExperiment(value: unknown): Promise<void> {
   }
 }
 
-export async function addTreatment(value: unknown): Promise<Treatment> {
-  const { experiment: experimentId, name } =
-    treatmentRequestSchema.parse(value);
+export async function addTreatment(
+  value: TreatmentRequest,
+): Promise<Treatment> {
+  const { experiment: experimentId, name } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const existing = await listTreatments(experimentId, tx);
@@ -113,12 +117,10 @@ export async function addTreatment(value: unknown): Promise<Treatment> {
   });
 }
 
-export async function renameTreatment(value: unknown): Promise<Treatment> {
-  const {
-    experiment: experimentId,
-    treatment: treatmentId,
-    name,
-  } = treatmentUpdateSchema.parse(value);
+export async function renameTreatment(
+  value: TreatmentUpdate,
+): Promise<Treatment> {
+  const { experiment: experimentId, treatment: treatmentId, name } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const taken = (await listTreatments(experimentId, tx)).find(
@@ -139,9 +141,8 @@ export async function renameTreatment(value: unknown): Promise<Treatment> {
   });
 }
 
-export async function deleteTreatment(value: unknown): Promise<void> {
-  const { experiment: experimentId, treatment: treatmentId } =
-    treatmentRefSchema.parse(value);
+export async function deleteTreatment(value: TreatmentRef): Promise<void> {
+  const { experiment: experimentId, treatment: treatmentId } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     await tx
@@ -172,12 +173,8 @@ export async function deleteTreatment(value: unknown): Promise<void> {
   });
 }
 
-export async function assignDish(value: unknown): Promise<void> {
-  const {
-    experiment: experimentId,
-    dish,
-    treatment: treatmentId,
-  } = dishAssignmentSchema.parse(value);
+export async function assignDish(value: DishAssignment): Promise<void> {
+  const { experiment: experimentId, dish, treatment: treatmentId } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     if (treatmentId !== null) {

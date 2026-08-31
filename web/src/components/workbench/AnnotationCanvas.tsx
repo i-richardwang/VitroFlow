@@ -286,8 +286,8 @@ export function AnnotationCanvas({
         >
           {layers.has("dish") && result?.diagnostics?.dish && (
             <circle
-              cx={result.diagnostics.dish.center_x}
-              cy={result.diagnostics.dish.center_y}
+              cx={result.diagnostics.dish.centerX}
+              cy={result.diagnostics.dish.centerY}
               r={result.diagnostics.dish.radius}
               fill="none"
               stroke={CANVAS_COLORS.dish}

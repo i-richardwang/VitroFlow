@@ -38,13 +38,13 @@ def _runtime(value: Any, context: str) -> RuntimeDescriptor:
 
 def _producer(value: Any, context: str) -> DetectionProducer:
     producer = as_object(value, context)
-    expect_fields(producer, {"model_version_id", "artifact_digest", "runtime"}, context)
+    expect_fields(producer, {"modelVersionId", "artifactDigest", "runtime"}, context)
     return DetectionProducer(
         model_version_id=as_string(
-            producer["model_version_id"], f"{context}.model_version_id"
+            producer["modelVersionId"], f"{context}.modelVersionId"
         ),
         artifact_digest=as_string(
-            producer["artifact_digest"], f"{context}.artifact_digest"
+            producer["artifactDigest"], f"{context}.artifactDigest"
         ),
         runtime=_runtime(producer["runtime"], f"{context}.runtime"),
     )
@@ -56,10 +56,10 @@ def _diagnostics(value: Any, context: str) -> DetectionDiagnostics:
     dish = None
     if "dish" in diagnostics:
         raw_dish = as_object(diagnostics["dish"], f"{context}.dish")
-        expect_fields(raw_dish, {"center_x", "center_y", "radius"}, f"{context}.dish")
+        expect_fields(raw_dish, {"centerX", "centerY", "radius"}, f"{context}.dish")
         dish = DishGeometry(
-            center_x=as_number(raw_dish["center_x"], f"{context}.dish.center_x"),
-            center_y=as_number(raw_dish["center_y"], f"{context}.dish.center_y"),
+            center_x=as_number(raw_dish["centerX"], f"{context}.dish.centerX"),
+            center_y=as_number(raw_dish["centerY"], f"{context}.dish.centerY"),
             radius=as_number(raw_dish["radius"], f"{context}.dish.radius"),
         )
     metrics: dict[str, float] = {}
@@ -95,15 +95,13 @@ def _instance(value: Any, context: str) -> DetectionInstance:
 
 def parse_inference_outcome(value: Any, context: str = "outcome") -> InferenceOutcome:
     payload = as_object(value, context)
-    expect_schema_version(payload, "schema_version", DETECTION_SCHEMA_VERSION, context)
+    expect_schema_version(payload, "schemaVersion", DETECTION_SCHEMA_VERSION, context)
     image_context = f"{context}.image"
     image = as_object(payload.get("image"), image_context)
     producer = _producer(payload.get("producer"), f"{context}.producer")
 
     if "error" in payload:
-        expect_fields(
-            payload, {"schema_version", "image", "producer", "error"}, context
-        )
+        expect_fields(payload, {"schemaVersion", "image", "producer", "error"}, context)
         expect_fields(image, {"digest"}, image_context)
         return DetectionFailure(
             digest=as_string(image["digest"], f"{image_context}.digest"),
@@ -113,7 +111,7 @@ def parse_inference_outcome(value: Any, context: str = "outcome") -> InferenceOu
 
     expect_fields(
         payload,
-        {"schema_version", "image", "producer", "instances", "quality"},
+        {"schemaVersion", "image", "producer", "instances", "quality"},
         context,
         {"diagnostics"},
     )

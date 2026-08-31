@@ -9,7 +9,6 @@ import {
   modelVersions,
 } from "../db/schema";
 import {
-  inferenceOutcomeSchema,
   isFailure,
   type DetectionResult,
   type InferenceOutcome,
@@ -20,6 +19,7 @@ import {
 } from "../inference/assignments";
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
+import { canonicalJson } from "../json/canonical";
 import { assertInstanceClasses } from "../models/readings";
 import { supportsRuntime, type Model } from "../models/schema";
 import { lockDetection } from "./detection-lock";
@@ -66,19 +66,6 @@ export async function readDetection(
   return row && !isFailure(row.document) ? row.document : null;
 }
 
-/** JSON with object keys sorted at every level, so storage cannot reorder it. */
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(value, (_, field: unknown) =>
-    field && typeof field === "object" && !Array.isArray(field)
-      ? Object.fromEntries(
-          Object.entries(field as Record<string, unknown>).sort(([a], [b]) =>
-            a < b ? -1 : a > b ? 1 : 0,
-          ),
-        )
-      : field,
-  );
-}
-
 function sameDocument(left: DetectionResult, right: DetectionResult): boolean {
   return canonicalJson(left) === canonicalJson(right);
 }
@@ -90,9 +77,9 @@ async function assertProducer(
   tx: Executor,
 ): Promise<Model> {
   const { producer } = outcome;
-  if (producer.model_version_id !== target.versionId) {
+  if (producer.modelVersionId !== target.versionId) {
     throw new ProducerMismatchError(
-      `Outcome was produced by ${producer.model_version_id}, not ${target.versionId}`,
+      `Outcome was produced by ${producer.modelVersionId}, not ${target.versionId}`,
     );
   }
   const [version] = await tx
@@ -108,7 +95,7 @@ async function assertProducer(
       `Unknown model version: ${target.versionId}`,
     );
   }
-  if (version.artifactDigest !== producer.artifact_digest) {
+  if (version.artifactDigest !== producer.artifactDigest) {
     throw new ProducerMismatchError(
       `Outcome was produced by an artifact ${target.versionId} does not have`,
     );
@@ -142,14 +129,9 @@ async function assertProducer(
  */
 export async function recordInferenceOutcome(
   target: DetectionTarget,
-  document: unknown,
+  outcome: InferenceOutcome,
   worker: Pick<InferenceWorkerRecord, "runtimes">,
 ): Promise<InferenceOutcome> {
-  const parsed = inferenceOutcomeSchema.safeParse(document);
-  if (!parsed.success) {
-    throw new InvalidDetectionOutcomeError(parsed.error.message);
-  }
-  const outcome = parsed.data;
   return transaction(async (tx) => {
     await lockDetection(target.digest, target.versionId, tx);
     const [image] = await tx

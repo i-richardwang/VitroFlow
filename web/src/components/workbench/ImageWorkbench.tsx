@@ -44,7 +44,7 @@ export function ImageWorkbench({ review }: { review: Review }) {
                 initializeLabel({
                   data: {
                     ...ref,
-                    versionId: review.detection.producer.model_version_id,
+                    versionId: review.detection.producer.modelVersionId,
                   },
                 }),
             }}

@@ -78,7 +78,7 @@ export async function registerTrainedVersion(
         precision: 0.6,
         recall: 0.5,
         map50: 0.8,
-        map50_95: 0.4,
+        map50To95: 0.4,
         fitness: 0.44,
       },
       training: YOLO26_SEED_SMALL_RECIPE,
@@ -201,6 +201,7 @@ export async function photographRound(
   const selectedVersion = version ?? (await baselineVersion());
   const experiment = await createExperiment({
     name: experimentName,
+    description: "",
     modelVersionId: selectedVersion.id,
   });
   const digests = await storeTexts(contents);
@@ -257,8 +258,8 @@ export async function resultFor(
       height: FIXTURE_EDGE,
     }),
     producer: {
-      model_version_id: version.id,
-      artifact_digest: version.artifact.digest,
+      modelVersionId: version.id,
+      artifactDigest: version.artifact.digest,
       runtime,
     },
   };

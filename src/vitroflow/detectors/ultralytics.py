@@ -48,9 +48,9 @@ class YoloInferenceSettings:
     def to_dict(self) -> dict[str, object]:
         return {
             "confidence": self.confidence,
-            "imgsz": self.image_size,
-            "max_det": self.max_detections,
-            "end2end": self.end_to_end,
+            "imageSize": self.image_size,
+            "maxDetections": self.max_detections,
+            "endToEnd": self.end_to_end,
         }
 
 
@@ -71,10 +71,10 @@ def load_yolo_inference_settings(run_dir: Path) -> tuple[Path, YoloInferenceSett
     summary_path = run_dir.resolve() / "inference.json"
     document = _strict_object(
         json.loads(summary_path.read_text(encoding="utf-8")),
-        {"schema_version", "weights", "inference", "validation", "training"},
+        {"schemaVersion", "weights", "inference", "validation", "training"},
         "YOLO inference summary",
     )
-    if document["schema_version"] != 1:
+    if document["schemaVersion"] != 1:
         raise ValueError("Unsupported YOLO inference summary schema")
     if not isinstance(document["weights"], str) or not document["weights"]:
         raise TypeError("YOLO weights must be a relative path")
@@ -87,16 +87,16 @@ def load_yolo_inference_settings(run_dir: Path) -> tuple[Path, YoloInferenceSett
 
     inference = _strict_object(
         document["inference"],
-        {"ready", "confidence", "imgsz", "max_det", "end2end"},
+        {"ready", "confidence", "imageSize", "maxDetections", "endToEnd"},
         "YOLO inference settings",
     )
     if inference["ready"] is not True:
         raise ValueError("YOLO run is not ready for inference")
     settings = YoloInferenceSettings(
         confidence=inference["confidence"],
-        image_size=inference["imgsz"],
-        max_detections=inference["max_det"],
-        end_to_end=inference["end2end"],
+        image_size=inference["imageSize"],
+        max_detections=inference["maxDetections"],
+        end_to_end=inference["endToEnd"],
     )
     return weights, settings
 

@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 
 import { makeResult } from "../annotation/testing";
 import { inferenceAssignmentSchema } from "../inference/assignments";
-import { Route as RoundRoute } from "../routes/api.experiments.$experiment.rounds";
 import { Route as StoreRoute } from "../routes/api.images";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
@@ -12,6 +11,7 @@ import { Route as ResultRoute } from "../routes/api.inference.results.$versionId
 import { readInferenceWorker } from "./inference-worker-store";
 import { createLabelFromDetection } from "./labels";
 import { createExperiment } from "./experiment-design";
+import { addRound } from "./experiments";
 import { readDetection } from "./inference-outcomes";
 import { contentDigest } from "./blobs";
 import {
@@ -54,24 +54,15 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   const version = await baselineVersion();
   const experiment = await createExperiment({
     name: "API",
+    description: "",
     modelVersionId: version.id,
   });
-  const round = await handler(
-    RoundRoute,
-    "POST",
-  )({
-    params: { experiment: experiment.id },
-    request: new Request("http://localhost/rounds", {
-      method: "POST",
-      body: JSON.stringify({
-        label: "Day 1",
-        capturedAt: "2026-08-01T09:00:00.000Z",
-        photos: [{ digest, filename: "api.jpg" }],
-      }),
-    }),
-  } as never);
-  expect(round.status).toBe(200);
-  expect(await round.json()).toMatchObject({ photos: 1 });
+  await addRound({
+    experiment: experiment.id,
+    label: "Day 1",
+    capturedAt: "2026-08-01T09:00:00.000Z",
+    photos: [{ digest, filename: "api.jpg" }],
+  });
   const runtime = {
     adapter: "traditional" as const,
     fingerprint: "b".repeat(64),
@@ -145,8 +136,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       height: FIXTURE_EDGE,
     }),
     producer: {
-      model_version_id: version.id,
-      artifact_digest: version.artifact.digest,
+      modelVersionId: version.id,
+      artifactDigest: version.artifact.digest,
       runtime,
     },
   };
@@ -162,6 +153,26 @@ test("inference HTTP routes carry an image from upload to detection", async () =
         { method: "PUT", body: JSON.stringify(body) },
       ),
     } as never);
+  const rawPut = (params: typeof target, body: string) =>
+    handler(
+      ResultRoute,
+      "PUT",
+    )({
+      params,
+      request: new Request(
+        `http://localhost/api/inference/results/${params.versionId}/${params.digest}?workerId=api-worker`,
+        { method: "PUT", body },
+      ),
+    } as never);
+  expect((await rawPut(target, "not json")).status).toBe(400);
+  expect(
+    (
+      await rawPut(
+        { versionId: "not a version", digest },
+        JSON.stringify(result),
+      )
+    ).status,
+  ).toBe(400);
   expect((await put(result, "unknown-worker")).status).toBe(409);
   expect(
     (
@@ -193,7 +204,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     (
       await put({
         ...result,
-        producer: { ...result.producer, artifact_digest: "d".repeat(64) },
+        producer: { ...result.producer, artifactDigest: "d".repeat(64) },
       })
     ).status,
   ).toBe(422);
@@ -261,48 +272,4 @@ test("storing an image rejects an absent or excessive declared body before readi
     }),
   );
   expect(excessive.status).toBe(413);
-});
-
-test("round submissions distinguish invalid requests from expired stored images", async () => {
-  const experiment = await createExperiment({
-    name: "Round boundary",
-    modelVersionId: (await baselineVersion()).id,
-  });
-  const post = (body: string) =>
-    handler(
-      RoundRoute,
-      "POST",
-    )({
-      params: { experiment: experiment.id },
-      request: new Request("http://localhost/rounds", { method: "POST", body }),
-    } as never);
-
-  expect((await post("not json")).status).toBe(400);
-  const nonObject = await post(JSON.stringify([]));
-  expect(nonObject.status).toBe(400);
-  expect(await nonObject.json()).toEqual({
-    error: "Request body must be a JSON object",
-  });
-  expect(
-    (
-      await post(
-        JSON.stringify({
-          label: "Day 1",
-          capturedAt: "2026-08-01T09:00:00.000Z",
-          photos: [],
-        }),
-      )
-    ).status,
-  ).toBe(400);
-  expect(
-    (
-      await post(
-        JSON.stringify({
-          label: "Day 1",
-          capturedAt: "2026-08-01T09:00:00.000Z",
-          photos: [{ digest: "a".repeat(64), filename: "a.jpg" }],
-        }),
-      )
-    ).status,
-  ).toBe(409);
 });

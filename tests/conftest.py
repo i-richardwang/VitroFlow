@@ -47,11 +47,11 @@ def detection_document(
     digest: str, *, width: int = 1000, height: int = 800
 ) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schemaVersion": 1,
         "image": {"digest": digest, "width": width, "height": height},
         "producer": {
-            "model_version_id": "set.traditional-v1",
-            "artifact_digest": "a" * 64,
+            "modelVersionId": "set.traditional-v1",
+            "artifactDigest": "a" * 64,
             "runtime": {"adapter": "traditional", "fingerprint": "b" * 64},
         },
         "instances": [

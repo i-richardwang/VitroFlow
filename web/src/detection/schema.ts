@@ -20,8 +20,8 @@ const detectionInstanceSchema = z.strictObject({
 });
 
 const dishSchema = z.strictObject({
-  center_x: z.number().finite(),
-  center_y: z.number().finite(),
+  centerX: z.number().finite(),
+  centerY: z.number().finite(),
   radius: z.number().positive(),
 });
 
@@ -37,7 +37,7 @@ const diagnosticsSchema = z.strictObject({
  */
 export const detectionResultSchema = z
   .strictObject({
-    schema_version: z.literal(1),
+    schemaVersion: z.literal(1),
     image: z.strictObject({
       digest: imageDigestSchema,
       width: z.number().int().positive(),
@@ -77,7 +77,7 @@ export const detectionResultSchema = z
 
 /** Why one attempt failed before it could produce a valid detection result. */
 export const detectionFailureSchema = z.strictObject({
-  schema_version: z.literal(1),
+  schemaVersion: z.literal(1),
   image: z.strictObject({ digest: imageDigestSchema }),
   producer: detectionProducerSchema,
   error: z.string().min(1).max(2000),

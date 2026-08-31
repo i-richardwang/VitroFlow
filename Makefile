@@ -1,4 +1,4 @@
-.PHONY: check check-python check-web check-image check-reference check-s3
+.PHONY: check check-python check-web check-image check-reference check-postgres check-s3
 
 check: check-python check-web
 
@@ -21,6 +21,10 @@ check-image:
 check-reference:
 	@test -n "$(REFERENCE_IMAGE_DIR)" || (echo "Set REFERENCE_IMAGE_DIR to the reference photograph directory" >&2; exit 2)
 	VITROFLOW_REFERENCE_IMAGE_DIR="$(REFERENCE_IMAGE_DIR)" uv run pytest --override-ini addopts='' -m reference tests/test_regression.py
+
+check-postgres:
+	@test -n "$(VITROFLOW_TEST_DATABASE_URL)" || (echo "Set VITROFLOW_TEST_DATABASE_URL" >&2; exit 2)
+	cd web && bun test src/server/database-invariants.test.ts
 
 check-s3:
 	@test -n "$(VITROFLOW_TEST_S3_ENDPOINT)" || (echo "Set VITROFLOW_TEST_S3_ENDPOINT" >&2; exit 2)

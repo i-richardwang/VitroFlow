@@ -173,24 +173,24 @@ test("training HTTP routes publish one candidate version without selecting it", 
   expect((await validationPhase.json()).state.progress).toBe(0.9);
 
   const publication = {
-    schema_version: 1,
+    schemaVersion: 1,
     weights: "weights/best.pt",
     inference: {
       ready: true,
       confidence: 0.42,
-      imgsz: 768,
-      max_det: 500,
-      end2end: false,
+      imageSize: 768,
+      maxDetections: 500,
+      endToEnd: false,
     },
     validation: {
       precision: 0.5,
       recall: 0.4,
       map50: 0.45,
-      map50_95: 0.2,
+      map50To95: 0.2,
       fitness: 0.225,
     },
     training: {
-      base_model: YOLO26_SEED_SMALL_RECIPE.baseModel,
+      baseModel: YOLO26_SEED_SMALL_RECIPE.baseModel,
       parameters: YOLO26_SEED_SMALL_RECIPE.parameters,
       runtime: YOLO26_SEED_SMALL_RECIPE.runtime,
     },

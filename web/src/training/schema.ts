@@ -112,7 +112,7 @@ export const detectionValidationSchema = z.strictObject({
   precision: unit,
   recall: unit,
   map50: unit,
-  map50_95: unit,
+  map50To95: unit,
   fitness: z.number().finite(),
 });
 
@@ -166,18 +166,18 @@ export const trainingRunSchema = z.strictObject({
 });
 
 export const inferencePublicationSchema = z.strictObject({
-  schema_version: z.literal(1),
+  schemaVersion: z.literal(1),
   weights: z.literal("weights/best.pt"),
   inference: z.strictObject({
     ready: z.literal(true),
     confidence: z.number().finite().min(0).max(1),
-    imgsz: z.number().int().positive(),
-    max_det: z.number().int().positive(),
-    end2end: z.boolean(),
+    imageSize: z.number().int().positive(),
+    maxDetections: z.number().int().positive(),
+    endToEnd: z.boolean(),
   }),
   validation: detectionValidationSchema,
   training: z.strictObject({
-    base_model: z.strictObject({
+    baseModel: z.strictObject({
       reference: z.string().min(1),
       digest: sha256Schema,
     }),

@@ -48,24 +48,24 @@ def _run(tmp_path: Path, *, ready: bool = True) -> Path:
     (run / "inference.json").write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schemaVersion": 1,
                 "weights": "weights/best.pt",
                 "inference": {
                     "ready": ready,
                     "confidence": 0.42 if ready else None,
-                    "imgsz": 768,
-                    "max_det": 500,
-                    "end2end": False,
+                    "imageSize": 768,
+                    "maxDetections": 500,
+                    "endToEnd": False,
                 },
                 "validation": {
                     "precision": 0.6,
                     "recall": 0.5,
                     "map50": 0.7,
-                    "map50_95": 0.4,
+                    "map50To95": 0.4,
                     "fitness": 0.43,
                 },
                 "training": {
-                    "base_model": {
+                    "baseModel": {
                         "reference": "yolo26n.pt",
                         "digest": "a" * 64,
                     },
@@ -214,7 +214,7 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
             "precision": 0.6,
             "recall": 0.5,
             "map50": 0.7,
-            "map50_95": 0.4,
+            "map50To95": 0.4,
             "fitness": 0.43,
         },
         "training": {

@@ -8,8 +8,8 @@ export const runtimeDescriptorSchema = z.strictObject({
 });
 
 export const detectionProducerSchema = z.strictObject({
-  model_version_id: resourceIdSchema,
-  artifact_digest: sha256Schema,
+  modelVersionId: resourceIdSchema,
+  artifactDigest: sha256Schema,
   runtime: runtimeDescriptorSchema,
 });
 

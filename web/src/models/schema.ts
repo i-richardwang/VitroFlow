@@ -157,7 +157,7 @@ export function versionSlug(
 
 export function validationMetric(
   artifact: ModelArtifact,
-  name: "map50" | "map50_95",
+  name: "map50" | "map50To95",
 ): number | null {
   if (artifact.kind !== "ultralytics") return null;
   return artifact.validation[name];

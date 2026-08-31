@@ -18,6 +18,8 @@ export const datasetRefSchema = z.strictObject({
   dataset: datasetIdSchema,
 });
 
+export type DatasetRef = z.infer<typeof datasetRefSchema>;
+
 /** One image as a member of one dataset. */
 export const datasetImageRefSchema = datasetRefSchema.extend({
   digest: imageDigestSchema,
@@ -27,7 +29,6 @@ export type DatasetImageRef = z.infer<typeof datasetImageRefSchema>;
 
 /** A dataset trains one model; its images are reviewed for that model. */
 export const datasetSchema = z.strictObject({
-  schemaVersion: z.literal(1),
   id: datasetIdSchema,
   modelId: resourceIdSchema,
 });
@@ -43,6 +44,8 @@ export const datasetPhotoAdditionSchema = z.strictObject({
   dataset: datasetIdSchema,
   photos: z.array(photoRefSchema).min(1, "No photographs to add"),
 });
+
+export type DatasetPhotoAddition = z.infer<typeof datasetPhotoAdditionSchema>;
 
 /**
  * An image's state within a dataset is the state of its review for the

@@ -1,4 +1,5 @@
-process.env.DATABASE_URL = "pglite://";
+process.env.DATABASE_URL =
+  process.env.VITROFLOW_TEST_DATABASE_URL ?? "pglite://";
 process.env.VITROFLOW_BLOB_ENDPOINT = "memory://";
 for (const credential of [
   "VITROFLOW_PASSWORD",

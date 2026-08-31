@@ -312,24 +312,24 @@ def test_training_reports_epochs_and_publishes_validated_settings(
     assert instances[1].val_options["end2end"] is False
     assert instances[1].val_options["device"] == "mps"
     assert json.loads(result.summary.read_text()) == {
-        "schema_version": 1,
+        "schemaVersion": 1,
         "weights": "weights/best.pt",
         "inference": {
             "ready": True,
             "confidence": 0.2,
-            "imgsz": 768,
-            "max_det": 500,
-            "end2end": False,
+            "imageSize": 768,
+            "maxDetections": 500,
+            "endToEnd": False,
         },
         "validation": {
             "precision": 0.5,
             "recall": 0.4,
             "map50": 0.45,
-            "map50_95": 0.2,
+            "map50To95": 0.2,
             "fitness": 0.225,
         },
         "training": {
-            "base_model": {"reference": str(model), "digest": digest},
+            "baseModel": {"reference": str(model), "digest": digest},
             "parameters": PARAMETERS,
             "runtime": {"framework": "ultralytics", "version": "8.4.131"},
         },

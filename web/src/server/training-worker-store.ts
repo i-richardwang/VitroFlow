@@ -4,7 +4,6 @@ import { database, type Executor } from "../db/client";
 import { trainingWorkers } from "../db/schema";
 import { TrainingWorkerSessionConflictError } from "../training/errors";
 import {
-  trainingWorkerHeartbeatSchema,
   trainingWorkerRecordSchema,
   type TrainingWorkerHeartbeat,
   type TrainingWorkerRecord,
@@ -33,9 +32,8 @@ export async function recordTrainingHeartbeat(
   value: TrainingWorkerHeartbeat,
   at: Date = new Date(),
 ): Promise<TrainingWorkerRecord> {
-  const heartbeat = trainingWorkerHeartbeatSchema.parse(value);
   const record = trainingWorkerRecordSchema.parse({
-    ...heartbeat,
+    ...value,
     lastSeenAt: at.toISOString(),
   });
   const row = {

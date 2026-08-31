@@ -232,7 +232,7 @@ export VITROFLOW_TEST_S3_BUCKET=vitroflow
 make check-s3
 ```
 
-CI runs `make check`, builds the production image with the configured `HEROUI_KEY`, and runs the S3 contract against RustFS. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
+CI runs `make check`, builds the production image with the configured `HEROUI_KEY`, verifies the database invariants on PostgreSQL, and runs the S3 contract against RustFS. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
 
 ## Repository layout
 

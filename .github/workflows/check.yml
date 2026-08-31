@@ -22,10 +22,14 @@ jobs:
         env:
           HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
         run: make check-image
-      - name: Start the production blob-store contract
+      - name: Start the production data services
         run: |
-          docker compose up -d rustfs
+          docker compose up -d --wait postgres rustfs
           docker compose run --rm bucket
+      - name: Check PostgreSQL invariants
+        env:
+          VITROFLOW_TEST_DATABASE_URL: postgres://vitroflow:vitroflow@localhost:5432/vitroflow
+        run: make check-postgres
       - name: Check the S3-compatible store
         env:
           VITROFLOW_TEST_S3_ENDPOINT: http://localhost:9000

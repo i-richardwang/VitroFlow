@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { expect, test } from "bun:test";
 
 import { documentFromDetection } from "../annotation/detection";
@@ -14,9 +16,10 @@ import {
 } from "./testing";
 
 test("the database rejects a trained version without its provenance", async () => {
+  const suffix = randomUUID();
   const valid = await registerTrainedVersion(
     "seed-detector",
-    "provenance-template",
+    `provenance-${suffix}`,
   );
   if (valid.source.kind !== "training_run") {
     throw new Error("expected a trained model version");
@@ -26,13 +29,13 @@ test("the database rejects a trained version without its provenance", async () =
     (await database())
       .insert(modelVersions)
       .values({
-        id: "seed-detector.orphan-provenance",
+        id: `seed-detector.orphan-${suffix}`,
         modelId: valid.modelId,
         name: "Orphan provenance",
         createdAt: new Date(valid.createdAt),
         source: {
           ...valid.source,
-          trainingRunId: "missing-training-run",
+          trainingRunId: `missing-${suffix}`,
         },
         artifact: valid.artifact,
       })
@@ -41,9 +44,11 @@ test("the database rejects a trained version without its provenance", async () =
 });
 
 test("the database binds snapshot annotations to the snapshot model", async () => {
+  const suffix = randomUUID();
+  const modelId = `snapshot-other-${suffix}`;
   await registerTestModel({
     schemaVersion: 1,
-    id: "snapshot-other-model",
+    id: modelId,
     name: "Snapshot other model",
     task: "object_detection",
     classes: ["seed"],
@@ -52,8 +57,8 @@ test("the database binds snapshot annotations to the snapshot model", async () =
     ],
   });
   const other = await registerTrainedVersion(
-    "snapshot-other-model",
-    "snapshot-source",
+    modelId,
+    `snapshot-source-${suffix}`,
   );
   if (other.source.kind !== "training_run") {
     throw new Error("expected a trained model version");

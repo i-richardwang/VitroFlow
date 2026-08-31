@@ -14,6 +14,11 @@ import {
   TreatmentNotFoundError,
   TreatmentRejectedError,
 } from "../experiments/errors";
+import {
+  experimentRequestSchema,
+  treatmentRequestSchema,
+  type ExperimentRequestInput,
+} from "../experiments/schema";
 import { blobExists, imageBlobKey } from "./blobs";
 import { collectImages } from "./image-collection";
 import {
@@ -23,7 +28,7 @@ import {
 import {
   addTreatment,
   assignDish,
-  createExperiment,
+  createExperiment as createExperimentRecord,
   deleteExperiment,
   deleteTreatment,
   readExperiment,
@@ -58,6 +63,10 @@ const CAPTURED_2 = "2026-08-02T09:00:00.000Z";
 const CAPTURED_3 = "2026-08-03T09:00:00.000Z";
 const CAPTURED_5 = "2026-08-05T09:00:00.000Z";
 
+function createExperiment(value: ExperimentRequestInput) {
+  return createExperimentRecord(experimentRequestSchema.parse(value));
+}
+
 const worker: InferenceWorkerRecord = {
   ...testHeartbeat("ultralytics-worker"),
   runtimes: [ULTRALYTICS_RUNTIME],
@@ -89,8 +98,8 @@ function resultFor(version: ModelVersion, digest: string, seeds: number) {
       { digest, dishRadius: 400, width: FIXTURE_EDGE, height: FIXTURE_EDGE },
     ),
     producer: {
-      model_version_id: version.id,
-      artifact_digest: version.artifact.digest,
+      modelVersionId: version.id,
+      artifactDigest: version.artifact.digest,
       runtime: ULTRALYTICS_RUNTIME,
     },
   };
@@ -98,11 +107,11 @@ function resultFor(version: ModelVersion, digest: string, seeds: number) {
 
 function failureFor(version: ModelVersion, digest: string) {
   return {
-    schema_version: 1 as const,
+    schemaVersion: 1 as const,
     image: { digest },
     producer: {
-      model_version_id: version.id,
-      artifact_digest: version.artifact.digest,
+      modelVersionId: version.id,
+      artifactDigest: version.artifact.digest,
       runtime: ULTRALYTICS_RUNTIME,
     },
     error: "no dish found",
@@ -400,10 +409,12 @@ describe("experiments", () => {
       experiment: experiment.id,
       name: "Control",
     });
-    const auxin = await addTreatment({
-      experiment: experiment.id,
-      name: " IAA 1.0 ",
-    });
+    const auxin = await addTreatment(
+      treatmentRequestSchema.parse({
+        experiment: experiment.id,
+        name: " IAA 1.0 ",
+      }),
+    );
     expect([control.position, auxin.position]).toEqual([1, 2]);
     expect(auxin.name).toBe("IAA 1.0");
     await expect(
@@ -559,7 +570,7 @@ describe("experiments", () => {
           ...failure,
           producer: {
             ...failure.producer,
-            artifact_digest: "f".repeat(64),
+            artifactDigest: "f".repeat(64),
           },
         },
         recordedAt: new Date(),

@@ -86,24 +86,24 @@ function epochReport(epoch: number) {
 }
 
 const publication = {
-  schema_version: 1 as const,
+  schemaVersion: 1 as const,
   weights: "weights/best.pt" as const,
   inference: {
     ready: true as const,
     confidence: 0.42,
-    imgsz: 768,
-    max_det: 500,
-    end2end: false,
+    imageSize: 768,
+    maxDetections: 500,
+    endToEnd: false,
   },
   validation: {
     precision: 0.5,
     recall: 0.4,
     map50: 0.8,
-    map50_95: 0.4,
+    map50To95: 0.4,
     fitness: 0.44,
   },
   training: {
-    base_model: recipe.baseModel,
+    baseModel: recipe.baseModel,
     parameters: recipe.parameters,
     runtime: recipe.runtime,
   },

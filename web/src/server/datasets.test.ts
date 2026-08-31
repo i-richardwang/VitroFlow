@@ -124,7 +124,6 @@ describe("datasets", () => {
       "crop",
     );
     expect(await readDataset("crop")).toEqual({
-      schemaVersion: 1,
       id: "crop",
       modelId: "seed-detector",
     });
@@ -298,7 +297,7 @@ describe("detections", () => {
       worker,
     );
     const failure = {
-      schema_version: 1,
+      schemaVersion: 1 as const,
       image: { digest: b },
       producer: original.producer,
       error: "boom",
@@ -331,7 +330,7 @@ describe("detections", () => {
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "once");
     const failure = {
-      schema_version: 1,
+      schemaVersion: 1 as const,
       image: { digest },
       producer: result.producer,
       error: "first attempt",
@@ -419,7 +418,7 @@ describe("detections", () => {
         target,
         {
           ...result,
-          producer: { ...result.producer, artifact_digest: "d".repeat(64) },
+          producer: { ...result.producer, artifactDigest: "d".repeat(64) },
         },
         worker,
       ),

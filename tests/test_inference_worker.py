@@ -243,7 +243,7 @@ def test_pass_detects_every_assigned_image(tmp_path: Path) -> None:
     assert dict(workbench.requests[1].url.params) == {"workerId": "test-worker"}
     assert dict(workbench.requests[4].url.params) == {"workerId": "test-worker"}
     for body in workbench.result_bodies():
-        assert body["schema_version"] == 1
+        assert body["schemaVersion"] == 1
         assert body["image"] == {"digest": DIGEST, "width": 100, "height": 80}
         assert body["producer"] == PRODUCER.to_dict()
     assert list(tmp_path.iterdir()) == []
@@ -290,7 +290,7 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
         client.close()
     assert workbench.result_bodies() == [
         {
-            "schema_version": 1,
+            "schemaVersion": 1,
             "image": {"digest": DIGEST},
             "producer": PRODUCER.to_dict(),
             "error": "dish not found",

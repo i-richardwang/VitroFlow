@@ -19,7 +19,7 @@ describe("detection contract", () => {
       throw new Error("unexpected failure fixture");
     }
 
-    expect(outcome.producer.model_version_id).toBe("set.traditional-v1");
+    expect(outcome.producer.modelVersionId).toBe("set.traditional-v1");
     expect(outcome.instances[0].bbox).toEqual({
       x: 10,
       y: 20,

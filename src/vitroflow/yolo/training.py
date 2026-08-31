@@ -157,7 +157,7 @@ def _validation_summary(metrics: ValidationMetrics) -> dict[str, float]:
         "precision": _finite(box.mp, "precision"),
         "recall": _finite(box.mr, "recall"),
         "map50": _finite(box.map50, "mAP50"),
-        "map50_95": _finite(box.map, "mAP50-95"),
+        "map50To95": _finite(box.map, "mAP50-95"),
         "fitness": _finite(box.fitness(), "fitness"),
     }
 
@@ -174,7 +174,7 @@ def epoch_report(trainer: Any) -> EpochReport:
         precision=validation["precision"],
         recall=validation["recall"],
         map50=validation["map50"],
-        map50_to_95=validation["map50_95"],
+        map50_to_95=validation["map50To95"],
         fitness=validation["fitness"],
         learning_rate=_finite(trainer.optimizer.param_groups[0]["lr"], "learning rate"),
     )
@@ -298,18 +298,18 @@ def train_yolo_detector(
 
     summary_path = save_dir / "inference.json"
     summary = {
-        "schema_version": 1,
+        "schemaVersion": 1,
         "weights": best_weights.relative_to(save_dir).as_posix(),
         "inference": {
             "ready": confidence is not None,
             "confidence": confidence,
-            "imgsz": trained_args.imgsz,
-            "max_det": trained_args.max_det,
-            "end2end": False,
+            "imageSize": trained_args.imgsz,
+            "maxDetections": trained_args.max_det,
+            "endToEnd": False,
         },
         "validation": metric_values,
         "training": {
-            "base_model": {
+            "baseModel": {
                 "reference": str(model),
                 "digest": model_digest,
             },

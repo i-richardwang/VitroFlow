@@ -82,7 +82,7 @@ describe("labels", () => {
     await recordInferenceOutcome(
       { versionId: version.id, digest },
       {
-        schema_version: 1,
+        schemaVersion: 1,
         image: { digest },
         producer: successfulShape.producer,
         error: "runtime failed",

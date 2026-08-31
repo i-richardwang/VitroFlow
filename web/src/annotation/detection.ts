@@ -43,8 +43,8 @@ export function documentFromDetection(
       height: result.image.height,
     },
     source: {
-      modelVersionId: result.producer.model_version_id,
-      artifactDigest: result.producer.artifact_digest,
+      modelVersionId: result.producer.modelVersionId,
+      artifactDigest: result.producer.artifactDigest,
       runtime: result.producer.runtime,
     },
     status: "in_progress",

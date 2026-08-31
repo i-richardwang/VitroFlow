@@ -107,13 +107,13 @@ CREATE TABLE "inference_outcomes" (
 	"document" jsonb NOT NULL,
 	"recorded_at" timestamp with time zone NOT NULL,
 	"status" text GENERATED ALWAYS AS (case when document ? 'instances' then 'succeeded' when document ? 'error' then 'failed' end) STORED NOT NULL,
-	"artifact_digest" text GENERATED ALWAYS AS (document->'producer'->>'artifact_digest') STORED NOT NULL,
+	"artifact_digest" text GENERATED ALWAYS AS (document->'producer'->>'artifactDigest') STORED NOT NULL,
 	"successful_image_id" text GENERATED ALWAYS AS (case when document ? 'instances' then image_id end) STORED,
 	"successful_model_version_id" text GENERATED ALWAYS AS (case when document ? 'instances' then model_version_id end) STORED,
-	"successful_artifact_digest" text GENERATED ALWAYS AS (case when document ? 'instances' then document->'producer'->>'artifact_digest' end) STORED,
+	"successful_artifact_digest" text GENERATED ALWAYS AS (case when document ? 'instances' then document->'producer'->>'artifactDigest' end) STORED,
 	CONSTRAINT "inference_outcomes_image_id_model_version_id_pk" PRIMARY KEY("image_id","model_version_id"),
 	CONSTRAINT "inference_outcomes_success_identity" UNIQUE("successful_image_id","successful_model_version_id","successful_artifact_digest"),
-	CONSTRAINT "inference_outcomes_document_check" CHECK (document->'image'->>'digest' = "inference_outcomes"."image_id" and document->'producer'->>'model_version_id' = "inference_outcomes"."model_version_id"),
+	CONSTRAINT "inference_outcomes_document_check" CHECK (document->'image'->>'digest' = "inference_outcomes"."image_id" and document->'producer'->>'modelVersionId' = "inference_outcomes"."model_version_id"),
 	CONSTRAINT "inference_outcomes_shape_check" CHECK (case "inference_outcomes"."status"
         when 'succeeded' then document ? 'instances' and not document ? 'error'
         when 'failed' then document ? 'error' and not document ? 'instances'

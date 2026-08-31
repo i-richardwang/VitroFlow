@@ -9,7 +9,6 @@ import {
   photoRefSchema,
   roundRefSchema,
   roundRequestSchema,
-  roundResultSchema,
   roundUpdateSchema,
   treatmentRefSchema,
   treatmentRequestSchema,
@@ -87,7 +86,7 @@ export const editRound = createServerFn({ method: "POST" })
 
 export const createRound = createServerFn({ method: "POST" })
   .validator(roundRequestSchema)
-  .handler(async ({ data }) => roundResultSchema.parse(await addRound(data)));
+  .handler(({ data }) => addRound(data));
 
 export const removeRound = createServerFn({ method: "POST" })
   .validator(roundRefSchema)

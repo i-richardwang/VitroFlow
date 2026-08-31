@@ -39,15 +39,15 @@ import {
 import {
   compareDishLabels,
   dishLabel,
-  roundRefSchema,
-  roundRequestSchema,
-  roundUpdateSchema,
   type DishRef,
   type Experiment,
   type ExperimentRound,
   type PhotoRef,
   type PhotoState,
+  type RoundRef,
+  type RoundRequest,
   type RoundResult,
+  type RoundUpdate,
 } from "../experiments/schema";
 import type { Tally } from "../models/readings";
 import type { Model, ModelVersion } from "../models/schema";
@@ -292,13 +292,11 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
   }));
 }
 
-type ParsedRoundRequest = ReturnType<typeof roundRequestSchema.parse>;
-
 /** Filenames name each dish exactly once after canonical normalization. */
 function dishesOf(
-  photos: ParsedRoundRequest["photos"],
-): Map<string, ParsedRoundRequest["photos"][number]> {
-  const byLabel = new Map<string, ParsedRoundRequest["photos"][number]>();
+  photos: RoundRequest["photos"],
+): Map<string, RoundRequest["photos"][number]> {
+  const byLabel = new Map<string, RoundRequest["photos"][number]>();
   for (const photo of photos) {
     const label = dishLabel(photo.filename);
     if (!label) {
@@ -316,13 +314,13 @@ function dishesOf(
 }
 
 /** Adds one named, captured occasion atomically under the fixed dish roster. */
-export async function addRound(value: unknown): Promise<RoundResult> {
+export async function addRound(value: RoundRequest): Promise<RoundResult> {
   const {
     experiment: experimentId,
     label,
     capturedAt: capturedAtText,
     photos,
-  } = roundRequestSchema.parse(value);
+  } = value;
   const byLabel = dishesOf(photos);
   const digests = [...new Set(photos.map((photo) => photo.digest))].sort();
   if (digests.length !== photos.length) {
@@ -435,13 +433,10 @@ function atRound(experimentId: string, roundId: string) {
 }
 
 /** Renames or redates one round; its photographs stay where they are. */
-export async function updateRound(value: unknown): Promise<ExperimentRound> {
-  const {
-    experiment: experimentId,
-    round: roundId,
-    label,
-    capturedAt,
-  } = roundUpdateSchema.parse(value);
+export async function updateRound(
+  value: RoundUpdate,
+): Promise<ExperimentRound> {
+  const { experiment: experimentId, round: roundId, label, capturedAt } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const taken = (await listRounds(experimentId, tx)).find(
@@ -462,9 +457,8 @@ export async function updateRound(value: unknown): Promise<ExperimentRound> {
  * Forgets one occasion and the use it made of photographs. The dishes it
  * named remain the roster, and so does an experiment with no rounds left.
  */
-export async function deleteRound(value: unknown): Promise<void> {
-  const { experiment: experimentId, round: roundId } =
-    roundRefSchema.parse(value);
+export async function deleteRound(value: RoundRef): Promise<void> {
+  const { experiment: experimentId, round: roundId } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const [row] = await tx

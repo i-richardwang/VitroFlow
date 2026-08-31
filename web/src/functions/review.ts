@@ -23,5 +23,7 @@ export const initializeLabel = createServerFn({ method: "POST" })
   );
 
 export const saveLabel = createServerFn({ method: "POST" })
-  .validator(z.object({ ref: labelRefSchema, document: annotationSchema }))
+  .validator(
+    z.strictObject({ ref: labelRefSchema, document: annotationSchema }),
+  )
   .handler(({ data }) => updateLabel(data.ref, data.document));

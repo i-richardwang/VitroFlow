@@ -83,7 +83,7 @@ def test_traditional_detector_adapts_detections_to_boxes(monkeypatch) -> None:
 
     document = detector.predict(Path("a.jpg"), "c" * 64, producer).to_dict()
 
-    assert document["schema_version"] == 1
+    assert document["schemaVersion"] == 1
     assert document["image"] == {"digest": "c" * 64, "width": 100, "height": 80}
     assert document["producer"] == producer.to_dict()
     assert document["instances"] == [
@@ -95,7 +95,7 @@ def test_traditional_detector_adapts_detections_to_boxes(monkeypatch) -> None:
         }
     ]
     assert document["diagnostics"] == {
-        "dish": {"center_x": 50.0, "center_y": 40.0, "radius": 200.0},
+        "dish": {"centerX": 50.0, "centerY": 40.0, "radius": 200.0},
         "metrics": {
             "confidence_threshold": config.decision.confidence_threshold,
             "clipped_fraction": 0.01,

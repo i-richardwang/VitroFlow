@@ -56,10 +56,10 @@ def _validation_metrics(value: Any, context: str) -> None:
     metrics = as_object(value, context)
     expect_fields(
         metrics,
-        {"precision", "recall", "map50", "map50_95", "fitness"},
+        {"precision", "recall", "map50", "map50To95", "fitness"},
         context,
     )
-    for name in ("precision", "recall", "map50", "map50_95"):
+    for name in ("precision", "recall", "map50", "map50To95"):
         metric = as_number(metrics[name], f"{context}.{name}")
         if not 0 <= metric <= 1:
             raise ValueError(f"{context}.{name} must be between 0 and 1")
@@ -230,18 +230,18 @@ class ModelStore:
             (temporary / "inference.json").write_text(
                 json.dumps(
                     {
-                        "schema_version": 1,
+                        "schemaVersion": 1,
                         "weights": "weights/best.pt",
                         "inference": {
                             "ready": True,
                             "confidence": inference["confidence"],
-                            "imgsz": inference["imageSize"],
-                            "max_det": inference["maxDetections"],
-                            "end2end": inference["endToEnd"],
+                            "imageSize": inference["imageSize"],
+                            "maxDetections": inference["maxDetections"],
+                            "endToEnd": inference["endToEnd"],
                         },
                         "validation": artifact["validation"],
                         "training": {
-                            "base_model": training["baseModel"],
+                            "baseModel": training["baseModel"],
                             "parameters": training["parameters"],
                             "runtime": training["runtime"],
                         },

@@ -10,10 +10,10 @@ import {
   modelVersions,
 } from "../db/schema";
 import {
-  datasetPhotoAdditionSchema,
   datasetSchema,
   type Dataset,
   type DatasetImageRef,
+  type DatasetPhotoAddition,
 } from "../datasets/schema";
 import type { PhotoRef } from "../experiments/schema";
 import type { ImageSplit } from "../training/schema";
@@ -93,7 +93,6 @@ export function notInDataset(ref: DatasetImageRef): Error {
 
 function toDataset(row: typeof datasets.$inferSelect): Dataset {
   return datasetSchema.parse({
-    schemaVersion: 1,
     id: row.id,
     modelId: row.modelId,
   });
@@ -176,10 +175,9 @@ function atPhoto({ experiment, dish, round }: PhotoRef) {
  * none.
  */
 export async function addExperimentPhotos(
-  value: unknown,
+  value: DatasetPhotoAddition,
 ): Promise<DatasetPhotoAdditionResult> {
-  const { dataset: datasetId, photos } =
-    datasetPhotoAdditionSchema.parse(value);
+  const { dataset: datasetId, photos } = value;
   const addedAt = new Date();
   return transaction(async (tx) => {
     const photographed = await tx

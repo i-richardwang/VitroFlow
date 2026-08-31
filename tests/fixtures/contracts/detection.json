@@ -1,13 +1,13 @@
 {
-  "schema_version": 1,
+  "schemaVersion": 1,
   "image": {
     "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     "width": 100,
     "height": 80
   },
   "producer": {
-    "model_version_id": "set.traditional-v1",
-    "artifact_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "modelVersionId": "set.traditional-v1",
+    "artifactDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "runtime": {
       "adapter": "traditional",
       "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

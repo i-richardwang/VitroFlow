@@ -101,7 +101,7 @@ function diagnosticMetrics(modelId: string, result: DetectionResult): Metric[] {
     {
       label: "Version",
       value: versionSlug({
-        id: result.producer.model_version_id,
+        id: result.producer.modelVersionId,
         modelId,
       }),
     },

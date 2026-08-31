@@ -13,11 +13,11 @@ export function makeResult(
   const image = { digest, width, height };
   const side = dishRadius * 0.025;
   return {
-    schema_version: 1,
+    schemaVersion: 1,
     image,
     producer: {
-      model_version_id: "test.traditional-v1",
-      artifact_digest: "a".repeat(64),
+      modelVersionId: "test.traditional-v1",
+      artifactDigest: "a".repeat(64),
       runtime: {
         adapter: "traditional",
         fingerprint: "b".repeat(64),
@@ -25,7 +25,7 @@ export function makeResult(
     },
     quality: { status: "ok", warnings: [] },
     diagnostics: {
-      dish: { center_x: 2000, center_y: 1500, radius: dishRadius },
+      dish: { centerX: 2000, centerY: 1500, radius: dishRadius },
       metrics: {
         confidence_threshold: 0.5,
         clipped_fraction: 0,

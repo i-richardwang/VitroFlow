@@ -1017,7 +1017,7 @@
           "primaryKey": false,
           "notNull": true,
           "generated": {
-            "as": "document->'producer'->>'artifact_digest'",
+            "as": "document->'producer'->>'artifactDigest'",
             "type": "stored"
           }
         },
@@ -1047,7 +1047,7 @@
           "primaryKey": false,
           "notNull": false,
           "generated": {
-            "as": "case when document ? 'instances' then document->'producer'->>'artifact_digest' end",
+            "as": "case when document ? 'instances' then document->'producer'->>'artifactDigest' end",
             "type": "stored"
           }
         }
@@ -1144,7 +1144,7 @@
       "checkConstraints": {
         "inference_outcomes_document_check": {
           "name": "inference_outcomes_document_check",
-          "value": "document->'image'->>'digest' = \"inference_outcomes\".\"image_id\" and document->'producer'->>'model_version_id' = \"inference_outcomes\".\"model_version_id\""
+          "value": "document->'image'->>'digest' = \"inference_outcomes\".\"image_id\" and document->'producer'->>'modelVersionId' = \"inference_outcomes\".\"model_version_id\""
         },
         "inference_outcomes_shape_check": {
           "name": "inference_outcomes_shape_check",

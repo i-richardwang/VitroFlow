@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { inferenceOutcomeSchema } from "../detection/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
 import { recordInferenceOutcome } from "../server/inference-outcomes";
 import {
   InferenceHttpError,
   inferenceWorkerErrorResponse,
+  parseInferenceJson,
 } from "../server/inference-worker-http";
 import { readInferenceWorker } from "../server/inference-worker-store";
 
@@ -35,9 +37,13 @@ export const Route = createFileRoute(
               "worker must heartbeat before uploading",
             );
           }
+          const target = targetSchema.safeParse(params);
+          if (!target.success) {
+            throw new InferenceHttpError(400, "Inference target is invalid");
+          }
           await recordInferenceOutcome(
-            targetSchema.parse(params),
-            await request.json(),
+            target.data,
+            await parseInferenceJson(request, inferenceOutcomeSchema),
             worker,
           );
           return Response.json({});

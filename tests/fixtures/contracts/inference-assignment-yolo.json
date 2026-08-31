@@ -20,7 +20,7 @@
         "precision": 0.6,
         "recall": 0.5,
         "map50": 0.7,
-        "map50_95": 0.4,
+        "map50To95": 0.4,
         "fitness": 0.43
       },
       "training": {

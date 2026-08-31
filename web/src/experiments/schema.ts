@@ -32,7 +32,6 @@ export const roundLabelSchema = z
   .max(80, "Round label must be at most 80 characters");
 
 export const experimentSchema = z.strictObject({
-  schemaVersion: z.literal(1),
   id: experimentIdSchema,
   name: experimentNameSchema,
   description: experimentDescriptionSchema,
@@ -48,6 +47,9 @@ export const experimentRequestSchema = z.strictObject({
   modelVersionId: resourceIdSchema,
 });
 
+export type ExperimentRequest = z.infer<typeof experimentRequestSchema>;
+export type ExperimentRequestInput = z.input<typeof experimentRequestSchema>;
+
 /** The words of an experiment may change; its version and dishes may not. */
 export const experimentUpdateSchema = z.strictObject({
   experiment: experimentIdSchema,
@@ -55,10 +57,14 @@ export const experimentUpdateSchema = z.strictObject({
   description: experimentDescriptionSchema,
 });
 
+export type ExperimentUpdate = z.infer<typeof experimentUpdateSchema>;
+
 /** One experiment resource addressed by a workbench route. */
 export const experimentRefSchema = z.strictObject({
   experiment: experimentIdSchema,
 });
+
+export type ExperimentRef = z.infer<typeof experimentRefSchema>;
 
 export const experimentRoundSchema = z.strictObject({
   id: roundIdSchema,
@@ -74,10 +80,14 @@ export const roundRefSchema = z.strictObject({
   round: roundIdSchema,
 });
 
+export type RoundRef = z.infer<typeof roundRefSchema>;
+
 export const roundUpdateSchema = roundRefSchema.extend({
   label: roundLabelSchema,
   capturedAt: z.string().datetime({ offset: true }),
 });
+
+export type RoundUpdate = z.infer<typeof roundUpdateSchema>;
 
 /**
  * A treatment is what an experiment varies: the dishes that share a
@@ -97,14 +107,20 @@ export const treatmentRefSchema = z.strictObject({
   treatment: treatmentIdSchema,
 });
 
+export type TreatmentRef = z.infer<typeof treatmentRefSchema>;
+
 export const treatmentRequestSchema = z.strictObject({
   experiment: experimentIdSchema,
   name: treatmentNameSchema,
 });
 
+export type TreatmentRequest = z.infer<typeof treatmentRequestSchema>;
+
 export const treatmentUpdateSchema = treatmentRefSchema.extend({
   name: treatmentNameSchema,
 });
+
+export type TreatmentUpdate = z.infer<typeof treatmentUpdateSchema>;
 
 const dishLabelSchema = z.string().min(1).max(255);
 
@@ -120,6 +136,8 @@ export type DishRef = z.infer<typeof dishRefSchema>;
 export const dishAssignmentSchema = dishRefSchema.extend({
   treatment: treatmentIdSchema.nullable(),
 });
+
+export type DishAssignment = z.infer<typeof dishAssignmentSchema>;
 
 /** One dish in one round: the cell of the grid a photograph fills. */
 export const photoRefSchema = dishRefSchema.extend({ round: roundIdSchema });
@@ -158,12 +176,10 @@ export const roundRequestSchema = z.strictObject({
 
 export type RoundRequest = z.infer<typeof roundRequestSchema>;
 
-export const roundResultSchema = z.strictObject({
-  round: experimentRoundSchema,
-  photos: z.number().int().nonnegative(),
-});
-
-export type RoundResult = z.infer<typeof roundResultSchema>;
+export interface RoundResult {
+  round: ExperimentRound;
+  photos: number;
+}
 
 /**
  * The dish a photograph shows is the normalized name it was saved under,
