@@ -4,30 +4,50 @@ import { describe, expect, test } from "bun:test";
 
 import { makeResult } from "../annotation/testing";
 import { database } from "../db/client";
-import { detectionFailures, experimentDishes, experiments } from "../db/schema";
+import { experimentDishes, experiments, inferenceOutcomes } from "../db/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import type { ModelVersion } from "../models/schema";
+import {
+  ExperimentNotFoundError,
+  ExperimentPhotoAlreadyUsedError,
+  RoundRejectedError,
+  TreatmentNotFoundError,
+  TreatmentRejectedError,
+} from "../experiments/errors";
 import { blobExists, imageBlobKey } from "./blobs";
 import { collectImages } from "./image-collection";
-import { pendingAssignments, recordInferenceOutcome } from "./detections";
+import {
+  pendingAssignments,
+  recordInferenceOutcome,
+} from "./inference-outcomes";
+import {
+  addTreatment,
+  assignDish,
+  createExperiment,
+  deleteExperiment,
+  deleteTreatment,
+  readExperiment,
+  renameTreatment,
+  updateExperiment,
+} from "./experiment-design";
 import {
   addRound,
-  createExperiment,
-  ExperimentPhotoAlreadyUsedError,
+  deleteRound,
   listExperiments,
   readExperimentGrid,
   readExperimentDish,
   readExperimentPhoto,
   retryExperimentDetection,
-  RoundRejectedError,
+  updateRound,
 } from "./experiments";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
-import { listAllModelVersions, registerModel } from "./model-registry";
+import { listAllModelVersions } from "./model-registry";
 import {
   FIXTURE_EDGE,
   ULTRALYTICS_RUNTIME,
   baselineVersion,
   imageDigest,
+  registerTestModel,
   registerTrainedVersion,
   storeTexts,
   testHeartbeat,
@@ -45,7 +65,7 @@ const worker: InferenceWorkerRecord = {
 };
 
 async function trainedVersion(modelId: string): Promise<ModelVersion> {
-  await registerModel({
+  await registerTestModel({
     schemaVersion: 1,
     id: modelId,
     name: `${modelId} detector`,
@@ -150,6 +170,7 @@ describe("experiments", () => {
       await (await database()).insert(experiments).values({
         id: randomUUID(),
         name: "Bypass",
+        description: "",
         modelVersionId: "nobody.v9",
         createdAt: new Date(),
       });
@@ -361,6 +382,148 @@ describe("experiments", () => {
     expect(await readExperimentDish({ ...ref, dish: "S9" })).toBeNull();
   });
 
+  test("treatments group dishes and outlive their assignments", async () => {
+    const version = await trainedVersion("exp-treat");
+    const experiment = await createExperiment({
+      name: "Hormones",
+      description: "  Arabidopsis Col-0 seeds on MS  ",
+      modelVersionId: version.id,
+    });
+    expect(experiment.description).toBe("Arabidopsis Col-0 seeds on MS");
+    await round(experiment.id, "Day 1", CAPTURED_1, {
+      "A1.jpg": "t-a1",
+      "A2.jpg": "t-a2",
+      "B1.jpg": "t-b1",
+    });
+
+    const control = await addTreatment({
+      experiment: experiment.id,
+      name: "Control",
+    });
+    const auxin = await addTreatment({
+      experiment: experiment.id,
+      name: " IAA 1.0 ",
+    });
+    expect([control.position, auxin.position]).toEqual([1, 2]);
+    expect(auxin.name).toBe("IAA 1.0");
+    await expect(
+      addTreatment({ experiment: experiment.id, name: "Control" }),
+    ).rejects.toThrow(TreatmentRejectedError);
+    await expect(
+      renameTreatment({
+        experiment: experiment.id,
+        treatment: auxin.id,
+        name: "Control",
+      }),
+    ).rejects.toThrow(TreatmentRejectedError);
+
+    await assignDish({
+      experiment: experiment.id,
+      dish: "A1",
+      treatment: control.id,
+    });
+    await assignDish({
+      experiment: experiment.id,
+      dish: "A2",
+      treatment: control.id,
+    });
+    await assignDish({
+      experiment: experiment.id,
+      dish: "B1",
+      treatment: auxin.id,
+    });
+    await expect(
+      assignDish({
+        experiment: experiment.id,
+        dish: "A1",
+        treatment: randomUUID(),
+      }),
+    ).rejects.toThrow(TreatmentNotFoundError);
+
+    const grouped = await readExperimentGrid(experiment.id);
+    expect(grouped?.treatments.map((item) => item.name)).toEqual([
+      "Control",
+      "IAA 1.0",
+    ]);
+    expect(grouped?.dishes.map((dish) => [dish.label, dish.treatment])).toEqual(
+      [
+        ["A1", control.id],
+        ["A2", control.id],
+        ["B1", auxin.id],
+      ],
+    );
+    const series = await readExperimentDish({
+      experiment: experiment.id,
+      dish: "B1",
+    });
+    expect(series?.treatment?.name).toBe("IAA 1.0");
+
+    await deleteTreatment({ experiment: experiment.id, treatment: control.id });
+    const after = await readExperimentGrid(experiment.id);
+    expect(after?.treatments).toEqual([{ ...auxin, position: 1 }]);
+    expect(after?.dishes.map((dish) => dish.treatment)).toEqual([
+      null,
+      null,
+      auxin.id,
+    ]);
+  });
+
+  test("an experiment's words and rounds can be revised, and both removed", async () => {
+    const version = await trainedVersion("exp-maint");
+    const experiment = await createExperiment({
+      name: "Draft",
+      modelVersionId: version.id,
+    });
+    const day1 = await round(experiment.id, "Day 1", CAPTURED_1, {
+      "A1.jpg": "m-a1-1",
+    });
+    const day2 = await round(experiment.id, "Day 2", CAPTURED_2, {
+      "A1.jpg": "m-a1-2",
+    });
+
+    const revised = await updateExperiment({
+      experiment: experiment.id,
+      name: "Final",
+      description: "Two rounds",
+    });
+    expect([revised.name, revised.description]).toEqual([
+      "Final",
+      "Two rounds",
+    ]);
+    expect(revised.modelVersionId).toBe(version.id);
+
+    await expect(
+      updateRound({
+        experiment: experiment.id,
+        round: day2.round.id,
+        label: "Day 1",
+        capturedAt: CAPTURED_2,
+      }),
+    ).rejects.toThrow(RoundRejectedError);
+    const redated = await updateRound({
+      experiment: experiment.id,
+      round: day2.round.id,
+      label: "Day 0",
+      capturedAt: CAPTURED_5,
+    });
+    expect([redated.label, redated.capturedAt]).toEqual(["Day 0", CAPTURED_5]);
+
+    await deleteRound({ experiment: experiment.id, round: day1.round.id });
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.rounds.map((item) => item.id)).toEqual([day2.round.id]);
+    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A1"]);
+    expect(grid?.photos).toHaveLength(1);
+    const first = await imageDigest("m-a1-1");
+    expect(await blobExists(imageBlobKey(first))).toBeTrue();
+
+    await deleteExperiment({ experiment: experiment.id });
+    expect(await readExperiment(experiment.id)).toBeNull();
+    await expect(
+      deleteExperiment({ experiment: experiment.id }),
+    ).rejects.toThrow(ExperimentNotFoundError);
+    expect(await blobExists(imageBlobKey(first))).toBeTrue();
+  });
+
   test("two experiments reading one photograph with one version share one pair", async () => {
     const version = await trainedVersion("exp-shared");
     const [digest] = await storeTexts(["shared-photo"]);
@@ -389,7 +552,7 @@ describe("experiments", () => {
     const failure = failureFor(version, digest!);
 
     const invalidFailure = (async () => {
-      await (await database()).insert(detectionFailures).values({
+      await (await database()).insert(inferenceOutcomes).values({
         imageId: digest!,
         modelVersionId: version.id,
         document: {
@@ -399,7 +562,7 @@ describe("experiments", () => {
             artifact_digest: "f".repeat(64),
           },
         },
-        failedAt: new Date(),
+        recordedAt: new Date(),
       });
     })();
     await expect(invalidFailure).rejects.toThrow();

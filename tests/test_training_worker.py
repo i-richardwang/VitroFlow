@@ -42,6 +42,32 @@ def _parameters(**overrides: object) -> dict[str, object]:
     return {**PARAMETERS, **overrides}
 
 
+def _run(
+    run_id: str = "train-one", *, parameters: dict[str, object] | None = None
+) -> dict[str, object]:
+    return {
+        "schemaVersion": 1,
+        "id": run_id,
+        "modelId": "set",
+        "datasetSnapshotId": "snapshot-one",
+        "createdAt": "2026-08-27T00:00:00.000Z",
+        "attempt": 1,
+        "recipe": {
+            "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
+            "parameters": parameters or PARAMETERS,
+            "runtime": {"framework": "ultralytics", "version": "8.4.131"},
+        },
+        "state": {
+            "status": "running",
+            "workerId": "trainer",
+            "sessionId": "trainer-session",
+            "leaseExpiresAt": "2026-08-27T00:05:00.000Z",
+            "phase": "preparing",
+            "progress": 0.0,
+        },
+    }
+
+
 def _snapshot(images: list[dict[str, object]]) -> dict[str, object]:
     return {
         "schemaVersion": 1,
@@ -106,20 +132,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
             _snapshot_image(val_digest, "val", []),
         ]
     )
-    run = {
-        "schemaVersion": 1,
-        "id": "train-one",
-        "modelId": "set",
-        "datasetSnapshotId": "snapshot-one",
-        "createdAt": "2026-08-27T00:00:00.000Z",
-        "attempt": 1,
-        "recipe": {
-            "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-            "parameters": PARAMETERS,
-            "runtime": {"framework": "ultralytics", "version": "8.4.131"},
-        },
-        "state": {"status": "running"},
-    }
+    run = _run()
 
     def server(request: httpx.Request) -> httpx.Response:
         requests.append(request)
@@ -252,14 +265,32 @@ def test_claim_response_requires_a_run_object() -> None:
         ),
     )
     try:
-        with pytest.raises(TypeError, match="claim response"):
+        with pytest.raises(TypeError, match="training run"):
             client.claim()
     finally:
         client.close()
 
 
-def test_training_job_exposes_run_identity() -> None:
-    assert TrainingJob({"id": "train-one"}).run_id == "train-one"
+def test_training_job_parses_the_complete_claim_contract() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "contracts" / "training-claim.json"
+    response = json.loads(fixture.read_text(encoding="utf-8"))
+    job = TrainingJob.parse(response["run"])
+
+    assert job.run_id == "train-one"
+    assert job.model_id == "seed-detector"
+    assert job.dataset_snapshot_id == "snapshot-one"
+    assert job.worker_id == "trainer"
+    assert job.session_id == "trainer-session"
+    assert job.phase == "preparing"
+
+
+def test_training_job_rejects_partial_or_foreign_claim_state() -> None:
+    with pytest.raises(ValueError, match="fields are invalid"):
+        TrainingJob.parse({"schemaVersion": 1, "id": "train-one"})
+    malformed = _run()
+    malformed["state"] = {"status": "running"}
+    with pytest.raises(ValueError, match="missing leaseExpiresAt"):
+        TrainingJob.parse(malformed)
 
 
 def test_snapshot_materialization_honors_shutdown_before_network_access(
@@ -272,7 +303,7 @@ def test_snapshot_materialization_honors_shutdown_before_network_access(
     with pytest.raises(YoloTrainingInterruptedError, match="interrupted"):
         materialize_snapshot(
             UnexpectedClient(),  # type: ignore[arg-type]
-            TrainingJob({"id": "train-one"}),
+            TrainingJob.parse(_run()),
             tmp_path / "dataset",
             cancelled=lambda: True,
         )
@@ -390,16 +421,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
 
     monkeypatch.setattr(training_worker, "materialize_snapshot", materialize)
     monkeypatch.setattr(training_worker, "train_yolo_detector", train)
-    job = TrainingJob(
-        {
-            "id": "train-one",
-            "recipe": {
-                "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-                "parameters": _parameters(epochs=2),
-                "runtime": {"framework": "ultralytics", "version": "8.4.131"},
-            },
-        }
-    )
+    job = TrainingJob.parse(_run(parameters=_parameters(epochs=2)))
 
     training_worker.process_training_job(Client(), job, tmp_path)  # type: ignore[arg-type]
 
@@ -438,16 +460,7 @@ def test_training_job_reports_an_unexpected_adapter_failure(
         raise KeyError("unexpected Ultralytics field")
 
     monkeypatch.setattr(training_worker, "materialize_snapshot", broken_materialization)
-    job = TrainingJob(
-        {
-            "id": "train-broken",
-            "recipe": {
-                "baseModel": {"reference": "yolo26n.pt", "digest": "a" * 64},
-                "parameters": PARAMETERS,
-                "runtime": {"framework": "ultralytics", "version": "8.4.131"},
-            },
-        }
-    )
+    job = TrainingJob.parse(_run("train-broken"))
 
     with pytest.raises(KeyError, match="unexpected Ultralytics field"):
         training_worker.process_training_job(  # type: ignore[arg-type]

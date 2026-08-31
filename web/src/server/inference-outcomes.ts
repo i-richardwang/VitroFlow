@@ -2,17 +2,15 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
-  detectionFailures,
-  detections,
   experimentPhotos,
   experiments,
   images,
+  inferenceOutcomes,
   modelVersions,
 } from "../db/schema";
 import {
   inferenceOutcomeSchema,
   isFailure,
-  type DetectionFailure,
   type DetectionResult,
   type InferenceOutcome,
 } from "../detection/schema";
@@ -56,31 +54,16 @@ export async function readDetection(
   db?: Executor,
 ): Promise<DetectionResult | null> {
   const [row] = await (db ?? (await database()))
-    .select({ document: detections.document })
-    .from(detections)
+    .select({ document: inferenceOutcomes.document })
+    .from(inferenceOutcomes)
     .where(
       and(
-        eq(detections.imageId, digest),
-        eq(detections.modelVersionId, versionId),
+        eq(inferenceOutcomes.imageId, digest),
+        eq(inferenceOutcomes.modelVersionId, versionId),
+        eq(inferenceOutcomes.status, "succeeded"),
       ),
     );
-  return row?.document ?? null;
-}
-
-export async function readDetectionFailure(
-  { versionId, digest }: DetectionTarget,
-  db?: Executor,
-): Promise<DetectionFailure | null> {
-  const [row] = await (db ?? (await database()))
-    .select({ document: detectionFailures.document })
-    .from(detectionFailures)
-    .where(
-      and(
-        eq(detectionFailures.imageId, digest),
-        eq(detectionFailures.modelVersionId, versionId),
-      ),
-    );
-  return row?.document ?? null;
+  return row && !isFailure(row.document) ? row.document : null;
 }
 
 /** JSON with object keys sorted at every level, so storage cannot reorder it. */
@@ -195,43 +178,50 @@ export async function recordInferenceOutcome(
         );
       }
     }
-    const existing = await readDetection(target, tx);
+    const [stored] = await tx
+      .select({ document: inferenceOutcomes.document })
+      .from(inferenceOutcomes)
+      .where(
+        and(
+          eq(inferenceOutcomes.imageId, target.digest),
+          eq(inferenceOutcomes.modelVersionId, target.versionId),
+        ),
+      );
+    const existing = stored?.document;
     if (isFailure(outcome)) {
-      if (existing) return existing;
-      const row = { document: outcome, failedAt: new Date() };
+      if (existing && !isFailure(existing)) return existing;
+      const row = { document: outcome, recordedAt: new Date() };
       await tx
-        .insert(detectionFailures)
+        .insert(inferenceOutcomes)
         .values({
           imageId: target.digest,
           modelVersionId: target.versionId,
           ...row,
         })
         .onConflictDoUpdate({
-          target: [detectionFailures.imageId, detectionFailures.modelVersionId],
+          target: [inferenceOutcomes.imageId, inferenceOutcomes.modelVersionId],
           set: row,
         });
       return outcome;
     }
-    if (existing) {
+    if (existing && !isFailure(existing)) {
       if (!sameDocument(existing, outcome)) {
         throw new DetectionConflictError(target);
       }
       return existing;
     }
-    await tx.insert(detections).values({
-      imageId: target.digest,
-      modelVersionId: target.versionId,
-      document: outcome,
-      createdAt: new Date(),
-    });
+    const row = { document: outcome, recordedAt: new Date() };
     await tx
-      .delete(detectionFailures)
-      .where(
-        and(
-          eq(detectionFailures.imageId, target.digest),
-          eq(detectionFailures.modelVersionId, target.versionId),
-        ),
-      );
+      .insert(inferenceOutcomes)
+      .values({
+        imageId: target.digest,
+        modelVersionId: target.versionId,
+        ...row,
+      })
+      .onConflictDoUpdate({
+        target: [inferenceOutcomes.imageId, inferenceOutcomes.modelVersionId],
+        set: row,
+      });
     return outcome;
   });
 }
@@ -243,11 +233,12 @@ export async function clearDetectionFailure(
 ): Promise<void> {
   await lockDetection(target.digest, target.versionId, tx);
   await tx
-    .delete(detectionFailures)
+    .delete(inferenceOutcomes)
     .where(
       and(
-        eq(detectionFailures.imageId, target.digest),
-        eq(detectionFailures.modelVersionId, target.versionId),
+        eq(inferenceOutcomes.imageId, target.digest),
+        eq(inferenceOutcomes.modelVersionId, target.versionId),
+        eq(inferenceOutcomes.status, "failed"),
       ),
     );
 }
@@ -268,20 +259,13 @@ function experimentDemand(db: Executor) {
     .from(experimentPhotos)
     .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
     .leftJoin(
-      detections,
+      inferenceOutcomes,
       and(
-        eq(detections.imageId, experimentPhotos.imageId),
-        eq(detections.modelVersionId, experiments.modelVersionId),
+        eq(inferenceOutcomes.imageId, experimentPhotos.imageId),
+        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
       ),
     )
-    .leftJoin(
-      detectionFailures,
-      and(
-        eq(detectionFailures.imageId, experimentPhotos.imageId),
-        eq(detectionFailures.modelVersionId, experiments.modelVersionId),
-      ),
-    )
-    .where(and(isNull(detections.imageId), isNull(detectionFailures.imageId)));
+    .where(isNull(inferenceOutcomes.imageId));
 }
 
 /**

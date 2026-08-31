@@ -5,11 +5,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { PanelRightIcon } from "./icons";
 import { ShellActions } from "./shell";
 
-/**
- * A photograph screen: the image fills a stage, an optional details card
- * beside it sizes to its content, and controls that belong to this
- * photograph sit in the navbar or above the stage.
- */
 export function Workbench({
   title,
   actions,

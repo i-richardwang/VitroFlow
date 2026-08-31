@@ -1,19 +1,14 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { z } from "zod";
 
 import { DishWorkbench } from "../../components/experiment/DishWorkbench";
 import { dishRefSchema, roundIdSchema } from "../../experiments/schema";
 import { getExperimentDish } from "../../functions/experiments";
-import type { ExperimentDishSeries } from "../../server/experiments";
+import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import type { ExperimentDishSeries } from "../../experiments/contracts";
 
 const dishSearchSchema = z.object({ round: z.unknown().optional() });
 
-/**
- * One dish across the experiment's rounds. The path names the dish; the
- * `round` search parameter picks which photograph is shown, and without it
- * the page shows the newest.
- */
 export const Route = createFileRoute(
   "/_workbench/experiments/$experiment/$dish",
 )({
@@ -56,11 +51,7 @@ function DishPage() {
     series.shown !== null &&
     series.shown.detection === null &&
     series.shown.failure === null;
-  useEffect(() => {
-    if (!waiting) return;
-    const timer = window.setInterval(() => void router.invalidate(), 5000);
-    return () => window.clearInterval(timer);
-  }, [waiting, router]);
+  useRouteRefresh(router, 5000, waiting);
 
   return (
     <DishWorkbench

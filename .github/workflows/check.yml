@@ -1,0 +1,36 @@
+name: check
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: uv sync --all-extras --group dev --locked
+      - run: bun install --cwd web --frozen-lockfile
+      - run: make check
+      - name: Build the production image
+        env:
+          HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
+        run: make check-image
+      - name: Start the production blob-store contract
+        run: |
+          docker compose up -d rustfs
+          docker compose run --rm bucket
+      - name: Check the S3-compatible store
+        env:
+          VITROFLOW_TEST_S3_ENDPOINT: http://localhost:9000
+          VITROFLOW_TEST_S3_BUCKET: vitroflow
+          AWS_ACCESS_KEY_ID: vitroflow
+          AWS_SECRET_ACCESS_KEY: vitroflow
+          AWS_REGION: us-east-1
+        run: make check-s3

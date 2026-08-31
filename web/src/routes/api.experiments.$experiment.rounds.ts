@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ZodError } from "zod";
 
 import {
-  addRound,
   ExperimentNotFoundError,
   ExperimentPhotoAlreadyUsedError,
   ImagesNotStoredError,
   RoundRejectedError,
-} from "../server/experiments";
+} from "../experiments/errors";
+import { addRound } from "../server/experiments";
+import { roundResultSchema } from "../experiments/schema";
 
 function failed(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
@@ -31,7 +32,9 @@ export const Route = createFileRoute("/api/experiments/$experiment/rounds")({
             return failed("Request body must be a JSON object", 400);
           }
           return Response.json(
-            await addRound({ ...body, experiment: params.experiment }),
+            roundResultSchema.parse(
+              await addRound({ ...body, experiment: params.experiment }),
+            ),
           );
         } catch (error) {
           if (error instanceof SyntaxError) {

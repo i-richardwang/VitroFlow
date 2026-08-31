@@ -120,3 +120,21 @@ export function ChevronRightIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function MoreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="3.5" cy="8" r="0.75" fill="currentColor" />
+      <circle cx="8" cy="8" r="0.75" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="0.75" fill="currentColor" />
+    </Icon>
+  );
+}
+
+export function CloseIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </Icon>
+  );
+}

@@ -1,17 +1,14 @@
 import { Chip } from "@heroui/react";
 
-import type { PhotoState } from "../../experiments/schema";
-
 const DISPLAY: Record<
-  PhotoState,
-  { label: string; tone: "default" | "danger" | "success" }
+  "pending" | "observed",
+  { label: string; tone: "default" | "success" }
 > = {
   pending: { label: "Pending", tone: "default" },
-  failed: { label: "Failed", tone: "danger" },
   observed: { label: "Observed", tone: "success" },
 };
 
-export function PhotoStateChip({ state }: { state: PhotoState }) {
+export function PhotoStateChip({ state }: { state: "pending" | "observed" }) {
   const { label, tone } = DISPLAY[state];
   return (
     <Chip color={tone} variant="soft" size="sm">

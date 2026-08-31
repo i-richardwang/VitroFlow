@@ -2,8 +2,10 @@ import { z } from "zod";
 
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
-import { trainingParametersSchema } from "../training/parameters";
-import { detectionValidationSchema } from "../training/schema";
+import {
+  detectionValidationSchema,
+  trainingRecipeSchema,
+} from "../training/schema";
 import {
   classListSchema,
   readingClasses,
@@ -61,18 +63,6 @@ const inferenceSettingsSchema = z.strictObject({
   endToEnd: z.boolean(),
 });
 
-const trainingIdentitySchema = z.strictObject({
-  baseModel: z.strictObject({
-    reference: z.string().min(1),
-    digest: sha256Schema,
-  }),
-  parameters: trainingParametersSchema,
-  runtime: z.strictObject({
-    framework: z.literal("ultralytics"),
-    version: z.string().min(1),
-  }),
-});
-
 const traditionalArtifactSchema = z.strictObject({
   kind: z.literal("traditional"),
   digest: sha256Schema,
@@ -87,7 +77,7 @@ const ultralyticsArtifactSchema = z.strictObject({
   }),
   inference: inferenceSettingsSchema,
   validation: detectionValidationSchema,
-  training: trainingIdentitySchema,
+  training: trainingRecipeSchema,
 });
 
 export const modelArtifactSchema = z.discriminatedUnion("kind", [

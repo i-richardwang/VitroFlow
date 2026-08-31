@@ -1,12 +1,12 @@
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
 import { TrainDialog } from "../../components/training/TrainDialog";
 import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../functions/training";
+import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
   {
@@ -37,12 +37,7 @@ function TrainingPage() {
   const { complete, training, runs } = console;
   const router = useRouter();
 
-  // Leases and worker presence are time-derived, so the page refreshes on a
-  // fixed interval while anything can change.
-  useEffect(() => {
-    const timer = window.setInterval(() => void router.invalidate(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [router]);
+  useRouteRefresh(router, 10_000);
 
   return (
     <Page title="Training" actions={<TrainDialog console={console} />}>

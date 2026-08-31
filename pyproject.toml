@@ -25,6 +25,7 @@ Issues = "https://github.com/i-richardwang/VitroFlow/issues"
 
 [dependency-groups]
 dev = [
+  "pyright>=1.1.405",
   "pytest>=8.0",
   "ruff>=0.12",
 ]
@@ -35,6 +36,15 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not reference'"
+markers = [
+  "reference: requires the checksum-pinned private reference photographs",
+]
+
+[tool.pyright]
+include = ["src", "scripts"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vitroflow"]

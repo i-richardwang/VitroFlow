@@ -1,5 +1,5 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Alert, Button, Link, toast, Toolbar, Tooltip } from "@heroui/react";
+import { Alert, Button, Link, Toolbar, Tooltip } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
@@ -7,12 +7,13 @@ import type { LabelInstance } from "../../annotation/schema";
 import { isCompletedReview } from "../../annotation/status";
 import type { PhotoRef } from "../../experiments/schema";
 import { retryPhotoDetection } from "../../functions/experiments";
+import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { tally } from "../../models/readings";
 import { versionSlug } from "../../models/schema";
 import type {
   ExperimentDishSeries,
   ExperimentPhoto,
-} from "../../server/experiments";
+} from "../../experiments/contracts";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 import { QualityWarnings } from "../QualityWarnings";
@@ -31,12 +32,6 @@ import { PhotoStateChip } from "./PhotoState";
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 const VIEW_LAYERS: LayerKey[] = ["boxes", "ids", "dish"];
 
-/**
- * One dish of an experiment: the toolbar walks the roster and the rounds,
- * the main column shows the photograph of the chosen round, the inspector
- * reads it. A completed review supersedes the version's observation; drafts
- * remain in the review editor, so the boxes and readings here always agree.
- */
 export function DishWorkbench({
   series,
   datasets,
@@ -44,7 +39,7 @@ export function DishWorkbench({
   series: ExperimentDishSeries;
   datasets: string[];
 }) {
-  const { experiment, model, version, dish, shown } = series;
+  const { experiment, model, version, dish, treatment, shown } = series;
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(DEFAULT_LAYERS),
   );
@@ -118,6 +113,12 @@ export function DishWorkbench({
             >
               <Metrics
                 rows={[
+                  {
+                    label: "Treatment",
+                    value: treatment?.name ?? (
+                      <span className="text-muted">Unassigned</span>
+                    ),
+                  },
                   { label: "File", value: shown.filename },
                   {
                     label: "Captured",
@@ -174,7 +175,6 @@ export function DishWorkbench({
   );
 }
 
-/** URL navigation across rounds; the photograph's reading lives in the inspector. */
 function RoundTabs({
   series,
   shown,
@@ -300,21 +300,17 @@ function ReviewButton({ photo }: { photo: ExperimentPhoto }) {
 
 function RetryButton({ photo }: { photo: PhotoRef }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const action = useAsyncAction();
   return (
     <Button
       variant="secondary"
-      isDisabled={busy}
+      isDisabled={action.busy}
       onPress={async () => {
-        setBusy(true);
-        try {
-          await retryPhotoDetection({ data: photo });
-          await router.invalidate();
-        } catch (cause) {
-          toast.danger(cause instanceof Error ? cause.message : String(cause));
-        } finally {
-          setBusy(false);
-        }
+        const result = await action.run(
+          () => retryPhotoDetection({ data: photo }),
+          "Could not retry detection",
+        );
+        if (result.ok) await router.invalidate();
       }}
     >
       Try again

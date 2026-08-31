@@ -22,14 +22,6 @@ export async function listModels(db?: Executor): Promise<Model[]> {
   return rows.map(registry.toModel);
 }
 
-/** Registers a logical model; registering the same contents again is a no-op. */
-export async function registerModel(
-  model: Model,
-  db?: Executor,
-): Promise<Model> {
-  return registry.registerModel(model, db ?? (await database()));
-}
-
 export async function readModelVersion(
   versionId: string,
   db?: Executor,

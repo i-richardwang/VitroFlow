@@ -4,7 +4,6 @@ import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Widget } from "@heroui-pro/react/widget";
 import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
 import { Timestamp } from "../../components/Timestamp";
@@ -13,6 +12,7 @@ import { ParametersList } from "../../components/training/ParametersList";
 import { TrainingRunState } from "../../components/training/TrainingRunState";
 import { versionSlug } from "../../models/schema";
 import { getTrainingRun } from "../../functions/training";
+import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import { bestEpoch } from "../../training/metrics";
 import { isTrainingRunActive, trainingRunLabel } from "../../training/schema";
 
@@ -49,11 +49,7 @@ function TrainingRunPage() {
   const router = useRouter();
   const live = isTrainingRunActive(run);
 
-  useEffect(() => {
-    if (!live) return;
-    const timer = window.setInterval(() => void router.invalidate(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [router, live]);
+  useRouteRefresh(router, 10_000, live);
 
   const current = epochs.filter((epoch) => epoch.attempt === run.attempt);
   const earlier = epochs.length - current.length;

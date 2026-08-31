@@ -1,5 +1,6 @@
 import type { Dataset } from "../datasets/schema";
 import type { TrainingRun } from "../training/schema";
+import type { TrainingSummary } from "../training/read-model";
 import { readDatasetSnapshot } from "./dataset-snapshots";
 import type { ImageRecord } from "./summaries";
 import {
@@ -13,16 +14,6 @@ import {
 } from "./training-worker-store";
 
 /** Where one dataset and its model stand before another training run. */
-export interface TrainingSummary {
-  runs: number;
-  active: TrainingRun | null;
-  /** Complete annotations the most recent run's snapshot does not contain. */
-  reviewedSinceLastRun: number;
-  workersOnline: number;
-  /** The least memory any online worker offers; a queued run may land on it. */
-  workerMemoryBytes: number | null;
-}
-
 async function reviewedSinceLastRun(
   records: ImageRecord[],
   latest: TrainingRun | undefined,

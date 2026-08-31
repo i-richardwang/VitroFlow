@@ -1,10 +1,17 @@
 import { Button, Fieldset, Form, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
+import { parseHttpJson } from "../../http/json";
+import { storedImageResponseSchema } from "../../images/schema";
 import { ImageDropZone, type ListedImage } from "../ImageDropZone";
 
-/** A stored photograph as the submission will hand it over. */
 export interface StoredPhoto {
   digest: string;
   filename: string;
@@ -17,13 +24,6 @@ export interface StoredPhoto {
  */
 const UPLOAD_LANES = 2;
 
-/**
- * Collects the photographs of one round. Storing a photograph and using it
- * are separate acts, and the form follows them: bytes go up as soon as they
- * are chosen, so the seconds spent naming the round are the seconds they
- * travel and encode in. Submitting hands over only what is already stored,
- * which is one small request the caller makes.
- */
 export function RoundForm({
   fields,
   submitLabel,
@@ -32,12 +32,10 @@ export function RoundForm({
   onSubmit,
   onComplete,
 }: {
-  /** Inputs shown above the picker; their values arrive with the submission. */
   fields?: (busy: boolean) => ReactNode;
   submitLabel: string;
   busyLabel: string;
   onCancel?: () => void;
-  /** Hands the stored photographs over; resolves to the message to show. */
   onSubmit: (photos: StoredPhoto[], form: FormData) => Promise<string>;
   onComplete?: () => void;
 }) {
@@ -47,6 +45,15 @@ export function RoundForm({
   const nextId = useRef(0);
   const queue = useRef<ListedImage[]>([]);
   const lanes = useRef(0);
+  const uploadAbort = useRef(new AbortController());
+
+  useEffect(
+    () => () => {
+      queue.current = [];
+      uploadAbort.current.abort();
+    },
+    [],
+  );
 
   const update = useCallback((id: number, state: ListedImage["state"]) => {
     setImages((current) =>
@@ -67,14 +74,20 @@ export function RoundForm({
         lanes.current += 1;
         void (async () => {
           for (let next = queue.current.shift(); next;) {
+            if (uploadAbort.current.signal.aborted) break;
             const { id, file } = next;
             try {
-              const { digest } = await storeImage(file, (progress) =>
-                update(id, { status: "storing", progress }),
+              const { digest } = await storeImage(
+                file,
+                (progress) => update(id, { status: "storing", progress }),
+                uploadAbort.current.signal,
               );
+              if (uploadAbort.current.signal.aborted) break;
               update(id, { status: "stored", digest });
             } catch (cause) {
-              update(id, { status: "failed", reason: message(cause) });
+              if (!uploadAbort.current.signal.aborted) {
+                update(id, { status: "failed", reason: message(cause) });
+              }
             }
             next = queue.current.shift();
           }
@@ -153,13 +166,15 @@ function message(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-/** Stores one photograph's bytes, reporting how much of them has gone. */
 function storeImage(
   file: File,
   onProgress: (percent: number) => void,
+  signal: AbortSignal,
 ): Promise<{ digest: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
+    const abort = () => request.abort();
+    signal.addEventListener("abort", abort, { once: true });
     request.open("POST", "/api/images");
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -167,42 +182,27 @@ function storeImage(
       }
     };
     request.onload = () => {
-      const body = parseJson<{ error?: string; digest?: string }>(
-        request.responseText,
-      );
-      if (body?.error != null) return reject(new Error(body.error));
-      if (request.status === 200 && body?.digest) {
-        return resolve({ digest: body.digest });
+      signal.removeEventListener("abort", abort);
+      try {
+        resolve(
+          parseHttpJson(
+            request.responseText,
+            request.status,
+            storedImageResponseSchema,
+          ),
+        );
+      } catch (error) {
+        reject(error);
       }
-      reject(new Error(`Upload failed (${request.status})`));
     };
-    request.onerror = () => reject(new Error("Upload failed"));
+    request.onerror = () => {
+      signal.removeEventListener("abort", abort);
+      reject(new Error("Upload failed"));
+    };
+    request.onabort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(new Error("Upload cancelled"));
+    };
     request.send(file);
   });
-}
-
-/** Posts JSON and returns the body, surfacing the server's error message. */
-export async function postJson<T extends object>(
-  url: string,
-  body: unknown,
-): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const parsed = parseJson<T & { error?: string }>(await response.text());
-  if (parsed?.error != null) throw new Error(parsed.error);
-  if (!response.ok || parsed == null) {
-    throw new Error(`Request failed (${response.status})`);
-  }
-  return parsed;
-}
-
-function parseJson<T>(text: string): T | null {
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
 }

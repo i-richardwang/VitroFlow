@@ -1,14 +1,13 @@
 import { expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
-import { recordInferenceOutcome } from "./detections";
-import { createLabel } from "./labels";
-import { registerModel } from "./model-registry";
+import { recordInferenceOutcome } from "./inference-outcomes";
+import { createLabelFromDetection } from "./labels";
 import { readReview } from "./review";
 import {
   TEST_RUNTIME,
   ULTRALYTICS_RUNTIME,
   photographRound,
+  registerTestModel,
   registerTrainedVersion,
   resultFor,
   testHeartbeat,
@@ -39,7 +38,7 @@ test("a review starts from the version the reviewer arrived from", async () => {
   expect((await readReview(ref, next.id))?.detection).toEqual(newer);
   expect((await readReview(ref))?.filename).toBe("rv.jpg");
 
-  await registerModel({
+  await registerTestModel({
     schemaVersion: 1,
     id: "review-other",
     name: "Other task",
@@ -53,7 +52,7 @@ test("a review starts from the version the reviewer arrived from", async () => {
   expect(await readReview(ref, foreign.id)).toBeNull();
   expect(await readReview(ref, "review-nowhere")).toBeNull();
 
-  await createLabel(ref, documentFromDetection(older));
+  await createLabelFromDetection(ref, first.version.id);
   expect((await readReview(ref, next.id))?.detection).toEqual(older);
   expect((await readReview(ref))?.detection).toEqual(older);
 });

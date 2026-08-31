@@ -1,30 +1,25 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Button, toast } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
 
-import type { Review } from "../../server/review";
+import type { Review } from "../../annotation/review";
 import { initializeLabel } from "../../functions/review";
+import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { QualityWarnings } from "../QualityWarnings";
 import { Workbench } from "../Workbench";
 import { AnnotationEditor } from "./AnnotationEditor";
 
-/**
- * The review of one image for one model. Once the review has started, the
- * editor owns it; before that, the page offers to start from what the
- * model's version found.
- */
 export function ImageWorkbench({ review }: { review: Review }) {
-  const { ref, filename, detection, label } = review;
+  const { ref, filename } = review;
 
-  if (label && detection) {
+  if (review.state === "started") {
     return (
       <AnnotationEditor
         subject={ref}
         model={review.model}
         filename={filename}
-        result={detection}
-        label={label}
+        result={review.detection}
+        label={review.label}
       />
     );
   }
@@ -32,28 +27,27 @@ export function ImageWorkbench({ review }: { review: Review }) {
   return (
     <Workbench
       title={`Review ${filename} for ${review.model.name}`}
-      actions={detection && <QualityWarnings quality={detection.quality} />}
+      actions={
+        review.state === "detected" ? (
+          <QualityWarnings quality={review.detection.quality} />
+        ) : undefined
+      }
     >
       <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
-        {detection ? (
+        {review.state === "detected" ? (
           <Notice
             title="No review yet"
-            description={`Start from the ${detection.instances.length} ${detection.instances.length === 1 ? "box" : "boxes"} this version found.`}
+            description={`Start from the ${review.detection.instances.length} ${review.detection.instances.length === 1 ? "box" : "boxes"} this version found.`}
             action={{
               label: "Start review",
               run: () =>
                 initializeLabel({
                   data: {
                     ...ref,
-                    versionId: detection.producer.model_version_id,
+                    versionId: review.detection.producer.model_version_id,
                   },
                 }),
             }}
-          />
-        ) : label ? (
-          <Notice
-            title="Detection unavailable"
-            description="The detection this review started from is no longer stored."
           />
         ) : (
           <Notice
@@ -96,22 +90,15 @@ function NoticeAction({
   action: { label: string; run: () => Promise<unknown> };
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const mutation = useAsyncAction();
 
   return (
     <Button
       variant="primary"
-      isDisabled={busy}
+      isDisabled={mutation.busy}
       onPress={async () => {
-        setBusy(true);
-        try {
-          await action.run();
-          await router.invalidate();
-        } catch (cause) {
-          toast.danger(cause instanceof Error ? cause.message : String(cause));
-        } finally {
-          setBusy(false);
-        }
+        const result = await mutation.run(action.run, "Could not start review");
+        if (result.ok) await router.invalidate();
       }}
     >
       {action.label}

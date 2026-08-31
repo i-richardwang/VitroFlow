@@ -4,8 +4,8 @@ import { database, type Executor } from "../db/client";
 import {
   datasetImages,
   datasets,
-  detections,
   images,
+  inferenceOutcomes,
   labels,
 } from "../db/schema";
 import {
@@ -16,7 +16,6 @@ import {
 import type { DetectionQuality, DetectionResult } from "../detection/schema";
 import type { AnnotationDocument } from "../annotation/schema";
 import {
-  atRef,
   membershipOrder,
   toDatasetImage,
   type DatasetImage,
@@ -80,7 +79,7 @@ export function shownVersion(
 ) {
   return sql`coalesce(${labels.sourceModelVersionId}, (
     select d.model_version_id
-    from detections d
+    from inference_outcomes d
     join model_versions v on v.id = d.model_version_id
     where d.image_id = ${imageId} and v.model_id = ${modelId}
     order by v.created_at desc, v.id desc
@@ -95,7 +94,7 @@ export function recordQuery(db: Executor) {
       membership: datasetImages,
       image: images,
       modelId: datasets.modelId,
-      detection: detections.document,
+      detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
       label: labels.document,
     })
     .from(datasetImages)
@@ -109,13 +108,14 @@ export function recordQuery(db: Executor) {
       ),
     )
     .leftJoin(
-      detections,
+      inferenceOutcomes,
       and(
-        eq(detections.imageId, datasetImages.imageId),
+        eq(inferenceOutcomes.imageId, datasetImages.imageId),
         eq(
-          detections.modelVersionId,
+          inferenceOutcomes.modelVersionId,
           shownVersion(datasetImages.imageId, datasets.modelId),
         ),
+        eq(inferenceOutcomes.status, "succeeded"),
       ),
     );
 }
@@ -171,16 +171,6 @@ export async function listReviewedRecords(
     .flatMap((record) =>
       record.label ? [{ ...record, label: record.label }] : [],
     );
-}
-
-export async function readImageRecord(
-  ref: DatasetImageRef,
-  db?: Executor,
-): Promise<ImageRecord | null> {
-  const [row] = await recordQuery(db ?? (await database())).where(
-    atRef(datasetImages, ref),
-  );
-  return row ? toRecord(row) : null;
 }
 
 export function countImageStates(

@@ -38,7 +38,6 @@ export function ReviewStatusMenu({
   onReview: (event: ReviewEvent) => void;
 }) {
   const [excluding, setExcluding] = useState(false);
-  const [reason, setReason] = useState("");
 
   const review = (event: ReviewEvent) => {
     try {
@@ -62,10 +61,13 @@ export function ReviewStatusMenu({
             aria-label="Review status"
             onAction={(key) => {
               if (key === "exclude") {
-                setReason("");
                 setExcluding(true);
-              } else {
-                review({ type: key as Exclude<Action, "exclude"> });
+              } else if (
+                key === "complete" ||
+                key === "reopen" ||
+                key === "include"
+              ) {
+                review({ type: key });
               }
             }}
           >
@@ -78,47 +80,63 @@ export function ReviewStatusMenu({
         </Dropdown.Popover>
       </Dropdown>
 
-      <Modal isOpen={excluding} onOpenChange={setExcluding}>
-        <Modal.Backdrop>
-          <Modal.Container size="sm">
-            <Modal.Dialog>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  review({
-                    type: "exclude",
-                    reason: reason.trim() || undefined,
-                  });
-                  setExcluding(false);
-                }}
-              >
-                <Modal.Header>
-                  <Modal.Heading>Exclude image</Modal.Heading>
-                </Modal.Header>
-                <Modal.Body>
-                  <TextField
-                    variant="secondary"
-                    value={reason}
-                    onChange={setReason}
-                    fullWidth
-                  >
-                    <Label>Reason</Label>
-                    <Input placeholder="Optional" autoFocus />
-                  </TextField>
-                </Modal.Body>
-                <Modal.Footer>
-                  <Button variant="tertiary" slot="close">
-                    Cancel
-                  </Button>
-                  <Button type="submit" variant="primary">
-                    Exclude
-                  </Button>
-                </Modal.Footer>
-              </form>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      {excluding ? (
+        <ExcludeModal
+          onClose={() => setExcluding(false)}
+          onSubmit={(reason) => review({ type: "exclude", reason })}
+        />
+      ) : null}
     </>
+  );
+}
+
+function ExcludeModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (reason: string | undefined) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  return (
+    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <Modal.Backdrop>
+        <Modal.Container size="sm">
+          <Modal.Dialog>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                onSubmit(reason.trim() || undefined);
+                onClose();
+              }}
+            >
+              <Modal.Header>
+                <Modal.Heading>Exclude image</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body>
+                <TextField
+                  variant="secondary"
+                  value={reason}
+                  onChange={setReason}
+                  fullWidth
+                >
+                  <Label>Reason</Label>
+                  <Input placeholder="Optional" autoFocus />
+                </TextField>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="tertiary" slot="close">
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Exclude
+                </Button>
+              </Modal.Footer>
+            </form>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }

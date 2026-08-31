@@ -1,18 +1,18 @@
-FROM oven/bun:1.4.0 AS build
+FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS build
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
 ENV CI=true
 RUN bun install --frozen-lockfile --network-concurrency=4
 RUN --mount=type=secret,id=heroui_key \
     test -s /run/secrets/heroui_key && \
-    HEROUI_KEY="$(cat /run/secrets/heroui_key)" bunx hpsetup@latest react --auto
+    HEROUI_KEY="$(cat /run/secrets/heroui_key)" bunx hpsetup react --auto
 COPY web .
 COPY configs /app/configs
 RUN bun run build
 RUN bun build server.ts --target=bun --packages=external --outfile=dist/server.js
 RUN bun build scripts/collect-blobs.ts scripts/maintenance.ts --target=bun --packages=external --outdir=dist
 
-FROM oven/bun:1.4.0-slim
+FROM oven/bun:1.4.0-slim@sha256:e0ee68d16ccb9927bf02aa7dd8fd4bf3369ee6d46da04faa72b05ce8bfd135f6
 WORKDIR /app/web
 ENV NODE_ENV=production
 COPY web/package.json web/bun.lock ./

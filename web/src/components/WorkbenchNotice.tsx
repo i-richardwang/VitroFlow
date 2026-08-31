@@ -1,7 +1,6 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Link } from "@heroui/react";
 
-/** Full-area empty state with a way back to the experiments list. */
 export function WorkbenchNotice({
   title,
   description,

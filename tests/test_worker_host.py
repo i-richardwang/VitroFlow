@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import httpx
+import pytest
 
 from vitroflow import worker_host
 from vitroflow.training_worker import TrainingWorkerSettings
@@ -21,7 +23,11 @@ def test_training_preflight_checks_authenticated_server_runtime(
         return httpx.Response(200, json={"role": "training"}, request=request)
 
     monkeypatch.setattr(worker_host.httpx, "get", ready)
-    monkeypatch.setattr(worker_host.importlib.util, "find_spec", lambda _name: object())
+    monkeypatch.setattr(
+        worker_host,
+        "ultralytics_runtime_descriptor",
+        lambda: SimpleNamespace(adapter="ultralytics"),
+    )
     profile = WorkerProfile(
         role="training",
         server_url="https://example.test",
@@ -49,7 +55,11 @@ def test_inference_preflight_reports_the_runtimes_it_will_advertise(
         return httpx.Response(200, json={"role": "inference"}, request=request)
 
     monkeypatch.setattr(worker_host.httpx, "get", ready)
-    monkeypatch.setattr(worker_host.importlib.util, "find_spec", lambda _name: None)
+    monkeypatch.setattr(
+        worker_host,
+        "available_runtimes",
+        lambda: (SimpleNamespace(adapter="traditional"),),
+    )
     profile = WorkerProfile(
         role="inference",
         server_url="https://example.test",
@@ -62,6 +72,35 @@ def test_inference_preflight_reports_the_runtimes_it_will_advertise(
     assert requests[0].url.path == "/api/inference/ready"
     assert requests[0].headers["authorization"] == "Bearer inference-secret"
     assert "runtimes: traditional" in checks
+
+
+def test_preflight_surfaces_an_installed_but_broken_runtime(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    monkeypatch.setattr(
+        worker_host.httpx,
+        "get",
+        lambda url, **_kwargs: httpx.Response(
+            200,
+            json={"role": "inference"},
+            request=httpx.Request("GET", url),
+        ),
+    )
+
+    def broken_runtime():
+        raise RuntimeError("Ultralytics is installed but cannot be imported")
+
+    monkeypatch.setattr(worker_host, "available_runtimes", broken_runtime)
+    profile = WorkerProfile(
+        role="inference",
+        server_url="https://example.test",
+        token="inference-secret",
+        worker_id="mac-mps",
+    )
+
+    with pytest.raises(RuntimeError, match="installed but cannot be imported"):
+        worker_host.preflight_profile("mac-mps", profile)
 
 
 def test_profile_host_passes_typed_settings_and_marks_readiness(

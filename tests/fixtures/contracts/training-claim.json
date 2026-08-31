@@ -1,0 +1,43 @@
+{
+  "run": {
+    "schemaVersion": 1,
+    "id": "train-one",
+    "modelId": "seed-detector",
+    "datasetSnapshotId": "snapshot-one",
+    "createdAt": "2026-08-27T00:00:00.000Z",
+    "attempt": 1,
+    "recipe": {
+      "baseModel": {
+        "reference": "yolo26n.pt",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "parameters": {
+        "epochs": 3,
+        "patience": 20,
+        "batch": 4,
+        "imgsz": 768,
+        "optimizer": "AdamW",
+        "lr0": 0.001,
+        "warmup_epochs": 3.0,
+        "mosaic": 0.0,
+        "mixup": 0.0,
+        "copy_paste": 0.0,
+        "max_det": 500,
+        "seed": 0,
+        "deterministic": true
+      },
+      "runtime": {
+        "framework": "ultralytics",
+        "version": "8.4.131"
+      }
+    },
+    "state": {
+      "status": "running",
+      "workerId": "trainer",
+      "sessionId": "trainer-session",
+      "leaseExpiresAt": "2026-08-27T00:05:00.000Z",
+      "phase": "preparing",
+      "progress": 0.0
+    }
+  }
+}

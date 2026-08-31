@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
+
+def ultralytics_installed() -> bool:
+    try:
+        version("ultralytics")
+    except PackageNotFoundError:
+        return False
+    return True
+
 
 def load_yolo() -> type:
-    """Load Ultralytics only in processes that train or run YOLO models."""
-    try:
-        from ultralytics import YOLO
-    except ImportError as error:
+    if not ultralytics_installed():
         raise RuntimeError(
             "Ultralytics is not installed; run `uv sync --extra yolo` first"
-        ) from error
+        )
+    try:
+        from ultralytics import YOLO
+    except Exception as error:
+        raise RuntimeError("Ultralytics is installed but cannot be imported") from error
     return YOLO

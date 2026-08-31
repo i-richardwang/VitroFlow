@@ -4,6 +4,7 @@ import {
   formatReading,
   read,
   readingSchema,
+  summarize,
   tally,
   type Reading,
 } from "./readings";
@@ -64,5 +65,16 @@ describe("readings", () => {
         among: ["seed"],
       }).success,
     ).toBeFalse();
+  });
+
+  test("summaries retain the number of contributing dishes", () => {
+    expect(summarize(seeds, [{ seed: 2 }, {}, { seed: 4 }])).toEqual({
+      value: 2,
+      sampleSize: 3,
+    });
+    expect(summarize(rate, [{}, { seed: 3, germinated: 1 }])).toEqual({
+      value: 0.25,
+      sampleSize: 1,
+    });
   });
 });

@@ -46,6 +46,10 @@ type Gesture =
 const CLICK_SLOP = 3;
 const HANDLE_SCREEN_SIZE = 8;
 
+function isHandle(value: string | null): value is Handle {
+  return HANDLES.some((handle) => handle === value);
+}
+
 const HANDLE_CURSORS: Record<Handle, string> = {
   nw: "nwse-resize",
   n: "ns-resize",
@@ -57,23 +61,15 @@ const HANDLE_CURSORS: Record<Handle, string> = {
   w: "ew-resize",
 };
 
-/** What the review editor adds to a canvas that otherwise only shows boxes. */
 export interface Editing {
   tool: Tool;
-  /** Space is held: every press pans regardless of the active tool. */
   panning: boolean;
-  /** The class an added box gets. */
   className: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onInstancesChange: (instances: LabelInstance[]) => void;
 }
 
-/**
- * One photograph with its boxes, panned and zoomed in place. Without
- * `editing` every press pans; with it the boxes can be selected, moved,
- * resized, added, and the detection result sizes the added ones.
- */
 export function AnnotationCanvas({
   image,
   filename,
@@ -105,7 +101,6 @@ export function AnnotationCanvas({
     moved: boolean;
   } | null>(null);
 
-  // Without an editor every press pans, nothing is selectable.
   const tool: Tool = editing?.tool ?? "select";
   const panning = editing?.panning ?? true;
   const selectedId = editing?.selectedId ?? null;
@@ -138,10 +133,11 @@ export function AnnotationCanvas({
       return;
     }
     const point = toImagePoint(event);
-    const target = event.target as Element;
-    const handle = target.getAttribute("data-handle") as Handle | null;
+    const target = event.target instanceof Element ? event.target : null;
+    const handleValue = target?.getAttribute("data-handle") ?? null;
+    const handle = isHandle(handleValue) ? handleValue : null;
     const id =
-      target.closest("[data-instance-id]")?.getAttribute("data-instance-id") ??
+      target?.closest("[data-instance-id]")?.getAttribute("data-instance-id") ??
       null;
     const instance = instances.find((item) => item.id === id);
     if (handle && instance) {

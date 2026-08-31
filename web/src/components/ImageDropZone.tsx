@@ -9,7 +9,6 @@ import {
   sourceImageFileError,
 } from "../images/canonical";
 
-/** A photograph on its way into the system, as the picker shows it. */
 export interface ListedImage {
   id: number;
   file: File;

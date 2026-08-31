@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import { inferenceAssignmentSchema } from "../inference/assignments";
 import { Route as RoundRoute } from "../routes/api.experiments.$experiment.rounds";
@@ -11,9 +10,9 @@ import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
 import { readInferenceWorker } from "./inference-worker-store";
-import { createLabel } from "./labels";
-import { createExperiment } from "./experiments";
-import { readDetection } from "./detections";
+import { createLabelFromDetection } from "./labels";
+import { createExperiment } from "./experiment-design";
+import { readDetection } from "./inference-outcomes";
 import { contentDigest } from "./blobs";
 import {
   FIXTURE_EDGE,
@@ -210,9 +209,9 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     ).status,
   ).toBe(409);
 
-  await createLabel(
+  await createLabelFromDetection(
     { digest, model: version.modelId },
-    documentFromDetection(result),
+    version.id,
   );
   expect((await put(result)).status).toBe(200);
 });
@@ -233,8 +232,10 @@ test("an inference heartbeat cannot load an unknown model version", async () => 
       }),
     }),
   } as never);
-  expect(response.status).toBe(400);
-  expect(await response.text()).toContain("Unknown model version");
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({
+    error: "Unknown model version: not-published",
+  });
 });
 
 test("inference readiness identifies the authenticated control plane", async () => {

@@ -1,27 +1,34 @@
+import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 from vitroflow import count_seeds
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures" / "images"
-EXPECTED_COUNTS_PATH = FIXTURE_DIR / "expected-counts.json"
+REFERENCE_MANIFEST = Path(__file__).parent / "fixtures" / "reference-images.json"
 
 
-def test_local_reference_image_counts() -> None:
-    if not EXPECTED_COUNTS_PATH.is_file():
-        pytest.skip("local reference counts not available")
-
-    expected = json.loads(EXPECTED_COUNTS_PATH.read_text(encoding="utf-8"))
-    cases = expected.get("images")
-    assert isinstance(cases, list) and cases, "expected counts must list images"
+@pytest.mark.reference
+def test_reference_image_counts() -> None:
+    configured = os.environ.get("VITROFLOW_REFERENCE_IMAGE_DIR")
+    assert configured, (
+        "Set VITROFLOW_REFERENCE_IMAGE_DIR or run "
+        "`make check-reference REFERENCE_IMAGE_DIR=/path/to/images`"
+    )
+    image_dir = Path(configured).resolve()
+    document = json.loads(REFERENCE_MANIFEST.read_text(encoding="utf-8"))
+    cases = document["images"]
+    assert isinstance(cases, list) and cases
 
     for case in cases:
-        image_path = FIXTURE_DIR / case["file"]
+        image_path = image_dir / case["file"]
         assert image_path.is_file(), f"reference image not found: {case['file']}"
+        digest = hashlib.sha256(image_path.read_bytes()).hexdigest()
+        assert digest == case["sha256"], f"reference image changed: {case['file']}"
 
         result = count_seeds(image_path)
 
-        assert result.count == case["expected_count"], image_path.name
+        assert result.count == case["expectedCount"], image_path.name
         assert result.quality.status == "ok", image_path.name

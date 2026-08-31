@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../training/artifact";
+import { trainingRunSchema } from "../training/schema";
 import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
 import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
 import { Route as ClaimRoute } from "../routes/api.training.claim";
@@ -17,6 +18,16 @@ import { reviewedDataset } from "./testing";
 import { createTrainingRun } from "./training-runs";
 
 const OWNER = { workerId: "api-trainer", sessionId: "api-trainer-session" };
+
+test("the shared training claim fixture is the Web training contract", async () => {
+  const fixture = await Bun.file(
+    new URL(
+      "../../../tests/fixtures/contracts/training-claim.json",
+      import.meta.url,
+    ),
+  ).json();
+  expect(trainingRunSchema.parse(fixture.run)).toEqual(fixture.run);
+});
 
 type Handler = (context: never) => Response | Promise<Response>;
 

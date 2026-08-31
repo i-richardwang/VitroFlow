@@ -23,7 +23,6 @@ function tone(status: TrainingRun["state"]["status"]): Tone {
   }
 }
 
-/** One training run's lifecycle state. */
 export function TrainingRunState({ run }: { run: TrainingRun }) {
   const { state } = run;
   return (

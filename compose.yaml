@@ -17,6 +17,7 @@ x-storage-environment: &storage-environment
 services:
   workbench:
     <<: *web-image
+    restart: unless-stopped
     environment:
       <<: *storage-environment
       VITROFLOW_PASSWORD: ${VITROFLOW_PASSWORD:-}
@@ -43,6 +44,7 @@ services:
 
   maintenance:
     <<: *web-image
+    restart: unless-stopped
     command: ["bun", "dist/maintenance.js"]
     environment: *storage-environment
     depends_on:
@@ -50,7 +52,8 @@ services:
         condition: service_healthy
 
   postgres:
-    image: postgres:17
+    image: ${POSTGRES_IMAGE:-postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675}
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-vitroflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vitroflow}
@@ -68,8 +71,8 @@ services:
       retries: 10
 
   rustfs:
-    image: rustfs/rustfs:1.0.0-beta.12
-    # Published so that a workbench run from source shares this bucket.
+    image: ${RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12@sha256:41fe89380f4120a337790c02af192c3fe7bb55c3edc2e6e9357b487b47c6ab21}
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -79,9 +82,8 @@ services:
     volumes:
       - rustfs:/data
 
-  # The bucket the workbench addresses, created once before it starts.
   bucket:
-    image: amazon/aws-cli:2.36.34
+    image: ${AWS_CLI_IMAGE:-amazon/aws-cli:2.36.34@sha256:cf1f5e5741c33f3fee383296ba8045b96b9eb93c3de017be6688fb00356352d7}
     environment:
       AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-vitroflow}
       AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-vitroflow}

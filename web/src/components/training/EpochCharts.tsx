@@ -38,7 +38,6 @@ function losses(split: "train" | "val"): Series[] {
   }));
 }
 
-/** The panels of Ultralytics' `results.png`, grouped by what they answer. */
 const PANELS: Panel[] = [
   { title: "Train loss", series: losses("train") },
   { title: "Validation loss", series: losses("val") },
@@ -80,7 +79,6 @@ const PANELS: Panel[] = [
   },
 ];
 
-/** Per-epoch curves for one attempt, with the best epoch marked. */
 export function EpochCharts({
   epochs,
   total,

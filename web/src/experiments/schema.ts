@@ -5,12 +5,25 @@ import { imageDigestSchema } from "../images/schema";
 
 export const experimentIdSchema = z.uuid();
 export const roundIdSchema = z.uuid();
+export const treatmentIdSchema = z.uuid();
 
 export const experimentNameSchema = z
   .string()
   .trim()
   .min(1, "Experiment name is required")
   .max(120, "Experiment name must be at most 120 characters");
+
+/** What was done to the dishes and how they were kept, as the notebook says it. */
+export const experimentDescriptionSchema = z
+  .string()
+  .trim()
+  .max(2000, "Description must be at most 2000 characters");
+
+export const treatmentNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Treatment name is required")
+  .max(120, "Treatment name must be at most 120 characters");
 
 export const roundLabelSchema = z
   .string()
@@ -22,6 +35,7 @@ export const experimentSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: experimentIdSchema,
   name: experimentNameSchema,
+  description: experimentDescriptionSchema,
   modelVersionId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
 });
@@ -30,7 +44,15 @@ export type Experiment = z.infer<typeof experimentSchema>;
 
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
+  description: experimentDescriptionSchema.default(""),
   modelVersionId: resourceIdSchema,
+});
+
+/** The words of an experiment may change; its version and dishes may not. */
+export const experimentUpdateSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  name: experimentNameSchema,
+  description: experimentDescriptionSchema,
 });
 
 /** One experiment resource addressed by a workbench route. */
@@ -47,6 +69,43 @@ export const experimentRoundSchema = z.strictObject({
 
 export type ExperimentRound = z.infer<typeof experimentRoundSchema>;
 
+export const roundRefSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  round: roundIdSchema,
+});
+
+export const roundUpdateSchema = roundRefSchema.extend({
+  label: roundLabelSchema,
+  capturedAt: z.string().datetime({ offset: true }),
+});
+
+/**
+ * A treatment is what an experiment varies: the dishes that share a
+ * condition are its replicates, and results are compared treatment by
+ * treatment. Treatments are named and ordered as the notebook lists them.
+ */
+export const treatmentSchema = z.strictObject({
+  id: treatmentIdSchema,
+  name: treatmentNameSchema,
+  position: z.number().int().min(1),
+});
+
+export type Treatment = z.infer<typeof treatmentSchema>;
+
+export const treatmentRefSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  treatment: treatmentIdSchema,
+});
+
+export const treatmentRequestSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  name: treatmentNameSchema,
+});
+
+export const treatmentUpdateSchema = treatmentRefSchema.extend({
+  name: treatmentNameSchema,
+});
+
 const dishLabelSchema = z.string().min(1).max(255);
 
 /** One dish of an experiment: a row of the grid, photographed round by round. */
@@ -56,6 +115,11 @@ export const dishRefSchema = z.strictObject({
 });
 
 export type DishRef = z.infer<typeof dishRefSchema>;
+
+/** Which treatment a dish replicates; none returns it to the unassigned rows. */
+export const dishAssignmentSchema = dishRefSchema.extend({
+  treatment: treatmentIdSchema.nullable(),
+});
 
 /** One dish in one round: the cell of the grid a photograph fills. */
 export const photoRefSchema = dishRefSchema.extend({ round: roundIdSchema });
@@ -93,6 +157,13 @@ export const roundRequestSchema = z.strictObject({
 });
 
 export type RoundRequest = z.infer<typeof roundRequestSchema>;
+
+export const roundResultSchema = z.strictObject({
+  round: experimentRoundSchema,
+  photos: z.number().int().nonnegative(),
+});
+
+export type RoundResult = z.infer<typeof roundResultSchema>;
 
 /**
  * The dish a photograph shows is the normalized name it was saved under,

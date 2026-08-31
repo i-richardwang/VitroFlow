@@ -2,11 +2,12 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Segment } from "@heroui-pro/react/segment";
-import { AlertDialog, Button, Table, toast } from "@heroui/react";
+import { Button, Table } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Count } from "../../components/Count";
+import { DeleteDialog } from "../../components/DeleteDialog";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
@@ -15,6 +16,7 @@ import {
   getDatasetOverview,
   removeFromDataset,
 } from "../../functions/datasets";
+import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   loader: async ({ params }) => {
@@ -35,17 +37,17 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 
 type Filter = ImageState | "all";
 
+function isImageState(value: unknown): value is ImageState {
+  return IMAGE_STATES.some((state) => state === value);
+}
+
 function DatasetPage() {
   const { dataset } = Route.useParams();
   const { model, images, counts, training } = Route.useLoaderData();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
 
-  // Training leases are time-derived, so the page refreshes on a fixed interval.
-  useEffect(() => {
-    const timer = window.setInterval(() => void router.invalidate(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [router]);
+  useRouteRefresh(router, 10_000);
 
   const visible =
     filter === "all"
@@ -114,7 +116,9 @@ function DatasetPage() {
         aria-label="Image state"
         selectedKey={filter}
         onSelectionChange={(key) => {
-          if (key != null) setFilter(String(key) as Filter);
+          if (key === "all" || isImageState(key)) {
+            setFilter(key);
+          }
         }}
       >
         {filters.map((state) => (
@@ -201,66 +205,26 @@ function RemoveImageButton({
   image: { digest: string; filename: string };
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   return (
-    <AlertDialog>
-      <Button variant="ghost" size="sm" isDisabled={busy}>
+    <>
+      <Button variant="ghost" size="sm" onPress={() => setOpen(true)}>
         Remove
       </Button>
-      <AlertDialog.Backdrop>
-        <AlertDialog.Container size="sm">
-          <AlertDialog.Dialog>
-            {({ close }) => (
-              <>
-                <AlertDialog.Header>
-                  <AlertDialog.Icon />
-                  <AlertDialog.Heading>
-                    Remove {image.filename}?
-                  </AlertDialog.Heading>
-                </AlertDialog.Header>
-                <AlertDialog.Body>
-                  The photograph leaves {dataset}. Its review stays with the
-                  photograph and returns with it.
-                </AlertDialog.Body>
-                <AlertDialog.Footer>
-                  <Button variant="tertiary" size="sm" onPress={close}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="danger-soft"
-                    size="sm"
-                    isDisabled={busy}
-                    onPress={() => {
-                      setBusy(true);
-                      void removeFromDataset({
-                        data: { dataset, digest: image.digest },
-                      })
-                        .then(async () => {
-                          close();
-                          await router.invalidate();
-                        })
-                        .catch((cause: unknown) => {
-                          toast.danger("Image not removed", {
-                            description:
-                              cause instanceof Error
-                                ? cause.message
-                                : String(cause),
-                          });
-                        })
-                        .finally(() => {
-                          setBusy(false);
-                        });
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </AlertDialog.Footer>
-              </>
-            )}
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-    </AlertDialog>
+      <DeleteDialog
+        isOpen={open}
+        onOpenChange={setOpen}
+        title={`Remove ${image.filename}?`}
+        confirmLabel="Remove image"
+        onConfirm={async () => {
+          await removeFromDataset({ data: { dataset, digest: image.digest } });
+          await router.invalidate();
+        }}
+      >
+        The photograph leaves {dataset}. Its review stays with the photograph
+        and returns with it.
+      </DeleteDialog>
+    </>
   );
 }

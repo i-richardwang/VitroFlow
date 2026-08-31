@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!web/.env.example
 .cursor/mcp.json
 .venv/
 __pycache__/

@@ -34,8 +34,12 @@ def test_seed_recipe_parameters_are_accepted_ultralytics_arguments() -> None:
     assert cfg.max_det == 500
 
 
-def test_ultralytics_resolves_exported_dataset_from_its_yaml(tmp_path: Path) -> None:
-    from ultralytics.data.utils import check_det_dataset
+def test_ultralytics_resolves_exported_dataset_from_its_yaml(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from ultralytics.data import utils as data_utils
+
+    monkeypatch.setattr(data_utils, "check_font", lambda *_args, **_kwargs: None)
 
     data_root = tmp_path / "data"
     entries = []
@@ -47,7 +51,7 @@ def test_ultralytics_resolves_exported_dataset_from_its_yaml(tmp_path: Path) -> 
     output = tmp_path / "dataset"
     export_yolo_dataset(labelled, ("seed",), data_root, output)
 
-    loaded = check_det_dataset(str((output / "dataset.yaml").resolve()))
+    loaded = data_utils.check_det_dataset(str((output / "dataset.yaml").resolve()))
 
     assert Path(loaded["train"]) == (output / "images" / "train").resolve()
     assert Path(loaded["val"]) == (output / "images" / "val").resolve()

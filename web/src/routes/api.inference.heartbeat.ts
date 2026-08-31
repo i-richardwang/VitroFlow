@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { heartbeatSchema } from "../inference/workers";
+import {
+  inferenceWorkerErrorResponse,
+  parseInferenceJson,
+} from "../server/inference-worker-http";
 import { recordInferenceHeartbeat } from "../server/inference-worker-store";
 
 export const Route = createFileRoute("/api/inference/heartbeat")({
@@ -10,13 +14,13 @@ export const Route = createFileRoute("/api/inference/heartbeat")({
         try {
           return Response.json(
             await recordInferenceHeartbeat(
-              heartbeatSchema.parse(await request.json()),
+              await parseInferenceJson(request, heartbeatSchema),
             ),
           );
         } catch (error) {
-          return new Response(
-            error instanceof Error ? error.message : String(error),
-            { status: 400 },
+          return inferenceWorkerErrorResponse(
+            error,
+            "Could not record inference heartbeat",
           );
         }
       },

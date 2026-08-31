@@ -4,7 +4,6 @@ import { WorkbenchNotice } from "../components/WorkbenchNotice";
 import { Shell } from "../components/shell";
 import { getSession } from "../functions/session";
 
-/** Every signed-in screen fills this chrome. */
 export const Route = createFileRoute("/_workbench")({
   loader: () => getSession(),
   component: WorkbenchLayout,

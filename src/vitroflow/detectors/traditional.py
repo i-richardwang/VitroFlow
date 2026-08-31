@@ -65,8 +65,6 @@ def _box_around(
 
 @dataclass(frozen=True)
 class TraditionalDetector:
-    """Adapts the existing candidate pipeline to the canonical box contract."""
-
     config: PipelineConfig = field(default_factory=PipelineConfig)
     model: CandidateModel = DEFAULT_MODEL
 

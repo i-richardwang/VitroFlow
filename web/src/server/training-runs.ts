@@ -35,6 +35,7 @@ import {
   type TrainingRecipe,
   type TrainingRun,
 } from "../training/schema";
+import type { TrainingRunSummary } from "../training/read-model";
 import type { TrainingWorkerIdentity } from "../training/workers";
 import {
   TrainingArtifactValidationError,
@@ -343,15 +344,6 @@ export async function readTrainingRun(
     .from(trainingRuns)
     .where(eq(trainingRuns.id, runId));
   return row ? toRun(row) : null;
-}
-
-export interface TrainingRunSummary {
-  dataset: string;
-  run: TrainingRun;
-  /** Epochs the current attempt has finished. */
-  completed: number;
-  /** Metrics from the epoch Ultralytics selects as `best.pt`. */
-  best: { map50: number; map50To95: number } | null;
 }
 
 /** The newest bounded page of runs, with current-attempt metrics aggregated by SQL. */

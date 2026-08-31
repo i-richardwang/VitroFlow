@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from .identifiers import WORKER_DEVICE, WORKER_ID
+from .worker_connection import WorkerConnection, validate_worker_process
 
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PROFILE_FIELDS = {
@@ -36,16 +36,8 @@ class WorkerProfile:
     def __post_init__(self) -> None:
         if self.role not in {"inference", "training"}:
             raise ValueError("worker role must be inference or training")
-        if not self.server_url.startswith(("http://", "https://")):
-            raise ValueError("server URL must use http or https")
-        if not self.token:
-            raise ValueError("worker token is required")
-        if not WORKER_ID.fullmatch(self.worker_id):
-            raise ValueError("worker id is invalid")
-        if self.poll_seconds <= 0:
-            raise ValueError("poll interval must be positive")
-        if self.device is not None and not WORKER_DEVICE.fullmatch(self.device):
-            raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
+        WorkerConnection(server_url=self.server_url, token=self.token)
+        validate_worker_process(self.worker_id, self.poll_seconds, self.device)
 
     @classmethod
     def from_toml(cls, path: Path) -> WorkerProfile:

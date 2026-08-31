@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import tempfile
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,11 +23,16 @@ from .detectors import (
     ultralytics_runtime_descriptor,
 )
 from .documents import as_digest, as_list, as_object, expect_fields
-from .identifiers import WORKER_DEVICE, WORKER_ID
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .inference_models import ModelManifest, ModelStore
 from .scoring import DEFAULT_MODEL
+from .worker_connection import (
+    WorkerConnection,
+    WorkerHttpClient,
+    validate_worker_process,
+)
 from .worker_runtime import shutdown_signals
+from .yolo.runtime import ultralytics_installed
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
@@ -46,16 +50,8 @@ class InferenceWorkerSettings:
     device: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.server_url.startswith(("http://", "https://")):
-            raise ValueError("worker server URL must use http or https")
-        if not self.token:
-            raise ValueError("worker token is required")
-        if not WORKER_ID.fullmatch(self.worker_id):
-            raise ValueError("invalid inference worker id")
-        if self.poll_seconds <= 0:
-            raise ValueError("poll interval must be positive")
-        if self.device is not None and not WORKER_DEVICE.fullmatch(self.device):
-            raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
+        WorkerConnection(server_url=self.server_url, token=self.token)
+        validate_worker_process(self.worker_id, self.poll_seconds, self.device)
 
 
 @dataclass(frozen=True)
@@ -86,12 +82,9 @@ class Assignment:
 
 
 def available_runtimes() -> tuple[RuntimeDescriptor, ...]:
-    """The adapters this process can execute; YOLO only when Ultralytics is installed."""
     runtimes = [TraditionalDetector(PipelineConfig(), DEFAULT_MODEL).runtime]
-    try:
+    if ultralytics_installed():
         runtimes.append(ultralytics_runtime_descriptor())
-    except RuntimeError:
-        pass
     return tuple(runtimes)
 
 
@@ -117,7 +110,7 @@ class WorkerRuntime:
         }
 
 
-class WorkerClient:
+class WorkerClient(WorkerHttpClient):
     def __init__(
         self,
         server_url: str,
@@ -127,35 +120,14 @@ class WorkerClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.runtime = runtime
-        self._client = httpx.Client(
-            base_url=server_url.rstrip("/") + "/",
-            headers={"Authorization": f"Bearer {token}"},
+        super().__init__(
+            WorkerConnection(server_url=server_url, token=token),
             timeout=timeout,
             transport=transport,
         )
 
-    def close(self) -> None:
-        self._client.close()
-
-    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        response: httpx.Response | None = None
-        for attempt in range(3):
-            try:
-                response = self._client.request(method, url, **kwargs)
-            except httpx.TransportError:
-                if attempt == 2:
-                    raise
-            else:
-                if response.status_code not in {408, 429, 500, 502, 503, 504}:
-                    return response
-                if attempt == 2:
-                    return response
-                response.close()
-            time.sleep(0.5 * 2**attempt)
-        raise RuntimeError("HTTP retry loop ended without a response")
-
     def heartbeat(self, loaded: str | None, current: str | None) -> None:
-        response = self._request(
+        response = self.request(
             "POST",
             "api/inference/heartbeat",
             json=self.runtime.heartbeat(loaded, current),
@@ -163,7 +135,7 @@ class WorkerClient:
         response.raise_for_status()
 
     def pending(self) -> tuple[Assignment, ...]:
-        response = self._request(
+        response = self.request(
             "GET",
             "api/inference/pending",
             params={"workerId": self.runtime.worker_id},
@@ -179,7 +151,7 @@ class WorkerClient:
         )
 
     def weights(self, version_id: str) -> bytes:
-        response = self._request(
+        response = self.request(
             "GET",
             f"api/inference/model-versions/{version_id}/weights",
             timeout=None,
@@ -188,7 +160,7 @@ class WorkerClient:
         return response.content
 
     def download(self, digest: str) -> bytes:
-        response = self._request("GET", f"api/inference/images/{digest}")
+        response = self.request("GET", f"api/inference/images/{digest}")
         response.raise_for_status()
         return verify_digest(response.content, digest)
 
@@ -201,7 +173,7 @@ class WorkerClient:
         refuses a detection that differs from the one it already holds, which
         is an inconsistency worth surfacing rather than a stale assignment.
         """
-        response = self._request(
+        response = self.request(
             "PUT",
             f"api/inference/results/{version_id}/{digest}",
             params={"workerId": self.runtime.worker_id},

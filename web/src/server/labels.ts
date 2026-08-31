@@ -9,7 +9,7 @@ import { documentFromDetection } from "../annotation/detection";
 import { database, transaction, type Executor } from "../db/client";
 import { images, labels } from "../db/schema";
 import { assertInstanceClasses } from "../models/readings";
-import { readDetection } from "./detections";
+import { readDetection } from "./inference-outcomes";
 import { assertDocumentImage } from "./image-documents";
 import { lockImage } from "./image-lock";
 import { readModel, readModelVersion } from "./model-registry";
@@ -70,14 +70,6 @@ async function insertLabel(
     updatedAt: new Date(),
   });
   return created;
-}
-
-/** Starts a review from a document the caller assembled. */
-export async function createLabel(
-  ref: LabelRef,
-  document: AnnotationDocument,
-): Promise<AnnotationDocument> {
-  return transaction((tx) => insertLabel(ref, document, tx));
 }
 
 /**

@@ -52,16 +52,11 @@ export function Metrics({ rows }: { rows: Metric[] }) {
   );
 }
 
-/** One set of instances the readings are taken from. */
 export interface ReadingSource {
   label: string;
   tally: Tally;
 }
 
-/**
- * The model's readings of the photograph, one column per source, so a
- * reviewer sees what their boxes read against what the version found.
- */
 export function ReadingsSection({
   readings,
   sources,

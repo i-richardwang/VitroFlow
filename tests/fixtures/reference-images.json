@@ -1,0 +1,69 @@
+{
+  "images": [
+    {
+      "file": "_DSF1687.jpg",
+      "sha256": "5cff520a5f5bf13eaaa250c00d412cd6885edd3228960b4c84d7fdd3f2c105ec",
+      "expectedCount": 132
+    },
+    {
+      "file": "_DSF1704.jpg",
+      "sha256": "564ed63d22da9aacc156a105f1e049590eac634adbc83e135530edd128ff1624",
+      "expectedCount": 88
+    },
+    {
+      "file": "_DSF1723.jpg",
+      "sha256": "293c118500b03c060944aefe1a42146e6b622a83f6c941a377b04a1a58aae9e3",
+      "expectedCount": 146
+    },
+    {
+      "file": "_DSF1734.JPG",
+      "sha256": "e27f8c2e16a8c6a0435404574a1b6b4e77877b9fa0f0b302ba6e8b38695271b7",
+      "expectedCount": 154
+    },
+    {
+      "file": "_DSF1755.JPG",
+      "sha256": "fe9cce4e5f25720889d53f0efbe0eb02d11d8e6bd74111f9d3a1d61c1ca7d3cb",
+      "expectedCount": 210
+    },
+    {
+      "file": "_DSF1757.jpg",
+      "sha256": "80b99b54512990a719506b59559756772d3f625953572ed94867e64ffc5c2c9e",
+      "expectedCount": 177
+    },
+    {
+      "file": "_DSF1782.JPG",
+      "sha256": "2f66f53a0a36165dad06b6fea7a1e6c466a8546f0ac8e2babc7ad0066e5a3b5a",
+      "expectedCount": 85
+    },
+    {
+      "file": "_DSF1843.jpg",
+      "sha256": "880ee80ce66fb3593672c6b2eca5a952605f0bdf93dbaad600e8dd84f6057497",
+      "expectedCount": 190
+    },
+    {
+      "file": "_DSF1855.jpg",
+      "sha256": "dc79191fb24fc129c243df58bba40877e957e3e94affe8b090a98b5a0075916a",
+      "expectedCount": 102
+    },
+    {
+      "file": "_DSF1857.jpg",
+      "sha256": "51f920cd0fe68b933fa66b4280fab6630e29133db461d8dfa4751797a1f4f933",
+      "expectedCount": 176
+    },
+    {
+      "file": "_DSF1883.jpg",
+      "sha256": "4e18e6b3ca22c5a9bc82a12b4b3c2809cf869690bb4c8cad2f3c597b2ffcf1d1",
+      "expectedCount": 231
+    },
+    {
+      "file": "_DSF1896.JPG",
+      "sha256": "1680a00ec4377eac5fd0d5fd231a1f2a43cda3b54d1808d0253e36eab148e0af",
+      "expectedCount": 312
+    },
+    {
+      "file": "_DSF1934.JPG",
+      "sha256": "81cfeef2dea85dedbe977449bd7e042e71f70d4322405ea8017944b0b0035046",
+      "expectedCount": 136
+    }
+  ]
+}

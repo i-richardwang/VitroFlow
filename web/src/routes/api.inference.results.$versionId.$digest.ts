@@ -3,13 +3,11 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
+import { recordInferenceOutcome } from "../server/inference-outcomes";
 import {
-  DetectionConflictError,
-  DetectionImageNotFoundError,
-  InvalidDetectionOutcomeError,
-  ProducerMismatchError,
-  recordInferenceOutcome,
-} from "../server/detections";
+  InferenceHttpError,
+  inferenceWorkerErrorResponse,
+} from "../server/inference-worker-http";
 import { readInferenceWorker } from "../server/inference-worker-store";
 
 const targetSchema = z.strictObject({
@@ -32,9 +30,10 @@ export const Route = createFileRoute(
           const workerId = new URL(request.url).searchParams.get("workerId");
           const worker = workerId ? await readInferenceWorker(workerId) : null;
           if (!worker) {
-            return new Response("worker must heartbeat before uploading", {
-              status: 409,
-            });
+            throw new InferenceHttpError(
+              409,
+              "worker must heartbeat before uploading",
+            );
           }
           await recordInferenceOutcome(
             targetSchema.parse(params),
@@ -43,28 +42,10 @@ export const Route = createFileRoute(
           );
           return Response.json({});
         } catch (error) {
-          if (error instanceof DetectionConflictError) {
-            return new Response(error.message, { status: 409 });
-          }
-          if (error instanceof DetectionImageNotFoundError) {
-            return new Response(error.message, { status: 404 });
-          }
-          if (error instanceof ProducerMismatchError) {
-            return new Response(error.message, { status: 422 });
-          }
-          if (
-            error instanceof SyntaxError ||
-            error instanceof z.ZodError ||
-            error instanceof InvalidDetectionOutcomeError
-          ) {
-            return new Response(error.message, { status: 400 });
-          }
-          const message =
-            error instanceof Error ? error.message : String(error);
-          console.error(`Record inference result failed: ${message}`);
-          return new Response("Could not record inference result", {
-            status: 500,
-          });
+          return inferenceWorkerErrorResponse(
+            error,
+            "Could not record inference result",
+          );
         }
       },
     },

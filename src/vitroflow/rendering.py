@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import cv2
 import numpy as np
 
@@ -12,7 +14,8 @@ def _score_preview(score: np.ndarray, mask: np.ndarray) -> np.ndarray:
     values = score[mask]
     low, high = np.percentile(values, (1, 99.5))
     normalized = np.clip((score - low) / max(high - low, 1e-6), 0, 1)
-    return cv2.applyColorMap(np.uint8(normalized * 255), cv2.COLORMAP_TURBO)
+    source = cast(Any, np.uint8(normalized * 255))
+    return cv2.applyColorMap(source, cv2.COLORMAP_TURBO)
 
 
 def _region_boundary(labels: np.ndarray) -> np.ndarray:

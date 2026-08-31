@@ -110,7 +110,6 @@ export function AnnotationEditor({
     [annotation.instances, editInstances, selected],
   );
 
-  /** Escape leaves the add tool and drops the selection in one press. */
   const cancelEditing = useCallback(() => {
     setSelectedId(null);
     setTool("select");
@@ -205,7 +204,10 @@ function EditorToolbar({
         selectionMode="single"
         disallowEmptySelection
         selectedKeys={new Set([tool])}
-        onSelectionChange={(keys) => onToolChange([...keys][0] as Tool)}
+        onSelectionChange={(keys) => {
+          const key = [...keys][0];
+          if (key === "select" || key === "add") onToolChange(key);
+        }}
       >
         {TOOLS.map((id, index) => {
           const { label: name, shortcut, icon: Icon } = TOOL_SPECS[id];

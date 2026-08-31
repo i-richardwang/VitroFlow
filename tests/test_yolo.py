@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 from conftest import (
     annotation_document,
-    detection_document,
     encoded_image,
     manifest_entry,
     write_blob,
@@ -23,7 +22,6 @@ from vitroflow.yolo import (
     DatasetImage,
     assign_splits,
     export_dataset_images,
-    export_detection_yolo_dataset,
     export_yolo_dataset,
 )
 
@@ -249,59 +247,3 @@ def test_export_reads_recorded_splits_from_the_manifest(tmp_path: Path) -> None:
 
     recorded = {entry["digest"]: entry["split"] for entry in entries}
     assert {entry["digest"]: entry["split"] for entry in manifest["images"]} == recorded
-
-
-def test_detection_export_builds_standard_boxes_from_detections(tmp_path: Path) -> None:
-    data_root = tmp_path / "data"
-    entries = []
-    for variant in range(2):
-        digest = write_blob(data_root, encoded_image(1000, 800, variant))
-        entries.append(manifest_entry(digest, detection=detection_document(digest)))
-    entries.append(
-        manifest_entry(
-            "c" * 64,
-            detection={
-                "schema_version": 1,
-                "image": {"digest": "c" * 64},
-                "producer": detection_document("c" * 64)["producer"],
-                "error": "dish not found",
-            },
-        )
-    )
-    entries.append(manifest_entry("d" * 64))
-    manifest_path = write_manifest(data_root, "batch", entries)
-
-    output = tmp_path / "yolo"
-    manifest = export_detection_yolo_dataset(manifest_path, data_root, output, seed=3)
-
-    assert len(manifest["images"]) == 2
-    assert all("revision" not in entry for entry in manifest["images"])
-    labels = list((output / "labels").rglob("*.txt"))
-    assert len(labels) == 2
-    assert labels[0].read_text().strip().split() == [
-        "0",
-        "0.10000000",
-        "0.25000000",
-        "0.00750000",
-        "0.00937500",
-    ]
-
-
-def test_detection_export_rejects_an_unversioned_document(tmp_path: Path) -> None:
-    data_root = tmp_path / "data"
-    payload = detection_document("1" * 64)
-    del payload["schema_version"]
-    manifest_path = write_manifest(
-        data_root,
-        "batch",
-        [
-            manifest_entry("1" * 64, detection=payload),
-            manifest_entry("2" * 64, detection=payload),
-        ],
-    )
-
-    output = tmp_path / "yolo"
-    with pytest.raises(ValueError, match="missing schema_version"):
-        export_detection_yolo_dataset(manifest_path, data_root, output)
-
-    assert not output.exists()

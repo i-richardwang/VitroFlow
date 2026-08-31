@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   foreignKey,
+  type AnyPgColumn,
   bigint,
   index,
   integer,
@@ -18,7 +19,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
-import type { DetectionFailure, DetectionResult } from "../detection/schema";
+import type { InferenceOutcome } from "../detection/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { Reading } from "../models/readings";
 import type { ModelArtifact, ModelVersion } from "../models/schema";
@@ -62,6 +63,27 @@ export const modelVersions = pgTable(
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`artifact->>'digest'`),
+    sourceKind: text("source_kind")
+      .notNull()
+      .generatedAlwaysAs(sql`source->>'kind'`),
+    sourceTrainingRunId: text("source_training_run_id")
+      .generatedAlwaysAs(sql`source->>'trainingRunId'`)
+      .references((): AnyPgColumn => trainingRuns.id),
+    sourceTrainingAttempt: integer("source_training_attempt").generatedAlwaysAs(
+      sql`(source->>'trainingAttempt')::integer`,
+    ),
+    sourceDatasetSnapshotId: text("source_dataset_snapshot_id")
+      .generatedAlwaysAs(sql`source->>'datasetSnapshotId'`)
+      .references((): AnyPgColumn => datasetSnapshots.id),
+    artifactKind: text("artifact_kind")
+      .notNull()
+      .generatedAlwaysAs(sql`artifact->>'kind'`),
+    weightsDigest: text("weights_digest").generatedAlwaysAs(
+      sql`artifact->'weights'->>'digest'`,
+    ),
+    weightsBytes: integer("weights_bytes").generatedAlwaysAs(
+      sql`(artifact->'weights'->>'bytes')::integer`,
+    ),
   },
   (table) => [
     index("model_versions_model_idx").on(table.modelId, table.createdAt),
@@ -69,9 +91,24 @@ export const modelVersions = pgTable(
     unique("model_versions_id_model").on(table.id, table.modelId),
     /** Runtime records bind to executable content, not just a version name. */
     unique("model_versions_id_digest").on(table.id, table.artifactDigest),
+    unique("model_versions_publication_identity").on(
+      table.id,
+      table.sourceTrainingRunId,
+      table.sourceTrainingAttempt,
+      table.sourceDatasetSnapshotId,
+      table.modelId,
+    ),
     check(
       "model_versions_digest_check",
       sql`${table.artifactDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "model_versions_source_artifact_check",
+      sql`case ${table.sourceKind}
+        when 'builtin' then ${table.artifactKind} = 'traditional' and ${table.sourceTrainingRunId} is null and ${table.sourceTrainingAttempt} is null and ${table.sourceDatasetSnapshotId} is null and ${table.weightsDigest} is null and ${table.weightsBytes} is null
+        when 'training_run' then ${table.artifactKind} = 'ultralytics' and ${table.sourceTrainingRunId} is not null and ${table.sourceTrainingAttempt} >= 1 and ${table.sourceDatasetSnapshotId} is not null and ${table.weightsDigest} ~ '^[0-9a-f]{64}$' and ${table.weightsBytes} > 0
+        else false
+      end`,
     ),
   ],
 );
@@ -157,63 +194,62 @@ export const datasetImages = pgTable(
  * row is written once: an identical resubmission is accepted and a different
  * one refused, so the result stays a record and never a cache.
  */
-export const detections = pgTable(
-  "detections",
+export const inferenceOutcomes = pgTable(
+  "inference_outcomes",
   {
     imageId: text("image_id")
       .notNull()
       .references(() => images.id, { onDelete: "cascade" }),
     modelVersionId: text("model_version_id").notNull(),
-    document: jsonb("document").$type<DetectionResult>().notNull(),
-    createdAt: instant("created_at"),
+    document: jsonb("document").$type<InferenceOutcome>().notNull(),
+    recordedAt: instant("recorded_at"),
+    status: text("status", { enum: ["succeeded", "failed"] })
+      .notNull()
+      .generatedAlwaysAs(
+        sql`case when document ? 'instances' then 'succeeded' when document ? 'error' then 'failed' end`,
+      ),
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`document->'producer'->>'artifact_digest'`),
+    successfulImageId: text("successful_image_id").generatedAlwaysAs(
+      sql`case when document ? 'instances' then image_id end`,
+    ),
+    successfulModelVersionId: text(
+      "successful_model_version_id",
+    ).generatedAlwaysAs(
+      sql`case when document ? 'instances' then model_version_id end`,
+    ),
+    successfulArtifactDigest: text(
+      "successful_artifact_digest",
+    ).generatedAlwaysAs(
+      sql`case when document ? 'instances' then document->'producer'->>'artifact_digest' end`,
+    ),
   },
   (table) => [
     primaryKey({ columns: [table.imageId, table.modelVersionId] }),
-    index("detections_version_idx").on(table.modelVersionId),
+    unique("inference_outcomes_success_identity").on(
+      table.successfulImageId,
+      table.successfulModelVersionId,
+      table.successfulArtifactDigest,
+    ),
+    index("inference_outcomes_version_idx").on(table.modelVersionId),
+    index("inference_outcomes_status_idx").on(table.status, table.recordedAt),
     /** The document was produced by the registered artifact of its version. */
     foreignKey({
       columns: [table.modelVersionId, table.artifactDigest],
       foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
     }),
     check(
-      "detections_image_check",
+      "inference_outcomes_document_check",
       sql`document->'image'->>'digest' = ${table.imageId} and document->'producer'->>'model_version_id' = ${table.modelVersionId}`,
     ),
-  ],
-);
-
-/**
- * The most recent attempt that failed before it could produce a valid result
- * for the pair. Zero instances is a successful detection. A failure is
- * execution state, not a fact about the image: it is replaced by the next
- * attempt, removed by an explicit retry, and outranked by a later detection.
- */
-export const detectionFailures = pgTable(
-  "detection_failures",
-  {
-    imageId: text("image_id")
-      .notNull()
-      .references(() => images.id, { onDelete: "cascade" }),
-    modelVersionId: text("model_version_id").notNull(),
-    document: jsonb("document").$type<DetectionFailure>().notNull(),
-    failedAt: instant("failed_at"),
-    artifactDigest: text("artifact_digest")
-      .notNull()
-      .generatedAlwaysAs(sql`document->'producer'->>'artifact_digest'`),
-  },
-  (table) => [
-    primaryKey({ columns: [table.imageId, table.modelVersionId] }),
-    index("detection_failures_version_idx").on(table.modelVersionId),
-    foreignKey({
-      columns: [table.modelVersionId, table.artifactDigest],
-      foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
-    }),
     check(
-      "detection_failures_image_check",
-      sql`document->'image'->>'digest' = ${table.imageId} and document->'producer'->>'model_version_id' = ${table.modelVersionId}`,
+      "inference_outcomes_shape_check",
+      sql`case ${table.status}
+        when 'succeeded' then document ? 'instances' and not document ? 'error'
+        when 'failed' then document ? 'error' and not document ? 'instances'
+        else false
+      end`,
     ),
   ],
 );
@@ -261,6 +297,18 @@ export const labels = pgTable(
       columns: [table.sourceModelVersionId, table.sourceArtifactDigest],
       foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
     }),
+    foreignKey({
+      columns: [
+        table.imageId,
+        table.sourceModelVersionId,
+        table.sourceArtifactDigest,
+      ],
+      foreignColumns: [
+        inferenceOutcomes.successfulImageId,
+        inferenceOutcomes.successfulModelVersionId,
+        inferenceOutcomes.successfulArtifactDigest,
+      ],
+    }),
     index("labels_model_status_idx").on(table.modelId, table.status),
     check(
       "labels_status_check",
@@ -285,6 +333,7 @@ export const experiments = pgTable(
   {
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
+    description: text("description").notNull(),
     modelVersionId: text("model_version_id")
       .notNull()
       .references(() => modelVersions.id),
@@ -296,6 +345,40 @@ export const experiments = pgTable(
       "experiments_name_check",
       sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
     ),
+    check(
+      "experiments_description_check",
+      sql`${table.description} = btrim(${table.description}) and length(${table.description}) <= 2000`,
+    ),
+  ],
+);
+
+/**
+ * The conditions an experiment compares. Dishes under one treatment are its
+ * replicates; a treatment may exist before any dish is assigned to it.
+ */
+export const experimentTreatments = pgTable(
+  "experiment_treatments",
+  {
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    id: uuid("id").notNull(),
+    name: text("name").notNull(),
+    /** Where the treatment sits in the design; groups are shown in this order. */
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.experimentId, table.id] }),
+    unique("experiment_treatments_name").on(table.experimentId, table.name),
+    unique("experiment_treatments_position").on(
+      table.experimentId,
+      table.position,
+    ),
+    check(
+      "experiment_treatments_name_check",
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
+    ),
+    check("experiment_treatments_position_check", sql`${table.position} >= 1`),
   ],
 );
 
@@ -309,9 +392,22 @@ export const experimentDishes = pgTable(
     label: text("label").notNull(),
     /** Where the dish sits in the roster; rows are shown in this order. */
     position: integer("position").notNull(),
+    /** The treatment this dish replicates, once the design assigns it. */
+    treatmentId: uuid("treatment_id"),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.label] }),
+    foreignKey({
+      columns: [table.experimentId, table.treatmentId],
+      foreignColumns: [
+        experimentTreatments.experimentId,
+        experimentTreatments.id,
+      ],
+    }),
+    index("experiment_dishes_treatment_idx").on(
+      table.experimentId,
+      table.treatmentId,
+    ),
     unique("experiment_dishes_position").on(table.experimentId, table.position),
     check(
       "experiment_dishes_label_check",
@@ -431,17 +527,42 @@ export const datasetSnapshots = pgTable(
 export const datasetSnapshotImages = pgTable(
   "dataset_snapshot_images",
   {
-    snapshotId: text("snapshot_id")
-      .notNull()
-      .references(() => datasetSnapshots.id, { onDelete: "cascade" }),
+    snapshotId: text("snapshot_id").notNull(),
+    modelId: text("model_id").notNull(),
     imageId: text("image_id")
       .notNull()
       .references(() => images.id),
     split: text("split", { enum: IMAGE_SPLITS }).notNull(),
     annotation: jsonb("annotation").$type<AnnotationDocument>().notNull(),
+    sourceModelVersionId: text("source_model_version_id")
+      .notNull()
+      .generatedAlwaysAs(sql`annotation->'source'->>'modelVersionId'`),
+    sourceArtifactDigest: text("source_artifact_digest")
+      .notNull()
+      .generatedAlwaysAs(sql`annotation->'source'->>'artifactDigest'`),
   },
   (table) => [
     primaryKey({ columns: [table.snapshotId, table.imageId] }),
+    foreignKey({
+      columns: [table.snapshotId, table.modelId],
+      foreignColumns: [datasetSnapshots.id, datasetSnapshots.modelId],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sourceModelVersionId, table.modelId],
+      foreignColumns: [modelVersions.id, modelVersions.modelId],
+    }),
+    foreignKey({
+      columns: [
+        table.imageId,
+        table.sourceModelVersionId,
+        table.sourceArtifactDigest,
+      ],
+      foreignColumns: [
+        inferenceOutcomes.successfulImageId,
+        inferenceOutcomes.successfulModelVersionId,
+        inferenceOutcomes.successfulArtifactDigest,
+      ],
+    }),
     index("dataset_snapshot_images_image_idx").on(table.imageId),
     check(
       "dataset_snapshot_images_split_check",
@@ -487,6 +608,22 @@ export const trainingRuns = pgTable(
     foreignKey({
       columns: [table.modelVersionId, table.modelId],
       foreignColumns: [modelVersions.id, modelVersions.modelId],
+    }),
+    foreignKey({
+      columns: [
+        table.modelVersionId,
+        table.id,
+        table.attempt,
+        table.datasetSnapshotId,
+        table.modelId,
+      ],
+      foreignColumns: [
+        modelVersions.id,
+        modelVersions.sourceTrainingRunId,
+        modelVersions.sourceTrainingAttempt,
+        modelVersions.sourceDatasetSnapshotId,
+        modelVersions.modelId,
+      ],
     }),
     check("training_runs_attempt_check", sql`${table.attempt} >= 0`),
     /** Each status has exactly the columns its state carries. */

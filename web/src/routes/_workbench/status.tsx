@@ -2,10 +2,10 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Widget } from "@heroui-pro/react/widget";
 import { Chip, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
 
 import { Page } from "../../components/Page";
 import { getStatus } from "../../functions/status";
+import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import { trainingRunLabel } from "../../training/schema";
 import { formatGibibytes } from "../../workers/memory";
 import type { WorkerPresence } from "../../workers/presence";
@@ -29,10 +29,7 @@ function StatusPage() {
   const { inferenceWorkers, trainingWorkers, server } = Route.useLoaderData();
   const router = useRouter();
 
-  useEffect(() => {
-    const timer = window.setInterval(() => void router.invalidate(), 5000);
-    return () => window.clearInterval(timer);
-  }, [router]);
+  useRouteRefresh(router, 5000);
 
   return (
     <Page title="Status">

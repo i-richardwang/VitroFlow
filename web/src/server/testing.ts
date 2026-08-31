@@ -1,22 +1,27 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { eq } from "drizzle-orm";
 
-import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import type { Dataset } from "../datasets/schema";
 import type { DetectionResult } from "../detection/schema";
 import type { Experiment, PhotoRef } from "../experiments/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
-import type { ModelVersion } from "../models/schema";
+import type { Model, ModelVersion } from "../models/schema";
 import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { canonicalize } from "./image-ingest";
 import { addExperimentPhotos } from "./datasets";
-import { addRound, createExperiment } from "./experiments";
+import { createExperiment } from "./experiment-design";
+import { addRound } from "./experiments";
 import { storeImage } from "./image-store";
-import { createLabel, readLabel } from "./labels";
+import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
+import { recordInferenceOutcome } from "./inference-outcomes";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { readModelVersion, registerModelVersion } from "./model-registry";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
+import { database, transaction } from "../db/client";
+import { registerModel as registerDatabaseModel } from "../db/registry";
+import { datasetSnapshots, datasets, trainingRuns } from "../db/schema";
 
 export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
@@ -27,6 +32,10 @@ export const ULTRALYTICS_RUNTIME: RuntimeDescriptor = {
   adapter: "ultralytics",
   fingerprint: "e".repeat(64),
 };
+
+export async function registerTestModel(model: Model): Promise<Model> {
+  return registerDatabaseModel(model, await database());
+}
 
 /** The builtin seed detector every deployment starts with. */
 export async function baselineVersion(): Promise<ModelVersion> {
@@ -40,7 +49,10 @@ export async function registerTrainedVersion(
   modelId: string,
   slug = "yolo-v1",
 ): Promise<ModelVersion> {
-  return registerModelVersion({
+  const datasetId = `${modelId}.${slug}.dataset`;
+  const snapshotId = `${modelId}.${slug}.snapshot`;
+  const runId = `${modelId}.${slug}.run`;
+  const value: ModelVersion = {
     schemaVersion: 1,
     id: `${modelId}.${slug}`,
     modelId,
@@ -48,9 +60,9 @@ export async function registerTrainedVersion(
     createdAt: "2026-08-27T02:00:00.000Z",
     source: {
       kind: "training_run",
-      trainingRunId: `${modelId}.train-${slug}`,
+      trainingRunId: runId,
       trainingAttempt: 1,
-      datasetSnapshotId: `${modelId}.snapshot-${slug}`,
+      datasetSnapshotId: snapshotId,
     },
     artifact: {
       kind: "ultralytics",
@@ -71,6 +83,34 @@ export async function registerTrainedVersion(
       },
       training: YOLO26_SEED_SMALL_RECIPE,
     },
+  };
+  return transaction(async (tx) => {
+    await tx
+      .insert(datasets)
+      .values({ id: datasetId, modelId, createdAt: new Date() })
+      .onConflictDoNothing();
+    await tx
+      .insert(datasetSnapshots)
+      .values({ id: snapshotId, datasetId, modelId, createdAt: new Date() })
+      .onConflictDoNothing();
+    await tx
+      .insert(trainingRuns)
+      .values({
+        id: runId,
+        modelId,
+        datasetSnapshotId: snapshotId,
+        createdAt: new Date(value.createdAt),
+        attempt: 1,
+        recipe: YOLO26_SEED_SMALL_RECIPE,
+        status: "queued",
+      })
+      .onConflictDoNothing();
+    const version = await registerModelVersion(value, tx);
+    await tx
+      .update(trainingRuns)
+      .set({ status: "succeeded", modelVersionId: version.id })
+      .where(eq(trainingRuns.id, runId));
+    return version;
   });
 }
 
@@ -240,10 +280,14 @@ export async function reviewedDataset(
       model: seeded.version.modelId,
     };
     if (await readLabel(ref)) continue;
-    await createLabel(ref, {
-      ...documentFromDetection(await resultFor(seeded.version, content)),
-      status: "complete",
-    });
+    const result = await resultFor(seeded.version, content);
+    await recordInferenceOutcome(
+      { digest: ref.digest, versionId: seeded.version.id },
+      result,
+      { runtimes: [result.producer.runtime] },
+    );
+    const started = await createLabelFromDetection(ref, seeded.version.id);
+    await updateLabel(ref, { ...started, status: "complete" });
   }
   return seeded;
 }

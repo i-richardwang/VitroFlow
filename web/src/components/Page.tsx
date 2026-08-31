@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-/** A document screen: a titled, width-limited column that scrolls. */
 export function Page({
   title,
   description,

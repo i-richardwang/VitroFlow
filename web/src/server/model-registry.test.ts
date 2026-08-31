@@ -1,18 +1,17 @@
 import { expect, test } from "bun:test";
 
-import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { modelVersionSchema, sameModelVersion } from "../models/schema";
 
 import {
   listModels,
   listModelVersions,
   readModelVersion,
-  registerModel,
   registerModelVersion,
 } from "./model-registry";
+import { registerTestModel } from "./testing";
 
 test("registry lists immutable versions under their logical model", async () => {
-  const model = await registerModel({
+  const model = await registerTestModel({
     schemaVersion: 1,
     id: "registry-detector",
     name: "Registry detector",
@@ -29,29 +28,12 @@ test("registry lists immutable versions under their logical model", async () => 
     name: "Registry detector v1",
     createdAt: "2026-08-27T00:00:00.000Z",
     source: {
-      kind: "training_run" as const,
-      trainingRunId: "train-registry",
-      trainingAttempt: 1,
-      datasetSnapshotId: "snapshot-registry",
+      kind: "builtin" as const,
+      definition: "registry-v1",
     },
     artifact: {
-      kind: "ultralytics" as const,
+      kind: "traditional" as const,
       digest: "d".repeat(64),
-      weights: { digest: "c".repeat(64), bytes: 10 },
-      inference: {
-        confidence: 0.4,
-        imageSize: 768,
-        maxDetections: 500,
-        endToEnd: false,
-      },
-      validation: {
-        precision: 0.6,
-        recall: 0.5,
-        map50: 0.8,
-        map50_95: 0.4,
-        fitness: 0.44,
-      },
-      training: YOLO26_SEED_SMALL_RECIPE,
     },
   };
   const version = await registerModelVersion(candidate);
@@ -73,7 +55,11 @@ test("registry lists immutable versions under their logical model", async () => 
   expect(
     modelVersionSchema.safeParse({
       ...candidate,
-      artifact: { kind: "traditional", digest: "c".repeat(64) },
+      artifact: {
+        kind: "ultralytics",
+        digest: "c".repeat(64),
+        weights: { digest: "c".repeat(64), bytes: 10 },
+      },
     }).success,
   ).toBeFalse();
   await expect(

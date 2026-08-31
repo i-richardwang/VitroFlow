@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import logging
 import os
@@ -10,7 +9,12 @@ from datetime import UTC, datetime
 
 import httpx
 
-from .inference_worker import InferenceWorkerSettings, run_inference_worker
+from .detectors import ultralytics_runtime_descriptor
+from .inference_worker import (
+    InferenceWorkerSettings,
+    available_runtimes,
+    run_inference_worker,
+)
 from .training_worker import TrainingWorkerSettings, run_training_worker
 from .worker_launchd import service_loaded
 from .worker_profiles import WorkerProfile, load_profile, profile_directory
@@ -42,7 +46,7 @@ def _training_settings(name: str, profile: WorkerProfile) -> TrainingWorkerSetti
 
 
 def _check_device(device: str | None) -> None:
-    if device in {None, "cpu"}:
+    if device is None or device == "cpu":
         return
     try:
         import torch
@@ -84,17 +88,17 @@ def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
         f"server: {profile.server_url}",
         f"work directory: {work}",
     ]
-    has_yolo = importlib.util.find_spec("ultralytics") is not None
     if profile.role == "inference":
-        runtimes = ["traditional"]
-        if has_yolo:
-            runtimes.append(
-                f"ultralytics ({profile.device})" if profile.device else "ultralytics"
-            )
+        adapters = [runtime.adapter for runtime in available_runtimes()]
+        runtimes = [
+            f"ultralytics ({profile.device})"
+            if adapter == "ultralytics" and profile.device
+            else adapter
+            for adapter in adapters
+        ]
         checks.append(f"runtimes: {', '.join(runtimes)}")
     else:
-        if not has_yolo:
-            raise RuntimeError("YOLO runtime is missing; install vitroflow[yolo]")
+        ultralytics_runtime_descriptor()
     _check_device(profile.device)
     if profile.device:
         checks.append(f"device: {profile.device}")

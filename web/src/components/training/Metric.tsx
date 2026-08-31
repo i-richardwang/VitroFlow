@@ -1,4 +1,3 @@
-/** A metric in [0, 1] to three places, or a dash before one exists. */
 export function Metric({
   value,
   digits = 3,

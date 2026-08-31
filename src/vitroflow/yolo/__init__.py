@@ -1,6 +1,5 @@
 """YOLO dataset preparation and detector fine-tuning."""
 
-from .bootstrap import export_detection_yolo_dataset
 from .dataset import (
     DatasetImage,
     YoloDatasetManifest,
@@ -25,7 +24,6 @@ __all__ = [
     "YoloTrainingResult",
     "assign_splits",
     "export_dataset_images",
-    "export_detection_yolo_dataset",
     "export_yolo_dataset",
     "train_yolo_detector",
 ]

@@ -154,6 +154,7 @@ export async function createDatasetSnapshot(
   await tx.insert(datasetSnapshotImages).values(
     members.map(({ digest, split, annotation }) => ({
       snapshotId,
+      modelId: dataset.modelId,
       imageId: digest,
       split,
       annotation,

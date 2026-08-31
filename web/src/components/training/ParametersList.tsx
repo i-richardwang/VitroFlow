@@ -16,7 +16,6 @@ const LABELS: Record<keyof TrainingParameters, string> = {
   deterministic: "Deterministic",
 };
 
-/** Every Ultralytics argument a run fixes, in recipe order. */
 export function ParametersList({
   parameters,
   columns = 1,

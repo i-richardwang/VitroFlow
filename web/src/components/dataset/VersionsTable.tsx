@@ -2,13 +2,12 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Table } from "@heroui/react";
 
 import { validationMetric, versionSlug } from "../../models/schema";
-import type { VersionOverview } from "../../server/training-console";
+import type { VersionOverview } from "../../training/read-model";
 import { Count } from "../Count";
 import { Metric } from "../training/Metric";
 import { Timestamp } from "../Timestamp";
 import { ModelKindChip } from "./ModelKindChip";
 
-/** Every version of every model, newest first; an experiment picks from these. */
 export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
   return (
     <Table>

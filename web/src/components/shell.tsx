@@ -52,10 +52,8 @@ const workbenchRoute = getRouteApi("/_workbench");
 
 const ActionsSlot = createContext<HTMLElement | null>(null);
 
-/** One step in the navbar trail. Leaf routes declare the trail they sit on. */
 export type Crumb = { label: string; href?: string; mono?: boolean };
 
-/** Puts a screen's actions in the navbar. The layout owns the slot. */
 export function ShellActions({ children }: { children: ReactNode }) {
   const slot = use(ActionsSlot);
   if (!slot) {
@@ -64,10 +62,6 @@ export function ShellActions({ children }: { children: ReactNode }) {
   return createPortal(children, slot);
 }
 
-/**
- * Navigation, breadcrumbs, and the main column. Document screens and
- * photograph screens both fill the column.
- */
 export function Shell({ children }: { children: ReactNode }) {
   const { signedIn } = workbenchRoute.useLoaderData();
   const navigate = useNavigate();
@@ -209,7 +203,9 @@ function SidebarContents({
             <div className="truncate text-sm font-semibold text-foreground">
               VitroFlow
             </div>
-            <div className="truncate text-xs text-muted">Detection review</div>
+            <div className="truncate text-xs text-muted">
+              Experiment workbench
+            </div>
           </div>
         </div>
       </Sidebar.Header>

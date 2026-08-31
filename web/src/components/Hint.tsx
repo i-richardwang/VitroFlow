@@ -1,7 +1,6 @@
 import { Tooltip } from "@heroui/react";
 import type { ReactNode } from "react";
 
-/** Optional explanation on a compact control. Absent text is a passthrough. */
 export function Hint({
   children,
   text,

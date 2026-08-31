@@ -1,5 +1,5 @@
 {
-  "id": "c2ffce09-ed00-4f55-a66e-13b4b42b9dd8",
+  "id": "3a4d70c0-9be0-4d0e-a9b6-477c11be1017",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -113,6 +113,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "image_id": {
           "name": "image_id",
           "type": "text",
@@ -130,6 +136,26 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "source_model_version_id": {
+          "name": "source_model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "annotation->'source'->>'modelVersionId'",
+            "type": "stored"
+          }
+        },
+        "source_artifact_digest": {
+          "name": "source_artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "annotation->'source'->>'artifactDigest'",
+            "type": "stored"
+          }
         }
       },
       "indexes": {
@@ -150,19 +176,6 @@
         }
       },
       "foreignKeys": {
-        "dataset_snapshot_images_snapshot_id_dataset_snapshots_id_fk": {
-          "name": "dataset_snapshot_images_snapshot_id_dataset_snapshots_id_fk",
-          "tableFrom": "dataset_snapshot_images",
-          "tableTo": "dataset_snapshots",
-          "columnsFrom": [
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "dataset_snapshot_images_image_id_images_id_fk": {
           "name": "dataset_snapshot_images_image_id_images_id_fk",
           "tableFrom": "dataset_snapshot_images",
@@ -172,6 +185,53 @@
           ],
           "columnsTo": [
             "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dataset_snapshot_images_snapshot_id_model_id_dataset_snapshots_id_model_id_fk": {
+          "name": "dataset_snapshot_images_snapshot_id_model_id_dataset_snapshots_id_model_id_fk",
+          "tableFrom": "dataset_snapshot_images",
+          "tableTo": "dataset_snapshots",
+          "columnsFrom": [
+            "snapshot_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "dataset_snapshot_images_source_model_version_id_model_id_model_versions_id_model_id_fk": {
+          "name": "dataset_snapshot_images_source_model_version_id_model_id_model_versions_id_model_id_fk",
+          "tableFrom": "dataset_snapshot_images",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "source_model_version_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dataset_snapshot_images_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk": {
+          "name": "dataset_snapshot_images_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk",
+          "tableFrom": "dataset_snapshot_images",
+          "tableTo": "inference_outcomes",
+          "columnsFrom": [
+            "image_id",
+            "source_model_version_id",
+            "source_artifact_digest"
+          ],
+          "columnsTo": [
+            "successful_image_id",
+            "successful_model_version_id",
+            "successful_artifact_digest"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -332,216 +392,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.detection_failures": {
-      "name": "detection_failures",
-      "schema": "",
-      "columns": {
-        "image_id": {
-          "name": "image_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "model_version_id": {
-          "name": "model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document": {
-          "name": "document",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "failed_at": {
-          "name": "failed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "artifact_digest": {
-          "name": "artifact_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->'producer'->>'artifact_digest'",
-            "type": "stored"
-          }
-        }
-      },
-      "indexes": {
-        "detection_failures_version_idx": {
-          "name": "detection_failures_version_idx",
-          "columns": [
-            {
-              "expression": "model_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "detection_failures_image_id_images_id_fk": {
-          "name": "detection_failures_image_id_images_id_fk",
-          "tableFrom": "detection_failures",
-          "tableTo": "images",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "detection_failures_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk": {
-          "name": "detection_failures_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
-          "tableFrom": "detection_failures",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "model_version_id",
-            "artifact_digest"
-          ],
-          "columnsTo": [
-            "id",
-            "artifact_digest"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "detection_failures_image_id_model_version_id_pk": {
-          "name": "detection_failures_image_id_model_version_id_pk",
-          "columns": [
-            "image_id",
-            "model_version_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "detection_failures_image_check": {
-          "name": "detection_failures_image_check",
-          "value": "document->'image'->>'digest' = \"detection_failures\".\"image_id\" and document->'producer'->>'model_version_id' = \"detection_failures\".\"model_version_id\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.detections": {
-      "name": "detections",
-      "schema": "",
-      "columns": {
-        "image_id": {
-          "name": "image_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "model_version_id": {
-          "name": "model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document": {
-          "name": "document",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "artifact_digest": {
-          "name": "artifact_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->'producer'->>'artifact_digest'",
-            "type": "stored"
-          }
-        }
-      },
-      "indexes": {
-        "detections_version_idx": {
-          "name": "detections_version_idx",
-          "columns": [
-            {
-              "expression": "model_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "detections_image_id_images_id_fk": {
-          "name": "detections_image_id_images_id_fk",
-          "tableFrom": "detections",
-          "tableTo": "images",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "detections_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk": {
-          "name": "detections_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
-          "tableFrom": "detections",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "model_version_id",
-            "artifact_digest"
-          ],
-          "columnsTo": [
-            "id",
-            "artifact_digest"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "detections_image_id_model_version_id_pk": {
-          "name": "detections_image_id_model_version_id_pk",
-          "columns": [
-            "image_id",
-            "model_version_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "detections_image_check": {
-          "name": "detections_image_check",
-          "value": "document->'image'->>'digest' = \"detections\".\"image_id\" and document->'producer'->>'model_version_id' = \"detections\".\"model_version_id\""
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.experiment_dishes": {
       "name": "experiment_dishes",
       "schema": "",
@@ -563,9 +413,37 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "treatment_id": {
+          "name": "treatment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "experiment_dishes_treatment_idx": {
+          "name": "experiment_dishes_treatment_idx",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "treatment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "experiment_dishes_experiment_id_experiments_id_fk": {
           "name": "experiment_dishes_experiment_id_experiments_id_fk",
@@ -578,6 +456,21 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "experiment_dishes_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk": {
+          "name": "experiment_dishes_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk",
+          "tableFrom": "experiment_dishes",
+          "tableTo": "experiment_treatments",
+          "columnsFrom": [
+            "experiment_id",
+            "treatment_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -841,6 +734,91 @@
       },
       "isRLSEnabled": false
     },
+    "public.experiment_treatments": {
+      "name": "experiment_treatments",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "experiment_treatments_experiment_id_experiments_id_fk": {
+          "name": "experiment_treatments_experiment_id_experiments_id_fk",
+          "tableFrom": "experiment_treatments",
+          "tableTo": "experiments",
+          "columnsFrom": [
+            "experiment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_treatments_experiment_id_id_pk": {
+          "name": "experiment_treatments_experiment_id_id_pk",
+          "columns": [
+            "experiment_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "experiment_treatments_name": {
+          "name": "experiment_treatments_name",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "name"
+          ]
+        },
+        "experiment_treatments_position": {
+          "name": "experiment_treatments_position",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "position"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "experiment_treatments_name_check": {
+          "name": "experiment_treatments_name_check",
+          "value": "\"experiment_treatments\".\"name\" = btrim(\"experiment_treatments\".\"name\") and length(\"experiment_treatments\".\"name\") between 1 and 120"
+        },
+        "experiment_treatments_position_check": {
+          "name": "experiment_treatments_position_check",
+          "value": "\"experiment_treatments\".\"position\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.experiments": {
       "name": "experiments",
       "schema": "",
@@ -853,6 +831,12 @@
         },
         "name": {
           "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -909,6 +893,10 @@
         "experiments_name_check": {
           "name": "experiments_name_check",
           "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120"
+        },
+        "experiments_description_check": {
+          "name": "experiments_description_check",
+          "value": "\"experiments\".\"description\" = btrim(\"experiments\".\"description\") and length(\"experiments\".\"description\") <= 2000"
         }
       },
       "isRLSEnabled": false
@@ -981,6 +969,186 @@
         "images_size_check": {
           "name": "images_size_check",
           "value": "\"images\".\"width\" > 0 and \"images\".\"height\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inference_outcomes": {
+      "name": "inference_outcomes",
+      "schema": "",
+      "columns": {
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_version_id": {
+          "name": "model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document": {
+          "name": "document",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "case when document ? 'instances' then 'succeeded' when document ? 'error' then 'failed' end",
+            "type": "stored"
+          }
+        },
+        "artifact_digest": {
+          "name": "artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'producer'->>'artifact_digest'",
+            "type": "stored"
+          }
+        },
+        "successful_image_id": {
+          "name": "successful_image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "case when document ? 'instances' then image_id end",
+            "type": "stored"
+          }
+        },
+        "successful_model_version_id": {
+          "name": "successful_model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "case when document ? 'instances' then model_version_id end",
+            "type": "stored"
+          }
+        },
+        "successful_artifact_digest": {
+          "name": "successful_artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "case when document ? 'instances' then document->'producer'->>'artifact_digest' end",
+            "type": "stored"
+          }
+        }
+      },
+      "indexes": {
+        "inference_outcomes_version_idx": {
+          "name": "inference_outcomes_version_idx",
+          "columns": [
+            {
+              "expression": "model_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inference_outcomes_status_idx": {
+          "name": "inference_outcomes_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inference_outcomes_image_id_images_id_fk": {
+          "name": "inference_outcomes_image_id_images_id_fk",
+          "tableFrom": "inference_outcomes",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "inference_outcomes_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk": {
+          "name": "inference_outcomes_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk",
+          "tableFrom": "inference_outcomes",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "model_version_id",
+            "artifact_digest"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_digest"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "inference_outcomes_image_id_model_version_id_pk": {
+          "name": "inference_outcomes_image_id_model_version_id_pk",
+          "columns": [
+            "image_id",
+            "model_version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "inference_outcomes_success_identity": {
+          "name": "inference_outcomes_success_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "successful_image_id",
+            "successful_model_version_id",
+            "successful_artifact_digest"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "inference_outcomes_document_check": {
+          "name": "inference_outcomes_document_check",
+          "value": "document->'image'->>'digest' = \"inference_outcomes\".\"image_id\" and document->'producer'->>'model_version_id' = \"inference_outcomes\".\"model_version_id\""
+        },
+        "inference_outcomes_shape_check": {
+          "name": "inference_outcomes_shape_check",
+          "value": "case \"inference_outcomes\".\"status\"\n        when 'succeeded' then document ? 'instances' and not document ? 'error'\n        when 'failed' then document ? 'error' and not document ? 'instances'\n        else false\n      end"
         }
       },
       "isRLSEnabled": false
@@ -1225,6 +1393,23 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "labels_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk": {
+          "name": "labels_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk",
+          "tableFrom": "labels",
+          "tableTo": "inference_outcomes",
+          "columnsFrom": [
+            "image_id",
+            "source_model_version_id",
+            "source_artifact_digest"
+          ],
+          "columnsTo": [
+            "successful_image_id",
+            "successful_model_version_id",
+            "successful_artifact_digest"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1303,6 +1488,76 @@
             "as": "artifact->>'digest'",
             "type": "stored"
           }
+        },
+        "source_kind": {
+          "name": "source_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "source->>'kind'",
+            "type": "stored"
+          }
+        },
+        "source_training_run_id": {
+          "name": "source_training_run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "source->>'trainingRunId'",
+            "type": "stored"
+          }
+        },
+        "source_training_attempt": {
+          "name": "source_training_attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "(source->>'trainingAttempt')::integer",
+            "type": "stored"
+          }
+        },
+        "source_dataset_snapshot_id": {
+          "name": "source_dataset_snapshot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "source->>'datasetSnapshotId'",
+            "type": "stored"
+          }
+        },
+        "artifact_kind": {
+          "name": "artifact_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "artifact->>'kind'",
+            "type": "stored"
+          }
+        },
+        "weights_digest": {
+          "name": "weights_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "artifact->'weights'->>'digest'",
+            "type": "stored"
+          }
+        },
+        "weights_bytes": {
+          "name": "weights_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "(artifact->'weights'->>'bytes')::integer",
+            "type": "stored"
+          }
         }
       },
       "indexes": {
@@ -1341,6 +1596,32 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "model_versions_source_training_run_id_training_runs_id_fk": {
+          "name": "model_versions_source_training_run_id_training_runs_id_fk",
+          "tableFrom": "model_versions",
+          "tableTo": "training_runs",
+          "columnsFrom": [
+            "source_training_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "model_versions_source_dataset_snapshot_id_dataset_snapshots_id_fk": {
+          "name": "model_versions_source_dataset_snapshot_id_dataset_snapshots_id_fk",
+          "tableFrom": "model_versions",
+          "tableTo": "dataset_snapshots",
+          "columnsFrom": [
+            "source_dataset_snapshot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1360,6 +1641,17 @@
             "id",
             "artifact_digest"
           ]
+        },
+        "model_versions_publication_identity": {
+          "name": "model_versions_publication_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "source_training_run_id",
+            "source_training_attempt",
+            "source_dataset_snapshot_id",
+            "model_id"
+          ]
         }
       },
       "policies": {},
@@ -1367,6 +1659,10 @@
         "model_versions_digest_check": {
           "name": "model_versions_digest_check",
           "value": "\"model_versions\".\"artifact_digest\" ~ '^[0-9a-f]{64}$'"
+        },
+        "model_versions_source_artifact_check": {
+          "name": "model_versions_source_artifact_check",
+          "value": "case \"model_versions\".\"source_kind\"\n        when 'builtin' then \"model_versions\".\"artifact_kind\" = 'traditional' and \"model_versions\".\"source_training_run_id\" is null and \"model_versions\".\"source_training_attempt\" is null and \"model_versions\".\"source_dataset_snapshot_id\" is null and \"model_versions\".\"weights_digest\" is null and \"model_versions\".\"weights_bytes\" is null\n        when 'training_run' then \"model_versions\".\"artifact_kind\" = 'ultralytics' and \"model_versions\".\"source_training_run_id\" is not null and \"model_versions\".\"source_training_attempt\" >= 1 and \"model_versions\".\"source_dataset_snapshot_id\" is not null and \"model_versions\".\"weights_digest\" ~ '^[0-9a-f]{64}$' and \"model_versions\".\"weights_bytes\" > 0\n        else false\n      end"
         }
       },
       "isRLSEnabled": false
@@ -1734,6 +2030,27 @@
           ],
           "columnsTo": [
             "id",
+            "model_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk": {
+          "name": "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk",
+          "tableFrom": "training_runs",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "model_version_id",
+            "id",
+            "attempt",
+            "dataset_snapshot_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "source_training_run_id",
+            "source_training_attempt",
+            "source_dataset_snapshot_id",
             "model_id"
           ],
           "onDelete": "no action",

@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from vitroflow.training_recipe import load_training_recipe_manifest
-from vitroflow.yolo import train_yolo_detector
+from vitroflow.yolo import EpochReport, train_yolo_detector
 
 DEFAULT_RECIPE_PATH = (
     Path(__file__).resolve().parents[1] / "configs/yolo26/seed-small.recipe.json"
@@ -18,7 +18,14 @@ def _positive_integer(value: str) -> int:
     return number
 
 
-def main() -> int:
+def format_epoch_progress(epoch: EpochReport, total_epochs: int) -> str:
+    return (
+        f"epoch {epoch.epoch}/{total_epochs}: "
+        f"mAP50 {epoch.map50:.4f} mAP50-95 {epoch.map50_to_95:.4f}"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Fine-tune and validate a YOLO26 seed detector."
     )
@@ -37,7 +44,7 @@ def main() -> int:
         "--device",
         help="Ultralytics device such as cpu, mps, 0, or 0,1 (default: automatic)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     recipe = load_training_recipe_manifest(args.recipe)
     parameters = dict(recipe.parameters)
@@ -55,8 +62,7 @@ def main() -> int:
         runtime_version=recipe.runtime_version,
         device=args.device,
         on_epoch=lambda epoch: print(
-            f"epoch {epoch.epoch}/{parameters['epochs']}: "
-            f"mAP50 {epoch.map50:.4f} mAP50-95 {epoch.map5095:.4f}"
+            format_epoch_progress(epoch, parameters["epochs"])
         ),
     )
     print(f"best weights: {result.best_weights}")

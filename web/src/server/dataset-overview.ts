@@ -1,5 +1,6 @@
 import type { Dataset, ImageState } from "../datasets/schema";
 import type { Model } from "../models/schema";
+import type { TrainingSummary } from "../training/read-model";
 import { readDataset } from "./datasets";
 import { readModel } from "./model-registry";
 import {
@@ -8,7 +9,7 @@ import {
   summarize,
   type ImageSummary,
 } from "./summaries";
-import { trainingSummary, type TrainingSummary } from "./training-summary";
+import { trainingSummary } from "./training-summary";
 
 /** The model, images, review progress, and training state a dataset page shows. */
 export interface DatasetOverview {

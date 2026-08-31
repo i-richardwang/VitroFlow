@@ -15,6 +15,8 @@ import {
 } from "../workers/presence";
 import { readModelVersion } from "./model-registry";
 
+export class InferenceHeartbeatRejectedError extends Error {}
+
 /** Whether one of the worker's runtimes executes this artifact. */
 export function canExecute(
   worker: Pick<InferenceWorkerRecord, "runtimes">,
@@ -51,9 +53,15 @@ export async function recordInferenceHeartbeat(
   const db = await database();
   if (worker.loaded) {
     const version = await readModelVersion(worker.loaded, db);
-    if (!version) throw new Error(`Unknown model version: ${worker.loaded}`);
+    if (!version) {
+      throw new InferenceHeartbeatRejectedError(
+        `Unknown model version: ${worker.loaded}`,
+      );
+    }
     if (!canExecute(worker, version.artifact)) {
-      throw new Error("Inference runtimes cannot execute the loaded version");
+      throw new InferenceHeartbeatRejectedError(
+        "Inference runtimes cannot execute the loaded version",
+      );
     }
   }
   const row = {

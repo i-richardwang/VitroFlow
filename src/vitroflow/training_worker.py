@@ -4,13 +4,12 @@ import logging
 import os
 import tempfile
 import threading
-import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 import httpx
@@ -20,15 +19,21 @@ from .documents import (
     as_digest,
     as_integer,
     as_list,
+    as_number,
     as_object,
     as_string,
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import CLASS_NAME, WORKER_DEVICE, WORKER_ID
+from .identifiers import CLASS_NAME, VERSION_ID, WORKER_ID
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .manifest import as_split
 from .training_recipe import TrainingRecipe, parse_training_recipe
+from .worker_connection import (
+    WorkerConnection,
+    WorkerHttpClient,
+    validate_worker_process,
+)
 from .worker_runtime import shutdown_signals
 from .yolo import (
     DatasetImage,
@@ -41,6 +46,7 @@ from .yolo import (
 SNAPSHOT_SCHEMA_VERSION = 1
 LEASE_REFRESH_SECONDS = 30.0
 LOGGER = logging.getLogger(__name__)
+TrainingPhase = Literal["preparing", "training", "validating"]
 
 
 def device_memory_bytes(device: str) -> int:
@@ -77,29 +83,114 @@ class TrainingWorkerSettings:
     poll_seconds: float = 10.0
 
     def __post_init__(self) -> None:
-        if not self.server_url.startswith(("http://", "https://")):
-            raise ValueError("worker server URL must use http or https")
-        if not self.token:
-            raise ValueError("training worker token is required")
-        if not WORKER_ID.fullmatch(self.worker_id):
-            raise ValueError("invalid training worker id")
-        if self.poll_seconds <= 0:
-            raise ValueError("poll interval must be positive")
-        if not WORKER_DEVICE.fullmatch(self.device):
-            raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
+        WorkerConnection(server_url=self.server_url, token=self.token)
+        validate_worker_process(
+            self.worker_id,
+            self.poll_seconds,
+            self.device,
+            device_required=True,
+        )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class TrainingJob:
-    run: dict[str, Any]
+    run_id: str
+    model_id: str
+    dataset_snapshot_id: str
+    created_at: datetime
+    attempt: int
+    recipe: TrainingRecipe
+    worker_id: str
+    session_id: str
+    lease_expires_at: datetime
+    phase: TrainingPhase
+    progress: float
 
-    @property
-    def run_id(self) -> str:
-        return str(self.run["id"])
+    @classmethod
+    def parse(cls, value: Any, context: str = "training run") -> TrainingJob:
+        run = as_object(value, context)
+        expect_fields(
+            run,
+            {
+                "schemaVersion",
+                "id",
+                "modelId",
+                "datasetSnapshotId",
+                "createdAt",
+                "attempt",
+                "recipe",
+                "state",
+            },
+            context,
+        )
+        expect_schema_version(run, "schemaVersion", 1, context)
+        run_id = _resource_id(run["id"], f"{context}.id")
+        model_id = _resource_id(run["modelId"], f"{context}.modelId")
+        snapshot_id = _resource_id(
+            run["datasetSnapshotId"], f"{context}.datasetSnapshotId"
+        )
+        state_context = f"{context}.state"
+        state = as_object(run["state"], state_context)
+        expect_fields(
+            state,
+            {
+                "status",
+                "workerId",
+                "sessionId",
+                "leaseExpiresAt",
+                "phase",
+                "progress",
+            },
+            state_context,
+        )
+        if state["status"] != "running":
+            raise ValueError(f"{state_context}.status must be running")
+        phase = as_string(state["phase"], f"{state_context}.phase")
+        if phase not in {"preparing", "training", "validating"}:
+            raise ValueError(f"{state_context}.phase is invalid")
+        progress = as_number(state["progress"], f"{state_context}.progress")
+        if not 0 <= progress <= 1:
+            raise ValueError(f"{state_context}.progress must be between 0 and 1")
+        return cls(
+            run_id=run_id,
+            model_id=model_id,
+            dataset_snapshot_id=snapshot_id,
+            created_at=_timestamp(run["createdAt"], f"{context}.createdAt"),
+            attempt=as_integer(run["attempt"], f"{context}.attempt", minimum=1),
+            recipe=parse_training_recipe(run["recipe"], f"{context}.recipe"),
+            worker_id=_worker_id(state["workerId"], f"{state_context}.workerId"),
+            session_id=_resource_id(state["sessionId"], f"{state_context}.sessionId"),
+            lease_expires_at=_timestamp(
+                state["leaseExpiresAt"], f"{state_context}.leaseExpiresAt"
+            ),
+            phase=cast(TrainingPhase, phase),
+            progress=progress,
+        )
 
-    @property
-    def recipe(self) -> TrainingRecipe:
-        return parse_training_recipe(self.run.get("recipe"))
+
+def _resource_id(value: Any, context: str) -> str:
+    identifier = as_string(value, context)
+    if not VERSION_ID.fullmatch(identifier):
+        raise ValueError(f"{context} is invalid")
+    return identifier
+
+
+def _worker_id(value: Any, context: str) -> str:
+    identifier = as_string(value, context)
+    if not WORKER_ID.fullmatch(identifier):
+        raise ValueError(f"{context} is invalid")
+    return identifier
+
+
+def _timestamp(value: Any, context: str) -> datetime:
+    text = as_string(value, context)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError as error:
+        raise ValueError(f"{context} must be an ISO-8601 timestamp") from error
+    if parsed.tzinfo is None:
+        raise ValueError(f"{context} must include a timezone")
+    return parsed.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -193,7 +284,7 @@ def parse_training_snapshot(value: Any, context: str = "snapshot") -> TrainingSn
     )
 
 
-class TrainingWorkerClient:
+class TrainingWorkerClient(WorkerHttpClient):
     def __init__(
         self,
         server_url: str,
@@ -213,9 +304,8 @@ class TrainingWorkerClient:
         self.device = device
         self.memory_bytes = memory_bytes
         self.current_run_id: str | None = None
-        self._client = httpx.Client(
-            base_url=server_url.rstrip("/") + "/",
-            headers={"Authorization": f"Bearer {token}"},
+        super().__init__(
+            WorkerConnection(server_url=server_url, token=token),
             timeout=timeout,
             transport=transport,
         )
@@ -224,28 +314,8 @@ class TrainingWorkerClient:
     def identity(self) -> dict[str, str]:
         return {"workerId": self.worker_id, "sessionId": self.session_id}
 
-    def close(self) -> None:
-        self._client.close()
-
-    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        response: httpx.Response | None = None
-        for attempt in range(3):
-            try:
-                response = self._client.request(method, url, **kwargs)
-            except httpx.TransportError:
-                if attempt == 2:
-                    raise
-            else:
-                if response.status_code not in {408, 429, 500, 502, 503, 504}:
-                    return response
-                if attempt == 2:
-                    return response
-                response.close()
-            time.sleep(0.5 * 2**attempt)
-        raise RuntimeError("HTTP retry loop ended without a response")
-
     def heartbeat(self) -> None:
-        response = self._request(
+        response = self.request(
             "POST",
             "api/training/heartbeat",
             json={
@@ -259,18 +329,20 @@ class TrainingWorkerClient:
         response.raise_for_status()
 
     def claim(self) -> TrainingJob | None:
-        response = self._request(
+        response = self.request(
             "POST",
             "api/training/claim",
             json=self.identity,
         )
         response.raise_for_status()
-        document = response.json()
-        if document.get("run") is None:
+        document = as_object(response.json(), "training claim response")
+        expect_fields(document, {"run"}, "training claim response")
+        if document["run"] is None:
             return None
-        if not isinstance(document.get("run"), dict):
-            raise TypeError("Training claim response is invalid")
-        return TrainingJob(document["run"])
+        job = TrainingJob.parse(document["run"])
+        if (job.worker_id, job.session_id) != (self.worker_id, self.session_id):
+            raise ValueError("Training claim returned another worker's lease")
+        return job
 
     @staticmethod
     def _require_active_lease(response: httpx.Response) -> None:
@@ -279,7 +351,7 @@ class TrainingWorkerClient:
         response.raise_for_status()
 
     def fetch_snapshot(self, run_id: str) -> TrainingSnapshot:
-        response = self._request(
+        response = self.request(
             "GET",
             f"api/training/runs/{run_id}/snapshot",
             params=self.identity,
@@ -287,8 +359,8 @@ class TrainingWorkerClient:
         self._require_active_lease(response)
         return parse_training_snapshot(response.json())
 
-    def enter_phase(self, run_id: str, phase: str) -> None:
-        response = self._request(
+    def enter_phase(self, run_id: str, phase: TrainingPhase) -> None:
+        response = self.request(
             "POST",
             f"api/training/runs/{run_id}/phase",
             json={
@@ -299,7 +371,7 @@ class TrainingWorkerClient:
         self._require_active_lease(response)
 
     def renew_lease(self, run_id: str) -> None:
-        response = self._request(
+        response = self.request(
             "POST",
             f"api/training/runs/{run_id}/lease",
             json=self.identity,
@@ -307,7 +379,7 @@ class TrainingWorkerClient:
         self._require_active_lease(response)
 
     def report_epoch(self, run_id: str, report: EpochReport) -> None:
-        response = self._request(
+        response = self.request(
             "POST",
             f"api/training/runs/{run_id}/epochs",
             json={**self.identity, **report.to_json()},
@@ -315,7 +387,7 @@ class TrainingWorkerClient:
         self._require_active_lease(response)
 
     def download_image(self, run_id: str, digest: str) -> bytes:
-        response = self._request(
+        response = self.request(
             "GET",
             f"api/training/runs/{run_id}/images/{digest}",
             params=self.identity,
@@ -324,7 +396,7 @@ class TrainingWorkerClient:
         return verify_digest(response.content, digest)
 
     def publish_artifact(self, run_id: str, weights: Path, inference: Path) -> None:
-        response = self._request(
+        response = self.request(
             "PUT",
             f"api/training/runs/{run_id}/artifact",
             data=self.identity,
@@ -345,7 +417,7 @@ class TrainingWorkerClient:
         response.raise_for_status()
 
     def report_failure(self, run_id: str, error: str) -> None:
-        response = self._request(
+        response = self.request(
             "POST",
             f"api/training/runs/{run_id}/fail",
             json={**self.identity, "error": error[:2000]},

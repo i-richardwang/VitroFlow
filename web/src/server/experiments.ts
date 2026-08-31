@@ -13,184 +13,57 @@ import {
 
 import { database, transaction, type Executor } from "../db/client";
 import {
-  detectionFailures,
-  detections,
   experimentDishes,
   experimentPhotos,
   experimentRounds,
   experiments,
   images,
+  inferenceOutcomes,
   labels,
   modelVersions,
 } from "../db/schema";
-import type { AnnotationDocument } from "../annotation/schema";
-import type { DetectionFailure, DetectionResult } from "../detection/schema";
+import type {
+  ExperimentDishSeries,
+  ExperimentGrid,
+  ExperimentPhoto,
+  ExperimentSummary,
+  PhotoCell,
+} from "../experiments/contracts";
+import {
+  ExperimentPhotoAlreadyUsedError,
+  ExperimentPhotoNotFoundError,
+  ImagesNotStoredError,
+  RoundNotFoundError,
+  RoundRejectedError,
+} from "../experiments/errors";
 import {
   compareDishLabels,
   dishLabel,
-  experimentRequestSchema,
-  experimentRoundSchema,
-  experimentSchema,
+  roundRefSchema,
   roundRequestSchema,
+  roundUpdateSchema,
   type DishRef,
   type Experiment,
   type ExperimentRound,
   type PhotoRef,
   type PhotoState,
+  type RoundResult,
 } from "../experiments/schema";
 import type { Tally } from "../models/readings";
 import type { Model, ModelVersion } from "../models/schema";
 import { imageBlobKey } from "./blobs";
-import { clearDetectionFailure } from "./detections";
+import { clearDetectionFailure } from "./inference-outcomes";
+import {
+  listDishes,
+  listRounds,
+  listTreatments,
+  lockExperiment,
+  readExperimentRecord,
+  toExperiment,
+  toRound,
+} from "./experiment-records";
 import { lockImage } from "./image-lock";
 import { readModel, readModelVersion, toModelVersion } from "./model-registry";
-
-export interface ExperimentDish {
-  label: string;
-  position: number;
-}
-
-/**
- * One grid cell with only the projections the grid needs: instances per
- * class as the experiment's version found them, and as the reviewer left
- * them once a review of the photograph for the model is complete. The model's
- * readings turn either tally into the numbers the grid shows.
- */
-export interface PhotoCell {
-  dish: string;
-  round: string;
-  digest: string;
-  filename: string;
-  state: PhotoState;
-  observed: Tally | null;
-  reviewed: Tally | null;
-  error: string | null;
-}
-
-export interface ExperimentGrid {
-  experiment: Experiment;
-  model: Model;
-  version: ModelVersion;
-  dishes: ExperimentDish[];
-  rounds: ExperimentRound[];
-  photos: PhotoCell[];
-}
-
-/** One round of a dish's series, whether or not it photographed the dish. */
-export interface DishRound {
-  round: ExperimentRound;
-  photo: PhotoCell | null;
-}
-
-/**
- * A dish page: the dish's place in the roster, its readings round by round,
- * and the photograph of the round being shown.
- */
-export interface ExperimentDishSeries {
-  experiment: Experiment;
-  model: Model;
-  version: ModelVersion;
-  dish: ExperimentDish;
-  previous: string | null;
-  next: string | null;
-  rounds: DishRound[];
-  shown: ExperimentPhoto | null;
-}
-
-export interface ExperimentSummary {
-  experiment: Experiment;
-  version: ModelVersion;
-  dishes: number;
-  rounds: number;
-  counts: Record<PhotoState, number>;
-}
-
-/** A photograph with the documents its page shows. */
-export interface ExperimentPhoto {
-  ref: PhotoRef;
-  experimentName: string;
-  round: ExperimentRound;
-  digest: string;
-  filename: string;
-  width: number;
-  height: number;
-  blobKey: string;
-  modelVersionId: string;
-  modelId: string;
-  detection: DetectionResult | null;
-  failure: DetectionFailure | null;
-  /** The review of this photograph for the experiment's model. */
-  label: AnnotationDocument | null;
-}
-
-export class ExperimentNotFoundError extends Error {}
-export class ImagesNotStoredError extends Error {}
-export class ExperimentPhotoNotFoundError extends Error {}
-export class RoundRejectedError extends Error {}
-
-export interface UsedExperimentPhoto {
-  digest: string;
-  filename: string;
-  dish: string;
-  round: string;
-  roundLabel: string;
-}
-
-export class ExperimentPhotoAlreadyUsedError extends Error {
-  constructor(public readonly photos: UsedExperimentPhoto[]) {
-    const [first] = photos;
-    super(
-      first
-        ? `${first.filename} was already used for dish ${first.dish} in ${first.roundLabel}`
-        : "A photograph was already used in this experiment",
-    );
-  }
-}
-
-function toExperiment(row: typeof experiments.$inferSelect): Experiment {
-  return experimentSchema.parse({
-    schemaVersion: 1,
-    id: row.id,
-    name: row.name,
-    modelVersionId: row.modelVersionId,
-    createdAt: row.createdAt.toISOString(),
-  });
-}
-
-function toRound(row: typeof experimentRounds.$inferSelect): ExperimentRound {
-  return experimentRoundSchema.parse({
-    id: row.id,
-    label: row.label,
-    capturedAt: row.capturedAt.toISOString(),
-    createdAt: row.createdAt.toISOString(),
-  });
-}
-
-export async function readExperiment(
-  experimentId: string,
-  db?: Executor,
-): Promise<Experiment | null> {
-  const [row] = await (db ?? (await database()))
-    .select()
-    .from(experiments)
-    .where(eq(experiments.id, experimentId));
-  return row ? toExperiment(row) : null;
-}
-
-/** Creates one experiment with a Server-owned identity and a fixed version. */
-export async function createExperiment(value: unknown): Promise<Experiment> {
-  const { name, modelVersionId } = experimentRequestSchema.parse(value);
-  const version = await readModelVersion(modelVersionId);
-  if (!version) throw new Error(`Unknown model version: ${modelVersionId}`);
-  const [row] = await (
-    await database()
-  )
-    .insert(experiments)
-    .values({ id: randomUUID(), name, modelVersionId, createdAt: new Date() })
-    .returning();
-  if (!row) throw new Error("Experiment was not created");
-  return toExperiment(row);
-}
 
 /** Instances per class of one stored document, tallied in the database. */
 function tallyOf(document: SQL | AnyColumn) {
@@ -202,12 +75,11 @@ function photoGridQuery(db: Executor) {
   return db
     .select({
       photo: experimentPhotos,
-      detectionImageId: detections.imageId,
-      failureImageId: detectionFailures.imageId,
-      observed: tallyOf(detections.document),
+      outcomeStatus: inferenceOutcomes.status,
+      observed: tallyOf(inferenceOutcomes.document),
       reviewed: tallyOf(labels.document),
       reviewComplete: sql<boolean | null>`${labels.status} = 'complete'`,
-      error: sql<string | null>`${detectionFailures.document}->>'error'`,
+      error: sql<string | null>`${inferenceOutcomes.document}->>'error'`,
     })
     .from(experimentPhotos)
     .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
@@ -220,17 +92,10 @@ function photoGridQuery(db: Executor) {
       ),
     )
     .leftJoin(
-      detections,
+      inferenceOutcomes,
       and(
-        eq(detections.imageId, experimentPhotos.imageId),
-        eq(detections.modelVersionId, experiments.modelVersionId),
-      ),
-    )
-    .leftJoin(
-      detectionFailures,
-      and(
-        eq(detectionFailures.imageId, experimentPhotos.imageId),
-        eq(detectionFailures.modelVersionId, experiments.modelVersionId),
+        eq(inferenceOutcomes.imageId, experimentPhotos.imageId),
+        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
       ),
     );
 }
@@ -238,47 +103,22 @@ function photoGridQuery(db: Executor) {
 type PhotoGridRow = Awaited<ReturnType<typeof photoGridQuery>>[number];
 
 function toCell(row: PhotoGridRow): PhotoCell {
-  const state: PhotoState = row.detectionImageId
-    ? "observed"
-    : row.failureImageId
-      ? "failed"
-      : "pending";
+  const state: PhotoState =
+    row.outcomeStatus === "succeeded"
+      ? "observed"
+      : row.outcomeStatus === "failed"
+        ? "failed"
+        : "pending";
   return {
     dish: row.photo.dishLabel,
     round: row.photo.roundId,
     digest: row.photo.imageId,
     filename: row.photo.filename,
     state,
-    observed: row.detectionImageId ? (row.observed ?? {}) : null,
+    observed: row.outcomeStatus === "succeeded" ? (row.observed ?? {}) : null,
     reviewed: row.reviewComplete ? (row.reviewed ?? {}) : null,
     error: row.error,
   };
-}
-
-async function listDishes(
-  experimentId: string,
-  db: Executor,
-): Promise<ExperimentDish[]> {
-  return db
-    .select({
-      label: experimentDishes.label,
-      position: experimentDishes.position,
-    })
-    .from(experimentDishes)
-    .where(eq(experimentDishes.experimentId, experimentId))
-    .orderBy(asc(experimentDishes.position));
-}
-
-async function listRounds(
-  experimentId: string,
-  db: Executor,
-): Promise<ExperimentRound[]> {
-  const rows = await db
-    .select()
-    .from(experimentRounds)
-    .where(eq(experimentRounds.experimentId, experimentId))
-    .orderBy(asc(experimentRounds.capturedAt), asc(experimentRounds.id));
-  return rows.map(toRound);
 }
 
 async function listCells(
@@ -295,15 +135,16 @@ export async function readExperimentGrid(
   experimentId: string,
 ): Promise<ExperimentGrid | null> {
   const db = await database();
-  const experiment = await readExperiment(experimentId, db);
+  const experiment = await readExperimentRecord(experimentId, db);
   if (!experiment) return null;
   const { model, version } = await readTask(experiment, db);
-  const [dishes, rounds, photos] = await Promise.all([
+  const [treatments, dishes, rounds, photos] = await Promise.all([
+    listTreatments(experimentId, db),
     listDishes(experimentId, db),
     listRounds(experimentId, db),
     listCells(experimentId, db),
   ]);
-  return { experiment, model, version, dishes, rounds, photos };
+  return { experiment, model, version, treatments, dishes, rounds, photos };
 }
 
 async function readTask(
@@ -328,14 +169,15 @@ export async function readExperimentDish(
   roundId?: string,
 ): Promise<ExperimentDishSeries | null> {
   const db = await database();
-  const experiment = await readExperiment(ref.experiment, db);
+  const experiment = await readExperimentRecord(ref.experiment, db);
   if (!experiment) return null;
   const roster = await listDishes(ref.experiment, db);
   const position = roster.findIndex((dish) => dish.label === ref.dish);
   if (position < 0) return null;
   const dish = roster[position]!;
-  const [{ model, version }, rounds, cells] = await Promise.all([
+  const [{ model, version }, treatments, rounds, cells] = await Promise.all([
     readTask(experiment, db),
+    listTreatments(ref.experiment, db),
     listRounds(ref.experiment, db),
     photoGridQuery(db)
       .where(
@@ -364,6 +206,8 @@ export async function readExperimentDish(
     model,
     version,
     dish,
+    treatment:
+      treatments.find((treatment) => treatment.id === dish.treatment) ?? null,
     previous: roster[position - 1]?.label ?? null,
     next: roster[position + 1]?.label ?? null,
     rounds: series,
@@ -404,24 +248,17 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
     db
       .select({
         experimentId: experimentPhotos.experimentId,
-        pending: sql<number>`count(*) filter (where ${detections.imageId} is null and ${detectionFailures.imageId} is null)`,
-        failed: sql<number>`count(*) filter (where ${detections.imageId} is null and ${detectionFailures.imageId} is not null)`,
-        observed: sql<number>`count(${detections.imageId})`,
+        pending: sql<number>`count(*) filter (where ${inferenceOutcomes.imageId} is null)`,
+        failed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'failed')`,
+        observed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'succeeded')`,
       })
       .from(experimentPhotos)
       .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
       .leftJoin(
-        detections,
+        inferenceOutcomes,
         and(
-          eq(detections.imageId, experimentPhotos.imageId),
-          eq(detections.modelVersionId, experiments.modelVersionId),
-        ),
-      )
-      .leftJoin(
-        detectionFailures,
-        and(
-          eq(detectionFailures.imageId, experimentPhotos.imageId),
-          eq(detectionFailures.modelVersionId, experiments.modelVersionId),
+          eq(inferenceOutcomes.imageId, experimentPhotos.imageId),
+          eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
         ),
       )
       .groupBy(experimentPhotos.experimentId),
@@ -478,11 +315,6 @@ function dishesOf(
   return byLabel;
 }
 
-export interface RoundResult {
-  round: ExperimentRound;
-  photos: number;
-}
-
 /** Adds one named, captured occasion atomically under the fixed dish roster. */
 export async function addRound(value: unknown): Promise<RoundResult> {
   const {
@@ -501,14 +333,7 @@ export async function addRound(value: unknown): Promise<RoundResult> {
   const createdAt = new Date();
 
   return transaction(async (tx) => {
-    const [locked] = await tx
-      .select({ id: experiments.id })
-      .from(experiments)
-      .where(eq(experiments.id, experimentId))
-      .for("update");
-    if (!locked) {
-      throw new ExperimentNotFoundError(`Unknown experiment: ${experimentId}`);
-    }
+    await lockExperiment(experimentId, tx);
 
     const [sameLabel] = await tx
       .select({ id: experimentRounds.id })
@@ -602,6 +427,54 @@ export async function addRound(value: unknown): Promise<RoundResult> {
   });
 }
 
+function atRound(experimentId: string, roundId: string) {
+  return and(
+    eq(experimentRounds.experimentId, experimentId),
+    eq(experimentRounds.id, roundId),
+  );
+}
+
+/** Renames or redates one round; its photographs stay where they are. */
+export async function updateRound(value: unknown): Promise<ExperimentRound> {
+  const {
+    experiment: experimentId,
+    round: roundId,
+    label,
+    capturedAt,
+  } = roundUpdateSchema.parse(value);
+  return transaction(async (tx) => {
+    await lockExperiment(experimentId, tx);
+    const taken = (await listRounds(experimentId, tx)).find(
+      (round) => round.label === label && round.id !== roundId,
+    );
+    if (taken) throw new RoundRejectedError(`Round ${label} already exists`);
+    const [row] = await tx
+      .update(experimentRounds)
+      .set({ label, capturedAt: new Date(capturedAt) })
+      .where(atRound(experimentId, roundId))
+      .returning();
+    if (!row) throw new RoundNotFoundError(`Unknown round: ${roundId}`);
+    return toRound(row);
+  });
+}
+
+/**
+ * Forgets one occasion and the use it made of photographs. The dishes it
+ * named remain the roster, and so does an experiment with no rounds left.
+ */
+export async function deleteRound(value: unknown): Promise<void> {
+  const { experiment: experimentId, round: roundId } =
+    roundRefSchema.parse(value);
+  await transaction(async (tx) => {
+    await lockExperiment(experimentId, tx);
+    const [row] = await tx
+      .delete(experimentRounds)
+      .where(atRound(experimentId, roundId))
+      .returning({ id: experimentRounds.id });
+    if (!row) throw new RoundNotFoundError(`Unknown round: ${roundId}`);
+  });
+}
+
 function atPhoto({ experiment, dish, round }: PhotoRef) {
   return and(
     eq(experimentPhotos.experimentId, experiment),
@@ -622,8 +495,7 @@ export async function readExperimentPhoto(
       modelVersionId: experiments.modelVersionId,
       modelId: modelVersions.modelId,
       round: experimentRounds,
-      detection: detections.document,
-      failure: detectionFailures.document,
+      outcome: inferenceOutcomes.document,
       label: labels.document,
     })
     .from(experimentPhotos)
@@ -645,17 +517,10 @@ export async function readExperimentPhoto(
       ),
     )
     .leftJoin(
-      detections,
+      inferenceOutcomes,
       and(
-        eq(detections.imageId, experimentPhotos.imageId),
-        eq(detections.modelVersionId, experiments.modelVersionId),
-      ),
-    )
-    .leftJoin(
-      detectionFailures,
-      and(
-        eq(detectionFailures.imageId, experimentPhotos.imageId),
-        eq(detectionFailures.modelVersionId, experiments.modelVersionId),
+        eq(inferenceOutcomes.imageId, experimentPhotos.imageId),
+        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
       ),
     )
     .where(atPhoto(ref));
@@ -671,8 +536,8 @@ export async function readExperimentPhoto(
     blobKey: imageBlobKey(row.image.id),
     modelVersionId: row.modelVersionId,
     modelId: row.modelId,
-    detection: row.detection,
-    failure: row.failure,
+    detection: row.outcome && "instances" in row.outcome ? row.outcome : null,
+    failure: row.outcome && "error" in row.outcome ? row.outcome : null,
     label: row.label,
   };
 }

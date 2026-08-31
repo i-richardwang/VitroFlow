@@ -103,9 +103,31 @@ export function read(reading: Reading, counts: Tally): number | null {
   return among === 0 ? null : total(counts, reading.of) / among;
 }
 
+/**
+ * The mean reading over replicates: what one dish of the treatment showed,
+ * typically. Dishes without a value are not replicates of it.
+ */
+export interface ReadingSummary {
+  value: number | null;
+  sampleSize: number;
+}
+
+export function summarize(
+  reading: Reading,
+  tallies: readonly Tally[],
+): ReadingSummary {
+  const values = tallies.flatMap((counts) => read(reading, counts) ?? []);
+  return {
+    value:
+      values.length === 0
+        ? null
+        : values.reduce((sum, value) => sum + value, 0) / values.length,
+    sampleSize: values.length,
+  };
+}
+
 export function formatReading(reading: Reading, value: number | null): string {
   if (value === null) return "—";
-  return reading.kind === "count"
-    ? String(value)
-    : `${(value * 100).toFixed(1)}%`;
+  if (reading.kind === "proportion") return `${(value * 100).toFixed(1)}%`;
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }

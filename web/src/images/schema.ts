@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { sha256Schema } from "../identifiers/schema";
 
 /**
@@ -6,3 +8,7 @@ import { sha256Schema } from "../identifiers/schema";
  * datasets refer to images; they do not own them.
  */
 export const imageDigestSchema = sha256Schema;
+
+export const storedImageResponseSchema = z.strictObject({
+  digest: imageDigestSchema,
+});

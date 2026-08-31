@@ -2,7 +2,7 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Link, Table } from "@heroui/react";
 
 import { versionSlug } from "../../models/schema";
-import type { TrainingRunSummary } from "../../server/training-runs";
+import type { TrainingRunSummary } from "../../training/read-model";
 import { trainingRunLabel } from "../../training/schema";
 import { Hint } from "../Hint";
 import { TrainingIcon } from "../icons";
@@ -15,7 +15,6 @@ export function TrainingRunsTable({
   emptyHint,
 }: {
   runs: TrainingRunSummary[];
-  /** Shown when the rows come from several datasets. */
   datasetColumn?: boolean;
   emptyHint?: string;
 }) {

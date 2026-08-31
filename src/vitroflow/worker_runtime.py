@@ -18,13 +18,13 @@ def shutdown_signals() -> Iterator[threading.Event]:
     if threading.current_thread() is not threading.main_thread():
         yield stopped
         return
-    previous: dict[signal.Signals, object] = {}
 
     def stop(_signum: int, _frame: object) -> None:
         stopped.set()
 
-    for current in (signal.SIGINT, signal.SIGTERM):
-        previous[current] = signal.getsignal(current)
+    signals = (signal.SIGINT, signal.SIGTERM)
+    previous = {current: signal.getsignal(current) for current in signals}
+    for current in signals:
         signal.signal(current, stop)
     try:
         yield stopped

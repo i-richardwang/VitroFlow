@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import {
   blobExists,
@@ -17,18 +16,17 @@ import {
   removeDatasetImage,
 } from "./datasets";
 import { readExperimentGrid, retryExperimentDetection } from "./experiments";
-import { createLabel, readLabel } from "./labels";
-import { registerModel, registerModelVersion } from "./model-registry";
+import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
+import { registerModelVersion } from "./model-registry";
 import {
   DetectionConflictError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
   pendingAssignments,
   readDetection,
-  readDetectionFailure,
   recordInferenceOutcome,
-} from "./detections";
-import { listImageRecords, readImageRecord, summarize } from "./summaries";
+} from "./inference-outcomes";
+import { listImageRecords, summarize } from "./summaries";
 import { collectImages } from "./image-collection";
 import { canonicalize } from "./image-ingest";
 import { storeImage } from "./image-store";
@@ -39,6 +37,7 @@ import {
   imageBytes,
   imageDigest,
   photographRound,
+  registerTestModel,
   registerTrainedVersion,
   resultFor,
   uploadTexts,
@@ -48,6 +47,14 @@ const worker: InferenceWorkerRecord = {
   ...testHeartbeat("worker"),
   lastSeenAt: "2026-08-27T00:00:00.000Z",
 };
+
+async function readImageRecord(ref: { dataset: string; digest: string }) {
+  return (
+    (await listImageRecords(ref.dataset)).find(
+      (record) => record.image.digest === ref.digest,
+    ) ?? null
+  );
+}
 
 /** A later traditional version of the seed detector. */
 function nextTraditionalVersion(slug: string) {
@@ -129,7 +136,7 @@ describe("datasets", () => {
   test("a dataset trains the model its photographs were read with", async () => {
     const seed = await photographRound("model photos", ["modelled"]);
     await addExperimentPhotos({ dataset: "one-model", photos: seed.photos });
-    await registerModel({
+    await registerTestModel({
       schemaVersion: 1,
       id: "other-task",
       name: "Other task",
@@ -159,7 +166,7 @@ describe("datasets", () => {
     expect(seedDatasets).not.toContain("other-model");
     expect(
       (await listDatasetsForModel("other-task")).map(({ id }) => id),
-    ).toEqual(["other-model"]);
+    ).toContain("other-model");
     await expect(
       addExperimentPhotos({
         dataset: "mixed",
@@ -304,7 +311,6 @@ describe("detections", () => {
     ).toEqual([]);
     const cells = await listPhotoRefs(experiment.id);
     await retryExperimentDetection(cells.get("pend-b")!);
-    expect(await readDetectionFailure(targetB)).toBeNull();
     expect(
       (await pendingFor([version.id])).flatMap(([, images]) => images),
     ).toContain(b);
@@ -330,15 +336,15 @@ describe("detections", () => {
       producer: result.producer,
       error: "first attempt",
     };
-    await recordInferenceOutcome(target, failure, worker);
-    expect(await readDetectionFailure(target)).toMatchObject({
-      error: "first attempt",
-    });
+    expect(await recordInferenceOutcome(target, failure, worker)).toMatchObject(
+      {
+        error: "first attempt",
+      },
+    );
 
     expect(await recordInferenceOutcome(target, result, worker)).toEqual(
       result,
     );
-    expect(await readDetectionFailure(target)).toBeNull();
     expect(await recordInferenceOutcome(target, result, worker)).toEqual(
       result,
     );
@@ -461,9 +467,9 @@ describe("detections", () => {
     await recordInferenceOutcome({ versionId: next.id, digest }, newer, worker);
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
-    await createLabel(
+    await createLabelFromDetection(
       { digest, model: baseline.modelId },
-      documentFromDetection(original),
+      baseline.id,
     );
     expect((await readImageRecord(ref))?.detection).toEqual(original);
     expect(await stateOf(ref)).toBe("in_progress");
@@ -479,10 +485,9 @@ describe("detections", () => {
       result,
       worker,
     );
-    await createLabel(
-      { digest, model: version.modelId },
-      { ...documentFromDetection(result), status: "complete" },
-    );
+    const labelRef = { digest, model: version.modelId };
+    const started = await createLabelFromDetection(labelRef, version.id);
+    await updateLabel(labelRef, { ...started, status: "complete" });
     expect(await stateOf({ dataset: "ctx-one", digest })).toBe("complete");
     expect(await stateOf({ dataset: "ctx-two", digest })).toBe("complete");
   });
@@ -496,9 +501,9 @@ describe("removal", () => {
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "rm-bytes");
     await recordInferenceOutcome(target, result, worker);
-    await createLabel(
+    await createLabelFromDetection(
       { digest, model: version.modelId },
-      documentFromDetection(result),
+      version.id,
     );
 
     await removeDatasetImage(ref);

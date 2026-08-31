@@ -1,10 +1,9 @@
 import { expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
-import { createLabel, readLabel, updateLabel } from "./labels";
-import { recordInferenceOutcome } from "./detections";
+import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
+import { recordInferenceOutcome } from "./inference-outcomes";
 import { datasetOverview } from "./dataset-overview";
 import { trainingOverview } from "./training-console";
 import {
@@ -33,13 +32,9 @@ test("the overview derives review progress and training readiness", async () => 
       await resultFor(version, name),
       worker,
     );
-    await createLabel(
-      { digest, model: version.modelId },
-      {
-        ...documentFromDetection(await resultFor(version, name)),
-        status: "complete",
-      },
-    );
+    const ref = { digest, model: version.modelId };
+    const started = await createLabelFromDetection(ref, version.id);
+    await updateLabel(ref, { ...started, status: "complete" });
   }
 
   let overview = await datasetOverview("overview", at);
