@@ -3,11 +3,11 @@ import { CANONICAL_IMAGE_MEDIA_TYPE } from "../images/canonical";
 import { imageBlobKey, openBlob } from "./blobs";
 
 /**
- * Serves a photograph by digest. Every image is stored in the one canonical
+ * Serves an image by digest. Every image is stored in the one canonical
  * encoding, so the bytes are the whole answer: nothing about them has to be
  * looked up, and because a digest's bytes never change every response may be
  * cached indefinitely. The bytes are streamed from the store, so a response
- * costs the same whatever the photograph weighs.
+ * costs the same whatever the image weighs.
  */
 export async function imageResponse(digest: unknown): Promise<Response> {
   const parsed = imageDigestSchema.safeParse(digest);

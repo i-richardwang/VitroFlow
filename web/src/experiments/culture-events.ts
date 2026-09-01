@@ -1,26 +1,35 @@
-import type { DishEvent, DishEventType, ExperimentObservation } from "./schema";
+import type {
+  CultureEvent,
+  CultureEventType,
+  ExperimentObservation,
+} from "./schema";
 
 type ObservationOrdinals = ReadonlyMap<string, number>;
 
-export const DISH_EVENT_LABELS: Record<DishEventType, string> = {
+export const CULTURE_EVENT_LABELS: Record<CultureEventType, string> = {
   contaminated: "Contaminated",
-  dead: "Dead",
+  nonviable: "Nonviable",
   discarded: "Discarded",
   harvested: "Harvested",
-  lost: "Lost",
+  missing: "Missing",
 };
 
-function eventOrdinal(event: DishEvent, ordinals: ObservationOrdinals): number {
+function eventOrdinal(
+  event: CultureEvent,
+  ordinals: ObservationOrdinals,
+): number {
   const ordinal = ordinals.get(event.observation);
   if (ordinal === undefined) {
-    throw new Error(`Unknown observation for dish event: ${event.observation}`);
+    throw new Error(
+      `Unknown observation for culture event: ${event.observation}`,
+    );
   }
   return ordinal;
 }
 
 /** A removal takes effect after the observation that records it. */
-export function dishIsAvailableAt(
-  events: readonly DishEvent[],
+export function observationUnitIsAvailableAt(
+  events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
 ): boolean {
@@ -34,10 +43,10 @@ export function dishIsAvailableAt(
 
 /**
  * An explicit exclusion starts in its recorded observation. Physical removal
- * also removes the dish from every later analysis denominator.
+ * also removes the observation unit from every later analysis denominator.
  */
-export function dishIsIncludedInAnalysis(
-  events: readonly DishEvent[],
+export function observationUnitIsIncludedInAnalysis(
+  events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
 ): boolean {
@@ -52,11 +61,11 @@ export function dishIsIncludedInAnalysis(
 }
 
 /** The latest biological event, regardless of when it was entered. */
-export function latestActiveDishEvent(
-  events: readonly DishEvent[],
+export function latestActiveCultureEvent(
+  events: readonly CultureEvent[],
   ordinals: ObservationOrdinals,
-): DishEvent | null {
-  return events.reduce<DishEvent | null>((latest, event) => {
+): CultureEvent | null {
+  return events.reduce<CultureEvent | null>((latest, event) => {
     if (event.voidedAt !== null) return latest;
     if (!latest) return event;
     const byObservation =

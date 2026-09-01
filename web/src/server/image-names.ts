@@ -4,11 +4,11 @@ import { database, type Executor } from "../db/client";
 import {
   datasetImages,
   experimentObservations,
-  experimentPhotos,
+  experimentObservationImages,
 } from "../db/schema";
 
 /**
- * A display name for each image: the filename it was photographed under in
+ * A display name for each image: its source filename in
  * the earliest observation, or failing that its earliest dataset membership.
  * Images carry no name of their own.
  */
@@ -21,26 +21,29 @@ export async function imageFilenames(
   const [experimentRows, datasetRows] = await Promise.all([
     executor
       .select({
-        imageId: experimentPhotos.imageId,
-        filename: experimentPhotos.filename,
+        imageId: experimentObservationImages.imageId,
+        filename: experimentObservationImages.filename,
       })
-      .from(experimentPhotos)
+      .from(experimentObservationImages)
       .innerJoin(
         experimentObservations,
         and(
           eq(
             experimentObservations.experimentId,
-            experimentPhotos.experimentId,
+            experimentObservationImages.experimentId,
           ),
-          eq(experimentObservations.id, experimentPhotos.observationId),
+          eq(
+            experimentObservations.id,
+            experimentObservationImages.observationId,
+          ),
         ),
       )
-      .where(inArray(experimentPhotos.imageId, digests))
+      .where(inArray(experimentObservationImages.imageId, digests))
       .orderBy(
         asc(experimentObservations.observedOn),
         asc(experimentObservations.createdAt),
-        asc(experimentPhotos.experimentId),
-        asc(experimentPhotos.id),
+        asc(experimentObservationImages.experimentId),
+        asc(experimentObservationImages.id),
       ),
     executor
       .select({

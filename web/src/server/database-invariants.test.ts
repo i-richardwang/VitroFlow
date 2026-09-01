@@ -8,7 +8,7 @@ import { datasetSnapshotImages, modelVersions } from "../db/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import {
   imageDigest,
-  photographObservation,
+  observeImages,
   registerTestModel,
   registerTrainedVersion,
   resultFor,
@@ -52,9 +52,7 @@ test("the database binds snapshot annotations to the snapshot model", async () =
     name: "Snapshot other model",
     task: "object_detection",
     classes: ["seed"],
-    readings: [
-      { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
-    ],
+    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   const other = await registerTrainedVersion(
     modelId,
@@ -63,7 +61,7 @@ test("the database binds snapshot annotations to the snapshot model", async () =
   if (other.source.kind !== "training_run") {
     throw new Error("expected a trained model version");
   }
-  const { version } = await photographObservation("snapshot-invariant", [
+  const { version } = await observeImages("snapshot-invariant", [
     "snapshot-invariant-image",
   ]);
   const digest = await imageDigest("snapshot-invariant-image");

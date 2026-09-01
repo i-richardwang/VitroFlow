@@ -18,22 +18,22 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { ExperimentDish } from "../../experiments/contracts";
-import { DISH_EVENT_LABELS } from "../../experiments/dish-events";
+import type { ObservationUnit } from "../../experiments/contracts";
+import { CULTURE_EVENT_LABELS } from "../../experiments/culture-events";
 import {
-  DISH_EVENT_TYPES,
+  CULTURE_EVENT_TYPES,
   observationLabel,
-  type DishEvent,
-  type DishEventType,
+  type CultureEvent,
+  type CultureEventType,
   type ExperimentObservation,
   type Treatment,
 } from "../../experiments/schema";
 import {
-  correctDishEvent,
-  createDishEvent,
-  editDish,
-  placeDishes,
-  removeDish,
+  correctCultureEvent,
+  createCultureEvent,
+  editObservationUnit,
+  assignObservationUnitsToTreatment,
+  removeObservationUnit,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
@@ -44,15 +44,15 @@ type Action = "edit" | "event" | "delete";
 
 const UNASSIGNED = "unassigned";
 
-export function DishMenu({
+export function ObservationUnitMenu({
   experiment,
-  dish,
+  observationUnit,
   treatments,
   observations,
   designLocked,
 }: {
   experiment: string;
-  dish: ExperimentDish;
+  observationUnit: ObservationUnit;
   treatments: Treatment[];
   observations: ExperimentObservation[];
   designLocked: boolean;
@@ -62,10 +62,17 @@ export function DishMenu({
   const { busy, run } = useAsyncAction();
 
   const assign = (treatment: string | null) => {
-    if (treatment === dish.treatment) return;
+    if (treatment === observationUnit.treatment) return;
     void run(
-      () => placeDishes({ data: { experiment, dishes: [dish.id], treatment } }),
-      "Dish not assigned",
+      () =>
+        assignObservationUnitsToTreatment({
+          data: {
+            experiment,
+            observationUnits: [observationUnit.id],
+            treatment,
+          },
+        }),
+      "Observation unit not assigned",
     ).then(async (result) => {
       if (result.ok) await router.invalidate();
     });
@@ -79,13 +86,13 @@ export function DishMenu({
           size="sm"
           isIconOnly
           isDisabled={busy}
-          aria-label={`Dish ${dish.label}`}
+          aria-label={`Observation unit ${observationUnit.code}`}
         >
           <MoreIcon />
         </Button>
         <Dropdown.Popover placement="bottom start">
           <Dropdown.Menu
-            aria-label={`Dish ${dish.label}`}
+            aria-label={`Observation unit ${observationUnit.code}`}
             onAction={(key) => {
               const id = String(key);
               if (id.startsWith("treatment:")) {
@@ -96,8 +103,8 @@ export function DishMenu({
               setOpen(id as Action);
             }}
           >
-            <Dropdown.Item id="edit" textValue="Edit dish">
-              <Label>Edit dish…</Label>
+            <Dropdown.Item id="edit" textValue="Edit observation unit">
+              <Label>Edit observation unit…</Label>
             </Dropdown.Item>
             {observations.length > 0 ? (
               <Dropdown.Item id="event" textValue="Record culture event">
@@ -127,10 +134,10 @@ export function DishMenu({
                 <Separator />
                 <Dropdown.Item
                   id="delete"
-                  textValue="Delete dish"
+                  textValue="Delete observation unit"
                   variant="danger"
                 >
-                  <Label>Delete dish…</Label>
+                  <Label>Delete observation unit…</Label>
                 </Dropdown.Item>
               </>
             ) : null}
@@ -139,18 +146,18 @@ export function DishMenu({
       </Dropdown>
 
       {open === "edit" ? (
-        <EditDishModal
+        <EditObservationUnitModal
           experiment={experiment}
-          dish={dish}
+          observationUnit={observationUnit}
           designLocked={designLocked}
           onClose={() => setOpen(null)}
         />
       ) : null}
 
       {open === "event" ? (
-        <DishEventsModal
+        <CultureEventsModal
           experiment={experiment}
-          dish={dish}
+          observationUnit={observationUnit}
           observations={observations}
           onClose={() => setOpen(null)}
         />
@@ -159,11 +166,13 @@ export function DishMenu({
       <DeleteDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={`Delete ${dish.label}?`}
-        confirmLabel="Delete dish"
+        title={`Delete ${observationUnit.code}?`}
+        confirmLabel="Delete observation unit"
         onConfirm={async () => {
-          await removeDish({ data: { experiment, dish: dish.id } });
-          toast.success(`${dish.label} deleted`);
+          await removeObservationUnit({
+            data: { experiment, observationUnit: observationUnit.id },
+          });
+          toast.success(`${observationUnit.code} deleted`);
           await router.invalidate();
         }}
       >
@@ -173,21 +182,21 @@ export function DishMenu({
   );
 }
 
-function EditDishModal({
+function EditObservationUnitModal({
   experiment,
-  dish,
+  observationUnit,
   designLocked,
   onClose,
 }: {
   experiment: string;
-  dish: ExperimentDish;
+  observationUnit: ObservationUnit;
   designLocked: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   const [initialExplantCount, setInitialExplantCount] = useState(
-    dish.initialExplantCount,
+    observationUnit.initialExplantCount,
   );
 
   return (
@@ -197,9 +206,10 @@ function EditDishModal({
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Edit dish</Modal.Heading>
+              <Modal.Heading>Edit observation unit</Modal.Heading>
               <Description>
-                The dish keeps its identity and records.
+                Correcting the code does not change the observation unit or its
+                records.
               </Description>
             </Modal.Header>
             <Modal.Body>
@@ -209,17 +219,17 @@ function EditDishModal({
                   const form = new FormData(event.currentTarget);
                   void run(
                     () =>
-                      editDish({
+                      editObservationUnit({
                         data: {
                           experiment,
-                          dish: dish.id,
-                          label: String(form.get("label") ?? ""),
+                          observationUnit: observationUnit.id,
+                          code: String(form.get("code") ?? ""),
                           initialExplantCount: designLocked
-                            ? dish.initialExplantCount
+                            ? observationUnit.initialExplantCount
                             : initialExplantCount,
                         },
                       }),
-                    "Dish not renamed",
+                    "Observation unit not saved",
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
@@ -234,10 +244,10 @@ function EditDishModal({
                       fullWidth
                       isRequired
                       isDisabled={busy}
-                      name="label"
-                      defaultValue={dish.label}
+                      name="code"
+                      defaultValue={observationUnit.code}
                     >
-                      <Label>Label</Label>
+                      <Label>Code</Label>
                       <Input />
                     </TextField>
                     <NumberField
@@ -275,7 +285,7 @@ function EditDishModal({
   );
 }
 
-function eventDefaults(type: DishEventType): {
+function eventDefaults(type: CultureEventType): {
   exclude: boolean;
   remove: boolean;
 } {
@@ -284,27 +294,27 @@ function eventDefaults(type: DishEventType): {
   return { exclude: true, remove: true };
 }
 
-function DishEventsModal({
+function CultureEventsModal({
   experiment,
-  dish,
+  observationUnit,
   observations,
   onClose,
 }: {
   experiment: string;
-  dish: ExperimentDish;
+  observationUnit: ObservationUnit;
   observations: ExperimentObservation[];
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const [type, setType] = useState<DishEventType>("contaminated");
+  const [type, setType] = useState<CultureEventType>("contaminated");
   const [observation, setObservation] = useState(observations.at(-1)!.id);
   const defaults = eventDefaults(type);
   const [exclude, setExclude] = useState(defaults.exclude);
   const [remove, setRemove] = useState(defaults.remove);
   const [correcting, setCorrecting] = useState<string | null>(null);
 
-  const changeType = (next: DishEventType) => {
+  const changeType = (next: CultureEventType) => {
     setType(next);
     const effects = eventDefaults(next);
     setExclude(effects.exclude);
@@ -318,16 +328,18 @@ function DishEventsModal({
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Culture events · {dish.label}</Modal.Heading>
+              <Modal.Heading>
+                Culture events · {observationUnit.code}
+              </Modal.Heading>
               <Description>
                 Events preserve what happened. Analysis exclusion and physical
                 removal are recorded separately.
               </Description>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-5">
-              {dish.events.length > 0 ? (
+              {observationUnit.events.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {dish.events.map((event) => (
+                  {observationUnit.events.map((event) => (
                     <EventRow
                       key={event.id}
                       event={event}
@@ -341,7 +353,7 @@ function DishEventsModal({
                       onSubmit={(reason) => {
                         void run(
                           () =>
-                            correctDishEvent({
+                            correctCultureEvent({
                               data: { experiment, event: event.id, reason },
                             }),
                           "Correction not recorded",
@@ -362,10 +374,10 @@ function DishEventsModal({
                   const form = new FormData(event.currentTarget);
                   void run(
                     () =>
-                      createDishEvent({
+                      createCultureEvent({
                         data: {
                           experiment,
-                          dish: dish.id,
+                          observationUnit: observationUnit.id,
                           type,
                           observation,
                           excludeFromObservation: exclude,
@@ -376,7 +388,7 @@ function DishEventsModal({
                     "Event not recorded",
                   ).then(async (result) => {
                     if (!result.ok) return;
-                    toast.success(`${DISH_EVENT_LABELS[type]} recorded`);
+                    toast.success(`${CULTURE_EVENT_LABELS[type]} recorded`);
                     await router.invalidate();
                     onClose();
                   });
@@ -391,7 +403,7 @@ function DishEventsModal({
                         isDisabled={busy}
                         selectedKey={type}
                         onSelectionChange={(key) =>
-                          changeType(String(key) as DishEventType)
+                          changeType(String(key) as CultureEventType)
                         }
                       >
                         <Label>Event</Label>
@@ -401,13 +413,13 @@ function DishEventsModal({
                         </Select.Trigger>
                         <Select.Popover>
                           <ListBox>
-                            {DISH_EVENT_TYPES.map((value) => (
+                            {CULTURE_EVENT_TYPES.map((value) => (
                               <ListBox.Item
                                 key={value}
                                 id={value}
-                                textValue={DISH_EVENT_LABELS[value]}
+                                textValue={CULTURE_EVENT_LABELS[value]}
                               >
-                                <Label>{DISH_EVENT_LABELS[value]}</Label>
+                                <Label>{CULTURE_EVENT_LABELS[value]}</Label>
                                 <ListBox.ItemIndicator />
                               </ListBox.Item>
                             ))}
@@ -421,7 +433,7 @@ function DishEventsModal({
                         selectedKey={observation}
                         onSelectionChange={(key) => setObservation(String(key))}
                       >
-                        <Label>Observed at</Label>
+                        <Label>Observation</Label>
                         <Select.Trigger>
                           <Select.Value />
                           <Select.Indicator />
@@ -499,7 +511,7 @@ function DishEventsModal({
                       isDisabled={busy}
                     >
                       <Label>Note</Label>
-                      <Input placeholder="What was observed or done" />
+                      <Input placeholder="What was detected or done" />
                     </TextField>
                   </Fieldset.Group>
                   <Fieldset.Actions>
@@ -529,7 +541,7 @@ function EventRow({
   onCancel,
   onSubmit,
 }: {
-  event: DishEvent;
+  event: CultureEvent;
   observation: ExperimentObservation | undefined;
   correcting: boolean;
   busy: boolean;
@@ -546,7 +558,7 @@ function EventRow({
   return (
     <div className="rounded-lg border border-default p-3">
       <div className="flex items-center gap-2">
-        <span className="font-medium">{DISH_EVENT_LABELS[event.type]}</span>
+        <span className="font-medium">{CULTURE_EVENT_LABELS[event.type]}</span>
         <span className="text-sm text-muted">
           {observation ? observationLabel(observation) : "Unknown observation"}{" "}
           · {effects}

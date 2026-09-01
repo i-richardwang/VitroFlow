@@ -14,7 +14,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { ExperimentDish } from "../../experiments/contracts";
+import type { ObservationUnit } from "../../experiments/contracts";
 import {
   observationLabel,
   type ExperimentObservation,
@@ -26,20 +26,20 @@ import {
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
 import { DayField, fromDay, toDay } from "./DayField";
-import { FilePhotosDialog } from "./FilePhotosDialog";
+import { AssignImagesDialog } from "./AssignImagesDialog";
 
-type Action = "photograph" | "edit" | "delete";
+type Action = "images" | "edit" | "delete";
 
 export function ObservationMenu({
   experiment,
   observation,
-  dishes,
-  photographed,
+  observationUnits,
+  assigned,
 }: {
   experiment: string;
   observation: ExperimentObservation;
-  dishes: ExperimentDish[];
-  photographed: ReadonlySet<string>;
+  observationUnits: ObservationUnit[];
+  assigned: ReadonlySet<string>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -59,8 +59,8 @@ export function ObservationMenu({
             aria-label={name}
             onAction={(key) => setOpen(String(key) as Action)}
           >
-            <Dropdown.Item id="photograph" textValue="Add photographs">
-              <Label>Add photographs…</Label>
+            <Dropdown.Item id="images" textValue="Assign images">
+              <Label>Assign images…</Label>
             </Dropdown.Item>
             <Dropdown.Item id="edit" textValue="Edit observation">
               <Label>Edit observation…</Label>
@@ -78,12 +78,12 @@ export function ObservationMenu({
         </Dropdown.Popover>
       </Dropdown>
 
-      {open === "photograph" ? (
-        <FilePhotosDialog
+      {open === "images" ? (
+        <AssignImagesDialog
           experiment={experiment}
           observation={observation}
-          dishes={dishes}
-          photographed={photographed}
+          observationUnits={observationUnits}
+          assigned={assigned}
           onClose={() => setOpen(null)}
         />
       ) : null}
@@ -109,8 +109,7 @@ export function ObservationMenu({
           await router.invalidate();
         }}
       >
-        Only an observation without photographs or culture events can be
-        deleted.
+        Only an observation without images or culture events can be deleted.
       </DeleteDialog>
     </>
   );
@@ -173,7 +172,7 @@ function EditObservationModal({
                 <Fieldset className="w-full">
                   <Fieldset.Group>
                     <DayField
-                      label="Observed"
+                      label="Observation date"
                       busy={busy || observation.hasRecords}
                       value={observedOn}
                       onChange={setObservedOn}

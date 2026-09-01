@@ -4,26 +4,30 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
-  experimentDishes,
+  experimentObservationUnits,
   experimentObservations,
   experimentTreatments,
   experiments,
 } from "../db/schema";
 import {
-  DishNotFoundError,
-  DishRejectedError,
+  ObservationUnitNotFoundError,
+  ObservationUnitRejectedError,
   ExperimentDesignLockedError,
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
 } from "../experiments/errors";
-import { dishLabelKey, replicateLabels } from "../experiments/naming";
 import {
-  type DishAssignment,
-  type DishLayout,
-  type DishRef,
-  type DishUpdate,
+  observationUnitCodeKey,
+  replicateCodes,
+  treatmentNameKey,
+} from "../experiments/naming";
+import {
+  type ObservationUnitAssignment,
+  type ObservationUnitBatch,
+  type ObservationUnitRef,
+  type ObservationUnitUpdate,
   type Experiment,
   type ExperimentRef,
   type ExperimentRequest,
@@ -35,14 +39,14 @@ import {
   type TreatmentUpdate,
 } from "../experiments/schema";
 import {
-  atDish,
-  type DishRecord,
+  atObservationUnit,
+  type ObservationUnitRecord,
   atTreatment,
-  listDishes,
+  listObservationUnits,
   listTreatments,
   lockExperiment,
   readExperimentRecord,
-  toDish,
+  toObservationUnit,
   toExperiment,
   toTreatment,
 } from "./experiment-records";
@@ -78,9 +82,9 @@ export async function updateExperiment(
     const current = await lockExperiment(experimentId, tx);
     if (await designLocked(experimentId, tx)) {
       const protocolChanged =
-        page.material !== current.material ||
-        page.explant !== current.explant ||
-        page.medium !== current.medium ||
+        page.plantMaterial !== current.plantMaterial ||
+        page.explantType !== current.explantType ||
+        page.baseMedium !== current.baseMedium ||
         page.inoculatedOn !== current.inoculatedOn;
       if (protocolChanged) {
         throw new ExperimentDesignLockedError(
@@ -159,7 +163,8 @@ export async function addTreatment(
     const existing = await listTreatments(experimentId, tx);
     if (
       existing.some(
-        (treatment) => dishLabelKey(treatment.name) === dishLabelKey(name),
+        (treatment) =>
+          treatmentNameKey(treatment.name) === treatmentNameKey(name),
       )
     ) {
       throw new TreatmentRejectedError(`Treatment ${name} already exists`);
@@ -177,13 +182,13 @@ export async function addTreatment(
       .returning();
     if (!row) throw new Error("Treatment was not created");
     if (replicates > 0) {
-      const taken = (await listDishes(experimentId, tx)).map(
-        (dish) => dish.label,
+      const taken = (await listObservationUnits(experimentId, tx)).map(
+        (observationUnit) => observationUnit.code,
       );
-      await insertDishes(
+      await insertObservationUnits(
         experimentId,
         row.id,
-        replicateLabels(name, replicates, taken),
+        replicateCodes(name, replicates, taken),
         initialExplantCount,
         tx,
       );
@@ -194,7 +199,7 @@ export async function addTreatment(
 
 export async function addTreatmentReplicates(
   value: TreatmentReplicates,
-): Promise<DishRecord[]> {
+): Promise<ObservationUnitRecord[]> {
   const {
     experiment: experimentId,
     treatment: treatmentId,
@@ -205,13 +210,13 @@ export async function addTreatmentReplicates(
     await lockExperiment(experimentId, tx);
     await requireOpenDesign(experimentId, tx);
     const treatment = await requireTreatment(experimentId, treatmentId, tx);
-    const taken = (await listDishes(experimentId, tx)).map(
-      (dish) => dish.label,
+    const taken = (await listObservationUnits(experimentId, tx)).map(
+      (observationUnit) => observationUnit.code,
     );
-    return insertDishes(
+    return insertObservationUnits(
       experimentId,
       treatmentId,
-      replicateLabels(treatment.name, replicates, taken),
+      replicateCodes(treatment.name, replicates, taken),
       initialExplantCount,
       tx,
     );
@@ -227,7 +232,7 @@ export async function updateTreatment(
     await requireOpenDesign(experimentId, tx);
     const taken = (await listTreatments(experimentId, tx)).find(
       (treatment) =>
-        dishLabelKey(treatment.name) === dishLabelKey(design.name) &&
+        treatmentNameKey(treatment.name) === treatmentNameKey(design.name) &&
         treatment.id !== treatmentId,
     );
     if (taken) {
@@ -253,12 +258,12 @@ export async function deleteTreatment(value: TreatmentRef): Promise<void> {
     await lockExperiment(experimentId, tx);
     await requireOpenDesign(experimentId, tx);
     await tx
-      .update(experimentDishes)
+      .update(experimentObservationUnits)
       .set({ treatmentId: null })
       .where(
         and(
-          eq(experimentDishes.experimentId, experimentId),
-          eq(experimentDishes.treatmentId, treatmentId),
+          eq(experimentObservationUnits.experimentId, experimentId),
+          eq(experimentObservationUnits.treatmentId, treatmentId),
         ),
       );
     const [row] = await tx
@@ -280,33 +285,35 @@ export async function deleteTreatment(value: TreatmentRef): Promise<void> {
   });
 }
 
-async function insertDishes(
+async function insertObservationUnits(
   experimentId: string,
   treatmentId: string | null,
-  labels: readonly string[],
+  codes: readonly string[],
   initialExplantCount: number,
   tx: Executor,
-): Promise<DishRecord[]> {
+): Promise<ObservationUnitRecord[]> {
   const rows = await tx
-    .insert(experimentDishes)
+    .insert(experimentObservationUnits)
     .values(
-      labels.map((label) => ({
+      codes.map((code) => ({
         experimentId,
         id: randomUUID(),
-        label,
+        code,
         treatmentId,
         initialExplantCount,
       })),
     )
     .returning();
-  return rows.map((row) => toDish(row));
+  return rows.map((row) => toObservationUnit(row));
 }
 
-export async function addDishes(value: DishLayout): Promise<DishRecord[]> {
+export async function addObservationUnits(
+  value: ObservationUnitBatch,
+): Promise<ObservationUnitRecord[]> {
   const {
     experiment: experimentId,
     treatment: treatmentId,
-    labels,
+    codes,
     initialExplantCount,
   } = value;
   return transaction(async (tx) => {
@@ -314,40 +321,50 @@ export async function addDishes(value: DishLayout): Promise<DishRecord[]> {
     await requireOpenDesign(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);
-    const wanted = new Set(labels.map(dishLabelKey));
-    if (wanted.size !== labels.length) {
-      throw new DishRejectedError("The same dish is listed twice");
+    const wanted = new Set(codes.map(observationUnitCodeKey));
+    if (wanted.size !== codes.length) {
+      throw new ObservationUnitRejectedError(
+        "The same observation unit is listed twice",
+      );
     }
-    const taken = (await listDishes(experimentId, tx))
-      .map((dish) => dish.label)
-      .filter((label) => wanted.has(dishLabelKey(label)));
+    const taken = (await listObservationUnits(experimentId, tx))
+      .map((observationUnit) => observationUnit.code)
+      .filter((code) => wanted.has(observationUnitCodeKey(code)));
     if (taken.length > 0) {
-      throw new DishRejectedError(
+      throw new ObservationUnitRejectedError(
         `The experiment already has ${taken.join(", ")}`,
       );
     }
-    return insertDishes(
+    return insertObservationUnits(
       experimentId,
       treatmentId,
-      labels,
+      codes,
       initialExplantCount,
       tx,
     );
   });
 }
 
-export async function updateDish(value: DishUpdate): Promise<DishRecord> {
+export async function updateObservationUnit(
+  value: ObservationUnitUpdate,
+): Promise<ObservationUnitRecord> {
   const {
     experiment: experimentId,
-    dish: dishId,
-    label,
+    observationUnit: observationUnitId,
+    code,
     initialExplantCount,
   } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    const dishes = await listDishes(experimentId, tx);
-    const current = dishes.find((dish) => dish.id === dishId);
-    if (!current) throw new DishNotFoundError(`Unknown dish: ${dishId}`);
+    const observationUnits = await listObservationUnits(experimentId, tx);
+    const current = observationUnits.find(
+      (observationUnit) => observationUnit.id === observationUnitId,
+    );
+    if (!current) {
+      throw new ObservationUnitNotFoundError(
+        `Unknown observation unit: ${observationUnitId}`,
+      );
+    }
     if (
       current.initialExplantCount !== initialExplantCount &&
       (await designLocked(experimentId, tx))
@@ -356,33 +373,48 @@ export async function updateDish(value: DishUpdate): Promise<DishRecord> {
         "Initial explant count is fixed after the first observation",
       );
     }
-    const clash = dishes.find(
-      (dish) =>
-        dishLabelKey(dish.label) === dishLabelKey(label) && dish.id !== dishId,
+    const clash = observationUnits.find(
+      (observationUnit) =>
+        observationUnitCodeKey(observationUnit.code) ===
+          observationUnitCodeKey(code) &&
+        observationUnit.id !== observationUnitId,
     );
     if (clash) {
-      throw new DishRejectedError(`The experiment already has ${label}`);
+      throw new ObservationUnitRejectedError(
+        `The experiment already has ${code}`,
+      );
     }
     const [row] = await tx
-      .update(experimentDishes)
-      .set({ label, initialExplantCount })
-      .where(atDish(experimentId, dishId))
+      .update(experimentObservationUnits)
+      .set({ code, initialExplantCount })
+      .where(atObservationUnit(experimentId, observationUnitId))
       .returning();
-    if (!row) throw new DishNotFoundError(`Unknown dish: ${dishId}`);
-    return toDish(row);
+    if (!row) {
+      throw new ObservationUnitNotFoundError(
+        `Unknown observation unit: ${observationUnitId}`,
+      );
+    }
+    return toObservationUnit(row);
   });
 }
 
-export async function deleteDish(value: DishRef): Promise<void> {
-  const { experiment: experimentId, dish: dishId } = value;
+export async function deleteObservationUnit(
+  value: ObservationUnitRef,
+): Promise<void> {
+  const { experiment: experimentId, observationUnit: observationUnitId } =
+    value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     await requireOpenDesign(experimentId, tx);
     const [row] = await tx
-      .delete(experimentDishes)
-      .where(atDish(experimentId, dishId))
-      .returning({ id: experimentDishes.id });
-    if (!row) throw new DishNotFoundError(`Unknown dish: ${dishId}`);
+      .delete(experimentObservationUnits)
+      .where(atObservationUnit(experimentId, observationUnitId))
+      .returning({ id: experimentObservationUnits.id });
+    if (!row) {
+      throw new ObservationUnitNotFoundError(
+        `Unknown observation unit: ${observationUnitId}`,
+      );
+    }
   });
 }
 
@@ -401,27 +433,37 @@ async function requireTreatment(
   return toTreatment(treatment);
 }
 
-export async function assignDishes(value: DishAssignment): Promise<void> {
-  const { experiment: experimentId, dishes, treatment: treatmentId } = value;
+export async function assignObservationUnits(
+  value: ObservationUnitAssignment,
+): Promise<void> {
+  const {
+    experiment: experimentId,
+    observationUnits,
+    treatment: treatmentId,
+  } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     await requireOpenDesign(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);
     const rows = await tx
-      .update(experimentDishes)
+      .update(experimentObservationUnits)
       .set({ treatmentId })
       .where(
         and(
-          eq(experimentDishes.experimentId, experimentId),
-          inArray(experimentDishes.id, dishes),
+          eq(experimentObservationUnits.experimentId, experimentId),
+          inArray(experimentObservationUnits.id, observationUnits),
         ),
       )
-      .returning({ id: experimentDishes.id });
+      .returning({ id: experimentObservationUnits.id });
     const updated = new Set(rows.map((row) => row.id));
-    const missing = dishes.filter((dish) => !updated.has(dish));
+    const missing = observationUnits.filter(
+      (observationUnit) => !updated.has(observationUnit),
+    );
     if (missing.length > 0) {
-      throw new DishNotFoundError(`Unknown dishes: ${missing.join(", ")}`);
+      throw new ObservationUnitNotFoundError(
+        `Unknown observation units: ${missing.join(", ")}`,
+      );
     }
   });
 }

@@ -1,51 +1,51 @@
 import { describe, expect, test } from "bun:test";
 
-import { replicateLabels, rosterOrder, suggestDish } from "./naming";
+import {
+  replicateCodes,
+  observationUnitOrder,
+  suggestObservationUnit,
+} from "./naming";
 
-describe("laying out dishes", () => {
-  test("labels a treatment's replicates in one series", () => {
-    expect(replicateLabels("T1", 3, [])).toEqual(["T1-1", "T1-2", "T1-3"]);
+describe("observation unit naming", () => {
+  test("codes a treatment's replicates in one series", () => {
+    expect(replicateCodes("T1", 3, [])).toEqual(["T1-1", "T1-2", "T1-3"]);
   });
 
-  test("continues the series past the labels already used", () => {
-    expect(replicateLabels("T1", 2, ["T1-1", "t1_3"])).toEqual([
-      "T1-2",
-      "T1-4",
-    ]);
+  test("continues the series past the codes already used", () => {
+    expect(replicateCodes("T1", 2, ["T1-1", "t1_3"])).toEqual(["T1-2", "T1-4"]);
   });
 
-  test("orders the roster by treatment, then by label", () => {
-    const dishes = [
-      { label: "B1", treatment: null },
-      { label: "T1-10", treatment: "t1" },
-      { label: "T1-2", treatment: "t1" },
-      { label: "CK-1", treatment: "ck" },
+  test("orders observation units by treatment, then by code", () => {
+    const observationUnits = [
+      { code: "B1", treatment: null },
+      { code: "T1-10", treatment: "t1" },
+      { code: "T1-2", treatment: "t1" },
+      { code: "CK-1", treatment: "ck" },
     ];
     const treatments = [
       { id: "ck", position: 1 },
       { id: "t1", position: 2 },
     ];
-    expect(rosterOrder(dishes, treatments).map((dish) => dish.label)).toEqual([
-      "CK-1",
-      "T1-2",
-      "T1-10",
-      "B1",
-    ]);
+    expect(
+      observationUnitOrder(observationUnits, treatments).map(
+        (observationUnit) => observationUnit.code,
+      ),
+    ).toEqual(["CK-1", "T1-2", "T1-10", "B1"]);
   });
 });
 
-describe("guessing which dish a photograph shows", () => {
-  const roster = ["CK-1", "T1-1", "T1-2"];
+describe("suggesting an observation unit from an image filename", () => {
+  const codes = ["CK-1", "T1-1", "T1-2"];
 
-  test("reads a filename that spells a dish, whatever the separator", () => {
-    expect(suggestDish("T1-2.jpg", roster)).toBe("T1-2");
-    expect(suggestDish(" t1_2.JPG ", roster)).toBe("T1-2");
-    expect(suggestDish("IMG_0413_T1-2.jpg", roster)).toBe("T1-2");
+  test("recognizes a code regardless of filename separator", () => {
+    expect(suggestObservationUnit("T1-2.jpg", codes)).toBe("T1-2");
+    expect(suggestObservationUnit(" t1_2.JPG ", codes)).toBe("T1-2");
+    expect(suggestObservationUnit("IMG_0413_T1-2.jpg", codes)).toBe("T1-2");
   });
 
-  test("leaves a filename that names no dish to the operator", () => {
-    expect(suggestDish("IMG_0413.jpg", roster)).toBeNull();
-    expect(suggestDish(".jpg", roster)).toBeNull();
-    expect(suggestDish("T1-9.jpg", roster)).toBeNull();
+  test("leaves an unmatched filename to the operator", () => {
+    expect(suggestObservationUnit("IMG_0413.jpg", codes)).toBeNull();
+    expect(suggestObservationUnit(".jpg", codes)).toBeNull();
+    expect(suggestObservationUnit("T1-9.jpg", codes)).toBeNull();
   });
 });

@@ -2,16 +2,16 @@ import { Button } from "@heroui/react";
 
 import type {
   AnnotationDocument,
-  LabelInstance,
+  AnnotationInstance,
 } from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
-import { tally } from "../../models/readings";
+import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
 import type { LayerKey } from "./controls";
 import {
   LayersSection,
   Metrics,
-  ReadingsSection,
+  MetricsSection,
   Section,
   type Metric,
 } from "./inspector";
@@ -30,13 +30,13 @@ export function InspectorPanel({
   annotation: AnnotationDocument;
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
-  selected: LabelInstance | null;
+  selected: AnnotationInstance | null;
   onDeleteSelected: () => void;
 }) {
   return (
     <>
-      <ReadingsSection
-        readings={model.readings}
+      <MetricsSection
+        metrics={model.metrics}
         sources={[
           { label: "Review", tally: tally(annotation.instances) },
           { label: "Detected", tally: tally(result.instances) },
@@ -64,7 +64,7 @@ export function InspectorPanel({
 
 function selectionMetrics(
   annotation: AnnotationDocument,
-  selected: LabelInstance | null,
+  selected: AnnotationInstance | null,
 ): Metric[] {
   const rows: Metric[] = [
     {
@@ -114,7 +114,7 @@ function diagnosticMetrics(modelId: string, result: DetectionResult): Metric[] {
           : metrics.clipped_fraction.toFixed(4),
     },
     {
-      label: "Dish radius",
+      label: "Petri dish radius",
       value: dish ? `${dish.radius.toFixed(0)} px` : "—",
     },
   ];

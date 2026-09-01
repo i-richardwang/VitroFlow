@@ -3,7 +3,7 @@ import { z } from "zod";
 import { boundingBoxSchema } from "../annotation/schema";
 import { imageDigestSchema } from "../images/schema";
 import { detectionProducerSchema } from "../inference/schema";
-import { classNameSchema } from "../models/readings";
+import { classNameSchema } from "../models/metrics";
 
 const warningCodeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
 

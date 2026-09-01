@@ -1,7 +1,7 @@
 """Field validators shared by every JSON document parser.
 
 Each validator names the offending field through ``context`` so a nested error
-reads as a path, for example ``manifest.images[3].label.image.digest``.
+reads as a path, for example ``manifest.images[3].annotation.image.digest``.
 """
 
 from __future__ import annotations

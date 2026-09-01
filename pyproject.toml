@@ -1,7 +1,7 @@
 [project]
 name = "vitroflow"
 version = "0.1.0"
-description = "Seed counting for petri-dish photographs"
+description = "Seed counting and annotation for Petri-dish images"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -38,7 +38,7 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 addopts = "-m 'not reference'"
 markers = [
-  "reference: requires the checksum-pinned private reference photographs",
+  "reference: requires the checksum-pinned private reference images",
 ]
 
 [tool.pyright]

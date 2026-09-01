@@ -15,7 +15,7 @@
   --sidebar-width-collapsed: 48px;
 }
 
-/* The shell is the viewport. Photograph screens stretch inside the main
+/* The shell is the viewport. Image screens stretch inside the main
    column, so that column is a flex parent. */
 [data-app-layout].sidebar__provider,
 [data-app-layout][data-scroll-mode="content"] {

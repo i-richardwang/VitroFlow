@@ -15,7 +15,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { ExperimentDish } from "../../experiments/contracts";
+import type { ObservationUnit } from "../../experiments/contracts";
 import {
   formatFactors,
   treatmentNameSchema,
@@ -23,7 +23,7 @@ import {
   type TreatmentFactor,
 } from "../../experiments/schema";
 import {
-  createDishes,
+  createObservationUnits,
   createTreatment,
   createTreatmentReplicates,
   editTreatment,
@@ -37,14 +37,14 @@ import { TreatmentDot } from "./TreatmentDot";
 export function DesignDialog({
   experiment,
   treatments,
-  dishes,
+  observationUnits,
   designLocked,
   isOpen,
   onClose,
 }: {
   experiment: string;
   treatments: Treatment[];
-  dishes: ExperimentDish[];
+  observationUnits: ObservationUnit[];
   designLocked: boolean;
   isOpen: boolean;
   onClose: () => void;
@@ -61,7 +61,9 @@ export function DesignDialog({
   };
 
   const replicatesOf = (treatment: string) =>
-    dishes.filter((dish) => dish.treatment === treatment);
+    observationUnits.filter(
+      (observationUnit) => observationUnit.treatment === treatment,
+    );
 
   return (
     <>
@@ -81,8 +83,8 @@ export function DesignDialog({
                 <Modal.Heading>Design</Modal.Heading>
                 <Description>
                   {designLocked
-                    ? "Fixed when the first observation was created."
-                    : "Each dish is one independent replicate; explants within it are subsamples."}
+                    ? "Treatment definitions, assignments, and initial explant counts were fixed by the first observation."
+                    : "Each observation unit is one independent replicate; explants within it are subsamples."}
                 </Description>
               </Modal.Header>
               <Modal.Body
@@ -121,7 +123,7 @@ export function DesignDialog({
                                 initialExplantCount,
                               },
                             }),
-                          "Dishes not added",
+                          "Observation units not added",
                         );
                       }}
                       onCancel={() => setEditing(null)}
@@ -157,21 +159,23 @@ export function DesignDialog({
                         return result.ok;
                       }}
                     />
-                    <UnassignedDishes
+                    <UnassignedObservationUnits
                       busy={busy}
-                      dishes={dishes.filter((dish) => dish.treatment === null)}
-                      onSubmit={async (labels, initialExplantCount) => {
+                      observationUnits={observationUnits.filter(
+                        (observationUnit) => observationUnit.treatment === null,
+                      )}
+                      onSubmit={async (codes, initialExplantCount) => {
                         const result = await mutate(
                           () =>
-                            createDishes({
+                            createObservationUnits({
                               data: {
                                 experiment,
                                 treatment: null,
-                                labels,
+                                codes,
                                 initialExplantCount,
                               },
                             }),
-                          "Dishes not added",
+                          "Observation units not added",
                         );
                         return result.ok;
                       }}
@@ -196,8 +200,8 @@ export function DesignDialog({
           await router.invalidate();
         }}
       >
-        Its dishes stay in the experiment without a condition. No photographs or
-        reviews are removed.
+        Its observation units stay in the experiment without a treatment. No
+        images or reviews are removed.
       </DeleteDialog>
     </>
   );
@@ -224,10 +228,12 @@ function TreatmentRow({
         {treatment.name}
       </span>
       <span className="min-w-0 flex-1 truncate text-muted">
-        {condition || "Reference condition"}
+        {condition || "No treatment factors specified"}
       </span>
       <Chip size="sm" variant="soft" className="tabular-nums">
-        {replicates === 1 ? "1 dish" : `${replicates} dishes`}
+        {replicates === 1
+          ? "1 observation unit"
+          : `${replicates} observation units`}
       </Chip>
       {onEdit ? (
         <Button
@@ -347,7 +353,7 @@ function TreatmentEditor({
               isDisabled={busy}
               onPress={() => void onAddReplicates(adding, initialExplantCount)}
             >
-              Lay out
+              Add
             </Button>
             <NumberField
               className="w-36 shrink-0"
@@ -358,7 +364,7 @@ function TreatmentEditor({
               value={initialExplantCount}
               onChange={setInitialExplantCount}
             >
-              <Label>Explants / dish</Label>
+              <Label>Initial explants per unit</Label>
               <NumberField.Group>
                 <NumberField.DecrementButton />
                 <NumberField.Input />
@@ -367,8 +373,8 @@ function TreatmentEditor({
             </NumberField>
             <span className="pb-2 text-sm text-muted">
               {replicates === 1
-                ? "1 dish so far"
-                : `${replicates} dishes so far`}
+                ? "1 observation unit so far"
+                : `${replicates} observation units so far`}
             </span>
           </div>
         </Fieldset.Group>
@@ -462,7 +468,7 @@ function NewTreatmentForm({
               value={initialExplantCount}
               onChange={setInitialExplantCount}
             >
-              <Label>Explants / dish</Label>
+              <Label>Initial explants per unit</Label>
               <NumberField.Group>
                 <NumberField.DecrementButton />
                 <NumberField.Input />
@@ -477,34 +483,34 @@ function NewTreatmentForm({
   );
 }
 
-function UnassignedDishes({
+function UnassignedObservationUnits({
   busy,
-  dishes,
+  observationUnits,
   onSubmit,
 }: {
   busy: boolean;
-  dishes: ExperimentDish[];
-  onSubmit: (labels: string[], initialExplantCount: number) => Promise<boolean>;
+  observationUnits: ObservationUnit[];
+  onSubmit: (codes: string[], initialExplantCount: number) => Promise<boolean>;
 }) {
-  const [labels, setLabels] = useState("");
+  const [codes, setCodes] = useState("");
   const [initialExplantCount, setInitialExplantCount] = useState(1);
-  const parsed = labels
+  const parsedCodes = codes
     .split(/[\n,]/)
-    .map((label) => label.trim())
+    .map((code) => code.trim())
     .filter(Boolean);
 
   return (
     <Form
       onSubmit={(event) => {
         event.preventDefault();
-        if (parsed.length === 0) return;
-        void onSubmit(parsed, initialExplantCount).then((ok) => {
+        if (parsedCodes.length === 0) return;
+        void onSubmit(parsedCodes, initialExplantCount).then((ok) => {
           if (!ok) return;
-          setLabels("");
+          setCodes("");
           toast.success(
-            parsed.length === 1
-              ? "1 dish added"
-              : `${parsed.length} dishes added`,
+            parsedCodes.length === 1
+              ? "1 observation unit added"
+              : `${parsedCodes.length} observation units added`,
           );
         });
       }}
@@ -516,16 +522,16 @@ function UnassignedDishes({
               variant="secondary"
               className="min-w-0 flex-1"
               isDisabled={busy}
-              value={labels}
-              onChange={setLabels}
+              value={codes}
+              onChange={setCodes}
             >
-              <Label>Dishes without a treatment</Label>
+              <Label>Observation units without a treatment</Label>
               <Input placeholder="CK-1, CK-2" />
             </TextField>
             <Button
               type="submit"
               variant="secondary"
-              isDisabled={busy || parsed.length === 0}
+              isDisabled={busy || parsedCodes.length === 0}
             >
               Add
             </Button>
@@ -538,7 +544,7 @@ function UnassignedDishes({
               value={initialExplantCount}
               onChange={setInitialExplantCount}
             >
-              <Label>Explants / dish</Label>
+              <Label>Initial explants per unit</Label>
               <NumberField.Group>
                 <NumberField.DecrementButton />
                 <NumberField.Input />
@@ -546,9 +552,11 @@ function UnassignedDishes({
               </NumberField.Group>
             </NumberField>
           </div>
-          {dishes.length > 0 ? (
+          {observationUnits.length > 0 ? (
             <span className="text-sm text-muted">
-              {dishes.map((dish) => dish.label).join(", ")}
+              {observationUnits
+                .map((observationUnit) => observationUnit.code)
+                .join(", ")}
             </span>
           ) : null}
         </Fieldset.Group>

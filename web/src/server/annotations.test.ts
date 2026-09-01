@@ -2,59 +2,63 @@ import { describe, expect, test } from "bun:test";
 
 import { documentFromDetection } from "../annotation/detection";
 import { database } from "../db/client";
-import { labels } from "../db/schema";
+import { annotations } from "../db/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
+import {
+  createAnnotationFromDetection,
+  readAnnotation,
+  updateAnnotation,
+} from "./annotations";
 import {
   imageDigest,
-  photographObservation,
+  observeImages,
   resultFor,
   testHeartbeat,
 } from "./testing";
 
-describe("labels", () => {
+describe("annotations", () => {
   test("starts from a successful inference and updates with revision checks", async () => {
-    const { version } = await photographObservation("labels", ["lb-a"]);
+    const { version } = await observeImages("annotations", ["lb-a"]);
     const digest = await imageDigest("lb-a");
     const result = await resultFor(version, "lb-a");
     await recordInferenceOutcome({ versionId: version.id, digest }, result, {
-      runtimes: testHeartbeat("labels-worker").runtimes,
+      runtimes: testHeartbeat("annotations-worker").runtimes,
     });
-    const ref = { digest, model: version.modelId };
+    const ref = { digest, modelId: version.modelId };
 
-    expect(await readLabel(ref)).toBeNull();
-    const created = await createLabelFromDetection(ref, version.id);
+    expect(await readAnnotation(ref)).toBeNull();
+    const created = await createAnnotationFromDetection(ref, version.id);
     expect(created).toEqual({ ...documentFromDetection(result), revision: 0 });
-    await expect(createLabelFromDetection(ref, version.id)).rejects.toThrow(
-      /already exists/,
-    );
+    await expect(
+      createAnnotationFromDetection(ref, version.id),
+    ).rejects.toThrow(/already exists/);
 
-    const updated = await updateLabel(ref, {
+    const updated = await updateAnnotation(ref, {
       ...created,
       source: { ...created.source, artifactDigest: "f".repeat(64) },
       instances: [],
     });
     expect(updated.revision).toBe(1);
     expect(updated.source).toEqual(created.source);
-    expect((await readLabel(ref))?.instances).toEqual([]);
-    await expect(updateLabel(ref, created)).rejects.toThrow(/stale/);
+    expect((await readAnnotation(ref))?.instances).toEqual([]);
+    await expect(updateAnnotation(ref, created)).rejects.toThrow(/stale/);
   });
 
   test("cannot start before the requested version succeeds", async () => {
-    const { version } = await photographObservation("label-missing-outcome", [
+    const { version } = await observeImages("annotation-missing-outcome", [
       "missing-outcome",
     ]);
     const ref = {
       digest: await imageDigest("missing-outcome"),
-      model: version.modelId,
+      modelId: version.modelId,
     };
-    await expect(createLabelFromDetection(ref, version.id)).rejects.toThrow(
-      /has not detected/,
-    );
+    await expect(
+      createAnnotationFromDetection(ref, version.id),
+    ).rejects.toThrow(/has not detected/);
   });
 
-  test("the database rejects a label without its successful inference", async () => {
-    const { version } = await photographObservation("label-db-outcome", [
+  test("the database rejects an annotation without its successful inference", async () => {
+    const { version } = await observeImages("annotation-db-outcome", [
       "db-outcome",
     ]);
     const digest = await imageDigest("db-outcome");
@@ -62,7 +66,7 @@ describe("labels", () => {
 
     await expect(
       (await database())
-        .insert(labels)
+        .insert(annotations)
         .values({
           imageId: digest,
           modelId: version.modelId,
@@ -73,8 +77,8 @@ describe("labels", () => {
     ).rejects.toThrow();
   });
 
-  test("the database rejects a label backed only by a failed inference", async () => {
-    const { version } = await photographObservation("label-db-failure", [
+  test("the database rejects an annotation backed only by a failed inference", async () => {
+    const { version } = await observeImages("annotation-db-failure", [
       "db-failure",
     ]);
     const digest = await imageDigest("db-failure");
@@ -87,12 +91,12 @@ describe("labels", () => {
         producer: successfulShape.producer,
         error: "runtime failed",
       },
-      { runtimes: testHeartbeat("labels-failure-worker").runtimes },
+      { runtimes: testHeartbeat("annotations-failure-worker").runtimes },
     );
 
     await expect(
       (await database())
-        .insert(labels)
+        .insert(annotations)
         .values({
           imageId: digest,
           modelId: version.modelId,

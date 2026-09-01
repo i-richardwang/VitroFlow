@@ -3,7 +3,7 @@ import { z } from "zod";
 import { annotationSchema } from "../annotation/schema";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { classListSchema } from "../models/readings";
+import { classListSchema } from "../models/metrics";
 import { trainingParametersSchema } from "./parameters";
 
 /** A snapshot needs one training and one validation image. */

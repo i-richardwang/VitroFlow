@@ -3,18 +3,21 @@ import { Alert, Button, Link, Toolbar, Tooltip } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
-import type { LabelInstance } from "../../annotation/schema";
+import type { AnnotationInstance } from "../../annotation/schema";
 import { isCompletedReview } from "../../annotation/status";
-import { observationLabel, type PhotoRef } from "../../experiments/schema";
-import { DISH_EVENT_LABELS } from "../../experiments/dish-events";
-import { retryPhotoDetection } from "../../functions/experiments";
+import {
+  observationLabel,
+  type ObservationImageRef,
+} from "../../experiments/schema";
+import { CULTURE_EVENT_LABELS } from "../../experiments/culture-events";
+import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { tally } from "../../models/readings";
+import { tally } from "../../models/metrics";
 import { versionSlug } from "../../models/schema";
 import type {
-  DishStep,
-  ExperimentDishSeries,
-  ExperimentPhoto,
+  ObservationUnitNavigationEntry,
+  ObservationUnitSeries,
+  ExperimentObservationImage,
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
@@ -25,31 +28,41 @@ import type { LayerKey } from "../workbench/controls";
 import {
   LayersSection,
   Metrics,
-  ReadingsSection,
+  MetricsSection,
   Section,
 } from "../workbench/inspector";
-import { PhotoMenu } from "./PhotoMenu";
-import { PhotoStateChip } from "./PhotoState";
+import { ObservationImageMenu } from "./ObservationImageMenu";
+import { ImageAnalysisStateChip } from "./ImageAnalysisStateChip";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 const VIEW_LAYERS: LayerKey[] = ["boxes", "ids", "dish"];
 
-export function DishWorkbench({
+export function ObservationUnitWorkbench({
   series,
   datasets,
 }: {
-  series: ExperimentDishSeries;
+  series: ObservationUnitSeries;
   datasets: string[];
 }) {
-  const { experiment, model, version, dish, treatment, roster, shown } = series;
-  const at = roster.findIndex((item) => item.id === dish.id);
+  const {
+    experiment,
+    model,
+    version,
+    observationUnit,
+    treatment,
+    navigation,
+    shown,
+  } = series;
+  const at = navigation.findIndex((item) => item.id === observationUnit.id);
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(DEFAULT_LAYERS),
   );
   const detection = shown?.detection ?? null;
   const completedReview =
-    shown?.label && isCompletedReview(shown.label) ? shown.label : null;
-  const instances: LabelInstance[] =
+    shown?.annotation && isCompletedReview(shown.annotation)
+      ? shown.annotation
+      : null;
+  const instances: AnnotationInstance[] =
     completedReview?.instances ??
     detection?.instances.map(({ id, class: className, bbox }) => ({
       id,
@@ -57,22 +70,22 @@ export function DishWorkbench({
       bbox,
     })) ??
     [];
-  const latestEvent = [...dish.events]
+  const latestEvent = [...observationUnit.events]
     .reverse()
     .find((event) => event.voidedAt === null);
 
   return (
     <Workbench
-      title={`Dish ${dish.label} of ${experiment.name}`}
+      title={`Observation unit ${observationUnit.code} of ${experiment.name}`}
       actions={
         shown ? (
           <>
             {detection && <QualityWarnings quality={detection.quality} />}
-            {(detection || shown.label) && <ReviewButton photo={shown} />}
-            <AddToDatasetButton photos={[shown.ref]} datasets={datasets} />
-            <PhotoMenu
-              photo={shown}
-              roster={roster}
+            {(detection || shown.annotation) && <ReviewButton image={shown} />}
+            <AddToDatasetButton images={[shown.ref]} datasets={datasets} />
+            <ObservationImageMenu
+              image={shown}
+              navigation={navigation}
               observations={series.observations.map((item) => item.observation)}
             />
           </>
@@ -80,13 +93,13 @@ export function DishWorkbench({
       }
       toolbar={
         <Toolbar
-          aria-label="Dish and observation"
+          aria-label="Observation unit and observation"
           className="gap-3 px-3 py-1.5"
         >
-          <DishStepper
+          <ObservationUnitStepper
             experiment={experiment.id}
-            previous={roster[at - 1] ?? null}
-            next={roster[at + 1] ?? null}
+            previous={navigation[at - 1] ?? null}
+            next={navigation[at + 1] ?? null}
           />
           <ObservationTabs
             series={series}
@@ -98,8 +111,8 @@ export function DishWorkbench({
         shown ? (
           <>
             {(completedReview || detection) && (
-              <ReadingsSection
-                readings={model.readings}
+              <MetricsSection
+                metrics={model.metrics}
                 sources={[
                   ...(completedReview
                     ? [
@@ -121,10 +134,12 @@ export function DishWorkbench({
               />
             )}
             <Section
-              title="Photograph"
+              title="Image"
               trailing={
                 shown.failure ? null : (
-                  <PhotoStateChip state={detection ? "observed" : "pending"} />
+                  <ImageAnalysisStateChip
+                    state={detection ? "analyzed" : "pending"}
+                  />
                 )
               }
             >
@@ -137,10 +152,10 @@ export function DishWorkbench({
                     ),
                   },
                   {
-                    label: "Dish",
+                    label: "Observation unit",
                     value: latestEvent ? (
                       <span className="text-warning">
-                        {DISH_EVENT_LABELS[latestEvent.type]}
+                        {CULTURE_EVENT_LABELS[latestEvent.type]}
                       </span>
                     ) : (
                       "Active"
@@ -148,11 +163,11 @@ export function DishWorkbench({
                   },
                   {
                     label: "Initial explants",
-                    value: dish.initialExplantCount,
+                    value: observationUnit.initialExplantCount,
                   },
                   { label: "File", value: shown.filename },
                   {
-                    label: "Observed",
+                    label: "Observation date",
                     value: `${observationLabel(shown.observation)} · ${shown.observation.observedOn}`,
                   },
                   { label: "Version", value: versionSlug(version) },
@@ -165,7 +180,7 @@ export function DishWorkbench({
                     <Alert.Title>Detection failed</Alert.Title>
                     <Alert.Description>{shown.failure.error}</Alert.Description>
                   </Alert.Content>
-                  <RetryButton photo={shown.ref} />
+                  <RetryButton image={shown.ref} />
                 </Alert>
               ) : null}
             </Section>
@@ -194,9 +209,10 @@ export function DishWorkbench({
         <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
           <EmptyState>
             <EmptyState.Header>
-              <EmptyState.Title>Not photographed yet</EmptyState.Title>
+              <EmptyState.Title>No image yet</EmptyState.Title>
               <EmptyState.Description>
-                No observation has a photograph of dish {dish.label}.
+                No observation has an image of observation unit{" "}
+                {observationUnit.code}.
               </EmptyState.Description>
             </EmptyState.Header>
           </EmptyState>
@@ -210,10 +226,10 @@ function ObservationTabs({
   series,
   shown,
 }: {
-  series: ExperimentDishSeries;
+  series: ObservationUnitSeries;
   shown: string | null;
 }) {
-  const base = `/experiments/${series.experiment.id}/${series.dish.id}`;
+  const base = `/experiments/${series.experiment.id}/${series.observationUnit.id}`;
   return (
     <nav aria-label="Observations" className="flex items-center gap-1">
       {series.observations.map((item) => {
@@ -223,7 +239,7 @@ function ObservationTabs({
             ? "bg-accent font-medium text-accent-foreground"
             : "text-muted hover:bg-default"
         }`;
-        return item.photo ? (
+        return item.image ? (
           <Link
             key={item.observation.id}
             href={`${base}?observation=${item.observation.id}`}
@@ -246,32 +262,32 @@ function ObservationTabs({
   );
 }
 
-function DishStepper({
+function ObservationUnitStepper({
   experiment,
   previous,
   next,
 }: {
   experiment: string;
-  previous: DishStep | null;
-  next: DishStep | null;
+  previous: ObservationUnitNavigationEntry | null;
+  next: ObservationUnitNavigationEntry | null;
 }) {
   const router = useRouter();
-  const go = (dish: string) =>
+  const go = (observationUnit: string) =>
     void router.navigate({
-      to: "/experiments/$experiment/$dish",
-      params: { experiment, dish },
+      to: "/experiments/$experiment/$observationUnit",
+      params: { experiment, observationUnit },
     });
   return (
     <span className="flex items-center">
-      <DishStepButton
-        label="Previous dish"
-        dish={previous}
+      <ObservationUnitStepButton
+        label="Previous observation unit"
+        observationUnit={previous}
         onPress={go}
         icon={<ChevronLeftIcon />}
       />
-      <DishStepButton
-        label="Next dish"
-        dish={next}
+      <ObservationUnitStepButton
+        label="Next observation unit"
+        observationUnit={next}
         onPress={go}
         icon={<ChevronRightIcon />}
       />
@@ -279,15 +295,15 @@ function DishStepper({
   );
 }
 
-function DishStepButton({
+function ObservationUnitStepButton({
   label,
-  dish,
+  observationUnit,
   onPress,
   icon,
 }: {
   label: string;
-  dish: DishStep | null;
-  onPress: (dish: string) => void;
+  observationUnit: ObservationUnitNavigationEntry | null;
+  onPress: (observationUnit: string) => void;
   icon: ReactNode;
 }) {
   const button = (
@@ -296,22 +312,22 @@ function DishStepButton({
       size="sm"
       isIconOnly
       aria-label={label}
-      isDisabled={dish === null}
-      onPress={() => dish && onPress(dish.id)}
+      isDisabled={observationUnit === null}
+      onPress={() => observationUnit && onPress(observationUnit.id)}
     >
       {icon}
     </Button>
   );
-  if (dish === null) return button;
+  if (observationUnit === null) return button;
   return (
     <Tooltip delay={0}>
       {button}
-      <Tooltip.Content>{dish.label}</Tooltip.Content>
+      <Tooltip.Content>{observationUnit.code}</Tooltip.Content>
     </Tooltip>
   );
 }
 
-function ReviewButton({ photo }: { photo: ExperimentPhoto }) {
+function ReviewButton({ image }: { image: ExperimentObservationImage }) {
   const router = useRouter();
   return (
     <Button
@@ -319,17 +335,17 @@ function ReviewButton({ photo }: { photo: ExperimentPhoto }) {
       onPress={() => {
         void router.navigate({
           to: "/review/$model/$digest",
-          params: { model: photo.modelId, digest: photo.digest },
-          search: { version: photo.modelVersionId },
+          params: { model: image.modelId, digest: image.digest },
+          search: { version: image.modelVersionId },
         });
       }}
     >
-      {photo.label ? "Open review" : "Review"}
+      {image.annotation ? "Open review" : "Review"}
     </Button>
   );
 }
 
-function RetryButton({ photo }: { photo: PhotoRef }) {
+function RetryButton({ image }: { image: ObservationImageRef }) {
   const router = useRouter();
   const action = useAsyncAction();
   return (
@@ -338,8 +354,8 @@ function RetryButton({ photo }: { photo: PhotoRef }) {
       isDisabled={action.busy}
       onPress={async () => {
         const result = await action.run(
-          () => retryPhotoDetection({ data: photo }),
-          "Could not retry detection",
+          () => retryObservationImageAnalysis({ data: image }),
+          "Could not retry image analysis",
         );
         if (result.ok) await router.invalidate();
       }}

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { createLabelFromDetection } from "./labels";
+import { createAnnotationFromDetection } from "./annotations";
 import { readReview } from "./review";
 import {
   TEST_RUNTIME,
   ULTRALYTICS_RUNTIME,
-  photographObservation,
+  observeImages,
   registerTestModel,
   registerTrainedVersion,
   resultFor,
@@ -19,11 +19,11 @@ test("a review starts from the version the reviewer arrived from", async () => {
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
   });
-  const first = await photographObservation("review v1", ["rv"]);
+  const first = await observeImages("review v1", ["rv"]);
   const next = await registerTrainedVersion(first.version.modelId, "review-v2");
-  await photographObservation("review v2", ["rv"], next);
+  await observeImages("review v2", ["rv"], next);
   const digest = first.digests[0]!;
-  const ref = { digest, model: first.version.modelId };
+  const ref = { digest, modelId: first.version.modelId };
   const older = await resultFor(first.version, "rv");
   const newer = await resultFor(next, "rv", ULTRALYTICS_RUNTIME);
   await recordInferenceOutcome(
@@ -44,15 +44,13 @@ test("a review starts from the version the reviewer arrived from", async () => {
     name: "Other task",
     task: "object_detection",
     classes: ["seed"],
-    readings: [
-      { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
-    ],
+    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   const foreign = await registerTrainedVersion("review-other");
   expect(await readReview(ref, foreign.id)).toBeNull();
   expect(await readReview(ref, "review-nowhere")).toBeNull();
 
-  await createLabelFromDetection(ref, first.version.id);
+  await createAnnotationFromDetection(ref, first.version.id);
   expect((await readReview(ref, next.id))?.detection).toEqual(older);
   expect((await readReview(ref))?.detection).toEqual(older);
 });

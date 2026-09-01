@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
-import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
+import {
+  createAnnotationFromDetection,
+  readAnnotation,
+  updateAnnotation,
+} from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { datasetOverview } from "./dataset-overview";
 import { trainingOverview } from "./training-console";
@@ -32,9 +36,9 @@ test("the overview derives review progress and training readiness", async () => 
       await resultFor(version, name),
       worker,
     );
-    const ref = { digest, model: version.modelId };
-    const started = await createLabelFromDetection(ref, version.id);
-    await updateLabel(ref, { ...started, status: "complete" });
+    const ref = { digest, modelId: version.modelId };
+    const started = await createAnnotationFromDetection(ref, version.id);
+    await updateAnnotation(ref, { ...started, status: "complete" });
   }
 
   let overview = await datasetOverview("overview", at);
@@ -79,10 +83,10 @@ test("the overview derives review progress and training readiness", async () => 
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workersOnline).toBe(1);
 
-  const a = { digest: await imageDigest("ov-a"), model: version.modelId };
-  const label = await readLabel(a);
-  if (!label) throw new Error("missing label");
-  await updateLabel(a, label);
+  const a = { digest: await imageDigest("ov-a"), modelId: version.modelId };
+  const annotation = await readAnnotation(a);
+  if (!annotation) throw new Error("missing annotation");
+  await updateAnnotation(a, annotation);
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);

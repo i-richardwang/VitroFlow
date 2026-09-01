@@ -14,7 +14,7 @@ import { initialBoxSide, instanceFromBox } from "../../annotation/detection";
 import type {
   BoundingBox,
   ImageSize,
-  LabelInstance,
+  AnnotationInstance,
 } from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
 import {
@@ -67,7 +67,7 @@ export interface Editing {
   className: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  onInstancesChange: (instances: LabelInstance[]) => void;
+  onInstancesChange: (instances: AnnotationInstance[]) => void;
 }
 
 export function AnnotationCanvas({
@@ -81,7 +81,7 @@ export function AnnotationCanvas({
   image: ImageSize & { digest: string };
   filename: string;
   result: DetectionResult | null;
-  instances: LabelInstance[];
+  instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
   editing?: Editing;
 }) {

@@ -152,7 +152,7 @@ function DatasetPage() {
                     </EmptyState.Title>
                     <EmptyState.Description>
                       {images.length === 0
-                        ? "Add photographs from an experiment."
+                        ? "Add observation images from an experiment."
                         : "Choose another filter to see images."}
                     </EmptyState.Description>
                   </EmptyState.Header>
@@ -222,8 +222,8 @@ function RemoveImageButton({
           await router.invalidate();
         }}
       >
-        The photograph leaves {dataset}. Its review stays with the photograph
-        and returns with it.
+        The image leaves {dataset}. Its review stays with the image and returns
+        with it.
       </DeleteDialog>
     </>
   );

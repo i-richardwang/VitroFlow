@@ -41,11 +41,13 @@ function ExperimentsPage() {
               <Table.Column>Inoculated</Table.Column>
               <Table.Column>Version</Table.Column>
               <Table.Column className="text-right">Treatments</Table.Column>
-              <Table.Column className="text-right">Dishes</Table.Column>
+              <Table.Column className="text-right">
+                Observation units
+              </Table.Column>
               <Table.Column className="text-right">Observations</Table.Column>
               <Table.Column className="text-right">Pending</Table.Column>
               <Table.Column className="text-right">Failed</Table.Column>
-              <Table.Column className="text-right">Observed</Table.Column>
+              <Table.Column className="text-right">Analyzed</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -64,7 +66,7 @@ function ExperimentsPage() {
                   experiment,
                   version,
                   treatments,
-                  dishes,
+                  observationUnits,
                   observations,
                   counts,
                 }) => (
@@ -77,7 +79,7 @@ function ExperimentsPage() {
                       {experiment.name}
                     </Table.Cell>
                     <Table.Cell className="truncate text-muted">
-                      {experiment.material || "—"}
+                      {experiment.plantMaterial || "—"}
                     </Table.Cell>
                     <Table.Cell className="text-muted">
                       {experiment.inoculatedOn}
@@ -89,7 +91,7 @@ function ExperimentsPage() {
                       {treatments}
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                      {dishes}
+                      {observationUnits}
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums text-muted">
                       {observations}
@@ -101,7 +103,7 @@ function ExperimentsPage() {
                       <Count value={counts.failed} />
                     </Table.Cell>
                     <Table.Cell className="text-right font-mono tabular-nums">
-                      <Count value={counts.observed} />
+                      <Count value={counts.analyzed} />
                     </Table.Cell>
                   </Table.Row>
                 ),

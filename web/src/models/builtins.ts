@@ -29,7 +29,7 @@ export const SEED_DETECTOR = modelSchema.parse({
   name: "Seed detector",
   task: "object_detection",
   classes: ["seed"],
-  readings: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
+  metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
 });
 
 export const SEED_DETECTOR_BASELINE = modelVersionSchema.parse({

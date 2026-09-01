@@ -8,12 +8,29 @@ from conftest import annotation_document, manifest_document, manifest_entry
 
 from vitroflow.annotations import load_annotations
 from vitroflow.dataset_pull import DatasetPullError, PullReport, pull_dataset
-from vitroflow.manifest import BlobError, blob_path, verified_blob
+from vitroflow.manifest import (
+    BlobError,
+    blob_path,
+    parse_dataset_manifest,
+    verified_blob,
+)
 
-IMAGE_A = b"photograph a"
-IMAGE_B = b"photograph b"
+IMAGE_A = b"image a"
+IMAGE_B = b"image b"
 DIGEST_A = hashlib.sha256(IMAGE_A).hexdigest()
 DIGEST_B = hashlib.sha256(IMAGE_B).hexdigest()
+CONTRACT_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "contracts" / "dataset-export.json"
+)
+
+
+def test_shared_dataset_export_contract() -> None:
+    dataset = parse_dataset_manifest(
+        json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
+    )
+
+    assert dataset.dataset == "seed-set"
+    assert dataset.images[0].annotation is not None
 
 
 def _export() -> dict[str, object]:
@@ -25,7 +42,7 @@ def _export() -> dict[str, object]:
                 size=len(IMAGE_A),
                 split="train",
                 detection={"schema_version": 1, "note": "opaque"},
-                label=annotation_document(DIGEST_A, width=100, height=100),
+                annotation=annotation_document(DIGEST_A, width=100, height=100),
             ),
             manifest_entry(DIGEST_B, size=len(IMAGE_B)),
         ],
@@ -82,9 +99,9 @@ def test_pull_materializes_blobs_and_the_manifest(tmp_path: Path) -> None:
         f"/api/export/images/{DIGEST_B}",
     ]
     assert sorted(child.name for child in root.iterdir()) == ["blobs", "datasets"]
-    labelled = load_annotations(manifest)
-    assert [image.entry.digest for image in labelled] == [DIGEST_A]
-    assert labelled[0].entry.split == "train"
+    annotated = load_annotations(manifest)
+    assert [image.entry.digest for image in annotated] == [DIGEST_A]
+    assert annotated[0].entry.split == "train"
     assert verified_blob(root, DIGEST_A) == blob_path(root, DIGEST_A)
 
 

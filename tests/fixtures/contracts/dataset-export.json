@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "dataset": "seed-set",
+  "model": {
+    "id": "seed-detector",
+    "classes": ["seed"]
+  },
+  "images": [
+    {
+      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "width": 100,
+      "height": 80,
+      "filename": "seed.jpg",
+      "bytes": 4096,
+      "split": "train",
+      "detection": {
+        "schemaVersion": 1,
+        "image": {
+          "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 100,
+          "height": 80
+        },
+        "producer": {
+          "modelVersionId": "set.traditional-v1",
+          "artifactDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "runtime": {
+            "adapter": "traditional",
+            "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        },
+        "instances": [
+          {
+            "id": "seed-1",
+            "class": "seed",
+            "bbox": {
+              "x": 10,
+              "y": 20,
+              "width": 8,
+              "height": 6
+            },
+            "score": 0.9
+          }
+        ],
+        "quality": {
+          "status": "ok",
+          "warnings": []
+        }
+      },
+      "annotation": {
+        "schemaVersion": 1,
+        "image": {
+          "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 100,
+          "height": 80
+        },
+        "source": {
+          "modelVersionId": "set.traditional-v1",
+          "artifactDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "runtime": {
+            "adapter": "traditional",
+            "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        },
+        "status": "complete",
+        "revision": 2,
+        "instances": [
+          {
+            "id": "seed-1",
+            "class": "seed",
+            "bbox": {
+              "x": 10,
+              "y": 20,
+              "width": 8,
+              "height": 6
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { imageBlobKey, putImmutableBlob } from "./blobs";
 import { canonicalize, ImageSourceError } from "./image-ingest";
 import { lockImage } from "./image-lock";
 
-/** A canonical photograph held independently of every dataset. */
+/** A canonical image held independently of every dataset. */
 export interface StoredImage {
   digest: string;
   width: number;
@@ -14,7 +14,7 @@ export interface StoredImage {
 }
 
 /**
- * Stores one canonical photograph without assigning it to a dataset. The
+ * Stores one canonical image without assigning it to a dataset. The
  * digest lock is also used by Blob collection: after the immutable object is
  * visible, a committed Image row either roots it or a later sweep removes it.
  */

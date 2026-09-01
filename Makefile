@@ -19,7 +19,7 @@ check-image:
 	docker build --secret id=heroui_key,env=HEROUI_KEY --file Dockerfile.web --tag vitroflow-web:check .
 
 check-reference:
-	@test -n "$(REFERENCE_IMAGE_DIR)" || (echo "Set REFERENCE_IMAGE_DIR to the reference photograph directory" >&2; exit 2)
+	@test -n "$(REFERENCE_IMAGE_DIR)" || (echo "Set REFERENCE_IMAGE_DIR to the reference image directory" >&2; exit 2)
 	VITROFLOW_REFERENCE_IMAGE_DIR="$(REFERENCE_IMAGE_DIR)" uv run pytest --override-ini addopts='' -m reference tests/test_regression.py
 
 check-postgres:

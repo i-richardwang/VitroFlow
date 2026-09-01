@@ -2,23 +2,26 @@ import { and, asc, eq } from "drizzle-orm";
 
 import type { Executor } from "../db/client";
 import {
-  experimentDishEvents,
-  experimentDishes,
-  experimentPhotos,
+  experimentCultureEvents,
+  experimentObservationUnits,
+  experimentObservationImages,
   experimentObservations,
   experimentTreatments,
   experiments,
 } from "../db/schema";
-import type { ExperimentDish } from "../experiments/contracts";
-import { ExperimentNotFoundError } from "../experiments/errors";
+import type { ObservationUnit } from "../experiments/contracts";
+import {
+  ExperimentNotFoundError,
+  ObservationNotFoundError,
+} from "../experiments/errors";
 import {
   daysBetween,
-  dishEventSchema,
+  cultureEventSchema,
   experimentObservationSchema,
   experimentSchema,
   treatmentSchema,
   type Experiment,
-  type DishEvent,
+  type CultureEvent,
   type ExperimentObservation,
   type Treatment,
 } from "../experiments/schema";
@@ -27,9 +30,9 @@ export function toExperiment(row: typeof experiments.$inferSelect): Experiment {
   return experimentSchema.parse({
     id: row.id,
     name: row.name,
-    material: row.material,
-    explant: row.explant,
-    medium: row.medium,
+    plantMaterial: row.plantMaterial,
+    explantType: row.explantType,
+    baseMedium: row.baseMedium,
     notes: row.notes,
     inoculatedOn: row.inoculatedOn,
     modelVersionId: row.modelVersionId,
@@ -49,23 +52,25 @@ export function toTreatment(
   });
 }
 
-export type DishRecord = Omit<ExperimentDish, "position">;
+export type ObservationUnitRecord = Omit<ObservationUnit, "position">;
 
-export function toDish(
-  row: typeof experimentDishes.$inferSelect,
-  events: DishEvent[] = [],
-): DishRecord {
+export function toObservationUnit(
+  row: typeof experimentObservationUnits.$inferSelect,
+  events: CultureEvent[] = [],
+): ObservationUnitRecord {
   return {
     id: row.id,
-    label: row.label,
+    code: row.code,
     treatment: row.treatmentId,
     initialExplantCount: row.initialExplantCount,
     events,
   };
 }
 
-function toDishEvent(row: typeof experimentDishEvents.$inferSelect): DishEvent {
-  return dishEventSchema.parse({
+function toCultureEvent(
+  row: typeof experimentCultureEvents.$inferSelect,
+): CultureEvent {
+  return cultureEventSchema.parse({
     id: row.id,
     type: row.type,
     observation: row.observationId,
@@ -139,10 +144,13 @@ export function atTreatment(experimentId: string, treatmentId: string) {
   );
 }
 
-export function atDish(experimentId: string, dishId: string) {
+export function atObservationUnit(
+  experimentId: string,
+  observationUnitId: string,
+) {
   return and(
-    eq(experimentDishes.experimentId, experimentId),
-    eq(experimentDishes.id, dishId),
+    eq(experimentObservationUnits.experimentId, experimentId),
+    eq(experimentObservationUnits.id, observationUnitId),
   );
 }
 
@@ -153,58 +161,71 @@ export function atObservation(experimentId: string, observationId: string) {
   );
 }
 
-export async function listDishes(
+export async function listObservationUnits(
   experimentId: string,
   db: Executor,
-): Promise<DishRecord[]> {
+): Promise<ObservationUnitRecord[]> {
   const [rows, eventRows] = await Promise.all([
     db
       .select()
-      .from(experimentDishes)
-      .where(eq(experimentDishes.experimentId, experimentId))
-      .orderBy(asc(experimentDishes.label)),
+      .from(experimentObservationUnits)
+      .where(eq(experimentObservationUnits.experimentId, experimentId))
+      .orderBy(asc(experimentObservationUnits.code)),
     db
       .select()
-      .from(experimentDishEvents)
-      .where(eq(experimentDishEvents.experimentId, experimentId))
+      .from(experimentCultureEvents)
+      .where(eq(experimentCultureEvents.experimentId, experimentId))
       .orderBy(
-        asc(experimentDishEvents.recordedAt),
-        asc(experimentDishEvents.id),
+        asc(experimentCultureEvents.recordedAt),
+        asc(experimentCultureEvents.id),
       ),
   ]);
-  const byDish = new Map<string, DishEvent[]>();
+  const byObservationUnit = new Map<string, CultureEvent[]>();
   for (const row of eventRows) {
-    const events = byDish.get(row.dishId) ?? [];
-    events.push(toDishEvent(row));
-    byDish.set(row.dishId, events);
+    const events = byObservationUnit.get(row.observationUnitId) ?? [];
+    events.push(toCultureEvent(row));
+    byObservationUnit.set(row.observationUnitId, events);
   }
-  return rows.map((row) => toDish(row, byDish.get(row.id) ?? []));
+  return rows.map((row) =>
+    toObservationUnit(row, byObservationUnit.get(row.id) ?? []),
+  );
 }
 
 export async function listObservations(
   experiment: Experiment,
   db: Executor,
 ): Promise<ExperimentObservation[]> {
-  const [rows, photoRefs, eventRefs] = await Promise.all([
+  const [rows, observationImageRefs, eventRefs] = await Promise.all([
     db
       .select()
       .from(experimentObservations)
       .where(eq(experimentObservations.experimentId, experiment.id))
       .orderBy(asc(experimentObservations.observedOn)),
     db
-      .select({ observation: experimentPhotos.observationId })
-      .from(experimentPhotos)
-      .where(eq(experimentPhotos.experimentId, experiment.id)),
+      .select({ observation: experimentObservationImages.observationId })
+      .from(experimentObservationImages)
+      .where(eq(experimentObservationImages.experimentId, experiment.id)),
     db
-      .select({ observation: experimentDishEvents.observationId })
-      .from(experimentDishEvents)
-      .where(eq(experimentDishEvents.experimentId, experiment.id)),
+      .select({ observation: experimentCultureEvents.observationId })
+      .from(experimentCultureEvents)
+      .where(eq(experimentCultureEvents.experimentId, experiment.id)),
   ]);
   const recorded = new Set([
-    ...photoRefs.map((row) => row.observation),
+    ...observationImageRefs.map((row) => row.observation),
     ...eventRefs.map((row) => row.observation),
   ]);
   return rows.map((row, index) =>
     toObservation(row, experiment, index + 1, recorded.has(row.id)),
   );
+}
+
+export function requireObservation(
+  observations: ExperimentObservation[],
+  observationId: string,
+): ExperimentObservation {
+  const observation = observations.find((item) => item.id === observationId);
+  if (!observation) {
+    throw new ObservationNotFoundError(`Unknown observation: ${observationId}`);
+  }
+  return observation;
 }

@@ -1,3 +1,18 @@
+CREATE TABLE "annotations" (
+	"image_id" text NOT NULL,
+	"model_id" text NOT NULL,
+	"document" jsonb NOT NULL,
+	"updated_at" timestamp with time zone NOT NULL,
+	"status" text GENERATED ALWAYS AS (document->>'status') STORED NOT NULL,
+	"revision" integer GENERATED ALWAYS AS ((document->>'revision')::integer) STORED NOT NULL,
+	"source_model_version_id" text GENERATED ALWAYS AS (document->'source'->>'modelVersionId') STORED NOT NULL,
+	"source_artifact_digest" text GENERATED ALWAYS AS (document->'source'->>'artifactDigest') STORED NOT NULL,
+	CONSTRAINT "annotations_image_id_model_id_pk" PRIMARY KEY("image_id","model_id"),
+	CONSTRAINT "annotations_status_check" CHECK ("annotations"."status" in ('in_progress', 'complete', 'excluded')),
+	CONSTRAINT "annotations_revision_check" CHECK ("annotations"."revision" >= 0),
+	CONSTRAINT "annotations_image_check" CHECK (document->'image'->>'digest' = "annotations"."image_id")
+);
+--> statement-breakpoint
 CREATE TABLE "dataset_images" (
 	"dataset_id" text NOT NULL,
 	"image_id" text NOT NULL,
@@ -36,10 +51,10 @@ CREATE TABLE "datasets" (
 	CONSTRAINT "datasets_id_model" UNIQUE("id","model_id")
 );
 --> statement-breakpoint
-CREATE TABLE "experiment_dish_events" (
+CREATE TABLE "experiment_culture_events" (
 	"experiment_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
-	"dish_id" uuid NOT NULL,
+	"observation_unit_id" uuid NOT NULL,
 	"observation_id" uuid NOT NULL,
 	"type" text NOT NULL,
 	"exclude_from_observation" boolean NOT NULL,
@@ -48,23 +63,35 @@ CREATE TABLE "experiment_dish_events" (
 	"recorded_at" timestamp with time zone NOT NULL,
 	"voided_at" timestamp with time zone,
 	"void_reason" text NOT NULL,
-	CONSTRAINT "experiment_dish_events_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
-	CONSTRAINT "experiment_dish_events_note_check" CHECK ("experiment_dish_events"."note" = btrim("experiment_dish_events"."note") and length("experiment_dish_events"."note") <= 500),
-	CONSTRAINT "experiment_dish_events_type_check" CHECK ("experiment_dish_events"."type" in ('contaminated', 'dead', 'discarded', 'harvested', 'lost')),
-	CONSTRAINT "experiment_dish_events_void_check" CHECK (("experiment_dish_events"."voided_at" is null) = ("experiment_dish_events"."void_reason" = ''))
+	CONSTRAINT "experiment_culture_events_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
+	CONSTRAINT "experiment_culture_events_note_check" CHECK ("experiment_culture_events"."note" = btrim("experiment_culture_events"."note") and length("experiment_culture_events"."note") <= 500),
+	CONSTRAINT "experiment_culture_events_type_check" CHECK ("experiment_culture_events"."type" in ('contaminated', 'nonviable', 'discarded', 'harvested', 'missing')),
+	CONSTRAINT "experiment_culture_events_void_check" CHECK (("experiment_culture_events"."voided_at" is null) = ("experiment_culture_events"."void_reason" = ''))
 );
 --> statement-breakpoint
-CREATE TABLE "experiment_dishes" (
+CREATE TABLE "experiment_observation_images" (
 	"experiment_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
-	"label" text NOT NULL,
-	"label_key" text GENERATED ALWAYS AS (trim(both '-' from lower(regexp_replace(normalize(label, NFKC), '[-[:space:]._]+', '-', 'g')))) STORED NOT NULL,
+	"observation_unit_id" uuid NOT NULL,
+	"observation_id" uuid NOT NULL,
+	"image_id" text NOT NULL,
+	"filename" text NOT NULL,
+	CONSTRAINT "experiment_observation_images_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
+	CONSTRAINT "experiment_observation_images_cell" UNIQUE("experiment_id","observation_unit_id","observation_id"),
+	CONSTRAINT "experiment_observation_images_image" UNIQUE("experiment_id","image_id")
+);
+--> statement-breakpoint
+CREATE TABLE "experiment_observation_units" (
+	"experiment_id" uuid NOT NULL,
+	"id" uuid NOT NULL,
+	"code" text NOT NULL,
+	"code_key" text GENERATED ALWAYS AS (trim(both '-' from lower(regexp_replace(normalize(code, NFKC), '[-[:space:]._]+', '-', 'g')))) STORED NOT NULL,
 	"treatment_id" uuid,
 	"initial_explant_count" integer NOT NULL,
-	CONSTRAINT "experiment_dishes_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
-	CONSTRAINT "experiment_dishes_label" UNIQUE("experiment_id","label_key"),
-	CONSTRAINT "experiment_dishes_label_check" CHECK ("experiment_dishes"."label" = btrim("experiment_dishes"."label") and length("experiment_dishes"."label") between 1 and 60 and "experiment_dishes"."label_key" <> ''),
-	CONSTRAINT "experiment_dishes_initial_explant_count_check" CHECK ("experiment_dishes"."initial_explant_count" between 1 and 10000)
+	CONSTRAINT "experiment_observation_units_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
+	CONSTRAINT "experiment_observation_units_code" UNIQUE("experiment_id","code_key"),
+	CONSTRAINT "experiment_observation_units_code_check" CHECK ("experiment_observation_units"."code" = btrim("experiment_observation_units"."code") and length("experiment_observation_units"."code") between 1 and 60 and "experiment_observation_units"."code_key" <> ''),
+	CONSTRAINT "experiment_observation_units_initial_explant_count_check" CHECK ("experiment_observation_units"."initial_explant_count" between 1 and 10000)
 );
 --> statement-breakpoint
 CREATE TABLE "experiment_observations" (
@@ -78,18 +105,6 @@ CREATE TABLE "experiment_observations" (
 	CONSTRAINT "experiment_observations_day" UNIQUE("experiment_id","observed_on"),
 	CONSTRAINT "experiment_observations_note_check" CHECK ("experiment_observations"."note" = btrim("experiment_observations"."note") and length("experiment_observations"."note") <= 500),
 	CONSTRAINT "experiment_observations_date_check" CHECK ("experiment_observations"."observed_on" >= "experiment_observations"."inoculated_on")
-);
---> statement-breakpoint
-CREATE TABLE "experiment_photos" (
-	"experiment_id" uuid NOT NULL,
-	"id" uuid NOT NULL,
-	"dish_id" uuid NOT NULL,
-	"observation_id" uuid NOT NULL,
-	"image_id" text NOT NULL,
-	"filename" text NOT NULL,
-	CONSTRAINT "experiment_photos_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
-	CONSTRAINT "experiment_photos_cell" UNIQUE("experiment_id","dish_id","observation_id"),
-	CONSTRAINT "experiment_photos_image" UNIQUE("experiment_id","image_id")
 );
 --> statement-breakpoint
 CREATE TABLE "experiment_treatments" (
@@ -112,18 +127,18 @@ CREATE TABLE "experiment_treatments" (
 CREATE TABLE "experiments" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
-	"material" text NOT NULL,
-	"explant" text NOT NULL,
-	"medium" text NOT NULL,
+	"plant_material" text NOT NULL,
+	"explant_type" text NOT NULL,
+	"base_medium" text NOT NULL,
 	"notes" text NOT NULL,
 	"inoculated_on" date NOT NULL,
 	"model_version_id" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "experiments_id_inoculated" UNIQUE("id","inoculated_on"),
 	CONSTRAINT "experiments_name_check" CHECK ("experiments"."name" = btrim("experiments"."name") and length("experiments"."name") between 1 and 120),
-	CONSTRAINT "experiments_material_check" CHECK ("experiments"."material" = btrim("experiments"."material") and length("experiments"."material") <= 120),
-	CONSTRAINT "experiments_explant_check" CHECK ("experiments"."explant" = btrim("experiments"."explant") and length("experiments"."explant") <= 120),
-	CONSTRAINT "experiments_medium_check" CHECK ("experiments"."medium" = btrim("experiments"."medium") and length("experiments"."medium") <= 200),
+	CONSTRAINT "experiments_plant_material_check" CHECK ("experiments"."plant_material" = btrim("experiments"."plant_material") and length("experiments"."plant_material") <= 120),
+	CONSTRAINT "experiments_explant_type_check" CHECK ("experiments"."explant_type" = btrim("experiments"."explant_type") and length("experiments"."explant_type") <= 120),
+	CONSTRAINT "experiments_base_medium_check" CHECK ("experiments"."base_medium" = btrim("experiments"."base_medium") and length("experiments"."base_medium") <= 200),
 	CONSTRAINT "experiments_notes_check" CHECK ("experiments"."notes" = btrim("experiments"."notes") and length("experiments"."notes") <= 2000)
 );
 --> statement-breakpoint
@@ -167,21 +182,6 @@ CREATE TABLE "inference_workers" (
 	"last_seen_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "labels" (
-	"image_id" text NOT NULL,
-	"model_id" text NOT NULL,
-	"document" jsonb NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	"status" text GENERATED ALWAYS AS (document->>'status') STORED NOT NULL,
-	"revision" integer GENERATED ALWAYS AS ((document->>'revision')::integer) STORED NOT NULL,
-	"source_model_version_id" text GENERATED ALWAYS AS (document->'source'->>'modelVersionId') STORED NOT NULL,
-	"source_artifact_digest" text GENERATED ALWAYS AS (document->'source'->>'artifactDigest') STORED NOT NULL,
-	CONSTRAINT "labels_image_id_model_id_pk" PRIMARY KEY("image_id","model_id"),
-	CONSTRAINT "labels_status_check" CHECK ("labels"."status" in ('in_progress', 'complete', 'excluded')),
-	CONSTRAINT "labels_revision_check" CHECK ("labels"."revision" >= 0),
-	CONSTRAINT "labels_image_check" CHECK (document->'image'->>'digest' = "labels"."image_id")
-);
---> statement-breakpoint
 CREATE TABLE "model_versions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"model_id" text NOT NULL,
@@ -213,7 +213,7 @@ CREATE TABLE "models" (
 	"name" text NOT NULL,
 	"task" text NOT NULL,
 	"classes" jsonb NOT NULL,
-	"readings" jsonb NOT NULL
+	"metrics" jsonb NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "training_epochs" (
@@ -272,6 +272,11 @@ CREATE TABLE "training_workers" (
 	"last_seen_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "annotations" ADD CONSTRAINT "annotations_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotations" ADD CONSTRAINT "annotations_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotations" ADD CONSTRAINT "annotations_source_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("source_model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotations" ADD CONSTRAINT "annotations_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk" FOREIGN KEY ("source_model_version_id","source_artifact_digest") REFERENCES "public"."model_versions"("id","artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotations" ADD CONSTRAINT "annotations_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk" FOREIGN KEY ("image_id","source_model_version_id","source_artifact_digest") REFERENCES "public"."inference_outcomes"("successful_image_id","successful_model_version_id","successful_artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dataset_images" ADD CONSTRAINT "dataset_images_dataset_id_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dataset_images" ADD CONSTRAINT "dataset_images_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dataset_snapshot_images" ADD CONSTRAINT "dataset_snapshot_images_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -280,25 +285,20 @@ ALTER TABLE "dataset_snapshot_images" ADD CONSTRAINT "dataset_snapshot_images_so
 ALTER TABLE "dataset_snapshot_images" ADD CONSTRAINT "dataset_snapshot_images_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk" FOREIGN KEY ("image_id","source_model_version_id","source_artifact_digest") REFERENCES "public"."inference_outcomes"("successful_image_id","successful_model_version_id","successful_artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dataset_snapshots" ADD CONSTRAINT "dataset_snapshots_dataset_id_model_id_datasets_id_model_id_fk" FOREIGN KEY ("dataset_id","model_id") REFERENCES "public"."datasets"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "datasets" ADD CONSTRAINT "datasets_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "experiment_dish_events" ADD CONSTRAINT "experiment_dish_events_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk" FOREIGN KEY ("experiment_id","dish_id") REFERENCES "public"."experiment_dishes"("experiment_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "experiment_dish_events" ADD CONSTRAINT "experiment_dish_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk" FOREIGN KEY ("experiment_id","observation_id") REFERENCES "public"."experiment_observations"("experiment_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "experiment_dishes" ADD CONSTRAINT "experiment_dishes_experiment_id_experiments_id_fk" FOREIGN KEY ("experiment_id") REFERENCES "public"."experiments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "experiment_dishes" ADD CONSTRAINT "experiment_dishes_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk" FOREIGN KEY ("experiment_id","treatment_id") REFERENCES "public"."experiment_treatments"("experiment_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_culture_events" ADD CONSTRAINT "experiment_culture_events_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk" FOREIGN KEY ("experiment_id","observation_unit_id") REFERENCES "public"."experiment_observation_units"("experiment_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_culture_events" ADD CONSTRAINT "experiment_culture_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk" FOREIGN KEY ("experiment_id","observation_id") REFERENCES "public"."experiment_observations"("experiment_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_observation_images" ADD CONSTRAINT "experiment_observation_images_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_observation_images" ADD CONSTRAINT "experiment_observation_images_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk" FOREIGN KEY ("experiment_id","observation_unit_id") REFERENCES "public"."experiment_observation_units"("experiment_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_observation_images" ADD CONSTRAINT "experiment_observation_images_experiment_id_observation_id_experiment_observations_experiment_id_id_fk" FOREIGN KEY ("experiment_id","observation_id") REFERENCES "public"."experiment_observations"("experiment_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_observation_units" ADD CONSTRAINT "experiment_observation_units_experiment_id_experiments_id_fk" FOREIGN KEY ("experiment_id") REFERENCES "public"."experiments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "experiment_observation_units" ADD CONSTRAINT "experiment_observation_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk" FOREIGN KEY ("experiment_id","treatment_id") REFERENCES "public"."experiment_treatments"("experiment_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "experiment_observations" ADD CONSTRAINT "experiment_observations_experiment_id_inoculated_on_experiments_id_inoculated_on_fk" FOREIGN KEY ("experiment_id","inoculated_on") REFERENCES "public"."experiments"("id","inoculated_on") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "experiment_photos" ADD CONSTRAINT "experiment_photos_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "experiment_photos" ADD CONSTRAINT "experiment_photos_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk" FOREIGN KEY ("experiment_id","dish_id") REFERENCES "public"."experiment_dishes"("experiment_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "experiment_photos" ADD CONSTRAINT "experiment_photos_experiment_id_observation_id_experiment_observations_experiment_id_id_fk" FOREIGN KEY ("experiment_id","observation_id") REFERENCES "public"."experiment_observations"("experiment_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "experiment_treatments" ADD CONSTRAINT "experiment_treatments_experiment_id_experiments_id_fk" FOREIGN KEY ("experiment_id") REFERENCES "public"."experiments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "experiments" ADD CONSTRAINT "experiments_model_version_id_model_versions_id_fk" FOREIGN KEY ("model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_outcomes" ADD CONSTRAINT "inference_outcomes_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_outcomes" ADD CONSTRAINT "inference_outcomes_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk" FOREIGN KEY ("model_version_id","artifact_digest") REFERENCES "public"."model_versions"("id","artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_workers" ADD CONSTRAINT "inference_workers_loaded_model_version_id_model_versions_id_fk" FOREIGN KEY ("loaded_model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_workers" ADD CONSTRAINT "inference_workers_current_image_id_images_id_fk" FOREIGN KEY ("current_image_id") REFERENCES "public"."images"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "labels" ADD CONSTRAINT "labels_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "labels" ADD CONSTRAINT "labels_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "labels" ADD CONSTRAINT "labels_source_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("source_model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "labels" ADD CONSTRAINT "labels_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk" FOREIGN KEY ("source_model_version_id","source_artifact_digest") REFERENCES "public"."model_versions"("id","artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "labels" ADD CONSTRAINT "labels_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk" FOREIGN KEY ("image_id","source_model_version_id","source_artifact_digest") REFERENCES "public"."inference_outcomes"("successful_image_id","successful_model_version_id","successful_artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_source_training_run_id_training_runs_id_fk" FOREIGN KEY ("source_training_run_id") REFERENCES "public"."training_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_source_dataset_snapshot_id_dataset_snapshots_id_fk" FOREIGN KEY ("source_dataset_snapshot_id") REFERENCES "public"."dataset_snapshots"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -308,20 +308,20 @@ ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_dataset_snapshot_id_mo
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk" FOREIGN KEY ("model_version_id","id","attempt","dataset_snapshot_id","model_id") REFERENCES "public"."model_versions"("id","source_training_run_id","source_training_attempt","source_dataset_snapshot_id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_workers" ADD CONSTRAINT "training_workers_current_training_run_id_training_runs_id_fk" FOREIGN KEY ("current_training_run_id") REFERENCES "public"."training_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "annotations_model_status_idx" ON "annotations" USING btree ("model_id","status");--> statement-breakpoint
 CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshot_images_image_idx" ON "dataset_snapshot_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshots_dataset_idx" ON "dataset_snapshots" USING btree ("dataset_id");--> statement-breakpoint
-CREATE INDEX "experiment_dish_events_dish_idx" ON "experiment_dish_events" USING btree ("experiment_id","dish_id","recorded_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "experiment_dish_events_one_active_kind" ON "experiment_dish_events" USING btree ("experiment_id","dish_id","observation_id","type") WHERE "experiment_dish_events"."voided_at" is null;--> statement-breakpoint
-CREATE INDEX "experiment_dishes_treatment_idx" ON "experiment_dishes" USING btree ("experiment_id","treatment_id");--> statement-breakpoint
+CREATE INDEX "experiment_culture_events_unit_idx" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","recorded_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "experiment_culture_events_one_active_kind" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","observation_id","type") WHERE "experiment_culture_events"."voided_at" is null;--> statement-breakpoint
+CREATE INDEX "experiment_observation_images_image_idx" ON "experiment_observation_images" USING btree ("image_id");--> statement-breakpoint
+CREATE INDEX "experiment_observation_units_treatment_idx" ON "experiment_observation_units" USING btree ("experiment_id","treatment_id");--> statement-breakpoint
 CREATE INDEX "experiment_observations_observed_idx" ON "experiment_observations" USING btree ("experiment_id","observed_on");--> statement-breakpoint
-CREATE INDEX "experiment_photos_image_idx" ON "experiment_photos" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "experiments_version_idx" ON "experiments" USING btree ("model_version_id");--> statement-breakpoint
 CREATE INDEX "images_received_idx" ON "images" USING btree ("received_at");--> statement-breakpoint
 CREATE INDEX "inference_outcomes_version_idx" ON "inference_outcomes" USING btree ("model_version_id");--> statement-breakpoint
 CREATE INDEX "inference_outcomes_status_idx" ON "inference_outcomes" USING btree ("status","recorded_at");--> statement-breakpoint
 CREATE INDEX "inference_workers_seen_idx" ON "inference_workers" USING btree ("last_seen_at");--> statement-breakpoint
-CREATE INDEX "labels_model_status_idx" ON "labels" USING btree ("model_id","status");--> statement-breakpoint
 CREATE INDEX "model_versions_model_idx" ON "model_versions" USING btree ("model_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "training_runs_one_active_per_model" ON "training_runs" USING btree ("model_id") WHERE "training_runs"."status" in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "training_runs_model_idx" ON "training_runs" USING btree ("model_id","created_at");--> statement-breakpoint

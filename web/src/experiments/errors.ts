@@ -3,30 +3,30 @@ export class ExperimentDesignLockedError extends Error {}
 export class ExperimentDesignIncompleteError extends Error {}
 export class ExperimentHasRecordsError extends Error {}
 export class ImagesNotStoredError extends Error {}
-export class ExperimentPhotoNotFoundError extends Error {}
+export class ExperimentObservationImageNotFoundError extends Error {}
 export class ObservationNotFoundError extends Error {}
 export class ObservationRejectedError extends Error {}
 export class TreatmentNotFoundError extends Error {}
 export class TreatmentRejectedError extends Error {}
-export class DishNotFoundError extends Error {}
-export class DishRejectedError extends Error {}
-export class DishEventNotFoundError extends Error {}
-export class PhotoRejectedError extends Error {}
+export class ObservationUnitNotFoundError extends Error {}
+export class ObservationUnitRejectedError extends Error {}
+export class CultureEventNotFoundError extends Error {}
+export class ObservationImageRejectedError extends Error {}
 
-export interface UsedExperimentPhoto {
+export interface UsedExperimentObservationImage {
   digest: string;
   filename: string;
-  dish: string;
+  observationUnit: string;
   day: number;
 }
 
-export class ExperimentPhotoAlreadyUsedError extends Error {
-  constructor(public readonly photos: UsedExperimentPhoto[]) {
-    const [first] = photos;
+export class ExperimentObservationImageAlreadyUsedError extends Error {
+  constructor(public readonly images: UsedExperimentObservationImage[]) {
+    const [first] = images;
     super(
       first
-        ? `${first.filename} already stands for dish ${first.dish} on day ${first.day}`
-        : "A photograph was already used in this experiment",
+        ? `${first.filename} already represents observation unit ${first.observationUnit} on day ${first.day}`
+        : "An image was already used in this experiment",
     );
   }
 }

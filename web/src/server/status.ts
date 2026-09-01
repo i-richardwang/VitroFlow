@@ -5,7 +5,7 @@ import {
   datasetSnapshots,
   images,
   inferenceOutcomes,
-  labels,
+  annotations,
   trainingRuns,
 } from "../db/schema";
 import { blobStoreDescription } from "./blobs";
@@ -35,7 +35,7 @@ async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((row) => [row.runId, row.dataset]));
 }
 
-async function countRows(table: typeof images | typeof labels) {
+async function countRows(table: typeof images | typeof annotations) {
   const db = await database();
   const [row] = await db.select({ count: count() }).from(table);
   return row?.count ?? 0;
@@ -71,11 +71,11 @@ export async function getSystemStatus() {
       ),
     ),
   ]);
-  const [imageCount, detectionCount, labelCount, trainingRunCount] =
+  const [imageCount, detectionCount, annotationCount, trainingRunCount] =
     await Promise.all([
       countRows(images),
       countSuccessfulInferences(),
-      countRows(labels),
+      countRows(annotations),
       countTrainingRuns(),
     ]);
   return {
@@ -107,7 +107,7 @@ export async function getSystemStatus() {
       datasets: datasetIds.length,
       images: imageCount,
       detections: detectionCount,
-      labels: labelCount,
+      annotations: annotationCount,
       trainingRuns: trainingRunCount,
     },
   };

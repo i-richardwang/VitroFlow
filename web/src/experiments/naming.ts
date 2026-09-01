@@ -1,61 +1,70 @@
-/** Roster order: numbers inside labels compare by value, so `A2` precedes `A10`. */
-export function compareDishLabels(left: string, right: string): number {
+/** Numbers inside codes compare by value, so `A2` precedes `A10`. */
+export function compareObservationUnitCodes(
+  left: string,
+  right: string,
+): number {
   return left.localeCompare(right, "en", { numeric: true });
 }
 
 /**
- * Roster order: the design's treatments in their own order, each followed by
- * its replicates, with the dishes no treatment claims last. This is the order
- * the grid shows and the order the dish pages step through.
+ * The design's treatments in their own order, each followed by its replicates,
+ * with unassigned observation units last.
  */
-export function rosterOrder<
-  Dish extends { label: string; treatment: string | null },
+export function observationUnitOrder<
+  Unit extends { code: string; treatment: string | null },
 >(
-  dishes: readonly Dish[],
+  observationUnits: readonly Unit[],
   treatments: readonly { id: string; position: number }[],
-): Dish[] {
+): Unit[] {
   const rank = new Map(treatments.map((item) => [item.id, item.position]));
-  const group = (dish: Dish) =>
-    dish.treatment === null
+  const group = (observationUnit: Unit) =>
+    observationUnit.treatment === null
       ? Number.MAX_SAFE_INTEGER
-      : (rank.get(dish.treatment) ?? Number.MAX_SAFE_INTEGER);
-  return [...dishes].sort(
+      : (rank.get(observationUnit.treatment) ?? Number.MAX_SAFE_INTEGER);
+  return [...observationUnits].sort(
     (left, right) =>
-      group(left) - group(right) || compareDishLabels(left.label, right.label),
+      group(left) - group(right) ||
+      compareObservationUnitCodes(left.code, right.code),
   );
 }
 
 /**
- * The labels a treatment's replicates take: `T1-1` through `T1-n`, skipping
+ * The codes a treatment's replicates take: `T1-1` through `T1-n`, skipping
  * any the experiment already uses so that adding replicates continues the
  * series instead of colliding with it.
  */
-export function replicateLabels(
+export function replicateCodes(
   treatment: string,
   replicates: number,
   taken: readonly string[],
 ): string[] {
-  const used = new Set(taken.map(dishLabelKey));
-  const labels: string[] = [];
-  for (let replicate = 1; labels.length < replicates; replicate += 1) {
-    const label = `${treatment}-${replicate}`;
-    if (used.has(dishLabelKey(label))) continue;
-    used.add(dishLabelKey(label));
-    labels.push(label);
+  const used = new Set(taken.map(observationUnitCodeKey));
+  const codes: string[] = [];
+  for (let replicate = 1; codes.length < replicates; replicate += 1) {
+    const code = `${treatment}-${replicate}`;
+    if (used.has(observationUnitCodeKey(code))) continue;
+    used.add(observationUnitCodeKey(code));
+    codes.push(code);
   }
-  return labels;
+  return codes;
 }
 
-/**
- * Labels compare by what a person sees: case, accent composition, and the
- * separator between a treatment and its replicate are not distinctions.
- */
-export function dishLabelKey(label: string): string {
-  return label
+function normalizedDesignKey(value: string): string {
+  return value
     .normalize("NFKC")
     .toLocaleLowerCase()
     .replace(/[\s._-]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+/** Treatment names compare by their normalized visible form. */
+export function treatmentNameKey(name: string): string {
+  return normalizedDesignKey(name);
+}
+
+/** Observation unit codes compare by their normalized visible form. */
+export function observationUnitCodeKey(code: string): string {
+  return normalizedDesignKey(code);
 }
 
 /** The filename without its extension, as the camera or the operator wrote it. */
@@ -66,22 +75,21 @@ export function filenameStem(filename: string): string {
 }
 
 /**
- * The dish a filename most likely shows. A stem that normalizes to a label
- * names it outright; otherwise a stem ending in a label after a separator
- * does, which is how `IMG_0413_T1-2` survives a camera. A stem that fits
- * more than one dish names none, and is left to the operator.
+ * The observation unit a filename most likely shows. A stem that normalizes to
+ * a code names it outright; otherwise a stem ending in a code after a
+ * separator does, which is how `IMG_0413_T1-2` survives a camera.
  */
-export function suggestDish(
+export function suggestObservationUnit(
   filename: string,
-  labels: readonly string[],
+  codes: readonly string[],
 ): string | null {
-  const stem = dishLabelKey(filenameStem(filename));
+  const stem = observationUnitCodeKey(filenameStem(filename));
   if (!stem) return null;
-  const exact = labels.filter((label) => dishLabelKey(label) === stem);
+  const exact = codes.filter((code) => observationUnitCodeKey(code) === stem);
   if (exact.length === 1) return exact[0]!;
   if (exact.length > 1) return null;
-  const suffixed = labels.filter((label) =>
-    stem.endsWith(`-${dishLabelKey(label)}`),
+  const suffixed = codes.filter((code) =>
+    stem.endsWith(`-${observationUnitCodeKey(code)}`),
   );
   if (suffixed.length !== 1) return null;
   return suffixed[0]!;

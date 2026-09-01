@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from ..annotations import LabelledImage, ReviewedInstance
+from ..annotations import AnnotatedImage, AnnotationInstance
 from ..files import atomic_directory
 from ..identifiers import CLASS_NAME
 from ..image_io import CANONICAL_EXTENSION, read_image
@@ -42,7 +42,7 @@ class DatasetImage:
     digest: str
     width: int
     height: int
-    instances: tuple[ReviewedInstance, ...]
+    instances: tuple[AnnotationInstance, ...]
     split: str | None = None
     revision: int | None = None
     file_path: Path | None = None
@@ -184,14 +184,14 @@ def export_dataset_images(
 
 
 def export_yolo_dataset(
-    labelled: Sequence[LabelledImage],
+    annotated: Sequence[AnnotatedImage],
     class_names: Sequence[str],
     data_root: str | Path,
     output_dir: str | Path,
     validation_fraction: float = 0.2,
     seed: int = 0,
 ) -> YoloDatasetManifest:
-    """Export reviewed annotations as a YOLO detection dataset."""
+    """Export complete annotations as a YOLO detection dataset."""
     images = [
         DatasetImage(
             digest=image.entry.digest,
@@ -201,7 +201,7 @@ def export_yolo_dataset(
             split=image.entry.split,
             revision=image.annotation.revision,
         )
-        for image in labelled
+        for image in annotated
     ]
     return export_dataset_images(
         images,

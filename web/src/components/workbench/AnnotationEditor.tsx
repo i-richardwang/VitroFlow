@@ -14,8 +14,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import type {
   AnnotationDocument,
-  LabelRef,
-  LabelInstance,
+  AnnotationRef,
+  AnnotationInstance,
 } from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
@@ -43,17 +43,17 @@ export function AnnotationEditor({
   model,
   filename,
   result,
-  label,
+  annotation: initialAnnotation,
 }: {
-  subject: LabelRef;
+  subject: AnnotationRef;
   model: Model;
   filename: string;
   result: DetectionResult;
-  label: AnnotationDocument;
+  annotation: AnnotationDocument;
 }) {
   const { annotation, saveState, error, setInstances, review, retry } =
-    useAnnotation(subject, label);
-  const history = useHistory<LabelInstance[]>();
+    useAnnotation(subject, initialAnnotation);
+  const history = useHistory<AnnotationInstance[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [panning, setPanning] = useState(false);
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
@@ -66,7 +66,7 @@ export function AnnotationEditor({
     annotation.instances.find((instance) => instance.id === selectedId) ?? null;
 
   const editInstances = useCallback(
-    (instances: LabelInstance[]) => {
+    (instances: AnnotationInstance[]) => {
       history.record(annotation.instances);
       setInstances(instances);
     },

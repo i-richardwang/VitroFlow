@@ -1,19 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import {
-  dishAssignmentSchema,
-  dishEventRequestSchema,
-  dishEventVoidSchema,
-  dishLayoutSchema,
-  dishRefSchema,
-  dishUpdateSchema,
-  dishRequestSchema,
+  observationUnitAssignmentSchema,
+  cultureEventRequestSchema,
+  cultureEventVoidSchema,
+  observationUnitBatchSchema,
+  observationUnitRefSchema,
+  observationUnitUpdateSchema,
+  observationUnitRequestSchema,
   experimentRefSchema,
   experimentRequestSchema,
   experimentUpdateSchema,
-  photoFilingSchema,
-  photoMoveSchema,
-  photoRefSchema,
+  observationImageAssignmentSchema,
+  observationImageMoveSchema,
+  observationImageRefSchema,
   observationRefSchema,
   observationRequestSchema,
   observationUpdateSchema,
@@ -24,36 +24,33 @@ import {
 } from "../experiments/schema";
 import { listDatasetsForModel } from "../server/datasets";
 import {
-  addDishes,
+  addObservationUnits,
   addTreatment,
   addTreatmentReplicates,
-  assignDishes,
+  assignObservationUnits,
   createExperiment,
-  deleteDish,
+  deleteObservationUnit,
   deleteExperiment,
   deleteTreatment,
-  updateDish,
+  updateObservationUnit,
   updateExperiment,
   updateTreatment,
 } from "../server/experiment-design";
-import { recordDishEvent, voidDishEvent } from "../server/experiment-events";
+import { recordCultureEvent, voidCultureEvent } from "../server/culture-events";
+import * as observationImages from "../server/experiment-observation-images";
 import {
   addObservation,
   deleteObservation,
-  filePhotos,
-  movePhoto,
-  removePhoto,
-  retryExperimentDetection,
   updateObservation,
 } from "../server/experiment-observations";
 import {
   listExperiments,
-  readExperimentDish,
+  readObservationUnit,
   readExperimentGrid,
 } from "../server/experiment-queries";
 import { listAllModelVersions, listModels } from "../server/model-registry";
 
-/** The datasets that train the model, where its photographs may be added. */
+/** The datasets that train the model used to analyze experiment images. */
 async function datasetsTraining(modelId: string): Promise<string[]> {
   return (await listDatasetsForModel(modelId)).map((dataset) => dataset.id);
 }
@@ -110,33 +107,35 @@ export const removeTreatment = createServerFn({ method: "POST" })
   .validator(treatmentRefSchema)
   .handler(({ data }) => deleteTreatment(data));
 
-export const createDishes = createServerFn({ method: "POST" })
-  .validator(dishLayoutSchema)
-  .handler(({ data }) => addDishes(data));
+export const createObservationUnits = createServerFn({ method: "POST" })
+  .validator(observationUnitBatchSchema)
+  .handler(({ data }) => addObservationUnits(data));
 
 export const createTreatmentReplicates = createServerFn({ method: "POST" })
   .validator(treatmentReplicatesSchema)
   .handler(({ data }) => addTreatmentReplicates(data));
 
-export const editDish = createServerFn({ method: "POST" })
-  .validator(dishUpdateSchema)
-  .handler(({ data }) => updateDish(data));
+export const editObservationUnit = createServerFn({ method: "POST" })
+  .validator(observationUnitUpdateSchema)
+  .handler(({ data }) => updateObservationUnit(data));
 
-export const createDishEvent = createServerFn({ method: "POST" })
-  .validator(dishEventRequestSchema)
-  .handler(({ data }) => recordDishEvent(data));
+export const createCultureEvent = createServerFn({ method: "POST" })
+  .validator(cultureEventRequestSchema)
+  .handler(({ data }) => recordCultureEvent(data));
 
-export const correctDishEvent = createServerFn({ method: "POST" })
-  .validator(dishEventVoidSchema)
-  .handler(({ data }) => voidDishEvent(data));
+export const correctCultureEvent = createServerFn({ method: "POST" })
+  .validator(cultureEventVoidSchema)
+  .handler(({ data }) => voidCultureEvent(data));
 
-export const removeDish = createServerFn({ method: "POST" })
-  .validator(dishRefSchema)
-  .handler(({ data }) => deleteDish(data));
+export const removeObservationUnit = createServerFn({ method: "POST" })
+  .validator(observationUnitRefSchema)
+  .handler(({ data }) => deleteObservationUnit(data));
 
-export const placeDishes = createServerFn({ method: "POST" })
-  .validator(dishAssignmentSchema)
-  .handler(({ data }) => assignDishes(data));
+export const assignObservationUnitsToTreatment = createServerFn({
+  method: "POST",
+})
+  .validator(observationUnitAssignmentSchema)
+  .handler(({ data }) => assignObservationUnits(data));
 
 export const createObservation = createServerFn({ method: "POST" })
   .validator(observationRequestSchema)
@@ -150,28 +149,28 @@ export const removeObservation = createServerFn({ method: "POST" })
   .validator(observationRefSchema)
   .handler(({ data }) => deleteObservation(data));
 
-export const filePhotographs = createServerFn({ method: "POST" })
-  .validator(photoFilingSchema)
-  .handler(({ data }) => filePhotos(data));
+export const assignImagesToObservation = createServerFn({ method: "POST" })
+  .validator(observationImageAssignmentSchema)
+  .handler(({ data }) => observationImages.assignObservationImages(data));
 
-export const refilePhotograph = createServerFn({ method: "POST" })
-  .validator(photoMoveSchema)
-  .handler(({ data }) => movePhoto(data));
+export const reassignObservationImage = createServerFn({ method: "POST" })
+  .validator(observationImageMoveSchema)
+  .handler(({ data }) => observationImages.moveObservationImage(data));
 
-export const removePhotograph = createServerFn({ method: "POST" })
-  .validator(photoRefSchema)
-  .handler(({ data }) => removePhoto(data));
+export const unassignObservationImage = createServerFn({ method: "POST" })
+  .validator(observationImageRefSchema)
+  .handler(({ data }) => observationImages.unassignObservationImage(data));
 
-export const getExperimentDish = createServerFn({ method: "GET" })
-  .validator(dishRequestSchema)
+export const getObservationUnit = createServerFn({ method: "GET" })
+  .validator(observationUnitRequestSchema)
   .handler(async ({ data: { observation, ...ref } }) => {
-    const series = await readExperimentDish(ref, observation);
+    const series = await readObservationUnit(ref, observation);
     if (!series) return null;
     return { ...series, datasets: await datasetsTraining(series.model.id) };
   });
 
-export const retryPhotoDetection = createServerFn({ method: "POST" })
-  .validator(photoRefSchema)
+export const retryObservationImageAnalysis = createServerFn({ method: "POST" })
+  .validator(observationImageRefSchema)
   .handler(async ({ data }) => {
-    await retryExperimentDetection(data);
+    await observationImages.retryObservationImageAnalysis(data);
   });

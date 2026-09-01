@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-#: Photographs are stored in one encoding, so a digest names a file outright.
+#: Images are stored in one encoding, so a digest names a file outright.
 CANONICAL_EXTENSION = ".avif"
 
 

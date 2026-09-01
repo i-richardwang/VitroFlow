@@ -22,7 +22,7 @@ interface Transform {
 export interface Viewport {
   containerRef: React.RefObject<HTMLDivElement | null>;
   transform: Transform;
-  /** True when the photograph is as small as it can be: filling the frame. */
+  /** True when the image is as small as it can be: filling the frame. */
   isFitted: boolean;
   /** Scales the image to fill the frame and centers it. */
   fit: () => void;
@@ -44,7 +44,7 @@ function fitScale(
 }
 
 /**
- * The photograph cannot shrink past filling the frame. A side smaller than
+ * The image cannot shrink past filling the frame. A side smaller than
  * the frame stays centered; a larger side cannot be panned off.
  */
 function clampTransform(

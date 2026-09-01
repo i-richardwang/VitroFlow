@@ -9,9 +9,14 @@ import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
 import { readInferenceWorker } from "./inference-worker-store";
-import { createLabelFromDetection } from "./labels";
-import { addDishes, addTreatment, createExperiment } from "./experiment-design";
-import { addObservation, filePhotos } from "./experiment-observations";
+import { createAnnotationFromDetection } from "./annotations";
+import {
+  addObservationUnits,
+  addTreatment,
+  createExperiment,
+} from "./experiment-design";
+import { assignObservationImages } from "./experiment-observation-images";
+import { addObservation } from "./experiment-observations";
 import { readDetection } from "./inference-outcomes";
 import { contentDigest } from "./blobs";
 import {
@@ -54,9 +59,9 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   const version = await baselineVersion();
   const experiment = await createExperiment({
     name: "API",
-    material: "",
-    explant: "",
-    medium: "",
+    plantMaterial: "",
+    explantType: "",
+    baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
     modelVersionId: version.id,
@@ -69,10 +74,10 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     replicates: 0,
     initialExplantCount: 1,
   });
-  const [dish] = await addDishes({
+  const [observationUnit] = await addObservationUnits({
     experiment: experiment.id,
     treatment: treatment.id,
-    labels: ["A1"],
+    codes: ["A1"],
     initialExplantCount: 1,
   });
   const observation = await addObservation({
@@ -80,10 +85,12 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     observedOn: "2026-08-08",
     note: "",
   });
-  await filePhotos({
+  await assignObservationImages({
     experiment: experiment.id,
     observation: observation.id,
-    photos: [{ dish: dish!.id, digest, filename: "api.jpg" }],
+    images: [
+      { observationUnit: observationUnit!.id, digest, filename: "api.jpg" },
+    ],
   });
   const runtime = {
     adapter: "traditional" as const,
@@ -242,8 +249,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     ).status,
   ).toBe(409);
 
-  await createLabelFromDetection(
-    { digest, model: version.modelId },
+  await createAnnotationFromDetection(
+    { digest, modelId: version.modelId },
     version.id,
   );
   expect((await put(result)).status).toBe(200);
@@ -277,7 +284,7 @@ test("inference readiness identifies the authenticated control plane", async () 
   expect(await response.json()).toEqual({ role: "inference" });
 });
 
-test("storing an image rejects an absent or excessive declared body before reading it", async () => {
+test("storing an image rejects an absent or excessive body before reading it", async () => {
   const post = (request: Request) =>
     handler(StoreRoute, "POST")({ request } as never);
 

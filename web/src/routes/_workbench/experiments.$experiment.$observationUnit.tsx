@@ -1,30 +1,35 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { DishWorkbench } from "../../components/experiment/DishWorkbench";
-import { dishRefSchema, observationIdSchema } from "../../experiments/schema";
-import { getExperimentDish } from "../../functions/experiments";
+import { ObservationUnitWorkbench } from "../../components/experiment/ObservationUnitWorkbench";
+import {
+  observationUnitRefSchema,
+  observationIdSchema,
+} from "../../experiments/schema";
+import { getObservationUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
-import type { ExperimentDishSeries } from "../../experiments/contracts";
+import type { ObservationUnitSeries } from "../../experiments/contracts";
 
-const dishSearchSchema = z.object({ observation: z.unknown().optional() });
+const observationUnitSearchSchema = z.object({
+  observation: z.unknown().optional(),
+});
 
 export const Route = createFileRoute(
-  "/_workbench/experiments/$experiment/$dish",
+  "/_workbench/experiments/$experiment/$observationUnit",
 )({
-  validateSearch: dishSearchSchema,
+  validateSearch: observationUnitSearchSchema,
   loaderDeps: ({ search }) => ({ observation: search.observation }),
   loader: async ({ params, deps }) => {
-    const ref = dishRefSchema.safeParse({
+    const ref = observationUnitRefSchema.safeParse({
       experiment: params.experiment,
-      dish: params.dish,
+      observationUnit: params.observationUnit,
     });
     const observation =
       deps.observation === undefined
         ? undefined
         : observationIdSchema.safeParse(deps.observation);
     if (!ref.success || (observation && !observation.success)) throw notFound();
-    const series = await getExperimentDish({
+    const series = await getObservationUnit({
       data: { ...ref.data, observation: observation?.data },
     });
     if (!series) throw notFound();
@@ -32,18 +37,19 @@ export const Route = createFileRoute(
   },
   staticData: {
     crumbs: ({ loaderData }) => {
-      const { experiment, dish } = loaderData as ExperimentDishSeries;
+      const { experiment, observationUnit } =
+        loaderData as ObservationUnitSeries;
       return [
         { label: "Experiments", href: "/experiments" },
         { label: experiment.name, href: `/experiments/${experiment.id}` },
-        { label: dish.label, mono: true },
+        { label: observationUnit.code, mono: true },
       ];
     },
   },
-  component: DishPage,
+  component: ObservationUnitPage,
 });
 
-function DishPage() {
+function ObservationUnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
   const router = useRouter();
 
@@ -54,8 +60,8 @@ function DishPage() {
   useRouteRefresh(router, 5000, waiting);
 
   return (
-    <DishWorkbench
-      key={`${series.experiment.id}/${series.dish.id}`}
+    <ObservationUnitWorkbench
+      key={`${series.experiment.id}/${series.observationUnit.id}`}
       series={series}
       datasets={datasets}
     />

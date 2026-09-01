@@ -52,7 +52,7 @@ export function NewObservationDialog({
               <Modal.Heading>New observation</Modal.Heading>
               <Description>
                 {day === null
-                  ? "The day the dishes were looked at."
+                  ? "The day the observation units were examined."
                   : `Inoculated on ${inoculatedOn}, so this is day ${day}.`}
               </Description>
             </Modal.Header>
@@ -83,7 +83,7 @@ export function NewObservationDialog({
                 <Fieldset className="w-full">
                   <Fieldset.Group>
                     <DayField
-                      label="Observed"
+                      label="Observation date"
                       busy={busy}
                       value={observedOn}
                       minValue={fromDay(inoculatedOn)}

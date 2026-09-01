@@ -6,7 +6,7 @@ import {
   datasets,
   images,
   inferenceOutcomes,
-  labels,
+  annotations,
 } from "../db/schema";
 import {
   IMAGE_STATES,
@@ -39,7 +39,7 @@ export interface DatasetSummary {
 
 /**
  * A dataset image with the documents that decide its state, loaded in one
- * query. The label is the review for the dataset's model; the detection is
+ * query. The annotation is the review for the dataset's model; the detection is
  * the one that review started from, or the model's newest for the image
  * until a review exists.
  */
@@ -47,23 +47,23 @@ export interface ImageRecord {
   image: DatasetImage;
   modelId: string;
   detection: DetectionResult | null;
-  label: AnnotationDocument | null;
+  annotation: AnnotationDocument | null;
 }
 
-/** An image whose review is complete; the label is present by construction. */
+/** An image whose review is complete; the annotation is present by construction. */
 export interface ReviewedRecord extends ImageRecord {
-  label: AnnotationDocument;
+  annotation: AnnotationDocument;
 }
 
 export function summarize(record: ImageRecord): ImageSummary {
-  const { image, detection, label } = record;
+  const { image, detection, annotation } = record;
   return {
     dataset: image.dataset,
     digest: image.digest,
     filename: image.filename,
-    state: label?.status ?? "unreviewed",
+    state: annotation?.status ?? "unreviewed",
     detectionCount: detection?.instances.length ?? null,
-    instanceCount: label?.instances.length ?? null,
+    instanceCount: annotation?.instances.length ?? null,
     quality: detection?.quality ?? null,
   };
 }
@@ -77,7 +77,7 @@ export function shownVersion(
   imageId: SQLWrapper,
   modelId: SQLWrapper | string,
 ) {
-  return sql`coalesce(${labels.sourceModelVersionId}, (
+  return sql`coalesce(${annotations.sourceModelVersionId}, (
     select d.model_version_id
     from inference_outcomes d
     join model_versions v on v.id = d.model_version_id
@@ -95,16 +95,16 @@ export function recordQuery(db: Executor) {
       image: images,
       modelId: datasets.modelId,
       detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
-      label: labels.document,
+      annotation: annotations.document,
     })
     .from(datasetImages)
     .innerJoin(images, eq(images.id, datasetImages.imageId))
     .innerJoin(datasets, eq(datasets.id, datasetImages.datasetId))
     .leftJoin(
-      labels,
+      annotations,
       and(
-        eq(labels.imageId, datasetImages.imageId),
-        eq(labels.modelId, datasets.modelId),
+        eq(annotations.imageId, datasetImages.imageId),
+        eq(annotations.modelId, datasets.modelId),
       ),
     )
     .leftJoin(
@@ -124,14 +124,14 @@ function toRecord(
   row: MembershipRow & {
     modelId: string;
     detection: DetectionResult | null;
-    label: AnnotationDocument | null;
+    annotation: AnnotationDocument | null;
   },
 ): ImageRecord {
   return {
     image: toDatasetImage(row),
     modelId: row.modelId,
     detection: row.detection,
-    label: row.label,
+    annotation: row.annotation,
   };
 }
 
@@ -159,7 +159,7 @@ export async function listReviewedRecords(
     .where(
       and(
         eq(datasetImages.datasetId, datasetId),
-        eq(labels.status, "complete"),
+        eq(annotations.status, "complete"),
       ),
     )
     .orderBy(...membershipOrder());
@@ -169,7 +169,7 @@ export async function listReviewedRecords(
   return rows
     .map(toRecord)
     .flatMap((record) =>
-      record.label ? [{ ...record, label: record.label }] : [],
+      record.annotation ? [{ ...record, annotation: record.annotation }] : [],
     );
 }
 

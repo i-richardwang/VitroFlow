@@ -1,13 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { annotationSchema, labelRefSchema } from "../annotation/schema";
+import { annotationSchema, annotationRefSchema } from "../annotation/schema";
 import { resourceIdSchema } from "../identifiers/schema";
-import { createLabelFromDetection, updateLabel } from "../server/labels";
+import {
+  createAnnotationFromDetection,
+  updateAnnotation,
+} from "../server/annotations";
 import { readReview } from "../server/review";
 
 /** Names a review and the version whose observation the reviewer arrived from. */
-export const reviewRequestSchema = labelRefSchema.extend({
+export const reviewRequestSchema = annotationRefSchema.extend({
   version: resourceIdSchema.optional(),
 });
 
@@ -16,14 +19,14 @@ export const getReview = createServerFn({ method: "GET" })
   .handler(({ data: { version, ...ref } }) => readReview(ref, version));
 
 /** Starts the review from what the version the reviewer is looking at found. */
-export const initializeLabel = createServerFn({ method: "POST" })
-  .validator(labelRefSchema.extend({ versionId: resourceIdSchema }))
+export const initializeAnnotation = createServerFn({ method: "POST" })
+  .validator(annotationRefSchema.extend({ versionId: resourceIdSchema }))
   .handler(({ data: { versionId, ...ref } }) =>
-    createLabelFromDetection(ref, versionId),
+    createAnnotationFromDetection(ref, versionId),
   );
 
-export const saveLabel = createServerFn({ method: "POST" })
+export const saveAnnotation = createServerFn({ method: "POST" })
   .validator(
-    z.strictObject({ ref: labelRefSchema, document: annotationSchema }),
+    z.strictObject({ ref: annotationRefSchema, document: annotationSchema }),
   )
-  .handler(({ data }) => updateLabel(data.ref, data.document));
+  .handler(({ data }) => updateAnnotation(data.ref, data.document));

@@ -1,30 +1,9 @@
-import type { AnnotationDocument } from "../annotation/schema";
-import type { DetectionResult } from "../detection/schema";
-import type { ImageSplit } from "../training/schema";
+import { datasetExportSchema, type DatasetExport } from "../datasets/export";
 import { readDataset } from "./datasets";
 import { readModel } from "./model-registry";
 import { listImageRecords } from "./summaries";
 
-export interface DatasetExport {
-  schemaVersion: 1;
-  dataset: string;
-  model: { id: string; classes: string[] };
-  images: DatasetExportImage[];
-}
-
-interface DatasetExportImage {
-  digest: string;
-  width: number;
-  height: number;
-  filename: string;
-  bytes: number;
-  split: ImageSplit | null;
-  /** The detection the review started from, or the model's newest one. */
-  detection: DetectionResult | null;
-  label: AnnotationDocument | null;
-}
-
-/** A dataset's images with their detection and label documents. */
+/** A dataset's images with their detection and annotation documents. */
 export async function exportDataset(
   datasetId: string,
 ): Promise<DatasetExport | null> {
@@ -33,11 +12,11 @@ export async function exportDataset(
   const model = await readModel(dataset.modelId);
   if (!model) throw new Error(`Unknown model: ${dataset.modelId}`);
   const records = await listImageRecords(datasetId);
-  return {
+  return datasetExportSchema.parse({
     schemaVersion: 1,
     dataset: datasetId,
     model: { id: model.id, classes: model.classes },
-    images: records.map(({ image, detection, label }) => ({
+    images: records.map(({ image, detection, annotation }) => ({
       digest: image.digest,
       width: image.width,
       height: image.height,
@@ -45,7 +24,7 @@ export async function exportDataset(
       bytes: image.bytes,
       split: image.split,
       detection,
-      label,
+      annotation,
     })),
-  };
+  });
 }

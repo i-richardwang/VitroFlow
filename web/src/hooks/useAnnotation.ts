@@ -3,11 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   AnnotationDocument,
-  LabelRef,
-  LabelInstance,
+  AnnotationRef,
+  AnnotationInstance,
 } from "../annotation/schema";
 import { transition, type ReviewEvent } from "../annotation/status";
-import { saveLabel } from "../functions/review";
+import { saveAnnotation } from "../functions/review";
 
 export type SaveState = "saved" | "saving" | "failed";
 
@@ -15,7 +15,7 @@ interface AnnotationState {
   annotation: AnnotationDocument;
   saveState: SaveState;
   error: string | null;
-  setInstances: (instances: LabelInstance[]) => void;
+  setInstances: (instances: AnnotationInstance[]) => void;
   review: (event: ReviewEvent) => void;
   retry: () => void;
 }
@@ -36,7 +36,7 @@ function delay(ms: number): Promise<void> {
  * queue and page unload asks for confirmation.
  */
 export function useAnnotation(
-  subject: LabelRef,
+  subject: AnnotationRef,
   initial: AnnotationDocument,
 ): AnnotationState {
   const [annotation, setAnnotation] = useState(initial);
@@ -51,7 +51,7 @@ export function useAnnotation(
   const save = useCallback(async () => {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const saved = await saveLabel({
+        const saved = await saveAnnotation({
           data: {
             ref: subject,
             document: {

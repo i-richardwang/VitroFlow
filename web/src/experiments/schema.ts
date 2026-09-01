@@ -2,13 +2,13 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { dishLabelKey } from "./naming";
+import { observationUnitCodeKey, treatmentNameKey } from "./naming";
 
 export const experimentIdSchema = z.uuid();
 export const observationIdSchema = z.uuid();
 export const treatmentIdSchema = z.uuid();
-export const dishIdSchema = z.uuid();
-export const photoIdSchema = z.uuid();
+export const observationUnitIdSchema = z.uuid();
+export const observationImageIdSchema = z.uuid();
 
 /** A calendar day in the notebook, without a clock or a time zone. */
 function calendarParts(day: string): [number, number, number] | null {
@@ -47,20 +47,20 @@ export const experimentNameSchema = z
   .min(1, "Experiment name is required")
   .max(120, "Experiment name must be at most 120 characters");
 
-export const experimentMaterialSchema = z
+export const plantMaterialSchema = z
   .string()
   .trim()
-  .max(120, "Material must be at most 120 characters");
+  .max(120, "Plant material must be at most 120 characters");
 
-export const experimentExplantSchema = z
+export const explantTypeSchema = z
   .string()
   .trim()
-  .max(120, "Explant must be at most 120 characters");
+  .max(120, "Explant type must be at most 120 characters");
 
-export const experimentMediumSchema = z
+export const baseMediumSchema = z
   .string()
   .trim()
-  .max(200, "Medium must be at most 200 characters");
+  .max(200, "Base medium must be at most 200 characters");
 
 export const experimentNotesSchema = z
   .string()
@@ -72,7 +72,10 @@ export const treatmentNameSchema = z
   .trim()
   .min(1, "Treatment name is required")
   .max(120, "Treatment name must be at most 120 characters")
-  .refine((name) => dishLabelKey(name).length > 0, "Invalid treatment name");
+  .refine(
+    (name) => treatmentNameKey(name).length > 0,
+    "Invalid treatment name",
+  );
 
 export const treatmentNoteSchema = z
   .string()
@@ -118,22 +121,25 @@ export function formatFactors(factors: readonly TreatmentFactor[]): string {
     .join(" + ");
 }
 
-export const dishLabelSchema = z
+export const observationUnitCodeSchema = z
   .string()
   .trim()
-  .min(1, "Dish label is required")
-  .max(60, "Dish label must be at most 60 characters")
-  .refine((label) => dishLabelKey(label).length > 0, "Invalid dish label");
+  .min(1, "Observation unit code is required")
+  .max(60, "Observation unit code must be at most 60 characters")
+  .refine(
+    (code) => observationUnitCodeKey(code).length > 0,
+    "Invalid observation unit code",
+  );
 
-export const dishNoteSchema = z
+export const cultureEventNoteSchema = z
   .string()
   .trim()
-  .max(500, "Dish note must be at most 500 characters");
+  .max(500, "Culture event note must be at most 500 characters");
 
 export const initialExplantCountSchema = z
   .number()
   .int()
-  .min(1, "Each dish needs at least one explant")
+  .min(1, "Each observation unit needs at least one explant")
   .max(10_000, "Initial explant count must be at most 10,000");
 
 export const observationNoteSchema = z
@@ -141,24 +147,24 @@ export const observationNoteSchema = z
   .trim()
   .max(500, "Observation note must be at most 500 characters");
 
-export const DISH_EVENT_TYPES = [
+export const CULTURE_EVENT_TYPES = [
   "contaminated",
-  "dead",
+  "nonviable",
   "discarded",
   "harvested",
-  "lost",
+  "missing",
 ] as const;
 
-export type DishEventType = (typeof DISH_EVENT_TYPES)[number];
+export type CultureEventType = (typeof CULTURE_EVENT_TYPES)[number];
 
-export const dishEventTypeSchema = z.enum(DISH_EVENT_TYPES);
+export const cultureEventTypeSchema = z.enum(CULTURE_EVENT_TYPES);
 
 export const experimentSchema = z.strictObject({
   id: experimentIdSchema,
   name: experimentNameSchema,
-  material: experimentMaterialSchema,
-  explant: experimentExplantSchema,
-  medium: experimentMediumSchema,
+  plantMaterial: plantMaterialSchema,
+  explantType: explantTypeSchema,
+  baseMedium: baseMediumSchema,
   notes: experimentNotesSchema,
   inoculatedOn: calendarDaySchema,
   modelVersionId: resourceIdSchema,
@@ -169,9 +175,9 @@ export type Experiment = z.infer<typeof experimentSchema>;
 
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
-  material: experimentMaterialSchema.default(""),
-  explant: experimentExplantSchema.default(""),
-  medium: experimentMediumSchema.default(""),
+  plantMaterial: plantMaterialSchema.default(""),
+  explantType: explantTypeSchema.default(""),
+  baseMedium: baseMediumSchema.default(""),
   notes: experimentNotesSchema.default(""),
   inoculatedOn: calendarDaySchema,
   modelVersionId: resourceIdSchema,
@@ -183,9 +189,9 @@ export type ExperimentRequestInput = z.input<typeof experimentRequestSchema>;
 export const experimentUpdateSchema = z.strictObject({
   experiment: experimentIdSchema,
   name: experimentNameSchema,
-  material: experimentMaterialSchema,
-  explant: experimentExplantSchema,
-  medium: experimentMediumSchema,
+  plantMaterial: plantMaterialSchema,
+  explantType: explantTypeSchema,
+  baseMedium: baseMediumSchema,
   notes: experimentNotesSchema,
   inoculatedOn: calendarDaySchema,
 });
@@ -199,7 +205,7 @@ export const experimentRefSchema = z.strictObject({
 export type ExperimentRef = z.infer<typeof experimentRefSchema>;
 
 /**
- * A treatment is what an experiment varies: the dishes that share a
+ * A treatment is what an experiment varies: the observation units that share a
  * condition are its replicates, and results are compared treatment by
  * treatment. Factors state the condition; a treatment that declares none is
  * described by its name and note alone.
@@ -240,36 +246,41 @@ export const treatmentUpdateSchema = treatmentRefSchema.extend({
 
 export type TreatmentUpdate = z.infer<typeof treatmentUpdateSchema>;
 
-export const dishRefSchema = z.strictObject({
+export const observationUnitRefSchema = z.strictObject({
   experiment: experimentIdSchema,
-  dish: dishIdSchema,
+  observationUnit: observationUnitIdSchema,
 });
 
-export type DishRef = z.infer<typeof dishRefSchema>;
+export type ObservationUnitRef = z.infer<typeof observationUnitRefSchema>;
 
-export const dishLayoutSchema = z.strictObject({
+export const observationUnitBatchSchema = z.strictObject({
   experiment: experimentIdSchema,
   treatment: treatmentIdSchema.nullable(),
-  labels: z.array(dishLabelSchema).min(1, "No dishes to add").max(200),
+  codes: z
+    .array(observationUnitCodeSchema)
+    .min(1, "No observation units to add")
+    .max(200),
   initialExplantCount: initialExplantCountSchema.default(1),
 });
 
-export type DishLayout = z.infer<typeof dishLayoutSchema>;
+export type ObservationUnitBatch = z.infer<typeof observationUnitBatchSchema>;
 
-export const dishUpdateSchema = dishRefSchema.extend({
-  label: dishLabelSchema,
+export const observationUnitUpdateSchema = observationUnitRefSchema.extend({
+  code: observationUnitCodeSchema,
   initialExplantCount: initialExplantCountSchema,
 });
 
-export type DishUpdate = z.infer<typeof dishUpdateSchema>;
+export type ObservationUnitUpdate = z.infer<typeof observationUnitUpdateSchema>;
 
-export const dishAssignmentSchema = z.strictObject({
+export const observationUnitAssignmentSchema = z.strictObject({
   experiment: experimentIdSchema,
-  dishes: z.array(dishIdSchema).min(1),
+  observationUnits: z.array(observationUnitIdSchema).min(1),
   treatment: treatmentIdSchema.nullable(),
 });
 
-export type DishAssignment = z.infer<typeof dishAssignmentSchema>;
+export type ObservationUnitAssignment = z.infer<
+  typeof observationUnitAssignmentSchema
+>;
 
 export const treatmentReplicatesSchema = treatmentRefSchema.extend({
   replicates: z.number().int().min(1).max(200),
@@ -278,39 +289,39 @@ export const treatmentReplicatesSchema = treatmentRefSchema.extend({
 
 export type TreatmentReplicates = z.infer<typeof treatmentReplicatesSchema>;
 
-export const dishEventIdSchema = z.uuid();
+export const cultureEventIdSchema = z.uuid();
 
-export const dishEventSchema = z.strictObject({
-  id: dishEventIdSchema,
-  type: dishEventTypeSchema,
+export const cultureEventSchema = z.strictObject({
+  id: cultureEventIdSchema,
+  type: cultureEventTypeSchema,
   observation: observationIdSchema,
   excludeFromObservation: z.boolean(),
   removeAfterObservation: z.boolean(),
-  note: dishNoteSchema,
+  note: cultureEventNoteSchema,
   recordedAt: z.string().datetime({ offset: true }),
   voidedAt: z.string().datetime({ offset: true }).nullable(),
-  voidReason: dishNoteSchema,
+  voidReason: cultureEventNoteSchema,
 });
 
-export type DishEvent = z.infer<typeof dishEventSchema>;
+export type CultureEvent = z.infer<typeof cultureEventSchema>;
 
-export const dishEventRequestSchema = dishRefSchema.extend({
-  type: dishEventTypeSchema,
+export const cultureEventRequestSchema = observationUnitRefSchema.extend({
+  type: cultureEventTypeSchema,
   observation: observationIdSchema,
   excludeFromObservation: z.boolean(),
   removeAfterObservation: z.boolean(),
-  note: dishNoteSchema,
+  note: cultureEventNoteSchema,
 });
 
-export type DishEventRequest = z.infer<typeof dishEventRequestSchema>;
+export type CultureEventRequest = z.infer<typeof cultureEventRequestSchema>;
 
-export const dishEventVoidSchema = z.strictObject({
+export const cultureEventVoidSchema = z.strictObject({
   experiment: experimentIdSchema,
-  event: dishEventIdSchema,
-  reason: dishNoteSchema.min(1, "A correction reason is required"),
+  event: cultureEventIdSchema,
+  reason: cultureEventNoteSchema.min(1, "A correction reason is required"),
 });
 
-export type DishEventVoid = z.infer<typeof dishEventVoidSchema>;
+export type CultureEventVoid = z.infer<typeof cultureEventVoidSchema>;
 
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,
@@ -349,60 +360,58 @@ export const observationUpdateSchema = observationRefSchema.extend({
 
 export type ObservationUpdate = z.infer<typeof observationUpdateSchema>;
 
-export const photoRefSchema = z.strictObject({
+export const observationImageRefSchema = z.strictObject({
   experiment: experimentIdSchema,
-  photo: photoIdSchema,
+  observationImage: observationImageIdSchema,
 });
 
-export type PhotoRef = z.infer<typeof photoRefSchema>;
+export type ObservationImageRef = z.infer<typeof observationImageRefSchema>;
 
-/**
- * A photograph's filename is where it came from, kept for tracing it back to
- * the camera. It identifies nothing: the dish it shows is the dish it was
- * filed under.
- */
-const photoFilenameSchema = z
+/** The source filename is retained for traceability and is not an identifier. */
+const imageFilenameSchema = z
   .string()
-  .min(1, "Invalid photo filename")
-  .max(255, "Invalid photo filename")
+  .min(1, "Invalid image filename")
+  .max(255, "Invalid image filename")
   .refine(
     (filename) =>
       filename !== "." && filename !== ".." && !/[\\/\0]/.test(filename),
-    "Invalid photo filename",
+    "Invalid image filename",
   );
 
-export const photoFilingSchema = z.strictObject({
+export const observationImageAssignmentSchema = z.strictObject({
   experiment: experimentIdSchema,
   observation: observationIdSchema,
-  photos: z
+  images: z
     .array(
       z.strictObject({
-        dish: dishIdSchema,
+        observationUnit: observationUnitIdSchema,
         digest: imageDigestSchema,
-        filename: photoFilenameSchema,
+        filename: imageFilenameSchema,
       }),
     )
-    .min(1, "No photographs to file"),
+    .min(1, "No images to assign"),
 });
 
-export type PhotoFiling = z.infer<typeof photoFilingSchema>;
+export type ObservationImageAssignment = z.infer<
+  typeof observationImageAssignmentSchema
+>;
 
-export interface FilingResult {
+export interface ObservationImageAssignmentResult {
   observation: ExperimentObservation;
-  photos: number;
+  assigned: number;
 }
 
-export const photoMoveSchema = photoRefSchema.extend({
-  dish: dishIdSchema,
+export const observationImageMoveSchema = observationImageRefSchema.extend({
+  observationUnit: observationUnitIdSchema,
   observation: observationIdSchema,
 });
 
-export type PhotoMove = z.infer<typeof photoMoveSchema>;
+export type ObservationImageMove = z.infer<typeof observationImageMoveSchema>;
 
-export const dishRequestSchema = dishRefSchema.extend({
+export const observationUnitRequestSchema = observationUnitRefSchema.extend({
   observation: observationIdSchema.optional(),
 });
 
-export const PHOTO_STATES = ["pending", "failed", "observed"] as const;
+export const IMAGE_ANALYSIS_STATES = ["pending", "failed", "analyzed"] as const;
 
-export type PhotoState = (typeof PHOTO_STATES)[number];
+export type ImageAnalysisState = (typeof IMAGE_ANALYSIS_STATES)[number];

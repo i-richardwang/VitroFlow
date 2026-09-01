@@ -3,7 +3,7 @@ import { Chip } from "@heroui/react";
 import type { DetectionQuality } from "../detection/schema";
 
 const WARNING_LABELS: Record<string, string> = {
-  dish_detection_failed: "Dish not detected",
+  dish_detection_failed: "Petri dish not detected",
   exposure_clipping: "Exposure clipped",
   low_focus: "Low focus",
 };

@@ -155,7 +155,9 @@ def test_export_yolo_reads_the_pulled_dataset_manifest(
     images = []
     for variant in range(2):
         digest = write_blob(data_root, encoded_image(variant=variant))
-        images.append(manifest_entry(digest, label=annotation_document(digest, [])))
+        images.append(
+            manifest_entry(digest, annotation=annotation_document(digest, []))
+        )
     write_manifest(data_root, "seeds", images)
     output = tmp_path / "yolo"
 

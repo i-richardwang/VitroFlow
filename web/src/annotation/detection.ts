@@ -3,7 +3,7 @@ import {
   newInstanceId,
   type AnnotationDocument,
   type BoundingBox,
-  type LabelInstance,
+  type AnnotationInstance,
 } from "./schema";
 
 /**
@@ -27,7 +27,7 @@ export function initialBoxSide(result: DetectionResult): number {
 export function instanceFromBox(
   className: string,
   bbox: BoundingBox,
-): LabelInstance {
+): AnnotationInstance {
   return { id: newInstanceId(), class: className, bbox };
 }
 

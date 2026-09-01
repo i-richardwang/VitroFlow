@@ -1,6 +1,6 @@
 import numpy as np
 
-from vitroflow.annotations import BoundingBox, ReviewedImage, ReviewedInstance
+from vitroflow.annotations import AnnotationDocument, AnnotationInstance, BoundingBox
 from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
 from vitroflow.config import DecisionConfig, PipelineConfig
 from vitroflow.proposals import SeedProposal
@@ -42,7 +42,7 @@ def _prior() -> CandidateModel:
 
 
 def _image(index: int) -> PreparedImage:
-    annotation = ReviewedImage(
+    annotation = AnnotationDocument(
         digest=f"{index:064x}",
         width=100,
         height=100,
@@ -51,8 +51,9 @@ def _image(index: int) -> PreparedImage:
         runtime_adapter="traditional",
         runtime_fingerprint="b" * 64,
         status="complete",
+        excluded_reason=None,
         revision=1,
-        instances=(ReviewedInstance("seed-1", "seed", BoundingBox(5, 5, 10, 10)),),
+        instances=(AnnotationInstance("seed-1", "seed", BoundingBox(5, 5, 10, 10)),),
     )
     return PreparedImage(
         annotation=annotation,

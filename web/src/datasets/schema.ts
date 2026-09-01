@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { photoRefSchema } from "../experiments/schema";
+import { observationImageRefSchema } from "../experiments/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
 
@@ -35,17 +35,13 @@ export const datasetSchema = z.strictObject({
 
 export type Dataset = z.infer<typeof datasetSchema>;
 
-/**
- * Experiment photographs joining a dataset. Each is named by where it was
- * taken, so the dataset files it under that filename and trains the model the
- * experiment reads with; the dataset is created for that model on first use.
- */
-export const datasetPhotoAdditionSchema = z.strictObject({
+/** Experiment images joining a dataset that trains their analysis model. */
+export const datasetImageAdditionSchema = z.strictObject({
   dataset: datasetIdSchema,
-  photos: z.array(photoRefSchema).min(1, "No photographs to add"),
+  images: z.array(observationImageRefSchema).min(1, "No images to add"),
 });
 
-export type DatasetPhotoAddition = z.infer<typeof datasetPhotoAdditionSchema>;
+export type DatasetImageAddition = z.infer<typeof datasetImageAdditionSchema>;
 
 /**
  * An image's state within a dataset is the state of its review for the

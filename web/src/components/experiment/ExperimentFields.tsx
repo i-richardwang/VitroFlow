@@ -6,16 +6,16 @@ import { DayField } from "./DayField";
 
 type NotebookPage = Pick<
   Experiment,
-  "name" | "material" | "explant" | "medium" | "notes"
+  "name" | "plantMaterial" | "explantType" | "baseMedium" | "notes"
 >;
 
 export function readExperimentFields(form: FormData): NotebookPage {
   const text = (field: string) => String(form.get(field) ?? "");
   return {
     name: text("name"),
-    material: text("material"),
-    explant: text("explant"),
-    medium: text("medium"),
+    plantMaterial: text("plantMaterial"),
+    explantType: text("explantType"),
+    baseMedium: text("baseMedium"),
     notes: text("notes"),
   };
 }
@@ -52,10 +52,10 @@ export function ExperimentFields({
           variant="secondary"
           fullWidth
           isDisabled={busy || protocolLocked}
-          name="material"
-          defaultValue={defaults?.material}
+          name="plantMaterial"
+          defaultValue={defaults?.plantMaterial}
         >
-          <Label>Material</Label>
+          <Label>Plant material</Label>
           <Input placeholder="Chrysanthemum 'Jinba'" />
           <FieldError />
         </TextField>
@@ -63,10 +63,10 @@ export function ExperimentFields({
           variant="secondary"
           fullWidth
           isDisabled={busy || protocolLocked}
-          name="explant"
-          defaultValue={defaults?.explant}
+          name="explantType"
+          defaultValue={defaults?.explantType}
         >
-          <Label>Explant</Label>
+          <Label>Explant type</Label>
           <Input placeholder="Stem segments" />
           <FieldError />
         </TextField>
@@ -76,8 +76,8 @@ export function ExperimentFields({
           variant="secondary"
           fullWidth
           isDisabled={busy || protocolLocked}
-          name="medium"
-          defaultValue={defaults?.medium}
+          name="baseMedium"
+          defaultValue={defaults?.baseMedium}
         >
           <Label>Base medium</Label>
           <Input placeholder="MS + 3% sucrose, pH 5.8" />

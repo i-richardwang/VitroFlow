@@ -39,7 +39,7 @@ function DatasetsPage() {
                     </EmptyState.Media>
                     <EmptyState.Title>No datasets yet</EmptyState.Title>
                     <EmptyState.Description>
-                      Open an experiment and add its photographs to a dataset.
+                      Open an experiment and add its images to a dataset.
                     </EmptyState.Description>
                   </EmptyState.Header>
                 </EmptyState>

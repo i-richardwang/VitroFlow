@@ -3,7 +3,7 @@ import { Button } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
 import type { Review } from "../../annotation/review";
-import { initializeLabel } from "../../functions/review";
+import { initializeAnnotation } from "../../functions/review";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { QualityWarnings } from "../QualityWarnings";
 import { Workbench } from "../Workbench";
@@ -19,7 +19,7 @@ export function ImageWorkbench({ review }: { review: Review }) {
         model={review.model}
         filename={filename}
         result={review.detection}
-        label={review.label}
+        annotation={review.annotation}
       />
     );
   }
@@ -41,7 +41,7 @@ export function ImageWorkbench({ review }: { review: Review }) {
             action={{
               label: "Start review",
               run: () =>
-                initializeLabel({
+                initializeAnnotation({
                   data: {
                     ...ref,
                     versionId: review.detection.producer.modelVersionId,
@@ -52,7 +52,7 @@ export function ImageWorkbench({ review }: { review: Review }) {
         ) : (
           <Notice
             title="Nothing to review yet"
-            description={`No version of ${review.model.name} has detected this photograph yet.`}
+            description={`No version of ${review.model.name} has analyzed this image yet.`}
           />
         )}
       </div>

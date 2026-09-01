@@ -3,21 +3,21 @@ import { z } from "zod";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
-import { classNameSchema } from "../models/readings";
+import { classNameSchema } from "../models/metrics";
 
 export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
 
 /**
- * A review is addressed by the image and the model it is for. The same
- * photograph reviewed for two models has two documents; the same photograph
- * opened from an experiment or a dataset has one.
+ * An annotation is addressed by the image and model it describes. The same
+ * image annotated for two models has two documents; opening it from an
+ * experiment or a dataset reaches the same document.
  */
-export const labelRefSchema = z.strictObject({
+export const annotationRefSchema = z.strictObject({
   digest: imageDigestSchema,
-  model: resourceIdSchema,
+  modelId: resourceIdSchema,
 });
 
-export type LabelRef = z.infer<typeof labelRefSchema>;
+export type AnnotationRef = z.infer<typeof annotationRefSchema>;
 
 export const boundingBoxSchema = z.strictObject({
   x: z.number().finite(),
@@ -27,7 +27,7 @@ export const boundingBoxSchema = z.strictObject({
 });
 
 /** One box a reviewer keeps, with the class the model's task defines. */
-const labelInstanceSchema = z.strictObject({
+const annotationInstanceSchema = z.strictObject({
   id: z.string().min(1),
   class: classNameSchema,
   bbox: boundingBoxSchema,
@@ -49,7 +49,7 @@ export const annotationSchema = z
     status: z.enum(REVIEW_STATUSES),
     excludedReason: z.string().min(1).optional(),
     revision: z.number().int().nonnegative(),
-    instances: z.array(labelInstanceSchema),
+    instances: z.array(annotationInstanceSchema),
   })
   .superRefine((document, context) => {
     if (
@@ -89,7 +89,7 @@ export const annotationSchema = z
   });
 
 export type BoundingBox = z.infer<typeof boundingBoxSchema>;
-export type LabelInstance = z.infer<typeof labelInstanceSchema>;
+export type AnnotationInstance = z.infer<typeof annotationInstanceSchema>;
 export type AnnotationDocument = z.infer<typeof annotationSchema>;
 export type ReviewStatus = AnnotationDocument["status"];
 export type ImageSize = Pick<AnnotationDocument["image"], "width" | "height">;

@@ -1,9 +1,9 @@
 import type { DetectionResult } from "../detection/schema";
 import type { Model } from "../models/schema";
-import type { AnnotationDocument, LabelRef } from "./schema";
+import type { AnnotationDocument, AnnotationRef } from "./schema";
 
 interface ReviewBase {
-  ref: LabelRef;
+  ref: AnnotationRef;
   model: Model;
   filename: string;
   width: number;
@@ -12,11 +12,11 @@ interface ReviewBase {
 
 export type Review = ReviewBase &
   (
-    | { state: "waiting"; detection: null; label: null }
-    | { state: "detected"; detection: DetectionResult; label: null }
+    | { state: "waiting"; detection: null; annotation: null }
+    | { state: "detected"; detection: DetectionResult; annotation: null }
     | {
         state: "started";
         detection: DetectionResult;
-        label: AnnotationDocument;
+        annotation: AnnotationDocument;
       }
   );

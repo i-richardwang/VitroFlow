@@ -55,7 +55,7 @@ def _traditional_manifest(path: Path) -> DatasetManifest:
 def _recognize(args: argparse.Namespace) -> int:
     """Run the pipeline over a pulled dataset.
 
-    Photographs are recognized as the workbench stores them, so a local run
+    Images are recognized as the workbench stores them, so a local run
     sees the same pixels a worker does.
     """
     data_root = Path(args.data_root)
@@ -87,10 +87,10 @@ def _prepared_images(
     data_root = Path(args.data_root)
     source = manifest_path(data_root, args.dataset)
     _traditional_manifest(source)
-    labelled = load_complete_annotations(source)
-    if not labelled:
+    annotated = load_complete_annotations(source)
+    if not annotated:
         raise ValueError("No complete annotations found")
-    return prepare_images([image.annotation for image in labelled], data_root, config)
+    return prepare_images([image.annotation for image in annotated], data_root, config)
 
 
 def _evaluate_traditional(args: argparse.Namespace) -> int:
@@ -182,9 +182,9 @@ def _export_yolo(args: argparse.Namespace) -> int:
     data_root = Path(args.data_root)
     source = manifest_path(data_root, args.dataset)
     dataset = load_dataset_manifest(source)
-    labelled = load_complete_annotations(source)
+    annotated = load_complete_annotations(source)
     manifest = export_yolo_dataset(
-        labelled,
+        annotated,
         dataset.classes,
         data_root,
         args.output,

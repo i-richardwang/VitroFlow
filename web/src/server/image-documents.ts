@@ -3,7 +3,7 @@ import type { DatasetImage } from "./datasets";
 type DocumentImage =
   { digest: string } | { digest: string; width: number; height: number };
 
-/** A persisted document must describe the canonical photograph it belongs to. */
+/** A persisted document must describe the canonical image it belongs to. */
 export function assertDocumentImage(
   subject: string,
   document: DocumentImage,

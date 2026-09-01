@@ -1,10 +1,10 @@
-"""Reviewed box annotations: the canonical training data of a dataset."""
+"""Box annotations: the canonical training data of a dataset."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from .documents import (
     as_digest,
@@ -21,6 +21,7 @@ from .manifest import ManifestImage, load_dataset_manifest
 
 ANNOTATION_SCHEMA_VERSION = 1
 _STATUSES = {"in_progress", "complete", "excluded"}
+AnnotationStatus = Literal["in_progress", "complete", "excluded"]
 
 
 @dataclass(frozen=True)
@@ -41,14 +42,14 @@ class BoundingBox:
 
 
 @dataclass(frozen=True)
-class ReviewedInstance:
+class AnnotationInstance:
     instance_id: str
     class_name: str
     bbox: BoundingBox
 
 
 @dataclass(frozen=True)
-class ReviewedImage:
+class AnnotationDocument:
     digest: str
     width: int
     height: int
@@ -56,17 +57,18 @@ class ReviewedImage:
     artifact_digest: str
     runtime_adapter: str
     runtime_fingerprint: str
-    status: str
+    status: AnnotationStatus
+    excluded_reason: str | None
     revision: int
-    instances: tuple[ReviewedInstance, ...]
+    instances: tuple[AnnotationInstance, ...]
 
 
 @dataclass(frozen=True)
-class LabelledImage:
+class AnnotatedImage:
     """A manifest entry together with the annotation recorded for it."""
 
     entry: ManifestImage
-    annotation: ReviewedImage
+    annotation: AnnotationDocument
 
 
 def _parse_box(
@@ -92,9 +94,9 @@ def _parse_box(
 
 def _parse_instances(
     value: Any, image_width: int, image_height: int, context: str
-) -> tuple[ReviewedInstance, ...]:
+) -> tuple[AnnotationInstance, ...]:
     identifiers: set[str] = set()
-    instances: list[ReviewedInstance] = []
+    instances: list[AnnotationInstance] = []
     for index, raw_instance in enumerate(as_list(value, context)):
         instance_context = f"{context}[{index}]"
         instance = as_object(raw_instance, instance_context)
@@ -107,7 +109,7 @@ def _parse_instances(
         if not CLASS_NAME.fullmatch(class_name):
             raise ValueError(f"{instance_context}.class is invalid")
         instances.append(
-            ReviewedInstance(
+            AnnotationInstance(
                 instance_id=identifier,
                 class_name=class_name,
                 bbox=_parse_box(
@@ -121,7 +123,7 @@ def _parse_instances(
     return tuple(instances)
 
 
-def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
+def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocument:
     payload = as_object(value, context)
     expect_fields(
         payload,
@@ -166,13 +168,16 @@ def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
     status = as_string(payload["status"], f"{context}.status")
     if status not in _STATUSES:
         raise ValueError(f"{context}.status is unknown: {status}")
-    excluded_reason = payload.get("excludedReason")
-    if excluded_reason is not None:
-        as_string(excluded_reason, f"{context}.excludedReason")
-        if status != "excluded":
-            raise ValueError(f"{context}.excludedReason requires excluded status")
+    raw_excluded_reason = payload.get("excludedReason")
+    excluded_reason = (
+        None
+        if raw_excluded_reason is None
+        else as_string(raw_excluded_reason, f"{context}.excludedReason")
+    )
+    if excluded_reason is not None and status != "excluded":
+        raise ValueError(f"{context}.excludedReason requires excluded status")
 
-    return ReviewedImage(
+    return AnnotationDocument(
         digest=digest,
         width=image_width,
         height=image_height,
@@ -180,7 +185,8 @@ def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
         artifact_digest=artifact_digest,
         runtime_adapter=runtime_adapter,
         runtime_fingerprint=runtime_fingerprint,
-        status=status,
+        status=cast(AnnotationStatus, status),
+        excluded_reason=excluded_reason,
         revision=as_integer(payload["revision"], f"{context}.revision"),
         instances=_parse_instances(
             payload["instances"], image_width, image_height, f"{context}.instances"
@@ -188,30 +194,34 @@ def parse_annotation(value: Any, context: str = "annotation") -> ReviewedImage:
     )
 
 
-def load_annotations(manifest: str | Path) -> list[LabelledImage]:
-    """Every labelled image of a dataset manifest, in manifest order."""
+def load_annotations(manifest: str | Path) -> list[AnnotatedImage]:
+    """Every annotated image of a dataset manifest, in manifest order."""
     dataset = load_dataset_manifest(manifest)
     known_classes = set(dataset.classes)
-    labelled = []
+    annotated = []
     for index, entry in enumerate(dataset.images):
-        if entry.label is None:
+        if entry.annotation is None:
             continue
-        annotation = parse_annotation(entry.label, f"{manifest}: images[{index}].label")
+        annotation = parse_annotation(
+            entry.annotation, f"{manifest}: images[{index}].annotation"
+        )
         if annotation.digest != entry.digest:
-            raise ValueError(f"Label digest differs from its image: {entry.digest}")
+            raise ValueError(
+                f"Annotation digest differs from its image: {entry.digest}"
+            )
         unknown = sorted(
             {instance.class_name for instance in annotation.instances} - known_classes
         )
         if unknown:
             raise ValueError(
-                f"Label for {entry.digest} uses unknown class"
+                f"Annotation for {entry.digest} uses unknown class"
                 f"{'es' if len(unknown) > 1 else ''}: {', '.join(unknown)}"
             )
-        labelled.append(LabelledImage(entry, annotation))
-    return labelled
+        annotated.append(AnnotatedImage(entry, annotation))
+    return annotated
 
 
-def load_complete_annotations(manifest: str | Path) -> list[LabelledImage]:
+def load_complete_annotations(manifest: str | Path) -> list[AnnotatedImage]:
     return [
         image
         for image in load_annotations(manifest)

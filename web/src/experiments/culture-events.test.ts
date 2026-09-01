@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import type { DishEvent, ExperimentObservation } from "./schema";
+import type { CultureEvent, ExperimentObservation } from "./schema";
 import {
-  dishIsAvailableAt,
-  dishIsIncludedInAnalysis,
-  latestActiveDishEvent,
-} from "./dish-events";
+  observationUnitIsAvailableAt,
+  observationUnitIsIncludedInAnalysis,
+  latestActiveCultureEvent,
+} from "./culture-events";
 
 const observations: ExperimentObservation[] = [
   {
@@ -30,7 +30,7 @@ const ordinals = new Map(
   observations.map((observation) => [observation.id, observation.ordinal]),
 );
 
-function event(overrides: Partial<DishEvent>): DishEvent {
+function event(overrides: Partial<CultureEvent>): CultureEvent {
   return {
     id: "d7863741-fbc8-439b-8a43-de9f3dfb613c",
     type: "discarded",
@@ -45,29 +45,35 @@ function event(overrides: Partial<DishEvent>): DishEvent {
   };
 }
 
-describe("dish event effects", () => {
+describe("observation unit event effects", () => {
   test("physical removal starts after the recorded observation", () => {
     const events = [event({ removeAfterObservation: true })];
 
-    expect(dishIsAvailableAt(events, observations[0]!, ordinals)).toBeTrue();
     expect(
-      dishIsIncludedInAnalysis(events, observations[0]!, ordinals),
+      observationUnitIsAvailableAt(events, observations[0]!, ordinals),
     ).toBeTrue();
-    expect(dishIsAvailableAt(events, observations[1]!, ordinals)).toBeFalse();
     expect(
-      dishIsIncludedInAnalysis(events, observations[1]!, ordinals),
+      observationUnitIsIncludedInAnalysis(events, observations[0]!, ordinals),
+    ).toBeTrue();
+    expect(
+      observationUnitIsAvailableAt(events, observations[1]!, ordinals),
+    ).toBeFalse();
+    expect(
+      observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
   });
 
   test("analysis exclusion starts in the recorded observation", () => {
     const events = [event({ excludeFromObservation: true })];
 
-    expect(dishIsAvailableAt(events, observations[0]!, ordinals)).toBeTrue();
     expect(
-      dishIsIncludedInAnalysis(events, observations[0]!, ordinals),
+      observationUnitIsAvailableAt(events, observations[0]!, ordinals),
+    ).toBeTrue();
+    expect(
+      observationUnitIsIncludedInAnalysis(events, observations[0]!, ordinals),
     ).toBeFalse();
     expect(
-      dishIsIncludedInAnalysis(events, observations[1]!, ordinals),
+      observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
   });
 
@@ -77,13 +83,15 @@ describe("dish event effects", () => {
         excludeFromObservation: true,
         removeAfterObservation: true,
         voidedAt: "2026-08-09T12:00:00.000Z",
-        voidReason: "Recorded for the wrong dish",
+        voidReason: "Recorded for the wrong observation unit",
       }),
     ];
 
-    expect(dishIsAvailableAt(events, observations[1]!, ordinals)).toBeTrue();
     expect(
-      dishIsIncludedInAnalysis(events, observations[1]!, ordinals),
+      observationUnitIsAvailableAt(events, observations[1]!, ordinals),
+    ).toBeTrue();
+    expect(
+      observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeTrue();
   });
 
@@ -96,11 +104,11 @@ describe("dish event effects", () => {
     });
     const retrospectiveEntry = event({
       recordedAt: "2026-08-16T12:00:00.000Z",
-      type: "dead",
+      type: "nonviable",
     });
 
     expect(
-      latestActiveDishEvent([laterObservation, retrospectiveEntry], ordinals)
+      latestActiveCultureEvent([laterObservation, retrospectiveEntry], ordinals)
         ?.id,
     ).toBe(laterObservation.id);
   });

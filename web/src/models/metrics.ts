@@ -7,15 +7,15 @@ const identifierSchema = z
 /** The category a model assigns to each instance it finds. */
 export const classNameSchema = identifierSchema;
 
-const readingIdentity = {
+const metricIdentity = {
   id: identifierSchema,
   name: z.string().min(1),
 };
 
 /**
- * A reading is the number an experiment records for one photograph: a
+ * A metric is the value an experiment derives from one observation image: a
  * declared reduction of the instances found in it. A model declares the
- * readings its classes support, so the workbench shows a germination rate
+ * metrics its classes support, so the workbench shows a germination rate
  * for a model that separates germinated seeds and a plain count for one that
  * does not, from the same definitions.
  */
@@ -28,24 +28,24 @@ export const classListSchema = z
     }
   });
 
-export const readingSchema = z
+export const derivedMetricSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({
-      ...readingIdentity,
+      ...metricIdentity,
       kind: z.literal("count"),
       classes: classListSchema,
     }),
     z.strictObject({
-      ...readingIdentity,
+      ...metricIdentity,
       kind: z.literal("proportion"),
       of: classListSchema,
       among: classListSchema,
     }),
   ])
-  .superRefine((reading, context) => {
-    if (reading.kind !== "proportion") return;
-    const population = new Set(reading.among);
-    reading.of.forEach((name, index) => {
+  .superRefine((metric, context) => {
+    if (metric.kind !== "proportion") return;
+    const population = new Set(metric.among);
+    metric.of.forEach((name, index) => {
       if (!population.has(name)) {
         context.addIssue({
           code: "custom",
@@ -56,15 +56,15 @@ export const readingSchema = z
     });
   });
 
-export type Reading = z.infer<typeof readingSchema>;
+export type DerivedMetric = z.infer<typeof derivedMetricSchema>;
 
-/** Instances per class in one photograph. */
+/** Instances per class in one observation image. */
 export type Tally = Record<string, number>;
 
-export function readingClasses(reading: Reading): string[] {
-  return reading.kind === "count"
-    ? reading.classes
-    : [...reading.of, ...reading.among];
+export function metricClasses(metric: DerivedMetric): string[] {
+  return metric.kind === "count"
+    ? metric.classes
+    : [...metric.of, ...metric.among];
 }
 
 export function tally(instances: readonly { class: string }[]): Tally {
@@ -97,29 +97,33 @@ function total(counts: Tally, classes: readonly string[]): number {
 }
 
 /** A proportion of nothing has no value. */
-export function read(reading: Reading, counts: Tally): number | null {
-  if (reading.kind === "count") return total(counts, reading.classes);
-  const among = total(counts, reading.among);
-  return among === 0 ? null : total(counts, reading.of) / among;
+export function computeMetric(
+  metric: DerivedMetric,
+  counts: Tally,
+): number | null {
+  if (metric.kind === "count") return total(counts, metric.classes);
+  const among = total(counts, metric.among);
+  return among === 0 ? null : total(counts, metric.of) / among;
 }
 
 /**
- * The reading over replicates: what one dish of the treatment showed,
- * typically, and how far its replicates spread. Dishes without a value are
- * not replicates of it. The spread is the sample standard deviation, which a
- * single replicate does not have.
+ * The metric over replicates: the typical observation-unit value and its
+ * spread. Observation units without a value are absent. The spread is the
+ * sample standard deviation, which a single replicate does not have.
  */
-export interface ReadingSummary {
+export interface MetricSummary {
   value: number | null;
   deviation: number | null;
   sampleSize: number;
 }
 
-export function summarize(
-  reading: Reading,
+export function summarizeMetric(
+  metric: DerivedMetric,
   tallies: readonly Tally[],
-): ReadingSummary {
-  const values = tallies.flatMap((counts) => read(reading, counts) ?? []);
+): MetricSummary {
+  const values = tallies.flatMap(
+    (counts) => computeMetric(metric, counts) ?? [],
+  );
   if (values.length === 0) {
     return { value: null, deviation: null, sampleSize: 0 };
   }
@@ -134,8 +138,11 @@ export function summarize(
   return { value: mean, deviation: spread, sampleSize: values.length };
 }
 
-export function formatReading(reading: Reading, value: number | null): string {
+export function formatMetric(
+  metric: DerivedMetric,
+  value: number | null,
+): string {
   if (value === null) return "—";
-  if (reading.kind === "proportion") return `${(value * 100).toFixed(1)}%`;
+  if (metric.kind === "proportion") return `${(value * 100).toFixed(1)}%`;
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }

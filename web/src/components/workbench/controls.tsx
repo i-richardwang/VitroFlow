@@ -47,6 +47,6 @@ export const LAYERS = [
   { key: "boxes", label: "Boxes", color: CANVAS_COLORS.box },
   { key: "ids", label: "IDs", color: CANVAS_COLORS.box },
   { key: "detections", label: "Detections", color: CANVAS_COLORS.detection },
-  { key: "dish", label: "Dish", color: CANVAS_COLORS.dish },
+  { key: "dish", label: "Petri dish", color: CANVAS_COLORS.dish },
 ] as const;
 export type LayerKey = (typeof LAYERS)[number]["key"];

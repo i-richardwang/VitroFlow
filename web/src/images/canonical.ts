@@ -1,4 +1,4 @@
-/** Source files accepted at the photograph boundary. */
+/** Source files accepted at the image boundary. */
 export const SOURCE_IMAGE_EXTENSIONS = [
   ".jpg",
   ".jpeg",
@@ -10,16 +10,16 @@ export const SOURCE_IMAGE_EXTENSIONS = [
 /** Decoder format names corresponding to the accepted source extensions. */
 export const SOURCE_IMAGE_FORMATS = ["jpeg", "png", "tiff"] as const;
 
-/** Bounds the decoded memory of one source while covering 26 MP photographs. */
+/** Bounds the decoded memory of one source while covering 26 MP images. */
 export const MAX_SOURCE_IMAGE_PIXELS = 40_000_000;
 
 /** Bounds the encoded request memory of one source. */
 export const MAX_SOURCE_IMAGE_BYTES = 64 * 1024 * 1024;
 
-/** Every stored photograph is an opaque, oriented sRGB AVIF. */
+/** Every stored image is an opaque, oriented sRGB AVIF. */
 export const CANONICAL_IMAGE_MEDIA_TYPE = "image/avif";
 
-/** Why a browser file cannot enter the photograph boundary. */
+/** Why a browser file cannot enter the image boundary. */
 export function sourceImageFileError(file: {
   name: string;
   size: number;
@@ -27,7 +27,7 @@ export function sourceImageFileError(file: {
   const dot = file.name.lastIndexOf(".");
   const extension = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
   if (!SOURCE_IMAGE_EXTENSIONS.some((accepted) => accepted === extension)) {
-    return "Choose a JPEG, PNG, or TIFF photograph";
+    return "Choose a JPEG, PNG, or TIFF image";
   }
   if (file.size === 0) return "The file is empty";
   if (file.size > MAX_SOURCE_IMAGE_BYTES) return "The file exceeds 64 MiB";

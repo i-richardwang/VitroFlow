@@ -1,4 +1,4 @@
-"""Seed counting from petri-dish photographs."""
+"""Seed counting and annotation for Petri-dish images."""
 
 from .models import CountResult
 from .pipeline import Recognition, count_seeds, recognize

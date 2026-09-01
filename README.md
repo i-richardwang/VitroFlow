@@ -1,6 +1,6 @@
 # VitroFlow
 
-VitroFlow turns repeated petri-dish photographs into comparable experimental readings and reviewed detector training data. The design defines the work: treatments name the conditions being compared, dishes replicate them, observations follow those dishes over time, and one immutable model version reads every photograph in an experiment.
+VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, observation units provide independent replicates, observations follow those units over time, and one immutable model version analyzes every image in an experiment.
 
 The system has three independently deployed parts:
 
@@ -13,7 +13,7 @@ The system has three independently deployed parts:
 ```text
 Experimental design
   -> observation
-  -> canonical photograph
+  -> canonical image
   -> inference outcome
   -> reviewer correction
   -> dataset membership
@@ -26,11 +26,11 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 
 | Records                                                                                               | Purpose                                                                                 |
 | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `models`, `model_versions`                                                                            | Detector tasks, class definitions, readings, runtime manifests, and immutable artifacts |
-| `images`                                                                                              | Canonical photographs addressed by the SHA-256 digest of normalized AVIF bytes          |
-| `experiments`, `experiment_treatments`, `experiment_dishes`, `experiment_dish_events`, `experiment_observations`, `experiment_photos` | Experimental design and repeated observations under one fixed model version             |
+| `models`, `model_versions`                                                                            | Detector tasks, class definitions, derived metrics, runtime manifests, and immutable artifacts |
+| `images`                                                                                              | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes                |
+| `experiments`, `experiment_treatments`, `experiment_observation_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations under one fixed model version             |
 | `inference_outcomes`                                                                                  | The single success-or-failure outcome for an image and model-version pair               |
-| `labels`                                                                                              | Versioned reviewer annotations for an image and model                                   |
+| `annotations`                                                                                         | Versioned reviewer annotations for an image and model                                   |
 | `datasets`, `dataset_images`                                                                          | Reviewed training collections with stable train/validation assignments                  |
 | `dataset_snapshots`, `dataset_snapshot_images`                                                        | Immutable training inputs                                                               |
 | `training_runs`, `training_epochs`                                                                    | Leased training state and per-attempt epoch metrics                                     |
@@ -48,31 +48,31 @@ Object creation is conditional. Identical writes are idempotent; content at an e
 
 ## Domain rules
 
-A Model defines the classes detected in a photograph and the readings reduced from them. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
+A Model defines the classes detected in an image and the derived metrics computed from them. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
 
-An Experiment records the plant material, explant, shared base medium, notebook notes, and the day the explants went into the dishes, and selects one ModelVersion when it is created. That version never changes, so readings remain comparable across observations.
+An Experiment records the plant material, explant type, shared base medium, notebook notes, and inoculation date, and selects one ModelVersion when it is created. That version never changes, so derived metrics remain comparable across observations.
 
 A Treatment names one condition and states it as factors: a growth regulator and its dose, a light regime, a temperature. Levels are recorded as written, so `1.0` and `low` are equally sayable. A treatment described in prose alone states no factors.
 
-A Dish is one independent experimental unit and exists before any photograph does. The initial explant count records the subsamples within that unit; those explants do not increase the statistical `n`. Naming a treatment with a replicate count lays out `T1-1` through `T1-n` in one step. Labels that differ only by case or common separators identify the same dish. A label correction keeps the dish identity and all records attached to it.
+An ObservationUnit is one independent experimental unit and exists before any image does. Its code is unique within the experiment. The initial explant count records subsamples within the unit; those explants do not increase the statistical `n`. Creating a treatment with a replicate count generates `T1-1` through `T1-n` in one step. Correcting a code preserves the unit identity and every record attached to it.
 
-The first Observation fixes the structural design: treatments cannot be rewritten, dishes cannot be added, removed, or reassigned, and the material, explant, medium, and inoculation date become the protocol record. Experiment and observation notes remain correctable. An observation with a photograph or culture event cannot be redated or deleted, and an experiment with observations cannot be hard-deleted.
+The first Observation fixes the structural design: treatments cannot be rewritten, observation units cannot be added, removed, or reassigned, and the plant material, explant type, base medium, and inoculation date become the protocol record. Experiment and observation notes remain correctable. An observation with an image or culture event cannot be redated or deleted, and an experiment with observations cannot be hard-deleted.
 
-A DishEvent records contamination, death, discard, harvest, or loss against the observation that found it. Whether the dish leaves analysis from that observation and whether it remains physically available afterwards are separate decisions; a physically removed dish is necessarily absent from every later analysis denominator. Events are never overwritten; an erroneous event is voided with a correction reason and remains visible in the record. Treatment rows show the dish-level mean, sample standard deviation, and `n` as observed over eligible experimental units.
+A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Analysis exclusion and physical removal are separate decisions; a removed observation unit is absent from every later analysis denominator. Events are never overwritten; an erroneous event is voided with a correction reason and remains visible in the record. Treatment rows show the observation-unit mean, sample standard deviation, and `n` over eligible independent units.
 
 An Observation is one occasion, dated by the day it happened and named by the days since inoculation. It cannot precede inoculation. An experiment is observed once a day at most, and observations are ordered by that day.
 
-Photographs are filed against the dishes they show, one per dish per observation. A filename records where the bytes came from and identifies nothing: it seeds a suggestion the operator confirms, so a camera file that spells a dish lands on it and anything else waits to be placed by hand. A photograph filed under the wrong cell is refiled or taken back without touching the image, its detection, or its review.
+Observation images are assigned to the units they show, one per observation unit per observation. A source filename is retained for traceability but is not an identifier; it provides an initial code suggestion that the operator confirms. An image assigned to the wrong cell can be reassigned or unassigned without changing the canonical image, its inference outcome, or its annotation.
 
 An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. Those bytes determine the image digest, dimensions, browser view, inference input, and training input.
 
 `inference_outcomes` has one row per image and ModelVersion. A succeeded outcome contains classified boxes, including the valid zero-box case, and is immutable. A failed outcome contains the execution error and may be replaced through the explicit retry protocol; a conflicting successful result is rejected.
 
-A review belongs to an image and Model, independent of the experiment or dataset from which it was opened. Only `complete` labels enter dataset snapshots and YOLO exports. Editing a complete label returns it to `in_progress`; `excluded` labels remain recorded but are not training inputs.
+An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened. Only `complete` annotations enter dataset snapshots and YOLO exports. Editing a complete annotation returns it to `in_progress`; `excluded` annotations remain recorded but are not training inputs.
 
 ## Scope
 
-The current workbench covers one stable culture stage per Experiment, one standardized photograph per dish and observation, and image-derived readings under one fixed detector version. It intentionally does not treat objects detected within a dish as independent biological replicates.
+The current workbench covers one stable culture stage per Experiment, one standardized image per observation unit and observation, and derived metrics under one fixed detector version. Objects detected within an observation unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
 ## Source development
 
@@ -176,7 +176,7 @@ uv run vitroflow traditional train \
   --output output/models/traditional-candidate
 ```
 
-Export complete human-reviewed labels as a deterministic YOLO dataset:
+Export complete human-reviewed annotations as a deterministic YOLO dataset:
 
 ```bash
 uv run vitroflow dataset export-yolo \
@@ -229,7 +229,7 @@ Build the pinned production image with the private component credential:
 make check-image HEROUI_KEY="$HEROUI_KEY"
 ```
 
-The real-photograph regression suite uses the checksum manifest in `tests/fixtures/reference-images.json`. Point it at the matching private corpus:
+The reference-image regression suite uses the checksum manifest in `tests/fixtures/reference-images.json`. Point it at the matching private corpus:
 
 ```bash
 make check-reference REFERENCE_IMAGE_DIR=/absolute/path/to/reference-images

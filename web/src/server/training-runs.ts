@@ -203,7 +203,7 @@ async function transition(
 
 /**
  * Applies a worker's transition only while the run is still leased to it; the
- * predicate is evaluated by the update, so a lease lost meanwhile cannot be
+ * predicate is evaluated by the update, so a lease missing meanwhile cannot be
  * overwritten.
  */
 async function ownedTransition(

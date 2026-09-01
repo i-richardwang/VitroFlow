@@ -134,10 +134,10 @@ export async function createDatasetSnapshot(
   }
   const splits = await assignSplits(datasetId, reviewed, tx);
   const members = reviewed
-    .map(({ image, label }) => {
+    .map(({ image, annotation }) => {
       const split = splits.get(image.digest);
       if (!split) throw new Error(`Image ${image.digest} has no split`);
-      return { digest: image.digest, split, annotation: label };
+      return { digest: image.digest, split, annotation };
     })
     .sort((a, b) => a.digest.localeCompare(b.digest));
   const snapshotId = `snapshot-${contentDigest(

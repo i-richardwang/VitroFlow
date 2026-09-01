@@ -5,16 +5,25 @@ import { eq } from "drizzle-orm";
 import { makeResult } from "../annotation/testing";
 import type { Dataset } from "../datasets/schema";
 import type { DetectionResult } from "../detection/schema";
-import type { Experiment, PhotoRef } from "../experiments/schema";
+import type { Experiment, ObservationImageRef } from "../experiments/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { Model, ModelVersion } from "../models/schema";
 import type { InferenceWorkerHeartbeat } from "../inference/workers";
 import { canonicalize } from "./image-ingest";
-import { addExperimentPhotos } from "./datasets";
-import { addDishes, addTreatment, createExperiment } from "./experiment-design";
-import { addObservation, filePhotos } from "./experiment-observations";
+import { addExperimentObservationImages } from "./datasets";
+import {
+  addObservationUnits,
+  addTreatment,
+  createExperiment,
+} from "./experiment-design";
+import { assignObservationImages } from "./experiment-observation-images";
+import { addObservation } from "./experiment-observations";
 import { storeImage } from "./image-store";
-import { createLabelFromDetection, readLabel, updateLabel } from "./labels";
+import {
+  createAnnotationFromDetection,
+  readAnnotation,
+  updateAnnotation,
+} from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { readModelVersion, registerModelVersion } from "./model-registry";
@@ -24,7 +33,7 @@ import { registerModel as registerDatabaseModel } from "../db/registry";
 import {
   datasetSnapshots,
   datasets,
-  experimentPhotos,
+  experimentObservationImages,
   trainingRuns,
 } from "../db/schema";
 
@@ -133,12 +142,12 @@ export function testHeartbeat(
   };
 }
 
-/** Fixture photographs are a grid of flat blocks so that lossy encoding keeps them apart. */
+/** Fixture images are grids of flat blocks so lossy encoding keeps them distinct. */
 const FIXTURE_BLOCKS = 8;
 const FIXTURE_BLOCK_PIXELS = 8;
 export const FIXTURE_EDGE = FIXTURE_BLOCKS * FIXTURE_BLOCK_PIXELS;
 
-/** A source photograph whose pixels follow from `content`. */
+/** A source image whose pixels follow from `content`. */
 export async function imageBytes(
   content: string,
   format: "png" | "jpeg" | "tiff" = "png",
@@ -185,31 +194,30 @@ export async function storeTexts(contents: string[]): Promise<string[]> {
   return digests;
 }
 
-export interface PhotographedObservation {
+export interface ObservedImages {
   experiment: Experiment;
   version: ModelVersion;
   /** In the order of `contents`. */
   digests: string[];
   /** In the order of `contents`. */
-  photos: PhotoRef[];
+  images: ObservationImageRef[];
 }
 
 /**
- * Lays out one dish per text in a new experiment and photographs them all in
- * its first observation, so the images enter the system the way photographs
- * do: through a design that already knows its dishes.
+ * Creates one observation unit per text and assigns an image to each in the
+ * experiment's first observation.
  */
-export async function photographObservation(
+export async function observeImages(
   experimentName: string,
   contents: string[],
   version?: ModelVersion,
-): Promise<PhotographedObservation> {
+): Promise<ObservedImages> {
   const selectedVersion = version ?? (await baselineVersion());
   const experiment = await createExperiment({
     name: experimentName,
-    material: "",
-    explant: "",
-    medium: "",
+    plantMaterial: "",
+    explantType: "",
+    baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
     modelVersionId: selectedVersion.id,
@@ -222,71 +230,79 @@ export async function photographObservation(
     replicates: 0,
     initialExplantCount: 1,
   });
-  const dishes = await addDishes({
+  const observationUnits = await addObservationUnits({
     experiment: experiment.id,
     treatment: treatment.id,
-    labels: contents,
+    codes: contents,
     initialExplantCount: 1,
   });
-  const byLabel = new Map(dishes.map((dish) => [dish.label, dish.id]));
+  const byCode = new Map(
+    observationUnits.map((observationUnit) => [
+      observationUnit.code,
+      observationUnit.id,
+    ]),
+  );
   const digests = await storeTexts(contents);
   const observation = await addObservation({
     experiment: experiment.id,
     observedOn: "2026-08-08",
     note: "",
   });
-  await filePhotos({
+  await assignObservationImages({
     experiment: experiment.id,
     observation: observation.id,
-    photos: contents.map((content, index) => ({
-      dish: byLabel.get(content)!,
+    images: contents.map((content, index) => ({
+      observationUnit: byCode.get(content)!,
       digest: digests[index]!,
       filename: `${content}.jpg`,
     })),
   });
-  const cells = await listExperimentPhotos(experiment.id);
+  const cells = await listExperimentObservationImages(experiment.id);
   return {
     experiment,
     version: selectedVersion,
     digests,
-    photos: contents.map((content) => ({
+    images: contents.map((content) => ({
       experiment: experiment.id,
-      photo: cells.get(byLabel.get(content)!)!,
+      observationImage: cells.get(byCode.get(content)!)!,
     })),
   };
 }
 
-/** The photograph filed under each dish, by dish, across every observation. */
-async function listExperimentPhotos(
+/** Observation-image identifiers indexed by observation unit. */
+async function listExperimentObservationImages(
   experimentId: string,
 ): Promise<Map<string, string>> {
   const rows = await (
     await database()
   )
-    .select({ dishId: experimentPhotos.dishId, id: experimentPhotos.id })
-    .from(experimentPhotos)
-    .where(eq(experimentPhotos.experimentId, experimentId));
-  return new Map(rows.map((row) => [row.dishId, row.id]));
+    .select({
+      observationUnitId: experimentObservationImages.observationUnitId,
+      id: experimentObservationImages.id,
+    })
+    .from(experimentObservationImages)
+    .where(eq(experimentObservationImages.experimentId, experimentId));
+  return new Map(rows.map((row) => [row.observationUnitId, row.id]));
 }
 
-export interface SeededDataset extends PhotographedObservation {
+export interface SeededDataset extends ObservedImages {
   dataset: Dataset;
 }
 
-/** Photographs the texts in an experiment and adds them to the dataset. */
+/** Creates observation images from the texts and adds them to the dataset. */
 export async function uploadTexts(
   datasetId: string,
   contents: string[],
   version?: ModelVersion,
 ): Promise<SeededDataset> {
-  const observation = await photographObservation(
-    `${datasetId} photos`,
+  const observation = await observeImages(
+    `${datasetId} images`,
     contents,
     version,
   );
-  const { dataset } = await addExperimentPhotos({
+  const { dataset } = await addExperimentObservationImages({
     dataset: datasetId,
-    photos: observation.photos,
+    images: observation.images,
   });
   return { ...observation, dataset };
 }
@@ -325,17 +341,17 @@ export async function reviewedDataset(
   for (const content of contents) {
     const ref = {
       digest: await imageDigest(content),
-      model: seeded.version.modelId,
+      modelId: seeded.version.modelId,
     };
-    if (await readLabel(ref)) continue;
+    if (await readAnnotation(ref)) continue;
     const result = await resultFor(seeded.version, content);
     await recordInferenceOutcome(
       { digest: ref.digest, versionId: seeded.version.id },
       result,
       { runtimes: [result.producer.runtime] },
     );
-    const started = await createLabelFromDetection(ref, seeded.version.id);
-    await updateLabel(ref, { ...started, status: "complete" });
+    const started = await createAnnotationFromDetection(ref, seeded.version.id);
+    await updateAnnotation(ref, { ...started, status: "complete" });
   }
   return seeded;
 }

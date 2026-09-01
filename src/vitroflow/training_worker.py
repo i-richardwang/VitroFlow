@@ -14,7 +14,7 @@ from uuid import uuid4
 
 import httpx
 
-from .annotations import ReviewedImage, parse_annotation
+from .annotations import AnnotationDocument, parse_annotation
 from .documents import (
     as_digest,
     as_integer,
@@ -199,7 +199,7 @@ class SnapshotImage:
     width: int
     height: int
     split: str
-    annotation: ReviewedImage
+    annotation: AnnotationDocument
 
 
 @dataclass(frozen=True)

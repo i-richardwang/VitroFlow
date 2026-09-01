@@ -25,7 +25,7 @@ test("training worker HTTP errors preserve protocol semantics", () => {
   ).toBe(404);
   expect(
     trainingWorkerErrorResponse(
-      new TrainingRunConflictError("lease lost"),
+      new TrainingRunConflictError("lease missing"),
       "Operation failed",
     ).status,
   ).toBe(409);

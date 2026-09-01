@@ -2,7 +2,7 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { ImageWorkbench } from "../../components/workbench/ImageWorkbench";
-import { labelRefSchema } from "../../annotation/schema";
+import { annotationRefSchema } from "../../annotation/schema";
 import { getReview } from "../../functions/review";
 import { resourceIdSchema } from "../../identifiers/schema";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
@@ -14,9 +14,9 @@ export const Route = createFileRoute("/_workbench/review/$model/$digest")({
   validateSearch: reviewSearchSchema,
   loaderDeps: ({ search }) => ({ version: search.version }),
   loader: async ({ params, deps }) => {
-    const ref = labelRefSchema.safeParse({
+    const ref = annotationRefSchema.safeParse({
       digest: params.digest,
-      model: params.model,
+      modelId: params.model,
     });
     const version =
       deps.version === undefined
@@ -47,7 +47,7 @@ function ReviewPage() {
 
   return (
     <ImageWorkbench
-      key={`${review.ref.model}/${review.ref.digest}`}
+      key={`${review.ref.modelId}/${review.ref.digest}`}
       review={review}
     />
   );

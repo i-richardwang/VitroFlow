@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..annotations import BoundingBox, ReviewedImage
+from ..annotations import AnnotationDocument, BoundingBox
 from ..candidates import FEATURE_NAMES, CandidateEvidence
 from ..config import PipelineConfig
 from ..manifest import verified_blob
@@ -16,7 +16,7 @@ from ..proposals import SeedProposal
 
 @dataclass(frozen=True)
 class PreparedImage:
-    annotation: ReviewedImage
+    annotation: AnnotationDocument
     boxes: tuple[BoundingBox, ...]
     proposals: tuple[SeedProposal, ...]
     evidence: tuple[CandidateEvidence, ...]
@@ -82,7 +82,7 @@ def label_candidates(
 
 
 def _prepare_image(
-    annotation: ReviewedImage,
+    annotation: AnnotationDocument,
     data_root: str | Path,
     config: PipelineConfig,
 ) -> PreparedImage:
@@ -118,7 +118,7 @@ def _prepare_image(
 
 
 def prepare_images(
-    annotations: Iterable[ReviewedImage],
+    annotations: Iterable[AnnotationDocument],
     data_root: str | Path,
     config: PipelineConfig,
 ) -> list[PreparedImage]:

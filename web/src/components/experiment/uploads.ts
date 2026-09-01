@@ -5,8 +5,8 @@ import { storedImageResponseSchema } from "../../images/schema";
 import type { ListedImage } from "../ImageDropZone";
 
 /**
- * Photographs travelling at once. A second request keeps the server encoding
- * while the next photograph is still on the wire; more than that would queue
+ * Images travelling at once. A second request keeps the server encoding
+ * while the next image is still on the wire; more than that would queue
  * behind the same processor.
  */
 const UPLOAD_LANES = 2;
@@ -21,8 +21,8 @@ export interface Uploads {
 }
 
 /**
- * Photographs stored ahead of the record that will refer to them. Bytes go up
- * as soon as they are dropped, so filing them afterwards is a decision rather
+ * Images stored ahead of the record that will refer to them. Bytes go up
+ * as soon as they are dropped, so assigning them afterwards is a decision rather
  * than a wait.
  */
 export function useUploads(): Uploads {

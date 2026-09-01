@@ -13,7 +13,7 @@ function source() {
   });
 }
 
-test("canonical images are opaque, oriented sRGB AVIF photographs", async () => {
+test("canonical images are opaque, oriented sRGB AVIF images", async () => {
   const transparent = await sharp(Buffer.from([255, 0, 0, 0]), {
     raw: { width: 1, height: 1, channels: 4 },
   })
@@ -44,7 +44,7 @@ test("canonical images are opaque, oriented sRGB AVIF photographs", async () => 
   });
 });
 
-test("canonical ingestion accepts exactly one JPEG, PNG, or TIFF photograph", async () => {
+test("canonical ingestion accepts exactly one JPEG, PNG, or TIFF image", async () => {
   for (const encoded of [
     await source().jpeg().toBuffer(),
     await source().png().toBuffer(),
@@ -71,5 +71,5 @@ test("canonical ingestion accepts exactly one JPEG, PNG, or TIFF photograph", as
   })
     .tiff()
     .toBuffer();
-  await expect(canonicalize(pages)).rejects.toThrow(/exactly one photograph/);
+  await expect(canonicalize(pages)).rejects.toThrow(/exactly one image/);
 });

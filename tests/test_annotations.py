@@ -19,9 +19,11 @@ def test_complete_annotations_are_the_training_source(tmp_path: Path) -> None:
         data_root,
         "batch",
         [
-            manifest_entry("1" * 64, label=annotation_document("1" * 64, revision=3)),
             manifest_entry(
-                "2" * 64, label=annotation_document("2" * 64, status="in_progress")
+                "1" * 64, annotation=annotation_document("1" * 64, revision=3)
+            ),
+            manifest_entry(
+                "2" * 64, annotation=annotation_document("2" * 64, status="in_progress")
             ),
             manifest_entry("3" * 64),
         ],
@@ -51,23 +53,33 @@ def test_shared_annotation_contract() -> None:
     assert len(annotation.instances) == 1
 
 
-def test_label_must_describe_its_manifest_image(tmp_path: Path) -> None:
+def test_excluded_annotation_preserves_its_reason() -> None:
+    document = annotation_document("1" * 64, status="excluded")
+    document["excludedReason"] = "Image is out of focus"
+
+    annotation = parse_annotation(document)
+
+    assert annotation.status == "excluded"
+    assert annotation.excluded_reason == "Image is out of focus"
+
+
+def test_annotation_must_describe_its_manifest_image(tmp_path: Path) -> None:
     manifest = write_manifest(
         tmp_path,
         "batch",
-        [manifest_entry("1" * 64, label=annotation_document("2" * 64))],
+        [manifest_entry("1" * 64, annotation=annotation_document("2" * 64))],
     )
     with pytest.raises(ValueError, match="differs from its image"):
         load_annotations(manifest)
 
 
-def test_label_classes_belong_to_the_manifest_model(tmp_path: Path) -> None:
-    label = annotation_document("1" * 64)
-    label["instances"][0]["class"] = "germinated"
+def test_annotation_classes_belong_to_the_manifest_model(tmp_path: Path) -> None:
+    annotation = annotation_document("1" * 64)
+    annotation["instances"][0]["class"] = "germinated"
     manifest = write_manifest(
         tmp_path,
         "batch",
-        [manifest_entry("1" * 64, label=label)],
+        [manifest_entry("1" * 64, annotation=annotation)],
         classes=["seed"],
     )
 

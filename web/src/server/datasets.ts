@@ -4,18 +4,18 @@ import { database, transaction, type Executor } from "../db/client";
 import {
   datasetImages,
   datasets,
-  experimentPhotos,
+  experimentObservationImages,
   experiments,
-  images,
+  images as imageAssets,
   modelVersions,
 } from "../db/schema";
 import {
   datasetSchema,
   type Dataset,
   type DatasetImageRef,
-  type DatasetPhotoAddition,
+  type DatasetImageAddition,
 } from "../datasets/schema";
-import type { PhotoRef } from "../experiments/schema";
+import type { ObservationImageRef } from "../experiments/schema";
 import type { ImageSplit } from "../training/schema";
 import { imageBlobKey } from "./blobs";
 import { lockImage } from "./image-lock";
@@ -31,21 +31,21 @@ export interface DatasetImage extends DatasetImageRef {
   split: ImageSplit | null;
 }
 
-export interface DatasetPhotoAdditionResult {
+export interface DatasetImageAdditionResult {
   dataset: Dataset;
   added: number;
   existing: number;
 }
 
-/** Thrown when a reference names no experiment photograph. */
-export class NotPhotographedError extends Error {}
+/** Thrown when a reference names no experiment observation image. */
+export class ObservationImageNotFoundError extends Error {}
 
-/** Thrown when photographs would join a dataset training another model. */
+/** Thrown when images would join a dataset training another model. */
 export class DatasetModelError extends Error {}
 
 export type MembershipRow = {
   membership: typeof datasetImages.$inferSelect;
-  image: typeof images.$inferSelect;
+  image: typeof imageAssets.$inferSelect;
 };
 
 export function toDatasetImage({
@@ -154,63 +154,72 @@ async function ensureDataset(
   return ensureDataset(datasetId, modelId, db);
 }
 
-function describePhoto({ experiment, photo }: PhotoRef): string {
-  return `${experiment}/${photo}`;
+function describeObservationImage({
+  experiment,
+  observationImage,
+}: ObservationImageRef): string {
+  return `${experiment}/${observationImage}`;
 }
 
-function atPhoto({ experiment, photo }: PhotoRef) {
+function atObservationImage({
+  experiment,
+  observationImage,
+}: ObservationImageRef) {
   return and(
-    eq(experimentPhotos.experimentId, experiment),
-    eq(experimentPhotos.id, photo),
+    eq(experimentObservationImages.experimentId, experiment),
+    eq(experimentObservationImages.id, observationImage),
   );
 }
 
-/**
- * Adds experiment photographs to a dataset of the model their experiments
- * reads with, creating the dataset on first use. Each joins under the
- * filename it was photographed as; a photograph taken in several places joins
- * once, under the first reference. The sorted digest locks serialize the
- * addition with image collection, and the dataset gains every photograph or
- * none.
- */
-export async function addExperimentPhotos(
-  value: DatasetPhotoAddition,
-): Promise<DatasetPhotoAdditionResult> {
-  const { dataset: datasetId, photos } = value;
+/** Adds experiment images atomically to a dataset for their analysis model. */
+export async function addExperimentObservationImages(
+  value: DatasetImageAddition,
+): Promise<DatasetImageAdditionResult> {
+  const { dataset: datasetId, images } = value;
   const addedAt = new Date();
   return transaction(async (tx) => {
-    const photographed = await tx
+    const observedImages = await tx
       .select({
-        experimentId: experimentPhotos.experimentId,
-        photoId: experimentPhotos.id,
-        digest: experimentPhotos.imageId,
-        filename: experimentPhotos.filename,
+        experimentId: experimentObservationImages.experimentId,
+        observationImageId: experimentObservationImages.id,
+        digest: experimentObservationImages.imageId,
+        filename: experimentObservationImages.filename,
         modelId: modelVersions.modelId,
       })
-      .from(experimentPhotos)
-      .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
+      .from(experimentObservationImages)
+      .innerJoin(
+        experiments,
+        eq(experiments.id, experimentObservationImages.experimentId),
+      )
       .innerJoin(
         modelVersions,
         eq(modelVersions.id, experiments.modelVersionId),
       )
-      .where(or(...photos.map(atPhoto)));
+      .where(or(...images.map(atObservationImage)));
     const byRef = new Map(
-      photographed.map((row) => [
-        describePhoto({ experiment: row.experimentId, photo: row.photoId }),
+      observedImages.map((row) => [
+        describeObservationImage({
+          experiment: row.experimentId,
+          observationImage: row.observationImageId,
+        }),
         row,
       ]),
     );
-    const missing = photos.filter((photo) => !byRef.has(describePhoto(photo)));
+    const missing = images.filter(
+      (image) => !byRef.has(describeObservationImage(image)),
+    );
     if (missing.length > 0) {
-      throw new NotPhotographedError(
-        `Not experiment photographs: ${missing.map(describePhoto).join(", ")}`,
+      throw new ObservationImageNotFoundError(
+        `Not experiment observation images: ${missing.map(describeObservationImage).join(", ")}`,
       );
     }
-    const resolved = photos.map((photo) => byRef.get(describePhoto(photo))!);
+    const resolved = images.map((image) =>
+      byRef.get(describeObservationImage(image))!,
+    );
     const modelIds = [...new Set(resolved.map((row) => row.modelId))];
     if (modelIds.length > 1) {
       throw new DatasetModelError(
-        `The photographs were read with different models: ${modelIds.join(", ")}`,
+        `The images were analyzed with different models: ${modelIds.join(", ")}`,
       );
     }
     const joining = new Map<string, string>();
@@ -242,7 +251,7 @@ export async function addExperimentPhotos(
 
 /**
  * Removes the image from the dataset. Its review belongs to the image and
- * the model, so it survives; the photograph outlives the membership too.
+ * the model, so it survives; the image outlives the membership too.
  */
 export async function removeDatasetImage(ref: DatasetImageRef): Promise<void> {
   const [membership] = await (

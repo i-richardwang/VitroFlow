@@ -74,7 +74,7 @@ def manifest_entry(
     size: int = 1,
     split: str | None = None,
     detection: dict[str, Any] | None = None,
-    label: dict[str, Any] | None = None,
+    annotation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "digest": digest,
@@ -84,7 +84,7 @@ def manifest_entry(
         "bytes": size,
         "split": split,
         "detection": detection,
-        "label": label,
+        "annotation": annotation,
     }
 
 
@@ -131,7 +131,7 @@ def write_manifest(
 
 
 def encoded_image(width: int = 100, height: int = 80, variant: int = 0) -> bytes:
-    """Canonical-format bytes; ``variant`` makes distinct valid photographs."""
+    """Canonical-format bytes; ``variant`` makes distinct valid images."""
     pixels = np.zeros((height, width, 3), np.uint8)
     pixels[:] = (
         (variant * 37) % 256,

@@ -2,11 +2,11 @@ import { Switch, SwitchGroup } from "@heroui/react";
 import type { ReactNode } from "react";
 
 import {
-  formatReading,
-  read,
-  type Reading,
+  formatMetric,
+  computeMetric,
+  type DerivedMetric,
   type Tally,
-} from "../../models/readings";
+} from "../../models/metrics";
 import { LAYERS, type LayerKey } from "./controls";
 
 export function Section({
@@ -52,26 +52,26 @@ export function Metrics({ rows }: { rows: Metric[] }) {
   );
 }
 
-export interface ReadingSource {
+export interface DerivedMetricSource {
   label: string;
   tally: Tally;
 }
 
-export function ReadingsSection({
-  readings,
+export function MetricsSection({
+  metrics,
   sources,
 }: {
-  readings: Reading[];
-  sources: ReadingSource[];
+  metrics: DerivedMetric[];
+  sources: DerivedMetricSource[];
 }) {
   return (
-    <Section title="Readings">
+    <Section title="Metrics">
       <table className="w-full">
         {sources.length > 1 && (
           <thead>
             <tr className="text-xs text-muted">
               <th className="pb-1 text-left font-normal" scope="col">
-                <span className="sr-only">Reading</span>
+                <span className="sr-only">Metric</span>
               </th>
               {sources.map((source) => (
                 <th
@@ -86,20 +86,20 @@ export function ReadingsSection({
           </thead>
         )}
         <tbody>
-          {readings.map((reading, index) => (
-            <tr key={reading.id}>
+          {metrics.map((metric, index) => (
+            <tr key={metric.id}>
               <th
                 className="py-0.5 text-left font-normal text-muted"
                 scope="row"
               >
-                {reading.name}
+                {metric.name}
               </th>
               {sources.map((source) => (
                 <td
                   key={source.label}
                   className={`py-0.5 text-right font-mono tabular-nums ${index === 0 ? "font-semibold" : "font-medium"}`}
                 >
-                  {formatReading(reading, read(reading, source.tally))}
+                  {formatMetric(metric, computeMetric(metric, source.tally))}
                 </td>
               ))}
             </tr>

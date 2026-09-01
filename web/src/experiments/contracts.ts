@@ -1,35 +1,35 @@
 import type { AnnotationDocument } from "../annotation/schema";
 import type { DetectionFailure, DetectionResult } from "../detection/schema";
-import type { Tally } from "../models/readings";
+import type { Tally } from "../models/metrics";
 import type { Model, ModelVersion } from "../models/schema";
 import type {
-  DishEvent,
+  CultureEvent,
   Experiment,
   ExperimentObservation,
-  PhotoRef,
-  PhotoState,
+  ImageAnalysisState,
+  ObservationImageRef,
   Treatment,
 } from "./schema";
 
-export interface ExperimentDish {
+export interface ObservationUnit {
   id: string;
-  label: string;
+  code: string;
   position: number;
   treatment: string | null;
   /** Subsamples within this experimental unit; they do not increase n. */
   initialExplantCount: number;
-  events: DishEvent[];
+  events: CultureEvent[];
 }
 
-export interface PhotoCell {
+export interface ObservationImageCell {
   id: string;
-  dish: string;
+  observationUnit: string;
   observation: string;
   digest: string;
   filename: string;
-  state: PhotoState;
-  observed: Tally | null;
-  reviewed: Tally | null;
+  state: ImageAnalysisState;
+  detectionTally: Tally | null;
+  annotationTally: Tally | null;
   error: string | null;
 }
 
@@ -38,45 +38,45 @@ export interface ExperimentGrid {
   model: Model;
   version: ModelVersion;
   treatments: Treatment[];
-  dishes: ExperimentDish[];
+  observationUnits: ObservationUnit[];
   observations: ExperimentObservation[];
-  photos: PhotoCell[];
+  images: ObservationImageCell[];
 }
 
-export interface DishObservation {
+export interface ObservationUnitObservation {
   observation: ExperimentObservation;
-  photo: PhotoCell | null;
+  image: ObservationImageCell | null;
 }
 
-export interface DishStep {
+export interface ObservationUnitNavigationEntry {
   id: string;
-  label: string;
+  code: string;
 }
 
-export interface ExperimentDishSeries {
+export interface ObservationUnitSeries {
   experiment: Experiment;
   model: Model;
   version: ModelVersion;
-  dish: ExperimentDish;
+  observationUnit: ObservationUnit;
   treatment: Treatment | null;
-  roster: DishStep[];
-  observations: DishObservation[];
-  shown: ExperimentPhoto | null;
+  navigation: ObservationUnitNavigationEntry[];
+  observations: ObservationUnitObservation[];
+  shown: ExperimentObservationImage | null;
 }
 
 export interface ExperimentSummary {
   experiment: Experiment;
   version: ModelVersion;
   treatments: number;
-  dishes: number;
+  observationUnits: number;
   observations: number;
-  counts: Record<PhotoState, number>;
+  counts: Record<ImageAnalysisState, number>;
 }
 
-export interface ExperimentPhoto {
-  ref: PhotoRef;
+export interface ExperimentObservationImage {
+  ref: ObservationImageRef;
   experimentName: string;
-  dish: { id: string; label: string };
+  observationUnit: { id: string; code: string };
   observation: ExperimentObservation;
   digest: string;
   filename: string;
@@ -87,5 +87,5 @@ export interface ExperimentPhoto {
   modelId: string;
   detection: DetectionResult | null;
   failure: DetectionFailure | null;
-  label: AnnotationDocument | null;
+  annotation: AnnotationDocument | null;
 }

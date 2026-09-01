@@ -5,8 +5,8 @@ import { describe, expect, test } from "bun:test";
 import { makeResult } from "../annotation/testing";
 import { database } from "../db/client";
 import {
-  experimentDishEvents,
-  experimentDishes,
+  experimentCultureEvents,
+  experimentObservationUnits,
   experimentObservations,
   experiments,
   inferenceOutcomes,
@@ -14,14 +14,14 @@ import {
 import type { InferenceWorkerRecord } from "../inference/workers";
 import type { ModelVersion } from "../models/schema";
 import {
-  DishNotFoundError,
-  DishRejectedError,
+  ObservationUnitNotFoundError,
+  ObservationUnitRejectedError,
   ExperimentDesignIncompleteError,
   ExperimentDesignLockedError,
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
-  ExperimentPhotoAlreadyUsedError,
-  PhotoRejectedError,
+  ExperimentObservationImageAlreadyUsedError,
+  ObservationImageRejectedError,
   ObservationRejectedError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
@@ -39,34 +39,36 @@ import {
   recordInferenceOutcome,
 } from "./inference-outcomes";
 import {
-  addDishes,
+  addObservationUnits,
   addTreatment,
   addTreatmentReplicates,
-  assignDishes,
+  assignObservationUnits,
   createExperiment as createExperimentRecord,
-  deleteDish,
+  deleteObservationUnit,
   deleteExperiment,
   deleteTreatment,
   readExperiment,
-  updateDish,
+  updateObservationUnit,
   updateTreatment,
   updateExperiment,
 } from "./experiment-design";
-import { recordDishEvent, voidDishEvent } from "./experiment-events";
+import { recordCultureEvent, voidCultureEvent } from "./culture-events";
+import {
+  assignObservationImages,
+  moveObservationImage,
+  retryObservationImageAnalysis,
+  unassignObservationImage,
+} from "./experiment-observation-images";
 import {
   addObservation,
   deleteObservation,
-  filePhotos,
-  movePhoto,
-  removePhoto,
-  retryExperimentDetection,
   updateObservation,
 } from "./experiment-observations";
 import {
   listExperiments,
-  readExperimentDish,
+  readObservationUnit,
   readExperimentGrid,
-  readExperimentPhoto,
+  readExperimentObservationImage,
 } from "./experiment-queries";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { listAllModelVersions } from "./model-registry";
@@ -100,9 +102,7 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
     name: `${modelId} detector`,
     task: "object_detection",
     classes: ["seed"],
-    readings: [
-      { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
-    ],
+    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   return registerTrainedVersion(modelId);
 }
@@ -134,13 +134,13 @@ function failureFor(version: ModelVersion, digest: string) {
       artifactDigest: version.artifact.digest,
       runtime: ULTRALYTICS_RUNTIME,
     },
-    error: "no dish found",
+    error: "no observation unit found",
   };
 }
 
-async function layOut(
+async function defineObservationUnits(
   experiment: string,
-  labels: string[],
+  codes: string[],
 ): Promise<Map<string, string>> {
   const treatment = await addTreatment({
     experiment,
@@ -150,41 +150,53 @@ async function layOut(
     replicates: 0,
     initialExplantCount: 1,
   });
-  const dishes = await addDishes({
+  const observationUnits = await addObservationUnits({
     experiment,
     treatment: treatment.id,
-    labels,
+    codes,
     initialExplantCount: 1,
   });
-  return new Map(dishes.map((dish) => [dish.label, dish.id]));
+  return new Map(
+    observationUnits.map((observationUnit) => [
+      observationUnit.code,
+      observationUnit.id,
+    ]),
+  );
 }
 
-/** Photographs the named dishes in one observation, one image per dish. */
-async function photograph(
+/** Assigns one image to each named observation unit in an observation. */
+async function assignImages(
   experiment: string,
   observation: string,
-  dishes: Map<string, string>,
+  observationUnits: Map<string, string>,
   contents: Record<string, string>,
 ) {
   const entries = Object.entries(contents);
   const digests = await storeTexts(entries.map(([, content]) => content));
-  return filePhotos({
+  return assignObservationImages({
     experiment,
     observation,
-    photos: entries.map(([label], index) => ({
-      dish: dishes.get(label)!,
+    images: entries.map(([code], index) => ({
+      observationUnit: observationUnits.get(code)!,
       digest: digests[index]!,
-      filename: `${label}.jpg`,
+      filename: `${code}.jpg`,
     })),
   });
 }
 
-/** The photograph filed under each dish label, across every observation. */
-async function photosByDish(experiment: string): Promise<Map<string, string>> {
+/** Observation-image identifiers indexed by observation unit code. */
+async function imagesByObservationUnit(
+  experiment: string,
+): Promise<Map<string, string>> {
   const grid = await readExperimentGrid(experiment);
-  const labels = new Map(grid!.dishes.map((dish) => [dish.id, dish.label]));
+  const codes = new Map(
+    grid!.observationUnits.map((observationUnit) => [
+      observationUnit.id,
+      observationUnit.code,
+    ]),
+  );
   return new Map(
-    grid!.photos.map((photo) => [labels.get(photo.dish)!, photo.id]),
+    grid!.images.map((image) => [codes.get(image.observationUnit)!, image.id]),
   );
 }
 
@@ -237,9 +249,9 @@ describe("experiments", () => {
       await (await database()).insert(experiments).values({
         id: randomUUID(),
         name: "Bypass",
-        material: "",
-        explant: "",
-        medium: "",
+        plantMaterial: "",
+        explantType: "",
+        baseMedium: "",
         notes: "",
         inoculatedOn: INOCULATED,
         modelVersionId: "nobody.v9",
@@ -248,39 +260,42 @@ describe("experiments", () => {
     })();
     await expect(unknownVersion).rejects.toThrow();
 
-    const invalidDish = (async () => {
-      await (await database()).insert(experimentDishes).values({
+    const invalidObservationUnit = (async () => {
+      await (await database()).insert(experimentObservationUnits).values({
         experimentId: first.id,
         id: randomUUID(),
-        label: " A1 ",
+        code: " A1 ",
         initialExplantCount: 1,
       });
     })();
-    await expect(invalidDish).rejects.toThrow();
+    await expect(invalidObservationUnit).rejects.toThrow();
 
     const invalidExplantCount = (async () => {
-      await (await database()).insert(experimentDishes).values({
+      await (await database()).insert(experimentObservationUnits).values({
         experimentId: first.id,
         id: randomUUID(),
-        label: "A2",
+        code: "A2",
         initialExplantCount: 0,
       });
     })();
     await expect(invalidExplantCount).rejects.toThrow();
   });
 
-  test("the design lays out dishes before any photograph exists", async () => {
+  test("the design defines observation units before any image exists", async () => {
     const version = await trainedVersion("exp-design");
     const experiment = await createExperiment({
       name: "Hormones",
-      material: "  Arabidopsis Col-0  ",
-      explant: "Seeds",
-      medium: "MS",
+      plantMaterial: "  Arabidopsis Col-0  ",
+      explantType: "Seeds",
+      baseMedium: "MS",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    expect(experiment.material).toBe("Arabidopsis Col-0");
-    expect([experiment.explant, experiment.medium]).toEqual(["Seeds", "MS"]);
+    expect(experiment.plantMaterial).toBe("Arabidopsis Col-0");
+    expect([experiment.explantType, experiment.baseMedium]).toEqual([
+      "Seeds",
+      "MS",
+    ]);
     expect(experiment.notes).toBe("");
 
     const control = await addTreatment({
@@ -307,7 +322,12 @@ describe("experiments", () => {
 
     const empty = await readExperimentGrid(experiment.id);
     expect(empty?.observations).toEqual([]);
-    expect(empty?.dishes.map((dish) => [dish.label, dish.position])).toEqual([
+    expect(
+      empty?.observationUnits.map((observationUnit) => [
+        observationUnit.code,
+        observationUnit.position,
+      ]),
+    ).toEqual([
       ["CK-1", 1],
       ["CK-2", 2],
       ["T1-1", 3],
@@ -315,8 +335,10 @@ describe("experiments", () => {
       ["T1-3", 5],
     ]);
     expect(
-      empty?.dishes.every(
-        (dish) => dish.initialExplantCount >= 1 && dish.events.length === 0,
+      empty?.observationUnits.every(
+        (observationUnit) =>
+          observationUnit.initialExplantCount >= 1 &&
+          observationUnit.events.length === 0,
       ),
     ).toBeTrue();
 
@@ -325,7 +347,7 @@ describe("experiments", () => {
     );
     expect([
       summary?.treatments,
-      summary?.dishes,
+      summary?.observationUnits,
       summary?.observations,
     ]).toEqual([2, 5, 0]);
   });
@@ -345,10 +367,10 @@ describe("experiments", () => {
       replicates: 0,
       initialExplantCount: 1,
     });
-    await addDishes({
+    await addObservationUnits({
       experiment: experiment.id,
       treatment: null,
-      labels: ["A1"],
+      codes: ["A1"],
       initialExplantCount: 1,
     });
 
@@ -360,10 +382,11 @@ describe("experiments", () => {
       }),
     ).rejects.toThrow(ExperimentDesignIncompleteError);
 
-    const [dish] = (await readExperimentGrid(experiment.id))!.dishes;
-    await assignDishes({
+    const [observationUnit] = (await readExperimentGrid(experiment.id))!
+      .observationUnits;
+    await assignObservationUnits({
       experiment: experiment.id,
-      dishes: [dish!.id],
+      observationUnits: [observationUnit!.id],
       treatment: treatment.id,
     });
     await expect(
@@ -375,7 +398,7 @@ describe("experiments", () => {
     ).resolves.toMatchObject({ day: 7 });
   });
 
-  test("replicate labels and initial explant counts are owned by the design service", async () => {
+  test("replicate codes and initial explant counts are owned by the design service", async () => {
     const version = await trainedVersion("exp-replicates");
     const experiment = await createExperiment({
       name: "Replicates",
@@ -405,25 +428,21 @@ describe("experiments", () => {
       }),
     ]);
     const grid = await readExperimentGrid(experiment.id);
-    expect(grid?.dishes.map((dish) => dish.label)).toEqual([
-      "T1-1",
-      "T1-2",
-      "T1-3",
-      "T1-4",
-      "T1-5",
-    ]);
+    expect(
+      grid?.observationUnits.map((observationUnit) => observationUnit.code),
+    ).toEqual(["T1-1", "T1-2", "T1-3", "T1-4", "T1-5"]);
 
-    const dish = grid!.dishes[0]!;
-    const updated = await updateDish({
+    const observationUnit = grid!.observationUnits[0]!;
+    const updated = await updateObservationUnit({
       experiment: experiment.id,
-      dish: dish.id,
-      label: dish.label,
+      observationUnit: observationUnit.id,
+      code: observationUnit.code,
       initialExplantCount: 7,
     });
     expect(updated.initialExplantCount).toBe(7);
   });
 
-  test("treatments are named once and dishes are labelled once", async () => {
+  test("treatment names and observation unit codes are unique", async () => {
     const version = await trainedVersion("exp-unique");
     const experiment = await createExperiment({
       name: "Unique",
@@ -467,50 +486,50 @@ describe("experiments", () => {
       }),
     ).rejects.toThrow(TreatmentRejectedError);
     await expect(
-      addDishes({
+      addObservationUnits({
         experiment: experiment.id,
         treatment: null,
-        labels: ["CK-1"],
+        codes: ["CK-1"],
         initialExplantCount: 1,
       }),
-    ).rejects.toThrow(DishRejectedError);
+    ).rejects.toThrow(ObservationUnitRejectedError);
     await expect(
-      addDishes({
+      addObservationUnits({
         experiment: experiment.id,
         treatment: randomUUID(),
-        labels: ["X1"],
+        codes: ["X1"],
         initialExplantCount: 1,
       }),
     ).rejects.toThrow(TreatmentNotFoundError);
-    await addDishes({
+    await addObservationUnits({
       experiment: experiment.id,
       treatment: null,
-      labels: ["A-1"],
+      codes: ["A-1"],
       initialExplantCount: 1,
     });
     await expect(
-      addDishes({
+      addObservationUnits({
         experiment: experiment.id,
         treatment: null,
-        labels: ["a_1"],
+        codes: ["a_1"],
         initialExplantCount: 1,
       }),
-    ).rejects.toThrow(DishRejectedError);
+    ).rejects.toThrow(ObservationUnitRejectedError);
 
-    await assignDishes({
+    await assignObservationUnits({
       experiment: experiment.id,
-      dishes: (await readExperimentGrid(experiment.id))!.dishes.map(
-        (dish) => dish.id,
-      ),
+      observationUnits: (await readExperimentGrid(
+        experiment.id,
+      ))!.observationUnits.map((observationUnit) => observationUnit.id),
       treatment: treated.id,
     });
     await expect(
-      assignDishes({
+      assignObservationUnits({
         experiment: experiment.id,
-        dishes: [randomUUID()],
+        observationUnits: [randomUUID()],
         treatment: treated.id,
       }),
-    ).rejects.toThrow(DishNotFoundError);
+    ).rejects.toThrow(ObservationUnitNotFoundError);
 
     await deleteTreatment({
       experiment: experiment.id,
@@ -518,47 +537,55 @@ describe("experiments", () => {
     });
     const after = await readExperimentGrid(experiment.id);
     expect(after?.treatments).toEqual([{ ...treated, position: 1 }]);
-    expect(after?.dishes.map((dish) => dish.treatment)).toEqual([
-      treated.id,
-      treated.id,
-    ]);
+    expect(
+      after?.observationUnits.map(
+        (observationUnit) => observationUnit.treatment,
+      ),
+    ).toEqual([treated.id, treated.id]);
   });
 
-  test("a dish keeps its photographs when its label is corrected", async () => {
+  test("an observation unit keeps its images when its code is corrected", async () => {
     const version = await trainedVersion("exp-rename");
     const experiment = await createExperiment({
       name: "Typo",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+      "A2",
+    ]);
     const observation = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
     });
-    await photograph(experiment.id, observation.id, dishes, { A1: "r-a1" });
+    await assignImages(experiment.id, observation.id, observationUnits, {
+      A1: "r-a1",
+    });
 
-    const renamed = await updateDish({
+    const renamed = await updateObservationUnit({
       experiment: experiment.id,
-      dish: dishes.get("A1")!,
-      label: "A01",
+      observationUnit: observationUnits.get("A1")!,
+      code: "A01",
       initialExplantCount: 1,
     });
-    expect(renamed.label).toBe("A01");
+    expect(renamed.code).toBe("A01");
     await expect(
-      updateDish({
+      updateObservationUnit({
         experiment: experiment.id,
-        dish: dishes.get("A2")!,
-        label: "A01",
+        observationUnit: observationUnits.get("A2")!,
+        code: "A01",
         initialExplantCount: 1,
       }),
-    ).rejects.toThrow(DishRejectedError);
+    ).rejects.toThrow(ObservationUnitRejectedError);
 
     const grid = await readExperimentGrid(experiment.id);
-    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A01", "A2"]);
-    expect(grid?.photos).toHaveLength(1);
-    expect(grid?.photos[0]?.dish).toBe(dishes.get("A1")!);
+    expect(
+      grid?.observationUnits.map((observationUnit) => observationUnit.code),
+    ).toEqual(["A01", "A2"]);
+    expect(grid?.images).toHaveLength(1);
+    expect(grid?.images[0]?.observationUnit).toBe(observationUnits.get("A1")!);
   });
 
   test("observations are dated once and ordered by the day they happened", async () => {
@@ -568,7 +595,11 @@ describe("experiments", () => {
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A2", "A10", "B1"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A2",
+      "A10",
+      "B1",
+    ]);
 
     const day7 = await addObservation({
       experiment: experiment.id,
@@ -595,12 +626,14 @@ describe("experiments", () => {
       }),
     ).rejects.toThrow(ObservationRejectedError);
 
-    await photograph(experiment.id, day7.id, dishes, {
+    await assignImages(experiment.id, day7.id, observationUnits, {
       A2: "s-a2-7",
       A10: "s-a10-7",
       B1: "s-b1-7",
     });
-    await photograph(experiment.id, day14.id, dishes, { A2: "s-a2-14" });
+    await assignImages(experiment.id, day14.id, observationUnits, {
+      A2: "s-a2-14",
+    });
 
     const grid = await readExperimentGrid(experiment.id);
     expect(grid?.observations.map(({ id, day }) => [id, day])).toEqual([
@@ -608,14 +641,16 @@ describe("experiments", () => {
       [day14.id, 14],
       [day21.id, 21],
     ]);
-    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A2", "A10", "B1"]);
-    expect(grid?.photos).toHaveLength(4);
+    expect(
+      grid?.observationUnits.map((observationUnit) => observationUnit.code),
+    ).toEqual(["A2", "A10", "B1"]);
+    expect(grid?.images).toHaveLength(4);
 
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
     expect(summary?.observations).toBe(3);
-    expect(summary?.counts).toEqual({ pending: 4, failed: 0, observed: 0 });
+    expect(summary?.counts).toEqual({ pending: 4, failed: 0, analyzed: 0 });
   });
 
   test("observations cannot precede inoculation at either boundary", async () => {
@@ -650,13 +685,16 @@ describe("experiments", () => {
     const version = await trainedVersion("exp-fixed-design");
     const experiment = await createExperiment({
       name: "Fixed design",
-      material: "Arabidopsis",
-      explant: "Leaf discs",
-      medium: "MS",
+      plantMaterial: "Arabidopsis",
+      explantType: "Leaf discs",
+      baseMedium: "MS",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+      "A2",
+    ]);
     await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
@@ -674,20 +712,23 @@ describe("experiments", () => {
       }),
     ).rejects.toThrow(ExperimentDesignLockedError);
     await expect(
-      assignDishes({
+      assignObservationUnits({
         experiment: experiment.id,
-        dishes: [dishes.get("A1")!],
+        observationUnits: [observationUnits.get("A1")!],
         treatment: null,
       }),
     ).rejects.toThrow(ExperimentDesignLockedError);
     await expect(
-      deleteDish({ experiment: experiment.id, dish: dishes.get("A1")! }),
+      deleteObservationUnit({
+        experiment: experiment.id,
+        observationUnit: observationUnits.get("A1")!,
+      }),
     ).rejects.toThrow(ExperimentDesignLockedError);
     await expect(
-      updateDish({
+      updateObservationUnit({
         experiment: experiment.id,
-        dish: dishes.get("A1")!,
-        label: "A1",
+        observationUnit: observationUnits.get("A1")!,
+        code: "A1",
         initialExplantCount: 2,
       }),
     ).rejects.toThrow(ExperimentDesignLockedError);
@@ -695,9 +736,9 @@ describe("experiments", () => {
       updateExperiment({
         experiment: experiment.id,
         name: experiment.name,
-        material: experiment.material,
-        explant: experiment.explant,
-        medium: "B5",
+        plantMaterial: experiment.plantMaterial,
+        explantType: experiment.explantType,
+        baseMedium: "B5",
         notes: experiment.notes,
         inoculatedOn: experiment.inoculatedOn,
       }),
@@ -709,9 +750,9 @@ describe("experiments", () => {
     const annotated = await updateExperiment({
       experiment: experiment.id,
       name: "Fixed design, first run",
-      material: experiment.material,
-      explant: experiment.explant,
-      medium: experiment.medium,
+      plantMaterial: experiment.plantMaterial,
+      explantType: experiment.explantType,
+      baseMedium: experiment.baseMedium,
       notes: "Protocol note corrected",
       inoculatedOn: experiment.inoculatedOn,
     });
@@ -721,14 +762,17 @@ describe("experiments", () => {
     ]);
   });
 
-  test("filing refuses a dish twice, a filled cell, and a photograph already used", async () => {
-    const version = await trainedVersion("exp-filing");
+  test("image assignment rejects duplicate units, filled cells, and reused images", async () => {
+    const version = await trainedVersion("exp-assignment");
     const experiment = await createExperiment({
-      name: "Filing",
+      name: "Image assignment",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+      "A2",
+    ]);
     const day7 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
@@ -742,112 +786,156 @@ describe("experiments", () => {
     const [first, other] = await storeTexts(["f-a1", "f-a2"]);
 
     await expect(
-      filePhotos({
+      assignObservationImages({
         experiment: experiment.id,
         observation: day7.id,
-        photos: [
-          { dish: dishes.get("A1")!, digest: first!, filename: "one.jpg" },
-          { dish: dishes.get("A1")!, digest: other!, filename: "two.jpg" },
+        images: [
+          {
+            observationUnit: observationUnits.get("A1")!,
+            digest: first!,
+            filename: "one.jpg",
+          },
+          {
+            observationUnit: observationUnits.get("A1")!,
+            digest: other!,
+            filename: "two.jpg",
+          },
         ],
       }),
-    ).rejects.toThrow(PhotoRejectedError);
+    ).rejects.toThrow(ObservationImageRejectedError);
     await expect(
-      filePhotos({
+      assignObservationImages({
         experiment: experiment.id,
         observation: day7.id,
-        photos: [
-          { dish: dishes.get("A1")!, digest: first!, filename: "one.jpg" },
-          { dish: dishes.get("A2")!, digest: first!, filename: "two.jpg" },
+        images: [
+          {
+            observationUnit: observationUnits.get("A1")!,
+            digest: first!,
+            filename: "one.jpg",
+          },
+          {
+            observationUnit: observationUnits.get("A2")!,
+            digest: first!,
+            filename: "two.jpg",
+          },
         ],
       }),
-    ).rejects.toThrow(PhotoRejectedError);
+    ).rejects.toThrow(ObservationImageRejectedError);
     await expect(
-      filePhotos({
+      assignObservationImages({
         experiment: experiment.id,
         observation: day7.id,
-        photos: [{ dish: randomUUID(), digest: first!, filename: "one.jpg" }],
+        images: [
+          {
+            observationUnit: randomUUID(),
+            digest: first!,
+            filename: "one.jpg",
+          },
+        ],
       }),
-    ).rejects.toThrow(DishNotFoundError);
+    ).rejects.toThrow(ObservationUnitNotFoundError);
 
-    const filed = await filePhotos({
+    const assigned = await assignObservationImages({
       experiment: experiment.id,
       observation: day7.id,
-      photos: [
-        { dish: dishes.get("A1")!, digest: first!, filename: "IMG_0413.jpg" },
+      images: [
+        {
+          observationUnit: observationUnits.get("A1")!,
+          digest: first!,
+          filename: "IMG_0413.jpg",
+        },
       ],
     });
-    expect([filed.photos, filed.observation.day]).toEqual([1, 7]);
+    expect([assigned.assigned, assigned.observation.day]).toEqual([1, 7]);
 
     await expect(
-      filePhotos({
+      assignObservationImages({
         experiment: experiment.id,
         observation: day7.id,
-        photos: [
-          { dish: dishes.get("A1")!, digest: other!, filename: "again.jpg" },
+        images: [
+          {
+            observationUnit: observationUnits.get("A1")!,
+            digest: other!,
+            filename: "again.jpg",
+          },
         ],
       }),
-    ).rejects.toThrow(PhotoRejectedError);
+    ).rejects.toThrow(ObservationImageRejectedError);
 
     try {
-      await filePhotos({
+      await assignObservationImages({
         experiment: experiment.id,
         observation: day14.id,
-        photos: [
-          { dish: dishes.get("A2")!, digest: first!, filename: "reuse.jpg" },
+        images: [
+          {
+            observationUnit: observationUnits.get("A2")!,
+            digest: first!,
+            filename: "reuse.jpg",
+          },
         ],
       });
-      throw new Error("Expected reused photo to be rejected");
+      throw new Error("Expected reused image to be rejected");
     } catch (error) {
-      expect(error).toBeInstanceOf(ExperimentPhotoAlreadyUsedError);
-      expect((error as ExperimentPhotoAlreadyUsedError).photos).toEqual([
-        { digest: first!, filename: "IMG_0413.jpg", dish: "A1", day: 7 },
+      expect(error).toBeInstanceOf(ExperimentObservationImageAlreadyUsedError);
+      expect(
+        (error as ExperimentObservationImageAlreadyUsedError).images,
+      ).toEqual([
+        {
+          digest: first!,
+          filename: "IMG_0413.jpg",
+          observationUnit: "A1",
+          day: 7,
+        },
       ]);
     }
-    expect((await readExperimentGrid(experiment.id))?.photos).toHaveLength(1);
+    expect((await readExperimentGrid(experiment.id))?.images).toHaveLength(1);
   });
 
-  test("a photograph filed under the wrong cell is refiled or taken back", async () => {
-    const version = await trainedVersion("exp-refile");
+  test("an image assigned to the wrong cell can be reassigned or unassigned", async () => {
+    const version = await trainedVersion("exp-reassign");
     const experiment = await createExperiment({
       name: "Refile",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+      "A2",
+    ]);
     const day7 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
     });
-    await photograph(experiment.id, day7.id, dishes, {
+    await assignImages(experiment.id, day7.id, observationUnits, {
       A1: "w-a1",
       A2: "w-a2",
     });
-    const photos = await photosByDish(experiment.id);
+    const images = await imagesByObservationUnit(experiment.id);
 
     await expect(
-      movePhoto({
+      moveObservationImage({
         experiment: experiment.id,
-        photo: photos.get("A1")!,
-        dish: dishes.get("A2")!,
+        observationImage: images.get("A1")!,
+        observationUnit: observationUnits.get("A2")!,
         observation: day7.id,
       }),
-    ).rejects.toThrow(PhotoRejectedError);
+    ).rejects.toThrow(ObservationImageRejectedError);
 
-    await removePhoto({
+    await unassignObservationImage({
       experiment: experiment.id,
-      photo: photos.get("A2")!,
+      observationImage: images.get("A2")!,
     });
-    await movePhoto({
+    await moveObservationImage({
       experiment: experiment.id,
-      photo: photos.get("A1")!,
-      dish: dishes.get("A2")!,
+      observationImage: images.get("A1")!,
+      observationUnit: observationUnits.get("A2")!,
       observation: day7.id,
     });
 
     const grid = await readExperimentGrid(experiment.id);
-    expect(grid?.photos.map((photo) => photo.dish)).toEqual([
-      dishes.get("A2")!,
+    expect(grid?.images.map((image) => image.observationUnit)).toEqual([
+      observationUnits.get("A2")!,
     ]);
     expect(
       await blobExists(imageBlobKey(await imageDigest("w-a2"))),
@@ -855,22 +943,25 @@ describe("experiments", () => {
   });
 
   test("culture events preserve their effects and corrections", async () => {
-    const version = await trainedVersion("exp-lost");
+    const version = await trainedVersion("exp-missing");
     const experiment = await createExperiment({
       name: "Contamination",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+      "A2",
+    ]);
     const day7 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
     });
 
-    const event = await recordDishEvent({
+    const event = await recordCultureEvent({
       experiment: experiment.id,
-      dish: dishes.get("A1")!,
+      observationUnit: observationUnits.get("A1")!,
       type: "contaminated",
       observation: day7.id,
       excludeFromObservation: true,
@@ -885,18 +976,18 @@ describe("experiments", () => {
       event.note,
     ]).toEqual(["contaminated", day7.id, true, false, "Fungus on the medium"]);
     await expect(
-      recordDishEvent({
+      recordCultureEvent({
         experiment: experiment.id,
-        dish: dishes.get("A1")!,
+        observationUnit: observationUnits.get("A1")!,
         type: "contaminated",
         observation: day7.id,
         excludeFromObservation: true,
         removeAfterObservation: false,
         note: "Duplicate",
       }),
-    ).rejects.toThrow(DishRejectedError);
+    ).rejects.toThrow(ObservationUnitRejectedError);
 
-    const corrected = await voidDishEvent({
+    const corrected = await voidCultureEvent({
       experiment: experiment.id,
       event: event.id,
       reason: "Culture was clean on review",
@@ -909,9 +1000,9 @@ describe("experiments", () => {
       observedOn: "2026-08-15",
       note: "",
     });
-    const removed = await recordDishEvent({
+    const removed = await recordCultureEvent({
       experiment: experiment.id,
-      dish: dishes.get("A1")!,
+      observationUnit: observationUnits.get("A1")!,
       type: "discarded",
       observation: day7.id,
       excludeFromObservation: false,
@@ -920,29 +1011,29 @@ describe("experiments", () => {
     });
     const [futurePhoto] = await storeTexts(["removed-a1"]);
     await expect(
-      filePhotos({
+      assignObservationImages({
         experiment: experiment.id,
         observation: day14.id,
-        photos: [
+        images: [
           {
-            dish: dishes.get("A1")!,
+            observationUnit: observationUnits.get("A1")!,
             digest: futurePhoto!,
             filename: "A1.jpg",
           },
         ],
       }),
-    ).rejects.toThrow(PhotoRejectedError);
-    await voidDishEvent({
+    ).rejects.toThrow(ObservationImageRejectedError);
+    await voidCultureEvent({
       experiment: experiment.id,
       event: removed.id,
-      reason: "Dish was retained",
+      reason: "Observation unit was retained",
     });
-    await filePhotos({
+    await assignObservationImages({
       experiment: experiment.id,
       observation: day14.id,
-      photos: [
+      images: [
         {
-          dish: dishes.get("A1")!,
+          observationUnit: observationUnits.get("A1")!,
           digest: futurePhoto!,
           filename: "A1.jpg",
         },
@@ -950,9 +1041,9 @@ describe("experiments", () => {
     });
 
     await expect(
-      recordDishEvent({
+      recordCultureEvent({
         experiment: experiment.id,
-        dish: dishes.get("A1")!,
+        observationUnit: observationUnits.get("A1")!,
         type: "harvested",
         observation: day7.id,
         excludeFromObservation: false,
@@ -961,9 +1052,9 @@ describe("experiments", () => {
       }),
     ).rejects.toThrow("has records after this observation");
 
-    await recordDishEvent({
+    await recordCultureEvent({
       experiment: experiment.id,
-      dish: dishes.get("A2")!,
+      observationUnit: observationUnits.get("A2")!,
       type: "contaminated",
       observation: day14.id,
       excludeFromObservation: false,
@@ -971,9 +1062,9 @@ describe("experiments", () => {
       note: "Late contamination",
     });
     await expect(
-      recordDishEvent({
+      recordCultureEvent({
         experiment: experiment.id,
-        dish: dishes.get("A2")!,
+        observationUnit: observationUnits.get("A2")!,
         type: "discarded",
         observation: day7.id,
         excludeFromObservation: false,
@@ -983,37 +1074,44 @@ describe("experiments", () => {
     ).rejects.toThrow("has records after this observation");
 
     await expect(
-      recordDishEvent({
+      recordCultureEvent({
         experiment: experiment.id,
-        dish: randomUUID(),
-        type: "lost",
+        observationUnit: randomUUID(),
+        type: "missing",
         observation: day7.id,
         excludeFromObservation: true,
         removeAfterObservation: true,
         note: "",
       }),
-    ).rejects.toThrow(DishNotFoundError);
+    ).rejects.toThrow(ObservationUnitNotFoundError);
 
-    const rows = await (await database()).select().from(experimentDishEvents);
+    const rows = await (
+      await database()
+    )
+      .select()
+      .from(experimentCultureEvents);
     expect(
       rows.some((row) => row.id === event.id && row.voidedAt !== null),
     ).toBeTrue();
   });
 
-  test("detects photos under the experiment version and exposes tallies", async () => {
-    const version = await trainedVersion("exp-readings");
+  test("analyzes images under the experiment version and exposes tallies", async () => {
+    const version = await trainedVersion("exp-metrics");
     const experiment = await createExperiment({
-      name: "Readings",
+      name: "Metrics",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["D1", "D2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "D1",
+      "D2",
+    ]);
     const day7 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
     });
-    await photograph(experiment.id, day7.id, dishes, {
+    await assignImages(experiment.id, day7.id, observationUnits, {
       D1: "c-d1",
       D2: "c-d2",
     });
@@ -1043,50 +1141,65 @@ describe("experiments", () => {
       worker,
     );
     const grid = await readExperimentGrid(experiment.id);
-    const labels = new Map(grid!.dishes.map((dish) => [dish.id, dish.label]));
+    const codes = new Map(
+      grid!.observationUnits.map((observationUnit) => [
+        observationUnit.id,
+        observationUnit.code,
+      ]),
+    );
     expect(
-      grid?.photos
-        .map((photo) => [
-          labels.get(photo.dish)!,
-          photo.state,
-          photo.observed,
-          photo.error,
+      grid?.images
+        .map((image) => [
+          codes.get(image.observationUnit)!,
+          image.state,
+          image.detectionTally,
+          image.error,
         ])
         .sort(),
     ).toEqual([
-      ["D1", "observed", { seed: 3 }, null],
-      ["D2", "failed", null, "no dish found"],
+      ["D1", "analyzed", { seed: 3 }, null],
+      ["D2", "failed", null, "no observation unit found"],
     ]);
 
-    const photos = await photosByDish(experiment.id);
-    const failed = { experiment: experiment.id, photo: photos.get("D2")! };
-    await retryExperimentDetection(failed);
+    const images = await imagesByObservationUnit(experiment.id);
+    const failed = {
+      experiment: experiment.id,
+      observationImage: images.get("D2")!,
+    };
+    await retryObservationImageAnalysis(failed);
     expect(
       (await pendingAssignments(worker)).find(
         (item) => item.manifest.modelVersionId === version.id,
       )?.images,
     ).toEqual([d2]);
-    expect((await readExperimentPhoto(failed))?.failure).toBeNull();
-    expect((await readExperimentPhoto(failed))?.observation.day).toBe(7);
-    expect((await readExperimentPhoto(failed))?.dish.label).toBe("D2");
+    expect((await readExperimentObservationImage(failed))?.failure).toBeNull();
+    expect(
+      (await readExperimentObservationImage(failed))?.observation.day,
+    ).toBe(7);
+    expect(
+      (await readExperimentObservationImage(failed))?.observationUnit.code,
+    ).toBe("D2");
     expect(
       (
-        await readExperimentPhoto({
+        await readExperimentObservationImage({
           experiment: experiment.id,
-          photo: photos.get("D1")!,
+          observationImage: images.get("D1")!,
         })
       )?.detection?.instances,
     ).toHaveLength(3);
   });
 
-  test("a dish page shows its newest photographed observation and walks the roster", async () => {
-    const version = await trainedVersion("exp-dish");
+  test("an observation unit page shows its newest image and supports unit navigation", async () => {
+    const version = await trainedVersion("exp-observation-unit");
     const experiment = await createExperiment({
-      name: "Dish series",
+      name: "Observation unit series",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["S1", "S2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "S1",
+      "S2",
+    ]);
     const day7 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
@@ -1097,34 +1210,47 @@ describe("experiments", () => {
       observedOn: "2026-08-15",
       note: "",
     });
-    await photograph(experiment.id, day7.id, dishes, {
+    await assignImages(experiment.id, day7.id, observationUnits, {
       S1: "s-d1-s1",
       S2: "s-d1-s2",
     });
-    await photograph(experiment.id, day14.id, dishes, { S1: "s-d3-s1" });
-    const ref = { experiment: experiment.id, dish: dishes.get("S1")! };
+    await assignImages(experiment.id, day14.id, observationUnits, {
+      S1: "s-d3-s1",
+    });
+    const ref = {
+      experiment: experiment.id,
+      observationUnit: observationUnits.get("S1")!,
+    };
 
-    const newest = await readExperimentDish(ref);
-    expect(newest?.model.readings[0]?.id).toBe("seeds");
+    const newest = await readObservationUnit(ref);
+    expect(newest?.model.metrics[0]?.id).toBe("seeds");
     expect(newest?.shown?.observation.id).toBe(day14.id);
     expect(
-      newest?.observations.map((item) => item.photo?.state ?? null),
+      newest?.observations.map((item) => item.image?.state ?? null),
     ).toEqual(["pending", "pending"]);
-    expect(newest?.roster.map((item) => item.label)).toEqual(["S1", "S2"]);
+    expect(newest?.navigation.map((item) => item.code)).toEqual(["S1", "S2"]);
 
-    const earlier = await readExperimentDish(ref, day7.id);
+    const earlier = await readObservationUnit(ref, day7.id);
     expect(earlier?.shown?.digest).toBe(await imageDigest("s-d1-s1"));
 
-    const lonely = await readExperimentDish({
+    const lonely = await readObservationUnit({
       ...ref,
-      dish: dishes.get("S2")!,
+      observationUnit: observationUnits.get("S2")!,
     });
     expect(lonely?.shown?.observation.id).toBe(day7.id);
-    expect(lonely?.observations[1]?.photo).toBeNull();
+    expect(lonely?.observations[1]?.image).toBeNull();
     expect(
-      await readExperimentDish({ ...ref, dish: dishes.get("S2")! }, day14.id),
+      await readObservationUnit(
+        { ...ref, observationUnit: observationUnits.get("S2")! },
+        day14.id,
+      ),
     ).toBeNull();
-    expect(await readExperimentDish({ ...ref, dish: randomUUID() })).toBeNull();
+    expect(
+      await readObservationUnit({
+        ...ref,
+        observationUnit: randomUUID(),
+      }),
+    ).toBeNull();
   });
 
   test("drafts stay editable while recorded observations preserve history", async () => {
@@ -1134,13 +1260,16 @@ describe("experiments", () => {
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["A1", "A2"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+      "A2",
+    ]);
     const revised = await updateExperiment({
       experiment: experiment.id,
       name: "Final",
-      material: "Tobacco BY-2",
-      explant: "Leaf discs",
-      medium: "MS + 3% sucrose",
+      plantMaterial: "Tobacco BY-2",
+      explantType: "Leaf discs",
+      baseMedium: "MS + 3% sucrose",
       notes: "Draft protocol",
       inoculatedOn: "2026-08-02",
     });
@@ -1160,7 +1289,7 @@ describe("experiments", () => {
       observedOn: "2026-08-15",
       note: "",
     });
-    await photograph(experiment.id, day7.id, dishes, {
+    await assignImages(experiment.id, day7.id, observationUnits, {
       A1: "m-a1-1",
       A2: "m-a2-1",
     });
@@ -1211,12 +1340,17 @@ describe("experiments", () => {
       deleteObservation({ experiment: experiment.id, observation: day7.id }),
     ).rejects.toThrow(ObservationRejectedError);
     await expect(
-      deleteDish({ experiment: experiment.id, dish: dishes.get("A2")! }),
+      deleteObservationUnit({
+        experiment: experiment.id,
+        observationUnit: observationUnits.get("A2")!,
+      }),
     ).rejects.toThrow(ExperimentDesignLockedError);
     const grid = await readExperimentGrid(experiment.id);
     expect(grid?.observations.map((item) => item.id)).toEqual([day7.id]);
-    expect(grid?.dishes.map((dish) => dish.label)).toEqual(["A1", "A2"]);
-    expect(grid?.photos).toHaveLength(2);
+    expect(
+      grid?.observationUnits.map((observationUnit) => observationUnit.code),
+    ).toEqual(["A1", "A2"]);
+    expect(grid?.images).toHaveLength(2);
     const first = await imageDigest("m-a1-1");
     expect(await blobExists(imageBlobKey(first))).toBeTrue();
 
@@ -1237,26 +1371,32 @@ describe("experiments", () => {
     expect(await blobExists(imageBlobKey(first))).toBeTrue();
   });
 
-  test("two experiments reading one photograph with one version share one pair", async () => {
+  test("two experiments analyzing one image with one version share one inference", async () => {
     const version = await trainedVersion("exp-shared");
-    const [digest] = await storeTexts(["shared-photo"]);
+    const [digest] = await storeTexts(["shared-image"]);
     for (const name of ["Shared demand A", "Shared demand B"]) {
       const experiment = await createExperiment({
         name,
         inoculatedOn: INOCULATED,
         modelVersionId: version.id,
       });
-      const dishes = await layOut(experiment.id, ["S1"]);
+      const observationUnits = await defineObservationUnits(experiment.id, [
+        "S1",
+      ]);
       const observation = await addObservation({
         experiment: experiment.id,
         observedOn: "2026-08-08",
         note: "",
       });
-      await filePhotos({
+      await assignObservationImages({
         experiment: experiment.id,
         observation: observation.id,
-        photos: [
-          { dish: dishes.get("S1")!, digest: digest!, filename: "S1.jpg" },
+        images: [
+          {
+            observationUnit: observationUnits.get("S1")!,
+            digest: digest!,
+            filename: "S1.jpg",
+          },
         ],
       });
     }
@@ -1289,20 +1429,24 @@ describe("experiments", () => {
     await expect(invalidFailure).rejects.toThrow();
   });
 
-  test("an experiment photo is a garbage-collection root", async () => {
+  test("an experiment observation image is a garbage-collection root", async () => {
     const version = await trainedVersion("exp-gc");
     const experiment = await createExperiment({
       name: "GC",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const dishes = await layOut(experiment.id, ["E1"]);
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "E1",
+    ]);
     const observation = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
     });
-    await photograph(experiment.id, observation.id, dishes, { E1: "gc-e1" });
+    await assignImages(experiment.id, observation.id, observationUnits, {
+      E1: "gc-e1",
+    });
     const kept = await imageDigest("gc-e1");
     const [loose] = await storeTexts(["gc-loose"]);
     const later = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);

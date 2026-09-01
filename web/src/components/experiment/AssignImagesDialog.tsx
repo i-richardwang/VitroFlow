@@ -13,41 +13,45 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import type { ExperimentDish } from "../../experiments/contracts";
-import { suggestDish } from "../../experiments/naming";
+import type { ObservationUnit } from "../../experiments/contracts";
+import { suggestObservationUnit } from "../../experiments/naming";
 import {
   observationLabel,
   type ExperimentObservation,
 } from "../../experiments/schema";
-import { filePhotographs } from "../../functions/experiments";
+import { assignImagesToObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { ImageDropZone, type ListedImage } from "../ImageDropZone";
 import { useUploads } from "./uploads";
 
-const UNFILED = "unfiled";
+const UNASSIGNED = "unassigned";
 
-export function FilePhotosDialog({
+export function AssignImagesDialog({
   experiment,
   observation,
-  dishes,
-  photographed,
+  observationUnits,
+  assigned,
   onClose,
 }: {
   experiment: string;
   observation: ExperimentObservation;
-  dishes: ExperimentDish[];
-  photographed: ReadonlySet<string>;
+  observationUnits: ObservationUnit[];
+  assigned: ReadonlySet<string>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const uploads = useUploads();
   const { busy, run } = useAsyncAction();
-  const [filing, setFiling] = useState<Record<number, string | null>>({});
+  const [assignments, setAssignments] = useState<Record<number, string | null>>(
+    {},
+  );
   const suggested = useRef(new Set<number>());
 
-  const open = dishes.filter((dish) => !photographed.has(dish.id));
-  const openDishes = useRef(open);
-  openDishes.current = open;
+  const open = observationUnits.filter(
+    (observationUnit) => !assigned.has(observationUnit.id),
+  );
+  const openObservationUnits = useRef(open);
+  openObservationUnits.current = open;
 
   /** Each file is guessed once, when it arrives; a choice made is never undone. */
   const { images } = uploads;
@@ -55,20 +59,27 @@ export function FilePhotosDialog({
     const arrived = images.filter((image) => !suggested.current.has(image.id));
     if (arrived.length === 0) return;
     for (const image of arrived) suggested.current.add(image.id);
-    setFiling((current) => {
+    setAssignments((current) => {
       const claimed = new Set(
-        Object.values(current).filter((dish): dish is string => dish !== null),
+        Object.values(current).filter(
+          (observationUnit): observationUnit is string =>
+            observationUnit !== null,
+        ),
       );
       const next = { ...current };
       for (const image of arrived) {
-        const label = suggestDish(
+        const code = suggestObservationUnit(
           image.file.name,
-          openDishes.current.map((dish) => dish.label),
+          openObservationUnits.current.map(
+            (observationUnit) => observationUnit.code,
+          ),
         );
-        const dish = openDishes.current.find((item) => item.label === label);
-        if (!dish || claimed.has(dish.id)) continue;
-        claimed.add(dish.id);
-        next[image.id] = dish.id;
+        const observationUnit = openObservationUnits.current.find(
+          (item) => item.code === code,
+        );
+        if (!observationUnit || claimed.has(observationUnit.id)) continue;
+        claimed.add(observationUnit.id);
+        next[image.id] = observationUnit.id;
       }
       return next;
     });
@@ -76,14 +87,20 @@ export function FilePhotosDialog({
 
   const ready = uploads.images.flatMap((image) => {
     if (image.state.status !== "stored") return [];
-    const dish = filing[image.id];
-    if (!dish) return [];
-    return [{ dish, digest: image.state.digest, filename: image.file.name }];
+    const observationUnit = assignments[image.id];
+    if (!observationUnit) return [];
+    return [
+      {
+        observationUnit,
+        digest: image.state.digest,
+        filename: image.file.name,
+      },
+    ];
   });
   const stored = uploads.images.filter(
     (image) => image.state.status === "stored",
   );
-  const unfiled = stored.length - ready.length;
+  const unassigned = stored.length - ready.length;
 
   return (
     <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -93,11 +110,12 @@ export function FilePhotosDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>
-                Photograph {observationLabel(observation)}
+                Images for {observationLabel(observation)}
               </Modal.Heading>
               <Description>
-                Drop the photographs of {observation.observedOn} and check which
-                dish each one shows. Filenames are only a guess.
+                Drop the images from {observation.observedOn} and assign each
+                one to the observation unit it shows. Filenames provide an
+                initial suggestion only.
               </Description>
             </Modal.Header>
             <Modal.Body>
@@ -105,10 +123,12 @@ export function FilePhotosDialog({
                 <Alert status="warning">
                   <Alert.Indicator />
                   <Alert.Content>
-                    <Alert.Title>Every dish is photographed</Alert.Title>
+                    <Alert.Title>
+                      Every observation unit has an image
+                    </Alert.Title>
                     <Alert.Description>
-                      Remove a photograph from {observationLabel(observation)}
-                      before filing another.
+                      Unassign an image from {observationLabel(observation)}
+                      before assigning another.
                     </Alert.Description>
                   </Alert.Content>
                 </Alert>
@@ -119,20 +139,21 @@ export function FilePhotosDialog({
                     event.preventDefault();
                     void run(
                       () =>
-                        filePhotographs({
+                        assignImagesToObservation({
                           data: {
                             experiment,
                             observation: observation.id,
-                            photos: ready,
+                            images: ready,
                           },
                         }),
-                      "Nothing was filed",
+                      "No images were assigned",
                     ).then(async (result) => {
                       if (!result.ok) return;
                       uploads.clearStored();
-                      setFiling({});
+                      setAssignments({});
+                      const count = result.value.assigned;
                       toast.success(
-                        `${result.value.photos} filed under ${observationLabel(observation)}`,
+                        `${count} ${count === 1 ? "image" : "images"} assigned to ${observationLabel(observation)}`,
                       );
                       await router.invalidate();
                       if (!uploads.failed) onClose();
@@ -145,40 +166,41 @@ export function FilePhotosDialog({
                       onAdd={uploads.add}
                       onRemove={(id) => {
                         uploads.remove(id);
-                        setFiling(({ [id]: _removed, ...rest }) => rest);
+                        setAssignments(({ [id]: _removed, ...rest }) => rest);
                       }}
                       busy={busy}
                       annotate={(image) => (
-                        <DishChoice
+                        <ObservationUnitChoice
                           image={image}
-                          dishes={open}
+                          observationUnits={open}
                           taken={
                             new Set(
-                              Object.entries(filing)
+                              Object.entries(assignments)
                                 .filter(
-                                  ([id, dish]) =>
-                                    dish !== null && Number(id) !== image.id,
+                                  ([id, observationUnit]) =>
+                                    observationUnit !== null &&
+                                    Number(id) !== image.id,
                                 )
-                                .map(([, dish]) => dish!),
+                                .map(([, observationUnit]) => observationUnit!),
                             )
                           }
-                          value={filing[image.id] ?? null}
+                          value={assignments[image.id] ?? null}
                           busy={busy}
-                          onChange={(dish) =>
-                            setFiling((current) => ({
+                          onChange={(observationUnit) =>
+                            setAssignments((current) => ({
                               ...current,
-                              [image.id]: dish,
+                              [image.id]: observationUnit,
                             }))
                           }
                         />
                       )}
                     />
                     <Fieldset.Actions>
-                      {unfiled > 0 ? (
+                      {unassigned > 0 ? (
                         <span className="me-auto text-sm text-warning">
-                          {unfiled === 1
-                            ? "Assign the remaining photograph before filing"
-                            : `Assign the remaining ${unfiled} photographs before filing`}
+                          {unassigned === 1
+                            ? "Assign the remaining image"
+                            : `Assign the remaining ${unassigned} images`}
                         </span>
                       ) : null}
                       <Button variant="tertiary" onPress={onClose}>
@@ -191,14 +213,14 @@ export function FilePhotosDialog({
                           busy ||
                           uploads.storing ||
                           ready.length === 0 ||
-                          unfiled > 0
+                          unassigned > 0
                         }
                       >
                         {busy
-                          ? "Filing…"
+                          ? "Assigning…"
                           : uploads.storing
                             ? "Uploading…"
-                            : `File ${ready.length}`}
+                            : `Assign ${ready.length}`}
                       </Button>
                     </Fieldset.Actions>
                   </Fieldset>
@@ -212,32 +234,32 @@ export function FilePhotosDialog({
   );
 }
 
-function DishChoice({
+function ObservationUnitChoice({
   image,
-  dishes,
+  observationUnits,
   taken,
   value,
   busy,
   onChange,
 }: {
   image: ListedImage;
-  dishes: ExperimentDish[];
+  observationUnits: ObservationUnit[];
   taken: ReadonlySet<string>;
   value: string | null;
   busy: boolean;
-  onChange: (dish: string | null) => void;
+  onChange: (observationUnit: string | null) => void;
 }) {
   if (image.state.status !== "stored") return null;
   return (
     <Select
-      aria-label={`Dish shown by ${image.file.name}`}
+      aria-label={`Observation unit shown by ${image.file.name}`}
       className="w-40 shrink-0"
       variant="secondary"
       isDisabled={busy}
       disabledKeys={[...taken]}
-      selectedKey={value ?? UNFILED}
+      selectedKey={value ?? UNASSIGNED}
       onSelectionChange={(key) =>
-        onChange(key === UNFILED ? null : String(key))
+        onChange(key === UNASSIGNED ? null : String(key))
       }
     >
       <Select.Trigger>
@@ -246,13 +268,17 @@ function DishChoice({
       </Select.Trigger>
       <Select.Popover>
         <ListBox>
-          <ListBox.Item id={UNFILED} textValue="No dish">
-            <Label className="text-muted">No dish</Label>
+          <ListBox.Item id={UNASSIGNED} textValue="Unassigned">
+            <Label className="text-muted">Unassigned</Label>
             <ListBox.ItemIndicator />
           </ListBox.Item>
-          {dishes.map((dish) => (
-            <ListBox.Item key={dish.id} id={dish.id} textValue={dish.label}>
-              <Label>{dish.label}</Label>
+          {observationUnits.map((observationUnit) => (
+            <ListBox.Item
+              key={observationUnit.id}
+              id={observationUnit.id}
+              textValue={observationUnit.code}
+            >
+              <Label>{observationUnit.code}</Label>
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}

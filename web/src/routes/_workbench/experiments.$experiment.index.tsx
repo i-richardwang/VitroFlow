@@ -18,11 +18,11 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useState, type ReactElement } from "react";
 import { z } from "zod";
 
-import { DishMenu } from "../../components/experiment/DishMenu";
+import { ObservationUnitMenu } from "../../components/experiment/ObservationUnitMenu";
 import { DesignDialog } from "../../components/experiment/DesignDialog";
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
 import { NewObservationDialog } from "../../components/experiment/NewObservationDialog";
-import { FilePhotosDialog } from "../../components/experiment/FilePhotosDialog";
+import { AssignImagesDialog } from "../../components/experiment/AssignImagesDialog";
 import { ObservationMenu } from "../../components/experiment/ObservationMenu";
 import { TreatmentChoices } from "../../components/experiment/TreatmentChoices";
 import { TreatmentDot } from "../../components/experiment/TreatmentDot";
@@ -36,31 +36,34 @@ import {
   type Treatment,
 } from "../../experiments/schema";
 import {
-  DISH_EVENT_LABELS,
-  dishIsAvailableAt,
-  dishIsIncludedInAnalysis,
-  latestActiveDishEvent,
-} from "../../experiments/dish-events";
+  CULTURE_EVENT_LABELS,
+  observationUnitIsAvailableAt,
+  observationUnitIsIncludedInAnalysis,
+  latestActiveCultureEvent,
+} from "../../experiments/culture-events";
 import { designIssues } from "../../experiments/design";
-import { getExperimentGrid, placeDishes } from "../../functions/experiments";
+import {
+  assignObservationUnitsToTreatment,
+  getExperimentGrid,
+} from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import {
-  formatReading,
-  read,
-  summarize,
-  type Reading,
+  formatMetric,
+  computeMetric,
+  summarizeMetric,
+  type DerivedMetric,
   type Tally,
-} from "../../models/readings";
-import { primaryReading, versionSlug } from "../../models/schema";
+} from "../../models/metrics";
+import { primaryMetric, versionSlug } from "../../models/schema";
 import type {
-  ExperimentDish,
+  ObservationUnit,
   ExperimentGrid,
-  PhotoCell,
+  ObservationImageCell,
 } from "../../experiments/contracts";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
-  validateSearch: z.object({ reading: z.string().optional().catch(undefined) }),
+  validateSearch: z.object({ metric: z.string().optional().catch(undefined) }),
   loader: async ({ params }) => {
     if (!experimentIdSchema.safeParse(params.experiment).success) {
       throw notFound();
@@ -91,45 +94,49 @@ function ExperimentPage() {
     model,
     version,
     treatments,
-    dishes,
+    observationUnits,
     observations,
-    photos,
+    images,
     datasets,
   } = Route.useLoaderData();
   const router = useRouter();
   const navigate = Route.useNavigate();
-  const { reading: readingId } = Route.useSearch();
-  const reading =
-    model.readings.find((item) => item.id === readingId) ??
-    primaryReading(model);
+  const { metric: metricId } = Route.useSearch();
+  const metric =
+    model.metrics.find((item) => item.id === metricId) ?? primaryMetric(model);
 
   const [open, setOpen] = useState<Dialog | null>(null);
-  const [filing, setFiling] = useState<ExperimentObservation | null>(null);
+  const [assigning, setAssigning] = useState<ExperimentObservation | null>(
+    null,
+  );
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
 
-  const waiting = photos.some((photo) => photo.state === "pending");
+  const waiting = images.some((image) => image.state === "pending");
   useRouteRefresh(router, 5000, waiting);
 
   const cells = new Map(
-    photos.map((photo) => [cellKey(photo.dish, photo.observation), photo]),
+    images.map((image) => [
+      cellKey(image.observationUnit, image.observation),
+      image,
+    ]),
   );
   const ordinals = new Map(
     observations.map((observation) => [observation.id, observation.ordinal]),
   );
   const designLocked = observations.length > 0;
-  const unresolvedDesign = designIssues(treatments, dishes);
+  const unresolvedDesign = designIssues(treatments, observationUnits);
   const designReady = unresolvedDesign.length === 0;
-  const groups = groupDishes(treatments, dishes);
+  const groups = groupObservationUnits(treatments, observationUnits);
   const summaryKeys = groups.map((group) => groupKey(group.treatment));
-  const selected = pickedDishes(selectedKeys, dishes);
+  const selected = pickedObservationUnits(selectedKeys, observationUnits);
 
   return (
     <Page
       title={experiment.name}
       description={[
-        experiment.material,
-        experiment.explant,
-        experiment.medium,
+        experiment.plantMaterial,
+        experiment.explantType,
+        experiment.baseMedium,
         `Inoculated ${experiment.inoculatedOn}`,
         versionSlug(version),
       ]
@@ -137,20 +144,19 @@ function ExperimentPage() {
         .join(" · ")}
       actions={
         <>
-          {model.readings.length > 1 && (
+          {model.metrics.length > 1 && (
             <Select
-              aria-label="Reading"
+              aria-label="Metric"
               className="w-44"
               variant="secondary"
-              selectedKey={reading.id}
+              selectedKey={metric.id}
               onSelectionChange={(key) => {
                 if (key === null) return;
                 const next = String(key);
                 void navigate({
                   replace: true,
                   search: {
-                    reading:
-                      next === primaryReading(model).id ? undefined : next,
+                    metric: next === primaryMetric(model).id ? undefined : next,
                   },
                 });
               }}
@@ -161,7 +167,7 @@ function ExperimentPage() {
               </Select.Trigger>
               <Select.Popover>
                 <ListBox>
-                  {model.readings.map((item) => (
+                  {model.metrics.map((item) => (
                     <ListBox.Item
                       key={item.id}
                       id={item.id}
@@ -187,23 +193,23 @@ function ExperimentPage() {
           </Button>
           <ExperimentMenu
             experiment={experiment}
-            photos={photos}
+            images={images}
             datasets={datasets}
             designLocked={designLocked}
           />
         </>
       }
     >
-      {dishes.length === 0 ? (
+      {observationUnits.length === 0 ? (
         <EmptyState size="sm">
           <EmptyState.Header>
             <EmptyState.Media variant="icon">
               <ExperimentsIcon />
             </EmptyState.Media>
-            <EmptyState.Title>No dishes yet</EmptyState.Title>
+            <EmptyState.Title>No observation units yet</EmptyState.Title>
             <EmptyState.Description>
               Write the design first: the conditions being compared and the
-              dishes that replicate them.
+              observation units that replicate them.
             </EmptyState.Description>
           </EmptyState.Header>
           <EmptyState.Content>
@@ -218,7 +224,7 @@ function ExperimentPage() {
             <EmptyState.Title>No observations yet</EmptyState.Title>
             <EmptyState.Description>
               {designReady
-                ? `${dishes.length} ${dishes.length === 1 ? "dish is" : "dishes are"} waiting to be photographed.`
+                ? `${observationUnits.length} ${observationUnits.length === 1 ? "observation unit is" : "observation units are"} ready for the first observation.`
                 : unresolvedDesign[0]}
             </EmptyState.Description>
           </EmptyState.Header>
@@ -237,7 +243,7 @@ function ExperimentPage() {
           <Table>
             <Table.ScrollContainer>
               <Table.Content
-                aria-label={`${reading.name} in ${experiment.name}`}
+                aria-label={`${metric.name} in ${experiment.name}`}
                 selectionMode={designLocked ? "none" : "multiple"}
                 disabledKeys={summaryKeys}
                 selectedKeys={selectedKeys}
@@ -245,7 +251,10 @@ function ExperimentPage() {
               >
                 <Table.Header>
                   <Table.Column className="pe-0">
-                    <Checkbox aria-label="Select all dishes" slot="selection">
+                    <Checkbox
+                      aria-label="Select all observation units"
+                      slot="selection"
+                    >
                       <Checkbox.Content>
                         <Checkbox.Control>
                           <Checkbox.Indicator />
@@ -253,16 +262,21 @@ function ExperimentPage() {
                       </Checkbox.Content>
                     </Checkbox>
                   </Table.Column>
-                  <Table.Column isRowHeader>Dish</Table.Column>
+                  <Table.Column isRowHeader>Observation unit</Table.Column>
                   {observations.map((observation) => (
                     <Table.Column key={observation.id} className="text-right">
                       <ObservationMenu
                         experiment={experiment.id}
                         observation={observation}
-                        dishes={dishes.filter((dish) =>
-                          dishIsAvailableAt(dish.events, observation, ordinals),
+                        observationUnits={observationUnits.filter(
+                          (observationUnit) =>
+                            observationUnitIsAvailableAt(
+                              observationUnit.events,
+                              observation,
+                              ordinals,
+                            ),
                         )}
-                        photographed={photographedIn(photos, observation.id)}
+                        assigned={assignedIn(images, observation.id)}
                       />
                     </Table.Column>
                   ))}
@@ -287,7 +301,7 @@ function ExperimentPage() {
                             <span className="max-w-64 truncate text-xs font-normal text-muted">
                               {formatFactors(group.treatment.factors) ||
                                 group.treatment.note ||
-                                "Reference condition"}
+                                "No treatment factors specified"}
                             </span>
                           ) : null}
                         </span>
@@ -298,20 +312,23 @@ function ExperimentPage() {
                           className="text-right font-mono font-medium tabular-nums"
                         >
                           <TreatmentCell
-                            reading={reading}
+                            metric={metric}
                             observation={observation}
                             ordinals={ordinals}
-                            dishes={group.dishes}
+                            observationUnits={group.observationUnits}
                             cells={cells}
                           />
                         </Table.Cell>
                       ))}
                     </Table.Row>,
-                    ...group.dishes.map((dish) => (
-                      <Table.Row key={dishKey(dish.id)} id={dishKey(dish.id)}>
+                    ...group.observationUnits.map((observationUnit) => (
+                      <Table.Row
+                        key={observationUnitKey(observationUnit.id)}
+                        id={observationUnitKey(observationUnit.id)}
+                      >
                         <Table.Cell className="pe-0">
                           <Checkbox
-                            aria-label={`Select dish ${dish.label}`}
+                            aria-label={`Select observation unit ${observationUnit.code}`}
                             slot="selection"
                             variant="secondary"
                           >
@@ -324,25 +341,27 @@ function ExperimentPage() {
                         </Table.Cell>
                         <Table.Cell className="pl-8 font-mono font-medium">
                           <span className="flex items-center gap-2">
-                            <DishMenu
+                            <ObservationUnitMenu
                               experiment={experiment.id}
-                              dish={dish}
+                              observationUnit={observationUnit}
                               treatments={treatments}
                               observations={observations}
                               designLocked={designLocked}
                             />
                             <Link
-                              href={`/experiments/${experiment.id}/${dish.id}`}
+                              href={`/experiments/${experiment.id}/${observationUnit.id}`}
                             >
-                              {dish.label}
+                              {observationUnit.code}
                             </Link>
-                            <DishEventChip
-                              dish={dish}
+                            <CultureEventChip
+                              observationUnit={observationUnit}
                               observations={observations}
                             />
                             <span className="text-xs font-normal text-muted">
-                              {dish.initialExplantCount} explant
-                              {dish.initialExplantCount === 1 ? "" : "s"}
+                              {observationUnit.initialExplantCount} explant
+                              {observationUnit.initialExplantCount === 1
+                                ? ""
+                                : "s"}
                             </span>
                           </span>
                         </Table.Cell>
@@ -353,13 +372,13 @@ function ExperimentPage() {
                           >
                             <Cell
                               experiment={experiment.id}
-                              reading={reading}
-                              dish={dish}
-                              photo={cells.get(
-                                cellKey(dish.id, observation.id),
+                              metric={metric}
+                              observationUnit={observationUnit}
+                              image={cells.get(
+                                cellKey(observationUnit.id, observation.id),
                               )}
-                              counted={dishIsIncludedInAnalysis(
-                                dish.events,
+                              counted={observationUnitIsIncludedInAnalysis(
+                                observationUnit.events,
                                 observation,
                                 ordinals,
                               )}
@@ -387,7 +406,7 @@ function ExperimentPage() {
       <DesignDialog
         experiment={experiment.id}
         treatments={treatments}
-        dishes={dishes}
+        observationUnits={observationUnits}
         designLocked={designLocked}
         isOpen={open === "design"}
         onClose={() => setOpen(null)}
@@ -399,46 +418,50 @@ function ExperimentPage() {
         onClose={() => setOpen(null)}
         onCreated={(observation) => {
           setOpen(null);
-          setFiling(observation);
+          setAssigning(observation);
         }}
       />
-      {filing ? (
-        <FilePhotosDialog
+      {assigning ? (
+        <AssignImagesDialog
           experiment={experiment.id}
-          observation={filing}
-          dishes={dishes.filter((dish) =>
-            dishIsAvailableAt(dish.events, filing, ordinals),
+          observation={assigning}
+          observationUnits={observationUnits.filter((observationUnit) =>
+            observationUnitIsAvailableAt(
+              observationUnit.events,
+              assigning,
+              ordinals,
+            ),
           )}
-          photographed={photographedIn(photos, filing.id)}
-          onClose={() => setFiling(null)}
+          assigned={assignedIn(images, assigning.id)}
+          onClose={() => setAssigning(null)}
         />
       ) : null}
     </Page>
   );
 }
 
-function photographedIn(
-  photos: PhotoCell[],
+function assignedIn(
+  images: ObservationImageCell[],
   observation: string,
 ): ReadonlySet<string> {
   return new Set(
-    photos
-      .filter((photo) => photo.observation === observation)
-      .map((photo) => photo.dish),
+    images
+      .filter((image) => image.observation === observation)
+      .map((image) => image.observationUnit),
   );
 }
 
-function DishEventChip({
-  dish,
+function CultureEventChip({
+  observationUnit,
   observations,
 }: {
-  dish: ExperimentDish;
+  observationUnit: ObservationUnit;
   observations: ExperimentObservation[];
 }) {
   const ordinals = new Map(
     observations.map((observation) => [observation.id, observation.ordinal]),
   );
-  const event = latestActiveDishEvent(dish.events, ordinals);
+  const event = latestActiveCultureEvent(observationUnit.events, ordinals);
   if (!event) return null;
   const found = observations.find(
     (observation) => observation.id === event.observation,
@@ -455,7 +478,7 @@ function DishEventChip({
       variant="soft"
       color={event.type === "contaminated" ? "warning" : "default"}
     >
-      {DISH_EVENT_LABELS[event.type]}
+      {CULTURE_EVENT_LABELS[event.type]}
     </Chip>
   );
   if (!detail) return chip;
@@ -481,7 +504,10 @@ function AssignmentBar({
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   return (
-    <ActionBar isOpen={selected.length > 0} aria-label="Selected dishes">
+    <ActionBar
+      isOpen={selected.length > 0}
+      aria-label="Selected observation units"
+    >
       <ActionBar.Prefix>
         <Chip size="sm" className="tabular-nums">
           {selected.length}
@@ -494,15 +520,15 @@ function AssignmentBar({
             Assign to…
           </Button>
           <TreatmentChoices
-            label={`Treatment of ${selected.length} selected dishes`}
+            label={`Treatment of ${selected.length} selected observation units`}
             treatments={treatments}
             onPick={(treatment) => {
               void run(
                 () =>
-                  placeDishes({
-                    data: { experiment, dishes: selected, treatment },
+                  assignObservationUnitsToTreatment({
+                    data: { experiment, observationUnits: selected, treatment },
                   }),
-                "Dishes not assigned",
+                "Observation units not assigned",
               ).then(async (result) => {
                 if (!result.ok) return;
                 onDone();
@@ -532,26 +558,30 @@ function AssignmentBar({
   );
 }
 
-function cellKey(dish: string, observation: string): string {
-  return `${observation}\0${dish}`;
+function cellKey(observationUnit: string, observation: string): string {
+  return `${observation}\0${observationUnit}`;
 }
 
-interface DishGroup {
+interface ObservationUnitGroup {
   treatment: Treatment | null;
-  dishes: ExperimentDish[];
+  observationUnits: ObservationUnit[];
 }
 
-function groupDishes(
+function groupObservationUnits(
   treatments: Treatment[],
-  dishes: ExperimentDish[],
-): DishGroup[] {
-  const groups: DishGroup[] = treatments.map((treatment) => ({
+  observationUnits: ObservationUnit[],
+): ObservationUnitGroup[] {
+  const groups: ObservationUnitGroup[] = treatments.map((treatment) => ({
     treatment,
-    dishes: dishes.filter((dish) => dish.treatment === treatment.id),
+    observationUnits: observationUnits.filter(
+      (observationUnit) => observationUnit.treatment === treatment.id,
+    ),
   }));
-  const unassigned = dishes.filter((dish) => dish.treatment === null);
+  const unassigned = observationUnits.filter(
+    (observationUnit) => observationUnit.treatment === null,
+  );
   if (unassigned.length > 0) {
-    groups.push({ treatment: null, dishes: unassigned });
+    groups.push({ treatment: null, observationUnits: unassigned });
   }
   return groups;
 }
@@ -560,43 +590,56 @@ function groupKey(treatment: Treatment | null): string {
   return treatment ? `group:${treatment.id}` : "group:unassigned";
 }
 
-function dishKey(dish: string): string {
-  return `dish:${dish}`;
+function observationUnitKey(observationUnit: string): string {
+  return `unit:${observationUnit}`;
 }
 
-function pickedDishes(keys: Selection, dishes: ExperimentDish[]): string[] {
-  if (keys === "all") return dishes.map((dish) => dish.id);
-  const byKey = new Map(dishes.map((dish) => [dishKey(dish.id), dish.id]));
+function pickedObservationUnits(
+  keys: Selection,
+  observationUnits: ObservationUnit[],
+): string[] {
+  if (keys === "all")
+    return observationUnits.map((observationUnit) => observationUnit.id);
+  const byKey = new Map(
+    observationUnits.map((observationUnit) => [
+      observationUnitKey(observationUnit.id),
+      observationUnit.id,
+    ]),
+  );
   return [...keys].flatMap((key) => byKey.get(String(key)) ?? []);
 }
 
-function tallyShown(photo: PhotoCell): Tally | null {
-  return photo.reviewed ?? photo.observed;
+function tallyShown(image: ObservationImageCell): Tally | null {
+  return image.annotationTally ?? image.detectionTally;
 }
 
 function TreatmentCell({
-  reading,
+  metric,
   observation,
   ordinals,
-  dishes,
+  observationUnits,
   cells,
 }: {
-  reading: Reading;
+  metric: DerivedMetric;
   observation: ExperimentObservation;
   ordinals: Map<string, number>;
-  dishes: ExperimentDish[];
-  cells: Map<string, PhotoCell>;
+  observationUnits: ObservationUnit[];
+  cells: Map<string, ObservationImageCell>;
 }) {
-  const replicates = dishes.filter((dish) =>
-    dishIsIncludedInAnalysis(dish.events, observation, ordinals),
+  const replicates = observationUnits.filter((observationUnit) =>
+    observationUnitIsIncludedInAnalysis(
+      observationUnit.events,
+      observation,
+      ordinals,
+    ),
   );
-  const excluded = dishes.length - replicates.length;
-  const tallies = replicates.flatMap((dish) => {
-    const photo = cells.get(cellKey(dish.id, observation.id));
-    const tally = photo ? tallyShown(photo) : null;
+  const excluded = observationUnits.length - replicates.length;
+  const tallies = replicates.flatMap((observationUnit) => {
+    const image = cells.get(cellKey(observationUnit.id, observation.id));
+    const tally = image ? tallyShown(image) : null;
     return tally ? [tally] : [];
   });
-  const summary = summarize(reading, tallies);
+  const summary = summarizeMetric(metric, tallies);
   const sample = `n=${summary.sampleSize}/${replicates.length}`;
   const note =
     excluded > 0 ? (
@@ -612,14 +655,12 @@ function TreatmentCell({
       </span>
     );
   }
-  const mean = formatReading(reading, summary.value);
+  const mean = formatMetric(metric, summary.value);
   const spread =
-    summary.deviation === null
-      ? null
-      : formatReading(reading, summary.deviation);
+    summary.deviation === null ? null : formatMetric(metric, summary.deviation);
   return (
     <span
-      aria-label={`${mean}, mean of ${summary.sampleSize} ${summary.sampleSize === 1 ? "dish" : "dishes"}`}
+      aria-label={`${mean}, mean of ${summary.sampleSize} ${summary.sampleSize === 1 ? "observation unit" : "observation units"}`}
     >
       {mean}
       {spread ? (
@@ -633,46 +674,46 @@ function TreatmentCell({
 
 function Cell({
   experiment,
-  reading,
-  dish,
-  photo,
+  metric,
+  observationUnit,
+  image,
   counted,
 }: {
   experiment: string;
-  reading: Reading;
-  dish: ExperimentDish;
-  photo: PhotoCell | undefined;
+  metric: DerivedMetric;
+  observationUnit: ObservationUnit;
+  image: ObservationImageCell | undefined;
   counted: boolean;
 }) {
-  if (!photo) return <span className="text-muted">Empty</span>;
-  const href = `/experiments/${experiment}/${dish.id}?observation=${photo.observation}`;
+  if (!image) return <span className="text-muted">Empty</span>;
+  const href = `/experiments/${experiment}/${observationUnit.id}?observation=${image.observation}`;
   const value = (counts: Tally) =>
-    formatReading(reading, read(reading, counts));
+    formatMetric(metric, computeMetric(metric, counts));
   const dimmed = counted ? "" : "text-muted line-through";
-  if (photo.reviewed) {
+  if (image.annotationTally) {
     return explain(
       [
-        photo.observed ? `Version read ${value(photo.observed)}` : null,
-        counted ? null : "Not counted: the dish was lost by this observation",
+        image.detectionTally ? `Analyzed ${value(image.detectionTally)}` : null,
+        counted ? null : "Excluded from analysis at this observation",
       ]
         .filter(Boolean)
         .join(" · "),
       <Link href={href} className={`font-semibold ${dimmed}`}>
-        {value(photo.reviewed)}
+        {value(image.annotationTally)}
       </Link>,
     );
   }
-  if (photo.observed) {
+  if (image.detectionTally) {
     return explain(
-      counted ? null : "Not counted: the dish was lost by this observation",
+      counted ? null : "Excluded from analysis at this observation",
       <Link href={href} className={dimmed}>
-        {value(photo.observed)}
+        {value(image.detectionTally)}
       </Link>,
     );
   }
-  if (photo.state === "failed") {
+  if (image.state === "failed") {
     return explain(
-      photo.error,
+      image.error,
       <Link href={href} className="text-danger">
         Failed
       </Link>,

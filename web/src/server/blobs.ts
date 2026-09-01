@@ -13,10 +13,10 @@ import {
  * Binary content the database only references, addressed by a key in one
  * S3-compatible bucket:
  *
- *   images/<xx>/<sha256>                         photographs, by content digest
+ *   images/<xx>/<sha256>                         images, by content digest
  *   model-weights/<run-id>/<attempt>/<sha256>     one training attempt's weights
  *
- * Photographs are content addressed, so identical uploads share one object and
+ * Images are content addressed, so identical uploads share one object and
  * snapshots reference images without copying them. Objects are immutable: a
  * key is written once and read until nothing refers to it any more, so a
  * reader never observes a partial write and no key needs a version.

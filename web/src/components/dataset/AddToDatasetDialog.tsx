@@ -16,18 +16,18 @@ import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { DATASET_NAME_PATTERN } from "../../datasets/schema";
-import type { PhotoRef } from "../../experiments/schema";
+import type { ObservationImageRef } from "../../experiments/schema";
 import { addToDataset } from "../../functions/datasets";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 
 const NEW_DATASET = "\0new";
 
 export function AddToDatasetButton({
-  photos,
+  images,
   datasets,
   heading = "Add to dataset",
 }: {
-  photos: PhotoRef[];
+  images: ObservationImageRef[];
   datasets: string[];
   heading?: string;
 }) {
@@ -36,14 +36,14 @@ export function AddToDatasetButton({
     <>
       <Button
         variant="secondary"
-        isDisabled={photos.length === 0}
+        isDisabled={images.length === 0}
         onPress={() => setOpen(true)}
       >
         {heading}
       </Button>
       <AddToDatasetDialog
         isOpen={open}
-        photos={photos}
+        images={images}
         datasets={datasets}
         heading={heading}
         onClose={() => setOpen(false)}
@@ -54,13 +54,13 @@ export function AddToDatasetButton({
 
 export function AddToDatasetDialog({
   isOpen,
-  photos,
+  images,
   datasets,
   heading = "Add to dataset",
   onClose,
 }: {
   isOpen: boolean;
-  photos: PhotoRef[];
+  images: ObservationImageRef[];
   datasets: string[];
   heading?: string;
   onClose: () => void;
@@ -78,7 +78,8 @@ export function AddToDatasetDialog({
             <Modal.Header>
               <Modal.Heading>{heading}</Modal.Heading>
               <Description>
-                Reviewed boxes for this model come with the photographs.
+                Reviewed annotations for this model are included with the
+                images.
               </Description>
             </Modal.Header>
             <Modal.Body>
@@ -91,7 +92,7 @@ export function AddToDatasetDialog({
                       ? String(form.get("name") ?? "")
                       : choice;
                   void run(
-                    () => addToDataset({ data: { dataset, photos } }),
+                    () => addToDataset({ data: { dataset, images } }),
                     "Nothing was added",
                   ).then(async (result) => {
                     if (result.ok) {

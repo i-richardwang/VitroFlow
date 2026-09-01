@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
-  experimentPhotos,
+  experimentObservationImages,
   experiments,
   images,
   inferenceOutcomes,
@@ -20,7 +20,7 @@ import {
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import { canonicalJson } from "../json/canonical";
-import { assertInstanceClasses } from "../models/readings";
+import { assertInstanceClasses } from "../models/metrics";
 import { supportsRuntime, type Model } from "../models/schema";
 import { lockDetection } from "./detection-lock";
 import { assertDocumentImage } from "./image-documents";
@@ -231,19 +231,22 @@ export interface Assignment {
   images: string[];
 }
 
-/** Pairs experiments need: their photographs under the versions they read with, each once. */
+/** Distinct image-version pairs required by experiments. */
 function experimentDemand(db: Executor) {
   return db
     .selectDistinct({
-      digest: experimentPhotos.imageId,
+      digest: experimentObservationImages.imageId,
       versionId: experiments.modelVersionId,
     })
-    .from(experimentPhotos)
-    .innerJoin(experiments, eq(experiments.id, experimentPhotos.experimentId))
+    .from(experimentObservationImages)
+    .innerJoin(
+      experiments,
+      eq(experiments.id, experimentObservationImages.experimentId),
+    )
     .leftJoin(
       inferenceOutcomes,
       and(
-        eq(inferenceOutcomes.imageId, experimentPhotos.imageId),
+        eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
         eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
       ),
     )

@@ -14,7 +14,7 @@ import { useState } from "react";
 
 import type { DateValue } from "@internationalized/date";
 
-import type { PhotoCell } from "../../experiments/contracts";
+import type { ObservationImageCell } from "../../experiments/contracts";
 import type { Experiment } from "../../experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
@@ -28,12 +28,12 @@ type Action = "dataset" | "edit" | "delete";
 
 export function ExperimentMenu({
   experiment,
-  photos,
+  images,
   datasets,
   designLocked,
 }: {
   experiment: Experiment;
-  photos: PhotoCell[];
+  images: ObservationImageCell[];
   datasets: string[];
   designLocked: boolean;
 }) {
@@ -55,7 +55,7 @@ export function ExperimentMenu({
             aria-label="Experiment actions"
             onAction={(key) => setOpen(String(key) as Action)}
           >
-            {photos.length > 0 ? (
+            {images.length > 0 ? (
               <Dropdown.Item id="dataset" textValue="Add all to dataset">
                 <Label>Add all to dataset…</Label>
               </Dropdown.Item>
@@ -79,9 +79,9 @@ export function ExperimentMenu({
 
       <AddToDatasetDialog
         isOpen={open === "dataset"}
-        photos={photos.map((photo) => ({
+        images={images.map((image) => ({
           experiment: experiment.id,
-          photo: photo.id,
+          observationImage: image.id,
         }))}
         datasets={datasets}
         heading="Add all to dataset"
@@ -106,9 +106,8 @@ export function ExperimentMenu({
           await router.navigate({ to: "/experiments" });
         }}
       >
-        Its design, dishes, and observations are removed. The photographs stay
-        stored, with their detections and reviews, for the datasets that use
-        them.
+        Its design, observation units, and observations are removed. Images stay
+        stored, with their detections and reviews, for datasets that use them.
       </DeleteDialog>
     </>
   );
@@ -141,8 +140,8 @@ function EditExperimentDialog({
               <Modal.Heading>Edit experiment</Modal.Heading>
               {protocolLocked ? (
                 <p className="text-sm text-muted">
-                  Material, explant, medium, and inoculation date are fixed
-                  after the first observation.
+                  Plant material, explant type, base medium, and inoculation
+                  date are fixed after the first observation.
                 </p>
               ) : null}
             </Modal.Header>
@@ -159,15 +158,15 @@ function EditExperimentDialog({
                         data: {
                           experiment: experiment.id,
                           ...fields,
-                          material: protocolLocked
-                            ? experiment.material
-                            : fields.material,
-                          explant: protocolLocked
-                            ? experiment.explant
-                            : fields.explant,
-                          medium: protocolLocked
-                            ? experiment.medium
-                            : fields.medium,
+                          plantMaterial: protocolLocked
+                            ? experiment.plantMaterial
+                            : fields.plantMaterial,
+                          explantType: protocolLocked
+                            ? experiment.explantType
+                            : fields.explantType,
+                          baseMedium: protocolLocked
+                            ? experiment.baseMedium
+                            : fields.baseMedium,
                           inoculatedOn: protocolLocked
                             ? experiment.inoculatedOn
                             : toDay(inoculatedOn),

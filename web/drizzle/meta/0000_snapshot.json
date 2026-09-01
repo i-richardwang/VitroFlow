@@ -1,9 +1,203 @@
 {
-  "id": "7f852723-0cf6-485d-a056-9d1b8fb366c8",
+  "id": "1489079f-2a63-45a6-8891-79074f1b3c13",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.annotations": {
+      "name": "annotations",
+      "schema": "",
+      "columns": {
+        "image_id": {
+          "name": "image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document": {
+          "name": "document",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->>'status'",
+            "type": "stored"
+          }
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "(document->>'revision')::integer",
+            "type": "stored"
+          }
+        },
+        "source_model_version_id": {
+          "name": "source_model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'source'->>'modelVersionId'",
+            "type": "stored"
+          }
+        },
+        "source_artifact_digest": {
+          "name": "source_artifact_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "document->'source'->>'artifactDigest'",
+            "type": "stored"
+          }
+        }
+      },
+      "indexes": {
+        "annotations_model_status_idx": {
+          "name": "annotations_model_status_idx",
+          "columns": [
+            {
+              "expression": "model_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "annotations_image_id_images_id_fk": {
+          "name": "annotations_image_id_images_id_fk",
+          "tableFrom": "annotations",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "annotations_model_id_models_id_fk": {
+          "name": "annotations_model_id_models_id_fk",
+          "tableFrom": "annotations",
+          "tableTo": "models",
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "annotations_source_model_version_id_model_id_model_versions_id_model_id_fk": {
+          "name": "annotations_source_model_version_id_model_id_model_versions_id_model_id_fk",
+          "tableFrom": "annotations",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "source_model_version_id",
+            "model_id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "annotations_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk": {
+          "name": "annotations_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk",
+          "tableFrom": "annotations",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "source_model_version_id",
+            "source_artifact_digest"
+          ],
+          "columnsTo": [
+            "id",
+            "artifact_digest"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "annotations_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk": {
+          "name": "annotations_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk",
+          "tableFrom": "annotations",
+          "tableTo": "inference_outcomes",
+          "columnsFrom": [
+            "image_id",
+            "source_model_version_id",
+            "source_artifact_digest"
+          ],
+          "columnsTo": [
+            "successful_image_id",
+            "successful_model_version_id",
+            "successful_artifact_digest"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "annotations_image_id_model_id_pk": {
+          "name": "annotations_image_id_model_id_pk",
+          "columns": [
+            "image_id",
+            "model_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "annotations_status_check": {
+          "name": "annotations_status_check",
+          "value": "\"annotations\".\"status\" in ('in_progress', 'complete', 'excluded')"
+        },
+        "annotations_revision_check": {
+          "name": "annotations_revision_check",
+          "value": "\"annotations\".\"revision\" >= 0"
+        },
+        "annotations_image_check": {
+          "name": "annotations_image_check",
+          "value": "document->'image'->>'digest' = \"annotations\".\"image_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.dataset_images": {
       "name": "dataset_images",
       "schema": "",
@@ -392,8 +586,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.experiment_dish_events": {
-      "name": "experiment_dish_events",
+    "public.experiment_culture_events": {
+      "name": "experiment_culture_events",
       "schema": "",
       "columns": {
         "experiment_id": {
@@ -408,8 +602,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "dish_id": {
-          "name": "dish_id",
+        "observation_unit_id": {
+          "name": "observation_unit_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -464,8 +658,8 @@
         }
       },
       "indexes": {
-        "experiment_dish_events_dish_idx": {
-          "name": "experiment_dish_events_dish_idx",
+        "experiment_culture_events_unit_idx": {
+          "name": "experiment_culture_events_unit_idx",
           "columns": [
             {
               "expression": "experiment_id",
@@ -474,7 +668,7 @@
               "nulls": "last"
             },
             {
-              "expression": "dish_id",
+              "expression": "observation_unit_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -491,8 +685,8 @@
           "method": "btree",
           "with": {}
         },
-        "experiment_dish_events_one_active_kind": {
-          "name": "experiment_dish_events_one_active_kind",
+        "experiment_culture_events_one_active_kind": {
+          "name": "experiment_culture_events_one_active_kind",
           "columns": [
             {
               "expression": "experiment_id",
@@ -501,7 +695,7 @@
               "nulls": "last"
             },
             {
-              "expression": "dish_id",
+              "expression": "observation_unit_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -520,20 +714,20 @@
             }
           ],
           "isUnique": true,
-          "where": "\"experiment_dish_events\".\"voided_at\" is null",
+          "where": "\"experiment_culture_events\".\"voided_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "experiment_dish_events_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk": {
-          "name": "experiment_dish_events_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk",
-          "tableFrom": "experiment_dish_events",
-          "tableTo": "experiment_dishes",
+        "experiment_culture_events_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk": {
+          "name": "experiment_culture_events_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk",
+          "tableFrom": "experiment_culture_events",
+          "tableTo": "experiment_observation_units",
           "columnsFrom": [
             "experiment_id",
-            "dish_id"
+            "observation_unit_id"
           ],
           "columnsTo": [
             "experiment_id",
@@ -542,9 +736,9 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "experiment_dish_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk": {
-          "name": "experiment_dish_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk",
-          "tableFrom": "experiment_dish_events",
+        "experiment_culture_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk": {
+          "name": "experiment_culture_events_experiment_id_observation_id_experiment_observations_experiment_id_id_fk",
+          "tableFrom": "experiment_culture_events",
           "tableTo": "experiment_observations",
           "columnsFrom": [
             "experiment_id",
@@ -559,8 +753,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "experiment_dish_events_experiment_id_id_pk": {
-          "name": "experiment_dish_events_experiment_id_id_pk",
+        "experiment_culture_events_experiment_id_id_pk": {
+          "name": "experiment_culture_events_experiment_id_id_pk",
           "columns": [
             "experiment_id",
             "id"
@@ -570,23 +764,23 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "experiment_dish_events_note_check": {
-          "name": "experiment_dish_events_note_check",
-          "value": "\"experiment_dish_events\".\"note\" = btrim(\"experiment_dish_events\".\"note\") and length(\"experiment_dish_events\".\"note\") <= 500"
+        "experiment_culture_events_note_check": {
+          "name": "experiment_culture_events_note_check",
+          "value": "\"experiment_culture_events\".\"note\" = btrim(\"experiment_culture_events\".\"note\") and length(\"experiment_culture_events\".\"note\") <= 500"
         },
-        "experiment_dish_events_type_check": {
-          "name": "experiment_dish_events_type_check",
-          "value": "\"experiment_dish_events\".\"type\" in ('contaminated', 'dead', 'discarded', 'harvested', 'lost')"
+        "experiment_culture_events_type_check": {
+          "name": "experiment_culture_events_type_check",
+          "value": "\"experiment_culture_events\".\"type\" in ('contaminated', 'nonviable', 'discarded', 'harvested', 'missing')"
         },
-        "experiment_dish_events_void_check": {
-          "name": "experiment_dish_events_void_check",
-          "value": "(\"experiment_dish_events\".\"voided_at\" is null) = (\"experiment_dish_events\".\"void_reason\" = '')"
+        "experiment_culture_events_void_check": {
+          "name": "experiment_culture_events_void_check",
+          "value": "(\"experiment_culture_events\".\"voided_at\" is null) = (\"experiment_culture_events\".\"void_reason\" = '')"
         }
       },
       "isRLSEnabled": false
     },
-    "public.experiment_dishes": {
-      "name": "experiment_dishes",
+    "public.experiment_observation_images": {
+      "name": "experiment_observation_images",
       "schema": "",
       "columns": {
         "experiment_id": {
@@ -601,19 +795,154 @@
           "primaryKey": false,
           "notNull": true
         },
-        "label": {
-          "name": "label",
+        "observation_unit_id": {
+          "name": "observation_unit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observation_id": {
+          "name": "observation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "label_key": {
-          "name": "label_key",
+        "filename": {
+          "name": "filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiment_observation_images_image_idx": {
+          "name": "experiment_observation_images_image_idx",
+          "columns": [
+            {
+              "expression": "image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiment_observation_images_image_id_images_id_fk": {
+          "name": "experiment_observation_images_image_id_images_id_fk",
+          "tableFrom": "experiment_observation_images",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "experiment_observation_images_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk": {
+          "name": "experiment_observation_images_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk",
+          "tableFrom": "experiment_observation_images",
+          "tableTo": "experiment_observation_units",
+          "columnsFrom": [
+            "experiment_id",
+            "observation_unit_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "experiment_observation_images_experiment_id_observation_id_experiment_observations_experiment_id_id_fk": {
+          "name": "experiment_observation_images_experiment_id_observation_id_experiment_observations_experiment_id_id_fk",
+          "tableFrom": "experiment_observation_images",
+          "tableTo": "experiment_observations",
+          "columnsFrom": [
+            "experiment_id",
+            "observation_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_observation_images_experiment_id_id_pk": {
+          "name": "experiment_observation_images_experiment_id_id_pk",
+          "columns": [
+            "experiment_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "experiment_observation_images_cell": {
+          "name": "experiment_observation_images_cell",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "observation_unit_id",
+            "observation_id"
+          ]
+        },
+        "experiment_observation_images_image": {
+          "name": "experiment_observation_images_image",
+          "nullsNotDistinct": false,
+          "columns": [
+            "experiment_id",
+            "image_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.experiment_observation_units": {
+      "name": "experiment_observation_units",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_key": {
+          "name": "code_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "generated": {
-            "as": "trim(both '-' from lower(regexp_replace(normalize(label, NFKC), '[-[:space:]._]+', '-', 'g')))",
+            "as": "trim(both '-' from lower(regexp_replace(normalize(code, NFKC), '[-[:space:]._]+', '-', 'g')))",
             "type": "stored"
           }
         },
@@ -631,8 +960,8 @@
         }
       },
       "indexes": {
-        "experiment_dishes_treatment_idx": {
-          "name": "experiment_dishes_treatment_idx",
+        "experiment_observation_units_treatment_idx": {
+          "name": "experiment_observation_units_treatment_idx",
           "columns": [
             {
               "expression": "experiment_id",
@@ -654,9 +983,9 @@
         }
       },
       "foreignKeys": {
-        "experiment_dishes_experiment_id_experiments_id_fk": {
-          "name": "experiment_dishes_experiment_id_experiments_id_fk",
-          "tableFrom": "experiment_dishes",
+        "experiment_observation_units_experiment_id_experiments_id_fk": {
+          "name": "experiment_observation_units_experiment_id_experiments_id_fk",
+          "tableFrom": "experiment_observation_units",
           "tableTo": "experiments",
           "columnsFrom": [
             "experiment_id"
@@ -667,9 +996,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "experiment_dishes_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk": {
-          "name": "experiment_dishes_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk",
-          "tableFrom": "experiment_dishes",
+        "experiment_observation_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk": {
+          "name": "experiment_observation_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk",
+          "tableFrom": "experiment_observation_units",
           "tableTo": "experiment_treatments",
           "columnsFrom": [
             "experiment_id",
@@ -684,8 +1013,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "experiment_dishes_experiment_id_id_pk": {
-          "name": "experiment_dishes_experiment_id_id_pk",
+        "experiment_observation_units_experiment_id_id_pk": {
+          "name": "experiment_observation_units_experiment_id_id_pk",
           "columns": [
             "experiment_id",
             "id"
@@ -693,24 +1022,24 @@
         }
       },
       "uniqueConstraints": {
-        "experiment_dishes_label": {
-          "name": "experiment_dishes_label",
+        "experiment_observation_units_code": {
+          "name": "experiment_observation_units_code",
           "nullsNotDistinct": false,
           "columns": [
             "experiment_id",
-            "label_key"
+            "code_key"
           ]
         }
       },
       "policies": {},
       "checkConstraints": {
-        "experiment_dishes_label_check": {
-          "name": "experiment_dishes_label_check",
-          "value": "\"experiment_dishes\".\"label\" = btrim(\"experiment_dishes\".\"label\") and length(\"experiment_dishes\".\"label\") between 1 and 60 and \"experiment_dishes\".\"label_key\" <> ''"
+        "experiment_observation_units_code_check": {
+          "name": "experiment_observation_units_code_check",
+          "value": "\"experiment_observation_units\".\"code\" = btrim(\"experiment_observation_units\".\"code\") and length(\"experiment_observation_units\".\"code\") between 1 and 60 and \"experiment_observation_units\".\"code_key\" <> ''"
         },
-        "experiment_dishes_initial_explant_count_check": {
-          "name": "experiment_dishes_initial_explant_count_check",
-          "value": "\"experiment_dishes\".\"initial_explant_count\" between 1 and 10000"
+        "experiment_observation_units_initial_explant_count_check": {
+          "name": "experiment_observation_units_initial_explant_count_check",
+          "value": "\"experiment_observation_units\".\"initial_explant_count\" between 1 and 10000"
         }
       },
       "isRLSEnabled": false
@@ -826,141 +1155,6 @@
           "value": "\"experiment_observations\".\"observed_on\" >= \"experiment_observations\".\"inoculated_on\""
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.experiment_photos": {
-      "name": "experiment_photos",
-      "schema": "",
-      "columns": {
-        "experiment_id": {
-          "name": "experiment_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dish_id": {
-          "name": "dish_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "observation_id": {
-          "name": "observation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "image_id": {
-          "name": "image_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filename": {
-          "name": "filename",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "experiment_photos_image_idx": {
-          "name": "experiment_photos_image_idx",
-          "columns": [
-            {
-              "expression": "image_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "experiment_photos_image_id_images_id_fk": {
-          "name": "experiment_photos_image_id_images_id_fk",
-          "tableFrom": "experiment_photos",
-          "tableTo": "images",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "experiment_photos_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk": {
-          "name": "experiment_photos_experiment_id_dish_id_experiment_dishes_experiment_id_id_fk",
-          "tableFrom": "experiment_photos",
-          "tableTo": "experiment_dishes",
-          "columnsFrom": [
-            "experiment_id",
-            "dish_id"
-          ],
-          "columnsTo": [
-            "experiment_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "experiment_photos_experiment_id_observation_id_experiment_observations_experiment_id_id_fk": {
-          "name": "experiment_photos_experiment_id_observation_id_experiment_observations_experiment_id_id_fk",
-          "tableFrom": "experiment_photos",
-          "tableTo": "experiment_observations",
-          "columnsFrom": [
-            "experiment_id",
-            "observation_id"
-          ],
-          "columnsTo": [
-            "experiment_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "experiment_photos_experiment_id_id_pk": {
-          "name": "experiment_photos_experiment_id_id_pk",
-          "columns": [
-            "experiment_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "experiment_photos_cell": {
-          "name": "experiment_photos_cell",
-          "nullsNotDistinct": false,
-          "columns": [
-            "experiment_id",
-            "dish_id",
-            "observation_id"
-          ]
-        },
-        "experiment_photos_image": {
-          "name": "experiment_photos_image",
-          "nullsNotDistinct": false,
-          "columns": [
-            "experiment_id",
-            "image_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.experiment_treatments": {
@@ -1094,20 +1288,20 @@
           "primaryKey": false,
           "notNull": true
         },
-        "material": {
-          "name": "material",
+        "plant_material": {
+          "name": "plant_material",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "explant": {
-          "name": "explant",
+        "explant_type": {
+          "name": "explant_type",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "medium": {
-          "name": "medium",
+        "base_medium": {
+          "name": "base_medium",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1186,17 +1380,17 @@
           "name": "experiments_name_check",
           "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120"
         },
-        "experiments_material_check": {
-          "name": "experiments_material_check",
-          "value": "\"experiments\".\"material\" = btrim(\"experiments\".\"material\") and length(\"experiments\".\"material\") <= 120"
+        "experiments_plant_material_check": {
+          "name": "experiments_plant_material_check",
+          "value": "\"experiments\".\"plant_material\" = btrim(\"experiments\".\"plant_material\") and length(\"experiments\".\"plant_material\") <= 120"
         },
-        "experiments_explant_check": {
-          "name": "experiments_explant_check",
-          "value": "\"experiments\".\"explant\" = btrim(\"experiments\".\"explant\") and length(\"experiments\".\"explant\") <= 120"
+        "experiments_explant_type_check": {
+          "name": "experiments_explant_type_check",
+          "value": "\"experiments\".\"explant_type\" = btrim(\"experiments\".\"explant_type\") and length(\"experiments\".\"explant_type\") <= 120"
         },
-        "experiments_medium_check": {
-          "name": "experiments_medium_check",
-          "value": "\"experiments\".\"medium\" = btrim(\"experiments\".\"medium\") and length(\"experiments\".\"medium\") <= 200"
+        "experiments_base_medium_check": {
+          "name": "experiments_base_medium_check",
+          "value": "\"experiments\".\"base_medium\" = btrim(\"experiments\".\"base_medium\") and length(\"experiments\".\"base_medium\") <= 200"
         },
         "experiments_notes_check": {
           "name": "experiments_notes_check",
@@ -1549,200 +1743,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.labels": {
-      "name": "labels",
-      "schema": "",
-      "columns": {
-        "image_id": {
-          "name": "image_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document": {
-          "name": "document",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->>'status'",
-            "type": "stored"
-          }
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "(document->>'revision')::integer",
-            "type": "stored"
-          }
-        },
-        "source_model_version_id": {
-          "name": "source_model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->'source'->>'modelVersionId'",
-            "type": "stored"
-          }
-        },
-        "source_artifact_digest": {
-          "name": "source_artifact_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->'source'->>'artifactDigest'",
-            "type": "stored"
-          }
-        }
-      },
-      "indexes": {
-        "labels_model_status_idx": {
-          "name": "labels_model_status_idx",
-          "columns": [
-            {
-              "expression": "model_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "labels_image_id_images_id_fk": {
-          "name": "labels_image_id_images_id_fk",
-          "tableFrom": "labels",
-          "tableTo": "images",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "labels_model_id_models_id_fk": {
-          "name": "labels_model_id_models_id_fk",
-          "tableFrom": "labels",
-          "tableTo": "models",
-          "columnsFrom": [
-            "model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "labels_source_model_version_id_model_id_model_versions_id_model_id_fk": {
-          "name": "labels_source_model_version_id_model_id_model_versions_id_model_id_fk",
-          "tableFrom": "labels",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "source_model_version_id",
-            "model_id"
-          ],
-          "columnsTo": [
-            "id",
-            "model_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "labels_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk": {
-          "name": "labels_source_model_version_id_source_artifact_digest_model_versions_id_artifact_digest_fk",
-          "tableFrom": "labels",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "source_model_version_id",
-            "source_artifact_digest"
-          ],
-          "columnsTo": [
-            "id",
-            "artifact_digest"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "labels_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk": {
-          "name": "labels_image_id_source_model_version_id_source_artifact_digest_inference_outcomes_successful_image_id_successful_model_version_id_successful_artifact_digest_fk",
-          "tableFrom": "labels",
-          "tableTo": "inference_outcomes",
-          "columnsFrom": [
-            "image_id",
-            "source_model_version_id",
-            "source_artifact_digest"
-          ],
-          "columnsTo": [
-            "successful_image_id",
-            "successful_model_version_id",
-            "successful_artifact_digest"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "labels_image_id_model_id_pk": {
-          "name": "labels_image_id_model_id_pk",
-          "columns": [
-            "image_id",
-            "model_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "labels_status_check": {
-          "name": "labels_status_check",
-          "value": "\"labels\".\"status\" in ('in_progress', 'complete', 'excluded')"
-        },
-        "labels_revision_check": {
-          "name": "labels_revision_check",
-          "value": "\"labels\".\"revision\" >= 0"
-        },
-        "labels_image_check": {
-          "name": "labels_image_check",
-          "value": "document->'image'->>'digest' = \"labels\".\"image_id\""
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.model_versions": {
       "name": "model_versions",
       "schema": "",
@@ -1999,8 +1999,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "readings": {
-          "name": "readings",
+        "metrics": {
+          "name": "metrics",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true

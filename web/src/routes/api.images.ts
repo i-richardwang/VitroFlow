@@ -9,8 +9,8 @@ function failed(message: string, status: number): Response {
 }
 
 /**
- * Stores one photograph. The request is its bytes and nothing else: a
- * photograph is identified by what it contains, and the name it is filed under
+ * Stores one image. The request is its bytes and nothing else: a
+ * image is identified by what it contains, and the source name retained with
  * belongs to the experiment observation that submits it, not to the image.
  */
 export const Route = createFileRoute("/api/images")({

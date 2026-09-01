@@ -453,8 +453,8 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
 });
 
 test("a worker whose lease was reassigned can no longer report on the run", async () => {
-  await reviewedDataset("lost-lease");
-  const run = await createTrainingRun("lost-lease", recipe);
+  await reviewedDataset("missing-lease");
+  const run = await createTrainingRun("missing-lease", recipe);
   await trainer("slow-trainer");
   await trainer("fast-trainer");
   const start = new Date();

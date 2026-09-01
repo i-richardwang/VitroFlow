@@ -27,9 +27,9 @@ async function reviewedSinceLastRun(
     ) ?? [],
   );
   return records.filter(
-    ({ image, label }) =>
-      label?.status === "complete" &&
-      !captured.has(`${image.digest}#${label.revision}`),
+    ({ image, annotation }) =>
+      annotation?.status === "complete" &&
+      !captured.has(`${image.digest}#${annotation.revision}`),
   ).length;
 }
 

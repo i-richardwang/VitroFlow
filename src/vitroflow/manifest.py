@@ -2,7 +2,7 @@
 
 A data root holds every image as a blob named by the SHA-256 digest of its bytes
 and one manifest per dataset listing those digests together with the detection and
-label documents recorded for them.
+annotation documents recorded for them.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class ManifestImage:
     bytes: int
     split: str | None
     detection: dict[str, Any] | None
-    label: dict[str, Any] | None
+    annotation: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
@@ -95,7 +95,7 @@ def _image(value: Any, context: str) -> ManifestImage:
             "bytes",
             "split",
             "detection",
-            "label",
+            "annotation",
         },
         context,
     )
@@ -104,14 +104,14 @@ def _image(value: Any, context: str) -> ManifestImage:
         width=as_integer(entry["width"], f"{context}.width", minimum=1),
         height=as_integer(entry["height"], f"{context}.height", minimum=1),
         filename=as_string(entry["filename"], f"{context}.filename"),
-        bytes=as_integer(entry["bytes"], f"{context}.bytes"),
+        bytes=as_integer(entry["bytes"], f"{context}.bytes", minimum=1),
         split=(
             None
             if entry["split"] is None
             else as_split(entry["split"], f"{context}.split")
         ),
         detection=_optional_object(entry["detection"], f"{context}.detection"),
-        label=_optional_object(entry["label"], f"{context}.label"),
+        annotation=_optional_object(entry["annotation"], f"{context}.annotation"),
     )
 
 

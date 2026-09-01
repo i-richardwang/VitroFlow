@@ -8,15 +8,15 @@ import {
 } from "../training/schema";
 import {
   classListSchema,
-  readingClasses,
-  readingSchema,
-  type Reading,
-} from "./readings";
+  metricClasses,
+  derivedMetricSchema,
+  type DerivedMetric,
+} from "./metrics";
 
 /**
- * A model is a task: what it looks for in a photograph and what an experiment
+ * A model is a task: what it looks for in an image and what an experiment
  * reads off the result. Every version of the model finds the same classes and
- * supports the same readings; versions differ only in how well they find them.
+ * supports the same metrics; versions differ only in how well they find them.
  */
 export const modelSchema = z
   .strictObject({
@@ -25,35 +25,35 @@ export const modelSchema = z
     name: z.string().min(1),
     task: z.literal("object_detection"),
     classes: classListSchema,
-    readings: z.array(readingSchema).min(1),
+    metrics: z.array(derivedMetricSchema).min(1),
   })
   .superRefine((model, context) => {
     const ids = new Set<string>();
     const known = new Set(model.classes);
-    model.readings.forEach((reading, index) => {
-      if (ids.has(reading.id)) {
+    model.metrics.forEach((metric, index) => {
+      if (ids.has(metric.id)) {
         context.addIssue({
           code: "custom",
-          path: ["readings", index, "id"],
-          message: `Duplicate reading id: ${reading.id}`,
+          path: ["metrics", index, "id"],
+          message: `Duplicate metric id: ${metric.id}`,
         });
       }
-      ids.add(reading.id);
-      for (const name of readingClasses(reading)) {
+      ids.add(metric.id);
+      for (const name of metricClasses(metric)) {
         if (!known.has(name)) {
           context.addIssue({
             code: "custom",
-            path: ["readings", index],
-            message: `Reading ${reading.id} uses unknown class ${name}`,
+            path: ["metrics", index],
+            message: `Metric ${metric.id} uses unknown class ${name}`,
           });
         }
       }
     });
   });
 
-/** The reading an experiment grid shows by default. */
-export function primaryReading(model: Pick<Model, "readings">): Reading {
-  return model.readings[0]!;
+/** The metric an experiment grid shows by default. */
+export function primaryMetric(model: Pick<Model, "metrics">): DerivedMetric {
+  return model.metrics[0]!;
 }
 
 const inferenceSettingsSchema = z.strictObject({

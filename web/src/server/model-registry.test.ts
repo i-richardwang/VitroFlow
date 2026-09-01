@@ -17,9 +17,7 @@ test("registry lists immutable versions under their logical model", async () => 
     name: "Registry detector",
     task: "object_detection",
     classes: ["seed"],
-    readings: [
-      { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
-    ],
+    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   const candidate = {
     schemaVersion: 1 as const,
