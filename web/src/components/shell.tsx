@@ -28,24 +28,39 @@ import {
 
 const NAV = [
   {
-    href: "/experiments",
-    label: "Experiments",
-    icon: ExperimentsIcon,
-    match: "experiments",
+    label: "Lab",
+    items: [
+      {
+        href: "/experiments",
+        label: "Experiments",
+        icon: ExperimentsIcon,
+        match: "experiments",
+      },
+    ],
   },
   {
-    href: "/datasets",
-    label: "Datasets",
-    icon: DatasetsIcon,
-    match: "datasets",
+    label: "Model",
+    items: [
+      {
+        href: "/datasets",
+        label: "Datasets",
+        icon: DatasetsIcon,
+        match: "datasets",
+      },
+      {
+        href: "/training",
+        label: "Training",
+        icon: TrainingIcon,
+        match: "training",
+      },
+    ],
   },
   {
-    href: "/training",
-    label: "Training",
-    icon: TrainingIcon,
-    match: "training",
+    label: "Workers",
+    items: [
+      { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
+    ],
   },
-  { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
 ] as const;
 
 const workbenchRoute = getRouteApi("/_workbench");
@@ -197,40 +212,41 @@ function SidebarContents({
   return (
     <>
       <Sidebar.Header>
-        <div className="flex items-center gap-3 px-1 py-1">
-          <BrandLogo className="size-10 shrink-0" />
-          <div className="min-w-0" data-sidebar="label">
-            <div className="truncate text-sm font-semibold text-foreground">
-              VitroFlow
-            </div>
-            <div className="truncate text-xs text-muted">
-              Experiment workbench
-            </div>
-          </div>
+        <div className="flex items-center gap-3 px-1 py-2">
+          <BrandLogo className="size-8 shrink-0" />
+          <span
+            className="truncate text-base font-semibold text-foreground"
+            data-sidebar="label"
+          >
+            VitroFlow
+          </span>
         </div>
       </Sidebar.Header>
       <Sidebar.Content>
-        <Sidebar.Group>
-          <Sidebar.Menu aria-label="Workbench">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Sidebar.MenuItem
-                  key={item.href}
-                  href={item.href}
-                  id={`${idPrefix}${item.match}`}
-                  isCurrent={section === item.match}
-                  textValue={item.label}
-                >
-                  <Sidebar.MenuIcon>
-                    <Icon />
-                  </Sidebar.MenuIcon>
-                  <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-                </Sidebar.MenuItem>
-              );
-            })}
-          </Sidebar.Menu>
-        </Sidebar.Group>
+        {NAV.map((group) => (
+          <Sidebar.Group key={group.label}>
+            <Sidebar.GroupLabel>{group.label}</Sidebar.GroupLabel>
+            <Sidebar.Menu aria-label={group.label}>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Sidebar.MenuItem
+                    key={item.href}
+                    href={item.href}
+                    id={`${idPrefix}${item.match}`}
+                    isCurrent={section === item.match}
+                    textValue={item.label}
+                  >
+                    <Sidebar.MenuIcon>
+                      <Icon />
+                    </Sidebar.MenuIcon>
+                    <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+                  </Sidebar.MenuItem>
+                );
+              })}
+            </Sidebar.Menu>
+          </Sidebar.Group>
+        ))}
       </Sidebar.Content>
       {signedIn && (
         <Sidebar.Footer>
