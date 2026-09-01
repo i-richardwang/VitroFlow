@@ -30,12 +30,12 @@ export function ExperimentMenu({
   experiment,
   images,
   datasets,
-  designLocked,
+  hasObservations,
 }: {
   experiment: Experiment;
   images: ObservationImageCell[];
   datasets: string[];
-  designLocked: boolean;
+  hasObservations: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -64,7 +64,7 @@ export function ExperimentMenu({
             <Dropdown.Item id="edit" textValue="Edit details">
               <Label>Edit details…</Label>
             </Dropdown.Item>
-            {!designLocked ? (
+            {!hasObservations ? (
               <Dropdown.Item
                 id="delete"
                 textValue="Delete experiment"
@@ -91,7 +91,7 @@ export function ExperimentMenu({
       <EditExperimentDialog
         experiment={experiment}
         isOpen={open === "edit"}
-        protocolLocked={designLocked}
+        protocolLocked={hasObservations}
         onClose={close}
       />
 

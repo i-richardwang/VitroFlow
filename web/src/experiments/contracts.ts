@@ -16,8 +16,6 @@ export interface ObservationUnit {
   code: string;
   position: number;
   treatment: string | null;
-  /** Subsamples within this experimental unit; they do not increase n. */
-  initialExplantCount: number;
   events: CultureEvent[];
 }
 

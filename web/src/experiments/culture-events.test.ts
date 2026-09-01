@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import type { CultureEvent, ExperimentObservation } from "./schema";
 import {
+  CULTURE_EVENT_TYPES,
+  type CultureEvent,
+  type ExperimentObservation,
+} from "./schema";
+import {
+  cultureEventExcludesFromAnalysisByDefault,
+  cultureEventIsTerminal,
   observationUnitIsAvailableAt,
   observationUnitIsIncludedInAnalysis,
   latestActiveCultureEvent,
@@ -36,7 +42,6 @@ function event(overrides: Partial<CultureEvent>): CultureEvent {
     type: "discarded",
     observation: observations[0]!.id,
     excludeFromObservation: false,
-    removeAfterObservation: false,
     note: "",
     recordedAt: "2026-08-08T12:00:00.000Z",
     voidedAt: null,
@@ -46,8 +51,24 @@ function event(overrides: Partial<CultureEvent>): CultureEvent {
 }
 
 describe("observation unit event effects", () => {
-  test("physical removal starts after the recorded observation", () => {
-    const events = [event({ removeAfterObservation: true })];
+  test("each event type has one stable domain meaning", () => {
+    expect(
+      CULTURE_EVENT_TYPES.map((type) => [
+        type,
+        cultureEventIsTerminal(type),
+        cultureEventExcludesFromAnalysisByDefault(type),
+      ]),
+    ).toEqual([
+      ["contaminated", false, true],
+      ["nonviable", false, false],
+      ["discarded", true, true],
+      ["harvested", true, false],
+      ["missing", true, true],
+    ]);
+  });
+
+  test("an event that takes the unit off the bench applies afterwards", () => {
+    const events = [event({ type: "harvested" })];
 
     expect(
       observationUnitIsAvailableAt(events, observations[0]!, ordinals),
@@ -63,8 +84,18 @@ describe("observation unit event effects", () => {
     ).toBeFalse();
   });
 
+  test("an event the unit survives leaves it on the bench", () => {
+    const events = [event({ type: "contaminated" })];
+
+    expect(
+      observationUnitIsAvailableAt(events, observations[1]!, ordinals),
+    ).toBeTrue();
+  });
+
   test("analysis exclusion starts in the recorded observation", () => {
-    const events = [event({ excludeFromObservation: true })];
+    const events = [
+      event({ type: "contaminated", excludeFromObservation: true }),
+    ];
 
     expect(
       observationUnitIsAvailableAt(events, observations[0]!, ordinals),
@@ -81,7 +112,6 @@ describe("observation unit event effects", () => {
     const events = [
       event({
         excludeFromObservation: true,
-        removeAfterObservation: true,
         voidedAt: "2026-08-09T12:00:00.000Z",
         voidReason: "Recorded for the wrong observation unit",
       }),

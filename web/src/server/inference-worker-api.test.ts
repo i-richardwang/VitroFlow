@@ -72,13 +72,11 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     factors: [],
     note: "",
     replicates: 0,
-    initialExplantCount: 1,
   });
   const [observationUnit] = await addObservationUnits({
     experiment: experiment.id,
     treatment: treatment.id,
     codes: ["A1"],
-    initialExplantCount: 1,
   });
   const observation = await addObservation({
     experiment: experiment.id,

@@ -9,7 +9,6 @@ import {
   Label,
   ListBox,
   Modal,
-  NumberField,
   Select,
   Separator,
   TextField,
@@ -19,7 +18,11 @@ import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import type { ObservationUnit } from "../../experiments/contracts";
-import { CULTURE_EVENT_LABELS } from "../../experiments/culture-events";
+import {
+  cultureEventExcludesFromAnalysisByDefault,
+  cultureEventIsTerminal,
+  cultureEventLabel,
+} from "../../experiments/culture-events";
 import {
   CULTURE_EVENT_TYPES,
   observationLabel,
@@ -49,13 +52,13 @@ export function ObservationUnitMenu({
   observationUnit,
   treatments,
   observations,
-  designLocked,
+  structureLocked,
 }: {
   experiment: string;
   observationUnit: ObservationUnit;
   treatments: Treatment[];
   observations: ExperimentObservation[];
-  designLocked: boolean;
+  structureLocked: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -111,7 +114,7 @@ export function ObservationUnitMenu({
                 <Label>Culture events…</Label>
               </Dropdown.Item>
             ) : null}
-            {!designLocked ? (
+            {!structureLocked ? (
               <>
                 <Separator />
                 {treatments.map((treatment) => (
@@ -149,7 +152,6 @@ export function ObservationUnitMenu({
         <EditObservationUnitModal
           experiment={experiment}
           observationUnit={observationUnit}
-          designLocked={designLocked}
           onClose={() => setOpen(null)}
         />
       ) : null}
@@ -185,19 +187,14 @@ export function ObservationUnitMenu({
 function EditObservationUnitModal({
   experiment,
   observationUnit,
-  designLocked,
   onClose,
 }: {
   experiment: string;
   observationUnit: ObservationUnit;
-  designLocked: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const [initialExplantCount, setInitialExplantCount] = useState(
-    observationUnit.initialExplantCount,
-  );
 
   return (
     <Modal isOpen onOpenChange={(next) => !next && onClose()}>
@@ -224,9 +221,6 @@ function EditObservationUnitModal({
                           experiment,
                           observationUnit: observationUnit.id,
                           code: String(form.get("code") ?? ""),
-                          initialExplantCount: designLocked
-                            ? observationUnit.initialExplantCount
-                            : initialExplantCount,
                         },
                       }),
                     "Observation unit not saved",
@@ -250,22 +244,6 @@ function EditObservationUnitModal({
                       <Label>Code</Label>
                       <Input />
                     </TextField>
-                    <NumberField
-                      variant="secondary"
-                      fullWidth
-                      minValue={1}
-                      maxValue={10_000}
-                      value={initialExplantCount}
-                      onChange={setInitialExplantCount}
-                      isDisabled={busy || designLocked}
-                    >
-                      <Label>Initial explants</Label>
-                      <NumberField.Group>
-                        <NumberField.DecrementButton />
-                        <NumberField.Input />
-                        <NumberField.IncrementButton />
-                      </NumberField.Group>
-                    </NumberField>
                   </Fieldset.Group>
                   <Fieldset.Actions>
                     <Button variant="tertiary" onPress={onClose}>
@@ -285,15 +263,6 @@ function EditObservationUnitModal({
   );
 }
 
-function eventDefaults(type: CultureEventType): {
-  exclude: boolean;
-  remove: boolean;
-} {
-  if (type === "harvested") return { exclude: false, remove: true };
-  if (type === "contaminated") return { exclude: true, remove: false };
-  return { exclude: true, remove: true };
-}
-
 function CultureEventsModal({
   experiment,
   observationUnit,
@@ -309,16 +278,14 @@ function CultureEventsModal({
   const { busy, run } = useAsyncAction();
   const [type, setType] = useState<CultureEventType>("contaminated");
   const [observation, setObservation] = useState(observations.at(-1)!.id);
-  const defaults = eventDefaults(type);
-  const [exclude, setExclude] = useState(defaults.exclude);
-  const [remove, setRemove] = useState(defaults.remove);
+  const [exclude, setExclude] = useState(
+    cultureEventExcludesFromAnalysisByDefault(type),
+  );
   const [correcting, setCorrecting] = useState<string | null>(null);
 
   const changeType = (next: CultureEventType) => {
     setType(next);
-    const effects = eventDefaults(next);
-    setExclude(effects.exclude);
-    setRemove(effects.remove);
+    setExclude(cultureEventExcludesFromAnalysisByDefault(next));
   };
 
   return (
@@ -332,8 +299,8 @@ function CultureEventsModal({
                 Culture events · {observationUnit.code}
               </Modal.Heading>
               <Description>
-                Events preserve what happened. Analysis exclusion and physical
-                removal are recorded separately.
+                Event type determines whether the unit remains on the bench.
+                Analysis inclusion is recorded separately.
               </Description>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-5">
@@ -381,14 +348,13 @@ function CultureEventsModal({
                           type,
                           observation,
                           excludeFromObservation: exclude,
-                          removeAfterObservation: remove,
                           note: String(form.get("note") ?? ""),
                         },
                       }),
                     "Event not recorded",
                   ).then(async (result) => {
                     if (!result.ok) return;
-                    toast.success(`${CULTURE_EVENT_LABELS[type]} recorded`);
+                    toast.success(`${cultureEventLabel(type)} recorded`);
                     await router.invalidate();
                     onClose();
                   });
@@ -417,9 +383,9 @@ function CultureEventsModal({
                               <ListBox.Item
                                 key={value}
                                 id={value}
-                                textValue={CULTURE_EVENT_LABELS[value]}
+                                textValue={cultureEventLabel(value)}
                               >
-                                <Label>{CULTURE_EVENT_LABELS[value]}</Label>
+                                <Label>{cultureEventLabel(value)}</Label>
                                 <ListBox.ItemIndicator />
                               </ListBox.Item>
                             ))}
@@ -454,56 +420,34 @@ function CultureEventsModal({
                         </Select.Popover>
                       </Select>
                     </div>
-                    <div className="flex w-full gap-3">
-                      <Select
-                        variant="secondary"
-                        fullWidth
-                        isDisabled={busy}
-                        selectedKey={exclude ? "exclude" : "include"}
-                        onSelectionChange={(key) =>
-                          setExclude(key === "exclude")
-                        }
-                      >
-                        <Label>Analysis</Label>
-                        <Select.Trigger>
-                          <Select.Value />
-                          <Select.Indicator />
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            <ListBox.Item id="exclude">
-                              Exclude from this and later observations
-                            </ListBox.Item>
-                            <ListBox.Item id="include">
-                              Keep in analysis
-                            </ListBox.Item>
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                      <Select
-                        variant="secondary"
-                        fullWidth
-                        isDisabled={busy}
-                        selectedKey={remove ? "remove" : "keep"}
-                        onSelectionChange={(key) => setRemove(key === "remove")}
-                      >
-                        <Label>After this observation</Label>
-                        <Select.Trigger>
-                          <Select.Value />
-                          <Select.Indicator />
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            <ListBox.Item id="remove">
-                              No longer available
-                            </ListBox.Item>
-                            <ListBox.Item id="keep">
-                              Keep available
-                            </ListBox.Item>
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    </div>
+                    <p aria-live="polite" className="text-sm text-muted">
+                      {cultureEventIsTerminal(type)
+                        ? "This event takes the unit off the bench after the selected observation."
+                        : "This event leaves the unit available after the selected observation."}
+                    </p>
+                    <Select
+                      variant="secondary"
+                      fullWidth
+                      isDisabled={busy}
+                      selectedKey={exclude ? "exclude" : "include"}
+                      onSelectionChange={(key) => setExclude(key === "exclude")}
+                    >
+                      <Label>Analysis</Label>
+                      <Select.Trigger>
+                        <Select.Value />
+                        <Select.Indicator />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          <ListBox.Item id="exclude">
+                            Exclude from this and later observations
+                          </ListBox.Item>
+                          <ListBox.Item id="include">
+                            Keep in analysis
+                          </ListBox.Item>
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
                     <TextField
                       variant="secondary"
                       fullWidth
@@ -553,12 +497,14 @@ function EventRow({
     event.excludeFromObservation
       ? "excluded from analysis"
       : "kept in analysis",
-    event.removeAfterObservation ? "removed afterwards" : "kept available",
+    cultureEventIsTerminal(event.type)
+      ? "off the bench afterwards"
+      : "still there",
   ].join(" · ");
   return (
     <div className="rounded-lg border border-default p-3">
       <div className="flex items-center gap-2">
-        <span className="font-medium">{CULTURE_EVENT_LABELS[event.type]}</span>
+        <span className="font-medium">{cultureEventLabel(event.type)}</span>
         <span className="text-sm text-muted">
           {observation ? observationLabel(observation) : "Unknown observation"}{" "}
           · {effects}

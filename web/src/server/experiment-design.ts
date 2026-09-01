@@ -80,7 +80,7 @@ export async function updateExperiment(
   const { experiment: experimentId, ...page } = value;
   return transaction(async (tx) => {
     const current = await lockExperiment(experimentId, tx);
-    if (await designLocked(experimentId, tx)) {
+    if (await hasObservations(experimentId, tx)) {
       const protocolChanged =
         page.plantMaterial !== current.plantMaterial ||
         page.explantType !== current.explantType ||
@@ -108,7 +108,7 @@ export async function deleteExperiment(value: ExperimentRef): Promise<void> {
   const { experiment } = value;
   await transaction(async (tx) => {
     await lockExperiment(experiment, tx);
-    if (await designLocked(experiment, tx)) {
+    if (await hasObservations(experiment, tx)) {
       throw new ExperimentHasRecordsError(
         "An experiment with observations is a scientific record and cannot be deleted",
       );
@@ -123,7 +123,7 @@ export async function deleteExperiment(value: ExperimentRef): Promise<void> {
   });
 }
 
-async function designLocked(
+async function hasObservations(
   experimentId: string,
   tx: Executor,
 ): Promise<boolean> {
@@ -139,7 +139,7 @@ async function requireOpenDesign(
   experimentId: string,
   tx: Executor,
 ): Promise<void> {
-  if (await designLocked(experimentId, tx)) {
+  if (await hasObservations(experimentId, tx)) {
     throw new ExperimentDesignLockedError(
       "The design is fixed after the first observation",
     );
@@ -149,14 +149,7 @@ async function requireOpenDesign(
 export async function addTreatment(
   value: TreatmentRequest,
 ): Promise<Treatment> {
-  const {
-    experiment: experimentId,
-    name,
-    factors,
-    note,
-    replicates,
-    initialExplantCount,
-  } = value;
+  const { experiment: experimentId, name, factors, note, replicates } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     await requireOpenDesign(experimentId, tx);
@@ -189,7 +182,6 @@ export async function addTreatment(
         experimentId,
         row.id,
         replicateCodes(name, replicates, taken),
-        initialExplantCount,
         tx,
       );
     }
@@ -204,7 +196,6 @@ export async function addTreatmentReplicates(
     experiment: experimentId,
     treatment: treatmentId,
     replicates,
-    initialExplantCount,
   } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
@@ -217,7 +208,6 @@ export async function addTreatmentReplicates(
       experimentId,
       treatmentId,
       replicateCodes(treatment.name, replicates, taken),
-      initialExplantCount,
       tx,
     );
   });
@@ -229,7 +219,6 @@ export async function updateTreatment(
   const { experiment: experimentId, treatment: treatmentId, ...design } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
     const taken = (await listTreatments(experimentId, tx)).find(
       (treatment) =>
         treatmentNameKey(treatment.name) === treatmentNameKey(design.name) &&
@@ -289,7 +278,6 @@ async function insertObservationUnits(
   experimentId: string,
   treatmentId: string | null,
   codes: readonly string[],
-  initialExplantCount: number,
   tx: Executor,
 ): Promise<ObservationUnitRecord[]> {
   const rows = await tx
@@ -300,7 +288,6 @@ async function insertObservationUnits(
         id: randomUUID(),
         code,
         treatmentId,
-        initialExplantCount,
       })),
     )
     .returning();
@@ -310,12 +297,7 @@ async function insertObservationUnits(
 export async function addObservationUnits(
   value: ObservationUnitBatch,
 ): Promise<ObservationUnitRecord[]> {
-  const {
-    experiment: experimentId,
-    treatment: treatmentId,
-    codes,
-    initialExplantCount,
-  } = value;
+  const { experiment: experimentId, treatment: treatmentId, codes } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     await requireOpenDesign(experimentId, tx);
@@ -335,13 +317,7 @@ export async function addObservationUnits(
         `The experiment already has ${taken.join(", ")}`,
       );
     }
-    return insertObservationUnits(
-      experimentId,
-      treatmentId,
-      codes,
-      initialExplantCount,
-      tx,
-    );
+    return insertObservationUnits(experimentId, treatmentId, codes, tx);
   });
 }
 
@@ -352,27 +328,10 @@ export async function updateObservationUnit(
     experiment: experimentId,
     observationUnit: observationUnitId,
     code,
-    initialExplantCount,
   } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
     const observationUnits = await listObservationUnits(experimentId, tx);
-    const current = observationUnits.find(
-      (observationUnit) => observationUnit.id === observationUnitId,
-    );
-    if (!current) {
-      throw new ObservationUnitNotFoundError(
-        `Unknown observation unit: ${observationUnitId}`,
-      );
-    }
-    if (
-      current.initialExplantCount !== initialExplantCount &&
-      (await designLocked(experimentId, tx))
-    ) {
-      throw new ExperimentDesignLockedError(
-        "Initial explant count is fixed after the first observation",
-      );
-    }
     const clash = observationUnits.find(
       (observationUnit) =>
         observationUnitCodeKey(observationUnit.code) ===
@@ -386,7 +345,7 @@ export async function updateObservationUnit(
     }
     const [row] = await tx
       .update(experimentObservationUnits)
-      .set({ code, initialExplantCount })
+      .set({ code })
       .where(atObservationUnit(experimentId, observationUnitId))
       .returning();
     if (!row) {

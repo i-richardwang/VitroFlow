@@ -7,7 +7,10 @@ import {
   experimentCultureEvents,
   experimentObservationImages,
 } from "../db/schema";
-import { observationUnitIsAvailableAt } from "../experiments/culture-events";
+import {
+  cultureEventIsTerminal,
+  observationUnitIsAvailableAt,
+} from "../experiments/culture-events";
 import {
   CultureEventNotFoundError,
   ObservationUnitNotFoundError,
@@ -34,7 +37,6 @@ export async function recordCultureEvent(
     observation: observationId,
     type,
     excludeFromObservation,
-    removeAfterObservation,
     note,
   } = value;
   return transaction(async (tx) => {
@@ -65,6 +67,14 @@ export async function recordCultureEvent(
         `${type} is already recorded for ${observationUnit.code} at this observation`,
       );
     }
+    const hasActiveTerminalEvent = observationUnit.events.some(
+      (event) => event.voidedAt === null && cultureEventIsTerminal(event.type),
+    );
+    if (cultureEventIsTerminal(type) && hasActiveTerminalEvent) {
+      throw new ObservationUnitRejectedError(
+        `${observationUnit.code} already has an active terminal event`,
+      );
+    }
 
     const ordinals = new Map(
       observations.map((item) => [item.id, item.ordinal]),
@@ -87,7 +97,7 @@ export async function recordCultureEvent(
         `Observation unit ${observationUnit.code} was already removed before this observation`,
       );
     }
-    if (removeAfterObservation) {
+    if (cultureEventIsTerminal(type)) {
       const imageObservations = await tx
         .select({ observation: experimentObservationImages.observationId })
         .from(experimentObservationImages)
@@ -125,7 +135,6 @@ export async function recordCultureEvent(
         observationId,
         type,
         excludeFromObservation,
-        removeAfterObservation,
         note,
         recordedAt: new Date(),
         voidedAt: null,

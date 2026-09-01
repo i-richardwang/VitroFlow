@@ -38,14 +38,14 @@ export function DesignDialog({
   experiment,
   treatments,
   observationUnits,
-  designLocked,
+  structureLocked,
   isOpen,
   onClose,
 }: {
   experiment: string;
   treatments: Treatment[];
   observationUnits: ObservationUnit[];
-  designLocked: boolean;
+  structureLocked: boolean;
   isOpen: boolean;
   onClose: () => void;
 }) {
@@ -82,9 +82,9 @@ export function DesignDialog({
               <Modal.Header>
                 <Modal.Heading>Design</Modal.Heading>
                 <Description>
-                  {designLocked
-                    ? "Treatment definitions, assignments, and initial explant counts were fixed by the first observation."
-                    : "Each observation unit is one independent replicate; explants within it are subsamples."}
+                  {structureLocked
+                    ? "The first observation fixed the units and their treatment assignments. Treatment descriptions remain correctable."
+                    : "Each observation unit is one independent replicate."}
                 </Description>
               </Modal.Header>
               <Modal.Body
@@ -92,7 +92,7 @@ export function DesignDialog({
                 className="flex flex-col gap-6"
               >
                 {treatments.map((treatment) =>
-                  !designLocked && editing === treatment.id ? (
+                  editing === treatment.id ? (
                     <TreatmentEditor
                       key={treatment.id}
                       treatment={treatment}
@@ -112,7 +112,8 @@ export function DesignDialog({
                         );
                         if (result.ok) setEditing(null);
                       }}
-                      onAddReplicates={async (count, initialExplantCount) => {
+                      structureLocked={structureLocked}
+                      onAddReplicates={async (count) => {
                         await mutate(
                           () =>
                             createTreatmentReplicates({
@@ -120,7 +121,6 @@ export function DesignDialog({
                                 experiment,
                                 treatment: treatment.id,
                                 replicates: count,
-                                initialExplantCount,
                               },
                             }),
                           "Observation units not added",
@@ -134,18 +134,16 @@ export function DesignDialog({
                       treatment={treatment}
                       replicates={replicatesOf(treatment.id).length}
                       busy={busy}
-                      onEdit={
-                        designLocked
-                          ? undefined
-                          : () => setEditing(treatment.id)
-                      }
+                      onEdit={() => setEditing(treatment.id)}
                       onRemove={
-                        designLocked ? undefined : () => setDeleting(treatment)
+                        structureLocked
+                          ? undefined
+                          : () => setDeleting(treatment)
                       }
                     />
                   ),
                 )}
-                {!designLocked ? (
+                {!structureLocked ? (
                   <>
                     <Separator />
                     <NewTreatmentForm
@@ -164,7 +162,7 @@ export function DesignDialog({
                       observationUnits={observationUnits.filter(
                         (observationUnit) => observationUnit.treatment === null,
                       )}
-                      onSubmit={async (codes, initialExplantCount) => {
+                      onSubmit={async (codes) => {
                         const result = await mutate(
                           () =>
                             createObservationUnits({
@@ -172,7 +170,6 @@ export function DesignDialog({
                                 experiment,
                                 treatment: null,
                                 codes,
-                                initialExplantCount,
                               },
                             }),
                           "Observation units not added",
@@ -270,6 +267,7 @@ function TreatmentEditor({
   treatment,
   replicates,
   busy,
+  structureLocked,
   onSave,
   onAddReplicates,
   onCancel,
@@ -277,18 +275,15 @@ function TreatmentEditor({
   treatment: Treatment;
   replicates: number;
   busy: boolean;
+  structureLocked: boolean;
   onSave: (value: TreatmentDraft) => Promise<void>;
-  onAddReplicates: (
-    count: number,
-    initialExplantCount: number,
-  ) => Promise<void>;
+  onAddReplicates: (count: number) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(treatment.name);
   const [factors, setFactors] = useState<TreatmentFactor[]>(treatment.factors);
   const [note, setNote] = useState(treatment.note);
   const [adding, setAdding] = useState(1);
-  const [initialExplantCount, setInitialExplantCount] = useState(1);
 
   return (
     <Form
@@ -330,53 +325,43 @@ function TreatmentEditor({
             </TextField>
           </div>
           <FactorsField busy={busy} factors={factors} onChange={setFactors} />
-          <div className="flex w-full items-end gap-3">
-            <NumberField
-              className="w-32 shrink-0"
-              variant="secondary"
-              minValue={1}
-              maxValue={50}
-              isDisabled={busy}
-              value={adding}
-              onChange={setAdding}
-            >
-              <Label>Add replicates</Label>
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-            </NumberField>
-            <Button
-              type="button"
-              variant="secondary"
-              isDisabled={busy}
-              onPress={() => void onAddReplicates(adding, initialExplantCount)}
-            >
-              Add
-            </Button>
-            <NumberField
-              className="w-36 shrink-0"
-              variant="secondary"
-              minValue={1}
-              maxValue={10_000}
-              isDisabled={busy}
-              value={initialExplantCount}
-              onChange={setInitialExplantCount}
-            >
-              <Label>Initial explants per unit</Label>
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-            </NumberField>
-            <span className="pb-2 text-sm text-muted">
-              {replicates === 1
-                ? "1 observation unit so far"
-                : `${replicates} observation units so far`}
+          {structureLocked ? (
+            <span className="text-sm text-muted">
+              {`${replicates} observation ${replicates === 1 ? "unit" : "units"}. The first observation fixed this count; treatment details remain correctable.`}
             </span>
-          </div>
+          ) : (
+            <div className="flex w-full items-end gap-3">
+              <NumberField
+                className="w-32 shrink-0"
+                variant="secondary"
+                minValue={1}
+                maxValue={50}
+                isDisabled={busy}
+                value={adding}
+                onChange={setAdding}
+              >
+                <Label>Add replicates</Label>
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
+              </NumberField>
+              <Button
+                type="button"
+                variant="secondary"
+                isDisabled={busy}
+                onPress={() => void onAddReplicates(adding)}
+              >
+                Add
+              </Button>
+              <span className="pb-2 text-sm text-muted">
+                {replicates === 1
+                  ? "1 observation unit so far"
+                  : `${replicates} observation units so far`}
+              </span>
+            </div>
+          )}
         </Fieldset.Group>
         <Fieldset.Actions>
           <Button variant="tertiary" isDisabled={busy} onPress={onCancel}>
@@ -397,15 +382,11 @@ function NewTreatmentForm({
 }: {
   busy: boolean;
   onSubmit: (
-    value: TreatmentDraft & {
-      replicates: number;
-      initialExplantCount: number;
-    },
+    value: TreatmentDraft & { replicates: number },
   ) => Promise<boolean>;
 }) {
   const [name, setName] = useState("");
   const [replicates, setReplicates] = useState(3);
-  const [initialExplantCount, setInitialExplantCount] = useState(1);
   const [factors, setFactors] = useState<TreatmentFactor[]>([]);
 
   return (
@@ -418,7 +399,6 @@ function NewTreatmentForm({
           factors: filledFactors(factors),
           note: "",
           replicates,
-          initialExplantCount,
         }).then((ok) => {
           if (!ok) return;
           setName("");
@@ -459,22 +439,6 @@ function NewTreatmentForm({
             <Button type="submit" variant="primary" isDisabled={busy}>
               Add
             </Button>
-            <NumberField
-              className="w-36 shrink-0"
-              variant="secondary"
-              minValue={1}
-              maxValue={10_000}
-              isDisabled={busy}
-              value={initialExplantCount}
-              onChange={setInitialExplantCount}
-            >
-              <Label>Initial explants per unit</Label>
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-            </NumberField>
           </div>
           <FactorsField busy={busy} factors={factors} onChange={setFactors} />
         </Fieldset.Group>
@@ -490,10 +454,9 @@ function UnassignedObservationUnits({
 }: {
   busy: boolean;
   observationUnits: ObservationUnit[];
-  onSubmit: (codes: string[], initialExplantCount: number) => Promise<boolean>;
+  onSubmit: (codes: string[]) => Promise<boolean>;
 }) {
   const [codes, setCodes] = useState("");
-  const [initialExplantCount, setInitialExplantCount] = useState(1);
   const parsedCodes = codes
     .split(/[\n,]/)
     .map((code) => code.trim())
@@ -504,7 +467,7 @@ function UnassignedObservationUnits({
       onSubmit={(event) => {
         event.preventDefault();
         if (parsedCodes.length === 0) return;
-        void onSubmit(parsedCodes, initialExplantCount).then((ok) => {
+        void onSubmit(parsedCodes).then((ok) => {
           if (!ok) return;
           setCodes("");
           toast.success(
@@ -535,22 +498,6 @@ function UnassignedObservationUnits({
             >
               Add
             </Button>
-            <NumberField
-              className="w-36 shrink-0"
-              variant="secondary"
-              minValue={1}
-              maxValue={10_000}
-              isDisabled={busy}
-              value={initialExplantCount}
-              onChange={setInitialExplantCount}
-            >
-              <Label>Initial explants per unit</Label>
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-            </NumberField>
           </div>
           {observationUnits.length > 0 ? (
             <span className="text-sm text-muted">

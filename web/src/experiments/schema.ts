@@ -136,12 +136,6 @@ export const cultureEventNoteSchema = z
   .trim()
   .max(500, "Culture event note must be at most 500 characters");
 
-export const initialExplantCountSchema = z
-  .number()
-  .int()
-  .min(1, "Each observation unit needs at least one explant")
-  .max(10_000, "Initial explant count must be at most 10,000");
-
 export const observationNoteSchema = z
   .string()
   .trim()
@@ -233,7 +227,6 @@ export const treatmentRequestSchema = z.strictObject({
   factors: treatmentFactorsSchema.default([]),
   note: treatmentNoteSchema.default(""),
   replicates: z.number().int().min(0).max(200).default(0),
-  initialExplantCount: initialExplantCountSchema.default(1),
 });
 
 export type TreatmentRequest = z.infer<typeof treatmentRequestSchema>;
@@ -260,14 +253,12 @@ export const observationUnitBatchSchema = z.strictObject({
     .array(observationUnitCodeSchema)
     .min(1, "No observation units to add")
     .max(200),
-  initialExplantCount: initialExplantCountSchema.default(1),
 });
 
 export type ObservationUnitBatch = z.infer<typeof observationUnitBatchSchema>;
 
 export const observationUnitUpdateSchema = observationUnitRefSchema.extend({
   code: observationUnitCodeSchema,
-  initialExplantCount: initialExplantCountSchema,
 });
 
 export type ObservationUnitUpdate = z.infer<typeof observationUnitUpdateSchema>;
@@ -284,7 +275,6 @@ export type ObservationUnitAssignment = z.infer<
 
 export const treatmentReplicatesSchema = treatmentRefSchema.extend({
   replicates: z.number().int().min(1).max(200),
-  initialExplantCount: initialExplantCountSchema,
 });
 
 export type TreatmentReplicates = z.infer<typeof treatmentReplicatesSchema>;
@@ -296,7 +286,6 @@ export const cultureEventSchema = z.strictObject({
   type: cultureEventTypeSchema,
   observation: observationIdSchema,
   excludeFromObservation: z.boolean(),
-  removeAfterObservation: z.boolean(),
   note: cultureEventNoteSchema,
   recordedAt: z.string().datetime({ offset: true }),
   voidedAt: z.string().datetime({ offset: true }).nullable(),
@@ -309,7 +298,6 @@ export const cultureEventRequestSchema = observationUnitRefSchema.extend({
   type: cultureEventTypeSchema,
   observation: observationIdSchema,
   excludeFromObservation: z.boolean(),
-  removeAfterObservation: z.boolean(),
   note: cultureEventNoteSchema,
 });
 

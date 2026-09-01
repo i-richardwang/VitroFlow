@@ -36,7 +36,7 @@ import {
   type Treatment,
 } from "../../experiments/schema";
 import {
-  CULTURE_EVENT_LABELS,
+  cultureEventLabel,
   observationUnitIsAvailableAt,
   observationUnitIsIncludedInAnalysis,
   latestActiveCultureEvent,
@@ -123,7 +123,7 @@ function ExperimentPage() {
   const ordinals = new Map(
     observations.map((observation) => [observation.id, observation.ordinal]),
   );
-  const designLocked = observations.length > 0;
+  const hasObservations = observations.length > 0;
   const unresolvedDesign = designIssues(treatments, observationUnits);
   const designReady = unresolvedDesign.length === 0;
   const groups = groupObservationUnits(treatments, observationUnits);
@@ -195,7 +195,7 @@ function ExperimentPage() {
             experiment={experiment}
             images={images}
             datasets={datasets}
-            designLocked={designLocked}
+            hasObservations={hasObservations}
           />
         </>
       }
@@ -244,7 +244,7 @@ function ExperimentPage() {
             <Table.ScrollContainer>
               <Table.Content
                 aria-label={`${metric.name} in ${experiment.name}`}
-                selectionMode={designLocked ? "none" : "multiple"}
+                selectionMode={hasObservations ? "none" : "multiple"}
                 disabledKeys={summaryKeys}
                 selectedKeys={selectedKeys}
                 onSelectionChange={setSelectedKeys}
@@ -346,7 +346,7 @@ function ExperimentPage() {
                               observationUnit={observationUnit}
                               treatments={treatments}
                               observations={observations}
-                              designLocked={designLocked}
+                              structureLocked={hasObservations}
                             />
                             <Link
                               href={`/experiments/${experiment.id}/${observationUnit.id}`}
@@ -357,12 +357,6 @@ function ExperimentPage() {
                               observationUnit={observationUnit}
                               observations={observations}
                             />
-                            <span className="text-xs font-normal text-muted">
-                              {observationUnit.initialExplantCount} explant
-                              {observationUnit.initialExplantCount === 1
-                                ? ""
-                                : "s"}
-                            </span>
                           </span>
                         </Table.Cell>
                         {observations.map((observation) => (
@@ -392,7 +386,7 @@ function ExperimentPage() {
               </Table.Content>
             </Table.ScrollContainer>
           </Table>
-          {!designLocked ? (
+          {!hasObservations ? (
             <AssignmentBar
               experiment={experiment.id}
               treatments={treatments}
@@ -407,7 +401,7 @@ function ExperimentPage() {
         experiment={experiment.id}
         treatments={treatments}
         observationUnits={observationUnits}
-        designLocked={designLocked}
+        structureLocked={hasObservations}
         isOpen={open === "design"}
         onClose={() => setOpen(null)}
       />
@@ -478,7 +472,7 @@ function CultureEventChip({
       variant="soft"
       color={event.type === "contaminated" ? "warning" : "default"}
     >
-      {CULTURE_EVENT_LABELS[event.type]}
+      {cultureEventLabel(event.type)}
     </Chip>
   );
   if (!detail) return chip;

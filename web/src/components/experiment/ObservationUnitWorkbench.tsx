@@ -9,7 +9,7 @@ import {
   observationLabel,
   type ObservationImageRef,
 } from "../../experiments/schema";
-import { CULTURE_EVENT_LABELS } from "../../experiments/culture-events";
+import { cultureEventLabel } from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { tally } from "../../models/metrics";
@@ -155,15 +155,11 @@ export function ObservationUnitWorkbench({
                     label: "Observation unit",
                     value: latestEvent ? (
                       <span className="text-warning">
-                        {CULTURE_EVENT_LABELS[latestEvent.type]}
+                        {cultureEventLabel(latestEvent.type)}
                       </span>
                     ) : (
                       "Active"
                     ),
-                  },
-                  {
-                    label: "Initial explants",
-                    value: observationUnit.initialExplantCount,
                   },
                   { label: "File", value: shown.filename },
                   {

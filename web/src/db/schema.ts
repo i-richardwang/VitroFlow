@@ -490,8 +490,6 @@ export const experimentObservationUnits = pgTable(
       ),
     /** The treatment this observation unit replicates, once assigned. */
     treatmentId: uuid("treatment_id"),
-    /** Subsamples within this experimental unit; they do not increase n. */
-    initialExplantCount: integer("initial_explant_count").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
@@ -514,10 +512,6 @@ export const experimentObservationUnits = pgTable(
       "experiment_observation_units_code_check",
       sql`${table.code} = btrim(${table.code}) and length(${table.code}) between 1 and 60 and ${table.codeKey} <> ''`,
     ),
-    check(
-      "experiment_observation_units_initial_explant_count_check",
-      sql`${table.initialExplantCount} between 1 and 10000`,
-    ),
   ],
 );
 
@@ -532,8 +526,6 @@ export const experimentCultureEvents = pgTable(
     type: text("type", { enum: CULTURE_EVENT_TYPES }).notNull(),
     /** Whether this unit leaves analysis from the recorded observation onward. */
     excludeFromObservation: boolean("exclude_from_observation").notNull(),
-    /** Whether the unit is no longer available after the recorded observation. */
-    removeAfterObservation: boolean("remove_after_observation").notNull(),
     note: text("note").notNull(),
     recordedAt: instant("recorded_at"),
     voidedAt: timestamp("voided_at", {
@@ -571,6 +563,11 @@ export const experimentCultureEvents = pgTable(
         table.type,
       )
       .where(sql`${table.voidedAt} is null`),
+    uniqueIndex("experiment_culture_events_one_active_terminal")
+      .on(table.experimentId, table.observationUnitId)
+      .where(
+        sql`${table.voidedAt} is null and ${table.type} in ('discarded', 'harvested', 'missing')`,
+      ),
     check(
       "experiment_culture_events_note_check",
       sql`${table.note} = btrim(${table.note}) and length(${table.note}) <= 500`,

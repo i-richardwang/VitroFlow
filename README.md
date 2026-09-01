@@ -24,17 +24,17 @@ Experimental design
 
 Postgres is the source of truth for records. One S3-compatible bucket stores immutable image and model-weight bytes referenced by those records.
 
-| Records                                                                                               | Purpose                                                                                 |
-| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `models`, `model_versions`                                                                            | Detector tasks, class definitions, derived metrics, runtime manifests, and immutable artifacts |
-| `images`                                                                                              | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes                |
-| `experiments`, `experiment_treatments`, `experiment_observation_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations under one fixed model version             |
-| `inference_outcomes`                                                                                  | The single success-or-failure outcome for an image and model-version pair               |
-| `annotations`                                                                                         | Versioned reviewer annotations for an image and model                                   |
-| `datasets`, `dataset_images`                                                                          | Reviewed training collections with stable train/validation assignments                  |
-| `dataset_snapshots`, `dataset_snapshot_images`                                                        | Immutable training inputs                                                               |
-| `training_runs`, `training_epochs`                                                                    | Leased training state and per-attempt epoch metrics                                     |
-| `inference_workers`, `training_workers`                                                               | Worker capabilities, presence, and current activity                                     |
+| Records                                                                                                                                                         | Purpose                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `models`, `model_versions`                                                                                                                                      | Detector tasks, class definitions, derived metrics, runtime manifests, and immutable artifacts |
+| `images`                                                                                                                                                        | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes                      |
+| `experiments`, `experiment_treatments`, `experiment_observation_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations under one fixed model version                    |
+| `inference_outcomes`                                                                                                                                            | The single success-or-failure outcome for an image and model-version pair                      |
+| `annotations`                                                                                                                                                   | Versioned reviewer annotations for an image and model                                          |
+| `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
+| `dataset_snapshots`, `dataset_snapshot_images`                                                                                                                  | Immutable training inputs                                                                      |
+| `training_runs`, `training_epochs`                                                                                                                              | Leased training state and per-attempt epoch metrics                                            |
+| `inference_workers`, `training_workers`                                                                                                                         | Worker capabilities, presence, and current activity                                            |
 
 The object layout is:
 
@@ -52,13 +52,13 @@ A Model defines the classes detected in an image and the derived metrics compute
 
 An Experiment records the plant material, explant type, shared base medium, notebook notes, and inoculation date, and selects one ModelVersion when it is created. That version never changes, so derived metrics remain comparable across observations.
 
-A Treatment names one condition and states it as factors: a growth regulator and its dose, a light regime, a temperature. Levels are recorded as written, so `1.0` and `low` are equally sayable. A treatment described in prose alone states no factors.
+A Treatment names one condition and states it as factors: a growth regulator and its dose, a light regime, a temperature. Levels are recorded as written, so `1.0` and `low` are equally sayable. A treatment described in prose alone states no factors. Factors and notes describe what was already done, so they can be written down at any point in the experiment.
 
-An ObservationUnit is one independent experimental unit and exists before any image does. Its code is unique within the experiment. The initial explant count records subsamples within the unit; those explants do not increase the statistical `n`. Creating a treatment with a replicate count generates `T1-1` through `T1-n` in one step. Correcting a code preserves the unit identity and every record attached to it.
+An ObservationUnit is one independent experimental unit and exists before any image does. Its code is unique within the experiment. Creating a treatment with a replicate count generates `T1-1` through `T1-n` in one step. Correcting a code preserves the unit identity and every record attached to it. Objects within a unit are measured in each observation image.
 
-The first Observation fixes the structural design: treatments cannot be rewritten, observation units cannot be added, removed, or reassigned, and the plant material, explant type, base medium, and inoculation date become the protocol record. Experiment and observation notes remain correctable. An observation with an image or culture event cannot be redated or deleted, and an experiment with observations cannot be hard-deleted.
+The first Observation fixes the structural design: observation units cannot be added, removed, or reassigned, and the plant material, explant type, base medium, and inoculation date become the protocol record. Names, notes, and treatment factors remain correctable, because they describe the record rather than constitute it. An observation with an image or culture event cannot be redated or deleted, and an experiment with observations cannot be hard-deleted.
 
-A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Analysis exclusion and physical removal are separate decisions; a removed observation unit is absent from every later analysis denominator. Events are never overwritten; an erroneous event is voided with a correction reason and remains visible in the record. Treatment rows show the observation-unit mean, sample standard deviation, and `n` over eligible independent units.
+A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Discarded, harvested, and missing are terminal events: the unit is absent from every later observation and analysis denominator, and only one terminal event may be active for a unit. Analysis inclusion remains a separate decision with an event-specific default, because a nonviable unit is a result rather than a loss. Events are never overwritten; an erroneous event is voided with a correction reason and remains visible in the record. Treatment rows show the observation-unit mean, sample standard deviation, and `n` over eligible independent units.
 
 An Observation is one occasion, dated by the day it happened and named by the days since inoculation. It cannot precede inoculation. An experiment is observed once a day at most, and observations are ordered by that day.
 
@@ -72,7 +72,7 @@ An annotation belongs to an image and Model, independent of the experiment or da
 
 ## Scope
 
-The current workbench covers one stable culture stage per Experiment, one standardized image per observation unit and observation, and derived metrics under one fixed detector version. Objects detected within an observation unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
+The current workbench covers one stable culture stage per Experiment, one standardized image per observation unit and observation, and derived metrics under one fixed detector version. Derived metrics are per-image class counts or proportions within the same image; rates that require a separately recorded baseline population are outside the current scope. Objects detected within an observation unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
 ## Source development
 

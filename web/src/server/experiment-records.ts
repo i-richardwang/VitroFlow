@@ -62,7 +62,6 @@ export function toObservationUnit(
     id: row.id,
     code: row.code,
     treatment: row.treatmentId,
-    initialExplantCount: row.initialExplantCount,
     events,
   };
 }
@@ -75,7 +74,6 @@ function toCultureEvent(
     type: row.type,
     observation: row.observationId,
     excludeFromObservation: row.excludeFromObservation,
-    removeAfterObservation: row.removeAfterObservation,
     note: row.note,
     recordedAt: row.recordedAt.toISOString(),
     voidedAt: row.voidedAt?.toISOString() ?? null,

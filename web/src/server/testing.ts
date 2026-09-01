@@ -228,13 +228,11 @@ export async function observeImages(
     factors: [],
     note: "",
     replicates: 0,
-    initialExplantCount: 1,
   });
   const observationUnits = await addObservationUnits({
     experiment: experiment.id,
     treatment: treatment.id,
     codes: contents,
-    initialExplantCount: 1,
   });
   const byCode = new Map(
     observationUnits.map((observationUnit) => [

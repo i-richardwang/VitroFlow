@@ -29,6 +29,7 @@ import {
 import {
   experimentRequestSchema,
   calendarDaySchema,
+  formatFactors,
   treatmentRequestSchema,
   type ExperimentRequestInput,
 } from "../experiments/schema";
@@ -148,13 +149,11 @@ async function defineObservationUnits(
     factors: [],
     note: "",
     replicates: 0,
-    initialExplantCount: 1,
   });
   const observationUnits = await addObservationUnits({
     experiment,
     treatment: treatment.id,
     codes,
-    initialExplantCount: 1,
   });
   return new Map(
     observationUnits.map((observationUnit) => [
@@ -265,20 +264,9 @@ describe("experiments", () => {
         experimentId: first.id,
         id: randomUUID(),
         code: " A1 ",
-        initialExplantCount: 1,
       });
     })();
     await expect(invalidObservationUnit).rejects.toThrow();
-
-    const invalidExplantCount = (async () => {
-      await (await database()).insert(experimentObservationUnits).values({
-        experimentId: first.id,
-        id: randomUUID(),
-        code: "A2",
-        initialExplantCount: 0,
-      });
-    })();
-    await expect(invalidExplantCount).rejects.toThrow();
   });
 
   test("the design defines observation units before any image exists", async () => {
@@ -304,7 +292,6 @@ describe("experiments", () => {
       factors: [],
       note: "Hormone-free MS",
       replicates: 2,
-      initialExplantCount: 4,
     });
     const auxin = await addTreatment(
       treatmentRequestSchema.parse({
@@ -336,9 +323,7 @@ describe("experiments", () => {
     ]);
     expect(
       empty?.observationUnits.every(
-        (observationUnit) =>
-          observationUnit.initialExplantCount >= 1 &&
-          observationUnit.events.length === 0,
+        (observationUnit) => observationUnit.events.length === 0,
       ),
     ).toBeTrue();
 
@@ -365,13 +350,11 @@ describe("experiments", () => {
       factors: [],
       note: "",
       replicates: 0,
-      initialExplantCount: 1,
     });
     await addObservationUnits({
       experiment: experiment.id,
       treatment: null,
       codes: ["A1"],
-      initialExplantCount: 1,
     });
 
     await expect(
@@ -398,7 +381,7 @@ describe("experiments", () => {
     ).resolves.toMatchObject({ day: 7 });
   });
 
-  test("replicate codes and initial explant counts are owned by the design service", async () => {
+  test("replicate codes are allocated atomically by the design service", async () => {
     const version = await trainedVersion("exp-replicates");
     const experiment = await createExperiment({
       name: "Replicates",
@@ -411,20 +394,17 @@ describe("experiments", () => {
       factors: [],
       note: "",
       replicates: 1,
-      initialExplantCount: 3,
     });
     await Promise.all([
       addTreatmentReplicates({
         experiment: experiment.id,
         treatment: treatment.id,
         replicates: 2,
-        initialExplantCount: 4,
       }),
       addTreatmentReplicates({
         experiment: experiment.id,
         treatment: treatment.id,
         replicates: 2,
-        initialExplantCount: 5,
       }),
     ]);
     const grid = await readExperimentGrid(experiment.id);
@@ -436,10 +416,9 @@ describe("experiments", () => {
     const updated = await updateObservationUnit({
       experiment: experiment.id,
       observationUnit: observationUnit.id,
-      code: observationUnit.code,
-      initialExplantCount: 7,
+      code: "T1-1a",
     });
-    expect(updated.initialExplantCount).toBe(7);
+    expect(updated.code).toBe("T1-1a");
   });
 
   test("treatment names and observation unit codes are unique", async () => {
@@ -455,7 +434,6 @@ describe("experiments", () => {
       factors: [],
       note: "",
       replicates: 1,
-      initialExplantCount: 1,
     });
     const treated = await addTreatment({
       experiment: experiment.id,
@@ -463,7 +441,6 @@ describe("experiments", () => {
       factors: [],
       note: "",
       replicates: 0,
-      initialExplantCount: 1,
     });
 
     await expect(
@@ -473,7 +450,6 @@ describe("experiments", () => {
         factors: [],
         note: "",
         replicates: 0,
-        initialExplantCount: 1,
       }),
     ).rejects.toThrow(TreatmentRejectedError);
     await expect(
@@ -490,7 +466,6 @@ describe("experiments", () => {
         experiment: experiment.id,
         treatment: null,
         codes: ["CK-1"],
-        initialExplantCount: 1,
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
     await expect(
@@ -498,21 +473,18 @@ describe("experiments", () => {
         experiment: experiment.id,
         treatment: randomUUID(),
         codes: ["X1"],
-        initialExplantCount: 1,
       }),
     ).rejects.toThrow(TreatmentNotFoundError);
     await addObservationUnits({
       experiment: experiment.id,
       treatment: null,
       codes: ["A-1"],
-      initialExplantCount: 1,
     });
     await expect(
       addObservationUnits({
         experiment: experiment.id,
         treatment: null,
         codes: ["a_1"],
-        initialExplantCount: 1,
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
 
@@ -568,7 +540,6 @@ describe("experiments", () => {
       experiment: experiment.id,
       observationUnit: observationUnits.get("A1")!,
       code: "A01",
-      initialExplantCount: 1,
     });
     expect(renamed.code).toBe("A01");
     await expect(
@@ -576,7 +547,6 @@ describe("experiments", () => {
         experiment: experiment.id,
         observationUnit: observationUnits.get("A2")!,
         code: "A01",
-        initialExplantCount: 1,
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
 
@@ -708,7 +678,6 @@ describe("experiments", () => {
         factors: [],
         note: "",
         replicates: 1,
-        initialExplantCount: 1,
       }),
     ).rejects.toThrow(ExperimentDesignLockedError);
     await expect(
@@ -722,14 +691,6 @@ describe("experiments", () => {
       deleteObservationUnit({
         experiment: experiment.id,
         observationUnit: observationUnits.get("A1")!,
-      }),
-    ).rejects.toThrow(ExperimentDesignLockedError);
-    await expect(
-      updateObservationUnit({
-        experiment: experiment.id,
-        observationUnit: observationUnits.get("A1")!,
-        code: "A1",
-        initialExplantCount: 2,
       }),
     ).rejects.toThrow(ExperimentDesignLockedError);
     await expect(
@@ -760,6 +721,22 @@ describe("experiments", () => {
       "Fixed design, first run",
       "Protocol note corrected",
     ]);
+
+    const treatment = (await readExperimentGrid(experiment.id))!.treatments[0]!;
+    const described = await updateTreatment({
+      experiment: experiment.id,
+      treatment: treatment.id,
+      name: treatment.name,
+      factors: [{ name: "6-BA", level: "1.0", unit: "mg/L" }],
+      note: "Recorded from the notebook afterwards",
+    });
+    expect(formatFactors(described.factors)).toBe("6-BA 1.0 mg/L");
+    const renamed = await updateObservationUnit({
+      experiment: experiment.id,
+      observationUnit: observationUnits.get("A1")!,
+      code: "A1a",
+    });
+    expect(renamed.code).toBe("A1a");
   });
 
   test("image assignment rejects duplicate units, filled cells, and reused images", async () => {
@@ -942,6 +919,63 @@ describe("experiments", () => {
     ).toBeTrue();
   });
 
+  test("an observation unit has at most one active terminal event", async () => {
+    const version = await trainedVersion("exp-terminal-events");
+    const experiment = await createExperiment({
+      name: "Terminal events",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+    });
+    const observationUnits = await defineObservationUnits(experiment.id, [
+      "A1",
+    ]);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+
+    const results = await Promise.allSettled([
+      recordCultureEvent({
+        experiment: experiment.id,
+        observationUnit: observationUnits.get("A1")!,
+        type: "discarded",
+        observation: day7.id,
+        excludeFromObservation: false,
+        note: "Discarded after imaging",
+      }),
+      recordCultureEvent({
+        experiment: experiment.id,
+        observationUnit: observationUnits.get("A1")!,
+        type: "harvested",
+        observation: day7.id,
+        excludeFromObservation: false,
+        note: "Harvested after imaging",
+      }),
+    ]);
+    const recorded = results.filter((result) => result.status === "fulfilled");
+    const rejected = results.filter((result) => result.status === "rejected");
+    expect(recorded).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.reason).toBeInstanceOf(ObservationUnitRejectedError);
+
+    await voidCultureEvent({
+      experiment: experiment.id,
+      event: recorded[0]!.value.id,
+      reason: "Wrong terminal event",
+    });
+    await expect(
+      recordCultureEvent({
+        experiment: experiment.id,
+        observationUnit: observationUnits.get("A1")!,
+        type: "missing",
+        observation: day7.id,
+        excludeFromObservation: true,
+        note: "Unit could not be located",
+      }),
+    ).resolves.toMatchObject({ type: "missing" });
+  });
+
   test("culture events preserve their effects and corrections", async () => {
     const version = await trainedVersion("exp-missing");
     const experiment = await createExperiment({
@@ -965,16 +999,14 @@ describe("experiments", () => {
       type: "contaminated",
       observation: day7.id,
       excludeFromObservation: true,
-      removeAfterObservation: false,
       note: "Fungus on the medium",
     });
     expect([
       event.type,
       event.observation,
       event.excludeFromObservation,
-      event.removeAfterObservation,
       event.note,
-    ]).toEqual(["contaminated", day7.id, true, false, "Fungus on the medium"]);
+    ]).toEqual(["contaminated", day7.id, true, "Fungus on the medium"]);
     await expect(
       recordCultureEvent({
         experiment: experiment.id,
@@ -982,7 +1014,6 @@ describe("experiments", () => {
         type: "contaminated",
         observation: day7.id,
         excludeFromObservation: true,
-        removeAfterObservation: false,
         note: "Duplicate",
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
@@ -1000,16 +1031,15 @@ describe("experiments", () => {
       observedOn: "2026-08-15",
       note: "",
     });
-    const removed = await recordCultureEvent({
+    const terminalEvent = await recordCultureEvent({
       experiment: experiment.id,
       observationUnit: observationUnits.get("A1")!,
       type: "discarded",
       observation: day7.id,
       excludeFromObservation: false,
-      removeAfterObservation: true,
-      note: "Harvested after imaging",
+      note: "Discarded after imaging",
     });
-    const [futurePhoto] = await storeTexts(["removed-a1"]);
+    const [futurePhoto] = await storeTexts(["terminal-a1"]);
     await expect(
       assignObservationImages({
         experiment: experiment.id,
@@ -1025,7 +1055,7 @@ describe("experiments", () => {
     ).rejects.toThrow(ObservationImageRejectedError);
     await voidCultureEvent({
       experiment: experiment.id,
-      event: removed.id,
+      event: terminalEvent.id,
       reason: "Observation unit was retained",
     });
     await assignObservationImages({
@@ -1047,7 +1077,6 @@ describe("experiments", () => {
         type: "harvested",
         observation: day7.id,
         excludeFromObservation: false,
-        removeAfterObservation: true,
         note: "",
       }),
     ).rejects.toThrow("has records after this observation");
@@ -1058,7 +1087,6 @@ describe("experiments", () => {
       type: "contaminated",
       observation: day14.id,
       excludeFromObservation: false,
-      removeAfterObservation: false,
       note: "Late contamination",
     });
     await expect(
@@ -1068,7 +1096,6 @@ describe("experiments", () => {
         type: "discarded",
         observation: day7.id,
         excludeFromObservation: false,
-        removeAfterObservation: true,
         note: "",
       }),
     ).rejects.toThrow("has records after this observation");
@@ -1080,7 +1107,6 @@ describe("experiments", () => {
         type: "missing",
         observation: day7.id,
         excludeFromObservation: true,
-        removeAfterObservation: true,
         note: "",
       }),
     ).rejects.toThrow(ObservationUnitNotFoundError);

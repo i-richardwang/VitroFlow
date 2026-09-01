@@ -1,5 +1,5 @@
 {
-  "id": "1489079f-2a63-45a6-8891-79074f1b3c13",
+  "id": "dbe8e9a8-7e5b-4b81-9e50-329e07b5b8cf",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -626,12 +626,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "remove_after_observation": {
-          "name": "remove_after_observation",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
         "note": {
           "name": "note",
           "type": "text",
@@ -715,6 +709,28 @@
           ],
           "isUnique": true,
           "where": "\"experiment_culture_events\".\"voided_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "experiment_culture_events_one_active_terminal": {
+          "name": "experiment_culture_events_one_active_terminal",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "observation_unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"experiment_culture_events\".\"voided_at\" is null and \"experiment_culture_events\".\"type\" in ('discarded', 'harvested', 'missing')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -951,12 +967,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
-        },
-        "initial_explant_count": {
-          "name": "initial_explant_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
         }
       },
       "indexes": {
@@ -1036,10 +1046,6 @@
         "experiment_observation_units_code_check": {
           "name": "experiment_observation_units_code_check",
           "value": "\"experiment_observation_units\".\"code\" = btrim(\"experiment_observation_units\".\"code\") and length(\"experiment_observation_units\".\"code\") between 1 and 60 and \"experiment_observation_units\".\"code_key\" <> ''"
-        },
-        "experiment_observation_units_initial_explant_count_check": {
-          "name": "experiment_observation_units_initial_explant_count_check",
-          "value": "\"experiment_observation_units\".\"initial_explant_count\" between 1 and 10000"
         }
       },
       "isRLSEnabled": false
