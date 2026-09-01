@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, max, sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import {
@@ -22,6 +22,7 @@ import type {
 } from "../experiments/contracts";
 import { observationUnitOrder } from "../experiments/naming";
 import {
+  daysBetween,
   type ObservationUnitRef,
   type Experiment,
   type ObservationImageRef,
@@ -39,7 +40,7 @@ import {
   readExperimentRecord,
   toExperiment,
 } from "./experiment-records";
-import { readModel, readModelVersion, toModelVersion } from "./model-registry";
+import { readModel, readModelVersion } from "./model-registry";
 
 function tallyOf(document: SQL | AnyColumn) {
   return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
@@ -239,17 +240,12 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
   const [
     base,
     treatmentRows,
-    observationUnitRows,
     observationRows,
     observationImageRows,
   ] = await Promise.all([
     db
-      .select({ experiment: experiments, version: modelVersions })
+      .select()
       .from(experiments)
-      .innerJoin(
-        modelVersions,
-        eq(modelVersions.id, experiments.modelVersionId),
-      )
       .orderBy(
         desc(experiments.createdAt),
         asc(experiments.name),
@@ -258,21 +254,15 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
     db
       .select({
         experimentId: experimentTreatments.experimentId,
-        total: sql<number>`count(*)`,
+        name: experimentTreatments.name,
+        position: experimentTreatments.position,
       })
       .from(experimentTreatments)
-      .groupBy(experimentTreatments.experimentId),
-    db
-      .select({
-        experimentId: experimentObservationUnits.experimentId,
-        total: sql<number>`count(*)`,
-      })
-      .from(experimentObservationUnits)
-      .groupBy(experimentObservationUnits.experimentId),
+      .orderBy(asc(experimentTreatments.position)),
     db
       .select({
         experimentId: experimentObservations.experimentId,
-        total: sql<number>`count(*)`,
+        observedOn: max(experimentObservations.observedOn),
       })
       .from(experimentObservations)
       .groupBy(experimentObservations.experimentId),
@@ -297,11 +287,17 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
       )
       .groupBy(experimentObservationImages.experimentId),
   ]);
-  const totals = (rows: { experimentId: string; total: number }[]) =>
-    new Map(rows.map((row) => [row.experimentId, Number(row.total)]));
-  const treatments = totals(treatmentRows);
-  const observationUnits = totals(observationUnitRows);
-  const observations = totals(observationRows);
+  const names = new Map<string, string[]>();
+  for (const row of treatmentRows) {
+    const current = names.get(row.experimentId) ?? [];
+    current.push(row.name);
+    names.set(row.experimentId, current);
+  }
+  const latest = new Map(
+    observationRows.flatMap((row) =>
+      row.observedOn ? [[row.experimentId, row.observedOn] as const] : [],
+    ),
+  );
   const counts = new Map(
     observationImageRows.map((row) => [
       row.experimentId,
@@ -312,18 +308,23 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
       },
     ]),
   );
-  return base.map((row) => ({
-    experiment: toExperiment(row.experiment),
-    version: toModelVersion(row.version),
-    treatments: treatments.get(row.experiment.id) ?? 0,
-    observationUnits: observationUnits.get(row.experiment.id) ?? 0,
-    observations: observations.get(row.experiment.id) ?? 0,
-    counts: counts.get(row.experiment.id) ?? {
-      pending: 0,
-      failed: 0,
-      analyzed: 0,
-    },
-  }));
+  return base.map((row) => {
+    const experiment = toExperiment(row);
+    const observedOn = latest.get(experiment.id);
+    return {
+      experiment,
+      treatmentNames: names.get(experiment.id) ?? [],
+      latestDay:
+        observedOn === undefined
+          ? null
+          : daysBetween(experiment.inoculatedOn, observedOn),
+      counts: counts.get(experiment.id) ?? {
+        pending: 0,
+        failed: 0,
+        analyzed: 0,
+      },
+    };
+  });
 }
 
 function atObservationImage(experimentId: string, observationImageId: string) {

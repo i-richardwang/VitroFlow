@@ -32,8 +32,6 @@ export interface BlobStore {
   remove(key: string): Promise<void>;
   /** Answers once the configured store accepts requests for its bucket. */
   reach(): Promise<void>;
-  /** How the store is reached, with credentials removed. */
-  describe(): string;
 }
 
 /** A blob to stream, with the length its response declares. */
@@ -96,11 +94,6 @@ let store: BlobStore | undefined;
 function blobs(): BlobStore {
   store ??= open();
   return store;
-}
-
-/** How the configured store is reached, for the status page. */
-export function blobStoreDescription(): string {
-  return blobs().describe();
 }
 
 /**
@@ -166,7 +159,6 @@ export function createMemoryBlobStore(): BlobStore {
       objects.delete(assertKey(key));
     },
     async reach() {},
-    describe: () => MEMORY_URL,
   };
 }
 
@@ -310,7 +302,6 @@ export function createS3BlobStore(options: S3BlobStoreOptions): BlobStore {
         throw unreachable(`${endpoint}/${bucket}`, error);
       }
     },
-    describe: () => `${endpoint}/${bucket}`,
   };
 }
 

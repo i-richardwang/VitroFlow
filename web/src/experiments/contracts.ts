@@ -64,10 +64,8 @@ export interface ObservationUnitSeries {
 
 export interface ExperimentSummary {
   experiment: Experiment;
-  version: ModelVersion;
-  treatments: number;
-  observationUnits: number;
-  observations: number;
+  treatmentNames: string[];
+  latestDay: number | null;
   counts: Record<ImageAnalysisState, number>;
 }
 

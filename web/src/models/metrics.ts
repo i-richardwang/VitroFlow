@@ -146,3 +146,16 @@ export function formatMetric(
   if (metric.kind === "proportion") return `${(value * 100).toFixed(1)}%`;
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
+
+export function formatMetricSummary(
+  metric: DerivedMetric,
+  summary: MetricSummary,
+): string {
+  if (summary.sampleSize === 0) return "—";
+  const value = formatMetric(metric, summary.value);
+  const spread =
+    summary.deviation === null
+      ? value
+      : `${value} ± ${formatMetric(metric, summary.deviation)}`;
+  return `${spread} (n = ${summary.sampleSize})`;
+}

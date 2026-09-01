@@ -13,7 +13,6 @@ import {
   getExperiments,
   getExperimentVersions,
 } from "../../functions/experiments";
-import { versionSlug } from "../../models/schema";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
   loader: async () => {
@@ -41,10 +40,10 @@ function ExperimentsPage() {
             <Table.Header>
               <Table.Column isRowHeader>Experiment</Table.Column>
               <Table.Column>Material</Table.Column>
+              <Table.Column>Treatments</Table.Column>
               <Table.Column>Inoculated</Table.Column>
-              <Table.Column>Version</Table.Column>
-              <Table.Column className="text-right">Observations</Table.Column>
-              <Table.Column>State</Table.Column>
+              <Table.Column>Latest</Table.Column>
+              <Table.Column>Analysis</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -59,8 +58,14 @@ function ExperimentsPage() {
               )}
             >
               {experiments.map(
-                ({ experiment, version, observations, counts }) => {
+                ({ experiment, treatmentNames, latestDay, counts }) => {
                   const state = summarizedImageAnalysis(counts);
+                  const material = [
+                    experiment.plantMaterial,
+                    experiment.explantType,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
                   return (
                     <Table.Row
                       key={experiment.id}
@@ -71,16 +76,18 @@ function ExperimentsPage() {
                         {experiment.name}
                       </Table.Cell>
                       <Table.Cell className="truncate text-muted">
-                        {experiment.plantMaterial || "—"}
+                        {material || "—"}
+                      </Table.Cell>
+                      <Table.Cell className="truncate text-muted">
+                        {treatmentNames.length > 0
+                          ? treatmentNames.join(" · ")
+                          : "—"}
                       </Table.Cell>
                       <Table.Cell className="text-muted">
                         {experiment.inoculatedOn}
                       </Table.Cell>
-                      <Table.Cell className="truncate font-mono text-muted">
-                        {versionSlug(version)}
-                      </Table.Cell>
-                      <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                        {observations}
+                      <Table.Cell className="text-muted">
+                        {latestDay === null ? "—" : `Day ${latestDay}`}
                       </Table.Cell>
                       <Table.Cell>
                         {state ? (

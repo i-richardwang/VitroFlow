@@ -327,11 +327,8 @@ describe("experiments", () => {
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
-    expect([
-      summary?.treatments,
-      summary?.observationUnits,
-      summary?.observations,
-    ]).toEqual([2, 5, 0]);
+    expect(summary?.treatmentNames).toEqual(["CK", "T1"]);
+    expect(summary?.latestDay).toBeNull();
   });
 
   test("an observation can be scheduled before the design is complete", async () => {
@@ -600,7 +597,7 @@ describe("experiments", () => {
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
-    expect(summary?.observations).toBe(3);
+    expect(summary?.latestDay).toBe(21);
     expect(summary?.counts).toEqual({ pending: 4, failed: 0, analyzed: 0 });
   });
 

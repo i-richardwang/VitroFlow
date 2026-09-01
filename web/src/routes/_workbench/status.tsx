@@ -6,8 +6,6 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Page } from "../../components/Page";
 import { getStatus } from "../../functions/status";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
-import { trainingRunLabel } from "../../training/schema";
-import { formatGibibytes } from "../../workers/memory";
 import type { WorkerPresence } from "../../workers/presence";
 
 export const Route = createFileRoute("/_workbench/status")({
@@ -26,7 +24,7 @@ const PRESENCE: Record<
 };
 
 function StatusPage() {
-  const { inferenceWorkers, trainingWorkers, server } = Route.useLoaderData();
+  const { inferenceWorkers, trainingWorkers } = Route.useLoaderData();
   const router = useRouter();
 
   useRouteRefresh(router, 5000);
@@ -35,17 +33,16 @@ function StatusPage() {
     <Page title="Status">
       <Widget>
         <Widget.Header>
-          <Widget.Title>Inference</Widget.Title>
+          <Widget.Title>Analysis</Widget.Title>
         </Widget.Header>
         <Widget.Content className="p-0">
           <Table variant="secondary">
             <Table.ScrollContainer>
-              <Table.Content aria-label="Inference workers">
+              <Table.Content aria-label="Analysis workers">
                 <Table.Header className="sr-only">
                   <Table.Column isRowHeader>Worker</Table.Column>
                   <Table.Column>Presence</Table.Column>
-                  <Table.Column>Processing</Table.Column>
-                  <Table.Column>Loaded</Table.Column>
+                  <Table.Column>Activity</Table.Column>
                   <Table.Column>Last seen</Table.Column>
                 </Table.Header>
                 <Table.Body
@@ -53,7 +50,7 @@ function StatusPage() {
                     <EmptyState size="sm">
                       <EmptyState.Header>
                         <EmptyState.Title>
-                          No inference workers
+                          No analysis workers are online
                         </EmptyState.Title>
                         <EmptyState.Description>
                           Start one with the workbench URL and worker token.
@@ -89,17 +86,13 @@ function StatusPage() {
                         </Chip>
                       </Table.Cell>
                       <Table.Cell>
-                        {worker.current ? (
-                          <span className="font-mono text-xs font-medium">
-                            {worker.currentFilename ??
-                              worker.current.slice(0, 12)}
+                        {worker.image ? (
+                          <span className="text-sm">
+                            Analyzing {worker.image}
                           </span>
                         ) : (
                           <span className="text-sm text-muted">Idle</span>
                         )}
-                      </Table.Cell>
-                      <Table.Cell className="font-mono text-sm text-muted">
-                        {worker.loaded ? worker.loaded : "Nothing loaded"}
                       </Table.Cell>
                       <Table.Cell>
                         <span
@@ -129,17 +122,18 @@ function StatusPage() {
                 <Table.Header className="sr-only">
                   <Table.Column isRowHeader>Worker</Table.Column>
                   <Table.Column>Presence</Table.Column>
-                  <Table.Column>Device</Table.Column>
-                  <Table.Column>Run</Table.Column>
+                  <Table.Column>Activity</Table.Column>
                   <Table.Column>Last seen</Table.Column>
                 </Table.Header>
                 <Table.Body
                   renderEmptyState={() => (
                     <EmptyState size="sm">
                       <EmptyState.Header>
-                        <EmptyState.Title>No training workers</EmptyState.Title>
+                        <EmptyState.Title>
+                          No training workers are online
+                        </EmptyState.Title>
                         <EmptyState.Description>
-                          Training workers can run on a separate GPU machine.
+                          Training can run on a separate GPU machine.
                         </EmptyState.Description>
                       </EmptyState.Header>
                       <EmptyState.Content>
@@ -175,30 +169,13 @@ function StatusPage() {
                         </Chip>
                       </Table.Cell>
                       <Table.Cell>
-                        <span className="font-mono text-sm text-muted">
-                          {worker.device} ·{" "}
-                          {formatGibibytes(worker.memoryBytes)}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        {worker.currentTrainingRunId ? (
-                          worker.dataset ? (
-                            <Link
-                              href={`/datasets/${worker.dataset}/training/${worker.currentTrainingRunId}`}
-                              className="font-mono text-xs font-medium"
-                            >
-                              {worker.dataset}/
-                              {trainingRunLabel({
-                                id: worker.currentTrainingRunId,
-                              })}
-                            </Link>
-                          ) : (
-                            <span className="font-mono text-sm text-muted">
-                              {trainingRunLabel({
-                                id: worker.currentTrainingRunId,
-                              })}
-                            </span>
-                          )
+                        {worker.dataset ? (
+                          <Link
+                            href={`/datasets/${worker.dataset}/training/${worker.currentTrainingRunId}`}
+                            className="text-sm font-medium"
+                          >
+                            Training {worker.dataset}
+                          </Link>
                         ) : (
                           <span className="text-sm text-muted">Idle</span>
                         )}
@@ -216,30 +193,6 @@ function StatusPage() {
           </Table>
         </Widget.Content>
       </Widget>
-
-      <Widget>
-        <Widget.Header>
-          <Widget.Title>Server</Widget.Title>
-        </Widget.Header>
-        <Widget.Content>
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-            <dt className="text-muted">Blob store</dt>
-            <dd className="font-mono">{server.blobStore}</dd>
-            <dt className="text-muted">Password</dt>
-            <dd>
-              <Configured value={server.passwordConfigured} />
-            </dd>
-            <dt className="text-muted">Inference token</dt>
-            <dd>
-              <Configured value={server.inferenceWorkerTokenConfigured} />
-            </dd>
-            <dt className="text-muted">Training token</dt>
-            <dd>
-              <Configured value={server.trainingWorkerTokenConfigured} />
-            </dd>
-          </dl>
-        </Widget.Content>
-      </Widget>
     </Page>
   );
 }
@@ -249,12 +202,4 @@ function formatAge(seconds: number) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
-}
-
-function Configured({ value }: { value: boolean }) {
-  return (
-    <Chip color={value ? "success" : "warning"} variant="soft" size="sm">
-      {value ? "Configured" : "Not set"}
-    </Chip>
-  );
 }

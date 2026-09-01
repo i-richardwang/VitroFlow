@@ -1,21 +1,12 @@
-import { count, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { database } from "../db/client";
-import {
-  datasetSnapshots,
-  images,
-  inferenceOutcomes,
-  annotations,
-  trainingRuns,
-} from "../db/schema";
-import { blobStoreDescription } from "./blobs";
-import { listDatasets } from "./datasets";
+import { datasetSnapshots, trainingRuns } from "../db/schema";
 import { imageFilenames } from "./image-names";
 import {
   inferenceWorkerPresence,
   listInferenceWorkers,
 } from "./inference-worker-store";
-import { countTrainingRuns } from "./training-runs";
 import {
   listTrainingWorkers,
   trainingWorkerPresence,
@@ -35,29 +26,13 @@ async function runDatasets(runIds: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((row) => [row.runId, row.dataset]));
 }
 
-async function countRows(table: typeof images | typeof annotations) {
-  const db = await database();
-  const [row] = await db.select({ count: count() }).from(table);
-  return row?.count ?? 0;
-}
-
-async function countSuccessfulInferences(): Promise<number> {
-  const db = await database();
-  const [row] = await db
-    .select({ count: count() })
-    .from(inferenceOutcomes)
-    .where(eq(inferenceOutcomes.status, "succeeded"));
-  return row?.count ?? 0;
-}
-
 export async function getSystemStatus() {
   const at = new Date();
   const age = (timestamp: string) =>
     Math.max(0, Math.floor((at.getTime() - Date.parse(timestamp)) / 1000));
-  const [inferenceWorkers, trainingWorkers, datasetIds] = await Promise.all([
+  const [inferenceWorkers, trainingWorkers] = await Promise.all([
     listInferenceWorkers(at),
     listTrainingWorkers(at),
-    listDatasets(),
   ]);
   const [datasetsByRun, filenames] = await Promise.all([
     runDatasets(
@@ -71,44 +46,25 @@ export async function getSystemStatus() {
       ),
     ),
   ]);
-  const [imageCount, detectionCount, annotationCount, trainingRunCount] =
-    await Promise.all([
-      countRows(images),
-      countSuccessfulInferences(),
-      countRows(annotations),
-      countTrainingRuns(),
-    ]);
   return {
     inferenceWorkers: inferenceWorkers.map((worker) => ({
-      ...worker,
+      workerId: worker.workerId,
       presence: inferenceWorkerPresence(worker, at),
+      lastSeenAt: worker.lastSeenAt,
       lastSeenSeconds: age(worker.lastSeenAt),
-      currentFilename: worker.current
-        ? (filenames.get(worker.current) ?? null)
+      image: worker.current
+        ? (filenames.get(worker.current) ?? "an image")
         : null,
     })),
     trainingWorkers: trainingWorkers.map((worker) => ({
-      ...worker,
+      workerId: worker.workerId,
       presence: trainingWorkerPresence(worker, at),
+      lastSeenAt: worker.lastSeenAt,
       lastSeenSeconds: age(worker.lastSeenAt),
+      currentTrainingRunId: worker.currentTrainingRunId,
       dataset: worker.currentTrainingRunId
         ? (datasetsByRun.get(worker.currentTrainingRunId) ?? null)
         : null,
     })),
-    server: {
-      blobStore: blobStoreDescription(),
-      passwordConfigured: Boolean(process.env.VITROFLOW_PASSWORD),
-      inferenceWorkerTokenConfigured: Boolean(
-        process.env.VITROFLOW_INFERENCE_WORKER_TOKEN,
-      ),
-      trainingWorkerTokenConfigured: Boolean(
-        process.env.VITROFLOW_TRAINING_WORKER_TOKEN,
-      ),
-      datasets: datasetIds.length,
-      images: imageCount,
-      detections: detectionCount,
-      annotations: annotationCount,
-      trainingRuns: trainingRunCount,
-    },
   };
 }

@@ -4,6 +4,7 @@ import {
   formatMetric,
   computeMetric,
   derivedMetricSchema,
+  formatMetricSummary,
   summarizeMetric,
   tally,
   type DerivedMetric,
@@ -88,5 +89,29 @@ describe("metrics", () => {
       deviation: null,
       sampleSize: 0,
     });
+  });
+
+  test("summary text includes the spread and sample size", () => {
+    expect(
+      formatMetricSummary(seeds, {
+        value: 2,
+        deviation: 2,
+        sampleSize: 3,
+      }),
+    ).toBe("2 ± 2 (n = 3)");
+    expect(
+      formatMetricSummary(rate, {
+        value: 0.25,
+        deviation: null,
+        sampleSize: 1,
+      }),
+    ).toBe("25.0% (n = 1)");
+    expect(
+      formatMetricSummary(seeds, {
+        value: null,
+        deviation: null,
+        sampleSize: 0,
+      }),
+    ).toBe("—");
   });
 });

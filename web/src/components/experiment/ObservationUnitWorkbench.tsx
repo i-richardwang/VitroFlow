@@ -14,7 +14,6 @@ import { cultureEventLabel } from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { tally } from "../../models/metrics";
-import { versionSlug } from "../../models/schema";
 import type {
   ObservationUnitNavigationEntry,
   ObservationUnitSeries,
@@ -48,7 +47,6 @@ export function ObservationUnitWorkbench({
   const {
     experiment,
     model,
-    version,
     observationUnit,
     treatment,
     navigation,
@@ -179,7 +177,6 @@ export function ObservationUnitWorkbench({
                     label: "Observed",
                     value: shown.observation.observedOn,
                   },
-                  { label: "Version", value: versionSlug(version) },
                 ]}
               />
               {shown.failure ? (
