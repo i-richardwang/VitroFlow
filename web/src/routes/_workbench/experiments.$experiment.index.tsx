@@ -160,7 +160,9 @@ function ExperimentPage() {
                   setOpen("treatment");
                 }}
               />
-              <Link href={`/experiments/${experiment.id}/${observationUnit.id}`}>
+              <Link
+                href={`/experiments/${experiment.id}/${observationUnit.id}`}
+              >
                 {observationUnit.code}
               </Link>
               <ObservationUnitMenu
@@ -557,10 +559,7 @@ function groupRow(
   };
 }
 
-function pickedObservationUnits(
-  keys: Selection,
-  rows: GroupRow[],
-): string[] {
+function pickedObservationUnits(keys: Selection, rows: GroupRow[]): string[] {
   const units = rows.flatMap((row) => row.children.map((child) => child.id));
   if (keys === "all") return units;
   const selected = new Set([...keys].map(String));

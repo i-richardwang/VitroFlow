@@ -9,7 +9,7 @@ import {
   experimentTreatments,
   experiments,
 } from "../db/schema";
-import type { ObservationUnit } from "../experiments/contracts";
+import type { ObservationUnitRecord } from "../experiments/contracts";
 import {
   ExperimentNotFoundError,
   ObservationNotFoundError,
@@ -51,8 +51,6 @@ export function toTreatment(
     position: row.position,
   });
 }
-
-export type ObservationUnitRecord = Omit<ObservationUnit, "position">;
 
 export function toObservationUnit(
   row: typeof experimentObservationUnits.$inferSelect,

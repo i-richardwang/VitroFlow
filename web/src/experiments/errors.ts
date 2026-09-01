@@ -1,15 +1,23 @@
-export class ExperimentNotFoundError extends Error {}
-export class ExperimentHasRecordsError extends Error {}
-export class ImagesNotStoredError extends Error {}
-export class ExperimentObservationImageNotFoundError extends Error {}
-export class ObservationNotFoundError extends Error {}
-export class ObservationRejectedError extends Error {}
-export class TreatmentNotFoundError extends Error {}
-export class TreatmentRejectedError extends Error {}
-export class ObservationUnitNotFoundError extends Error {}
-export class ObservationUnitRejectedError extends Error {}
-export class CultureEventNotFoundError extends Error {}
-export class ObservationImageRejectedError extends Error {}
+/** A referenced record does not exist. */
+export abstract class NotFoundError extends Error {}
+
+/** Current state rejects the request; retrying unchanged cannot succeed. */
+export abstract class ConflictError extends Error {}
+
+export class ExperimentNotFoundError extends NotFoundError {}
+export class ModelVersionNotFoundError extends NotFoundError {}
+export class ExperimentObservationImageNotFoundError extends NotFoundError {}
+export class ObservationNotFoundError extends NotFoundError {}
+export class TreatmentNotFoundError extends NotFoundError {}
+export class ObservationUnitNotFoundError extends NotFoundError {}
+export class CultureEventNotFoundError extends NotFoundError {}
+
+export class ExperimentHasRecordsError extends ConflictError {}
+export class ImagesNotStoredError extends ConflictError {}
+export class ObservationRejectedError extends ConflictError {}
+export class TreatmentRejectedError extends ConflictError {}
+export class ObservationUnitRejectedError extends ConflictError {}
+export class ObservationImageRejectedError extends ConflictError {}
 
 export interface UsedExperimentObservationImage {
   digest: string;
@@ -18,7 +26,7 @@ export interface UsedExperimentObservationImage {
   day: number;
 }
 
-export class ExperimentObservationImageAlreadyUsedError extends Error {
+export class ExperimentObservationImageAlreadyUsedError extends ConflictError {
   constructor(public readonly images: UsedExperimentObservationImage[]) {
     const [first] = images;
     super(

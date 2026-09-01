@@ -59,7 +59,9 @@ export const derivedMetricSchema = z
 export type DerivedMetric = z.infer<typeof derivedMetricSchema>;
 
 /** Instances per class in one observation image. */
-export type Tally = Record<string, number>;
+export const tallySchema = z.record(z.string(), z.number().int().min(0));
+
+export type Tally = z.infer<typeof tallySchema>;
 
 export function metricClasses(metric: DerivedMetric): string[] {
   return metric.kind === "count"

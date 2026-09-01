@@ -133,6 +133,20 @@ Inference Workers advertise the traditional runtime and, when installed and impo
 
 Training Workers claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
 
+## Agent interface
+
+AI agents maintain experiment records over the same domain layer the workbench uses, authenticated by `VITROFLOW_AGENT_TOKEN` as a bearer token. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
+
+- `POST /api/agent/<operation>` calls one operation with its JSON input; `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
+- `/api/mcp` serves the same operations as MCP tools for any Model Context Protocol client:
+
+```bash
+claude mcp add --transport http vitroflow https://<workbench>/api/mcp \
+  --header "Authorization: Bearer $VITROFLOW_AGENT_TOKEN"
+```
+
+Non-local deployments list their MCP Host and browser Origin hostnames in `VITROFLOW_MCP_ALLOWED_HOSTNAMES`.
+
 ## Local dataset workflows
 
 Pull one workbench Dataset with the export credential:

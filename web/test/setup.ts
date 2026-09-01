@@ -6,6 +6,8 @@ for (const credential of [
   "VITROFLOW_INFERENCE_WORKER_TOKEN",
   "VITROFLOW_TRAINING_WORKER_TOKEN",
   "VITROFLOW_EXPORT_TOKEN",
+  "VITROFLOW_AGENT_TOKEN",
+  "VITROFLOW_MCP_ALLOWED_HOSTNAMES",
 ]) {
   delete process.env[credential];
 }

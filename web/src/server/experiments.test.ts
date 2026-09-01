@@ -345,9 +345,9 @@ describe("experiments", () => {
       note: "",
       replicates: 0,
     });
-    expect(
-      (await readExperimentGrid(experiment.id))?.observationUnits,
-    ).toEqual([]);
+    expect((await readExperimentGrid(experiment.id))?.observationUnits).toEqual(
+      [],
+    );
 
     await expect(
       addObservation({

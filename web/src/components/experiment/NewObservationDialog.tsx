@@ -12,10 +12,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import {
-  daysBetween,
-  observationLabel,
-} from "../../experiments/schema";
+import { daysBetween, observationLabel } from "../../experiments/schema";
 import { createObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { currentDay, DayField, fromDay, toDay } from "./DayField";

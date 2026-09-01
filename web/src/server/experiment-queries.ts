@@ -1,4 +1,13 @@
-import { and, asc, desc, eq, max, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  max,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import {
@@ -13,6 +22,7 @@ import {
   modelVersions,
 } from "../db/schema";
 import type {
+  ObservationUnitRecord,
   ObservationUnit,
   ObservationUnitSeries,
   ExperimentGrid,
@@ -33,7 +43,6 @@ import type { Tally } from "../models/metrics";
 import type { Model, ModelVersion } from "../models/schema";
 import { imageBlobKey } from "./blobs";
 import {
-  type ObservationUnitRecord,
   listObservationUnits,
   listObservations,
   listTreatments,
@@ -237,56 +246,52 @@ export async function readObservationUnit(
 
 export async function listExperiments(): Promise<ExperimentSummary[]> {
   const db = await database();
-  const [
-    base,
-    treatmentRows,
-    observationRows,
-    observationImageRows,
-  ] = await Promise.all([
-    db
-      .select()
-      .from(experiments)
-      .orderBy(
-        desc(experiments.createdAt),
-        asc(experiments.name),
-        asc(experiments.id),
-      ),
-    db
-      .select({
-        experimentId: experimentTreatments.experimentId,
-        name: experimentTreatments.name,
-        position: experimentTreatments.position,
-      })
-      .from(experimentTreatments)
-      .orderBy(asc(experimentTreatments.position)),
-    db
-      .select({
-        experimentId: experimentObservations.experimentId,
-        observedOn: max(experimentObservations.observedOn),
-      })
-      .from(experimentObservations)
-      .groupBy(experimentObservations.experimentId),
-    db
-      .select({
-        experimentId: experimentObservationImages.experimentId,
-        pending: sql<number>`count(*) filter (where ${inferenceOutcomes.imageId} is null)`,
-        failed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'failed')`,
-        analyzed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'succeeded')`,
-      })
-      .from(experimentObservationImages)
-      .innerJoin(
-        experiments,
-        eq(experiments.id, experimentObservationImages.experimentId),
-      )
-      .leftJoin(
-        inferenceOutcomes,
-        and(
-          eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-          eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
+  const [base, treatmentRows, observationRows, observationImageRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(experiments)
+        .orderBy(
+          desc(experiments.createdAt),
+          asc(experiments.name),
+          asc(experiments.id),
         ),
-      )
-      .groupBy(experimentObservationImages.experimentId),
-  ]);
+      db
+        .select({
+          experimentId: experimentTreatments.experimentId,
+          name: experimentTreatments.name,
+          position: experimentTreatments.position,
+        })
+        .from(experimentTreatments)
+        .orderBy(asc(experimentTreatments.position)),
+      db
+        .select({
+          experimentId: experimentObservations.experimentId,
+          observedOn: max(experimentObservations.observedOn),
+        })
+        .from(experimentObservations)
+        .groupBy(experimentObservations.experimentId),
+      db
+        .select({
+          experimentId: experimentObservationImages.experimentId,
+          pending: sql<number>`count(*) filter (where ${inferenceOutcomes.imageId} is null)`,
+          failed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'failed')`,
+          analyzed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'succeeded')`,
+        })
+        .from(experimentObservationImages)
+        .innerJoin(
+          experiments,
+          eq(experiments.id, experimentObservationImages.experimentId),
+        )
+        .leftJoin(
+          inferenceOutcomes,
+          and(
+            eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
+            eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
+          ),
+        )
+        .groupBy(experimentObservationImages.experimentId),
+    ]);
   const names = new Map<string, string[]>();
   for (const row of treatmentRows) {
     const current = names.get(row.experimentId) ?? [];

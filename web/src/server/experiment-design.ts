@@ -11,9 +11,11 @@ import {
   experimentTreatments,
   experiments,
 } from "../db/schema";
+import type { ObservationUnitRecord } from "../experiments/contracts";
 import {
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
+  ModelVersionNotFoundError,
   ObservationRejectedError,
   ObservationUnitNotFoundError,
   ObservationUnitRejectedError,
@@ -41,7 +43,6 @@ import {
 } from "../experiments/schema";
 import {
   atObservationUnit,
-  type ObservationUnitRecord,
   atTreatment,
   listObservationUnits,
   listTreatments,
@@ -64,7 +65,11 @@ export async function createExperiment(
 ): Promise<Experiment> {
   const { modelVersionId } = value;
   const version = await readModelVersion(modelVersionId);
-  if (!version) throw new Error(`Unknown model version: ${modelVersionId}`);
+  if (!version) {
+    throw new ModelVersionNotFoundError(
+      `Unknown model version: ${modelVersionId}`,
+    );
+  }
   const [row] = await (
     await database()
   )

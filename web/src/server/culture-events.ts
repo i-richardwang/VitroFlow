@@ -8,6 +8,7 @@ import {
   experimentObservationImages,
 } from "../db/schema";
 import {
+  cultureEventExcludesFromAnalysisByDefault,
   cultureEventIsTerminal,
   observationUnitIsAvailableAt,
 } from "../experiments/culture-events";
@@ -36,9 +37,11 @@ export async function recordCultureEvent(
     observationUnit: observationUnitId,
     observation: observationId,
     type,
-    excludeFromObservation,
     note,
   } = value;
+  const excludeFromObservation =
+    value.excludeFromObservation ??
+    cultureEventExcludesFromAnalysisByDefault(type);
   return transaction(async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);

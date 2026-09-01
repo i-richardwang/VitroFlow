@@ -119,22 +119,22 @@ export function AddObservationUnitsDialog({
                   </Select.Trigger>
                   <Select.Popover>
                     <ListBox>
-                        <ListBox.Item id={UNASSIGNED} textValue="No treatment">
-                          <TreatmentDot position={null} />
-                          No treatment
+                      <ListBox.Item id={UNASSIGNED} textValue="No treatment">
+                        <TreatmentDot position={null} />
+                        No treatment
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                      {treatments.map((item) => (
+                        <ListBox.Item
+                          key={item.id}
+                          id={item.id}
+                          textValue={item.name}
+                        >
+                          <TreatmentDot position={item.position} />
+                          {item.name}
                           <ListBox.ItemIndicator />
                         </ListBox.Item>
-                        {treatments.map((item) => (
-                          <ListBox.Item
-                            key={item.id}
-                            id={item.id}
-                            textValue={item.name}
-                          >
-                            <TreatmentDot position={item.position} />
-                            {item.name}
-                            <ListBox.ItemIndicator />
-                          </ListBox.Item>
-                        ))}
+                      ))}
                     </ListBox>
                   </Select.Popover>
                 </Select>

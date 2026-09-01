@@ -1,5 +1,6 @@
 {
   "name": "vitroflow-web",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "bun@1.4.0",
   "type": "module",
@@ -20,6 +21,7 @@
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "@internationalized/date": "^3.12.3",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@react-aria/i18n": "^3.13.1",
     "@react-aria/ssr": "^3.10.1",
     "@react-aria/utils": "^3.34.1",

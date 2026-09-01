@@ -44,14 +44,8 @@ export function ObservationUnitWorkbench({
   series: ObservationUnitSeries;
   datasets: string[];
 }) {
-  const {
-    experiment,
-    model,
-    observationUnit,
-    treatment,
-    navigation,
-    shown,
-  } = series;
+  const { experiment, model, observationUnit, treatment, navigation, shown } =
+    series;
   const at = navigation.findIndex((item) => item.id === observationUnit.id);
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(DEFAULT_LAYERS),

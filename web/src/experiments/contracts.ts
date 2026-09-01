@@ -1,87 +1,130 @@
-import type { AnnotationDocument } from "../annotation/schema";
-import type { DetectionFailure, DetectionResult } from "../detection/schema";
-import type { Tally } from "../models/metrics";
-import type { Model, ModelVersion } from "../models/schema";
-import type {
-  CultureEvent,
-  Experiment,
-  ExperimentObservation,
-  ImageAnalysisState,
-  ObservationImageRef,
-  Treatment,
+import { z } from "zod";
+
+import { annotationSchema } from "../annotation/schema";
+import {
+  detectionFailureSchema,
+  detectionResultSchema,
+} from "../detection/schema";
+import { resourceIdSchema } from "../identifiers/schema";
+import { imageDigestSchema } from "../images/schema";
+import { tallySchema } from "../models/metrics";
+import { modelSchema, modelVersionSchema } from "../models/schema";
+import {
+  cultureEventSchema,
+  experimentNameSchema,
+  experimentObservationSchema,
+  experimentSchema,
+  imageAnalysisStateSchema,
+  observationIdSchema,
+  observationImageIdSchema,
+  observationImageRefSchema,
+  observationUnitCodeSchema,
+  observationUnitIdSchema,
+  treatmentIdSchema,
+  treatmentNameSchema,
+  treatmentSchema,
 } from "./schema";
 
-export interface ObservationUnit {
-  id: string;
-  code: string;
-  position: number;
-  treatment: string | null;
-  events: CultureEvent[];
-}
+export const observationUnitSchema = z.strictObject({
+  id: observationUnitIdSchema,
+  code: observationUnitCodeSchema,
+  position: z.number().int().min(1),
+  treatment: treatmentIdSchema.nullable(),
+  events: z.array(cultureEventSchema),
+});
 
-export interface ObservationImageCell {
-  id: string;
-  observationUnit: string;
-  observation: string;
-  digest: string;
-  filename: string;
-  state: ImageAnalysisState;
-  detectionTally: Tally | null;
-  annotationTally: Tally | null;
-  error: string | null;
-}
+export type ObservationUnit = z.infer<typeof observationUnitSchema>;
 
-export interface ExperimentGrid {
-  experiment: Experiment;
-  model: Model;
-  version: ModelVersion;
-  treatments: Treatment[];
-  observationUnits: ObservationUnit[];
-  observations: ExperimentObservation[];
-  images: ObservationImageCell[];
-}
+/** An observation unit as stored, before display ordering assigns a position. */
+export const observationUnitRecordSchema = observationUnitSchema.omit({
+  position: true,
+});
 
-export interface ObservationUnitObservation {
-  observation: ExperimentObservation;
-  image: ObservationImageCell | null;
-}
+export type ObservationUnitRecord = z.infer<typeof observationUnitRecordSchema>;
 
-export interface ObservationUnitNavigationEntry {
-  id: string;
-  code: string;
-}
+export const observationImageCellSchema = z.strictObject({
+  id: observationImageIdSchema,
+  observationUnit: observationUnitIdSchema,
+  observation: observationIdSchema,
+  digest: imageDigestSchema,
+  filename: z.string(),
+  state: imageAnalysisStateSchema,
+  detectionTally: tallySchema.nullable(),
+  annotationTally: tallySchema.nullable(),
+  error: z.string().nullable(),
+});
 
-export interface ObservationUnitSeries {
-  experiment: Experiment;
-  model: Model;
-  version: ModelVersion;
-  observationUnit: ObservationUnit;
-  treatment: Treatment | null;
-  navigation: ObservationUnitNavigationEntry[];
-  observations: ObservationUnitObservation[];
-  shown: ExperimentObservationImage | null;
-}
+export type ObservationImageCell = z.infer<typeof observationImageCellSchema>;
 
-export interface ExperimentSummary {
-  experiment: Experiment;
-  treatmentNames: string[];
-  latestDay: number | null;
-  counts: Record<ImageAnalysisState, number>;
-}
+export const experimentGridSchema = z.strictObject({
+  experiment: experimentSchema,
+  model: modelSchema,
+  version: modelVersionSchema,
+  treatments: z.array(treatmentSchema),
+  observationUnits: z.array(observationUnitSchema),
+  observations: z.array(experimentObservationSchema),
+  images: z.array(observationImageCellSchema),
+});
 
-export interface ExperimentObservationImage {
-  ref: ObservationImageRef;
-  experimentName: string;
-  observationUnit: { id: string; code: string };
-  observation: ExperimentObservation;
-  digest: string;
-  filename: string;
-  width: number;
-  height: number;
-  blobKey: string;
-  modelVersionId: string;
-  modelId: string;
-  detection: DetectionResult | null;
-  failure: DetectionFailure | null;
-  annotation: AnnotationDocument | null;
-}
+export type ExperimentGrid = z.infer<typeof experimentGridSchema>;
+
+export const observationUnitObservationSchema = z.strictObject({
+  observation: experimentObservationSchema,
+  image: observationImageCellSchema.nullable(),
+});
+
+export type ObservationUnitObservation = z.infer<
+  typeof observationUnitObservationSchema
+>;
+
+export const observationUnitNavigationEntrySchema = z.strictObject({
+  id: observationUnitIdSchema,
+  code: observationUnitCodeSchema,
+});
+
+export type ObservationUnitNavigationEntry = z.infer<
+  typeof observationUnitNavigationEntrySchema
+>;
+
+export const experimentObservationImageSchema = z.strictObject({
+  ref: observationImageRefSchema,
+  experimentName: experimentNameSchema,
+  observationUnit: observationUnitNavigationEntrySchema,
+  observation: experimentObservationSchema,
+  digest: imageDigestSchema,
+  filename: z.string(),
+  width: z.number().int().min(1),
+  height: z.number().int().min(1),
+  blobKey: z.string(),
+  modelVersionId: resourceIdSchema,
+  modelId: resourceIdSchema,
+  detection: detectionResultSchema.nullable(),
+  failure: detectionFailureSchema.nullable(),
+  annotation: annotationSchema.nullable(),
+});
+
+export type ExperimentObservationImage = z.infer<
+  typeof experimentObservationImageSchema
+>;
+
+export const observationUnitSeriesSchema = z.strictObject({
+  experiment: experimentSchema,
+  model: modelSchema,
+  version: modelVersionSchema,
+  observationUnit: observationUnitSchema,
+  treatment: treatmentSchema.nullable(),
+  navigation: z.array(observationUnitNavigationEntrySchema),
+  observations: z.array(observationUnitObservationSchema),
+  shown: experimentObservationImageSchema.nullable(),
+});
+
+export type ObservationUnitSeries = z.infer<typeof observationUnitSeriesSchema>;
+
+export const experimentSummarySchema = z.strictObject({
+  experiment: experimentSchema,
+  treatmentNames: z.array(treatmentNameSchema),
+  latestDay: z.number().int().nullable(),
+  counts: z.record(imageAnalysisStateSchema, z.number().int().min(0)),
+});
+
+export type ExperimentSummary = z.infer<typeof experimentSummarySchema>;

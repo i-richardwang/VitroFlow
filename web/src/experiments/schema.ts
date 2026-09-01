@@ -264,11 +264,12 @@ export const cultureEventSchema = z.strictObject({
 
 export type CultureEvent = z.infer<typeof cultureEventSchema>;
 
+/** When excludeFromObservation is omitted, the event type's default applies. */
 export const cultureEventRequestSchema = observationUnitRefSchema.extend({
   type: cultureEventTypeSchema,
   observation: observationIdSchema,
-  excludeFromObservation: z.boolean(),
-  note: cultureEventNoteSchema,
+  excludeFromObservation: z.boolean().optional(),
+  note: cultureEventNoteSchema.default(""),
 });
 
 export type CultureEventRequest = z.infer<typeof cultureEventRequestSchema>;
@@ -354,10 +355,14 @@ export type ObservationImageAssignment = z.infer<
   typeof observationImageAssignmentSchema
 >;
 
-export interface ObservationImageAssignmentResult {
-  observation: ExperimentObservation;
-  assigned: number;
-}
+export const observationImageAssignmentResultSchema = z.strictObject({
+  observation: experimentObservationSchema,
+  assigned: z.number().int().min(0),
+});
+
+export type ObservationImageAssignmentResult = z.infer<
+  typeof observationImageAssignmentResultSchema
+>;
 
 export const observationImageMoveSchema = observationImageRefSchema.extend({
   observationUnit: observationUnitIdSchema,
@@ -372,4 +377,6 @@ export const observationUnitRequestSchema = observationUnitRefSchema.extend({
 
 export const IMAGE_ANALYSIS_STATES = ["pending", "failed", "analyzed"] as const;
 
-export type ImageAnalysisState = (typeof IMAGE_ANALYSIS_STATES)[number];
+export const imageAnalysisStateSchema = z.enum(IMAGE_ANALYSIS_STATES);
+
+export type ImageAnalysisState = z.infer<typeof imageAnalysisStateSchema>;
