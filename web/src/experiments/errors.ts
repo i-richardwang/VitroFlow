@@ -1,6 +1,4 @@
 export class ExperimentNotFoundError extends Error {}
-export class ExperimentDesignLockedError extends Error {}
-export class ExperimentDesignIncompleteError extends Error {}
 export class ExperimentHasRecordsError extends Error {}
 export class ImagesNotStoredError extends Error {}
 export class ExperimentObservationImageNotFoundError extends Error {}

@@ -2,7 +2,6 @@ import {
   Button,
   Description,
   FieldError,
-  Fieldset,
   Form,
   Input,
   Label,
@@ -84,6 +83,8 @@ export function AddToDatasetDialog({
             </Modal.Header>
             <Modal.Body>
               <Form
+                id="add-to-dataset"
+                className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
@@ -108,73 +109,71 @@ export function AddToDatasetDialog({
                   });
                 }}
               >
-                <Fieldset className="w-full">
-                  <Fieldset.Group>
-                    <Select
-                      variant="secondary"
-                      fullWidth
-                      isDisabled={busy}
-                      selectedKey={choice}
-                      onSelectionChange={(key) => {
-                        if (key != null) setChoice(String(key));
-                      }}
-                    >
-                      <Label>Dataset</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          {datasets.map((dataset) => (
-                            <ListBox.Item
-                              key={dataset}
-                              id={dataset}
-                              textValue={dataset}
-                            >
-                              <Label className="font-mono">{dataset}</Label>
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          ))}
-                          <ListBox.Item
-                            id={NEW_DATASET}
-                            textValue="New dataset"
-                          >
-                            <Label>New dataset</Label>
-                            <ListBox.ItemIndicator />
-                          </ListBox.Item>
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                    {choice === NEW_DATASET ? (
-                      <TextField
-                        variant="secondary"
-                        fullWidth
-                        isRequired
-                        isDisabled={busy}
-                        name="name"
-                        pattern={DATASET_NAME_PATTERN}
-                      >
-                        <Label>Name</Label>
-                        <Input placeholder="seeds-2026-09" />
-                        <Description>
-                          Letters, numbers, dots, dashes, and underscores.
-                        </Description>
-                        <FieldError />
-                      </TextField>
-                    ) : null}
-                  </Fieldset.Group>
-                  <Fieldset.Actions>
-                    <Button variant="tertiary" onPress={onClose}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" isDisabled={busy}>
-                      {busy ? "Adding…" : "Add"}
-                    </Button>
-                  </Fieldset.Actions>
-                </Fieldset>
+                <Select
+                  variant="secondary"
+                  fullWidth
+                  isDisabled={busy}
+                  selectedKey={choice}
+                  onSelectionChange={(key) => {
+                    if (key != null) setChoice(String(key));
+                  }}
+                >
+                  <Label>Dataset</Label>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {datasets.map((dataset) => (
+                        <ListBox.Item
+                          key={dataset}
+                          id={dataset}
+                          textValue={dataset}
+                        >
+                          <span className="font-mono">{dataset}</span>
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                      <ListBox.Item id={NEW_DATASET} textValue="New dataset">
+                        New dataset
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+                {choice === NEW_DATASET ? (
+                  <TextField
+                    variant="secondary"
+                    fullWidth
+                    isRequired
+                    isDisabled={busy}
+                    name="name"
+                    pattern={DATASET_NAME_PATTERN}
+                  >
+                    <Label>Name</Label>
+                    <Input className="w-full" placeholder="seeds-2026-09" />
+                    <Description>
+                      Letters, numbers, dots, dashes, and underscores.
+                    </Description>
+                    <FieldError />
+                  </TextField>
+                ) : null}
               </Form>
             </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="add-to-dataset"
+                variant="primary"
+                isDisabled={busy}
+              >
+                {busy ? "Adding…" : "Add"}
+              </Button>
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

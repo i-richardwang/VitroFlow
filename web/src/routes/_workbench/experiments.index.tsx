@@ -2,15 +2,18 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Count } from "../../components/Count";
+import {
+  ImageAnalysisStateChip,
+  summarizedImageAnalysis,
+} from "../../components/experiment/ImageAnalysisStateChip";
 import { NewExperimentDialog } from "../../components/experiment/NewExperimentDialog";
 import { ExperimentsIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
-import { versionSlug } from "../../models/schema";
 import {
   getExperiments,
   getExperimentVersions,
 } from "../../functions/experiments";
+import { versionSlug } from "../../models/schema";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
   loader: async () => {
@@ -40,14 +43,8 @@ function ExperimentsPage() {
               <Table.Column>Material</Table.Column>
               <Table.Column>Inoculated</Table.Column>
               <Table.Column>Version</Table.Column>
-              <Table.Column className="text-right">Treatments</Table.Column>
-              <Table.Column className="text-right">
-                Observation units
-              </Table.Column>
               <Table.Column className="text-right">Observations</Table.Column>
-              <Table.Column className="text-right">Pending</Table.Column>
-              <Table.Column className="text-right">Failed</Table.Column>
-              <Table.Column className="text-right">Analyzed</Table.Column>
+              <Table.Column>State</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -62,51 +59,39 @@ function ExperimentsPage() {
               )}
             >
               {experiments.map(
-                ({
-                  experiment,
-                  version,
-                  treatments,
-                  observationUnits,
-                  observations,
-                  counts,
-                }) => (
-                  <Table.Row
-                    key={experiment.id}
-                    href={`/experiments/${experiment.id}`}
-                    className="cursor-(--cursor-interactive)"
-                  >
-                    <Table.Cell className="font-medium">
-                      {experiment.name}
-                    </Table.Cell>
-                    <Table.Cell className="truncate text-muted">
-                      {experiment.plantMaterial || "—"}
-                    </Table.Cell>
-                    <Table.Cell className="text-muted">
-                      {experiment.inoculatedOn}
-                    </Table.Cell>
-                    <Table.Cell className="truncate font-mono text-muted">
-                      {versionSlug(version)}
-                    </Table.Cell>
-                    <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                      {treatments}
-                    </Table.Cell>
-                    <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                      {observationUnits}
-                    </Table.Cell>
-                    <Table.Cell className="text-right font-mono tabular-nums text-muted">
-                      {observations}
-                    </Table.Cell>
-                    <Table.Cell className="text-right font-mono tabular-nums">
-                      <Count value={counts.pending} />
-                    </Table.Cell>
-                    <Table.Cell className="text-right font-mono tabular-nums">
-                      <Count value={counts.failed} />
-                    </Table.Cell>
-                    <Table.Cell className="text-right font-mono tabular-nums">
-                      <Count value={counts.analyzed} />
-                    </Table.Cell>
-                  </Table.Row>
-                ),
+                ({ experiment, version, observations, counts }) => {
+                  const state = summarizedImageAnalysis(counts);
+                  return (
+                    <Table.Row
+                      key={experiment.id}
+                      href={`/experiments/${experiment.id}`}
+                      className="cursor-(--cursor-interactive)"
+                    >
+                      <Table.Cell className="font-medium">
+                        {experiment.name}
+                      </Table.Cell>
+                      <Table.Cell className="truncate text-muted">
+                        {experiment.plantMaterial || "—"}
+                      </Table.Cell>
+                      <Table.Cell className="text-muted">
+                        {experiment.inoculatedOn}
+                      </Table.Cell>
+                      <Table.Cell className="truncate font-mono text-muted">
+                        {versionSlug(version)}
+                      </Table.Cell>
+                      <Table.Cell className="text-right font-mono tabular-nums text-muted">
+                        {observations}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {state ? (
+                          <ImageAnalysisStateChip state={state} />
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                },
               )}
             </Table.Body>
           </Table.Content>

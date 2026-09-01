@@ -17,7 +17,6 @@ import {
   observationRefSchema,
   observationRequestSchema,
   observationUpdateSchema,
-  treatmentReplicatesSchema,
   treatmentRefSchema,
   treatmentRequestSchema,
   treatmentUpdateSchema,
@@ -26,7 +25,6 @@ import { listDatasetsForModel } from "../server/datasets";
 import {
   addObservationUnits,
   addTreatment,
-  addTreatmentReplicates,
   assignObservationUnits,
   createExperiment,
   deleteObservationUnit,
@@ -50,7 +48,6 @@ import {
 } from "../server/experiment-queries";
 import { listAllModelVersions, listModels } from "../server/model-registry";
 
-/** The datasets that train the model used to analyze experiment images. */
 async function datasetsTraining(modelId: string): Promise<string[]> {
   return (await listDatasetsForModel(modelId)).map((dataset) => dataset.id);
 }
@@ -110,10 +107,6 @@ export const removeTreatment = createServerFn({ method: "POST" })
 export const createObservationUnits = createServerFn({ method: "POST" })
   .validator(observationUnitBatchSchema)
   .handler(({ data }) => addObservationUnits(data));
-
-export const createTreatmentReplicates = createServerFn({ method: "POST" })
-  .validator(treatmentReplicatesSchema)
-  .handler(({ data }) => addTreatmentReplicates(data));
 
 export const editObservationUnit = createServerFn({ method: "POST" })
   .validator(observationUnitUpdateSchema)

@@ -35,7 +35,6 @@ export function ImageDropZone({
   onAdd: (files: File[]) => void;
   onRemove: (id: number) => void;
   busy: boolean;
-  /** What each listed image is for, shown beside it while it uploads. */
   annotate?: (image: ListedImage) => ReactNode;
 }) {
   const addFiles = useCallback(
@@ -112,13 +111,15 @@ export function ImageDropZone({
                     </DropZone.FileProgress>
                   )}
                 </DropZone.FileInfo>
-                {annotate?.({ id, file, state })}
-                {!busy && (
-                  <DropZone.FileRemoveTrigger
-                    aria-label={`Remove ${file.name}`}
-                    onPress={() => onRemove(id)}
-                  />
-                )}
+                <div className="flex shrink-0 items-center gap-2 self-center">
+                  {annotate?.({ id, file, state })}
+                  {busy ? null : (
+                    <DropZone.FileRemoveTrigger
+                      aria-label={`Remove ${file.name}`}
+                      onPress={() => onRemove(id)}
+                    />
+                  )}
+                </div>
               </DropZone.FileItem>
             );
           })}

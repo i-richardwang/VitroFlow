@@ -1,17 +1,20 @@
 import { Chip } from "@heroui/react";
 
+import type { ImageAnalysisState } from "../../experiments/schema";
+
 const DISPLAY: Record<
-  "pending" | "analyzed",
-  { label: string; tone: "default" | "success" }
+  ImageAnalysisState,
+  { label: string; tone: "default" | "success" | "danger" }
 > = {
   pending: { label: "Pending", tone: "default" },
   analyzed: { label: "Analyzed", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
 };
 
 export function ImageAnalysisStateChip({
   state,
 }: {
-  state: "pending" | "analyzed";
+  state: ImageAnalysisState;
 }) {
   const { label, tone } = DISPLAY[state];
   return (
@@ -19,4 +22,13 @@ export function ImageAnalysisStateChip({
       {label}
     </Chip>
   );
+}
+
+export function summarizedImageAnalysis(
+  counts: Record<ImageAnalysisState, number>,
+): ImageAnalysisState | null {
+  if (counts.failed > 0) return "failed";
+  if (counts.pending > 0) return "pending";
+  if (counts.analyzed > 0) return "analyzed";
+  return null;
 }

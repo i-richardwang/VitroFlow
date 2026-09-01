@@ -380,11 +380,6 @@ export const experiments = pgTable(
   ],
 );
 
-/**
- * The conditions an experiment compares. Observation units under one treatment are its
- * replicates; a treatment exists from the moment the design names it, before
- * any observation unit is created under it.
- */
 export const experimentTreatments = pgTable(
   "experiment_treatments",
   {
@@ -398,11 +393,8 @@ export const experimentTreatments = pgTable(
       .generatedAlwaysAs(
         sql`trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))`,
       ),
-    /** What this condition sets: regulator and dose, light, temperature. */
-    factors: jsonb("factors").$type<TreatmentFactor[]>().notNull(),
-    /** Remarks the factors do not already state. */
+    factor: jsonb("factor").$type<TreatmentFactor>(),
     note: text("note").notNull(),
-    /** Where the treatment sits in the design; groups are shown in this order. */
     position: integer("position").notNull(),
   },
   (table) => [
@@ -421,8 +413,13 @@ export const experimentTreatments = pgTable(
       sql`${table.note} = btrim(${table.note}) and length(${table.note}) <= 1000`,
     ),
     check(
-      "experiment_treatments_factors_check",
-      sql`jsonb_typeof(${table.factors}) = 'array' and jsonb_array_length(${table.factors}) <= 12`,
+      "experiment_treatments_factor_check",
+      sql`${table.factor} is null or (
+        jsonb_typeof(${table.factor}) = 'object'
+        and coalesce(${table.factor}->>'name', '') <> ''
+        and coalesce(${table.factor}->>'level', '') <> ''
+        and (${table.factor}->>'unit') is not null
+      )`,
     ),
     check("experiment_treatments_position_check", sql`${table.position} >= 1`),
   ],
@@ -488,7 +485,7 @@ export const experimentObservationUnits = pgTable(
       .generatedAlwaysAs(
         sql`trim(both '-' from lower(regexp_replace(normalize(code, NFKC), '[-[:space:]._]+', '-', 'g')))`,
       ),
-    /** The treatment this observation unit replicates, once assigned. */
+    /** The treatment this observation unit replicates. */
     treatmentId: uuid("treatment_id"),
   },
   (table) => [

@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Description,
   Label,
@@ -29,23 +30,26 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
       <Button
         variant="primary"
         isDisabled={!canTrain}
-        className="shrink-0"
         onPress={() => setOpen(true)}
       >
         Train
       </Button>
-      {open ? (
-        <TrainingModal console={console} onClose={() => setOpen(false)} />
-      ) : null}
+      <TrainingModal
+        console={console}
+        isOpen={open}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }
 
 function TrainingModal({
   console,
+  isOpen,
   onClose,
 }: {
   console: TrainingConsole;
+  isOpen: boolean;
   onClose: () => void;
 }) {
   const { dataset, recipe, training } = console;
@@ -57,7 +61,7 @@ function TrainingModal({
   const valid = trainingOverridesSchema.safeParse(overrides).success;
 
   return (
-    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
@@ -93,18 +97,23 @@ function TrainingModal({
                   </NumberField>
                 ))}
               </div>
-              <p className="text-xs text-muted">
+              <Description>
                 {recipe.baseModel.reference} · {recipe.runtime.framework}{" "}
                 {recipe.runtime.version}
-              </p>
+              </Description>
               {training.workerMemoryBytes === null ? (
-                <p className="text-sm text-warning">
-                  No training worker is online; the run waits in the queue.
-                </p>
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>
+                      No training worker is online; the run waits in the queue.
+                    </Alert.Title>
+                  </Alert.Content>
+                </Alert>
               ) : null}
             </Modal.Body>
             <Modal.Footer>
-              <Button variant="tertiary" onPress={onClose}>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
                 Cancel
               </Button>
               <Button

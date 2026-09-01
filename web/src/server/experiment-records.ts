@@ -46,7 +46,7 @@ export function toTreatment(
   return treatmentSchema.parse({
     id: row.id,
     name: row.name,
-    factors: row.factors,
+    factor: row.factor ?? null,
     note: row.note,
     position: row.position,
   });

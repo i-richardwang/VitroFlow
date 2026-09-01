@@ -1,5 +1,6 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Alert, Button, Link, Toolbar, Tooltip } from "@heroui/react";
+import { Segment } from "@heroui-pro/react/segment";
+import { Alert, Button, Chip, Toolbar, Tooltip } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
@@ -101,10 +102,12 @@ export function ObservationUnitWorkbench({
             previous={navigation[at - 1] ?? null}
             next={navigation[at + 1] ?? null}
           />
-          <ObservationTabs
-            series={series}
-            shown={shown?.observation.id ?? null}
-          />
+          {series.observations.length > 0 ? (
+            <ObservationSwitch
+              series={series}
+              shown={shown?.observation.id ?? null}
+            />
+          ) : null}
         </Toolbar>
       }
       inspector={
@@ -148,23 +151,33 @@ export function ObservationUnitWorkbench({
                   {
                     label: "Treatment",
                     value: treatment?.name ?? (
-                      <span className="text-muted">None</span>
+                      <span className="text-muted">No treatment</span>
                     ),
                   },
                   {
-                    label: "Observation unit",
+                    label: "Status",
                     value: latestEvent ? (
-                      <span className="text-warning">
+                      <Chip
+                        color={
+                          latestEvent.type === "contaminated"
+                            ? "warning"
+                            : "default"
+                        }
+                        variant="soft"
+                        className="font-sans font-normal"
+                      >
                         {cultureEventLabel(latestEvent.type)}
-                      </span>
+                      </Chip>
                     ) : (
-                      "Active"
+                      <Chip variant="soft" className="font-sans font-normal">
+                        Active
+                      </Chip>
                     ),
                   },
                   { label: "File", value: shown.filename },
                   {
-                    label: "Observation date",
-                    value: `${observationLabel(shown.observation)} · ${shown.observation.observedOn}`,
+                    label: "Observed",
+                    value: shown.observation.observedOn,
                   },
                   { label: "Version", value: versionSlug(version) },
                 ]}
@@ -218,43 +231,47 @@ export function ObservationUnitWorkbench({
   );
 }
 
-function ObservationTabs({
+function ObservationSwitch({
   series,
   shown,
 }: {
   series: ObservationUnitSeries;
   shown: string | null;
 }) {
-  const base = `/experiments/${series.experiment.id}/${series.observationUnit.id}`;
+  const router = useRouter();
+  if (!series.observations.some((item) => item.image)) return null;
   return (
-    <nav aria-label="Observations" className="flex items-center gap-1">
-      {series.observations.map((item) => {
-        const selected = shown === item.observation.id;
-        const className = `rounded-lg px-3 py-1.5 text-sm no-underline ${
-          selected
-            ? "bg-accent font-medium text-accent-foreground"
-            : "text-muted hover:bg-default"
-        }`;
-        return item.image ? (
-          <Link
-            key={item.observation.id}
-            href={`${base}?observation=${item.observation.id}`}
-            aria-current={selected ? "page" : undefined}
-            className={className}
-          >
-            {observationLabel(item.observation)}
-          </Link>
-        ) : (
-          <span
-            key={item.observation.id}
-            aria-disabled="true"
-            className={`${className} cursor-not-allowed opacity-40`}
-          >
-            {observationLabel(item.observation)}
-          </span>
+    <Segment
+      variant="ghost"
+      aria-label="Observations"
+      selectedKey={shown ?? undefined}
+      onSelectionChange={(key) => {
+        if (key == null) return;
+        const observation = String(key);
+        const item = series.observations.find(
+          (entry) => entry.observation.id === observation,
         );
-      })}
-    </nav>
+        if (!item?.image) return;
+        void router.navigate({
+          to: "/experiments/$experiment/$observationUnit",
+          params: {
+            experiment: series.experiment.id,
+            observationUnit: series.observationUnit.id,
+          },
+          search: { observation },
+        });
+      }}
+    >
+      {series.observations.map((item) => (
+        <Segment.Item
+          key={item.observation.id}
+          id={item.observation.id}
+          isDisabled={!item.image}
+        >
+          {observationLabel(item.observation)}
+        </Segment.Item>
+      ))}
+    </Segment>
   );
 }
 

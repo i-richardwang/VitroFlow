@@ -1,7 +1,6 @@
 import {
   Button,
   Dropdown,
-  Fieldset,
   Form,
   Label,
   Modal,
@@ -30,12 +29,14 @@ export function ExperimentMenu({
   experiment,
   images,
   datasets,
-  hasObservations,
+  hasRecords,
+  onAddUnits,
 }: {
   experiment: Experiment;
   images: ObservationImageCell[];
   datasets: string[];
-  hasObservations: boolean;
+  hasRecords: boolean;
+  onAddUnits: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -53,24 +54,34 @@ export function ExperimentMenu({
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label="Experiment actions"
-            onAction={(key) => setOpen(String(key) as Action)}
+            onAction={(key) => {
+              const id = String(key);
+              if (id === "units") {
+                onAddUnits();
+                return;
+              }
+              setOpen(id as Action);
+            }}
           >
+            <Dropdown.Item id="units" textValue="Add observation units">
+              <Label>Add observation units…</Label>
+            </Dropdown.Item>
             {images.length > 0 ? (
               <Dropdown.Item id="dataset" textValue="Add all to dataset">
                 <Label>Add all to dataset…</Label>
               </Dropdown.Item>
             ) : null}
-            <Separator />
+            <Separator orientation="horizontal" />
             <Dropdown.Item id="edit" textValue="Edit details">
               <Label>Edit details…</Label>
             </Dropdown.Item>
-            {!hasObservations ? (
+            {!hasRecords ? (
               <Dropdown.Item
                 id="delete"
                 textValue="Delete experiment"
                 variant="danger"
               >
-                <Label>Delete draft experiment…</Label>
+                <Label>Delete experiment…</Label>
               </Dropdown.Item>
             ) : null}
           </Dropdown.Menu>
@@ -91,7 +102,6 @@ export function ExperimentMenu({
       <EditExperimentDialog
         experiment={experiment}
         isOpen={open === "edit"}
-        protocolLocked={hasObservations}
         onClose={close}
       />
 
@@ -106,8 +116,9 @@ export function ExperimentMenu({
           await router.navigate({ to: "/experiments" });
         }}
       >
-        Its design, observation units, and observations are removed. Images stay
-        stored, with their detections and reviews, for datasets that use them.
+        Its treatments, observation units, and observations are removed. Images
+        stay stored, with their detections and reviews, for datasets that use
+        them.
       </DeleteDialog>
     </>
   );
@@ -117,12 +128,10 @@ function EditExperimentDialog({
   experiment,
   isOpen,
   onClose,
-  protocolLocked,
 }: {
   experiment: Experiment;
   isOpen: boolean;
   onClose: () => void;
-  protocolLocked: boolean;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
@@ -138,15 +147,11 @@ function EditExperimentDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Edit experiment</Modal.Heading>
-              {protocolLocked ? (
-                <p className="text-sm text-muted">
-                  Plant material, explant type, base medium, and inoculation
-                  date are fixed after the first observation.
-                </p>
-              ) : null}
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
+                id="edit-experiment"
+                className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (inoculatedOn === null) return;
@@ -158,18 +163,7 @@ function EditExperimentDialog({
                         data: {
                           experiment: experiment.id,
                           ...fields,
-                          plantMaterial: protocolLocked
-                            ? experiment.plantMaterial
-                            : fields.plantMaterial,
-                          explantType: protocolLocked
-                            ? experiment.explantType
-                            : fields.explantType,
-                          baseMedium: protocolLocked
-                            ? experiment.baseMedium
-                            : fields.baseMedium,
-                          inoculatedOn: protocolLocked
-                            ? experiment.inoculatedOn
-                            : toDay(inoculatedOn),
+                          inoculatedOn: toDay(inoculatedOn),
                         },
                       }),
                     "Experiment not saved",
@@ -181,27 +175,27 @@ function EditExperimentDialog({
                   });
                 }}
               >
-                <Fieldset className="w-full">
-                  <Fieldset.Group>
-                    <ExperimentFields
-                      busy={busy}
-                      defaults={experiment}
-                      inoculatedOn={inoculatedOn}
-                      onInoculatedOnChange={setInoculatedOn}
-                      protocolLocked={protocolLocked}
-                    />
-                  </Fieldset.Group>
-                  <Fieldset.Actions>
-                    <Button variant="tertiary" onPress={onClose}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" isDisabled={busy}>
-                      {busy ? "Saving…" : "Save"}
-                    </Button>
-                  </Fieldset.Actions>
-                </Fieldset>
+                <ExperimentFields
+                  busy={busy}
+                  defaults={experiment}
+                  inoculatedOn={inoculatedOn}
+                  onInoculatedOnChange={setInoculatedOn}
+                />
               </Form>
             </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="edit-experiment"
+                variant="primary"
+                isDisabled={busy}
+              >
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

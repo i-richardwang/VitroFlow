@@ -1,20 +1,22 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
+  experimentCultureEvents,
+  experimentObservationImages,
   experimentObservationUnits,
   experimentObservations,
   experimentTreatments,
   experiments,
 } from "../db/schema";
 import {
-  ObservationUnitNotFoundError,
-  ObservationUnitRejectedError,
-  ExperimentDesignLockedError,
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
+  ObservationRejectedError,
+  ObservationUnitNotFoundError,
+  ObservationUnitRejectedError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
 } from "../experiments/errors";
@@ -35,7 +37,6 @@ import {
   type Treatment,
   type TreatmentRef,
   type TreatmentRequest,
-  type TreatmentReplicates,
   type TreatmentUpdate,
 } from "../experiments/schema";
 import {
@@ -80,15 +81,20 @@ export async function updateExperiment(
   const { experiment: experimentId, ...page } = value;
   return transaction(async (tx) => {
     const current = await lockExperiment(experimentId, tx);
-    if (await hasObservations(experimentId, tx)) {
-      const protocolChanged =
-        page.plantMaterial !== current.plantMaterial ||
-        page.explantType !== current.explantType ||
-        page.baseMedium !== current.baseMedium ||
-        page.inoculatedOn !== current.inoculatedOn;
-      if (protocolChanged) {
-        throw new ExperimentDesignLockedError(
-          "The protocol is fixed after the first observation",
+    if (page.inoculatedOn !== current.inoculatedOn) {
+      const [early] = await tx
+        .select({ observedOn: experimentObservations.observedOn })
+        .from(experimentObservations)
+        .where(
+          and(
+            eq(experimentObservations.experimentId, experimentId),
+            lt(experimentObservations.observedOn, page.inoculatedOn),
+          ),
+        )
+        .limit(1);
+      if (early) {
+        throw new ObservationRejectedError(
+          `An observation cannot precede inoculation on ${page.inoculatedOn}`,
         );
       }
     }
@@ -108,9 +114,9 @@ export async function deleteExperiment(value: ExperimentRef): Promise<void> {
   const { experiment } = value;
   await transaction(async (tx) => {
     await lockExperiment(experiment, tx);
-    if (await hasObservations(experiment, tx)) {
+    if (await experimentHasRecords(experiment, tx)) {
       throw new ExperimentHasRecordsError(
-        "An experiment with observations is a scientific record and cannot be deleted",
+        "An experiment with images or culture events cannot be deleted",
       );
     }
     const [row] = await tx
@@ -123,36 +129,59 @@ export async function deleteExperiment(value: ExperimentRef): Promise<void> {
   });
 }
 
-async function hasObservations(
+async function experimentHasRecords(
   experimentId: string,
   tx: Executor,
 ): Promise<boolean> {
-  const [observation] = await tx
-    .select({ id: experimentObservations.id })
-    .from(experimentObservations)
-    .where(eq(experimentObservations.experimentId, experimentId))
+  const [image] = await tx
+    .select({ id: experimentObservationImages.id })
+    .from(experimentObservationImages)
+    .where(eq(experimentObservationImages.experimentId, experimentId))
     .limit(1);
-  return observation !== undefined;
+  if (image) return true;
+  const [event] = await tx
+    .select({ id: experimentCultureEvents.id })
+    .from(experimentCultureEvents)
+    .where(eq(experimentCultureEvents.experimentId, experimentId))
+    .limit(1);
+  return event !== undefined;
 }
 
-async function requireOpenDesign(
+async function observationUnitHasRecords(
   experimentId: string,
+  observationUnitId: string,
   tx: Executor,
-): Promise<void> {
-  if (await hasObservations(experimentId, tx)) {
-    throw new ExperimentDesignLockedError(
-      "The design is fixed after the first observation",
-    );
-  }
+): Promise<boolean> {
+  const [image] = await tx
+    .select({ id: experimentObservationImages.id })
+    .from(experimentObservationImages)
+    .where(
+      and(
+        eq(experimentObservationImages.experimentId, experimentId),
+        eq(experimentObservationImages.observationUnitId, observationUnitId),
+      ),
+    )
+    .limit(1);
+  if (image) return true;
+  const [event] = await tx
+    .select({ id: experimentCultureEvents.id })
+    .from(experimentCultureEvents)
+    .where(
+      and(
+        eq(experimentCultureEvents.experimentId, experimentId),
+        eq(experimentCultureEvents.observationUnitId, observationUnitId),
+      ),
+    )
+    .limit(1);
+  return event !== undefined;
 }
 
 export async function addTreatment(
   value: TreatmentRequest,
 ): Promise<Treatment> {
-  const { experiment: experimentId, name, factors, note, replicates } = value;
+  const { experiment: experimentId, name, factor, note, replicates } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
     const existing = await listTreatments(experimentId, tx);
     if (
       existing.some(
@@ -168,7 +197,7 @@ export async function addTreatment(
         experimentId,
         id: randomUUID(),
         name,
-        factors,
+        factor,
         note,
         position: existing.length + 1,
       })
@@ -186,30 +215,6 @@ export async function addTreatment(
       );
     }
     return toTreatment(row);
-  });
-}
-
-export async function addTreatmentReplicates(
-  value: TreatmentReplicates,
-): Promise<ObservationUnitRecord[]> {
-  const {
-    experiment: experimentId,
-    treatment: treatmentId,
-    replicates,
-  } = value;
-  return transaction(async (tx) => {
-    await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
-    const treatment = await requireTreatment(experimentId, treatmentId, tx);
-    const taken = (await listObservationUnits(experimentId, tx)).map(
-      (observationUnit) => observationUnit.code,
-    );
-    return insertObservationUnits(
-      experimentId,
-      treatmentId,
-      replicateCodes(treatment.name, replicates, taken),
-      tx,
-    );
   });
 }
 
@@ -245,7 +250,6 @@ export async function deleteTreatment(value: TreatmentRef): Promise<void> {
   const { experiment: experimentId, treatment: treatmentId } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
     await tx
       .update(experimentObservationUnits)
       .set({ treatmentId: null })
@@ -300,7 +304,6 @@ export async function addObservationUnits(
   const { experiment: experimentId, treatment: treatmentId, codes } = value;
   return transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);
     const wanted = new Set(codes.map(observationUnitCodeKey));
@@ -364,7 +367,11 @@ export async function deleteObservationUnit(
     value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
+    if (await observationUnitHasRecords(experimentId, observationUnitId, tx)) {
+      throw new ObservationUnitRejectedError(
+        "An observation unit with images or culture events cannot be deleted",
+      );
+    }
     const [row] = await tx
       .delete(experimentObservationUnits)
       .where(atObservationUnit(experimentId, observationUnitId))
@@ -402,7 +409,6 @@ export async function assignObservationUnits(
   } = value;
   await transaction(async (tx) => {
     await lockExperiment(experimentId, tx);
-    await requireOpenDesign(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);
     const rows = await tx

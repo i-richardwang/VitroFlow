@@ -82,11 +82,6 @@ export const treatmentNoteSchema = z
   .trim()
   .max(1000, "Treatment note must be at most 1000 characters");
 
-/**
- * One thing a treatment sets: a growth regulator and its dose, a light
- * regime, a temperature. Levels are recorded as written, so `1.0` and `low`
- * are equally sayable, and treatments that set the same factors compare.
- */
 export const treatmentFactorSchema = z.strictObject({
   name: z
     .string()
@@ -103,22 +98,9 @@ export const treatmentFactorSchema = z.strictObject({
 
 export type TreatmentFactor = z.infer<typeof treatmentFactorSchema>;
 
-export const treatmentFactorsSchema = z
-  .array(treatmentFactorSchema)
-  .max(12, "A treatment sets at most 12 factors")
-  .superRefine((factors, context) => {
-    const names = factors.map((factor) => factor.name.toLocaleLowerCase());
-    if (new Set(names).size !== names.length) {
-      context.addIssue({ code: "custom", message: "Factors must be distinct" });
-    }
-  });
-
-export function formatFactors(factors: readonly TreatmentFactor[]): string {
-  return factors
-    .map((factor) =>
-      `${factor.name} ${factor.level}${factor.unit ? ` ${factor.unit}` : ""}`.trim(),
-    )
-    .join(" + ");
+export function formatFactor(factor: TreatmentFactor | null): string {
+  if (!factor) return "";
+  return `${factor.name} ${factor.level}${factor.unit ? ` ${factor.unit}` : ""}`.trim();
 }
 
 export const observationUnitCodeSchema = z
@@ -198,16 +180,10 @@ export const experimentRefSchema = z.strictObject({
 
 export type ExperimentRef = z.infer<typeof experimentRefSchema>;
 
-/**
- * A treatment is what an experiment varies: the observation units that share a
- * condition are its replicates, and results are compared treatment by
- * treatment. Factors state the condition; a treatment that declares none is
- * described by its name and note alone.
- */
 export const treatmentSchema = z.strictObject({
   id: treatmentIdSchema,
   name: treatmentNameSchema,
-  factors: treatmentFactorsSchema,
+  factor: treatmentFactorSchema.nullable(),
   note: treatmentNoteSchema,
   position: z.number().int().min(1),
 });
@@ -224,16 +200,16 @@ export type TreatmentRef = z.infer<typeof treatmentRefSchema>;
 export const treatmentRequestSchema = z.strictObject({
   experiment: experimentIdSchema,
   name: treatmentNameSchema,
-  factors: treatmentFactorsSchema.default([]),
+  factor: treatmentFactorSchema.nullable().default(null),
   note: treatmentNoteSchema.default(""),
-  replicates: z.number().int().min(0).max(200).default(0),
+  replicates: z.number().int().min(0).max(200),
 });
 
 export type TreatmentRequest = z.infer<typeof treatmentRequestSchema>;
 
 export const treatmentUpdateSchema = treatmentRefSchema.extend({
   name: treatmentNameSchema,
-  factors: treatmentFactorsSchema,
+  factor: treatmentFactorSchema.nullable(),
   note: treatmentNoteSchema,
 });
 
@@ -272,12 +248,6 @@ export const observationUnitAssignmentSchema = z.strictObject({
 export type ObservationUnitAssignment = z.infer<
   typeof observationUnitAssignmentSchema
 >;
-
-export const treatmentReplicatesSchema = treatmentRefSchema.extend({
-  replicates: z.number().int().min(1).max(200),
-});
-
-export type TreatmentReplicates = z.infer<typeof treatmentReplicatesSchema>;
 
 export const cultureEventIdSchema = z.uuid();
 

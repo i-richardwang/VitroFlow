@@ -1,7 +1,6 @@
 import {
   Button,
   Kbd,
-  Label,
   ListBox,
   Select,
   Separator,
@@ -240,7 +239,7 @@ function EditorToolbar({
             <ListBox>
               {classes.map((name) => (
                 <ListBox.Item key={name} id={name} textValue={name}>
-                  <Label>{name}</Label>
+                  {name}
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
               ))}

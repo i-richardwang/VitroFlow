@@ -25,13 +25,11 @@ export function ExperimentFields({
   defaults,
   inoculatedOn,
   onInoculatedOnChange,
-  protocolLocked = false,
 }: {
   busy: boolean;
   defaults?: NotebookPage;
   inoculatedOn: DateValue | null;
   onInoculatedOnChange: (value: DateValue | null) => void;
-  protocolLocked?: boolean;
 }) {
   return (
     <>
@@ -44,54 +42,48 @@ export function ExperimentFields({
         defaultValue={defaults?.name}
       >
         <Label>Name</Label>
-        <Input placeholder="September germination study" />
+        <Input className="w-full" placeholder="September germination study" />
         <FieldError />
       </TextField>
-      <div className="flex w-full gap-3">
-        <TextField
-          variant="secondary"
-          fullWidth
-          isDisabled={busy || protocolLocked}
-          name="plantMaterial"
-          defaultValue={defaults?.plantMaterial}
-        >
-          <Label>Plant material</Label>
-          <Input placeholder="Chrysanthemum 'Jinba'" />
-          <FieldError />
-        </TextField>
-        <TextField
-          variant="secondary"
-          fullWidth
-          isDisabled={busy || protocolLocked}
-          name="explantType"
-          defaultValue={defaults?.explantType}
-        >
-          <Label>Explant type</Label>
-          <Input placeholder="Stem segments" />
-          <FieldError />
-        </TextField>
-      </div>
-      <div className="flex w-full gap-3">
-        <TextField
-          variant="secondary"
-          fullWidth
-          isDisabled={busy || protocolLocked}
-          name="baseMedium"
-          defaultValue={defaults?.baseMedium}
-        >
-          <Label>Base medium</Label>
-          <Input placeholder="MS + 3% sucrose, pH 5.8" />
-          <FieldError />
-        </TextField>
-        <div className="w-52 shrink-0">
-          <DayField
-            label="Inoculated"
-            busy={busy || protocolLocked}
-            value={inoculatedOn}
-            onChange={onInoculatedOnChange}
-          />
-        </div>
-      </div>
+      <TextField
+        variant="secondary"
+        fullWidth
+        isDisabled={busy}
+        name="plantMaterial"
+        defaultValue={defaults?.plantMaterial}
+      >
+        <Label>Plant material</Label>
+        <Input className="w-full" placeholder="Chrysanthemum 'Jinba'" />
+        <FieldError />
+      </TextField>
+      <TextField
+        variant="secondary"
+        fullWidth
+        isDisabled={busy}
+        name="explantType"
+        defaultValue={defaults?.explantType}
+      >
+        <Label>Explant type</Label>
+        <Input className="w-full" placeholder="Stem segments" />
+        <FieldError />
+      </TextField>
+      <TextField
+        variant="secondary"
+        fullWidth
+        isDisabled={busy}
+        name="baseMedium"
+        defaultValue={defaults?.baseMedium}
+      >
+        <Label>Base medium</Label>
+        <Input className="w-full" placeholder="MS + 3% sucrose, pH 5.8" />
+        <FieldError />
+      </TextField>
+      <DayField
+        label="Inoculated"
+        busy={busy}
+        value={inoculatedOn}
+        onChange={onInoculatedOnChange}
+      />
       <TextField
         variant="secondary"
         fullWidth

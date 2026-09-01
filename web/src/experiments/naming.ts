@@ -57,12 +57,10 @@ function normalizedDesignKey(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-/** Treatment names compare by their normalized visible form. */
 export function treatmentNameKey(name: string): string {
   return normalizedDesignKey(name);
 }
 
-/** Observation unit codes compare by their normalized visible form. */
 export function observationUnitCodeKey(code: string): string {
   return normalizedDesignKey(code);
 }

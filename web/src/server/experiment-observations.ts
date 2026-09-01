@@ -4,9 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { transaction, type Executor } from "../db/client";
 import { experimentObservations } from "../db/schema";
-import { designIssues } from "../experiments/design";
 import {
-  ExperimentDesignIncompleteError,
   ObservationNotFoundError,
   ObservationRejectedError,
 } from "../experiments/errors";
@@ -19,9 +17,7 @@ import {
 } from "../experiments/schema";
 import {
   atObservation,
-  listObservationUnits,
   listObservations,
-  listTreatments,
   lockExperiment,
   requireObservation,
 } from "./experiment-records";
@@ -66,14 +62,6 @@ export async function addObservation(
   return transaction(async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
-    const [treatments, observationUnits] = await Promise.all([
-      listTreatments(experimentId, tx),
-      listObservationUnits(experimentId, tx),
-    ]);
-    const issues = designIssues(treatments, observationUnits);
-    if (issues.length > 0) {
-      throw new ExperimentDesignIncompleteError(issues.join(". "));
-    }
     await rejectSameDay(experimentId, observedOn, null, tx);
     const [row] = await tx
       .insert(experimentObservations)
@@ -104,15 +92,6 @@ export async function updateObservation(
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, observationId, tx);
-    const current = requireObservation(
-      await listObservations(experiment, tx),
-      observationId,
-    );
-    if (current.hasRecords && observedOn !== current.observedOn) {
-      throw new ObservationRejectedError(
-        "The date is fixed once an observation has images or culture events",
-      );
-    }
     const [row] = await tx
       .update(experimentObservations)
       .set({ observedOn, note })

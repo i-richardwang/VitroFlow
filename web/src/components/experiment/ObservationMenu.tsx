@@ -2,11 +2,11 @@ import type { DateValue } from "@internationalized/date";
 import {
   Button,
   Dropdown,
-  Fieldset,
   Form,
   Input,
   Label,
   Modal,
+  Separator,
   TextField,
   toast,
   Tooltip,
@@ -25,8 +25,9 @@ import {
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
-import { DayField, fromDay, toDay } from "./DayField";
+import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
+import { DayField, fromDay, toDay } from "./DayField";
 
 type Action = "images" | "edit" | "delete";
 
@@ -48,11 +49,16 @@ export function ObservationMenu({
   return (
     <>
       <Dropdown>
-        <Tooltip delay={0} isDisabled={!observation.note}>
-          <Button variant="ghost" size="sm" className="-mr-2 font-medium">
-            {name}
+        <Tooltip delay={0}>
+          <Button
+            variant="ghost"
+            isIconOnly
+            size="sm"
+            aria-label={`${name} actions`}
+          >
+            <MoreIcon />
           </Button>
-          <Tooltip.Content>{observation.note}</Tooltip.Content>
+          <Tooltip.Content>Actions</Tooltip.Content>
         </Tooltip>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
@@ -66,35 +72,36 @@ export function ObservationMenu({
               <Label>Edit observation…</Label>
             </Dropdown.Item>
             {!observation.hasRecords ? (
-              <Dropdown.Item
-                id="delete"
-                textValue="Delete observation"
-                variant="danger"
-              >
-                <Label>Delete empty observation…</Label>
-              </Dropdown.Item>
+              <>
+                <Separator orientation="horizontal" />
+                <Dropdown.Item
+                  id="delete"
+                  textValue="Delete observation"
+                  variant="danger"
+                >
+                  <Label>Delete empty observation…</Label>
+                </Dropdown.Item>
+              </>
             ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
 
-      {open === "images" ? (
-        <AssignImagesDialog
-          experiment={experiment}
-          observation={observation}
-          observationUnits={observationUnits}
-          assigned={assigned}
-          onClose={() => setOpen(null)}
-        />
-      ) : null}
+      <AssignImagesDialog
+        experiment={experiment}
+        observation={observation}
+        observationUnits={observationUnits}
+        assigned={assigned}
+        isOpen={open === "images"}
+        onClose={() => setOpen(null)}
+      />
 
-      {open === "edit" ? (
-        <EditObservationModal
-          experiment={experiment}
-          observation={observation}
-          onClose={() => setOpen(null)}
-        />
-      ) : null}
+      <EditObservationModal
+        experiment={experiment}
+        observation={observation}
+        isOpen={open === "edit"}
+        onClose={() => setOpen(null)}
+      />
 
       <DeleteDialog
         isOpen={open === "delete"}
@@ -118,10 +125,12 @@ export function ObservationMenu({
 function EditObservationModal({
   experiment,
   observation,
+  isOpen,
   onClose,
 }: {
   experiment: string;
   observation: ExperimentObservation;
+  isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -131,21 +140,18 @@ function EditObservationModal({
   );
 
   return (
-    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Edit observation</Modal.Heading>
-              {observation.hasRecords ? (
-                <p className="text-sm text-muted">
-                  Its date is fixed because the observation has records.
-                </p>
-              ) : null}
             </Modal.Header>
-            <Modal.Body>
+            <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
+                id="edit-observation"
+                className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (observedOn === null) return;
@@ -169,36 +175,40 @@ function EditObservationModal({
                   });
                 }}
               >
-                <Fieldset className="w-full">
-                  <Fieldset.Group>
-                    <DayField
-                      label="Observation date"
-                      busy={busy || observation.hasRecords}
-                      value={observedOn}
-                      onChange={setObservedOn}
-                    />
-                    <TextField
-                      variant="secondary"
-                      fullWidth
-                      isDisabled={busy}
-                      name="note"
-                      defaultValue={observation.note}
-                    >
-                      <Label>Note</Label>
-                      <Input placeholder="What this observation was for" />
-                    </TextField>
-                  </Fieldset.Group>
-                  <Fieldset.Actions>
-                    <Button variant="tertiary" onPress={onClose}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" isDisabled={busy}>
-                      {busy ? "Saving…" : "Save"}
-                    </Button>
-                  </Fieldset.Actions>
-                </Fieldset>
+                <DayField
+                  label="Observation date"
+                  busy={busy}
+                  value={observedOn}
+                  onChange={setObservedOn}
+                />
+                <TextField
+                  variant="secondary"
+                  fullWidth
+                  isDisabled={busy}
+                  name="note"
+                  defaultValue={observation.note}
+                >
+                  <Label>Note</Label>
+                  <Input
+                    className="w-full"
+                    placeholder="What this observation was for"
+                  />
+                </TextField>
               </Form>
             </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="edit-observation"
+                variant="primary"
+                isDisabled={busy}
+              >
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

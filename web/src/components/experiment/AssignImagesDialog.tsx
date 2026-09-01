@@ -1,13 +1,11 @@
+import { InlineSelect } from "@heroui-pro/react/inline-select";
 import {
   Alert,
   Button,
   Description,
-  Fieldset,
   Form,
-  Label,
   ListBox,
   Modal,
-  Select,
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
@@ -31,12 +29,14 @@ export function AssignImagesDialog({
   observation,
   observationUnits,
   assigned,
+  isOpen,
   onClose,
 }: {
   experiment: string;
   observation: ExperimentObservation;
   observationUnits: ObservationUnit[];
   assigned: ReadonlySet<string>;
+  isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -103,7 +103,7 @@ export function AssignImagesDialog({
   const unassigned = stored.length - ready.length;
 
   return (
-    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="lg">
           <Modal.Dialog>
@@ -134,7 +134,8 @@ export function AssignImagesDialog({
                 </Alert>
               ) : (
                 <Form
-                  className="w-full"
+                  id="assign-images"
+                  className="flex w-full min-w-0 flex-col gap-4"
                   onSubmit={(event) => {
                     event.preventDefault();
                     void run(
@@ -160,73 +161,79 @@ export function AssignImagesDialog({
                     });
                   }}
                 >
-                  <Fieldset className="w-full">
-                    <ImageDropZone
-                      images={uploads.images}
-                      onAdd={uploads.add}
-                      onRemove={(id) => {
-                        uploads.remove(id);
-                        setAssignments(({ [id]: _removed, ...rest }) => rest);
-                      }}
-                      busy={busy}
-                      annotate={(image) => (
-                        <ObservationUnitChoice
-                          image={image}
-                          observationUnits={open}
-                          taken={
-                            new Set(
-                              Object.entries(assignments)
-                                .filter(
-                                  ([id, observationUnit]) =>
-                                    observationUnit !== null &&
-                                    Number(id) !== image.id,
-                                )
-                                .map(([, observationUnit]) => observationUnit!),
-                            )
-                          }
-                          value={assignments[image.id] ?? null}
-                          busy={busy}
-                          onChange={(observationUnit) =>
-                            setAssignments((current) => ({
-                              ...current,
-                              [image.id]: observationUnit,
-                            }))
-                          }
-                        />
-                      )}
-                    />
-                    <Fieldset.Actions>
-                      {unassigned > 0 ? (
-                        <span className="me-auto text-sm text-warning">
+                  <ImageDropZone
+                    images={uploads.images}
+                    onAdd={uploads.add}
+                    onRemove={(id) => {
+                      uploads.remove(id);
+                      setAssignments(({ [id]: _removed, ...rest }) => rest);
+                    }}
+                    busy={busy}
+                    annotate={(image) => (
+                      <ObservationUnitChoice
+                        image={image}
+                        observationUnits={open}
+                        taken={
+                          new Set(
+                            Object.entries(assignments)
+                              .filter(
+                                ([id, observationUnit]) =>
+                                  observationUnit !== null &&
+                                  Number(id) !== image.id,
+                              )
+                              .map(([, observationUnit]) => observationUnit!),
+                          )
+                        }
+                        value={assignments[image.id] ?? null}
+                        busy={busy}
+                        onChange={(observationUnit) =>
+                          setAssignments((current) => ({
+                            ...current,
+                            [image.id]: observationUnit,
+                          }))
+                        }
+                      />
+                    )}
+                  />
+                  {unassigned > 0 ? (
+                    <Alert status="warning">
+                      <Alert.Indicator />
+                      <Alert.Content>
+                        <Alert.Title>
                           {unassigned === 1
                             ? "Assign the remaining image"
                             : `Assign the remaining ${unassigned} images`}
-                        </span>
-                      ) : null}
-                      <Button variant="tertiary" onPress={onClose}>
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        isDisabled={
-                          busy ||
-                          uploads.storing ||
-                          ready.length === 0 ||
-                          unassigned > 0
-                        }
-                      >
-                        {busy
-                          ? "Assigning…"
-                          : uploads.storing
-                            ? "Uploading…"
-                            : `Assign ${ready.length}`}
-                      </Button>
-                    </Fieldset.Actions>
-                  </Fieldset>
+                        </Alert.Title>
+                      </Alert.Content>
+                    </Alert>
+                  ) : null}
                 </Form>
               )}
             </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+                Cancel
+              </Button>
+              {open.length === 0 ? null : (
+                <Button
+                  type="submit"
+                  form="assign-images"
+                  variant="primary"
+                  isDisabled={
+                    busy ||
+                    uploads.storing ||
+                    ready.length === 0 ||
+                    unassigned > 0
+                  }
+                >
+                  {busy
+                    ? "Assigning…"
+                    : uploads.storing
+                      ? "Uploading…"
+                      : `Assign ${ready.length}`}
+                </Button>
+              )}
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -251,10 +258,8 @@ function ObservationUnitChoice({
 }) {
   if (image.state.status !== "stored") return null;
   return (
-    <Select
+    <InlineSelect
       aria-label={`Observation unit shown by ${image.file.name}`}
-      className="w-40 shrink-0"
-      variant="secondary"
       isDisabled={busy}
       disabledKeys={[...taken]}
       selectedKey={value ?? UNASSIGNED}
@@ -262,14 +267,14 @@ function ObservationUnitChoice({
         onChange(key === UNASSIGNED ? null : String(key))
       }
     >
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
+      <InlineSelect.Trigger>
+        <InlineSelect.Value />
+        <InlineSelect.Indicator />
+      </InlineSelect.Trigger>
+      <InlineSelect.Popover className="w-48">
         <ListBox>
           <ListBox.Item id={UNASSIGNED} textValue="Unassigned">
-            <Label className="text-muted">Unassigned</Label>
+            Unassigned
             <ListBox.ItemIndicator />
           </ListBox.Item>
           {observationUnits.map((observationUnit) => (
@@ -278,12 +283,12 @@ function ObservationUnitChoice({
               id={observationUnit.id}
               textValue={observationUnit.code}
             >
-              <Label>{observationUnit.code}</Label>
+              {observationUnit.code}
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}
         </ListBox>
-      </Select.Popover>
-    </Select>
+      </InlineSelect.Popover>
+    </InlineSelect>
   );
 }

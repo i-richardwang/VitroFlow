@@ -42,9 +42,9 @@ test("the database rejects a second active terminal event", async () => {
   const treatment = await addTreatment({
     experiment: experiment.id,
     name: "Control",
-    factors: [],
+    factor: null,
     note: "",
-    replicates: 0,
+    replicates: 1,
   });
   const [observationUnit] = await addObservationUnits({
     experiment: experiment.id,

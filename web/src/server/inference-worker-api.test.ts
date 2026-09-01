@@ -69,9 +69,9 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   const treatment = await addTreatment({
     experiment: experiment.id,
     name: "Test",
-    factors: [],
+    factor: null,
     note: "",
-    replicates: 0,
+    replicates: 1,
   });
   const [observationUnit] = await addObservationUnits({
     experiment: experiment.id,

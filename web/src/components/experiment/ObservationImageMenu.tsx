@@ -1,13 +1,14 @@
 import {
   Button,
   Dropdown,
-  Fieldset,
   Form,
   Label,
   ListBox,
   Modal,
   Select,
+  Separator,
   toast,
+  Tooltip,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -45,9 +46,12 @@ export function ObservationImageMenu({
   return (
     <>
       <Dropdown>
-        <Button variant="ghost" isIconOnly aria-label="Image actions">
-          <MoreIcon />
-        </Button>
+        <Tooltip delay={0}>
+          <Button variant="ghost" isIconOnly aria-label="Image actions">
+            <MoreIcon />
+          </Button>
+          <Tooltip.Content>Actions</Tooltip.Content>
+        </Tooltip>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label="Image actions"
@@ -56,6 +60,7 @@ export function ObservationImageMenu({
             <Dropdown.Item id="reassign" textValue="Reassign image">
               <Label>Reassign…</Label>
             </Dropdown.Item>
+            <Separator orientation="horizontal" />
             <Dropdown.Item
               id="unassign"
               textValue="Unassign image"
@@ -67,14 +72,13 @@ export function ObservationImageMenu({
         </Dropdown.Popover>
       </Dropdown>
 
-      {open === "reassign" ? (
-        <ReassignModal
-          image={image}
-          navigation={navigation}
-          observations={observations}
-          onClose={() => setOpen(null)}
-        />
-      ) : null}
+      <ReassignModal
+        image={image}
+        navigation={navigation}
+        observations={observations}
+        isOpen={open === "reassign"}
+        onClose={() => setOpen(null)}
+      />
 
       <DeleteDialog
         isOpen={open === "unassign"}
@@ -101,11 +105,13 @@ function ReassignModal({
   image,
   navigation,
   observations,
+  isOpen,
   onClose,
 }: {
   image: ExperimentObservationImage;
   navigation: ObservationUnitNavigationEntry[];
   observations: ExperimentObservation[];
+  isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -116,7 +122,7 @@ function ReassignModal({
   const [observation, setObservation] = useState(image.observation.id);
 
   return (
-    <Modal isOpen onOpenChange={(next) => !next && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
@@ -126,6 +132,8 @@ function ReassignModal({
             </Modal.Header>
             <Modal.Body>
               <Form
+                id="reassign-image"
+                className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void run(
@@ -148,76 +156,75 @@ function ReassignModal({
                   });
                 }}
               >
-                <Fieldset className="w-full">
-                  <Fieldset.Group>
-                    <Select
-                      variant="secondary"
-                      fullWidth
-                      isDisabled={busy}
-                      selectedKey={observationUnit}
-                      onSelectionChange={(key) =>
-                        setObservationUnit(String(key))
-                      }
-                    >
-                      <Label>Observation unit</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          {navigation.map((item) => (
-                            <ListBox.Item
-                              key={item.id}
-                              id={item.id}
-                              textValue={item.code}
-                            >
-                              <Label>{item.code}</Label>
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          ))}
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                    <Select
-                      variant="secondary"
-                      fullWidth
-                      isDisabled={busy}
-                      selectedKey={observation}
-                      onSelectionChange={(key) => setObservation(String(key))}
-                    >
-                      <Label>Observation</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          {observations.map((item) => (
-                            <ListBox.Item
-                              key={item.id}
-                              id={item.id}
-                              textValue={observationLabel(item)}
-                            >
-                              <Label>{observationLabel(item)}</Label>
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          ))}
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                  </Fieldset.Group>
-                  <Fieldset.Actions>
-                    <Button variant="tertiary" onPress={onClose}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" isDisabled={busy}>
-                      {busy ? "Reassigning…" : "Reassign"}
-                    </Button>
-                  </Fieldset.Actions>
-                </Fieldset>
+                <Select
+                  variant="secondary"
+                  fullWidth
+                  isDisabled={busy}
+                  selectedKey={observationUnit}
+                  onSelectionChange={(key) => setObservationUnit(String(key))}
+                >
+                  <Label>Observation unit</Label>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {navigation.map((item) => (
+                        <ListBox.Item
+                          key={item.id}
+                          id={item.id}
+                          textValue={item.code}
+                        >
+                          {item.code}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+                <Select
+                  variant="secondary"
+                  fullWidth
+                  isDisabled={busy}
+                  selectedKey={observation}
+                  onSelectionChange={(key) => setObservation(String(key))}
+                >
+                  <Label>Observation</Label>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {observations.map((item) => (
+                        <ListBox.Item
+                          key={item.id}
+                          id={item.id}
+                          textValue={observationLabel(item)}
+                        >
+                          {observationLabel(item)}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
               </Form>
             </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="reassign-image"
+                variant="primary"
+                isDisabled={busy}
+              >
+                {busy ? "Reassigning…" : "Reassign"}
+              </Button>
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

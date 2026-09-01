@@ -16,8 +16,6 @@ import type { ModelVersion } from "../models/schema";
 import {
   ObservationUnitNotFoundError,
   ObservationUnitRejectedError,
-  ExperimentDesignIncompleteError,
-  ExperimentDesignLockedError,
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
   ExperimentObservationImageAlreadyUsedError,
@@ -29,7 +27,7 @@ import {
 import {
   experimentRequestSchema,
   calendarDaySchema,
-  formatFactors,
+  formatFactor,
   treatmentRequestSchema,
   type ExperimentRequestInput,
 } from "../experiments/schema";
@@ -42,7 +40,6 @@ import {
 import {
   addObservationUnits,
   addTreatment,
-  addTreatmentReplicates,
   assignObservationUnits,
   createExperiment as createExperimentRecord,
   deleteObservationUnit,
@@ -146,7 +143,7 @@ async function defineObservationUnits(
   const treatment = await addTreatment({
     experiment,
     name: "Test",
-    factors: [],
+    factor: null,
     note: "",
     replicates: 0,
   });
@@ -163,7 +160,6 @@ async function defineObservationUnits(
   );
 }
 
-/** Assigns one image to each named observation unit in an observation. */
 async function assignImages(
   experiment: string,
   observation: string,
@@ -183,7 +179,6 @@ async function assignImages(
   });
 }
 
-/** Observation-image identifiers indexed by observation unit code. */
 async function imagesByObservationUnit(
   experiment: string,
 ): Promise<Map<string, string>> {
@@ -289,7 +284,7 @@ describe("experiments", () => {
     const control = await addTreatment({
       experiment: experiment.id,
       name: "CK",
-      factors: [],
+      factor: null,
       note: "Hormone-free MS",
       replicates: 2,
     });
@@ -297,15 +292,17 @@ describe("experiments", () => {
       treatmentRequestSchema.parse({
         experiment: experiment.id,
         name: " T1 ",
-        factors: [{ name: " 6-BA ", level: "1.0", unit: " mg/L " }],
+        factor: { name: " 6-BA ", level: "1.0", unit: " mg/L " },
         replicates: 3,
       }),
     );
     expect([control.position, auxin.position]).toEqual([1, 2]);
     expect(auxin.name).toBe("T1");
-    expect(auxin.factors).toEqual([
-      { name: "6-BA", level: "1.0", unit: "mg/L" },
-    ]);
+    expect(auxin.factor).toEqual({
+      name: "6-BA",
+      level: "1.0",
+      unit: "mg/L",
+    });
 
     const empty = await readExperimentGrid(experiment.id);
     expect(empty?.observations).toEqual([]);
@@ -337,41 +334,24 @@ describe("experiments", () => {
     ]).toEqual([2, 5, 0]);
   });
 
-  test("an observation starts only from a complete experimental design", async () => {
-    const version = await trainedVersion("exp-complete-design");
+  test("an observation can be scheduled before the design is complete", async () => {
+    const version = await trainedVersion("exp-planned-observation");
     const experiment = await createExperiment({
-      name: "Complete design",
+      name: "Planned observation",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const treatment = await addTreatment({
+    await addTreatment({
       experiment: experiment.id,
       name: "CK",
-      factors: [],
+      factor: null,
       note: "",
       replicates: 0,
     });
-    await addObservationUnits({
-      experiment: experiment.id,
-      treatment: null,
-      codes: ["A1"],
-    });
+    expect(
+      (await readExperimentGrid(experiment.id))?.observationUnits,
+    ).toEqual([]);
 
-    await expect(
-      addObservation({
-        experiment: experiment.id,
-        observedOn: "2026-08-08",
-        note: "",
-      }),
-    ).rejects.toThrow(ExperimentDesignIncompleteError);
-
-    const [observationUnit] = (await readExperimentGrid(experiment.id))!
-      .observationUnits;
-    await assignObservationUnits({
-      experiment: experiment.id,
-      observationUnits: [observationUnit!.id],
-      treatment: treatment.id,
-    });
     await expect(
       addObservation({
         experiment: experiment.id,
@@ -379,46 +359,47 @@ describe("experiments", () => {
         note: "",
       }),
     ).resolves.toMatchObject({ day: 7 });
+
+    await addObservationUnits({
+      experiment: experiment.id,
+      treatment: null,
+      codes: ["A1"],
+    });
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-15",
+        note: "",
+      }),
+    ).resolves.toMatchObject({ day: 14 });
+
+    await deleteExperiment({ experiment: experiment.id });
+    expect(await readExperiment(experiment.id)).toBeNull();
   });
 
-  test("replicate codes are allocated atomically by the design service", async () => {
-    const version = await trainedVersion("exp-replicates");
+  test("a treatment can gain observation units after it is created", async () => {
+    const version = await trainedVersion("exp-more-units");
     const experiment = await createExperiment({
-      name: "Replicates",
+      name: "More units",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
     const treatment = await addTreatment({
       experiment: experiment.id,
       name: "T1",
-      factors: [],
+      factor: null,
       note: "",
       replicates: 1,
     });
-    await Promise.all([
-      addTreatmentReplicates({
-        experiment: experiment.id,
-        treatment: treatment.id,
-        replicates: 2,
-      }),
-      addTreatmentReplicates({
-        experiment: experiment.id,
-        treatment: treatment.id,
-        replicates: 2,
-      }),
-    ]);
+    await addObservationUnits({
+      experiment: experiment.id,
+      treatment: treatment.id,
+      codes: ["T1-2", "T1-3"],
+    });
     const grid = await readExperimentGrid(experiment.id);
     expect(
       grid?.observationUnits.map((observationUnit) => observationUnit.code),
-    ).toEqual(["T1-1", "T1-2", "T1-3", "T1-4", "T1-5"]);
-
-    const observationUnit = grid!.observationUnits[0]!;
-    const updated = await updateObservationUnit({
-      experiment: experiment.id,
-      observationUnit: observationUnit.id,
-      code: "T1-1a",
-    });
-    expect(updated.code).toBe("T1-1a");
+    ).toEqual(["T1-1", "T1-2", "T1-3"]);
   });
 
   test("treatment names and observation unit codes are unique", async () => {
@@ -431,25 +412,25 @@ describe("experiments", () => {
     const control = await addTreatment({
       experiment: experiment.id,
       name: "CK",
-      factors: [],
+      factor: null,
       note: "",
       replicates: 1,
     });
     const treated = await addTreatment({
       experiment: experiment.id,
       name: "T1",
-      factors: [],
+      factor: null,
       note: "",
-      replicates: 0,
+      replicates: 1,
     });
 
     await expect(
       addTreatment({
         experiment: experiment.id,
         name: "ck",
-        factors: [],
+        factor: null,
         note: "",
-        replicates: 0,
+        replicates: 1,
       }),
     ).rejects.toThrow(TreatmentRejectedError);
     await expect(
@@ -457,7 +438,7 @@ describe("experiments", () => {
         experiment: experiment.id,
         treatment: treated.id,
         name: "CK",
-        factors: [],
+        factor: null,
         note: "",
       }),
     ).rejects.toThrow(TreatmentRejectedError);
@@ -513,7 +494,7 @@ describe("experiments", () => {
       after?.observationUnits.map(
         (observationUnit) => observationUnit.treatment,
       ),
-    ).toEqual([treated.id, treated.id]);
+    ).toEqual([treated.id, treated.id, treated.id]);
   });
 
   test("an observation unit keeps its images when its code is corrected", async () => {
@@ -651,10 +632,10 @@ describe("experiments", () => {
     ).rejects.toThrow();
   });
 
-  test("the first observation fixes the structural design", async () => {
-    const version = await trainedVersion("exp-fixed-design");
+  test("the notebook stays editable after an observation is added", async () => {
+    const version = await trainedVersion("exp-notebook");
     const experiment = await createExperiment({
-      name: "Fixed design",
+      name: "Notebook",
       plantMaterial: "Arabidopsis",
       explantType: "Leaf discs",
       baseMedium: "MS",
@@ -671,28 +652,29 @@ describe("experiments", () => {
       note: "",
     });
 
-    await expect(
-      addTreatment({
-        experiment: experiment.id,
-        name: "T1",
-        factors: [],
-        note: "",
-        replicates: 1,
-      }),
-    ).rejects.toThrow(ExperimentDesignLockedError);
-    await expect(
-      assignObservationUnits({
-        experiment: experiment.id,
-        observationUnits: [observationUnits.get("A1")!],
-        treatment: null,
-      }),
-    ).rejects.toThrow(ExperimentDesignLockedError);
-    await expect(
-      deleteObservationUnit({
-        experiment: experiment.id,
-        observationUnit: observationUnits.get("A1")!,
-      }),
-    ).rejects.toThrow(ExperimentDesignLockedError);
+    const added = await addTreatment({
+      experiment: experiment.id,
+      name: "T1",
+      factor: null,
+      note: "",
+      replicates: 1,
+    });
+    expect(added.name).toBe("T1");
+    await assignObservationUnits({
+      experiment: experiment.id,
+      observationUnits: [observationUnits.get("A1")!],
+      treatment: null,
+    });
+    const protocol = await updateExperiment({
+      experiment: experiment.id,
+      name: experiment.name,
+      plantMaterial: experiment.plantMaterial,
+      explantType: experiment.explantType,
+      baseMedium: "B5",
+      notes: experiment.notes,
+      inoculatedOn: experiment.inoculatedOn,
+    });
+    expect(protocol.baseMedium).toBe("B5");
     await expect(
       updateExperiment({
         experiment: experiment.id,
@@ -701,24 +683,21 @@ describe("experiments", () => {
         explantType: experiment.explantType,
         baseMedium: "B5",
         notes: experiment.notes,
-        inoculatedOn: experiment.inoculatedOn,
+        inoculatedOn: "2026-08-09",
       }),
-    ).rejects.toThrow(ExperimentDesignLockedError);
-    await expect(
-      deleteExperiment({ experiment: experiment.id }),
-    ).rejects.toThrow(ExperimentHasRecordsError);
+    ).rejects.toThrow(ObservationRejectedError);
 
     const annotated = await updateExperiment({
       experiment: experiment.id,
-      name: "Fixed design, first run",
+      name: "Notebook, first run",
       plantMaterial: experiment.plantMaterial,
       explantType: experiment.explantType,
-      baseMedium: experiment.baseMedium,
+      baseMedium: "B5",
       notes: "Protocol note corrected",
       inoculatedOn: experiment.inoculatedOn,
     });
     expect([annotated.name, annotated.notes]).toEqual([
-      "Fixed design, first run",
+      "Notebook, first run",
       "Protocol note corrected",
     ]);
 
@@ -727,16 +706,25 @@ describe("experiments", () => {
       experiment: experiment.id,
       treatment: treatment.id,
       name: treatment.name,
-      factors: [{ name: "6-BA", level: "1.0", unit: "mg/L" }],
+      factor: { name: "6-BA", level: "1.0", unit: "mg/L" },
       note: "Recorded from the notebook afterwards",
     });
-    expect(formatFactors(described.factors)).toBe("6-BA 1.0 mg/L");
+    expect(formatFactor(described.factor)).toBe("6-BA 1.0 mg/L");
     const renamed = await updateObservationUnit({
       experiment: experiment.id,
       observationUnit: observationUnits.get("A1")!,
       code: "A1a",
     });
     expect(renamed.code).toBe("A1a");
+    await deleteObservationUnit({
+      experiment: experiment.id,
+      observationUnit: observationUnits.get("A1")!,
+    });
+    expect(
+      (await readExperimentGrid(experiment.id))?.observationUnits.map(
+        (observationUnit) => observationUnit.code,
+      ),
+    ).toEqual(["A2", "T1-1"]);
   });
 
   test("image assignment rejects duplicate units, filled cells, and reused images", async () => {
@@ -1279,7 +1267,7 @@ describe("experiments", () => {
     ).toBeNull();
   });
 
-  test("drafts stay editable while recorded observations preserve history", async () => {
+  test("images keep their observation units, and experiments without them can be deleted", async () => {
     const version = await trainedVersion("exp-maint");
     const experiment = await createExperiment({
       name: "Draft",
@@ -1342,21 +1330,18 @@ describe("experiments", () => {
       redatedEmpty.day,
       redatedEmpty.note,
     ]).toEqual(["2026-08-29", 27, "Final count"]);
-    await expect(
-      updateObservation({
-        experiment: experiment.id,
-        observation: day7.id,
-        observedOn: "2026-08-09",
-        note: "",
-      }),
-    ).rejects.toThrow(ObservationRejectedError);
-    const annotated = await updateObservation({
+    const redatedRecorded = await updateObservation({
       experiment: experiment.id,
       observation: day7.id,
-      observedOn: day7.observedOn,
+      observedOn: "2026-08-09",
       note: "Images checked",
     });
-    expect(annotated.note).toBe("Images checked");
+    expect([
+      redatedRecorded.observedOn,
+      redatedRecorded.day,
+      redatedRecorded.note,
+    ]).toEqual(["2026-08-09", 7, "Images checked"]);
+    expect((await readExperimentGrid(experiment.id))?.images).toHaveLength(2);
 
     await deleteObservation({
       experiment: experiment.id,
@@ -1370,7 +1355,7 @@ describe("experiments", () => {
         experiment: experiment.id,
         observationUnit: observationUnits.get("A2")!,
       }),
-    ).rejects.toThrow(ExperimentDesignLockedError);
+    ).rejects.toThrow(ObservationUnitRejectedError);
     const grid = await readExperimentGrid(experiment.id);
     expect(grid?.observations.map((item) => item.id)).toEqual([day7.id]);
     expect(
