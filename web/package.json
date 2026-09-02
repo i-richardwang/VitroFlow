@@ -17,6 +17,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
+    "@better-auth/api-key": "1.7.2",
+    "@better-auth/cimd": "1.7.2",
+    "@better-auth/mcp": "1.7.2",
+    "@better-auth/oauth-provider": "1.7.2",
     "@heroui-pro/react": "1.0.0-beta.8",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
@@ -27,6 +31,7 @@
     "@react-aria/utils": "^3.34.1",
     "@tanstack/react-router": "^1.170.32",
     "@tanstack/react-start": "^1.168.49",
+    "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
     "motion": "^13.1.1",
     "postgres": "^3.4.9",

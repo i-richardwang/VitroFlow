@@ -10,15 +10,12 @@ test("login navigation preserves only internal workbench destinations", () => {
   expect(loginPath(requestedPath(request))).toBe(
     "/login?returnTo=%2Fdatasets%2Fseeds%3Fstate%3Dcomplete",
   );
-  expect(loginPath("/datasets/seeds", true)).toBe(
-    "/login?returnTo=%2Fdatasets%2Fseeds&rejected=true",
-  );
+  expect(loginPath("/")).toBe("/login");
   for (const unsafe of [
     "https://example.invalid",
     "//example.invalid",
     "/\\example.invalid",
     "/login",
-    "/logout",
   ]) {
     expect(returnPath(unsafe)).toBe("/");
   }

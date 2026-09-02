@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
-import { database, transaction, type Executor } from "../db/client";
+import { database, inTransaction, type Executor } from "../db/client";
 import {
   experimentCultureEvents,
   experimentObservationImages,
@@ -62,29 +62,31 @@ export async function readExperiment(
 
 export async function createExperiment(
   value: ExperimentRequest,
+  executor?: Executor,
 ): Promise<Experiment> {
-  const { modelVersionId } = value;
-  const version = await readModelVersion(modelVersionId);
-  if (!version) {
-    throw new ModelVersionNotFoundError(
-      `Unknown model version: ${modelVersionId}`,
-    );
-  }
-  const [row] = await (
-    await database()
-  )
-    .insert(experiments)
-    .values({ ...value, id: randomUUID(), createdAt: new Date() })
-    .returning();
-  if (!row) throw new Error("Experiment was not created");
-  return toExperiment(row);
+  return inTransaction(executor, async (tx) => {
+    const { modelVersionId } = value;
+    const version = await readModelVersion(modelVersionId, tx);
+    if (!version) {
+      throw new ModelVersionNotFoundError(
+        `Unknown model version: ${modelVersionId}`,
+      );
+    }
+    const [row] = await tx
+      .insert(experiments)
+      .values({ ...value, id: randomUUID(), createdAt: new Date() })
+      .returning();
+    if (!row) throw new Error("Experiment was not created");
+    return toExperiment(row);
+  });
 }
 
 export async function updateExperiment(
   value: ExperimentUpdate,
+  executor?: Executor,
 ): Promise<Experiment> {
   const { experiment: experimentId, ...page } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     const current = await lockExperiment(experimentId, tx);
     if (page.inoculatedOn !== current.inoculatedOn) {
       const [early] = await tx
@@ -115,9 +117,12 @@ export async function updateExperiment(
   });
 }
 
-export async function deleteExperiment(value: ExperimentRef): Promise<void> {
+export async function deleteExperiment(
+  value: ExperimentRef,
+  executor?: Executor,
+): Promise<void> {
   const { experiment } = value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     await lockExperiment(experiment, tx);
     if (await experimentHasRecords(experiment, tx)) {
       throw new ExperimentHasRecordsError(
@@ -183,9 +188,10 @@ async function observationUnitHasRecords(
 
 export async function addTreatment(
   value: TreatmentRequest,
+  executor?: Executor,
 ): Promise<Treatment> {
   const { experiment: experimentId, name, factor, note, replicates } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const existing = await listTreatments(experimentId, tx);
     if (
@@ -225,9 +231,10 @@ export async function addTreatment(
 
 export async function updateTreatment(
   value: TreatmentUpdate,
+  executor?: Executor,
 ): Promise<Treatment> {
   const { experiment: experimentId, treatment: treatmentId, ...design } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const taken = (await listTreatments(experimentId, tx)).find(
       (treatment) =>
@@ -251,9 +258,12 @@ export async function updateTreatment(
   });
 }
 
-export async function deleteTreatment(value: TreatmentRef): Promise<void> {
+export async function deleteTreatment(
+  value: TreatmentRef,
+  executor?: Executor,
+): Promise<void> {
   const { experiment: experimentId, treatment: treatmentId } = value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     await tx
       .update(experimentObservationUnits)
@@ -305,9 +315,10 @@ async function insertObservationUnits(
 
 export async function addObservationUnits(
   value: ObservationUnitBatch,
+  executor?: Executor,
 ): Promise<ObservationUnitRecord[]> {
   const { experiment: experimentId, treatment: treatmentId, codes } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);
@@ -331,13 +342,14 @@ export async function addObservationUnits(
 
 export async function updateObservationUnit(
   value: ObservationUnitUpdate,
+  executor?: Executor,
 ): Promise<ObservationUnitRecord> {
   const {
     experiment: experimentId,
     observationUnit: observationUnitId,
     code,
   } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const observationUnits = await listObservationUnits(experimentId, tx);
     const clash = observationUnits.find(
@@ -367,10 +379,11 @@ export async function updateObservationUnit(
 
 export async function deleteObservationUnit(
   value: ObservationUnitRef,
+  executor?: Executor,
 ): Promise<void> {
   const { experiment: experimentId, observationUnit: observationUnitId } =
     value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     if (await observationUnitHasRecords(experimentId, observationUnitId, tx)) {
       throw new ObservationUnitRejectedError(
@@ -406,13 +419,14 @@ async function requireTreatment(
 
 export async function assignObservationUnits(
   value: ObservationUnitAssignment,
+  executor?: Executor,
 ): Promise<void> {
   const {
     experiment: experimentId,
     observationUnits,
     treatment: treatmentId,
   } = value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);

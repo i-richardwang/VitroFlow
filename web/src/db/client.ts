@@ -64,3 +64,11 @@ export async function transaction<T>(
   const db = await database();
   return db.transaction((tx) => work(tx));
 }
+
+/** Join an existing unit of work or open one for a standalone domain call. */
+export function inTransaction<T>(
+  executor: Executor | undefined,
+  work: (tx: Executor) => Promise<T>,
+): Promise<T> {
+  return executor ? work(executor) : transaction(work);
+}

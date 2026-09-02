@@ -289,7 +289,7 @@ function ShortcutTooltip({
 }) {
   return (
     <Tooltip delay={0}>
-      {children}
+      <Tooltip.Trigger>{children}</Tooltip.Trigger>
       <Tooltip.Content className="flex items-center gap-2">
         {label}
         <Kbd>{shortcut}</Kbd>

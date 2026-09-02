@@ -1,11 +1,12 @@
 import { AppLayout } from "@heroui-pro/react/app-layout";
 import { Navbar } from "@heroui-pro/react/navbar";
 import { Sidebar } from "@heroui-pro/react/sidebar";
-import { Breadcrumbs, Button } from "@heroui/react";
+import { Breadcrumbs, Button, Tooltip } from "@heroui/react";
 import {
   getRouteApi,
   useMatches,
   useNavigate,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import {
@@ -17,13 +18,18 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { authClient } from "../auth/client";
+import { USER_ROLE_LABELS, isAdmin, type WorkbenchUser } from "../auth/schema";
 import { BrandLogo } from "./BrandLogo";
 import {
+  AccountIcon,
   DatasetsIcon,
   ExperimentsIcon,
+  KeyIcon,
   LogoutIcon,
   StatusIcon,
   TrainingIcon,
+  UsersIcon,
 } from "./icons";
 
 const NAV = [
@@ -61,6 +67,33 @@ const NAV = [
       { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
     ],
   },
+  {
+    label: "Account",
+    items: [
+      {
+        href: "/account",
+        label: "Account",
+        icon: AccountIcon,
+        match: "account",
+      },
+      {
+        href: "/integrations",
+        label: "Integrations",
+        icon: KeyIcon,
+        match: "integrations",
+      },
+    ],
+  },
+] as const;
+
+/** Navigation only administrators see. */
+const ADMIN_NAV = [
+  {
+    label: "Workbench",
+    items: [
+      { href: "/users", label: "Users", icon: UsersIcon, match: "users" },
+    ],
+  },
 ] as const;
 
 const workbenchRoute = getRouteApi("/_workbench");
@@ -78,7 +111,7 @@ export function ShellActions({ children }: { children: ReactNode }) {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { signedIn } = workbenchRoute.useLoaderData();
+  const { user } = workbenchRoute.useRouteContext();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
@@ -94,7 +127,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <AppLayout
         navigate={go}
         scrollMode="content"
-        sidebar={<AppSidebar pathname={pathname} signedIn={signedIn} />}
+        sidebar={<AppSidebar pathname={pathname} user={user} />}
         sidebarCollapsible="icon"
         navbar={<AppNavbar onActionsSlot={setActionsSlot} />}
       >
@@ -177,24 +210,20 @@ function trail(
 
 function AppSidebar({
   pathname,
-  signedIn,
+  user,
 }: {
   pathname: string;
-  signedIn: boolean;
+  user: WorkbenchUser;
 }) {
   const section = pathname.split("/")[1] || "experiments";
 
   return (
     <>
       <Sidebar>
-        <SidebarContents section={section} signedIn={signedIn} />
+        <SidebarContents section={section} user={user} />
       </Sidebar>
       <Sidebar.Mobile>
-        <SidebarContents
-          idPrefix="mobile-"
-          section={section}
-          signedIn={signedIn}
-        />
+        <SidebarContents idPrefix="mobile-" section={section} user={user} />
       </Sidebar.Mobile>
     </>
   );
@@ -203,12 +232,14 @@ function AppSidebar({
 function SidebarContents({
   idPrefix = "",
   section,
-  signedIn,
+  user,
 }: {
   idPrefix?: string;
   section: string;
-  signedIn: boolean;
+  user: WorkbenchUser;
 }) {
+  const groups = isAdmin(user) ? [...NAV, ...ADMIN_NAV] : NAV;
+
   return (
     <>
       <Sidebar.Header>
@@ -223,7 +254,7 @@ function SidebarContents({
         </div>
       </Sidebar.Header>
       <Sidebar.Content>
-        {NAV.map((group) => (
+        {groups.map((group) => (
           <Sidebar.Group key={group.label}>
             <Sidebar.GroupLabel>{group.label}</Sidebar.GroupLabel>
             <Sidebar.Menu aria-label={group.label}>
@@ -248,20 +279,54 @@ function SidebarContents({
           </Sidebar.Group>
         ))}
       </Sidebar.Content>
-      {signedIn && (
-        <Sidebar.Footer>
-          <form method="post" action="/logout">
-            <Button
-              type="submit"
-              variant="ghost"
-              className="w-full justify-start"
-            >
-              <LogoutIcon />
-              <span data-sidebar="label">Sign out</span>
-            </Button>
-          </form>
-        </Sidebar.Footer>
-      )}
+      <Sidebar.Footer>
+        <SignedInUser user={user} />
+      </Sidebar.Footer>
     </>
+  );
+}
+
+function SignedInUser({ user }: { user: WorkbenchUser }) {
+  const router = useRouter();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+
+  const signOut = async () => {
+    setBusy(true);
+    try {
+      await authClient.signOut();
+      await router.invalidate();
+      await navigate({ to: "/login" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 px-1 py-1">
+      <div className="min-w-0 flex-1" data-sidebar="label">
+        <div className="truncate text-sm font-medium text-foreground">
+          {user.name}
+        </div>
+        <div className="truncate text-xs text-muted">
+          {USER_ROLE_LABELS[user.role]}
+        </div>
+      </div>
+      <Tooltip delay={0}>
+        <Tooltip.Trigger>
+          <Button
+            variant="ghost"
+            isIconOnly
+            size="sm"
+            aria-label="Sign out"
+            isDisabled={busy}
+            onPress={() => void signOut()}
+          >
+            <LogoutIcon />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content>Sign out</Tooltip.Content>
+      </Tooltip>
+    </div>
   );
 }

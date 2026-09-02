@@ -136,7 +136,7 @@ def test_dataset_pull_requires_server_and_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("VITROFLOW_SERVER_URL", raising=False)
-    monkeypatch.delenv("VITROFLOW_EXPORT_TOKEN", raising=False)
+    monkeypatch.delenv("VITROFLOW_API_KEY", raising=False)
 
     exit_code = main(
         ["dataset", "pull", "--dataset", "seeds", "--data-root", str(tmp_path / "data")]
@@ -145,7 +145,7 @@ def test_dataset_pull_requires_server_and_token(
     assert exit_code == 2
     error = capsys.readouterr().err
     assert "VITROFLOW_SERVER_URL" in error
-    assert "VITROFLOW_EXPORT_TOKEN" in error
+    assert "VITROFLOW_API_KEY" in error
 
 
 def test_export_yolo_reads_the_pulled_dataset_manifest(

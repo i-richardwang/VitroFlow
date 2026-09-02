@@ -36,15 +36,17 @@ export function Workbench({
         <ShellActions>
           {inspector ? (
             <Tooltip delay={0}>
-              <Button
-                variant="ghost"
-                isIconOnly
-                className="md:hidden"
-                aria-label="Details"
-                onPress={() => setInspectorOpen(true)}
-              >
-                <PanelRightIcon />
-              </Button>
+              <Tooltip.Trigger>
+                <Button
+                  variant="ghost"
+                  isIconOnly
+                  className="md:hidden"
+                  aria-label="Details"
+                  onPress={() => setInspectorOpen(true)}
+                >
+                  <PanelRightIcon />
+                </Button>
+              </Tooltip.Trigger>
               <Tooltip.Content>Details</Tooltip.Content>
             </Tooltip>
           ) : null}

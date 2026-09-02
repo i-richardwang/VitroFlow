@@ -96,6 +96,25 @@ export function LogoutIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function UsersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="6.5" cy="5.5" r="2.5" />
+      <path d="M2 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" />
+      <path d="M10.5 3.2a2.5 2.5 0 010 4.6M12 9.7c1.5.5 2.5 1.8 2.5 3.8" />
+    </Icon>
+  );
+}
+
+export function AccountIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="5" r="2.5" />
+      <path d="M3 13.5c0-2.7 2.2-4.5 5-4.5s5 1.8 5 4.5" />
+    </Icon>
+  );
+}
+
 export function PanelRightIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -135,6 +154,24 @@ export function CloseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
       <path d="M4 4l8 8M12 4l-8 8" />
+    </Icon>
+  );
+}
+
+export function KeyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="5.5" cy="10.5" r="3" />
+      <path d="M7.7 8.3 13.5 2.5M11 5l2 2M9 7l2 2" />
+    </Icon>
+  );
+}
+
+export function CopyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
     </Icon>
   );
 }

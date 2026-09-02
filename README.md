@@ -54,7 +54,7 @@ An Experiment records the plant material, explant type, shared base medium, note
 
 A Treatment names one condition the experiment compares. It may record that condition as a factor, level, and unit, written as applied; a treatment described in prose alone has no factor. Light, temperature, and other protocol that every treatment shares belong on the experiment. The factor and note can be filled in at any point.
 
-An ObservationUnit is one independent experimental unit and exists before any image does. Its code is unique within the experiment. Creating a treatment may generate `T1-1` through `T1-n`, or name the condition first and add dishes later. Units can also be added by the codes already on the dishes, then assigned. Correcting a code preserves the unit identity and every record attached to it. Objects within a unit are measured in each observation image.
+An ObservationUnit is one independent experimental unit and exists before any image does. Its code is unique within the experiment. Creating a treatment may generate `T1-1` through `T1-n`, or name the condition first and add observation units later. Units can also be added from codes already attached to physical dishes, then assigned. Correcting a code preserves the unit identity and every record attached to it. Objects within a unit are measured in each observation image.
 
 Observation dates may be planned before every unit is assigned. Treatments, observation units, assignments, protocol fields, and observation dates stay correctable so a miswritten label can be fixed. An observation unit with images or culture events cannot be deleted, because those records belong to the physical unit. An inoculation date cannot move past an existing observation. An observation with an image or culture event cannot be deleted. An experiment with images or culture events cannot be hard-deleted.
 
@@ -89,6 +89,8 @@ docker compose up -d postgres rustfs
 docker compose run --rm bucket
 ```
 
+Set `BETTER_AUTH_SECRET` in `web/.env` to a random value of at least 32 bytes (`openssl rand -base64 32`), then set the initial administrator email and password.
+
 Start the workbench:
 
 ```bash
@@ -96,7 +98,15 @@ cd web
 bun run dev
 ```
 
-The workbench applies the SQL migrations in `web/drizzle/` when it starts. Its default source-development configuration connects to Postgres and RustFS on localhost.
+The workbench applies the SQL migrations in `web/drizzle/` when it starts. Its default source-development configuration connects to Postgres and RustFS on localhost and signs in with the administrator account from `web/.env`.
+
+## Accounts
+
+Everyone signs in with an email address and password; there is no self-service sign-up. Accounts hold one of two roles: administrators maintain the account directory under **Users**, and members use the workbench. Every user changes their own password under **Account**; administrators reset passwords for other accounts under **Users**. Suspending an account ends its sessions and refuses sign-in until it is reinstated; deleting one removes the account and its sessions and leaves experiment records untouched.
+
+A deployment whose directory is empty creates its first administrator from `VITROFLOW_ADMIN_EMAIL` and `VITROFLOW_ADMIN_PASSWORD` when it starts. Once any account exists those variables are inert. `BETTER_AUTH_SECRET` signs session cookies, and `BETTER_AUTH_URL` is the public workbench origin that browser requests must match.
+
+Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and export surfaces and reviews the MCP clients it has authorized. Worker credentials are separate bearer tokens configured on the deployment.
 
 ## Workers
 
@@ -135,25 +145,22 @@ Training Workers claim a queued run, download its immutable snapshot, materializ
 
 ## Agent interface
 
-AI agents maintain experiment records over the same domain layer the workbench uses, authenticated by `VITROFLOW_AGENT_TOKEN` as a bearer token. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
+AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request resolves a current API-key or MCP-client principal; successful operation mutations commit their audit event and idempotent result with the domain change. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
 
-- `POST /api/agent/<operation>` calls one operation with its JSON input; `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
-- `/api/mcp` serves the same operations as MCP tools for any Model Context Protocol client:
+- `POST /api/agent/<operation>` calls one operation with its JSON input, authenticated by a personal API key with the agent scope as a bearer token; mutations require a UUID `Idempotency-Key`. `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
+- `POST /api/mcp` serves the same operations as strict MCP 2026-07-28 tools. The workbench is the OAuth 2.1 authorization server for its own MCP endpoint: a client discovers it, sends the person to sign in and approve the connection, and loses access immediately when the person disconnects it.
 
 ```bash
-claude mcp add --transport http vitroflow https://<workbench>/api/mcp \
-  --header "Authorization: Bearer $VITROFLOW_AGENT_TOKEN"
+claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 ```
-
-Non-local deployments list their MCP Host and browser Origin hostnames in `VITROFLOW_MCP_ALLOWED_HOSTNAMES`.
 
 ## Local dataset workflows
 
-Pull one workbench Dataset with the export credential:
+Pull one workbench Dataset with a personal API key that holds the export scope:
 
 ```bash
 export VITROFLOW_SERVER_URL=http://localhost:3000
-export VITROFLOW_EXPORT_TOKEN=<export-token>
+export VITROFLOW_API_KEY=<api-key>
 
 uv run vitroflow dataset pull \
   --dataset fixtures \
@@ -223,7 +230,7 @@ docker compose up --build -d
 
 Compose runs the workbench, maintenance process, Postgres 17.11, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped.
 
-`HEROUI_KEY` is passed to the Web build through a BuildKit secret. The resulting image and build layers do not retain it. The inference, training, and export tokens are distinct credentials and should not be shared between roles.
+`HEROUI_KEY` is passed to the Web build through a BuildKit secret. The resulting image and build layers do not retain it. The inference and training tokens are distinct credentials and should not be shared between roles. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 
 The root `.env.example` defines only Compose inputs and immutable container manifests. `web/.env.example` defines the workbench environment for source development. Registry mirrors can replace the three image values without changing the Compose file.
 

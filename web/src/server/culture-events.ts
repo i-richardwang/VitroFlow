@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { transaction } from "../db/client";
+import { inTransaction, type Executor } from "../db/client";
 import {
   experimentCultureEvents,
   experimentObservationImages,
@@ -31,6 +31,7 @@ import {
 
 export async function recordCultureEvent(
   value: CultureEventRequest,
+  executor?: Executor,
 ): Promise<CultureEvent> {
   const {
     experiment: experimentId,
@@ -42,7 +43,7 @@ export async function recordCultureEvent(
   const excludeFromObservation =
     value.excludeFromObservation ??
     cultureEventExcludesFromAnalysisByDefault(type);
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);
     const observation = observations.find((item) => item.id === observationId);
@@ -156,9 +157,10 @@ export async function recordCultureEvent(
 
 export async function voidCultureEvent(
   value: CultureEventVoid,
+  executor?: Executor,
 ): Promise<CultureEvent> {
   const { experiment: experimentId, event: eventId, reason } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const [row] = await tx
       .update(experimentCultureEvents)

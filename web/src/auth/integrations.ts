@@ -1,0 +1,91 @@
+import { z } from "zod";
+
+/**
+ * Programmatic access to the workbench belongs to accounts. A personal API
+ * key opens the HTTP surfaces its scopes name on behalf of the account that
+ * issued it; an MCP client holds an OAuth grant the account approved on the
+ * consent page. Both are listed and withdrawn on the Integrations page.
+ */
+
+export const API_SCOPES = ["agent", "export"] as const;
+export type ApiScope = (typeof API_SCOPES)[number];
+export const apiScopeSchema = z.enum(API_SCOPES);
+
+export const API_SCOPE_LABELS: Record<
+  ApiScope,
+  { label: string; description: string }
+> = {
+  agent: {
+    label: "Agent interface",
+    description: "Maintain experiment records over /api/agent",
+  },
+  export: {
+    label: "Dataset export",
+    description: "Download datasets and images over /api/export",
+  },
+};
+
+/** Every key starts with this so a leaked one is recognisable. */
+export const API_KEY_PREFIX = "vf_";
+
+export const apiKeyNameSchema = z.string().trim().min(1).max(64);
+
+/** A key as its owner sees it after creation: the secret is not recoverable. */
+export const apiKeySchema = z.object({
+  id: z.string(),
+  name: apiKeyNameSchema,
+  /** The leading characters of the secret, for telling keys apart. */
+  start: z.string(),
+  scopes: z.array(apiScopeSchema),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime().nullable(),
+  lastUsedAt: z.string().datetime().nullable(),
+});
+export type ApiKey = z.infer<typeof apiKeySchema>;
+
+/** A freshly issued key, the only time the secret is shown. */
+export const issuedApiKeySchema = apiKeySchema.extend({ secret: z.string() });
+export type IssuedApiKey = z.infer<typeof issuedApiKeySchema>;
+
+export const MAX_API_KEY_DAYS = 365;
+
+export const apiKeyCreateSchema = z.object({
+  name: apiKeyNameSchema,
+  scopes: z.array(apiScopeSchema).min(1),
+  /** Days until the key expires; null keeps it until it is revoked. */
+  expiresInDays: z.number().int().min(1).max(MAX_API_KEY_DAYS).nullable(),
+});
+export type ApiKeyCreate = z.infer<typeof apiKeyCreateSchema>;
+
+export const apiKeyRefSchema = z.object({ key: z.string() });
+
+/** The permission statement a key holds for each scope it was issued with. */
+export function scopePermissions(
+  scopes: readonly ApiScope[],
+): Partial<Record<ApiScope, string[]>> {
+  const permissions: Partial<Record<ApiScope, string[]>> = {};
+  for (const scope of scopes) permissions[scope] = ["access"];
+  return permissions;
+}
+
+/** The scopes a stored permission statement grants. */
+export function permissionScopes(permissions: unknown): ApiScope[] {
+  if (!permissions || typeof permissions !== "object") return [];
+  return API_SCOPES.filter((scope) => {
+    const actions = (permissions as Record<string, unknown>)[scope];
+    return Array.isArray(actions) && actions.includes("access");
+  });
+}
+
+/** An MCP client the account has authorized. */
+export const mcpClientSchema = z.object({
+  /** The consent record; withdrawing it disconnects the client. */
+  id: z.string(),
+  clientId: z.string(),
+  name: z.string(),
+  grantedAt: z.string().datetime(),
+  lastGrantedAt: z.string().datetime(),
+});
+export type McpClient = z.infer<typeof mcpClientSchema>;
+
+export const mcpClientRefSchema = z.object({ client: z.string() });

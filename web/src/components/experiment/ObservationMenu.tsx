@@ -9,7 +9,6 @@ import {
   Separator,
   TextField,
   toast,
-  Tooltip,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -49,17 +48,14 @@ export function ObservationMenu({
   return (
     <>
       <Dropdown>
-        <Tooltip delay={0}>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`${name} actions`}
-          >
-            <MoreIcon />
-          </Button>
-          <Tooltip.Content>Actions</Tooltip.Content>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label={`${name} actions`}
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={name}

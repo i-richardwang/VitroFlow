@@ -6,20 +6,36 @@ import {
 
 import { loginPath, requestedPath } from "./auth/navigation";
 import { apiRequestAuthorization } from "./server/api-credentials";
-import { isAuthenticated, redirect } from "./server/session";
+import { readSession, redirect } from "./server/session";
+
+/**
+ * Paths that answer without a session: readiness, sign-in, the auth API with
+ * its OAuth discovery documents, and the MCP endpoint, which verifies OAuth
+ * access tokens itself so it can issue the discovery challenge.
+ */
+function answersForItself(pathname: string): boolean {
+  return (
+    pathname === "/healthz" ||
+    pathname === "/login" ||
+    pathname === "/api/mcp" ||
+    pathname.startsWith("/api/agent/") ||
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/.well-known/")
+  );
+}
 
 const requireSession = createMiddleware().server(
-  ({ request, pathname, handlerType, next }) => {
-    if (pathname === "/healthz") {
+  async ({ request, pathname, handlerType, next }) => {
+    if (answersForItself(pathname)) {
       return next();
     }
-    const tokenRealm = apiRequestAuthorization(pathname, request);
-    if (tokenRealm !== null) {
-      return tokenRealm
+    const bearerRealm = await apiRequestAuthorization(pathname, request);
+    if (bearerRealm !== null) {
+      return bearerRealm
         ? next()
         : new Response("Unauthorized", { status: 401 });
     }
-    if (pathname === "/login" || isAuthenticated(request)) {
+    if (await readSession(request.headers)) {
       return next();
     }
     if (handlerType === "serverFn") {

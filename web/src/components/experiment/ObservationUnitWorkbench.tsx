@@ -325,7 +325,7 @@ function ObservationUnitStepButton({
   if (observationUnit === null) return button;
   return (
     <Tooltip delay={0}>
-      {button}
+      <Tooltip.Trigger>{button}</Tooltip.Trigger>
       <Tooltip.Content>{observationUnit.code}</Tooltip.Content>
     </Tooltip>
   );

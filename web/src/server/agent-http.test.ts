@@ -2,8 +2,22 @@ import { describe, expect, spyOn, test } from "bun:test";
 
 import { z } from "zod";
 
-import { describeAgentInterface, handleAgentOperationCall } from "./agent-http";
+import {
+  describeAgentInterface,
+  handleAgentOperationCall,
+  serveAgentInterface,
+  serveAgentOperationCall,
+} from "./agent-http";
 import { agentOperations, operation } from "./agent-operations";
+import { issueApiKey } from "./api-keys";
+import type { ProgrammaticPrincipal } from "./programmatic-access";
+import { apiKeyHeaders, signInAs } from "./testing";
+
+const principal: ProgrammaticPrincipal = {
+  kind: "api_key",
+  userId: "user-1",
+  credentialId: "key-1",
+};
 
 function post(body?: string): Request {
   return new Request("http://workbench/api/agent/op", {
@@ -26,8 +40,41 @@ describe("agent HTTP surface", () => {
     ]);
   });
 
+  test("the public routes require a live agent-scoped key", async () => {
+    const denied = await serveAgentInterface(
+      new Request("http://workbench/api/agent/operations"),
+    );
+    expect(denied.status).toBe(401);
+
+    const { user } = await signInAs("member");
+    const issued = await issueApiKey(user.id, {
+      name: "Agent HTTP",
+      scopes: ["agent"],
+      expiresInDays: null,
+    });
+    const headers = apiKeyHeaders(issued.secret);
+    const described = await serveAgentInterface(
+      new Request("http://workbench/api/agent/operations", { headers }),
+    );
+    expect(described.status).toBe(200);
+
+    const called = await serveAgentOperationCall(
+      "list-experiments",
+      new Request("http://workbench/api/agent/list-experiments", {
+        method: "POST",
+        headers,
+        body: "{}",
+      }),
+    );
+    expect(called.status).toBe(200);
+  });
+
   test("an empty body calls the operation with no input", async () => {
-    const response = await handleAgentOperationCall("list-experiments", post());
+    const response = await handleAgentOperationCall(
+      "list-experiments",
+      post(),
+      principal,
+    );
     expect(response.status).toBe(200);
     const { result } = (await response.json()) as { result: unknown };
     expect(Array.isArray(result)).toBe(true);
@@ -37,6 +84,7 @@ describe("agent HTTP surface", () => {
     const response = await handleAgentOperationCall(
       "list-experiments",
       post("not json"),
+      principal,
     );
     expect(response.status).toBe(400);
     const { error } = (await response.json()) as { error: string };
@@ -44,7 +92,11 @@ describe("agent HTTP surface", () => {
   });
 
   test("an unknown operation answers 404 naming the known ones", async () => {
-    const response = await handleAgentOperationCall("open-portal", post("{}"));
+    const response = await handleAgentOperationCall(
+      "open-portal",
+      post("{}"),
+      principal,
+    );
     expect(response.status).toBe(404);
     const { error } = (await response.json()) as { error: string };
     expect(error).toContain("list-experiments");
@@ -54,6 +106,7 @@ describe("agent HTTP surface", () => {
     const response = await handleAgentOperationCall(
       "create-experiment",
       post(JSON.stringify({ name: "" })),
+      principal,
     );
     expect(response.status).toBe(400);
     const { error } = (await response.json()) as { error: string };
@@ -75,7 +128,12 @@ describe("agent HTTP surface", () => {
     try {
       const response = await handleAgentOperationCall(
         "defective",
-        post("{}"),
+        new Request("http://workbench/api/agent/defective", {
+          method: "POST",
+          headers: { "idempotency-key": crypto.randomUUID() },
+          body: "{}",
+        }),
+        principal,
         registry,
       );
       expect(response.status).toBe(500);

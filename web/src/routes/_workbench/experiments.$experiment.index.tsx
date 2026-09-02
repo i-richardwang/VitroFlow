@@ -313,7 +313,8 @@ function ExperimentPage() {
             </EmptyState.Media>
             <EmptyState.Title>No observation units yet</EmptyState.Title>
             <EmptyState.Description>
-              Add dishes that already have codes, or a treatment they replicate.
+              Add observation units with existing codes, or a treatment they
+              replicate.
             </EmptyState.Description>
           </EmptyState.Header>
           <EmptyState.Content>
@@ -471,16 +472,18 @@ function AssignmentBar({
       <Separator />
       <ActionBar.Suffix>
         <Tooltip delay={0}>
-          <Button
-            size="sm"
-            variant="ghost"
-            isIconOnly
-            isDisabled={busy}
-            aria-label="Clear selection"
-            onPress={onDone}
-          >
-            <CloseIcon />
-          </Button>
+          <Tooltip.Trigger>
+            <Button
+              size="sm"
+              variant="ghost"
+              isIconOnly
+              isDisabled={busy}
+              aria-label="Clear selection"
+              onPress={onDone}
+            >
+              <CloseIcon />
+            </Button>
+          </Tooltip.Trigger>
           <Tooltip.Content>Clear</Tooltip.Content>
         </Tooltip>
       </ActionBar.Suffix>
@@ -650,7 +653,7 @@ function explain(text: string | null, control: ReactElement) {
   if (!text) return control;
   return (
     <Tooltip delay={0}>
-      {control}
+      <Tooltip.Trigger>{control}</Tooltip.Trigger>
       <Tooltip.Content className="max-w-xs">{text}</Tooltip.Content>
     </Tooltip>
   );

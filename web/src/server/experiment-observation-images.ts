@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, inArray } from "drizzle-orm";
 
-import { transaction } from "../db/client";
+import { inTransaction, type Executor } from "../db/client";
 import {
   experimentObservationUnits,
   experimentObservationImages,
@@ -36,6 +36,7 @@ import { clearDetectionFailure } from "./inference-outcomes";
 
 export async function assignObservationImages(
   value: ObservationImageAssignment,
+  executor?: Executor,
 ): Promise<ObservationImageAssignmentResult> {
   const {
     experiment: experimentId,
@@ -57,7 +58,7 @@ export async function assignObservationImages(
     throw new ObservationImageRejectedError("The same image is assigned twice");
   }
 
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);
     const observation = requireObservation(observations, observationId);
@@ -194,6 +195,7 @@ export async function assignObservationImages(
 
 export async function moveObservationImage(
   value: ObservationImageMove,
+  executor?: Executor,
 ): Promise<void> {
   const {
     experiment: experimentId,
@@ -201,7 +203,7 @@ export async function moveObservationImage(
     observationUnit,
     observation: observationId,
   } = value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);
     const observation = requireObservation(observations, observationId);
@@ -250,10 +252,11 @@ export async function moveObservationImage(
 
 export async function unassignObservationImage(
   value: ObservationImageRef,
+  executor?: Executor,
 ): Promise<void> {
   const { experiment: experimentId, observationImage: observationImageId } =
     value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const [row] = await tx
       .delete(experimentObservationImages)
@@ -276,8 +279,9 @@ function atObservationImage(experimentId: string, observationImageId: string) {
 
 export async function retryObservationImageAnalysis(
   ref: ObservationImageRef,
+  executor?: Executor,
 ): Promise<void> {
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     const image = await readExperimentObservationImage(ref, tx);
     if (!image) {
       throw new ExperimentObservationImageNotFoundError(

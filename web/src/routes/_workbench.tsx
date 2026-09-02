@@ -5,7 +5,7 @@ import { Shell } from "../components/shell";
 import { getSession } from "../functions/session";
 
 export const Route = createFileRoute("/_workbench")({
-  loader: () => getSession(),
+  beforeLoad: () => getSession(),
   component: WorkbenchLayout,
   notFoundComponent: WorkbenchNotFound,
   errorComponent: WorkbenchError,

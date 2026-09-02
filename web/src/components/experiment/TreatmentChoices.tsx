@@ -1,4 +1,4 @@
-import { Button, Dropdown, Label, Separator, Tooltip } from "@heroui/react";
+import { Button, Dropdown, Label, Separator } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
 import type { ObservationUnit } from "../../experiments/contracts";
@@ -95,18 +95,15 @@ export function ObservationUnitTreatmentMenu({
 
   return (
     <Dropdown>
-      <Tooltip delay={0}>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          isDisabled={busy}
-          aria-label={`Treatment of ${observationUnit.code}`}
-        >
-          <TreatmentDot position={current?.position ?? null} />
-        </Button>
-        <Tooltip.Content>{name}</Tooltip.Content>
-      </Tooltip>
+      <Button
+        variant="ghost"
+        isIconOnly
+        size="sm"
+        isDisabled={busy}
+        aria-label={`Treatment of ${observationUnit.code}: ${name}`}
+      >
+        <TreatmentDot position={current?.position ?? null} />
+      </Button>
       <TreatmentChoices
         label={`Treatment of ${observationUnit.code}`}
         treatments={treatments}

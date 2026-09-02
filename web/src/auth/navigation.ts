@@ -1,5 +1,5 @@
 const DEFAULT_RETURN_PATH = "/";
-const AUTH_PATHS = new Set(["/login", "/logout"]);
+const AUTH_PATHS = new Set(["/login"]);
 
 /** A browser destination that stays inside the workbench and outside auth. */
 export function returnPath(value: unknown): string {
@@ -17,17 +17,23 @@ export function returnPath(value: unknown): string {
 }
 
 /** The sign-in page for a protected destination. */
-export function loginPath(destination: unknown, rejected = false): string {
-  const search = new URLSearchParams();
+export function loginPath(destination: unknown): string {
   const target = returnPath(destination);
-  if (target !== DEFAULT_RETURN_PATH) search.set("returnTo", target);
-  if (rejected) search.set("rejected", "true");
-  const query = search.toString();
-  return query ? `/login?${query}` : "/login";
+  if (target === DEFAULT_RETURN_PATH) return "/login";
+  return `/login?${new URLSearchParams({ returnTo: target })}`;
 }
 
 /** The path and query a document request was trying to reach. */
 export function requestedPath(request: Request): string {
   const { pathname, search } = new URL(request.url);
   return returnPath(`${pathname}${search}`);
+}
+
+/**
+ * Whether a page's query is a signed OAuth authorization request: the
+ * authorization server sends the browser to sign in or consent with the
+ * request it must resume, and the page keeps that request in its URL.
+ */
+export function carriesAuthorizationRequest(search: URLSearchParams): boolean {
+  return search.has("client_id") && search.has("sig");
 }

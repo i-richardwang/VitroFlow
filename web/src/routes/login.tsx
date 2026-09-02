@@ -7,33 +7,36 @@ import {
   Label,
   TextField,
 } from "@heroui/react";
-import { createFileRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 
-import { loginPath, returnPath } from "../auth/navigation";
+import { authClient, continuation } from "../auth/client";
+import { carriesAuthorizationRequest, returnPath } from "../auth/navigation";
 import { BrandLogo } from "../components/BrandLogo";
-import { isAuthenticated, redirect, signIn } from "../server/session";
+import { useAsyncAction } from "../hooks/useAsyncAction";
+import { readSession, redirect } from "../server/session";
 
+/**
+ * A signed-in visitor is sent on to their destination, unless the visit is
+ * an OAuth authorization request that asked for a fresh sign-in: the query
+ * on the page is what resumes that request once they sign in again.
+ */
 export const Route = createFileRoute("/login")({
-  validateSearch: z.object({
-    rejected: z.boolean().optional(),
-    returnTo: z.string().optional(),
-  }),
+  validateSearch: z.object({ returnTo: z.string().optional() }).loose(),
   head: () => ({ meta: [{ title: "Sign in · VitroFlow" }] }),
   server: {
     handlers: {
-      GET: ({ request, next }) => {
-        const destination = returnPath(
-          new URL(request.url).searchParams.get("returnTo"),
-        );
-        return isAuthenticated(request) ? redirect(destination) : next();
-      },
-      POST: async ({ request }) => {
-        const form = await request.formData();
-        const destination = returnPath(form.get("returnTo"));
-        const accepted = signIn(String(form.get("password") ?? ""));
-        return redirect(accepted ? destination : loginPath(destination, true));
+      GET: async ({ request, next }) => {
+        const { searchParams } = new URL(request.url);
+        if (carriesAuthorizationRequest(searchParams)) return next();
+        return (await readSession(request.headers))
+          ? redirect(returnPath(searchParams.get("returnTo")))
+          : next();
       },
     },
   },
@@ -41,9 +44,12 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { rejected, returnTo: requestedReturnPath } = Route.useSearch();
-  const destination = returnPath(requestedReturnPath);
-  const [rejectionDismissed, setRejectionDismissed] = useState(false);
+  const { returnTo } = Route.useSearch();
+  const destination = returnPath(returnTo);
+  const navigate = useNavigate();
+  const router = useRouter();
+  const { busy, run } = useAsyncAction();
+  const [rejected, setRejected] = useState(false);
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center bg-surface-secondary p-6 md:p-10">
@@ -58,27 +64,68 @@ function LoginPage() {
               Sign in
             </Card.Title>
           </Card.Header>
-          <Form method="post" action="/login">
-            <Card.Content>
-              <input type="hidden" name="returnTo" value={destination} />
+          <Form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void run(async () => {
+                const { data, error } = await authClient.signIn.email({
+                  email: String(form.get("email") ?? ""),
+                  password: String(form.get("password") ?? ""),
+                });
+                if (error) {
+                  setRejected(true);
+                  return null;
+                }
+                return continuation(data) ?? destination;
+              }, "Sign-in failed").then(async (result) => {
+                if (!result.ok || result.value === null) return;
+                if (result.value !== destination) {
+                  window.location.assign(result.value);
+                  return;
+                }
+                await router.invalidate();
+                await navigate({ href: destination });
+              });
+            }}
+          >
+            <Card.Content className="flex flex-col gap-4">
               <TextField
                 variant="secondary"
                 fullWidth
-                isInvalid={Boolean(rejected) && !rejectionDismissed}
                 isRequired
+                isDisabled={busy}
                 autoFocus
+                name="email"
+                type="email"
+                onChange={() => setRejected(false)}
+              >
+                <Label>Email</Label>
+                <Input autoComplete="email" />
+              </TextField>
+              <TextField
+                variant="secondary"
+                fullWidth
+                isRequired
+                isDisabled={busy}
+                isInvalid={rejected}
                 name="password"
-                onChange={() => setRejectionDismissed(true)}
                 type="password"
+                onChange={() => setRejected(false)}
               >
                 <Label>Password</Label>
                 <Input autoComplete="current-password" />
-                <FieldError>Incorrect password.</FieldError>
+                <FieldError>Incorrect email or password.</FieldError>
               </TextField>
             </Card.Content>
             <Card.Footer className="flex flex-col gap-2">
-              <Button type="submit" variant="primary" fullWidth>
-                Sign in
+              <Button
+                type="submit"
+                variant="primary"
+                fullWidth
+                isDisabled={busy}
+              >
+                {busy ? "Signing in…" : "Sign in"}
               </Button>
             </Card.Footer>
           </Form>

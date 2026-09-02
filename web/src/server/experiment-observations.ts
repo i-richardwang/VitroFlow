@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
 
-import { transaction, type Executor } from "../db/client";
+import { inTransaction, type Executor } from "../db/client";
 import { experimentObservations } from "../db/schema";
 import {
   ObservationNotFoundError,
@@ -57,9 +57,10 @@ async function rejectSameDay(
 
 export async function addObservation(
   value: ObservationRequest,
+  executor?: Executor,
 ): Promise<ExperimentObservation> {
   const { experiment: experimentId, observedOn, note } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, null, tx);
@@ -81,6 +82,7 @@ export async function addObservation(
 
 export async function updateObservation(
   value: ObservationUpdate,
+  executor?: Executor,
 ): Promise<ExperimentObservation> {
   const {
     experiment: experimentId,
@@ -88,7 +90,7 @@ export async function updateObservation(
     observedOn,
     note,
   } = value;
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, observationId, tx);
@@ -106,9 +108,12 @@ export async function updateObservation(
   });
 }
 
-export async function deleteObservation(value: ObservationRef): Promise<void> {
+export async function deleteObservation(
+  value: ObservationRef,
+  executor?: Executor,
+): Promise<void> {
   const { experiment: experimentId, observation: observationId } = value;
-  await transaction(async (tx) => {
+  await inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observation = requireObservation(
       await listObservations(experiment, tx),

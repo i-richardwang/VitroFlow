@@ -57,7 +57,8 @@ export function AddObservationUnitsDialog({
             <Modal.Header>
               <Modal.Heading>Add observation units</Modal.Heading>
               <Description>
-                Codes already on the dishes. Treatment can be assigned later.
+                Codes already assigned to physical dishes. Treatment can be
+                assigned later.
               </Description>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>

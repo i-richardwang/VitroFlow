@@ -6,21 +6,23 @@ One operation registry (`web/src/server/agent-operations.ts`) defines the interf
 
 ## Authentication
 
-Every request carries the agent credential as a bearer token:
+The HTTP surface is opened by a personal API key with the **Agent interface** scope, issued under Integrations in the workbench and presented as a bearer token:
 
 ```
-Authorization: Bearer <VITROFLOW_AGENT_TOKEN>
+Authorization: Bearer vf_…
 ```
 
-The token is a distinct role credential configured on the workbench. When it is unset, the agent interface is disabled and every request answers 401.
+The agent acts as the account that issued the key. Every request resolves the current account and credential state, so revoking the key, suspending the account, or deleting the account denies the next request.
+
+The MCP surface is opened by OAuth instead: see below.
 
 ## HTTP surface
 
-| Request                      | Purpose                                                            |
-| ---------------------------- | ------------------------------------------------------------------ |
-| `GET /api/agent/operations`  | Describe every operation: input and output JSON Schemas plus behavior hints (read-only, destructive, idempotent) |
-| `POST /api/agent/<name>`     | Call one operation with its JSON input                             |
-| `POST /api/agent/images`     | Store image bytes; the response is the digest assignment expects   |
+| Request                     | Purpose                                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /api/agent/operations` | Describe every operation: input and output JSON Schemas plus behavior hints (read-only, destructive, idempotent) |
+| `POST /api/agent/<name>`    | Call one operation with its JSON input                                                                           |
+| `POST /api/agent/images`    | Store image bytes; the response is the digest assignment expects                                                 |
 
 Every result is validated against the operation's published output schema before it leaves the workbench, so the discovery document is the contract on both sides of a call. A successful call answers `{"result": ...}`. A failed call answers `{"error": "..."}` with the status describing what the agent can do about it:
 
@@ -29,24 +31,50 @@ Every result is validated against the operation's published output schema before
 - `409` — a domain rule rejected the request, such as deleting an observation that has images.
 - `500` — a workbench defect; the body carries no detail, and the cause is in the server log.
 
+Mutation calls require an `Idempotency-Key` header containing a UUID:
+
+```http
+POST /api/agent/create-observation HTTP/1.1
+Authorization: Bearer vf_…
+Idempotency-Key: 22fd73d4-3d30-4c4e-855f-8bc46f499735
+Content-Type: application/json
+
+{"experiment":"…","observedOn":"2026-09-02"}
+```
+
+Repeating the same operation and input with the same key returns the original result. Reusing a key for a different request answers 409. Read operations need no key.
+
 Image upload posts the raw source bytes as the request body with an exact `Content-Length`, up to 64 MiB. The image is canonicalized on entry, and the returned digest identifies the canonical bytes; identical uploads are idempotent.
 
 ## MCP surface
 
-`/api/mcp` serves the same operations as Model Context Protocol tools, with the same bearer token. Each tool carries the operation's input and output schemas and its behavior annotations, and a successful call returns the result as structured content. Host and browser Origin headers must name localhost or a hostname listed in `VITROFLOW_MCP_ALLOWED_HOSTNAMES` (comma-separated, without schemes or ports). Non-browser MCP clients omit Origin, but their Host is still validated.
+`POST /api/mcp` serves MCP 2026-07-28. Each tool carries the operation's input and output schemas and its behavior annotations, and a successful call returns the result as structured content. Older MCP transports are not accepted.
+
+The workbench is the OAuth 2.1 authorization server for its own MCP endpoint. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/mcp`. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
+
+Read tools take the operation input directly. Mutation tools take an idempotency envelope:
+
+```json
+{
+  "idempotencyKey": "22fd73d4-3d30-4c4e-855f-8bc46f499735",
+  "input": {
+    "experiment": "…",
+    "observedOn": "2026-09-02"
+  }
+}
+```
 
 Connect with:
 
 ```bash
-claude mcp add --transport http vitroflow https://<workbench>/api/mcp \
-  --header "Authorization: Bearer $VITROFLOW_AGENT_TOKEN"
+claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 ```
 
 Image bytes do not travel through MCP. Upload them to `POST /api/agent/images` and pass the returned digest to `assign-images-to-observation`.
 
 ## Data-entry workflow
 
-Entering one round of dish photos:
+Entering one round of observation photos:
 
 1. `get-experiment` reads the experiment grid: treatments, observation units with their codes, and existing observations.
 2. `create-observation` adds the observation date, unless the grid already holds it.
@@ -56,6 +84,6 @@ Entering one round of dish photos:
 
 Analysis needs no request: assigned images are queued for the experiment's model version automatically, and `retry-observation-image-analysis` requeues one that failed.
 
-## Boundary
+## Attribution
 
-The interface serves one trusted agent holding one credential. Requests carry no idempotency keys and no per-caller audit trail; opening the interface to multiple clients would require designing both first.
+Each successful operation mutation stores an immutable audit event in the same database transaction as the domain change. The event identifies the account, API key or MCP client, operation, validated input, validated output, idempotency request, and time. Image upload only stages immutable content by digest; assigning that content to an observation is the audited domain mutation. Secrets are never part of an operation input or audit event.

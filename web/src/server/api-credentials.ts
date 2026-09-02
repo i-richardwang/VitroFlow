@@ -1,57 +1,55 @@
+import type { ApiScope } from "../auth/integrations";
+import { authorizeApiKey } from "./api-keys";
+import { bearerToken } from "./bearer";
 import { secretsEqual } from "./secrets";
-
-function hasBearerToken(
-  request: Request,
-  expected: string | undefined,
-): boolean {
-  if (!expected) {
-    return false;
-  }
-  const authorization = request.headers.get("authorization") ?? "";
-  const prefix = "Bearer ";
-  return (
-    authorization.startsWith(prefix) &&
-    secretsEqual(authorization.slice(prefix.length), expected)
-  );
-}
 
 interface ApiRealm {
   matches: (pathname: string) => boolean;
-  token: () => string | undefined;
+  admits: (request: Request) => Promise<boolean>;
 }
 
 /**
- * Each token-guarded API realm and the credential that opens it. A realm whose
- * credential is unconfigured is closed: every request to it answers 401.
+ * A realm workers open with the role credential configured for them. An
+ * unconfigured credential closes the realm: every request answers 401.
  */
+function workerRealm(prefix: string, credential: string): ApiRealm {
+  return {
+    matches: (pathname) => pathname.startsWith(prefix),
+    admits: async (request) => {
+      const expected = process.env[credential];
+      const presented = bearerToken(request);
+      return (
+        expected !== undefined &&
+        presented !== null &&
+        secretsEqual(presented, expected)
+      );
+    },
+  };
+}
+
+/** A realm an account opens with a personal API key issued for `scope`. */
+function apiKeyRealm(prefix: string, scope: ApiScope): ApiRealm {
+  return {
+    matches: (pathname) => pathname.startsWith(prefix),
+    admits: async (request) => (await authorizeApiKey(request, scope)) !== null,
+  };
+}
+
+/** Each bearer-guarded API realm and what opens it. */
 const API_REALMS: ApiRealm[] = [
-  {
-    matches: (pathname) => pathname.startsWith("/api/inference/"),
-    token: () => process.env.VITROFLOW_INFERENCE_WORKER_TOKEN,
-  },
-  {
-    matches: (pathname) => pathname.startsWith("/api/training/"),
-    token: () => process.env.VITROFLOW_TRAINING_WORKER_TOKEN,
-  },
-  {
-    matches: (pathname) =>
-      pathname.startsWith("/api/agent/") || pathname === "/api/mcp",
-    token: () => process.env.VITROFLOW_AGENT_TOKEN,
-  },
-  {
-    matches: (pathname) => pathname.startsWith("/api/export/"),
-    token: () => process.env.VITROFLOW_EXPORT_TOKEN,
-  },
+  workerRealm("/api/inference/", "VITROFLOW_INFERENCE_WORKER_TOKEN"),
+  workerRealm("/api/training/", "VITROFLOW_TRAINING_WORKER_TOKEN"),
+  apiKeyRealm("/api/export/", "export"),
 ];
 
 /**
- * Whether a token realm admits the request: true or false when the pathname
+ * Whether a bearer realm admits the request: true or false when the pathname
  * belongs to one, or null for paths the browser session realm owns.
  */
-export function apiRequestAuthorization(
+export async function apiRequestAuthorization(
   pathname: string,
   request: Request,
-): boolean | null {
+): Promise<boolean | null> {
   const realm = API_REALMS.find((realm) => realm.matches(pathname));
-  return realm ? hasBearerToken(request, realm.token()) : null;
+  return realm ? realm.admits(request) : null;
 }

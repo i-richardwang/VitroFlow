@@ -1,6 +1,7 @@
 import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
+import type { Executor } from "../db/client";
 import {
   experimentGridSchema,
   experimentSummarySchema,
@@ -95,9 +96,10 @@ export interface AgentOperation {
   name: string;
   description: string;
   annotations: ToolAnnotations;
+  effect: "read" | "mutation";
   input: z.ZodType;
   output: z.ZodType;
-  run: (input: unknown) => Promise<AgentCallResult>;
+  run: (input: unknown, executor?: Executor) => Promise<AgentCallResult>;
 }
 
 export function operation<
@@ -109,16 +111,20 @@ export function operation<
   annotations: ToolAnnotations;
   input: Input;
   output: Output;
-  handler: (input: z.output<Input>) => Promise<z.input<Output> | void>;
+  handler: (
+    input: z.output<Input>,
+    executor?: Executor,
+  ) => Promise<z.input<Output> | void>;
 }): AgentOperation {
   const { name, description, annotations, input, output, handler } = config;
   return {
     name,
     description,
     annotations,
+    effect: annotations.readOnlyHint === true ? "read" : "mutation",
     input,
     output,
-    run: async (value) => {
+    run: async (value, executor) => {
       const request = input.safeParse(value);
       if (!request.success) {
         return {
@@ -128,7 +134,7 @@ export function operation<
         };
       }
       try {
-        const result = (await handler(request.data)) ?? null;
+        const result = (await handler(request.data, executor)) ?? null;
         return { ok: true, output: output.parse(result) };
       } catch (error) {
         if (error instanceof NotFoundError) {
@@ -147,7 +153,7 @@ export function operation<
 const READS: ToolAnnotations = { readOnlyHint: true, openWorldHint: false };
 const CREATES: ToolAnnotations = {
   destructiveHint: false,
-  idempotentHint: false,
+  idempotentHint: true,
   openWorldHint: false,
 };
 const MUTATES: ToolAnnotations = {
@@ -238,7 +244,7 @@ const operations: readonly AgentOperation[] = [
     annotations: CREATES,
     input: experimentRequestSchema,
     output: experimentSchema,
-    handler: (input) => createExperiment(input),
+    handler: (input, executor) => createExperiment(input, executor),
   }),
   operation({
     name: "update-experiment",
@@ -247,7 +253,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: experimentUpdateSchema,
     output: experimentSchema,
-    handler: (input) => updateExperiment(input),
+    handler: (input, executor) => updateExperiment(input, executor),
   }),
   operation({
     name: "delete-experiment",
@@ -256,7 +262,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: experimentRefSchema,
     output: done,
-    handler: (input) => deleteExperiment(input),
+    handler: (input, executor) => deleteExperiment(input, executor),
   }),
   operation({
     name: "create-treatment",
@@ -264,7 +270,7 @@ const operations: readonly AgentOperation[] = [
     annotations: CREATES,
     input: treatmentRequestSchema,
     output: treatmentSchema,
-    handler: (input) => addTreatment(input),
+    handler: (input, executor) => addTreatment(input, executor),
   }),
   operation({
     name: "update-treatment",
@@ -272,7 +278,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: treatmentUpdateSchema,
     output: treatmentSchema,
-    handler: (input) => updateTreatment(input),
+    handler: (input, executor) => updateTreatment(input, executor),
   }),
   operation({
     name: "delete-treatment",
@@ -280,16 +286,15 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: treatmentRefSchema,
     output: done,
-    handler: (input) => deleteTreatment(input),
+    handler: (input, executor) => deleteTreatment(input, executor),
   }),
   operation({
     name: "create-observation-units",
-    description:
-      "Add observation units by their dish codes, optionally under a treatment",
+    description: "Add observation units by code, optionally under a treatment",
     annotations: CREATES,
     input: observationUnitBatchSchema,
     output: z.array(observationUnitRecordSchema),
-    handler: (input) => addObservationUnits(input),
+    handler: (input, executor) => addObservationUnits(input, executor),
   }),
   operation({
     name: "update-observation-unit",
@@ -298,7 +303,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationUnitUpdateSchema,
     output: observationUnitRecordSchema,
-    handler: (input) => updateObservationUnit(input),
+    handler: (input, executor) => updateObservationUnit(input, executor),
   }),
   operation({
     name: "delete-observation-unit",
@@ -307,7 +312,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationUnitRefSchema,
     output: done,
-    handler: (input) => deleteObservationUnit(input),
+    handler: (input, executor) => deleteObservationUnit(input, executor),
   }),
   operation({
     name: "assign-observation-units",
@@ -316,7 +321,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationUnitAssignmentSchema,
     output: done,
-    handler: (input) => assignObservationUnits(input),
+    handler: (input, executor) => assignObservationUnits(input, executor),
   }),
   operation({
     name: "record-culture-event",
@@ -327,7 +332,7 @@ const operations: readonly AgentOperation[] = [
     annotations: CREATES,
     input: cultureEventRequestSchema,
     output: cultureEventSchema,
-    handler: (input) => recordCultureEvent(input),
+    handler: (input, executor) => recordCultureEvent(input, executor),
   }),
   operation({
     name: "void-culture-event",
@@ -335,7 +340,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: cultureEventVoidSchema,
     output: cultureEventSchema,
-    handler: (input) => voidCultureEvent(input),
+    handler: (input, executor) => voidCultureEvent(input, executor),
   }),
   operation({
     name: "create-observation",
@@ -344,7 +349,7 @@ const operations: readonly AgentOperation[] = [
     annotations: CREATES,
     input: observationRequestSchema,
     output: experimentObservationSchema,
-    handler: (input) => addObservation(input),
+    handler: (input, executor) => addObservation(input, executor),
   }),
   operation({
     name: "update-observation",
@@ -352,7 +357,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationUpdateSchema,
     output: experimentObservationSchema,
-    handler: (input) => updateObservation(input),
+    handler: (input, executor) => updateObservation(input, executor),
   }),
   operation({
     name: "delete-observation",
@@ -361,7 +366,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationRefSchema,
     output: done,
-    handler: (input) => deleteObservation(input),
+    handler: (input, executor) => deleteObservation(input, executor),
   }),
   operation({
     name: "assign-images-to-observation",
@@ -370,7 +375,7 @@ const operations: readonly AgentOperation[] = [
     annotations: CREATES,
     input: observationImageAssignmentSchema,
     output: observationImageAssignmentResultSchema,
-    handler: (input) => assignObservationImages(input),
+    handler: (input, executor) => assignObservationImages(input, executor),
   }),
   operation({
     name: "reassign-observation-image",
@@ -379,7 +384,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationImageMoveSchema,
     output: done,
-    handler: (input) => moveObservationImage(input),
+    handler: (input, executor) => moveObservationImage(input, executor),
   }),
   operation({
     name: "unassign-observation-image",
@@ -388,7 +393,7 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationImageRefSchema,
     output: done,
-    handler: (input) => unassignObservationImage(input),
+    handler: (input, executor) => unassignObservationImage(input, executor),
   }),
   operation({
     name: "retry-observation-image-analysis",
@@ -396,7 +401,8 @@ const operations: readonly AgentOperation[] = [
     annotations: MUTATES,
     input: observationImageRefSchema,
     output: done,
-    handler: (input) => retryObservationImageAnalysis(input),
+    handler: (input, executor) =>
+      retryObservationImageAnalysis(input, executor),
   }),
 ];
 

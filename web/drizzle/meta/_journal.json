@@ -15,6 +15,27 @@
       "when": 1788300000000,
       "tag": "0001_treatment_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788329017284,
+      "tag": "0002_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788331257708,
+      "tag": "0003_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788336745497,
+      "tag": "0004_agent_execution",
+      "breakpoints": true
     }
   ]
 }

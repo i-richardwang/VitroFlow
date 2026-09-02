@@ -85,7 +85,7 @@ describe("agent operations", () => {
       } else if (additive.has(name)) {
         expect(entry.annotations).toEqual({
           destructiveHint: false,
-          idempotentHint: false,
+          idempotentHint: true,
           openWorldHint: false,
         });
       } else {

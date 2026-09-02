@@ -162,11 +162,11 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
 
 def _pull_dataset(args: argparse.Namespace) -> int:
     server_url = args.server or os.environ.get("VITROFLOW_SERVER_URL")
-    token = args.token or os.environ.get("VITROFLOW_EXPORT_TOKEN")
+    token = args.token or os.environ.get("VITROFLOW_API_KEY")
     if not server_url or not token:
         raise ValueError(
             "dataset pull needs --server/VITROFLOW_SERVER_URL and "
-            "--token/VITROFLOW_EXPORT_TOKEN"
+            "--token/VITROFLOW_API_KEY"
         )
     data_root = Path(args.data_root)
     report = pull_dataset(server_url, token, args.dataset, data_root)
@@ -257,7 +257,7 @@ def _parser() -> argparse.ArgumentParser:
     pull.add_argument("--server", help="Workbench URL (default: VITROFLOW_SERVER_URL)")
     pull.add_argument(
         "--token",
-        help="Export credential (default: VITROFLOW_EXPORT_TOKEN)",
+        help="API key with the export scope (default: VITROFLOW_API_KEY)",
     )
     pull.set_defaults(handler=_pull_dataset)
     export_yolo = dataset_commands.add_parser(
