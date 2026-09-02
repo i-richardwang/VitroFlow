@@ -33,20 +33,16 @@ const ROLES = {
   member: accessControl.newRole({}),
 };
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is required`);
-  }
-  return value;
-}
-
 function build(db: Executor) {
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) {
+    throw new Error("BETTER_AUTH_SECRET is required");
+  }
   const deployment = deploymentEndpoint();
   return betterAuth({
     appName: "VitroFlow",
     baseURL: deployment.origin,
-    secret: required("BETTER_AUTH_SECRET"),
+    secret,
     database: drizzleAdapter(db, { provider: "pg", schema, usePlural: true }),
     emailAndPassword: {
       enabled: true,

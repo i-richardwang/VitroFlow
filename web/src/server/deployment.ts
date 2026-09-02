@@ -1,13 +1,7 @@
-export interface DeploymentEndpoint {
+interface DeploymentEndpoint {
   origin: string;
   hostname: string;
   mcpResource: string;
-}
-
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }
 
 function isLoopback(hostname: string): boolean {
@@ -21,7 +15,10 @@ function isLoopback(hostname: string): boolean {
 
 /** The canonical public endpoint of this workbench deployment. */
 export function deploymentEndpoint(): DeploymentEndpoint {
-  const configured = required("BETTER_AUTH_URL");
+  const configured = process.env.BETTER_AUTH_URL;
+  if (!configured) {
+    throw new Error("BETTER_AUTH_URL is required");
+  }
   const url = new URL(configured);
   if (
     url.username ||

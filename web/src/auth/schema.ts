@@ -9,7 +9,7 @@ import { z } from "zod";
 export const USER_ROLES = ["admin", "member"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const userRoleSchema = z.enum(USER_ROLES);
+const userRoleSchema = z.enum(USER_ROLES);
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrator",
@@ -18,9 +18,9 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 
 export const MIN_PASSWORD_LENGTH = 12;
 
-export const userNameSchema = z.string().trim().min(1).max(120);
-export const userEmailSchema = z.string().trim().toLowerCase().email().max(254);
-export const passwordSchema = z.string().min(MIN_PASSWORD_LENGTH).max(256);
+const userNameSchema = z.string().trim().min(1).max(120);
+const userEmailSchema = z.string().trim().toLowerCase().email().max(254);
+const passwordSchema = z.string().min(MIN_PASSWORD_LENGTH).max(256);
 
 /** The account behind a browser session, as pages see it. */
 export const workbenchUserSchema = z.object({

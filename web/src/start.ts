@@ -9,9 +9,10 @@ import { apiRequestAuthorization } from "./server/api-credentials";
 import { readSession, redirect } from "./server/session";
 
 /**
- * Paths that answer without a session: readiness, sign-in, the auth API with
- * its OAuth discovery documents, and the MCP endpoint, which verifies OAuth
- * access tokens itself so it can issue the discovery challenge.
+ * Paths that answer without a browser session: readiness, sign-in, the auth
+ * API with its OAuth discovery documents, the agent API, which resolves the
+ * account behind the API key it is given, and the MCP endpoint, which verifies
+ * OAuth access tokens itself so it can issue the discovery challenge.
  */
 function answersForItself(pathname: string): boolean {
   return (

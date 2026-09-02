@@ -9,7 +9,7 @@ import { z } from "zod";
 
 export const API_SCOPES = ["agent", "export"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];
-export const apiScopeSchema = z.enum(API_SCOPES);
+const apiScopeSchema = z.enum(API_SCOPES);
 
 export const API_SCOPE_LABELS: Record<
   ApiScope,
@@ -28,7 +28,7 @@ export const API_SCOPE_LABELS: Record<
 /** Every key starts with this so a leaked one is recognisable. */
 export const API_KEY_PREFIX = "vf_";
 
-export const apiKeyNameSchema = z.string().trim().min(1).max(64);
+const apiKeyNameSchema = z.string().trim().min(1).max(64);
 
 /** A key as its owner sees it after creation: the secret is not recoverable. */
 export const apiKeySchema = z.object({
