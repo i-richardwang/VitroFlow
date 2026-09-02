@@ -1,6 +1,6 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Segment } from "@heroui-pro/react/segment";
-import { Alert, Button, Chip, Toolbar, Tooltip } from "@heroui/react";
+import { Alert, Button, Toolbar } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
@@ -20,6 +20,7 @@ import type {
   ExperimentObservationImage,
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
+import { Hint } from "../Hint";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 import { QualityWarnings } from "../QualityWarnings";
 import { Workbench } from "../Workbench";
@@ -31,7 +32,7 @@ import {
   MetricsSection,
   Section,
 } from "../workbench/inspector";
-import { ObservationImageMenu } from "./ObservationImageMenu";
+import { ObservationUnitMenu } from "./ObservationUnitMenu";
 import { ImageAnalysisStateChip } from "./ImageAnalysisStateChip";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
@@ -71,18 +72,25 @@ export function ObservationUnitWorkbench({
     <Workbench
       title={`Observation unit ${observationUnit.code} of ${experiment.name}`}
       actions={
-        shown ? (
-          <>
-            {detection && <QualityWarnings quality={detection.quality} />}
-            {(detection || shown.annotation) && <ReviewButton image={shown} />}
+        <>
+          {shown && (detection || shown.annotation) ? (
+            <ReviewButton image={shown} />
+          ) : null}
+          {shown ? (
             <AddToDatasetButton images={[shown.ref]} datasets={datasets} />
-            <ObservationImageMenu
-              image={shown}
-              navigation={navigation}
-              observations={series.observations.map((item) => item.observation)}
-            />
-          </>
-        ) : undefined
+          ) : null}
+          <ObservationUnitMenu
+            experiment={experiment.id}
+            observationUnit={observationUnit}
+            observations={series.observations.map((item) => item.observation)}
+            canRemove={
+              observationUnit.events.length === 0 &&
+              !series.observations.some((item) => item.image)
+            }
+            image={shown ?? undefined}
+            navigation={navigation}
+          />
+        </>
       }
       toolbar={
         <Toolbar
@@ -148,23 +156,9 @@ export function ObservationUnitWorkbench({
                   },
                   {
                     label: "Status",
-                    value: latestEvent ? (
-                      <Chip
-                        color={
-                          latestEvent.type === "contaminated"
-                            ? "warning"
-                            : "default"
-                        }
-                        variant="soft"
-                        className="font-sans font-normal"
-                      >
-                        {cultureEventLabel(latestEvent.type)}
-                      </Chip>
-                    ) : (
-                      <Chip variant="soft" className="font-sans font-normal">
-                        Active
-                      </Chip>
-                    ),
+                    value: latestEvent
+                      ? cultureEventLabel(latestEvent.type)
+                      : "Active",
                   },
                   { label: "File", value: shown.filename },
                   {
@@ -173,6 +167,9 @@ export function ObservationUnitWorkbench({
                   },
                 ]}
               />
+              {detection ? (
+                <QualityWarnings quality={detection.quality} />
+              ) : null}
               {shown.failure ? (
                 <Alert status="danger">
                   <Alert.Indicator />
@@ -210,10 +207,6 @@ export function ObservationUnitWorkbench({
           <EmptyState>
             <EmptyState.Header>
               <EmptyState.Title>No image yet</EmptyState.Title>
-              <EmptyState.Description>
-                No observation has an image of observation unit{" "}
-                {observationUnit.code}.
-              </EmptyState.Description>
             </EmptyState.Header>
           </EmptyState>
         </div>
@@ -234,6 +227,7 @@ function ObservationSwitch({
   return (
     <Segment
       variant="ghost"
+      className="self-start"
       aria-label="Observations"
       selectedKey={shown ?? undefined}
       onSelectionChange={(key) => {
@@ -323,12 +317,7 @@ function ObservationUnitStepButton({
     </Button>
   );
   if (observationUnit === null) return button;
-  return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger>{button}</Tooltip.Trigger>
-      <Tooltip.Content>{observationUnit.code}</Tooltip.Content>
-    </Tooltip>
-  );
+  return <Hint text={observationUnit.code}>{button}</Hint>;
 }
 
 function ReviewButton({ image }: { image: ExperimentObservationImage }) {

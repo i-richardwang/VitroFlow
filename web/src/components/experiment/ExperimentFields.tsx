@@ -92,11 +92,7 @@ export function ExperimentFields({
         defaultValue={defaults?.notes}
       >
         <Label>Notes</Label>
-        <TextArea
-          className="w-full"
-          rows={3}
-          placeholder="Conditions, goals, and anything else the notebook keeps"
-        />
+        <TextArea className="w-full" rows={3} />
         <FieldError />
       </TextField>
     </>

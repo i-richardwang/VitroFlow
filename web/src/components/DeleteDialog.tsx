@@ -16,7 +16,7 @@ export function DeleteDialog({
   title: string;
   confirmLabel: string;
   onConfirm: () => Promise<void>;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const { busy, run } = useAsyncAction();
 
@@ -28,7 +28,7 @@ export function DeleteDialog({
             <AlertDialog.Header>
               <AlertDialog.Heading>{title}</AlertDialog.Heading>
             </AlertDialog.Header>
-            <AlertDialog.Body>{children}</AlertDialog.Body>
+            {children ? <AlertDialog.Body>{children}</AlertDialog.Body> : null}
             <AlertDialog.Footer>
               <Button variant="tertiary" slot="close" isDisabled={busy}>
                 Cancel
@@ -44,7 +44,7 @@ export function DeleteDialog({
                   );
                 }}
               >
-                {busy ? "Deleting…" : confirmLabel}
+                {busy ? `${confirmLabel}…` : confirmLabel}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

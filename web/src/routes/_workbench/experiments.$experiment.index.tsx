@@ -21,7 +21,6 @@ import { AddObservationUnitsDialog } from "../../components/experiment/AddObserv
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
 import { NewObservationDialog } from "../../components/experiment/NewObservationDialog";
 import { ObservationMenu } from "../../components/experiment/ObservationMenu";
-import { ObservationUnitMenu } from "../../components/experiment/ObservationUnitMenu";
 import { TreatmentDialog } from "../../components/experiment/TreatmentDialog";
 import {
   ObservationUnitTreatmentMenu,
@@ -42,7 +41,6 @@ import {
 import { designIssues } from "../../experiments/design";
 import {
   experimentIdSchema,
-  formatFactor,
   observationLabel,
   type ExperimentObservation,
   type Treatment,
@@ -165,17 +163,6 @@ function ExperimentPage() {
               >
                 {observationUnit.code}
               </Link>
-              <ObservationUnitMenu
-                experiment={experiment.id}
-                observationUnit={observationUnit}
-                observations={observations}
-                canRemove={
-                  observationUnit.events.length === 0 &&
-                  !images.some(
-                    (image) => image.observationUnit === observationUnit.id,
-                  )
-                }
-              />
             </span>
           );
         },
@@ -259,7 +246,6 @@ function ExperimentPage() {
             <Select
               aria-label="Metric"
               className="w-44"
-              variant="secondary"
               selectedKey={metric.id}
               onSelectionChange={(key) => {
                 if (key === null) return;
@@ -312,10 +298,6 @@ function ExperimentPage() {
               <ExperimentsIcon />
             </EmptyState.Media>
             <EmptyState.Title>No observation units yet</EmptyState.Title>
-            <EmptyState.Description>
-              Add observation units with existing codes, or a treatment they
-              replicate.
-            </EmptyState.Description>
           </EmptyState.Header>
           <EmptyState.Content>
             <Button variant="primary" onPress={() => setOpen("units")}>
@@ -519,10 +501,7 @@ type GroupRow = {
 type GridRow = GroupRow | UnitRow;
 
 function treatmentLabel(treatment: Treatment | null): string {
-  if (!treatment) return "No treatment";
-  return [treatment.name, formatFactor(treatment.factor)]
-    .filter(Boolean)
-    .join(" · ");
+  return treatment?.name ?? "No treatment";
 }
 
 function experimentRows(

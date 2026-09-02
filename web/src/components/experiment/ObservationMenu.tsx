@@ -24,6 +24,7 @@ import {
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
+import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
 import { DayField, fromDay, toDay } from "./DayField";
@@ -48,14 +49,16 @@ export function ObservationMenu({
   return (
     <>
       <Dropdown>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          aria-label={`${name} actions`}
-        >
-          <MoreIcon />
-        </Button>
+        <Hint text={`${name} actions`}>
+          <Button
+            variant="ghost"
+            isIconOnly
+            size="sm"
+            aria-label={`${name} actions`}
+          >
+            <MoreIcon />
+          </Button>
+        </Hint>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={name}
@@ -111,9 +114,7 @@ export function ObservationMenu({
           toast.success(`${name} deleted`);
           await router.invalidate();
         }}
-      >
-        Only an observation without images or culture events can be deleted.
-      </DeleteDialog>
+      />
     </>
   );
 }
@@ -185,10 +186,7 @@ function EditObservationModal({
                   defaultValue={observation.note}
                 >
                   <Label>Note</Label>
-                  <Input
-                    className="w-full"
-                    placeholder="What this observation was for"
-                  />
+                  <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>

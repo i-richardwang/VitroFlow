@@ -1,7 +1,3 @@
-import { useSyncExternalStore } from "react";
-
-const subscribe = () => () => {};
-
 export function formatTimestampUtc(value: string): string {
   return new Intl.DateTimeFormat("en", {
     year: "numeric",
@@ -15,14 +11,5 @@ export function formatTimestampUtc(value: string): string {
 }
 
 export function Timestamp({ value }: { value: string }) {
-  const text = useSyncExternalStore(
-    subscribe,
-    () => new Date(value).toLocaleString(),
-    () => formatTimestampUtc(value),
-  );
-  return (
-    <time dateTime={value} title={formatTimestampUtc(value)}>
-      {text}
-    </time>
-  );
+  return <time dateTime={value}>{formatTimestampUtc(value)}</time>;
 }

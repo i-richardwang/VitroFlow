@@ -71,13 +71,14 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
               <>
                 <Modal.Header>
                   <Modal.Heading>{issued.name}</Modal.Heading>
-                  <Description>
-                    Copy the key now. It is shown only once; a lost key is
-                    revoked and replaced.
-                  </Description>
+                  <Description>Shown only once.</Description>
                 </Modal.Header>
                 <Modal.Body>
-                  <CopyableCode value={issued.secret} label="API key" />
+                  <CopyableCode
+                    value={issued.secret}
+                    label="API key"
+                    variant="secondary"
+                  />
                 </Modal.Body>
                 <Modal.Footer>
                   <Button variant="primary" onPress={close}>
@@ -89,9 +90,6 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
               <>
                 <Modal.Header>
                   <Modal.Heading>New API key</Modal.Heading>
-                  <Description>
-                    The key acts as you on the surfaces it is scoped to.
-                  </Description>
                 </Modal.Header>
                 <Modal.Body>
                   <Form
@@ -146,11 +144,8 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                             <Checkbox.Control>
                               <Checkbox.Indicator />
                             </Checkbox.Control>
-                            {API_SCOPE_LABELS[scope].label}
+                            {API_SCOPE_LABELS[scope]}
                           </Checkbox.Content>
-                          <Description>
-                            {API_SCOPE_LABELS[scope].description}
-                          </Description>
                         </Checkbox>
                       ))}
                     </CheckboxGroup>

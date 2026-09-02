@@ -1,10 +1,4 @@
-import {
-  Description,
-  FieldError,
-  Input,
-  Label,
-  TextField,
-} from "@heroui/react";
+import { FieldError, Input, Label, TextField } from "@heroui/react";
 
 import { MIN_PASSWORD_LENGTH } from "../../auth/schema";
 
@@ -15,6 +9,7 @@ export function PasswordField({
   autoComplete = "new-password",
   isInvalid = false,
   errorMessage,
+  variant = "primary",
 }: {
   label: string;
   isDisabled: boolean;
@@ -22,10 +17,11 @@ export function PasswordField({
   autoComplete?: "current-password" | "new-password";
   isInvalid?: boolean;
   errorMessage?: string;
+  variant?: "primary" | "secondary";
 }) {
   return (
     <TextField
-      variant="secondary"
+      variant={variant}
       fullWidth
       isRequired
       isDisabled={isDisabled}
@@ -36,11 +32,7 @@ export function PasswordField({
     >
       <Label>{label}</Label>
       <Input className="w-full" autoComplete={autoComplete} />
-      {errorMessage ? (
-        <FieldError>{errorMessage}</FieldError>
-      ) : (
-        <Description>At least {MIN_PASSWORD_LENGTH} characters.</Description>
-      )}
+      <FieldError>{errorMessage}</FieldError>
     </TextField>
   );
 }

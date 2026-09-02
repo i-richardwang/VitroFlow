@@ -7,6 +7,7 @@ import type {
 import type { DetectionResult } from "../../detection/schema";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
+import { QualityWarnings } from "../QualityWarnings";
 import type { LayerKey } from "./controls";
 import {
   LayersSection,
@@ -57,6 +58,7 @@ export function InspectorPanel({
       </Section>
       <Section title="Diagnostics">
         <Metrics rows={diagnosticMetrics(model.id, result)} />
+        <QualityWarnings quality={result.quality} />
       </Section>
     </>
   );

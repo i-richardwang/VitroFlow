@@ -21,7 +21,7 @@ import { useAnnotation } from "../../hooks/useAnnotation";
 import { useHistory } from "../../hooks/useHistory";
 import type { Model } from "../../models/schema";
 import { RedoIcon, UndoIcon } from "../icons";
-import { QualityWarnings } from "../QualityWarnings";
+import { Workbench } from "../Workbench";
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import {
   TOOL_SPECS,
@@ -33,7 +33,6 @@ import {
 import { InspectorPanel } from "./InspectorPanel";
 import { ReviewStatusMenu } from "./ReviewStatusMenu";
 import { SaveIndicator } from "./SaveIndicator";
-import { Workbench } from "../Workbench";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 
@@ -128,7 +127,6 @@ export function AnnotationEditor({
       title={`Review ${filename} for ${model.name}`}
       actions={
         <>
-          <QualityWarnings quality={result.quality} />
           <SaveIndicator state={saveState} error={error} onRetry={retry} />
           <ReviewStatusMenu annotation={annotation} onReview={review} />
         </>

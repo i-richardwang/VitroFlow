@@ -68,6 +68,10 @@ function TrainingModal({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Train a new version</Modal.Heading>
+              <Description>
+                {recipe.baseModel.reference} · {recipe.runtime.framework}{" "}
+                {recipe.runtime.version}
+              </Description>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-5">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -93,21 +97,14 @@ function TrainingModal({
                       <NumberField.Input />
                       <NumberField.IncrementButton />
                     </NumberField.Group>
-                    <Description>{field.description}</Description>
                   </NumberField>
                 ))}
               </div>
-              <Description>
-                {recipe.baseModel.reference} · {recipe.runtime.framework}{" "}
-                {recipe.runtime.version}
-              </Description>
               {training.workerMemoryBytes === null ? (
                 <Alert status="warning">
                   <Alert.Indicator />
                   <Alert.Content>
-                    <Alert.Title>
-                      No training worker is online; the run waits in the queue.
-                    </Alert.Title>
+                    <Alert.Title>No training worker is online</Alert.Title>
                   </Alert.Content>
                 </Alert>
               ) : null}

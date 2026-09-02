@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   Form,
   Input,
   Label,
@@ -56,10 +55,6 @@ export function AddObservationUnitsDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Add observation units</Modal.Heading>
-              <Description>
-                Codes already assigned to physical dishes. Treatment can be
-                assigned later.
-              </Description>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form

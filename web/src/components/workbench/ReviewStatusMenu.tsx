@@ -122,7 +122,7 @@ function ExcludeModal({
                   fullWidth
                 >
                   <Label>Reason</Label>
-                  <Input placeholder="Optional" autoFocus />
+                  <Input autoFocus />
                 </TextField>
               </Modal.Body>
               <Modal.Footer>

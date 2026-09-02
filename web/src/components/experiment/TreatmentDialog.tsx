@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   Form,
   Input,
   Label,
@@ -81,12 +80,6 @@ function Editor({
                 <Modal.Heading>
                   {creating ? "New treatment" : `Edit ${treatment.name}`}
                 </Modal.Heading>
-                {creating ? (
-                  <Description>
-                    A named condition. Observation units of it can be added now
-                    or later.
-                  </Description>
-                ) : null}
               </Modal.Header>
               <Modal.Body className="flex flex-col gap-4">
                 <Form
@@ -148,10 +141,7 @@ function Editor({
                     onChange={setNote}
                   >
                     <Label>Note</Label>
-                    <Input
-                      className="w-full"
-                      placeholder="Anything the factor does not say"
-                    />
+                    <Input className="w-full" />
                   </TextField>
                   {creating ? (
                     <NumberField
@@ -163,9 +153,6 @@ function Editor({
                       onChange={setReplicates}
                     >
                       <Label>Observation units</Label>
-                      <Description>
-                        How many to add, coded from the name. 0 adds none.
-                      </Description>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -222,8 +209,7 @@ function Editor({
             await router.invalidate();
           }}
         >
-          Its observation units stay in the experiment without a treatment. No
-          images or reviews are removed.
+          Observation units stay, unassigned.
         </DeleteDialog>
       ) : null}
     </>

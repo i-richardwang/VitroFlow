@@ -24,9 +24,9 @@ export function FactorField({
   onChange: (factor: TreatmentFactor) => void;
 }) {
   return (
-    <>
+    <div className="flex min-w-0 items-start gap-3">
       <TextField
-        fullWidth
+        className="min-w-0 flex-1"
         variant="secondary"
         isDisabled={busy}
         value={factor.name}
@@ -36,7 +36,7 @@ export function FactorField({
         <Input className="w-full" placeholder="6-BA" />
       </TextField>
       <TextField
-        fullWidth
+        className="w-24 shrink-0"
         variant="secondary"
         isDisabled={busy}
         value={factor.level}
@@ -46,7 +46,7 @@ export function FactorField({
         <Input className="w-full" placeholder="1.0" />
       </TextField>
       <TextField
-        fullWidth
+        className="w-28 shrink-0"
         variant="secondary"
         isDisabled={busy}
         value={factor.unit}
@@ -55,7 +55,7 @@ export function FactorField({
         <Label>Unit</Label>
         <Input className="w-full" placeholder="mg/L" />
       </TextField>
-    </>
+    </div>
   );
 }
 

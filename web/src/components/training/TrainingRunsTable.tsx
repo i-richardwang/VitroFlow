@@ -12,11 +12,9 @@ import { TrainingRunState } from "./TrainingRunState";
 export function TrainingRunsTable({
   runs,
   datasetColumn = false,
-  emptyHint,
 }: {
   runs: TrainingRunSummary[];
   datasetColumn?: boolean;
-  emptyHint?: string;
 }) {
   return (
     <Table>
@@ -43,9 +41,6 @@ export function TrainingRunsTable({
                     <TrainingIcon />
                   </EmptyState.Media>
                   <EmptyState.Title>No training runs yet</EmptyState.Title>
-                  {emptyHint ? (
-                    <EmptyState.Description>{emptyHint}</EmptyState.Description>
-                  ) : null}
                 </EmptyState.Header>
                 {datasetColumn ? (
                   <EmptyState.Content>
@@ -78,12 +73,8 @@ export function TrainingRunsTable({
                     <TrainingRunState run={run} />
                   </Hint>
                 </Table.Cell>
-                <Table.Cell className="whitespace-nowrap text-right font-mono tabular-nums">
+                <Table.Cell className="text-right font-mono tabular-nums">
                   {completed}
-                  <span className="text-muted">
-                    {" "}
-                    / {run.recipe.parameters.epochs}
-                  </span>
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono tabular-nums">
                   <Metric value={best?.map50 ?? null} />

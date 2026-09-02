@@ -63,7 +63,6 @@ export function trainingOverrides(
 export interface ParameterField {
   key: keyof TrainingOverrides;
   label: string;
-  description: string;
   min: number;
   max: number;
   step: number;
@@ -71,46 +70,9 @@ export interface ParameterField {
 
 /** Bounds mirror `trainingParametersSchema`, which stays the validator. */
 export const PARAMETER_FIELDS: ParameterField[] = [
-  {
-    key: "epochs",
-    label: "Epochs",
-    description: "Passes over the training split.",
-    min: 1,
-    max: 300,
-    step: 1,
-  },
-  {
-    key: "imgsz",
-    label: "Image size",
-    description:
-      "Longest side in pixels; seeds need at least 1024 to stay visible.",
-    min: 320,
-    max: 2048,
-    step: 32,
-  },
-  {
-    key: "batch",
-    label: "Batch",
-    description: "Images per step; bounded by worker memory.",
-    min: 1,
-    max: 64,
-    step: 1,
-  },
-  {
-    key: "patience",
-    label: "Patience",
-    description:
-      "Epochs without improvement before stopping early; 0 disables.",
-    min: 0,
-    max: 300,
-    step: 1,
-  },
-  {
-    key: "lr0",
-    label: "Learning rate",
-    description: "Initial rate for the optimizer.",
-    min: 0.00001,
-    max: 0.1,
-    step: 0.00001,
-  },
+  { key: "epochs", label: "Epochs", min: 1, max: 300, step: 1 },
+  { key: "imgsz", label: "Image size", min: 320, max: 2048, step: 32 },
+  { key: "batch", label: "Batch", min: 1, max: 64, step: 1 },
+  { key: "patience", label: "Patience", min: 0, max: 300, step: 1 },
+  { key: "lr0", label: "Learning rate", min: 0.00001, max: 0.1, step: 0.00001 },
 ];

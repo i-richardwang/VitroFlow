@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   FieldError,
   Form,
   Input,
@@ -76,10 +75,6 @@ export function AddToDatasetDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>{heading}</Modal.Heading>
-              <Description>
-                Reviewed annotations for this model are included with the
-                images.
-              </Description>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -153,9 +148,6 @@ export function AddToDatasetDialog({
                   >
                     <Label>Name</Label>
                     <Input className="w-full" placeholder="seeds-2026-09" />
-                    <Description>
-                      Letters, numbers, dots, dashes, and underscores.
-                    </Description>
                     <FieldError />
                   </TextField>
                 ) : null}

@@ -1,12 +1,10 @@
 import {
   Button,
-  Dropdown,
   Form,
   Label,
   ListBox,
   Modal,
   Select,
-  Separator,
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
@@ -26,78 +24,8 @@ import {
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
-import { MoreIcon } from "../icons";
 
-type Action = "reassign" | "unassign";
-
-export function ObservationImageMenu({
-  image,
-  navigation,
-  observations,
-}: {
-  image: ExperimentObservationImage;
-  navigation: ObservationUnitNavigationEntry[];
-  observations: ExperimentObservation[];
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState<Action | null>(null);
-
-  return (
-    <>
-      <Dropdown>
-        <Button variant="ghost" isIconOnly aria-label="Image actions">
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label="Image actions"
-            onAction={(key) => setOpen(String(key) as Action)}
-          >
-            <Dropdown.Item id="reassign" textValue="Reassign image">
-              <Label>Reassign…</Label>
-            </Dropdown.Item>
-            <Separator orientation="horizontal" />
-            <Dropdown.Item
-              id="unassign"
-              textValue="Unassign image"
-              variant="danger"
-            >
-              <Label>Unassign image…</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-
-      <ReassignModal
-        image={image}
-        navigation={navigation}
-        observations={observations}
-        isOpen={open === "reassign"}
-        onClose={() => setOpen(null)}
-      />
-
-      <DeleteDialog
-        isOpen={open === "unassign"}
-        onOpenChange={(next) => setOpen(next ? "unassign" : null)}
-        title={`Unassign the image of ${image.observationUnit.code}?`}
-        confirmLabel="Unassign image"
-        onConfirm={async () => {
-          await unassignObservationImage({ data: image.ref });
-          toast.success("Image unassigned");
-          await router.navigate({
-            to: "/experiments/$experiment",
-            params: { experiment: image.ref.experiment },
-          });
-        }}
-      >
-        The cell empties. The image stays stored, with its detection and review,
-        and can be assigned again.
-      </DeleteDialog>
-    </>
-  );
-}
-
-function ReassignModal({
+export function ReassignObservationImageModal({
   image,
   navigation,
   observations,
@@ -225,5 +153,35 @@ function ReassignModal({
         </Modal.Container>
       </Modal.Backdrop>
     </Modal>
+  );
+}
+
+export function UnassignObservationImageDialog({
+  image,
+  isOpen,
+  onOpenChange,
+}: {
+  image: ExperimentObservationImage;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  return (
+    <DeleteDialog
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      title="Unassign image?"
+      confirmLabel="Unassign image"
+      onConfirm={async () => {
+        await unassignObservationImage({ data: image.ref });
+        toast.success("Image unassigned");
+        await router.navigate({
+          to: "/experiments/$experiment",
+          params: { experiment: image.ref.experiment },
+        });
+      }}
+    >
+      The image stays stored.
+    </DeleteDialog>
   );
 }

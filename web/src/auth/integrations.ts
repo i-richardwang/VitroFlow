@@ -11,18 +11,9 @@ export const API_SCOPES = ["agent", "export"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];
 const apiScopeSchema = z.enum(API_SCOPES);
 
-export const API_SCOPE_LABELS: Record<
-  ApiScope,
-  { label: string; description: string }
-> = {
-  agent: {
-    label: "Agent interface",
-    description: "Maintain experiment records over /api/agent",
-  },
-  export: {
-    label: "Dataset export",
-    description: "Download datasets and images over /api/export",
-  },
+export const API_SCOPE_LABELS: Record<ApiScope, string> = {
+  agent: "Agent interface",
+  export: "Dataset export",
 };
 
 /** Every key starts with this so a leaked one is recognisable. */

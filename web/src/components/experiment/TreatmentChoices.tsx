@@ -5,6 +5,7 @@ import type { ObservationUnit } from "../../experiments/contracts";
 import type { Treatment } from "../../experiments/schema";
 import { assignObservationUnitsToTreatment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { Hint } from "../Hint";
 import { TreatmentDot } from "./TreatmentDot";
 
 const UNASSIGNED = "unassigned";
@@ -95,15 +96,17 @@ export function ObservationUnitTreatmentMenu({
 
   return (
     <Dropdown>
-      <Button
-        variant="ghost"
-        isIconOnly
-        size="sm"
-        isDisabled={busy}
-        aria-label={`Treatment of ${observationUnit.code}: ${name}`}
-      >
-        <TreatmentDot position={current?.position ?? null} />
-      </Button>
+      <Hint text={name}>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          isDisabled={busy}
+          aria-label={`Treatment of ${observationUnit.code}: ${name}`}
+        >
+          <TreatmentDot position={current?.position ?? null} />
+        </Button>
+      </Hint>
       <TreatmentChoices
         label={`Treatment of ${observationUnit.code}`}
         treatments={treatments}

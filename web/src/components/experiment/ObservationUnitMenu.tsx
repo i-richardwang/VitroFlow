@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   Dropdown,
   Form,
   Input,
@@ -15,10 +14,13 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { ObservationUnit } from "../../experiments/contracts";
+import type {
+  ExperimentObservationImage,
+  ObservationUnit,
+  ObservationUnitNavigationEntry,
+} from "../../experiments/contracts";
 import {
   cultureEventExcludesFromAnalysisByDefault,
-  cultureEventIsTerminal,
   cultureEventLabel,
 } from "../../experiments/culture-events";
 import {
@@ -35,20 +37,30 @@ import {
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
+import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
+import {
+  ReassignObservationImageModal,
+  UnassignObservationImageDialog,
+} from "./ObservationImageDialogs";
 
-type Action = "edit" | "record" | "correct" | "delete";
+type Action =
+  "reassign" | "unassign" | "edit" | "record" | "correct" | "delete";
 
 export function ObservationUnitMenu({
   experiment,
   observationUnit,
   observations,
   canRemove,
+  image,
+  navigation,
 }: {
   experiment: string;
   observationUnit: ObservationUnit;
   observations: ExperimentObservation[];
   canRemove: boolean;
+  image?: ExperimentObservationImage;
+  navigation?: ObservationUnitNavigationEntry[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -56,19 +68,26 @@ export function ObservationUnitMenu({
   return (
     <>
       <Dropdown>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          aria-label={`Observation unit ${observationUnit.code}`}
-        >
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom start">
+        <Hint text={`${observationUnit.code} actions`}>
+          <Button
+            variant="ghost"
+            isIconOnly
+            size="sm"
+            aria-label={`${observationUnit.code} actions`}
+          >
+            <MoreIcon />
+          </Button>
+        </Hint>
+        <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label={`Observation unit ${observationUnit.code}`}
+            aria-label={`${observationUnit.code} actions`}
             onAction={(key) => setOpen(String(key) as Action)}
           >
+            {image ? (
+              <Dropdown.Item id="reassign" textValue="Reassign image">
+                <Label>Reassign image…</Label>
+              </Dropdown.Item>
+            ) : null}
             <Dropdown.Item id="edit" textValue="Edit observation unit">
               <Label>Edit observation unit…</Label>
             </Dropdown.Item>
@@ -82,17 +101,24 @@ export function ObservationUnitMenu({
                 <Label>Correct culture event…</Label>
               </Dropdown.Item>
             ) : null}
+            {image || canRemove ? <Separator orientation="horizontal" /> : null}
+            {image ? (
+              <Dropdown.Item
+                id="unassign"
+                textValue="Unassign image"
+                variant="danger"
+              >
+                <Label>Unassign image…</Label>
+              </Dropdown.Item>
+            ) : null}
             {canRemove ? (
-              <>
-                <Separator orientation="horizontal" />
-                <Dropdown.Item
-                  id="delete"
-                  textValue="Delete observation unit"
-                  variant="danger"
-                >
-                  <Label>Delete observation unit…</Label>
-                </Dropdown.Item>
-              </>
+              <Dropdown.Item
+                id="delete"
+                textValue="Delete observation unit"
+                variant="danger"
+              >
+                <Label>Delete observation unit…</Label>
+              </Dropdown.Item>
             ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -121,6 +147,24 @@ export function ObservationUnitMenu({
         onClose={() => setOpen(null)}
       />
 
+      {image && navigation ? (
+        <ReassignObservationImageModal
+          image={image}
+          navigation={navigation}
+          observations={observations}
+          isOpen={open === "reassign"}
+          onClose={() => setOpen(null)}
+        />
+      ) : null}
+
+      {image ? (
+        <UnassignObservationImageDialog
+          image={image}
+          isOpen={open === "unassign"}
+          onOpenChange={(next) => setOpen(next ? "unassign" : null)}
+        />
+      ) : null}
+
       <DeleteDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
@@ -133,9 +177,7 @@ export function ObservationUnitMenu({
           toast.success(`${observationUnit.code} deleted`);
           await router.invalidate();
         }}
-      >
-        This observation unit is removed from the experiment.
-      </DeleteDialog>
+      />
     </>
   );
 }
@@ -162,10 +204,6 @@ function EditObservationUnitModal({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Edit observation unit</Modal.Heading>
-              <Description>
-                Correcting the code does not change the observation unit or its
-                records.
-              </Description>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -283,10 +321,6 @@ function RecordCultureEventForm({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Record culture event</Modal.Heading>
-              <Description>
-                Event type determines whether {observationUnit.code} remains on
-                the bench. Analysis inclusion is recorded separately.
-              </Description>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -372,11 +406,6 @@ function RecordCultureEventForm({
                     </ListBox>
                   </Select.Popover>
                 </Select>
-                <Description>
-                  {cultureEventIsTerminal(type)
-                    ? "This event takes the unit off the bench after the selected observation."
-                    : "This event leaves the unit available after the selected observation."}
-                </Description>
                 <Select
                   variant="secondary"
                   fullWidth
@@ -412,10 +441,7 @@ function RecordCultureEventForm({
                   isDisabled={busy}
                 >
                   <Label>Note</Label>
-                  <Input
-                    className="w-full"
-                    placeholder="What was detected or done"
-                  />
+                  <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>
@@ -492,9 +518,6 @@ function CorrectCultureEventForm({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Correct culture event</Modal.Heading>
-              <Description>
-                The record stays in the notebook as voided.
-              </Description>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -568,10 +591,7 @@ function CorrectCultureEventForm({
                   name="reason"
                 >
                   <Label>Correction reason</Label>
-                  <Input
-                    className="w-full"
-                    placeholder="Recorded against the wrong observation"
-                  />
+                  <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>

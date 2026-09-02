@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   Form,
   Input,
   Label,
@@ -46,10 +45,6 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>New user</Modal.Heading>
-              <Description>
-                Share the initial password directly. They can replace it from
-                their Account page after signing in.
-              </Description>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -100,7 +95,11 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                   <Label>Email</Label>
                   <Input className="w-full" autoComplete="off" />
                 </TextField>
-                <PasswordField label="Initial password" isDisabled={busy} />
+                <PasswordField
+                  label="Initial password"
+                  isDisabled={busy}
+                  variant="secondary"
+                />
                 <RoleSelect value={role} onChange={setRole} isDisabled={busy} />
               </Form>
             </Modal.Body>

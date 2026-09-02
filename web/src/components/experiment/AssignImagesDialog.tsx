@@ -1,13 +1,5 @@
 import { InlineSelect } from "@heroui-pro/react/inline-select";
-import {
-  Alert,
-  Button,
-  Description,
-  Form,
-  ListBox,
-  Modal,
-  toast,
-} from "@heroui/react";
+import { Alert, Button, Form, ListBox, Modal, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
@@ -112,11 +104,6 @@ export function AssignImagesDialog({
               <Modal.Heading>
                 Images for {observationLabel(observation)}
               </Modal.Heading>
-              <Description>
-                Drop the images from {observation.observedOn} and assign each
-                one to the observation unit it shows. Filenames provide an
-                initial suggestion only.
-              </Description>
             </Modal.Header>
             <Modal.Body>
               {open.length === 0 ? (
@@ -126,10 +113,6 @@ export function AssignImagesDialog({
                     <Alert.Title>
                       Every observation unit has an image
                     </Alert.Title>
-                    <Alert.Description>
-                      Unassign an image from {observationLabel(observation)}
-                      before assigning another.
-                    </Alert.Description>
                   </Alert.Content>
                 </Alert>
               ) : (

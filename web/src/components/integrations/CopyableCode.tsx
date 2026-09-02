@@ -1,42 +1,70 @@
-import { Button, Tooltip } from "@heroui/react";
-import { useState } from "react";
+import { Button, InputGroup, Label, TextField } from "@heroui/react";
+import { useEffect, useRef, useState } from "react";
 
-import { CopyIcon } from "../icons";
+import { Hint } from "../Hint";
+import { CheckIcon, CopyIcon } from "../icons";
 
-/** A value shown verbatim with a button that copies it. */
 export function CopyableCode({
   value,
   label,
+  variant = "primary",
 }: {
   value: string;
   label: string;
+  variant?: "primary" | "secondary";
 }) {
   const [copied, setCopied] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    },
+    [],
+  );
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-surface-secondary px-3 py-2">
-      <pre className="min-w-0 flex-1 overflow-x-auto font-mono text-xs">
-        <code>{value}</code>
-      </pre>
-      <Tooltip delay={0}>
-        <Tooltip.Trigger>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`Copy ${label}`}
-            onPress={() => {
-              void navigator.clipboard.writeText(value).then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              });
-            }}
-          >
-            <CopyIcon />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content>{copied ? "Copied" : `Copy ${label}`}</Tooltip.Content>
-      </Tooltip>
+    <div className="w-full max-w-md">
+      <TextField
+        isReadOnly
+        fullWidth
+        variant={variant}
+        value={value}
+        name={label}
+      >
+        <Label>{label}</Label>
+        <InputGroup fullWidth variant={variant}>
+          <InputGroup.Input />
+          <InputGroup.Suffix className="pe-0">
+            <Hint text={copied ? "Copied" : "Copy"}>
+              <Button
+                isIconOnly
+                aria-label={copied ? "Copied" : "Copy"}
+                size="sm"
+                variant="ghost"
+                onPress={() => {
+                  void navigator.clipboard.writeText(value).then(() => {
+                    setCopied(true);
+                    if (timer.current !== null) {
+                      window.clearTimeout(timer.current);
+                    }
+                    timer.current = window.setTimeout(() => {
+                      setCopied(false);
+                      timer.current = null;
+                    }, 2000);
+                  });
+                }}
+              >
+                {copied ? (
+                  <CheckIcon className="size-4" />
+                ) : (
+                  <CopyIcon className="size-4" />
+                )}
+              </Button>
+            </Hint>
+          </InputGroup.Suffix>
+        </InputGroup>
+      </TextField>
     </div>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "../../functions/users";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DeleteDialog } from "../DeleteDialog";
+import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { PasswordField } from "./PasswordField";
 import { RoleSelect } from "./RoleSelect";
@@ -46,17 +47,19 @@ export function UserMenu({ account }: { account: UserAccount }) {
   return (
     <>
       <Dropdown>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          aria-label={`Actions for ${account.name}`}
-        >
-          <MoreIcon />
-        </Button>
+        <Hint text={`${account.name} actions`}>
+          <Button
+            variant="ghost"
+            isIconOnly
+            size="sm"
+            aria-label={`${account.name} actions`}
+          >
+            <MoreIcon />
+          </Button>
+        </Hint>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label={`Actions for ${account.name}`}
+            aria-label={`${account.name} actions`}
             onAction={(key) => {
               const action = String(key);
               switch (action) {
@@ -132,8 +135,7 @@ export function UserMenu({ account }: { account: UserAccount }) {
           await router.invalidate();
         }}
       >
-        Their account and sessions are removed. Experiment records and reviews
-        are not affected.
+        Experiment records stay.
       </DeleteDialog>
     </>
   );
@@ -160,10 +162,6 @@ function ChangeRoleDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Change role</Modal.Heading>
-              <Description>
-                Administrators maintain accounts. The change applies to{" "}
-                {account.name}'s next request.
-              </Description>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -223,10 +221,7 @@ function ResetPasswordDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Reset password for {account.name}</Modal.Heading>
-              <Description>
-                Their existing sessions stay signed in; use “Sign out
-                everywhere” to end them.
-              </Description>
+              <Description>Existing sessions stay signed in.</Description>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -251,7 +246,11 @@ function ResetPasswordDialog({
                   });
                 }}
               >
-                <PasswordField label="New password" isDisabled={busy} />
+                <PasswordField
+                  label="New password"
+                  isDisabled={busy}
+                  variant="secondary"
+                />
               </Form>
             </Modal.Body>
             <Modal.Footer>
@@ -295,8 +294,7 @@ function SuspendDialog({
             <Modal.Header>
               <Modal.Heading>Suspend {account.name}?</Modal.Heading>
               <Description>
-                They are signed out everywhere and cannot sign in until
-                reinstated. The account and its records are kept.
+                Signed out everywhere. The account is kept.
               </Description>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>

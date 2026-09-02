@@ -2,14 +2,16 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Segment } from "@heroui-pro/react/segment";
-import { Button, Table } from "@heroui/react";
+import { Button, Dropdown, Label, Table } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Count } from "../../components/Count";
 import { DeleteDialog } from "../../components/DeleteDialog";
+import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
 import { QualityWarnings } from "../../components/QualityWarnings";
+import { MoreIcon } from "../../components/icons";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
 import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
 import {
@@ -63,11 +65,6 @@ function DatasetPage() {
   return (
     <Page
       title={<span className="block truncate font-mono">{dataset}</span>}
-      description={
-        <>
-          Trains <span className="font-mono">{model.id}</span>
-        </>
-      }
       actions={
         <Button
           variant="primary"
@@ -113,6 +110,7 @@ function DatasetPage() {
       </KPIGroup>
 
       <Segment
+        className="self-start"
         aria-label="Image state"
         selectedKey={filter}
         onSelectionChange={(key) => {
@@ -137,9 +135,7 @@ function DatasetPage() {
               <Table.Column className="text-right">Detected</Table.Column>
               <Table.Column className="text-right">Boxes</Table.Column>
               <Table.Column>Quality</Table.Column>
-              <Table.Column>
-                <span className="sr-only">Actions</span>
-              </Table.Column>
+              <Table.Column aria-label="Actions" />
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -150,11 +146,6 @@ function DatasetPage() {
                         ? "No images yet"
                         : "No images in this state"}
                     </EmptyState.Title>
-                    <EmptyState.Description>
-                      {images.length === 0
-                        ? "Add observation images from an experiment."
-                        : "Choose another filter to see images."}
-                    </EmptyState.Description>
                   </EmptyState.Header>
                 </EmptyState>
               )}
@@ -184,8 +175,11 @@ function DatasetPage() {
                       <span className="text-muted">—</span>
                     )}
                   </Table.Cell>
-                  <Table.Cell className="text-right">
-                    <RemoveImageButton dataset={dataset} image={image} />
+                  <Table.Cell
+                    className="text-right"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <ImageMenu dataset={dataset} image={image} />
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -197,7 +191,7 @@ function DatasetPage() {
   );
 }
 
-function RemoveImageButton({
+function ImageMenu({
   dataset,
   image,
 }: {
@@ -206,12 +200,24 @@ function RemoveImageButton({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const label = `${image.filename} actions`;
 
   return (
     <>
-      <Button variant="ghost" size="sm" onPress={() => setOpen(true)}>
-        Remove
-      </Button>
+      <Dropdown>
+        <Hint text={label}>
+          <Button variant="ghost" isIconOnly size="sm" aria-label={label}>
+            <MoreIcon />
+          </Button>
+        </Hint>
+        <Dropdown.Popover placement="bottom end">
+          <Dropdown.Menu aria-label={label} onAction={() => setOpen(true)}>
+            <Dropdown.Item id="remove" textValue="Remove" variant="danger">
+              <Label>Remove…</Label>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
       <DeleteDialog
         isOpen={open}
         onOpenChange={setOpen}
@@ -222,8 +228,7 @@ function RemoveImageButton({
           await router.invalidate();
         }}
       >
-        The image leaves {dataset}. Its review stays with the image and returns
-        with it.
+        Review stays with the image.
       </DeleteDialog>
     </>
   );

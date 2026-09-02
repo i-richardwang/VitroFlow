@@ -128,11 +128,6 @@ function TrainingRunPage() {
                     ? "No epochs finished"
                     : "Waiting for the first epoch"}
                 </EmptyState.Title>
-                <EmptyState.Description>
-                  {run.state.status === "failed"
-                    ? "The run failed before finishing an epoch."
-                    : "Curves appear once validation reports."}
-                </EmptyState.Description>
               </EmptyState.Header>
             </EmptyState>
           )}

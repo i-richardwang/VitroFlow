@@ -41,11 +41,7 @@ export function NewObservationDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>New observation</Modal.Heading>
-              <Description>
-                {day === null
-                  ? "A date on the experiment calendar."
-                  : `Day ${day}`}
-              </Description>
+              {day !== null ? <Description>Day {day}</Description> : null}
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -87,10 +83,7 @@ export function NewObservationDialog({
                   name="note"
                 >
                   <Label>Note</Label>
-                  <Input
-                    className="w-full"
-                    placeholder="What this observation was for"
-                  />
+                  <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>

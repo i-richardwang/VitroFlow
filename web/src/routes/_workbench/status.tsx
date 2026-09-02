@@ -1,5 +1,4 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Widget } from "@heroui-pro/react/widget";
 import { Chip, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 
@@ -14,6 +13,16 @@ export const Route = createFileRoute("/_workbench/status")({
   component: StatusPage,
 });
 
+type WorkerRow = {
+  key: string;
+  workerId: string;
+  kind: "Analysis" | "Training";
+  presence: WorkerPresence;
+  lastSeenSeconds: number;
+  activity: string | null;
+  href?: string;
+};
+
 const PRESENCE: Record<
   WorkerPresence,
   { label: string; color: "success" | "warning" | "default" }
@@ -26,175 +35,99 @@ const PRESENCE: Record<
 function StatusPage() {
   const { inferenceWorkers, trainingWorkers } = Route.useLoaderData();
   const router = useRouter();
-
   useRouteRefresh(router, 5000);
+
+  const rows: WorkerRow[] = [
+    ...inferenceWorkers.map((worker) => ({
+      key: `analysis:${worker.workerId}`,
+      workerId: worker.workerId,
+      kind: "Analysis" as const,
+      presence: worker.presence,
+      lastSeenSeconds: worker.lastSeenSeconds,
+      activity: worker.image ? `Analyzing ${worker.image}` : null,
+    })),
+    ...trainingWorkers.map((worker) => ({
+      key: `training:${worker.workerId}`,
+      workerId: worker.workerId,
+      kind: "Training" as const,
+      presence: worker.presence,
+      lastSeenSeconds: worker.lastSeenSeconds,
+      activity: worker.dataset ? `Training ${worker.dataset}` : null,
+      href:
+        worker.dataset && worker.currentTrainingRunId
+          ? `/datasets/${worker.dataset}/training/${worker.currentTrainingRunId}`
+          : undefined,
+    })),
+  ];
 
   return (
     <Page title="Status">
-      <Widget>
-        <Widget.Header>
-          <Widget.Title>Analysis</Widget.Title>
-        </Widget.Header>
-        <Widget.Content className="p-0">
-          <Table variant="secondary">
-            <Table.ScrollContainer>
-              <Table.Content aria-label="Analysis workers">
-                <Table.Header className="sr-only">
-                  <Table.Column isRowHeader>Worker</Table.Column>
-                  <Table.Column>Presence</Table.Column>
-                  <Table.Column>Activity</Table.Column>
-                  <Table.Column>Last seen</Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => (
-                    <EmptyState size="sm">
-                      <EmptyState.Header>
-                        <EmptyState.Title>
-                          No analysis workers are online
-                        </EmptyState.Title>
-                        <EmptyState.Description>
-                          Start one with the workbench URL and worker token.
-                        </EmptyState.Description>
-                      </EmptyState.Header>
-                      <EmptyState.Content>
-                        <code className="max-w-full overflow-x-auto rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs whitespace-nowrap">
-                          vitroflow worker setup inference NAME --server URL
-                        </code>
-                      </EmptyState.Content>
-                    </EmptyState>
-                  )}
-                >
-                  {inferenceWorkers.map((worker, idx) => (
-                    <Table.Row
-                      key={worker.workerId}
-                      className={
-                        idx === inferenceWorkers.length - 1
-                          ? "[&_td]:border-b-0"
-                          : ""
-                      }
+      <Table>
+        <Table.ScrollContainer>
+          <Table.Content aria-label="Workers">
+            <Table.Header>
+              <Table.Column isRowHeader>Worker</Table.Column>
+              <Table.Column>Kind</Table.Column>
+              <Table.Column>Presence</Table.Column>
+              <Table.Column>Activity</Table.Column>
+              <Table.Column>Last seen</Table.Column>
+            </Table.Header>
+            <Table.Body
+              renderEmptyState={() => (
+                <EmptyState size="sm">
+                  <EmptyState.Header>
+                    <EmptyState.Title>No workers yet</EmptyState.Title>
+                  </EmptyState.Header>
+                </EmptyState>
+              )}
+            >
+              {rows.map((row) => (
+                <Table.Row key={row.key}>
+                  <Table.Cell className="font-mono font-medium">
+                    {row.workerId}
+                  </Table.Cell>
+                  <Table.Cell className="text-muted">{row.kind}</Table.Cell>
+                  <Table.Cell>
+                    <Chip
+                      color={PRESENCE[row.presence].color}
+                      variant="soft"
+                      size="sm"
                     >
-                      <Table.Cell className="font-mono text-sm font-medium">
-                        {worker.workerId}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Chip
-                          color={PRESENCE[worker.presence].color}
-                          variant="soft"
-                          size="sm"
-                        >
-                          {PRESENCE[worker.presence].label}
-                        </Chip>
-                      </Table.Cell>
-                      <Table.Cell>
-                        {worker.image ? (
-                          <span className="text-sm">
-                            Analyzing {worker.image}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted">Idle</span>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span
-                          className="font-mono text-sm text-muted tabular-nums"
-                          title={new Date(worker.lastSeenAt).toLocaleString()}
-                        >
-                          {formatAge(worker.lastSeenSeconds)}
-                        </span>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
-        </Widget.Content>
-      </Widget>
-
-      <Widget>
-        <Widget.Header>
-          <Widget.Title>Training</Widget.Title>
-        </Widget.Header>
-        <Widget.Content className="p-0">
-          <Table variant="secondary">
-            <Table.ScrollContainer>
-              <Table.Content aria-label="Training workers">
-                <Table.Header className="sr-only">
-                  <Table.Column isRowHeader>Worker</Table.Column>
-                  <Table.Column>Presence</Table.Column>
-                  <Table.Column>Activity</Table.Column>
-                  <Table.Column>Last seen</Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => (
-                    <EmptyState size="sm">
-                      <EmptyState.Header>
-                        <EmptyState.Title>
-                          No training workers are online
-                        </EmptyState.Title>
-                        <EmptyState.Description>
-                          Training can run on a separate GPU machine.
-                        </EmptyState.Description>
-                      </EmptyState.Header>
-                      <EmptyState.Content>
-                        <code className="max-w-full overflow-x-auto rounded-md bg-surface-secondary px-3 py-2 font-mono text-xs whitespace-nowrap">
-                          vitroflow worker setup training NAME --server URL
-                          --device mps
-                        </code>
-                      </EmptyState.Content>
-                    </EmptyState>
-                  )}
-                >
-                  {trainingWorkers.map((worker, idx) => (
-                    <Table.Row
-                      key={worker.workerId}
-                      className={
-                        idx === trainingWorkers.length - 1
-                          ? "[&_td]:border-b-0"
-                          : ""
-                      }
-                    >
-                      <Table.Cell>
-                        <span className="font-mono text-sm font-medium">
-                          {worker.workerId}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Chip
-                          color={PRESENCE[worker.presence].color}
-                          variant="soft"
-                          size="sm"
-                        >
-                          {PRESENCE[worker.presence].label}
-                        </Chip>
-                      </Table.Cell>
-                      <Table.Cell>
-                        {worker.dataset ? (
-                          <Link
-                            href={`/datasets/${worker.dataset}/training/${worker.currentTrainingRunId}`}
-                            className="text-sm font-medium"
-                          >
-                            Training {worker.dataset}
-                          </Link>
-                        ) : (
-                          <span className="text-sm text-muted">Idle</span>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span className="font-mono text-sm text-muted tabular-nums">
-                          {formatAge(worker.lastSeenSeconds)}
-                        </span>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
-        </Widget.Content>
-      </Widget>
+                      {PRESENCE[row.presence].label}
+                    </Chip>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Activity activity={row.activity} href={row.href} />
+                  </Table.Cell>
+                  <Table.Cell className="font-mono text-muted tabular-nums">
+                    {formatAge(row.lastSeenSeconds)}
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
     </Page>
   );
+}
+
+function Activity({
+  activity,
+  href,
+}: {
+  activity: string | null;
+  href?: string;
+}) {
+  if (activity && href) {
+    return (
+      <Link href={href} className="font-medium">
+        {activity}
+      </Link>
+    );
+  }
+  if (activity) return activity;
+  return <span className="text-muted">Idle</span>;
 }
 
 function formatAge(seconds: number) {

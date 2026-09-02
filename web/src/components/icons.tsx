@@ -115,15 +115,6 @@ export function AccountIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function PanelRightIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
-      <path d="M10 3v10" />
-    </Icon>
-  );
-}
-
 export function ChevronLeftIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -172,6 +163,14 @@ export function CopyIcon(props: SVGProps<SVGSVGElement>) {
     <Icon {...props}>
       <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
       <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+    </Icon>
+  );
+}
+
+export function CheckIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 8.5l3 3 6-7" />
     </Icon>
   );
 }

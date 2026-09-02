@@ -22,10 +22,7 @@ function WorkbenchLayout() {
 function WorkbenchNotFound() {
   return (
     <Shell>
-      <WorkbenchNotice
-        title="Not found"
-        description="The dataset, image, experiment, or run is not in this workbench."
-      />
+      <WorkbenchNotice title="Not found" />
     </Shell>
   );
 }

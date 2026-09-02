@@ -1,7 +1,7 @@
 import { AppLayout } from "@heroui-pro/react/app-layout";
 import { Navbar } from "@heroui-pro/react/navbar";
 import { Sidebar } from "@heroui-pro/react/sidebar";
-import { Breadcrumbs, Button, Tooltip } from "@heroui/react";
+import { Breadcrumbs, Button } from "@heroui/react";
 import {
   getRouteApi,
   useMatches,
@@ -13,6 +13,8 @@ import {
   createContext,
   use,
   useCallback,
+  useLayoutEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -21,6 +23,7 @@ import { createPortal } from "react-dom";
 import { authClient } from "../auth/client";
 import { USER_ROLE_LABELS, isAdmin, type WorkbenchUser } from "../auth/schema";
 import { BrandLogo } from "./BrandLogo";
+import { Hint } from "./Hint";
 import {
   AccountIcon,
   DatasetsIcon,
@@ -68,7 +71,7 @@ const NAV = [
     ],
   },
   {
-    label: "Account",
+    label: "Settings",
     items: [
       {
         href: "/account",
@@ -100,6 +103,13 @@ const workbenchRoute = getRouteApi("/_workbench");
 
 const ActionsSlot = createContext<HTMLElement | null>(null);
 
+const Chrome = createContext<{
+  toolbarNode: HTMLElement | null;
+  asideNode: HTMLElement | null;
+  showToolbar: (show: boolean) => void;
+  showAside: (show: boolean) => void;
+} | null>(null);
+
 export type Crumb = { label: string; href?: string; mono?: boolean };
 
 export function ShellActions({ children }: { children: ReactNode }) {
@@ -110,30 +120,84 @@ export function ShellActions({ children }: { children: ReactNode }) {
   return createPortal(children, slot);
 }
 
+/** AppLayout toolbar. Canvas pages mount this. */
+export function ShellToolbar({ children }: { children: ReactNode }) {
+  const chrome = use(Chrome);
+  if (!chrome) {
+    throw new Error("ShellToolbar requires Shell");
+  }
+  useLayoutEffect(() => {
+    chrome.showToolbar(true);
+    return () => chrome.showToolbar(false);
+  }, [chrome.showToolbar]);
+  if (!chrome.toolbarNode) return null;
+  return createPortal(children, chrome.toolbarNode);
+}
+
+/** AppLayout aside. Sheet below 1024px. */
+export function ShellAside({ children }: { children: ReactNode }) {
+  const chrome = use(Chrome);
+  if (!chrome) {
+    throw new Error("ShellAside requires Shell");
+  }
+  useLayoutEffect(() => {
+    chrome.showAside(true);
+    return () => chrome.showAside(false);
+  }, [chrome.showAside]);
+  if (!chrome.asideNode) return null;
+  return createPortal(children, chrome.asideNode);
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const { user } = workbenchRoute.useRouteContext();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
+  const [hasToolbar, setHasToolbar] = useState(false);
+  const [hasAside, setHasAside] = useState(false);
+  const [toolbarNode, setToolbarNode] = useState<HTMLDivElement | null>(null);
+  const [asideNode, setAsideNode] = useState<HTMLDivElement | null>(null);
   const go = useCallback(
     (href: string) => {
       void navigate({ to: href });
     },
     [navigate],
   );
+  const showToolbar = useCallback((show: boolean) => {
+    setHasToolbar((current) => (current === show ? current : show));
+  }, []);
+  const showAside = useCallback((show: boolean) => {
+    setHasAside((current) => (current === show ? current : show));
+  }, []);
+  const chrome = useMemo(
+    () => ({ toolbarNode, asideNode, showToolbar, showAside }),
+    [toolbarNode, asideNode, showToolbar, showAside],
+  );
 
   return (
-    <ActionsSlot.Provider value={actionsSlot}>
-      <AppLayout
-        navigate={go}
-        scrollMode="content"
-        sidebar={<AppSidebar pathname={pathname} user={user} />}
-        sidebarCollapsible="icon"
-        navbar={<AppNavbar onActionsSlot={setActionsSlot} />}
-      >
-        {children}
-      </AppLayout>
-    </ActionsSlot.Provider>
+    <Chrome.Provider value={chrome}>
+      <ActionsSlot.Provider value={actionsSlot}>
+        <AppLayout
+          navigate={go}
+          scrollMode="content"
+          sidebar={<AppSidebar pathname={pathname} user={user} />}
+          sidebarCollapsible="icon"
+          navbar={<AppNavbar onActionsSlot={setActionsSlot} />}
+          toolbar={hasToolbar ? <div ref={setToolbarNode} /> : undefined}
+          aside={
+            hasAside ? (
+              <div
+                ref={setAsideNode}
+                className="flex h-full flex-col gap-6 overflow-y-auto p-4 text-sm"
+              />
+            ) : undefined
+          }
+          asideMobile={hasAside ? "sheet" : undefined}
+        >
+          {children}
+        </AppLayout>
+      </ActionsSlot.Provider>
+    </Chrome.Provider>
   );
 }
 
@@ -312,21 +376,18 @@ function SignedInUser({ user }: { user: WorkbenchUser }) {
           {USER_ROLE_LABELS[user.role]}
         </div>
       </div>
-      <Tooltip delay={0}>
-        <Tooltip.Trigger>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label="Sign out"
-            isDisabled={busy}
-            onPress={() => void signOut()}
-          >
-            <LogoutIcon />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content>Sign out</Tooltip.Content>
-      </Tooltip>
+      <Hint text="Sign out">
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label="Sign out"
+          isDisabled={busy}
+          onPress={() => void signOut()}
+        >
+          <LogoutIcon />
+        </Button>
+      </Hint>
     </div>
   );
 }

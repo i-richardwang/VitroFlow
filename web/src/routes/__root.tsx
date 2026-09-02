@@ -44,12 +44,7 @@ function RootComponent() {
 }
 
 function NotFoundPage() {
-  return (
-    <WorkbenchNotice
-      title="Page not found"
-      description="The requested page does not exist in this workbench."
-    />
-  );
+  return <WorkbenchNotice title="Page not found" />;
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {

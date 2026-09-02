@@ -18,6 +18,7 @@ import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DeleteDialog } from "../DeleteDialog";
+import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { fromDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
@@ -44,9 +45,11 @@ export function ExperimentMenu({
   return (
     <>
       <Dropdown>
-        <Button variant="ghost" isIconOnly aria-label="Experiment actions">
-          <MoreIcon />
-        </Button>
+        <Hint text="Experiment actions">
+          <Button variant="ghost" isIconOnly aria-label="Experiment actions">
+            <MoreIcon />
+          </Button>
+        </Hint>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label="Experiment actions"
@@ -112,9 +115,7 @@ export function ExperimentMenu({
           await router.navigate({ to: "/experiments" });
         }}
       >
-        Its treatments, observation units, and observations are removed. Images
-        stay stored, with their detections and reviews, for datasets that use
-        them.
+        Images stay stored.
       </DeleteDialog>
     </>
   );

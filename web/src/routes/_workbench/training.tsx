@@ -54,11 +54,7 @@ function TrainingPage() {
 
       <VersionsTable versions={versions} />
 
-      <TrainingRunsTable
-        runs={runs}
-        datasetColumn
-        emptyHint="Open a dataset and train a version from its reviewed annotations."
-      />
+      <TrainingRunsTable runs={runs} datasetColumn />
     </Page>
   );
 }

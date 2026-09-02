@@ -90,7 +90,6 @@ export function NewExperimentDialog({
                     isDisabled={busy}
                     name="version"
                     defaultSelectedKey={versions[0]?.version.id}
-                    placeholder="Choose a version"
                   >
                     <Label>Version</Label>
                     <Select.Trigger>

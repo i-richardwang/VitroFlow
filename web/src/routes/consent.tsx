@@ -52,20 +52,14 @@ function ConsentPage() {
             <Card.Title render={(props) => <h1 {...props} />}>
               Authorize {client.name}
             </Card.Title>
-            <Card.Description>
-              {client.uri ? (
+            {client.uri ? (
+              <Card.Description>
                 <Link href={client.uri} target="_blank" rel="noreferrer">
                   {client.uri}
                 </Link>
-              ) : (
-                "An MCP client is asking to act on your behalf."
-              )}
-            </Card.Description>
+              </Card.Description>
+            ) : null}
           </Card.Header>
-          <Card.Content className="text-sm text-muted">
-            It will maintain experiment records through the MCP tools as you,
-            until you disconnect it from the Integrations page.
-          </Card.Content>
           <Card.Footer className="flex gap-2">
             <Button
               variant="tertiary"
