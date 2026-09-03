@@ -6,7 +6,6 @@ import { useState } from "react";
 import type { McpClient } from "../../auth/integrations";
 import { removeMcpClient } from "../../functions/integrations";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { Timestamp } from "../Timestamp";
 
@@ -54,16 +53,14 @@ function McpClientMenu({ client }: { client: McpClient }) {
   return (
     <>
       <Dropdown>
-        <Hint text={`${client.name} actions`}>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`${client.name} actions`}
-          >
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label={`${client.name} actions`}
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={`${client.name} actions`}

@@ -103,11 +103,9 @@ const workbenchRoute = getRouteApi("/_workbench");
 
 const ActionsSlot = createContext<HTMLElement | null>(null);
 
-const Chrome = createContext<{
-  toolbarNode: HTMLElement | null;
-  asideNode: HTMLElement | null;
-  showToolbar: (show: boolean) => void;
-  showAside: (show: boolean) => void;
+const AsideSlot = createContext<{
+  node: HTMLElement | null;
+  show: (show: boolean) => void;
 } | null>(null);
 
 export type Crumb = { label: string; href?: string; mono?: boolean };
@@ -120,32 +118,18 @@ export function ShellActions({ children }: { children: ReactNode }) {
   return createPortal(children, slot);
 }
 
-/** AppLayout toolbar. Canvas pages mount this. */
-export function ShellToolbar({ children }: { children: ReactNode }) {
-  const chrome = use(Chrome);
-  if (!chrome) {
-    throw new Error("ShellToolbar requires Shell");
-  }
-  useLayoutEffect(() => {
-    chrome.showToolbar(true);
-    return () => chrome.showToolbar(false);
-  }, [chrome.showToolbar]);
-  if (!chrome.toolbarNode) return null;
-  return createPortal(children, chrome.toolbarNode);
-}
-
 /** AppLayout aside. Sheet below 1024px. */
 export function ShellAside({ children }: { children: ReactNode }) {
-  const chrome = use(Chrome);
-  if (!chrome) {
+  const aside = use(AsideSlot);
+  if (!aside) {
     throw new Error("ShellAside requires Shell");
   }
   useLayoutEffect(() => {
-    chrome.showAside(true);
-    return () => chrome.showAside(false);
-  }, [chrome.showAside]);
-  if (!chrome.asideNode) return null;
-  return createPortal(children, chrome.asideNode);
+    aside.show(true);
+    return () => aside.show(false);
+  }, [aside.show]);
+  if (!aside.node) return null;
+  return createPortal(children, aside.node);
 }
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -153,9 +137,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
-  const [hasToolbar, setHasToolbar] = useState(false);
   const [hasAside, setHasAside] = useState(false);
-  const [toolbarNode, setToolbarNode] = useState<HTMLDivElement | null>(null);
   const [asideNode, setAsideNode] = useState<HTMLDivElement | null>(null);
   const go = useCallback(
     (href: string) => {
@@ -163,19 +145,16 @@ export function Shell({ children }: { children: ReactNode }) {
     },
     [navigate],
   );
-  const showToolbar = useCallback((show: boolean) => {
-    setHasToolbar((current) => (current === show ? current : show));
-  }, []);
   const showAside = useCallback((show: boolean) => {
     setHasAside((current) => (current === show ? current : show));
   }, []);
-  const chrome = useMemo(
-    () => ({ toolbarNode, asideNode, showToolbar, showAside }),
-    [toolbarNode, asideNode, showToolbar, showAside],
+  const asideSlot = useMemo(
+    () => ({ node: asideNode, show: showAside }),
+    [asideNode, showAside],
   );
 
   return (
-    <Chrome.Provider value={chrome}>
+    <AsideSlot.Provider value={asideSlot}>
       <ActionsSlot.Provider value={actionsSlot}>
         <AppLayout
           navigate={go}
@@ -183,7 +162,6 @@ export function Shell({ children }: { children: ReactNode }) {
           sidebar={<AppSidebar pathname={pathname} user={user} />}
           sidebarCollapsible="icon"
           navbar={<AppNavbar onActionsSlot={setActionsSlot} />}
-          toolbar={hasToolbar ? <div ref={setToolbarNode} /> : undefined}
           aside={
             hasAside ? (
               <div
@@ -197,7 +175,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
         </AppLayout>
       </ActionsSlot.Provider>
-    </Chrome.Provider>
+    </AsideSlot.Provider>
   );
 }
 
@@ -221,7 +199,11 @@ function AppNavbar({
                 <Breadcrumbs.Item
                   key={`${crumb.label}:${crumb.href ?? "current"}`}
                   href={last ? undefined : crumb.href}
-                  className={`min-w-0 no-underline ${last ? "font-semibold" : "text-muted"} ${crumb.mono ? "font-mono" : ""}`}
+                  className={
+                    crumb.mono
+                      ? "min-w-0 font-mono no-underline"
+                      : "min-w-0 no-underline"
+                  }
                 >
                   <span className="truncate">{crumb.label}</span>
                 </Breadcrumbs.Item>

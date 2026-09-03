@@ -24,7 +24,6 @@ import {
 } from "../../functions/users";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { PasswordField } from "./PasswordField";
 import { RoleSelect } from "./RoleSelect";
@@ -47,16 +46,14 @@ export function UserMenu({ account }: { account: UserAccount }) {
   return (
     <>
       <Dropdown>
-        <Hint text={`${account.name} actions`}>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`${account.name} actions`}
-          >
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label={`${account.name} actions`}
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={`${account.name} actions`}

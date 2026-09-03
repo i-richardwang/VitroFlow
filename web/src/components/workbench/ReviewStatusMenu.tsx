@@ -17,7 +17,6 @@ import {
   type ReviewEvent,
 } from "../../annotation/status";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 
 type ReviewAction = "complete" | "reopen" | "include";
@@ -65,16 +64,14 @@ export function ReviewStatusMenu({
   return (
     <>
       <Dropdown>
-        <Hint text="Review actions">
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label="Review actions"
-          >
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label="Review actions"
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label="Review actions"

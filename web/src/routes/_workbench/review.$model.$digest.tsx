@@ -30,9 +30,13 @@ export const Route = createFileRoute("/_workbench/review/$model/$digest")({
     return review;
   },
   staticData: {
-    crumbs: ({ loaderData }) => [
-      { label: (loaderData as Review).filename, mono: true },
-    ],
+    crumbs: ({ loaderData }) => {
+      const review = loaderData as Review;
+      return [
+        { label: review.model.name },
+        { label: review.filename, mono: true },
+      ];
+    },
   },
   gcTime: 0,
   component: ReviewPage,

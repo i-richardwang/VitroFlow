@@ -18,7 +18,6 @@ import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { fromDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
@@ -45,11 +44,9 @@ export function ExperimentMenu({
   return (
     <>
       <Dropdown>
-        <Hint text="Experiment actions">
-          <Button variant="ghost" isIconOnly aria-label="Experiment actions">
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button variant="ghost" isIconOnly aria-label="Experiment actions">
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label="Experiment actions"

@@ -37,7 +37,6 @@ import {
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import {
   ReassignObservationImageModal,
@@ -68,16 +67,14 @@ export function ObservationUnitMenu({
   return (
     <>
       <Dropdown>
-        <Hint text={`${observationUnit.code} actions`}>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`${observationUnit.code} actions`}
-          >
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label={`${observationUnit.code} actions`}
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={`${observationUnit.code} actions`}

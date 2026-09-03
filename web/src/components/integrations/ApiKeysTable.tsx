@@ -6,7 +6,6 @@ import { useState } from "react";
 import { API_SCOPE_LABELS, type ApiKey } from "../../auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { Timestamp } from "../Timestamp";
 
@@ -76,16 +75,14 @@ function ApiKeyMenu({ apiKey }: { apiKey: ApiKey }) {
   return (
     <>
       <Dropdown>
-        <Hint text={`${apiKey.name} actions`}>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`${apiKey.name} actions`}
-          >
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label={`${apiKey.name} actions`}
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={`${apiKey.name} actions`}

@@ -227,11 +227,9 @@ function ImageMenu({
   return (
     <>
       <Dropdown>
-        <Hint text={label}>
-          <Button variant="ghost" isIconOnly size="sm" aria-label={label}>
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button variant="ghost" isIconOnly size="sm" aria-label={label}>
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu aria-label={label} onAction={() => setOpen(true)}>
             <Dropdown.Item id="remove" textValue="Remove" variant="danger">

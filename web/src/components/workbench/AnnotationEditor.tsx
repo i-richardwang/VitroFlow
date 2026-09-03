@@ -1,8 +1,9 @@
+import { InlineSelect } from "@heroui-pro/react/inline-select";
 import {
   Button,
+  ButtonGroup,
   Kbd,
   ListBox,
-  Select,
   Separator,
   ToggleButton,
   ToggleButtonGroup,
@@ -207,10 +208,9 @@ function EditorToolbar({
   onClassChange: (className: string) => void;
 }) {
   return (
-    <Toolbar aria-label="Tools" className="px-3 py-1.5">
+    <Toolbar isAttached aria-label="Tools">
       <ToggleButtonGroup
         aria-label="Tool"
-        size="sm"
         selectionMode="single"
         disallowEmptySelection
         selectedKeys={new Set([tool])}
@@ -224,28 +224,27 @@ function EditorToolbar({
           return (
             <ShortcutTooltip key={id} label={name} shortcut={shortcut}>
               <ToggleButton id={id} isIconOnly aria-label={name}>
-                {index > 0 && <ToggleButtonGroup.Separator />}
+                {index > 0 ? <ToggleButtonGroup.Separator /> : null}
                 <Icon />
               </ToggleButton>
             </ShortcutTooltip>
           );
         })}
       </ToggleButtonGroup>
-      <Separator orientation="vertical" className="mx-1 h-5" />
+      {classes.length > 1 ? <Separator /> : null}
       {classes.length > 1 ? (
-        <Select
+        <InlineSelect
           aria-label="Box class"
-          className="w-44"
           selectedKey={className}
           onSelectionChange={(key) =>
             key !== null && onClassChange(String(key))
           }
         >
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
+          <InlineSelect.Trigger>
+            <InlineSelect.Value />
+            <InlineSelect.Indicator />
+          </InlineSelect.Trigger>
+          <InlineSelect.Popover className="w-44">
             <ListBox>
               {classes.map((name) => (
                 <ListBox.Item key={name} id={name} textValue={name}>
@@ -254,48 +253,47 @@ function EditorToolbar({
                 </ListBox.Item>
               ))}
             </ListBox>
-          </Select.Popover>
-        </Select>
+          </InlineSelect.Popover>
+        </InlineSelect>
       ) : null}
-      {classes.length > 1 ? (
-        <Separator orientation="vertical" className="mx-1 h-5" />
-      ) : null}
-      <ShortcutTooltip label="Undo" shortcut="⌘Z">
-        <Button
-          variant="tertiary"
-          size="sm"
-          isIconOnly
-          aria-label="Undo"
-          isDisabled={!history.canUndo}
-          onPress={onUndo}
-        >
-          <UndoIcon />
-        </Button>
-      </ShortcutTooltip>
-      <ShortcutTooltip label="Redo" shortcut="⇧⌘Z">
-        <Button
-          variant="tertiary"
-          size="sm"
-          isIconOnly
-          aria-label="Redo"
-          isDisabled={!history.canRedo}
-          onPress={onRedo}
-        >
-          <RedoIcon />
-        </Button>
-      </ShortcutTooltip>
-      <ShortcutTooltip label="Delete" shortcut="⌫">
-        <Button
-          variant="tertiary"
-          size="sm"
-          isIconOnly
-          aria-label="Delete"
-          isDisabled={!canDelete}
-          onPress={onDelete}
-        >
-          <DeleteIcon />
-        </Button>
-      </ShortcutTooltip>
+      <Separator />
+      <ButtonGroup variant="tertiary">
+        <ShortcutTooltip label="Undo" shortcut="⌘Z">
+          <Button
+            variant="tertiary"
+            isIconOnly
+            aria-label="Undo"
+            isDisabled={!history.canUndo}
+            onPress={onUndo}
+          >
+            <UndoIcon />
+          </Button>
+        </ShortcutTooltip>
+        <ShortcutTooltip label="Redo" shortcut="⇧⌘Z">
+          <Button
+            variant="tertiary"
+            isIconOnly
+            aria-label="Redo"
+            isDisabled={!history.canRedo}
+            onPress={onRedo}
+          >
+            <ButtonGroup.Separator />
+            <RedoIcon />
+          </Button>
+        </ShortcutTooltip>
+        <ShortcutTooltip label="Delete" shortcut="⌫">
+          <Button
+            variant="tertiary"
+            isIconOnly
+            aria-label="Delete"
+            isDisabled={!canDelete}
+            onPress={onDelete}
+          >
+            <ButtonGroup.Separator />
+            <DeleteIcon />
+          </Button>
+        </ShortcutTooltip>
+      </ButtonGroup>
     </Toolbar>
   );
 }
@@ -311,7 +309,7 @@ function ShortcutTooltip({
 }) {
   return (
     <Tooltip delay={0}>
-      <Tooltip.Trigger>{children}</Tooltip.Trigger>
+      {children}
       <Tooltip.Content className="flex items-center gap-2">
         {label}
         <Kbd>{shortcut}</Kbd>

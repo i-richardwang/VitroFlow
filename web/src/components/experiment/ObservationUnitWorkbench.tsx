@@ -1,6 +1,13 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Segment } from "@heroui-pro/react/segment";
-import { Alert, Button, Toolbar } from "@heroui/react";
+import {
+  Alert,
+  Button,
+  ButtonGroup,
+  Separator,
+  Toolbar,
+  Tooltip,
+} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
@@ -21,7 +28,6 @@ import type {
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { QualityAlert } from "../DetectionQuality";
-import { Hint } from "../Hint";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 import { Workbench } from "../Workbench";
 import { AnnotationCanvas } from "../workbench/AnnotationCanvas";
@@ -92,15 +98,13 @@ export function ObservationUnitWorkbench({
         </>
       }
       toolbar={
-        <Toolbar
-          aria-label="Observation unit and observation"
-          className="gap-3 px-3 py-1.5"
-        >
+        <Toolbar isAttached aria-label="Observation unit and observation">
           <ObservationUnitStepper
             experiment={experiment.id}
             previous={navigation[at - 1] ?? null}
             next={navigation[at + 1] ?? null}
           />
+          {series.observations.length > 0 ? <Separator /> : null}
           {series.observations.length > 0 ? (
             <ObservationSwitch
               series={series}
@@ -214,7 +218,6 @@ function ObservationSwitch({
   return (
     <Segment
       variant="ghost"
-      className="self-start"
       aria-label="Observations"
       selectedKey={shown ?? undefined}
       onSelectionChange={(key) => {
@@ -263,20 +266,23 @@ function ObservationUnitStepper({
       params: { experiment, observationUnit },
     });
   return (
-    <span className="flex items-center">
+    <ButtonGroup variant="tertiary">
       <ObservationUnitStepButton
         label="Previous observation unit"
         observationUnit={previous}
         onPress={go}
-        icon={<ChevronLeftIcon />}
-      />
+      >
+        <ChevronLeftIcon />
+      </ObservationUnitStepButton>
       <ObservationUnitStepButton
         label="Next observation unit"
         observationUnit={next}
         onPress={go}
-        icon={<ChevronRightIcon />}
-      />
-    </span>
+      >
+        <ButtonGroup.Separator />
+        <ChevronRightIcon />
+      </ObservationUnitStepButton>
+    </ButtonGroup>
   );
 }
 
@@ -284,27 +290,31 @@ function ObservationUnitStepButton({
   label,
   observationUnit,
   onPress,
-  icon,
+  children,
 }: {
   label: string;
   observationUnit: ObservationUnitNavigationEntry | null;
   onPress: (observationUnit: string) => void;
-  icon: ReactNode;
+  children: ReactNode;
 }) {
   const button = (
     <Button
-      variant="ghost"
-      size="sm"
+      variant="tertiary"
       isIconOnly
       aria-label={label}
       isDisabled={observationUnit === null}
       onPress={() => observationUnit && onPress(observationUnit.id)}
     >
-      {icon}
+      {children}
     </Button>
   );
   if (observationUnit === null) return button;
-  return <Hint text={observationUnit.code}>{button}</Hint>;
+  return (
+    <Tooltip delay={0}>
+      {button}
+      <Tooltip.Content>{observationUnit.code}</Tooltip.Content>
+    </Tooltip>
+  );
 }
 
 function ReviewButton({ image }: { image: ExperimentObservationImage }) {

@@ -24,7 +24,6 @@ import {
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
 import { DayField, fromDay, toDay } from "./DayField";
@@ -49,16 +48,14 @@ export function ObservationMenu({
   return (
     <>
       <Dropdown>
-        <Hint text={`${name} actions`}>
-          <Button
-            variant="ghost"
-            isIconOnly
-            size="sm"
-            aria-label={`${name} actions`}
-          >
-            <MoreIcon />
-          </Button>
-        </Hint>
+        <Button
+          variant="ghost"
+          isIconOnly
+          size="sm"
+          aria-label={`${name} actions`}
+        >
+          <MoreIcon />
+        </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={name}
