@@ -1,13 +1,11 @@
-import { Button } from "@heroui/react";
+import { Alert, Button } from "@heroui/react";
 
-import type {
-  AnnotationDocument,
-  AnnotationInstance,
-} from "../../annotation/schema";
+import type { AnnotationDocument } from "../../annotation/schema";
 import type { DetectionResult } from "../../detection/schema";
+import type { SaveState } from "../../hooks/useAnnotation";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
-import { QualityWarnings } from "../QualityWarnings";
+import { QualityAlert } from "../DetectionQuality";
 import type { LayerKey } from "./controls";
 import {
   LayersSection,
@@ -23,19 +21,38 @@ export function InspectorPanel({
   annotation,
   layers,
   onLayersChange,
-  selected,
-  onDeleteSelected,
+  saveState,
+  saveError,
+  onRetrySave,
 }: {
   model: Model;
   result: DetectionResult;
   annotation: AnnotationDocument;
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
-  selected: AnnotationInstance | null;
-  onDeleteSelected: () => void;
+  saveState: SaveState;
+  saveError: string | null;
+  onRetrySave: () => void;
 }) {
   return (
     <>
+      {saveState === "failed" ? (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Save failed</Alert.Title>
+            {saveError ? (
+              <Alert.Description>{saveError}</Alert.Description>
+            ) : null}
+          </Alert.Content>
+          <Button size="sm" variant="danger" onPress={onRetrySave}>
+            Retry
+          </Button>
+        </Alert>
+      ) : null}
+      {annotation.excludedReason ? (
+        <p className="text-sm text-muted">{annotation.excludedReason}</p>
+      ) : null}
       <MetricsSection
         metrics={model.metrics}
         sources={[
@@ -44,62 +61,18 @@ export function InspectorPanel({
         ]}
       />
       <LayersSection layers={layers} onLayersChange={onLayersChange} />
-      <Section
-        title="Selection"
-        trailing={
-          selected && (
-            <Button variant="danger-soft" size="sm" onPress={onDeleteSelected}>
-              Delete
-            </Button>
-          )
-        }
-      >
-        <Metrics rows={selectionMetrics(annotation, selected)} />
-      </Section>
-      <Section title="Diagnostics">
+      <Section title="Detection">
         <Metrics rows={diagnosticMetrics(model.id, result)} />
-        <QualityWarnings quality={result.quality} />
+        <QualityAlert quality={result.quality} />
       </Section>
     </>
   );
 }
 
-function selectionMetrics(
-  annotation: AnnotationDocument,
-  selected: AnnotationInstance | null,
-): Metric[] {
-  const rows: Metric[] = [
-    {
-      label: "Selected",
-      value: selected ? `#${annotation.instances.indexOf(selected) + 1}` : "—",
-    },
-  ];
-  if (annotation.status === "excluded") {
-    rows.push({
-      label: "Excluded",
-      value: annotation.excludedReason ?? "—",
-    });
-  }
-  if (selected) {
-    rows.push(
-      { label: "Class", value: selected.class },
-      { label: "x", value: selected.bbox.x.toFixed(1) },
-      { label: "y", value: selected.bbox.y.toFixed(1) },
-      { label: "Width", value: selected.bbox.width.toFixed(1) },
-      { label: "Height", value: selected.bbox.height.toFixed(1) },
-    );
-  }
-  return rows;
-}
-
 function diagnosticMetrics(modelId: string, result: DetectionResult): Metric[] {
   const metrics = result.diagnostics?.metrics;
   const dish = result.diagnostics?.dish;
-  return [
-    {
-      label: "Threshold",
-      value: String(metrics?.confidence_threshold ?? "—"),
-    },
+  const rows: Metric[] = [
     {
       label: "Version",
       value: versionSlug({
@@ -107,17 +80,18 @@ function diagnosticMetrics(modelId: string, result: DetectionResult): Metric[] {
         modelId,
       }),
     },
-    { label: "Focus score", value: String(metrics?.focus_score ?? "—") },
-    {
-      label: "Clipped",
-      value:
-        metrics?.clipped_fraction === undefined
-          ? "—"
-          : metrics.clipped_fraction.toFixed(4),
-    },
-    {
-      label: "Petri dish radius",
-      value: dish ? `${dish.radius.toFixed(0)} px` : "—",
-    },
   ];
+  if (metrics?.confidence_threshold !== undefined) {
+    rows.push({
+      label: "Threshold",
+      value: String(metrics.confidence_threshold),
+    });
+  }
+  if (dish) {
+    rows.push({
+      label: "Petri dish radius",
+      value: `${dish.radius.toFixed(0)} px`,
+    });
+  }
+  return rows;
 }

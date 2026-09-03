@@ -20,9 +20,9 @@ import type {
   ExperimentObservationImage,
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
+import { QualityAlert } from "../DetectionQuality";
 import { Hint } from "../Hint";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
-import { QualityWarnings } from "../QualityWarnings";
 import { Workbench } from "../Workbench";
 import { AnnotationCanvas } from "../workbench/AnnotationCanvas";
 import type { LayerKey } from "../workbench/controls";
@@ -33,7 +33,6 @@ import {
   Section,
 } from "../workbench/inspector";
 import { ObservationUnitMenu } from "./ObservationUnitMenu";
-import { ImageAnalysisStateChip } from "./ImageAnalysisStateChip";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 const VIEW_LAYERS: LayerKey[] = ["boxes", "ids", "dish"];
@@ -113,39 +112,28 @@ export function ObservationUnitWorkbench({
       inspector={
         shown ? (
           <>
-            {(completedReview || detection) && (
-              <MetricsSection
-                metrics={model.metrics}
-                sources={[
-                  ...(completedReview
-                    ? [
-                        {
-                          label: "Reviewed",
-                          tally: tally(completedReview.instances),
-                        },
-                      ]
-                    : []),
-                  ...(detection
-                    ? [
-                        {
-                          label: "Detected",
-                          tally: tally(detection.instances),
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            )}
-            <Section
-              title="Image"
-              trailing={
-                shown.failure ? null : (
-                  <ImageAnalysisStateChip
-                    state={detection ? "analyzed" : "pending"}
-                  />
-                )
-              }
-            >
+            <MetricsSection
+              metrics={model.metrics}
+              sources={[
+                ...(completedReview
+                  ? [
+                      {
+                        label: "Reviewed",
+                        tally: tally(completedReview.instances),
+                      },
+                    ]
+                  : []),
+                ...(detection
+                  ? [
+                      {
+                        label: "Detected",
+                        tally: tally(detection.instances),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <Section title="Image">
               <Metrics
                 rows={[
                   {
@@ -167,9 +155,6 @@ export function ObservationUnitWorkbench({
                   },
                 ]}
               />
-              {detection ? (
-                <QualityWarnings quality={detection.quality} />
-              ) : null}
               {shown.failure ? (
                 <Alert status="danger">
                   <Alert.Indicator />
@@ -179,6 +164,8 @@ export function ObservationUnitWorkbench({
                   </Alert.Content>
                   <RetryButton image={shown.ref} />
                 </Alert>
+              ) : detection ? (
+                <QualityAlert quality={detection.quality} />
               ) : null}
             </Section>
             <LayersSection
@@ -343,7 +330,8 @@ function RetryButton({ image }: { image: ObservationImageRef }) {
   const action = useAsyncAction();
   return (
     <Button
-      variant="secondary"
+      variant="danger"
+      size="sm"
       isDisabled={action.busy}
       onPress={async () => {
         const result = await action.run(

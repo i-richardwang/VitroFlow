@@ -174,3 +174,11 @@ export function CheckIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function DeleteIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 5h9M6.5 5V3.5h3V5M5.5 5l.5 8h4l.5-8" />
+    </Icon>
+  );
+}

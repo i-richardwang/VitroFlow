@@ -21,7 +21,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { authClient } from "../auth/client";
-import { USER_ROLE_LABELS, isAdmin, type WorkbenchUser } from "../auth/schema";
+import { isAdmin, type WorkbenchUser } from "../auth/schema";
 import { BrandLogo } from "./BrandLogo";
 import { Hint } from "./Hint";
 import {
@@ -368,13 +368,11 @@ function SignedInUser({ user }: { user: WorkbenchUser }) {
 
   return (
     <div className="flex items-center gap-2 px-1 py-1">
-      <div className="min-w-0 flex-1" data-sidebar="label">
-        <div className="truncate text-sm font-medium text-foreground">
-          {user.name}
-        </div>
-        <div className="truncate text-xs text-muted">
-          {USER_ROLE_LABELS[user.role]}
-        </div>
+      <div
+        className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+        data-sidebar="label"
+      >
+        {user.name}
       </div>
       <Hint text="Sign out">
         <Button

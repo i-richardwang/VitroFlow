@@ -20,7 +20,8 @@ import type { DetectionResult } from "../../detection/schema";
 import { useAnnotation } from "../../hooks/useAnnotation";
 import { useHistory } from "../../hooks/useHistory";
 import type { Model } from "../../models/schema";
-import { RedoIcon, UndoIcon } from "../icons";
+import { DeleteIcon, RedoIcon, UndoIcon } from "../icons";
+import { ImageStateChip } from "../ImageState";
 import { Workbench } from "../Workbench";
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import {
@@ -32,7 +33,6 @@ import {
 } from "./controls";
 import { InspectorPanel } from "./InspectorPanel";
 import { ReviewStatusMenu } from "./ReviewStatusMenu";
-import { SaveIndicator } from "./SaveIndicator";
 
 const DEFAULT_LAYERS: LayerKey[] = ["boxes", "dish"];
 
@@ -127,7 +127,7 @@ export function AnnotationEditor({
       title={`Review ${filename} for ${model.name}`}
       actions={
         <>
-          <SaveIndicator state={saveState} error={error} onRetry={retry} />
+          <ImageStateChip state={annotation.status} />
           <ReviewStatusMenu annotation={annotation} onReview={review} />
         </>
       }
@@ -135,9 +135,11 @@ export function AnnotationEditor({
         <EditorToolbar
           tool={tool}
           history={history}
+          canDelete={selectedId !== null}
           onToolChange={setTool}
           onUndo={undo}
           onRedo={redo}
+          onDelete={deleteSelected}
           classes={model.classes}
           className={selected?.class ?? activeClass}
           onClassChange={changeClass}
@@ -150,8 +152,9 @@ export function AnnotationEditor({
           annotation={annotation}
           layers={layers}
           onLayersChange={setLayers}
-          selected={selected}
-          onDeleteSelected={deleteSelected}
+          saveState={saveState}
+          saveError={error}
+          onRetrySave={retry}
         />
       }
     >
@@ -177,18 +180,22 @@ export function AnnotationEditor({
 function EditorToolbar({
   tool,
   history,
+  canDelete,
   onToolChange,
   onUndo,
   onRedo,
+  onDelete,
   classes,
   className,
   onClassChange,
 }: {
   tool: Tool;
   history: { canUndo: boolean; canRedo: boolean };
+  canDelete: boolean;
   onToolChange: (tool: Tool) => void;
   onUndo: () => void;
   onRedo: () => void;
+  onDelete: () => void;
   classes: string[];
   className: string;
   onClassChange: (className: string) => void;
@@ -223,7 +230,6 @@ function EditorToolbar({
         <Select
           aria-label="Box class"
           className="w-44"
-          variant="secondary"
           selectedKey={className}
           onSelectionChange={(key) =>
             key !== null && onClassChange(String(key))
@@ -270,6 +276,18 @@ function EditorToolbar({
           onPress={onRedo}
         >
           <RedoIcon />
+        </Button>
+      </ShortcutTooltip>
+      <ShortcutTooltip label="Delete" shortcut="⌫">
+        <Button
+          variant="tertiary"
+          size="sm"
+          isIconOnly
+          aria-label="Delete"
+          isDisabled={!canDelete}
+          onPress={onDelete}
+        >
+          <DeleteIcon />
         </Button>
       </ShortcutTooltip>
     </Toolbar>

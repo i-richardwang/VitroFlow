@@ -1,9 +1,11 @@
 import {
   Button,
   Dropdown,
+  Form,
   Input,
   Label,
   Modal,
+  Separator,
   TextField,
   toast,
 } from "@heroui/react";
@@ -14,20 +16,26 @@ import {
   ReviewTransitionError,
   type ReviewEvent,
 } from "../../annotation/status";
-import { ImageStateDot, imageStateLabel } from "../ImageState";
+import { Hint } from "../Hint";
+import { MoreIcon } from "../icons";
 
-type Action = "complete" | "reopen" | "include" | "exclude";
+type ReviewAction = "complete" | "reopen" | "include";
 
-const ACTIONS: Record<ReviewStatus, { id: Action; label: string }[]> = {
-  in_progress: [
-    { id: "complete", label: "Mark complete" },
-    { id: "exclude", label: "Exclude image…" },
-  ],
-  complete: [
-    { id: "reopen", label: "Reopen" },
-    { id: "exclude", label: "Exclude image…" },
-  ],
-  excluded: [{ id: "include", label: "Include image" }],
+const ACTIONS: Record<
+  ReviewStatus,
+  { items: { id: ReviewAction; label: string }[]; exclude?: string }
+> = {
+  in_progress: {
+    items: [{ id: "complete", label: "Mark complete" }],
+    exclude: "Exclude image…",
+  },
+  complete: {
+    items: [{ id: "reopen", label: "Reopen" }],
+    exclude: "Exclude image…",
+  },
+  excluded: {
+    items: [{ id: "include", label: "Include image" }],
+  },
 };
 
 export function ReviewStatusMenu({
@@ -38,6 +46,7 @@ export function ReviewStatusMenu({
   onReview: (event: ReviewEvent) => void;
 }) {
   const [excluding, setExcluding] = useState(false);
+  const { items, exclude } = ACTIONS[annotation.status];
 
   const review = (event: ReviewEvent) => {
     try {
@@ -52,88 +61,107 @@ export function ReviewStatusMenu({
   return (
     <>
       <Dropdown>
-        <Button variant="ghost">
-          <ImageStateDot state={annotation.status} />
-          {imageStateLabel(annotation.status)}
-        </Button>
+        <Hint text="Review actions">
+          <Button
+            variant="ghost"
+            isIconOnly
+            size="sm"
+            aria-label="Review actions"
+          >
+            <MoreIcon />
+          </Button>
+        </Hint>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label="Review status"
+            aria-label="Review actions"
             onAction={(key) => {
               if (key === "exclude") {
                 setExcluding(true);
-              } else if (
-                key === "complete" ||
-                key === "reopen" ||
-                key === "include"
-              ) {
+                return;
+              }
+              if (key === "complete" || key === "reopen" || key === "include") {
                 review({ type: key });
               }
             }}
           >
-            {ACTIONS[annotation.status].map((action) => (
-              <Dropdown.Item key={action.id} id={action.id}>
-                {action.label}
+            {items.map((action) => (
+              <Dropdown.Item
+                key={action.id}
+                id={action.id}
+                textValue={action.label}
+              >
+                <Label>{action.label}</Label>
               </Dropdown.Item>
             ))}
+            {exclude ? (
+              <>
+                <Separator orientation="horizontal" />
+                <Dropdown.Item
+                  id="exclude"
+                  textValue="Exclude image"
+                  variant="danger"
+                >
+                  <Label>{exclude}</Label>
+                </Dropdown.Item>
+              </>
+            ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
 
-      {excluding ? (
-        <ExcludeModal
-          onClose={() => setExcluding(false)}
-          onSubmit={(reason) => review({ type: "exclude", reason })}
-        />
-      ) : null}
+      <ExcludeModal
+        isOpen={excluding}
+        onClose={() => setExcluding(false)}
+        onSubmit={(reason) => review({ type: "exclude", reason })}
+      />
     </>
   );
 }
 
 function ExcludeModal({
+  isOpen,
   onClose,
   onSubmit,
 }: {
+  isOpen: boolean;
   onClose: () => void;
   onSubmit: (reason: string | undefined) => void;
 }) {
-  const [reason, setReason] = useState("");
-
   return (
-    <Modal isOpen onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                onSubmit(reason.trim() || undefined);
-                onClose();
-              }}
-            >
-              <Modal.Header>
-                <Modal.Heading>Exclude image</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body>
-                <TextField
-                  variant="secondary"
-                  value={reason}
-                  onChange={setReason}
-                  fullWidth
-                >
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>Exclude image</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body key={isOpen ? "open" : "closed"}>
+              <Form
+                id="exclude-image"
+                className="flex w-full min-w-0 flex-col gap-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  const reason = String(form.get("reason") ?? "").trim();
+                  onSubmit(reason || undefined);
+                  onClose();
+                }}
+              >
+                <TextField variant="secondary" fullWidth name="reason">
                   <Label>Reason</Label>
-                  <Input autoFocus />
+                  <Input className="w-full" autoFocus />
                 </TextField>
-              </Modal.Body>
-              <Modal.Footer>
-                <Button variant="tertiary" slot="close">
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  Exclude
-                </Button>
-              </Modal.Footer>
-            </form>
+              </Form>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" onPress={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" form="exclude-image" variant="danger">
+                Exclude
+              </Button>
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

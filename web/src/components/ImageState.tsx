@@ -23,19 +23,3 @@ export function ImageStateChip({ state }: { state: ImageState }) {
     </Chip>
   );
 }
-
-const DOT_COLORS: Record<Tone, string> = {
-  default: "bg-muted",
-  warning: "bg-warning",
-  success: "bg-success",
-  danger: "bg-danger",
-  accent: "bg-accent",
-};
-
-export function ImageStateDot({ state }: { state: ImageState }) {
-  return (
-    <span
-      className={`size-1.5 rounded-full ${DOT_COLORS[DISPLAY[state].tone]}`}
-    />
-  );
-}

@@ -11,19 +11,14 @@ import { LAYERS, type LayerKey } from "./controls";
 
 export function Section({
   title,
-  trailing,
   children,
 }: {
   title: string;
-  trailing?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium">{title}</h2>
-        {trailing}
-      </div>
+      <h2 className="text-sm font-medium">{title}</h2>
       {children}
     </section>
   );
@@ -64,49 +59,38 @@ export function MetricsSection({
   metrics: DerivedMetric[];
   sources: DerivedMetricSource[];
 }) {
+  const primary = sources[0];
+  if (!primary) return null;
+
   return (
     <Section title="Metrics">
-      <table className="w-full">
-        {sources.length > 1 && (
-          <thead>
-            <tr className="text-xs text-muted">
-              <th className="pb-1 text-left font-normal" scope="col">
-                <span className="sr-only">Metric</span>
-              </th>
-              {sources.map((source) => (
-                <th
-                  key={source.label}
-                  className="pb-1 text-right font-normal"
-                  scope="col"
-                >
-                  {source.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-        )}
-        <tbody>
-          {metrics.map((metric, index) => (
-            <tr key={metric.id}>
-              <th
-                className="py-0.5 text-left font-normal text-muted"
-                scope="row"
-              >
-                {metric.name}
-              </th>
-              {sources.map((source) => (
-                <td
-                  key={source.label}
-                  className={`py-0.5 text-right font-mono tabular-nums ${index === 0 ? "font-semibold" : "font-medium"}`}
-                >
-                  {formatMetric(metric, computeMetric(metric, source.tally))}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Metrics
+        rows={metrics.map((metric) => ({
+          label: metric.name,
+          value: comparedValue(metric, primary, sources[1]),
+        }))}
+      />
     </Section>
+  );
+}
+
+function comparedValue(
+  metric: DerivedMetric,
+  primary: DerivedMetricSource,
+  comparison: DerivedMetricSource | undefined,
+): ReactNode {
+  const formatted = formatMetric(metric, computeMetric(metric, primary.tally));
+  if (!comparison) return formatted;
+  const other = formatMetric(metric, computeMetric(metric, comparison.tally));
+  if (other === formatted) return formatted;
+  return (
+    <>
+      {formatted}
+      <span className="font-sans font-normal text-muted">
+        {" "}
+        · {comparison.label} {other}
+      </span>
+    </>
   );
 }
 

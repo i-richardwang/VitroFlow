@@ -1,7 +1,6 @@
 import type { DateValue } from "@internationalized/date";
 import {
   Button,
-  Description,
   Form,
   Input,
   Label,
@@ -12,7 +11,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { daysBetween, observationLabel } from "../../experiments/schema";
+import { observationLabel } from "../../experiments/schema";
 import { createObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { currentDay, DayField, fromDay, toDay } from "./DayField";
@@ -31,7 +30,6 @@ export function NewObservationDialog({
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   const [observedOn, setObservedOn] = useState<DateValue | null>(currentDay);
-  const day = observedOn ? daysBetween(inoculatedOn, toDay(observedOn)) : null;
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
@@ -41,7 +39,6 @@ export function NewObservationDialog({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>New observation</Modal.Heading>
-              {day !== null ? <Description>Day {day}</Description> : null}
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form

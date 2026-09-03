@@ -118,7 +118,7 @@ function LoginPage() {
                 <FieldError>Incorrect email or password.</FieldError>
               </TextField>
             </Card.Content>
-            <Card.Footer className="flex flex-col gap-2">
+            <Card.Footer className="mt-4 flex flex-col items-stretch gap-2">
               <Button
                 type="submit"
                 variant="primary"

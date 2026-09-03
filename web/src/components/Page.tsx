@@ -28,3 +28,18 @@ export function Page({
     </div>
   );
 }
+
+export function PageSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+      {children}
+    </section>
+  );
+}

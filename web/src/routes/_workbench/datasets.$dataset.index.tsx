@@ -8,9 +8,9 @@ import { useState } from "react";
 
 import { Count } from "../../components/Count";
 import { DeleteDialog } from "../../components/DeleteDialog";
+import { QualityChips } from "../../components/DetectionQuality";
 import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
-import { QualityWarnings } from "../../components/QualityWarnings";
 import { MoreIcon } from "../../components/icons";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
 import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
@@ -60,7 +60,6 @@ function DatasetPage() {
   const filters = (["all", ...IMAGE_STATES] as const).filter(
     (state) => state === "all" || state === filter || countOf(state) > 0,
   );
-  const toReview = counts.unreviewed + counts.in_progress;
 
   return (
     <Page
@@ -87,11 +86,6 @@ function DatasetPage() {
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={counts.complete} />
           </KPI.Content>
-          {toReview > 0 ? (
-            <KPI.Footer>
-              {toReview} {toReview === 1 ? "image" : "images"} to review
-            </KPI.Footer>
-          ) : null}
         </KPI>
         <KPIGroup.Separator />
         <KPI>
@@ -132,7 +126,6 @@ function DatasetPage() {
             <Table.Header>
               <Table.Column isRowHeader>Image</Table.Column>
               <Table.Column>State</Table.Column>
-              <Table.Column className="text-right">Detected</Table.Column>
               <Table.Column className="text-right">Boxes</Table.Column>
               <Table.Column>Quality</Table.Column>
               <Table.Column aria-label="Actions" />
@@ -163,14 +156,14 @@ function DatasetPage() {
                     <ImageStateChip state={image.state} />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    <Count value={image.detectionCount} />
-                  </Table.Cell>
-                  <Table.Cell className="text-right font-mono tabular-nums">
-                    <Count value={image.instanceCount} />
+                    <BoxCount
+                      detected={image.detectionCount}
+                      boxes={image.instanceCount}
+                    />
                   </Table.Cell>
                   <Table.Cell>
                     {image.quality && image.quality.status !== "ok" ? (
-                      <QualityWarnings quality={image.quality} />
+                      <QualityChips quality={image.quality} />
                     ) : (
                       <span className="text-muted">—</span>
                     )}
@@ -188,6 +181,24 @@ function DatasetPage() {
         </Table.ScrollContainer>
       </Table>
     </Page>
+  );
+}
+
+function BoxCount({
+  detected,
+  boxes,
+}: {
+  detected: number | null;
+  boxes: number | null;
+}) {
+  const count = <Count value={boxes ?? detected} />;
+  if (boxes === null || detected === null || boxes === detected) {
+    return count;
+  }
+  return (
+    <Hint text={`Detected ${detected}`}>
+      <span>{count}</span>
+    </Hint>
   );
 }
 

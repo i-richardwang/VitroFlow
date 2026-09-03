@@ -5,7 +5,7 @@ import { Widget } from "@heroui-pro/react/widget";
 import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
-import { Page } from "../../components/Page";
+import { Page, PageSection } from "../../components/Page";
 import { Timestamp } from "../../components/Timestamp";
 import { EpochCharts } from "../../components/training/EpochCharts";
 import { ParametersList } from "../../components/training/ParametersList";
@@ -61,7 +61,9 @@ function TrainingRunPage() {
       title={
         <span className="flex items-center gap-3">
           <span className="truncate font-mono">{trainingRunLabel(run)}</span>
-          <TrainingRunState run={run} />
+          {run.state.status === "failed" ? null : (
+            <TrainingRunState run={run} />
+          )}
         </span>
       }
       description={<Timestamp value={run.createdAt} />}
@@ -134,14 +136,9 @@ function TrainingRunPage() {
         </Widget.Content>
       </Widget>
 
-      <Widget>
-        <Widget.Header>
-          <Widget.Title>Parameters</Widget.Title>
-        </Widget.Header>
-        <Widget.Content>
-          <ParametersList parameters={run.recipe.parameters} columns={2} />
-        </Widget.Content>
-      </Widget>
+      <PageSection title="Parameters">
+        <ParametersList parameters={run.recipe.parameters} columns={2} />
+      </PageSection>
     </Page>
   );
 }
