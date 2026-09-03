@@ -1,10 +1,11 @@
-import { desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, lt, or } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import { inferenceWorkers } from "../db/schema";
 import {
   workerSchema,
   type InferenceWorkerHeartbeat,
+  type InferenceWorkerIdentity,
   type InferenceWorkerRecord,
 } from "../inference/workers";
 import { supportsRuntime, type ModelArtifact } from "../models/schema";
@@ -16,6 +17,7 @@ import {
 import { readModelVersion } from "./model-registry";
 
 export class InferenceHeartbeatRejectedError extends Error {}
+export class InferenceWorkerSessionConflictError extends Error {}
 
 /** Whether one of the worker's runtimes executes this artifact. */
 export function canExecute(
@@ -34,6 +36,7 @@ function toRecord(
 ): InferenceWorkerRecord {
   return workerSchema.parse({
     workerId: row.id,
+    sessionId: row.sessionId,
     startedAt: row.startedAt.toISOString(),
     runtimes: row.runtimes,
     loaded: row.loadedModelVersionId,
@@ -65,6 +68,7 @@ export async function recordInferenceHeartbeat(
     }
   }
   const row = {
+    sessionId: worker.sessionId,
     startedAt: new Date(worker.startedAt),
     runtimes: worker.runtimes,
     loadedModelVersionId: worker.loaded,
@@ -74,9 +78,20 @@ export async function recordInferenceHeartbeat(
   const [stored] = await db
     .insert(inferenceWorkers)
     .values({ id: worker.workerId, ...row })
-    .onConflictDoUpdate({ target: inferenceWorkers.id, set: row })
+    .onConflictDoUpdate({
+      target: inferenceWorkers.id,
+      set: row,
+      setWhere: or(
+        eq(inferenceWorkers.sessionId, worker.sessionId),
+        lt(inferenceWorkers.startedAt, new Date(worker.startedAt)),
+      ),
+    })
     .returning();
-  if (!stored) throw new Error(`Worker ${worker.workerId} was not recorded`);
+  if (!stored) {
+    throw new InferenceWorkerSessionConflictError(
+      `Worker ${worker.workerId} has a newer active session`,
+    );
+  }
   await forgetSilentWorkers(at, db);
   return toRecord(stored);
 }
@@ -89,6 +104,22 @@ export async function readInferenceWorker(
     .select()
     .from(inferenceWorkers)
     .where(eq(inferenceWorkers.id, workerId));
+  return row ? toRecord(row) : null;
+}
+
+export async function readInferenceWorkerSession(
+  identity: InferenceWorkerIdentity,
+  db?: Executor,
+): Promise<InferenceWorkerRecord | null> {
+  const [row] = await (db ?? (await database()))
+    .select()
+    .from(inferenceWorkers)
+    .where(
+      and(
+        eq(inferenceWorkers.id, identity.workerId),
+        eq(inferenceWorkers.sessionId, identity.sessionId),
+      ),
+    );
   return row ? toRecord(row) : null;
 }
 

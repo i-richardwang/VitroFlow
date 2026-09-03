@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1788230924020,
+      "when": 1788429531498,
       "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1788300000000,
-      "tag": "0001_treatment_factor",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1788329017284,
-      "tag": "0002_accounts",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1788331257708,
-      "tag": "0003_integrations",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1788336745497,
-      "tag": "0004_agent_execution",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1788418971629,
-      "tag": "0005_annotation_and_dataset_transfer",
       "breakpoints": true
     }
   ]

@@ -1,21 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 
 import { inferenceOutcomeSchema } from "../detection/schema";
-import { resourceIdSchema } from "../identifiers/schema";
-import { imageDigestSchema } from "../images/schema";
-import { recordInferenceOutcome } from "../server/inference-outcomes";
+import { inferenceTargetSchema } from "../inference/assignments";
+import { inferenceWorkerIdentitySchema } from "../inference/workers";
+import { completeInferenceClaim } from "../server/inference-outcomes";
 import {
   InferenceHttpError,
   inferenceWorkerErrorResponse,
   parseInferenceJson,
 } from "../server/inference-worker-http";
-import { readInferenceWorker } from "../server/inference-worker-store";
-
-const targetSchema = z.strictObject({
-  versionId: resourceIdSchema,
-  digest: imageDigestSchema,
-});
+import { readInferenceWorkerSession } from "../server/inference-worker-store";
 
 /**
  * One entry for everything a worker reports: a detection or the failure
@@ -29,19 +23,23 @@ export const Route = createFileRoute(
     handlers: {
       PUT: async ({ params, request }) => {
         try {
-          const workerId = new URL(request.url).searchParams.get("workerId");
-          const worker = workerId ? await readInferenceWorker(workerId) : null;
+          const identity = inferenceWorkerIdentitySchema.safeParse(
+            Object.fromEntries(new URL(request.url).searchParams),
+          );
+          const worker = identity.success
+            ? await readInferenceWorkerSession(identity.data)
+            : null;
           if (!worker) {
             throw new InferenceHttpError(
               409,
-              "worker must heartbeat before uploading",
+              "worker session must heartbeat before uploading",
             );
           }
-          const target = targetSchema.safeParse(params);
+          const target = inferenceTargetSchema.safeParse(params);
           if (!target.success) {
             throw new InferenceHttpError(400, "Inference target is invalid");
           }
-          await recordInferenceOutcome(
+          await completeInferenceClaim(
             target.data,
             await parseInferenceJson(request, inferenceOutcomeSchema),
             worker,

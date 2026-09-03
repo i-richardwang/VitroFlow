@@ -390,9 +390,13 @@ export const oauthClientAssertions = pgTable("oauth_client_assertions", {
   expiresAt: instant("expires_at"),
 });
 
-/** Durable request identity and change attribution for programmatic writes. */
-export const agentRequests = pgTable(
-  "agent_requests",
+/**
+ * One successful programmatic command: its replay identity and audit record.
+ * The row is reserved and completed in the same transaction as the domain
+ * change, so incomplete and failed commands never become durable history.
+ */
+export const agentExecutions = pgTable(
+  "agent_executions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     principalKind: text("principal_kind").notNull(),
@@ -401,49 +405,36 @@ export const agentRequests = pgTable(
     idempotencyKey: text("idempotency_key").notNull(),
     operation: text("operation").notNull(),
     requestHash: text("request_hash").notNull(),
+    input: jsonb("input").notNull(),
     response: jsonb("response"),
     createdAt: instant("created_at"),
     completedAt: optionalInstant("completed_at"),
   },
   (table) => [
-    uniqueIndex("agent_requests_principal_key_idx").on(
+    uniqueIndex("agent_executions_principal_key_idx").on(
       table.principalKind,
       table.credentialId,
       table.idempotencyKey,
     ),
-    index("agent_requests_user_created_idx").on(table.userId, table.createdAt),
-    check(
-      "agent_requests_principal_kind_check",
-      sql`${table.principalKind} in ('api_key', 'mcp_client')`,
-    ),
-  ],
-);
-
-export const agentAuditEvents = pgTable(
-  "agent_audit_events",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    principalKind: text("principal_kind").notNull(),
-    credentialId: text("credential_id").notNull(),
-    userId: text("user_id").notNull(),
-    requestId: uuid("request_id").notNull(),
-    operation: text("operation").notNull(),
-    input: jsonb("input").notNull(),
-    output: jsonb("output").notNull(),
-    occurredAt: instant("occurred_at"),
-  },
-  (table) => [
-    index("agent_audit_events_user_occurred_idx").on(
+    index("agent_executions_user_created_idx").on(
       table.userId,
-      table.occurredAt,
+      table.createdAt,
     ),
-    index("agent_audit_events_operation_occurred_idx").on(
+    index("agent_executions_operation_created_idx").on(
       table.operation,
-      table.occurredAt,
+      table.createdAt,
     ),
     check(
-      "agent_audit_events_principal_kind_check",
+      "agent_executions_principal_kind_check",
       sql`${table.principalKind} in ('api_key', 'mcp_client')`,
+    ),
+    check(
+      "agent_executions_hash_check",
+      sql`${table.requestHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "agent_executions_completion_check",
+      sql`(${table.response} is null) = (${table.completedAt} is null)`,
     ),
   ],
 );
@@ -994,6 +985,7 @@ export const inferenceWorkers = pgTable(
   "inference_workers",
   {
     id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
     loadedModelVersionId: text("loaded_model_version_id").references(
@@ -1006,6 +998,38 @@ export const inferenceWorkers = pgTable(
     lastSeenAt: instant("last_seen_at"),
   },
   (table) => [index("inference_workers_seen_idx").on(table.lastSeenAt)],
+);
+
+/**
+ * A bounded inference task leased to exactly one worker session. Demand is
+ * materialized lazily when a worker claims work; the durable outcome remains
+ * the source of truth and completing the task removes its lease.
+ */
+export const inferenceJobs = pgTable(
+  "inference_jobs",
+  {
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id, { onDelete: "cascade" }),
+    modelVersionId: text("model_version_id")
+      .notNull()
+      .references(() => modelVersions.id, { onDelete: "cascade" }),
+    workerId: text("worker_id")
+      .notNull()
+      .references(() => inferenceWorkers.id, { onDelete: "cascade" }),
+    sessionId: text("session_id").notNull(),
+    attempt: integer("attempt").notNull(),
+    leaseExpiresAt: timestamp("lease_expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.imageId, table.modelVersionId] }),
+    index("inference_jobs_claimable_idx").on(table.leaseExpiresAt),
+    index("inference_jobs_worker_idx").on(table.workerId, table.sessionId),
+    check("inference_jobs_attempt_check", sql`${table.attempt} >= 1`),
+  ],
 );
 
 export const datasetSnapshots = pgTable(

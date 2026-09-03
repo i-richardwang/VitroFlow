@@ -5,19 +5,12 @@ import { database } from "../db/client";
 import { oauthClients, oauthConsents, sessions, users } from "../db/schema";
 import { deploymentEndpoint } from "./deployment";
 
-export type ProgrammaticPrincipal =
-  | {
-      kind: "api_key";
-      userId: string;
-      credentialId: string;
-    }
-  | {
-      kind: "mcp_client";
-      userId: string;
-      credentialId: string;
-      consentId: string;
-      sessionId: string;
-    };
+/** The identity application commands need after an adapter authorizes them. */
+export interface ProgrammaticPrincipal {
+  kind: "api_key" | "mcp_client";
+  userId: string;
+  credentialId: string;
+}
 
 function stringClaim(claims: JWTPayload, name: string): string | null {
   const value = claims[name];
@@ -36,7 +29,6 @@ export async function authorizeMcpPrincipal(
   const db = await database();
   const [authorization] = await db
     .select({
-      consentId: oauthConsents.id,
       resources: oauthConsents.resources,
       banned: users.banned,
       clientDisabled: oauthClients.disabled,
@@ -77,7 +69,5 @@ export async function authorizeMcpPrincipal(
     kind: "mcp_client",
     userId,
     credentialId: clientId,
-    consentId: authorization.consentId,
-    sessionId,
   };
 }

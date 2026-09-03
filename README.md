@@ -1,5 +1,7 @@
 # VitroFlow
 
+The backend's dependency and concurrency boundaries are documented in [docs/backend-architecture.md](docs/backend-architecture.md).
+
 VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, observation units provide independent replicates, observations follow those units over time, and one immutable model version analyzes every image in an experiment.
 
 The system has three independently deployed parts:
@@ -34,7 +36,7 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 | `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
 | `dataset_snapshots`, `dataset_snapshot_images`                                                                                                                  | Immutable training inputs                                                                      |
 | `training_runs`, `training_epochs`                                                                                                                              | Leased training state and per-attempt epoch metrics                                            |
-| `inference_workers`, `training_workers`                                                                                                                         | Worker capabilities, presence, and current activity                                            |
+| `inference_workers`, `inference_jobs`, `training_workers`                                                                                                       | Worker sessions, leased inference jobs, capabilities, presence, and current activity            |
 
 The object layout is:
 
@@ -141,15 +143,15 @@ vitroflow worker restart mac-training
 vitroflow worker stop mac-training
 ```
 
-Inference Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. They download canonical images and verified model artifacts, execute one pending image/version pair, and upload a succeeded or failed outcome.
+Inference Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. They atomically claim one image/version pair, renew that lease while loading and predicting, download its canonical image and verified model artifact, and upload a succeeded or failed outcome. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
 
 Training Workers claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
 
 ## Agent interface
 
-AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request resolves a current API-key or MCP-client principal; successful operation mutations commit their audit event and idempotent result with the domain change. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
+AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request resolves a current API-key or MCP-client principal; each successful command commits one combined audit/idempotency execution record with the domain change. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
 
-- `POST /api/agent/<operation>` calls one operation with its JSON input, authenticated by a personal API key with the agent scope as a bearer token; mutations require a UUID `Idempotency-Key`. `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
+- `POST /api/agent/<operation>` calls one operation with its JSON input, authenticated by a personal API key with the agent scope as a bearer token; commands require a UUID `Idempotency-Key`. `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
 - `POST /api/mcp` serves the same operations as strict MCP 2026-07-28 tools. The workbench is the OAuth 2.1 authorization server for its own MCP endpoint: a client discovers it, sends the person to sign in and approve the connection, and loses access immediately when the person disconnects it.
 
 ```bash
@@ -159,6 +161,8 @@ claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 ## Dataset transfer
 
 A Dataset leaves a workbench as an archive: **Download** on the dataset page streams a ZIP holding the dataset's manifest and every image it names, stored uncompressed under the same layout as a local data root. **Import** on the Datasets page reads such an archive in the browser, stores each image under its digest, and then applies the manifest, so a dataset moves between workbenches with its annotations intact and nothing is re-encoded on the way.
+
+Wire documents shared by the Web control plane and Python workers/CLI are defined by the Web Zod schemas. `bun run contracts:generate` emits their JSON Schemas into the Python package; `make check` refuses stale generated contracts. Python validates shared structure against those schemas before decoding domain objects and enforcing cross-field semantics.
 
 The same transfer runs from the command line over `/api/transfer/`, opened by a personal API key that holds the transfer scope:
 

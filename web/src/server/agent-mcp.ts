@@ -10,13 +10,14 @@ import {
   McpServer,
   OAuthError,
   OAuthErrorCode,
+  type ToolAnnotations,
   originValidationResponse,
 } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import packageJson from "../../package.json";
 import { executeAgentOperation } from "./agent-execution";
-import { agentOperations } from "./agent-operations";
+import { type AgentOperation, agentOperations } from "./agent-operations";
 import { auth } from "./auth";
 import { bearerToken } from "./bearer";
 import { deploymentEndpoint } from "./deployment";
@@ -45,6 +46,16 @@ function principalFrom(authInfo: AuthInfo | undefined): ProgrammaticPrincipal {
   return principal as ProgrammaticPrincipal;
 }
 
+function toolAnnotations(operation: AgentOperation): ToolAnnotations {
+  return operation.kind === "query"
+    ? { readOnlyHint: true, openWorldHint: false }
+    : {
+        destructiveHint: operation.destructive,
+        idempotentHint: true,
+        openWorldHint: false,
+      };
+}
+
 function buildServer(context: McpRequestContext): McpServer {
   const server = new McpServer({
     name: "vitroflow",
@@ -56,18 +67,18 @@ function buildServer(context: McpRequestContext): McpServer {
       input: operation.input,
     });
     const inputSchema =
-      operation.effect === "read" ? operation.input : mutationInput;
+      operation.kind === "query" ? operation.input : mutationInput;
     server.registerTool(
       operation.name,
       {
         description: operation.description,
         inputSchema,
         outputSchema: operation.output,
-        annotations: operation.annotations,
+        annotations: toolAnnotations(operation),
       },
       async (args) => {
         const call =
-          operation.effect === "read"
+          operation.kind === "query"
             ? { input: args, idempotencyKey: null }
             : mutationInput.parse(args);
         const outcome = await executeAgentOperation(
@@ -78,7 +89,15 @@ function buildServer(context: McpRequestContext): McpServer {
         );
         if (!outcome.ok) {
           return {
-            content: [{ type: "text", text: outcome.message }],
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  code: outcome.code,
+                  message: outcome.message,
+                }),
+              },
+            ],
             isError: true,
           };
         }

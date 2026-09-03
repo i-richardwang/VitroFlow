@@ -12,6 +12,7 @@ from ..documents import (
     expect_fields,
     expect_schema_version,
 )
+from ..wire_contracts import validate_wire_contract
 from .contract import (
     DETECTION_SCHEMA_VERSION,
     DetectionDiagnostics,
@@ -94,6 +95,7 @@ def _instance(value: Any, context: str) -> DetectionInstance:
 
 
 def parse_inference_outcome(value: Any, context: str = "outcome") -> InferenceOutcome:
+    validate_wire_contract("inference-outcome", value, context)
     payload = as_object(value, context)
     expect_schema_version(payload, "schemaVersion", DETECTION_SCHEMA_VERSION, context)
     image_context = f"{context}.image"

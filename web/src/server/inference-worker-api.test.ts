@@ -3,10 +3,11 @@ import { expect, test } from "bun:test";
 import { makeResult } from "../annotation/testing";
 import { inferenceAssignmentSchema } from "../inference/assignments";
 import { Route as StoreRoute } from "../routes/api.images";
+import { Route as ClaimRoute } from "../routes/api.inference.claim";
+import { Route as LeaseRoute } from "../routes/api.inference.claims.$versionId.$digest.lease";
 import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
 import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
-import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
 import { readInferenceWorker } from "./inference-worker-store";
 import { startAnnotationFromDetection } from "./annotations";
@@ -102,6 +103,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       method: "POST",
       body: JSON.stringify({
         workerId: "api-worker",
+        sessionId: "api-session",
         startedAt: "2026-01-01T00:00:00Z",
         runtimes: [runtime],
         loaded: null,
@@ -112,35 +114,75 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   expect(heartbeatResponse.status).toBe(200);
   expect((await readInferenceWorker("api-worker"))?.current).toBe(digest);
 
-  const pendingUrl =
-    "http://localhost/api/inference/pending?workerId=api-worker";
-  const pendingResponse = await handler(
-    PendingRoute,
-    "GET",
-  )({
-    request: new Request(pendingUrl),
-  } as never);
-  expect(pendingResponse.status).toBe(200);
-  const { assignments } = await pendingResponse.json();
-  const rawAssignment = assignments.find(
-    (entry: { manifest: { modelVersionId: string } }) =>
-      entry.manifest.modelVersionId === version.id,
-  );
-  const assignment = inferenceAssignmentSchema.parse(rawAssignment);
+  const claim = () =>
+    handler(
+      ClaimRoute,
+      "POST",
+    )({
+      request: new Request("http://localhost/api/inference/claim", {
+        method: "POST",
+        body: JSON.stringify({
+          workerId: "api-worker",
+          sessionId: "api-session",
+        }),
+      }),
+    } as never);
+  let assignment: ReturnType<typeof inferenceAssignmentSchema.parse> | null =
+    null;
+  for (let attempt = 0; attempt < 500 && !assignment; attempt += 1) {
+    const claimResponse = await claim();
+    expect(claimResponse.status).toBe(200);
+    const candidate = (await claimResponse.json()).assignment;
+    if (!candidate) throw new Error("No inference work was claimed");
+    const parsed = inferenceAssignmentSchema.parse(candidate);
+    if (
+      parsed.manifest.modelVersionId === version.id &&
+      parsed.image === digest
+    ) {
+      assignment = parsed;
+    }
+  }
+  if (!assignment) throw new Error("API test inference task was not claimed");
   expect(assignment.manifest).toEqual({
     schemaVersion: 1,
     modelVersionId: version.id,
     classes: ["seed"],
     artifact: version.artifact,
   });
-  expect(assignment.images).toContain(digest);
+  expect(assignment.image).toBe(digest);
+  expect(new Date(assignment.leaseExpiresAt).getTime()).toBeGreaterThan(
+    Date.now(),
+  );
+  const renewed = await handler(
+    LeaseRoute,
+    "POST",
+  )({
+    params: { versionId: version.id, digest },
+    request: new Request(
+      `http://localhost/api/inference/claims/${version.id}/${digest}/lease`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          workerId: "api-worker",
+          sessionId: "api-session",
+        }),
+      },
+    ),
+  } as never);
+  expect(renewed.status).toBe(200);
+  expect(
+    new Date((await renewed.json()).leaseExpiresAt).getTime(),
+  ).toBeGreaterThan(Date.now());
   expect(
     (
       await handler(
-        PendingRoute,
-        "GET",
+        ClaimRoute,
+        "POST",
       )({
-        request: new Request("http://localhost/api/inference/pending"),
+        request: new Request("http://localhost/api/inference/claim", {
+          method: "POST",
+          body: JSON.stringify({ workerId: "api-worker" }),
+        }),
       } as never)
     ).status,
   ).toBe(400);
@@ -169,14 +211,18 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     },
   };
   const target = { versionId: version.id, digest };
-  const put = (body: unknown, workerId = "api-worker") =>
+  const put = (
+    body: unknown,
+    workerId = "api-worker",
+    sessionId = "api-session",
+  ) =>
     handler(
       ResultRoute,
       "PUT",
     )({
       params: target,
       request: new Request(
-        `http://localhost/api/inference/results/${version.id}/${digest}?workerId=${workerId}`,
+        `http://localhost/api/inference/results/${version.id}/${digest}?workerId=${workerId}&sessionId=${sessionId}`,
         { method: "PUT", body: JSON.stringify(body) },
       ),
     } as never);
@@ -187,7 +233,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     )({
       params,
       request: new Request(
-        `http://localhost/api/inference/results/${params.versionId}/${params.digest}?workerId=api-worker`,
+        `http://localhost/api/inference/results/${params.versionId}/${params.digest}?workerId=api-worker&sessionId=api-session`,
         { method: "PUT", body },
       ),
     } as never);
@@ -209,24 +255,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       })
     ).status,
   ).toBe(400);
-  const missingDigest = "f".repeat(64);
-  const missing = await handler(
-    ResultRoute,
-    "PUT",
-  )({
-    params: { versionId: version.id, digest: missingDigest },
-    request: new Request(
-      `http://localhost/api/inference/results/${version.id}/${missingDigest}?workerId=api-worker`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          ...result,
-          image: { ...result.image, digest: missingDigest },
-        }),
-      },
-    ),
-  } as never);
-  expect(missing.status).toBe(404);
   expect(
     (
       await put({
@@ -237,7 +265,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   ).toBe(422);
   expect((await put(result)).status).toBe(200);
   expect(await readDetection(target)).toEqual(result);
-  expect((await put(result)).status).toBe(200);
+  expect((await put(result)).status).toBe(409);
   expect(
     (
       await put({
@@ -251,7 +279,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     { digest, modelId: version.modelId },
     version.id,
   );
-  expect((await put(result)).status).toBe(200);
 });
 
 test("an inference heartbeat cannot load an unknown model version", async () => {
@@ -263,6 +290,7 @@ test("an inference heartbeat cannot load an unknown model version", async () => 
       method: "POST",
       body: JSON.stringify({
         workerId: "unknown-version-worker",
+        sessionId: "unknown-version-session",
         startedAt: "2026-01-01T00:00:00Z",
         runtimes: [{ adapter: "traditional", fingerprint: "b".repeat(64) }],
         loaded: "not-published",

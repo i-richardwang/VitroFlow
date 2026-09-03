@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { count, eq } from "drizzle-orm";
 
 import { database } from "../db/client";
-import { agentAuditEvents, agentRequests } from "../db/schema";
+import { agentExecutions } from "../db/schema";
 import { executeAgentOperation } from "./agent-execution";
 import type { ProgrammaticPrincipal } from "./programmatic-access";
 import { baselineVersion } from "./testing";
@@ -14,7 +14,7 @@ const principal: ProgrammaticPrincipal = {
 };
 
 describe("agent execution", () => {
-  test("mutations require a UUID idempotency key", async () => {
+  test("commands require a UUID idempotency key", async () => {
     const version = await baselineVersion();
     const result = await executeAgentOperation(
       "create-experiment",
@@ -28,12 +28,12 @@ describe("agent execution", () => {
     );
     expect(result).toEqual({
       ok: false,
-      status: 400,
-      message: "Idempotency-Key must be a UUID for mutation operations",
+      code: "invalid_request",
+      message: "Idempotency-Key must be a UUID for command operations",
     });
   });
 
-  test("a repeated mutation returns one result and records one audit event", async () => {
+  test("a repeated command returns one result and records one execution", async () => {
     const version = await baselineVersion();
     const key = crypto.randomUUID();
     const input = {
@@ -57,16 +57,16 @@ describe("agent execution", () => {
     expect(repeated).toEqual(first);
 
     const db = await database();
-    const requests = await db
-      .select({ id: agentRequests.id })
-      .from(agentRequests)
-      .where(eq(agentRequests.idempotencyKey, key));
-    const [events] = await db
-      .select({ total: count() })
-      .from(agentAuditEvents)
-      .where(eq(agentAuditEvents.requestId, requests[0]!.id));
-    expect(requests).toHaveLength(1);
-    expect(events?.total).toBe(1);
+    const executions = await db
+      .select()
+      .from(agentExecutions)
+      .where(eq(agentExecutions.idempotencyKey, key));
+    expect(executions).toHaveLength(1);
+    expect(executions[0]).toMatchObject({
+      operation: "create-experiment",
+      input,
+      response: { output: first.ok ? first.output : undefined },
+    });
 
     const conflict = await executeAgentOperation(
       "create-experiment",
@@ -74,10 +74,10 @@ describe("agent execution", () => {
       principal,
       key,
     );
-    expect(conflict).toMatchObject({ ok: false, status: 409 });
+    expect(conflict).toMatchObject({ ok: false, code: "conflict" });
   });
 
-  test("failed mutations leave no idempotency or audit record", async () => {
+  test("failed commands leave no execution record", async () => {
     const key = crypto.randomUUID();
     const result = await executeAgentOperation(
       "create-experiment",
@@ -89,12 +89,12 @@ describe("agent execution", () => {
       principal,
       key,
     );
-    expect(result).toMatchObject({ ok: false, status: 404 });
+    expect(result).toMatchObject({ ok: false, code: "not_found" });
     const db = await database();
     const [requests] = await db
       .select({ total: count() })
-      .from(agentRequests)
-      .where(eq(agentRequests.idempotencyKey, key));
+      .from(agentExecutions)
+      .where(eq(agentExecutions.idempotencyKey, key));
     expect(requests?.total).toBe(0);
   });
 });

@@ -8,7 +8,7 @@ import {
   serveAgentInterface,
   serveAgentOperationCall,
 } from "./agent-http";
-import { agentOperations, operation } from "./agent-operations";
+import { agentOperations, command } from "./agent-operations";
 import { issueApiKey } from "./api-keys";
 import type { ProgrammaticPrincipal } from "./programmatic-access";
 import { apiKeyHeaders, signInAs } from "./testing";
@@ -87,8 +87,13 @@ describe("agent HTTP surface", () => {
       principal,
     );
     expect(response.status).toBe(400);
-    const { error } = (await response.json()) as { error: string };
-    expect(error).toBe("Request body must be JSON");
+    const { error } = (await response.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(error).toEqual({
+      code: "invalid_request",
+      message: "Request body must be JSON",
+    });
   });
 
   test("an unknown operation answers 404 naming the known ones", async () => {
@@ -98,8 +103,11 @@ describe("agent HTTP surface", () => {
       principal,
     );
     expect(response.status).toBe(404);
-    const { error } = (await response.json()) as { error: string };
-    expect(error).toContain("list-experiments");
+    const { error } = (await response.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(error.code).toBe("not_found");
+    expect(error.message).toContain("list-experiments");
   });
 
   test("invalid input answers 400 naming the offending field", async () => {
@@ -109,15 +117,18 @@ describe("agent HTTP surface", () => {
       principal,
     );
     expect(response.status).toBe(400);
-    const { error } = (await response.json()) as { error: string };
-    expect(error).toContain("Experiment name is required");
+    const { error } = (await response.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(error.code).toBe("invalid_request");
+    expect(error.message).toContain("Experiment name is required");
   });
 
   test("a defect answers a sanitized 500", async () => {
-    const defective = operation({
+    const defective = command({
       name: "defective",
       description: "A deliberately broken operation",
-      annotations: {},
+      destructive: false,
       input: z.strictObject({}),
       output: z.null(),
       handler: () => Promise.reject(new TypeError("internal detail")),
@@ -137,8 +148,13 @@ describe("agent HTTP surface", () => {
         registry,
       );
       expect(response.status).toBe(500);
-      const { error } = (await response.json()) as { error: string };
-      expect(error).toBe("Internal error");
+      const { error } = (await response.json()) as {
+        error: { code: string; message: string };
+      };
+      expect(error).toEqual({
+        code: "internal_error",
+        message: "Internal error",
+      });
       expect(log).toHaveBeenCalled();
     } finally {
       log.mockRestore();

@@ -15,9 +15,13 @@ const runtimesSchema = z
     "each adapter appears once",
   );
 
-export const heartbeatSchema = z
-  .object({
-    workerId: resourceIdSchema,
+export const inferenceWorkerIdentitySchema = z.strictObject({
+  workerId: resourceIdSchema,
+  sessionId: resourceIdSchema,
+});
+
+export const heartbeatSchema = inferenceWorkerIdentitySchema
+  .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
     /** The version held in memory, if any. */
@@ -32,4 +36,7 @@ export const workerSchema = heartbeatSchema
   .strict();
 
 export type InferenceWorkerHeartbeat = z.infer<typeof heartbeatSchema>;
+export type InferenceWorkerIdentity = z.infer<
+  typeof inferenceWorkerIdentitySchema
+>;
 export type InferenceWorkerRecord = z.infer<typeof workerSchema>;

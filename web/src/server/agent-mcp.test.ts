@@ -108,7 +108,10 @@ describe("agent MCP surface", () => {
       arguments: { experiment: crypto.randomUUID() },
     })) as { content: { type: string; text: string }[]; isError?: boolean };
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain("Unknown experiment");
+    expect(JSON.parse(result.content[0]!.text)).toEqual({
+      code: "not_found",
+      message: expect.stringContaining("Unknown experiment"),
+    });
   });
 
   test("a mutation carries an explicit idempotency envelope", async () => {

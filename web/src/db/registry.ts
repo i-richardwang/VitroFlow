@@ -9,7 +9,7 @@ import {
   type Model,
   type ModelVersion,
 } from "../models/schema";
-import type { Executor } from "./client";
+import type { Executor } from "./connection";
 import { modelVersions, models } from "./schema";
 
 /**

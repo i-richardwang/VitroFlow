@@ -3,10 +3,14 @@ import type { ZodType } from "zod";
 import {
   DetectionConflictError,
   DetectionImageNotFoundError,
+  InferenceClaimRejectedError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
 } from "./inference-outcomes";
-import { InferenceHeartbeatRejectedError } from "./inference-worker-store";
+import {
+  InferenceHeartbeatRejectedError,
+  InferenceWorkerSessionConflictError,
+} from "./inference-worker-store";
 
 export class InferenceHttpError extends Error {
   constructor(
@@ -49,7 +53,11 @@ export function inferenceWorkerErrorResponse(
   if (error instanceof DetectionImageNotFoundError) {
     return errorResponse(message, 404);
   }
-  if (error instanceof DetectionConflictError) {
+  if (
+    error instanceof DetectionConflictError ||
+    error instanceof InferenceClaimRejectedError ||
+    error instanceof InferenceWorkerSessionConflictError
+  ) {
     return errorResponse(message, 409);
   }
   if (

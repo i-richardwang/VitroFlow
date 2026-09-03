@@ -20,18 +20,18 @@ The MCP surface is opened by OAuth instead: see below.
 
 | Request                     | Purpose                                                                                                          |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `GET /api/agent/operations` | Describe every operation: input and output JSON Schemas plus behavior hints (read-only, destructive, idempotent) |
+| `GET /api/agent/operations` | Describe every operation: query/command kind, destructive flag, and input/output JSON Schemas                      |
 | `POST /api/agent/<name>`    | Call one operation with its JSON input                                                                           |
 | `POST /api/agent/images`    | Store image bytes; the response is the digest assignment expects                                                 |
 
-Every result is validated against the operation's published output schema before it leaves the workbench, so the discovery document is the contract on both sides of a call. A successful call answers `{"result": ...}`. A failed call answers `{"error": "..."}` with the status describing what the agent can do about it:
+Every result is validated against the operation's published output schema before it leaves the workbench, so the discovery document is the contract on both sides of a call. A successful call answers `{"result": ...}`. A failed call answers `{"error":{"code":"...","message":"..."}}`; HTTP maps the protocol-neutral code to the status describing what the agent can do about it:
 
 - `400` — the input does not satisfy the operation's schema; the message names the offending fields.
 - `404` — the operation or the addressed record does not exist.
 - `409` — a domain rule rejected the request, such as deleting an observation that has images.
 - `500` — a workbench defect; the body carries no detail, and the cause is in the server log.
 
-Mutation calls require an `Idempotency-Key` header containing a UUID:
+Command calls require an `Idempotency-Key` header containing a UUID:
 
 ```http
 POST /api/agent/create-observation HTTP/1.1
@@ -52,7 +52,7 @@ Image upload posts the raw source bytes as the request body with an exact `Conte
 
 The workbench is the OAuth 2.1 authorization server for its own MCP endpoint. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/mcp`. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
 
-Read tools take the operation input directly. Mutation tools take an idempotency envelope:
+Read tools take the operation input directly. Command tools take an idempotency envelope:
 
 ```json
 {
@@ -86,4 +86,4 @@ Analysis needs no request: assigned images are queued for the experiment's model
 
 ## Attribution
 
-Each successful operation mutation stores an immutable audit event in the same database transaction as the domain change. The event identifies the account, API key or MCP client, operation, validated input, validated output, idempotency request, and time. Image upload only stages immutable content by digest; assigning that content to an observation is the audited domain mutation. Secrets are never part of an operation input or audit event.
+Each successful command stores one immutable execution record in the same database transaction as the domain change. It is both the idempotency record and the audit record, identifying the account, API key or MCP client, operation, validated input, validated output, key, and time. Failed commands roll back both the domain change and the reservation. Image upload only stages immutable content by digest; assigning that content to an observation is the audited command. Secrets are never part of an operation input or execution record.

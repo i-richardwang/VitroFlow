@@ -1,15 +1,25 @@
 import {
+  type AgentFailureCode,
+  executeAgentOperation,
+} from "./agent-execution";
+import {
   type AgentOperation,
   agentOperations,
   describeAgentOperations,
 } from "./agent-operations";
-import { executeAgentOperation } from "./agent-execution";
 import { authorizeApiKey } from "./api-keys";
 import type { ProgrammaticPrincipal } from "./programmatic-access";
 
 function unauthorized(): Response {
   return Response.json({ error: "Unauthorized" }, { status: 401 });
 }
+
+const statusByFailure: Record<AgentFailureCode, 400 | 404 | 409 | 500> = {
+  invalid_request: 400,
+  not_found: 404,
+  conflict: 409,
+  internal_error: 500,
+};
 
 export async function agentApiPrincipal(
   request: Request,
@@ -30,7 +40,12 @@ export async function handleAgentOperationCall(
       input = JSON.parse(body);
     } catch {
       return Response.json(
-        { error: "Request body must be JSON" },
+        {
+          error: {
+            code: "invalid_request",
+            message: "Request body must be JSON",
+          },
+        },
         { status: 400 },
       );
     }
@@ -44,7 +59,10 @@ export async function handleAgentOperationCall(
   );
   return outcome.ok
     ? Response.json({ result: outcome.output })
-    : Response.json({ error: outcome.message }, { status: outcome.status });
+    : Response.json(
+        { error: { code: outcome.code, message: outcome.message } },
+        { status: statusByFailure[outcome.code] },
+      );
 }
 
 export async function serveAgentOperationCall(
@@ -61,7 +79,7 @@ export function describeAgentInterface(): Response {
   return Response.json({
     call: "POST /api/agent/<name> with the operation's JSON input",
     idempotency:
-      "Mutation calls require an Idempotency-Key header containing a UUID",
+      "Command calls require an Idempotency-Key header containing a UUID",
     upload:
       "POST image bytes to /api/agent/images to obtain the digest assign-images-to-observation expects",
     operations: describeAgentOperations(),

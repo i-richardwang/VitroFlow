@@ -193,24 +193,49 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
 
 def test_snapshot_parser_validates_every_image_entry() -> None:
     snapshot = parse_training_snapshot(
-        _snapshot([_snapshot_image("1" * 64, "val", [])])
+        _snapshot(
+            [
+                _snapshot_image("1" * 64, "val", []),
+                _snapshot_image("2" * 64, "train", []),
+            ]
+        )
     )
     assert snapshot.id == "snapshot-one"
     assert snapshot.images[0].split == "val"
     assert snapshot.images[0].annotation.digest == "1" * 64
 
-    with pytest.raises(ValueError, match="snapshot.schemaVersion must be 1"):
-        parse_training_snapshot({**_snapshot([]), "schemaVersion": 99})
-    with pytest.raises(ValueError, match=r"images\[0\].split must be train or val"):
-        parse_training_snapshot(_snapshot([_snapshot_image("1" * 64, "test", [])]))
+    valid_images = [
+        _snapshot_image("1" * 64, "val", []),
+        _snapshot_image("2" * 64, "train", []),
+    ]
+    with pytest.raises(ValueError, match=r"snapshot.schemaVersion.*shared contract"):
+        parse_training_snapshot({**_snapshot(valid_images), "schemaVersion": 99})
+    with pytest.raises(
+        ValueError, match=r"snapshot.images\[0\].split.*shared contract"
+    ):
+        parse_training_snapshot(
+            _snapshot(
+                [
+                    _snapshot_image("1" * 64, "test", []),
+                    _snapshot_image("2" * 64, "train", []),
+                ]
+            )
+        )
     with pytest.raises(ValueError, match=r"images\[0\].annotation describes another"):
         parse_training_snapshot(
-            _snapshot([{**_snapshot_image("1" * 64, "val", []), "digest": "2" * 64}])
+            _snapshot(
+                [
+                    {**_snapshot_image("1" * 64, "val", []), "digest": "2" * 64},
+                    _snapshot_image("3" * 64, "train", []),
+                ]
+            )
         )
     incomplete = _snapshot_image("1" * 64, "val", [])
     incomplete["annotation"] = annotation_document("1" * 64, status="in_progress")
     with pytest.raises(ValueError, match=r"images\[0\].annotation is not complete"):
-        parse_training_snapshot(_snapshot([incomplete]))
+        parse_training_snapshot(
+            _snapshot([incomplete, _snapshot_image("2" * 64, "train", [])])
+        )
 
 
 def test_training_client_rejects_snapshot_image_corruption() -> None:
@@ -265,7 +290,7 @@ def test_claim_response_requires_a_run_object() -> None:
         ),
     )
     try:
-        with pytest.raises(TypeError, match="training run"):
+        with pytest.raises(ValueError, match="training run.*shared contract"):
             client.claim()
     finally:
         client.close()
@@ -285,11 +310,11 @@ def test_training_job_parses_the_complete_claim_contract() -> None:
 
 
 def test_training_job_rejects_partial_or_foreign_claim_state() -> None:
-    with pytest.raises(ValueError, match="fields are invalid"):
+    with pytest.raises(ValueError, match="training run.*shared contract"):
         TrainingJob.parse({"schemaVersion": 1, "id": "train-one"})
     malformed = _run()
     malformed["state"] = {"status": "running"}
-    with pytest.raises(ValueError, match="missing leaseExpiresAt"):
+    with pytest.raises(ValueError, match="training run.state.*shared contract"):
         TrainingJob.parse(malformed)
 
 

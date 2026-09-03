@@ -5,7 +5,7 @@ from typing import Any, cast
 import cv2
 import numpy as np
 
-from .detection import DetectionResult
+from .detection import CandidateSelection
 from .geometry import DishGeometry
 from .normalization import NormalizedImage
 
@@ -28,7 +28,7 @@ def _region_boundary(labels: np.ndarray) -> np.ndarray:
     )
 
 
-def _draw_detections(image: np.ndarray, detection: DetectionResult) -> None:
+def _draw_detections(image: np.ndarray, detection: CandidateSelection) -> None:
     font_scale = max(0.35, min(0.65, min(image.shape[:2]) / 6000.0))
     thickness = max(1, round(font_scale * 2))
     for seed in detection.detections:
@@ -49,7 +49,7 @@ def _draw_detections(image: np.ndarray, detection: DetectionResult) -> None:
 def render_overlay(
     image: np.ndarray,
     geometry: DishGeometry,
-    detection: DetectionResult,
+    detection: CandidateSelection,
     labels: np.ndarray,
 ) -> np.ndarray:
     overlay = image.copy()
@@ -73,7 +73,7 @@ def render_debug(
     image: np.ndarray,
     geometry: DishGeometry,
     normalized: NormalizedImage,
-    detection: DetectionResult,
+    detection: CandidateSelection,
     labels: np.ndarray,
 ) -> np.ndarray:
     height, width = image.shape[:2]

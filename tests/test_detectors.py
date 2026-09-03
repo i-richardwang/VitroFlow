@@ -56,7 +56,7 @@ def test_shared_detection_contract() -> None:
 def test_parser_rejects_unknown_contract_fields() -> None:
     document = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     document["unexpected"] = True
-    with pytest.raises(ValueError, match="unknown unexpected"):
+    with pytest.raises(ValueError, match="outcome.*shared contract"):
         parse_inference_outcome(document)
 
 

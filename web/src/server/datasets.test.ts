@@ -27,7 +27,7 @@ import {
   DetectionConflictError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
-  pendingAssignments,
+  inferencePending,
   readDetection,
   recordInferenceOutcome,
 } from "./inference-outcomes";
@@ -291,13 +291,14 @@ describe("collection", () => {
 });
 
 describe("detections", () => {
-  /** Pending digests per version, for the versions the test registers. */
-  async function pendingFor(versionIds: string[]) {
-    return (await pendingAssignments(worker)).flatMap((assignment) =>
-      versionIds.includes(assignment.manifest.modelVersionId)
-        ? [[assignment.manifest.modelVersionId, assignment.images]]
-        : [],
+  async function pendingFor(versionId: string, digests: string[]) {
+    const pending = await Promise.all(
+      digests.map(async (digest) => ({
+        digest,
+        pending: await inferencePending({ versionId, digest }),
+      })),
     );
+    return pending.filter((entry) => entry.pending).map(({ digest }) => digest);
   }
 
   test("an experiment needs detections from its version only", async () => {
@@ -310,9 +311,9 @@ describe("detections", () => {
     const [a, b] = digests as [string, string];
     const targetA = { versionId: version.id, digest: a };
     const targetB = { versionId: version.id, digest: b };
-    const before = await pendingFor([version.id]);
-    expect(before).toHaveLength(1);
-    expect(before[0]![1]).toEqual(expect.arrayContaining([a, b]));
+    expect(await pendingFor(version.id, [a, b])).toEqual(
+      expect.arrayContaining([a, b]),
+    );
 
     const original = await resultFor(version, "pend-b");
     await recordInferenceOutcome(
@@ -327,25 +328,10 @@ describe("detections", () => {
       error: "boom",
     };
     await recordInferenceOutcome(targetB, failure, worker);
-    expect(
-      (await pendingFor([version.id]))
-        .flatMap(([, images]) => images)
-        .filter((digest) => digest === a || digest === b),
-    ).toEqual([]);
+    expect(await pendingFor(version.id, [a, b])).toEqual([]);
     const cells = await listObservationImageRefs(experiment.id);
     await retryObservationImageAnalysis(cells.get("pend-b")!);
-    expect(
-      (await pendingFor([version.id])).flatMap(([, images]) => images),
-    ).toContain(b);
-    expect(
-      (
-        await pendingAssignments({
-          runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
-        })
-      ).filter(
-        (assignment) => assignment.manifest.modelVersionId === version.id,
-      ),
-    ).toEqual([]);
+    expect(await pendingFor(version.id, [a, b])).toEqual([b]);
   });
 
   test("a detection is recorded once and a later failure defers to it", async () => {

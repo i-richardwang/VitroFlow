@@ -19,7 +19,7 @@ class ScoredCandidate:
 
 
 @dataclass(frozen=True)
-class DetectionResult:
+class CandidateSelection:
     candidates: list[ScoredCandidate]
     detections: list[SeedDetection]
 
@@ -49,7 +49,7 @@ def detect_seeds(
     evidence: list[CandidateEvidence],
     model: CandidateModel,
     config: DecisionConfig,
-) -> DetectionResult:
+) -> CandidateSelection:
     confidences = model.score(evidence)
     scored = [
         ScoredCandidate(proposal, description, float(confidence))
@@ -77,4 +77,4 @@ def detect_seeds(
             start=1,
         )
     ]
-    return DetectionResult(candidates=scored, detections=detections)
+    return CandidateSelection(candidates=scored, detections=detections)

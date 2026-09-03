@@ -17,6 +17,7 @@ from .documents import (
     expect_schema_version,
 )
 from .identifiers import CLASS_NAME
+from .wire_contracts import validate_wire_contract
 
 if TYPE_CHECKING:
     from .manifest import ManifestImage
@@ -150,6 +151,7 @@ def _parse_instances(
 
 
 def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocument:
+    validate_wire_contract("annotation", value, context)
     payload = as_object(value, context)
     expect_fields(
         payload,

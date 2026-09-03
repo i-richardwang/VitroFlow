@@ -9,6 +9,7 @@ check-python:
 	uv run pytest
 
 check-web:
+	cd web && bun run contracts:check
 	cd web && bun run format:check
 	cd web && bunx tsc --noEmit
 	cd web && bun test

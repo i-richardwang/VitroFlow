@@ -60,7 +60,7 @@ def _manifest() -> dict[str, object]:
 def test_manifest_documents_are_valid_and_belong_to_their_image() -> None:
     malformed = _manifest()
     malformed["images"][0]["detection"] = {"schemaVersion": 1}
-    with pytest.raises((TypeError, ValueError), match=r"images\[0\]\.detection"):
+    with pytest.raises(ValueError, match=r"manifest.images\[0\].detection"):
         parse_dataset_manifest(malformed)
 
     mismatched = _manifest()
@@ -75,7 +75,9 @@ def test_manifest_documents_are_valid_and_belong_to_their_image() -> None:
 
     oversized_image = _manifest()
     oversized_image["images"][0]["bytes"] = MAX_IMAGE_BYTES + 1
-    with pytest.raises(ValueError, match="bytes must be at most"):
+    with pytest.raises(
+        ValueError, match=r"manifest.images\[0\].bytes.*shared contract"
+    ):
         parse_dataset_manifest(oversized_image)
 
 
@@ -223,7 +225,7 @@ def test_pull_rejects_invalid_manifest_entries(tmp_path: Path) -> None:
     manifest["images"][1]["digest"] = "not-a-digest"
     handle, requests = _server(manifest=manifest)
     with pytest.raises(
-        DatasetTransferError, match=r"images\[1\].digest must be a SHA-256"
+        DatasetTransferError, match=r"manifest.images\[1\].digest.*shared contract"
     ):
         _pull(tmp_path, handle)
     assert requests == ["/api/transfer/datasets/seeds"]
@@ -242,7 +244,9 @@ def test_pull_rejects_unknown_schema_versions(tmp_path: Path) -> None:
     manifest = _manifest()
     manifest["schemaVersion"] = 99
     handle, requests = _server(manifest=manifest)
-    with pytest.raises(DatasetTransferError, match="schemaVersion must be 1"):
+    with pytest.raises(
+        DatasetTransferError, match="manifest.schemaVersion.*shared contract"
+    ):
         _pull(tmp_path, handle)
     assert requests == ["/api/transfer/datasets/seeds"]
     assert list(tmp_path.iterdir()) == []

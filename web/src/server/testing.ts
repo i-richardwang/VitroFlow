@@ -141,6 +141,7 @@ export function testHeartbeat(
 ): InferenceWorkerHeartbeat {
   return {
     workerId,
+    sessionId: `session-${workerId}`,
     startedAt: "2026-08-27T00:00:00.000Z",
     runtimes: [TEST_RUNTIME],
     loaded: null,

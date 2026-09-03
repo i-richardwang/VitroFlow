@@ -1,4 +1,3 @@
-import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import type { Executor } from "../db/client";
@@ -10,9 +9,7 @@ import {
 } from "../experiments/contracts";
 import { cultureEventExcludesFromAnalysisByDefault } from "../experiments/culture-events";
 import {
-  ConflictError,
   ExperimentNotFoundError,
-  NotFoundError,
   ObservationUnitNotFoundError,
 } from "../experiments/errors";
 import {
@@ -75,92 +72,63 @@ import {
 import { listAllModelVersions, listModels } from "./model-registry";
 
 /**
- * The outcome of one agent operation call. The registry boundary alone
- * decides how a call went: it validates the input, classifies what the
- * domain layer threw, enforces the output contract, and sanitizes defects.
- * The HTTP and MCP surfaces project this closed union onto their protocols
- * without judging it.
- */
-export type AgentCallResult =
-  | { ok: true; output: unknown }
-  | { ok: false; status: 400 | 404 | 409 | 500; message: string };
-
-/**
- * One experiment-maintenance operation exposed to data-entry agents. Each
- * binds a request schema to the domain function it validates for, so every
- * business invariant lives in the domain layer and this table stays a
- * projection. The HTTP surface and the MCP tool list are both derived from
- * it, and an operation name is part of the public contract.
+ * One protocol-neutral application operation. HTTP status codes and MCP tool
+ * annotations are adapter concerns; the catalog says only whether an
+ * operation reads or changes state and whether that change is destructive.
  */
 export interface AgentOperation {
   name: string;
   description: string;
-  annotations: ToolAnnotations;
-  effect: "read" | "mutation";
+  kind: "query" | "command";
+  destructive: boolean;
   input: z.ZodType;
   output: z.ZodType;
-  run: (input: unknown, executor?: Executor) => Promise<AgentCallResult>;
+  handler: (input: unknown, executor?: Executor) => Promise<unknown>;
 }
 
-export function operation<
+interface OperationDefinition<
   Input extends z.ZodType,
   Output extends z.ZodType,
->(config: {
+> {
   name: string;
   description: string;
-  annotations: ToolAnnotations;
   input: Input;
   output: Output;
   handler: (
     input: z.output<Input>,
     executor?: Executor,
   ) => Promise<z.input<Output> | void>;
-}): AgentOperation {
-  const { name, description, annotations, input, output, handler } = config;
+}
+
+function defineOperation<Input extends z.ZodType, Output extends z.ZodType>(
+  kind: AgentOperation["kind"],
+  destructive: boolean,
+  config: OperationDefinition<Input, Output>,
+): AgentOperation {
+  const { name, description, input, output, handler } = config;
   return {
     name,
     description,
-    annotations,
-    effect: annotations.readOnlyHint === true ? "read" : "mutation",
+    kind,
+    destructive,
     input,
     output,
-    run: async (value, executor) => {
-      const request = input.safeParse(value);
-      if (!request.success) {
-        return {
-          ok: false,
-          status: 400,
-          message: z.prettifyError(request.error),
-        };
-      }
-      try {
-        const result = (await handler(request.data, executor)) ?? null;
-        return { ok: true, output: output.parse(result) };
-      } catch (error) {
-        if (error instanceof NotFoundError) {
-          return { ok: false, status: 404, message: error.message };
-        }
-        if (error instanceof ConflictError) {
-          return { ok: false, status: 409, message: error.message };
-        }
-        console.error(`Agent operation ${name} failed:`, error);
-        return { ok: false, status: 500, message: "Internal error" };
-      }
-    },
+    handler: (value, executor) => handler(value as z.output<Input>, executor),
   };
 }
 
-const READS: ToolAnnotations = { readOnlyHint: true, openWorldHint: false };
-const CREATES: ToolAnnotations = {
-  destructiveHint: false,
-  idempotentHint: true,
-  openWorldHint: false,
-};
-const MUTATES: ToolAnnotations = {
-  destructiveHint: true,
-  idempotentHint: true,
-  openWorldHint: false,
-};
+export function query<Input extends z.ZodType, Output extends z.ZodType>(
+  config: OperationDefinition<Input, Output>,
+): AgentOperation {
+  return defineOperation("query", false, config);
+}
+
+export function command<Input extends z.ZodType, Output extends z.ZodType>(
+  config: OperationDefinition<Input, Output> & { destructive: boolean },
+): AgentOperation {
+  const { destructive, ...definition } = config;
+  return defineOperation("command", destructive, definition);
+}
 
 const nothing = z.strictObject({});
 const done = z.null();
@@ -173,24 +141,22 @@ const includedByDefault = CULTURE_EVENT_TYPES.filter(
 );
 
 const operations: readonly AgentOperation[] = [
-  operation({
+  query({
     name: "list-experiments",
     description:
       "List every experiment with its design and observation progress",
-    annotations: READS,
     input: nothing,
     output: z.array(experimentSummarySchema),
     handler: () => listExperiments(),
   }),
-  operation({
+  query({
     name: "list-model-versions",
     description:
       "List the model versions an experiment may be created with, newest first",
-    annotations: READS,
     input: nothing,
     output: z.array(
       z.strictObject({
-        model: modelSchema.nullable(),
+        model: modelSchema,
         version: modelVersionSchema,
       }),
     ),
@@ -200,17 +166,19 @@ const operations: readonly AgentOperation[] = [
         listAllModelVersions(),
       ]);
       const byId = new Map(models.map((model) => [model.id, model]));
-      return versions.map((version) => ({
-        model: byId.get(version.modelId) ?? null,
-        version,
-      }));
+      return versions.map((version) => {
+        const model = byId.get(version.modelId);
+        if (!model) {
+          throw new Error(`Version ${version.id} refers to no model`);
+        }
+        return { model, version };
+      });
     },
   }),
-  operation({
+  query({
     name: "get-experiment",
     description:
       "Read one experiment's full grid: treatments, observation units, observations, culture events, and per-unit image state",
-    annotations: READS,
     input: experimentRefSchema,
     output: experimentGridSchema,
     handler: async ({ experiment }) => {
@@ -221,11 +189,10 @@ const operations: readonly AgentOperation[] = [
       return grid;
     },
   }),
-  operation({
+  query({
     name: "get-observation-unit",
     description:
       "Read one observation unit's image series, optionally focused on one observation",
-    annotations: READS,
     input: observationUnitRequestSchema,
     output: observationUnitSeriesSchema,
     handler: async ({ observation, ...ref }) => {
@@ -238,167 +205,167 @@ const operations: readonly AgentOperation[] = [
       return series;
     },
   }),
-  operation({
+  command({
     name: "create-experiment",
     description: "Create an experiment bound to one immutable model version",
-    annotations: CREATES,
+    destructive: false,
     input: experimentRequestSchema,
     output: experimentSchema,
     handler: (input, executor) => createExperiment(input, executor),
   }),
-  operation({
+  command({
     name: "update-experiment",
     description:
       "Correct an experiment's name, protocol fields, notes, or inoculation date",
-    annotations: MUTATES,
+    destructive: true,
     input: experimentUpdateSchema,
     output: experimentSchema,
     handler: (input, executor) => updateExperiment(input, executor),
   }),
-  operation({
+  command({
     name: "delete-experiment",
     description:
       "Delete an experiment that has no images and no culture events",
-    annotations: MUTATES,
+    destructive: true,
     input: experimentRefSchema,
     output: done,
     handler: (input, executor) => deleteExperiment(input, executor),
   }),
-  operation({
+  command({
     name: "create-treatment",
     description: "Add a treatment, optionally generating its observation units",
-    annotations: CREATES,
+    destructive: false,
     input: treatmentRequestSchema,
     output: treatmentSchema,
     handler: (input, executor) => addTreatment(input, executor),
   }),
-  operation({
+  command({
     name: "update-treatment",
     description: "Correct a treatment's name, factor, or note",
-    annotations: MUTATES,
+    destructive: true,
     input: treatmentUpdateSchema,
     output: treatmentSchema,
     handler: (input, executor) => updateTreatment(input, executor),
   }),
-  operation({
+  command({
     name: "delete-treatment",
     description: "Delete a treatment; its observation units become unassigned",
-    annotations: MUTATES,
+    destructive: true,
     input: treatmentRefSchema,
     output: done,
     handler: (input, executor) => deleteTreatment(input, executor),
   }),
-  operation({
+  command({
     name: "create-observation-units",
     description: "Add observation units by code, optionally under a treatment",
-    annotations: CREATES,
+    destructive: false,
     input: observationUnitBatchSchema,
     output: z.array(observationUnitRecordSchema),
     handler: (input, executor) => addObservationUnits(input, executor),
   }),
-  operation({
+  command({
     name: "update-observation-unit",
     description:
       "Correct an observation unit's code, preserving its identity and records",
-    annotations: MUTATES,
+    destructive: true,
     input: observationUnitUpdateSchema,
     output: observationUnitRecordSchema,
     handler: (input, executor) => updateObservationUnit(input, executor),
   }),
-  operation({
+  command({
     name: "delete-observation-unit",
     description:
       "Delete an observation unit that has no images and no culture events",
-    annotations: MUTATES,
+    destructive: true,
     input: observationUnitRefSchema,
     output: done,
     handler: (input, executor) => deleteObservationUnit(input, executor),
   }),
-  operation({
+  command({
     name: "assign-observation-units",
     description:
       "Assign observation units to a treatment, or clear their assignment",
-    annotations: MUTATES,
+    destructive: true,
     input: observationUnitAssignmentSchema,
     output: done,
     handler: (input, executor) => assignObservationUnits(input, executor),
   }),
-  operation({
+  command({
     name: "record-culture-event",
     description:
       "Record a culture event on an observation unit. When excludeFromObservation " +
       `is omitted, the event type's default applies: ${excludedByDefault.join(", ")} ` +
       `exclude the unit from analysis; ${includedByDefault.join(", ")} keep it included`,
-    annotations: CREATES,
+    destructive: false,
     input: cultureEventRequestSchema,
     output: cultureEventSchema,
     handler: (input, executor) => recordCultureEvent(input, executor),
   }),
-  operation({
+  command({
     name: "void-culture-event",
     description: "Void a mistakenly recorded culture event",
-    annotations: MUTATES,
+    destructive: true,
     input: cultureEventVoidSchema,
     output: cultureEventSchema,
     handler: (input, executor) => voidCultureEvent(input, executor),
   }),
-  operation({
+  command({
     name: "create-observation",
     description:
       "Add an observation date to an experiment; it may be planned before images exist",
-    annotations: CREATES,
+    destructive: false,
     input: observationRequestSchema,
     output: experimentObservationSchema,
     handler: (input, executor) => addObservation(input, executor),
   }),
-  operation({
+  command({
     name: "update-observation",
     description: "Correct an observation's date or note",
-    annotations: MUTATES,
+    destructive: true,
     input: observationUpdateSchema,
     output: experimentObservationSchema,
     handler: (input, executor) => updateObservation(input, executor),
   }),
-  operation({
+  command({
     name: "delete-observation",
     description:
       "Delete an observation that has no images and no culture events",
-    annotations: MUTATES,
+    destructive: true,
     input: observationRefSchema,
     output: done,
     handler: (input, executor) => deleteObservation(input, executor),
   }),
-  operation({
+  command({
     name: "assign-images-to-observation",
     description:
       "Attach stored images to observation units within one observation; upload bytes first to obtain each digest",
-    annotations: CREATES,
+    destructive: false,
     input: observationImageAssignmentSchema,
     output: observationImageAssignmentResultSchema,
     handler: (input, executor) => assignObservationImages(input, executor),
   }),
-  operation({
+  command({
     name: "reassign-observation-image",
     description:
       "Move an observation image to another observation unit or observation",
-    annotations: MUTATES,
+    destructive: true,
     input: observationImageMoveSchema,
     output: done,
     handler: (input, executor) => moveObservationImage(input, executor),
   }),
-  operation({
+  command({
     name: "unassign-observation-image",
     description:
       "Detach an image from its observation; the stored image itself remains",
-    annotations: MUTATES,
+    destructive: true,
     input: observationImageRefSchema,
     output: done,
     handler: (input, executor) => unassignObservationImage(input, executor),
   }),
-  operation({
+  command({
     name: "retry-observation-image-analysis",
     description: "Queue a failed observation image for analysis again",
-    annotations: MUTATES,
+    destructive: true,
     input: observationImageRefSchema,
     output: done,
     handler: (input, executor) =>
@@ -410,37 +377,23 @@ export const agentOperations: ReadonlyMap<string, AgentOperation> = new Map(
   operations.map((operation) => [operation.name, operation]),
 );
 
-export async function callAgentOperation(
-  name: string,
-  input: unknown,
-  registry: ReadonlyMap<string, AgentOperation> = agentOperations,
-): Promise<AgentCallResult> {
-  const found = registry.get(name);
-  if (!found) {
-    return {
-      ok: false,
-      status: 404,
-      message: `Unknown operation: ${name}. Known operations: ${[...registry.keys()].join(", ")}`,
-    };
-  }
-  return found.run(input);
-}
-
 /** A machine-readable description of every operation, for agent discovery. */
 export function describeAgentOperations(): {
   name: string;
   description: string;
-  annotations: ToolAnnotations;
+  kind: AgentOperation["kind"];
+  destructive: boolean;
   input: unknown;
   output: unknown;
 }[] {
   return [...agentOperations.values()].map(
-    ({ name, description, annotations, input, output }) => ({
+    ({ name, description, kind, destructive, input, output }) => ({
       name,
       description,
-      annotations,
-      input: z.toJSONSchema(input, { io: "input", unrepresentable: "any" }),
-      output: z.toJSONSchema(output, { io: "output", unrepresentable: "any" }),
+      kind,
+      destructive,
+      input: z.toJSONSchema(input, { io: "input" }),
+      output: z.toJSONSchema(output, { io: "output" }),
     }),
   );
 }

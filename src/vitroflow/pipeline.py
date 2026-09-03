@@ -7,7 +7,7 @@ import numpy as np
 
 from .candidates import CandidateEvidence, describe_candidates
 from .config import PipelineConfig
-from .detection import DetectionResult, detect_seeds
+from .detection import CandidateSelection, detect_seeds
 from .geometry import DishGeometry, estimate_geometry
 from .identity import ExecutionIdentity
 from .image_io import image_digest, read_image
@@ -86,7 +86,7 @@ class Recognition:
     image: np.ndarray
     geometry: DishGeometry
     normalized: NormalizedImage
-    detection: DetectionResult
+    detection: CandidateSelection
     regions: np.ndarray
 
     def overlay(self) -> np.ndarray:

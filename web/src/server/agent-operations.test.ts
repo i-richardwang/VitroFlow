@@ -8,24 +8,48 @@ import type {
   Experiment,
   ExperimentObservation,
 } from "../experiments/schema";
+import { type AgentCallResult, executeAgentOperation } from "./agent-execution";
 import {
-  type AgentCallResult,
   type AgentOperation,
   agentOperations,
-  callAgentOperation,
+  command,
   describeAgentOperations,
-  operation,
 } from "./agent-operations";
 import { baselineVersion } from "./testing";
+
+const testPrincipal = {
+  kind: "api_key" as const,
+  userId: "agent-operations-test",
+  credentialId: "agent-operations-test",
+};
+
+function callAgentOperation(
+  name: string,
+  input: unknown,
+  registry: ReadonlyMap<string, AgentOperation> = agentOperations,
+): Promise<AgentCallResult> {
+  const idempotencyKey =
+    registry.get(name)?.kind === "command" ? crypto.randomUUID() : null;
+  return executeAgentOperation(
+    name,
+    input,
+    testPrincipal,
+    idempotencyKey,
+    registry,
+  );
+}
 
 function output(result: AgentCallResult): unknown {
   if (!result.ok) throw new Error(`Operation failed: ${result.message}`);
   return result.output;
 }
 
-function failure(result: AgentCallResult): { status: number; message: string } {
+function failure(result: AgentCallResult): {
+  code: string;
+  message: string;
+} {
   if (result.ok) throw new Error("Operation unexpectedly succeeded");
-  return { status: result.status, message: result.message };
+  return { code: result.code, message: result.message };
 }
 
 describe("agent operations", () => {
@@ -34,11 +58,11 @@ describe("agent operations", () => {
     expect(described.map(({ name }) => name)).toEqual([
       ...agentOperations.keys(),
     ]);
-    for (const { description, annotations, input, output } of described) {
+    for (const { description, kind, input, output } of described) {
       expect(description.length).toBeGreaterThan(0);
       expect(input).toMatchObject({ type: "object" });
       expect(output).toBeDefined();
-      expect(annotations.openWorldHint).toBe(false);
+      expect(["query", "command"]).toContain(kind);
     }
   });
 
@@ -78,42 +102,33 @@ describe("agent operations", () => {
 
     for (const [name, entry] of agentOperations) {
       if (readOnly.has(name)) {
-        expect(entry.annotations).toEqual({
-          readOnlyHint: true,
-          openWorldHint: false,
-        });
+        expect(entry).toMatchObject({ kind: "query", destructive: false });
       } else if (additive.has(name)) {
-        expect(entry.annotations).toEqual({
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        });
+        expect(entry).toMatchObject({ kind: "command", destructive: false });
       } else {
         expect(destructive.has(name)).toBe(true);
-        expect(entry.annotations).toEqual({
-          destructiveHint: true,
-          idempotentHint: true,
-          openWorldHint: false,
-        });
+        expect(entry).toMatchObject({ kind: "command", destructive: true });
       }
     }
   });
 
   test("an unknown operation names the known ones", async () => {
     const result = await callAgentOperation("open-portal", {});
-    expect(failure(result).status).toBe(404);
+    expect(failure(result).code).toBe("not_found");
     expect(failure(result).message).toContain("list-experiments");
   });
 
   test("prototype members are not operations", async () => {
     for (const name of ["toString", "constructor", "__proto__"]) {
-      expect(failure(await callAgentOperation(name, {})).status).toBe(404);
+      expect(failure(await callAgentOperation(name, {})).code).toBe(
+        "not_found",
+      );
     }
   });
 
   test("invalid input reports validation, not a defect", async () => {
     const result = await callAgentOperation("create-experiment", { name: "" });
-    expect(failure(result).status).toBe(400);
+    expect(failure(result).code).toBe("invalid_request");
     expect(failure(result).message).toContain("Experiment name is required");
   });
 
@@ -123,7 +138,7 @@ describe("agent operations", () => {
       experiment: absent,
     });
     expect(failure(read)).toEqual({
-      status: 404,
+      code: "not_found",
       message: `Unknown experiment: ${absent}`,
     });
 
@@ -132,25 +147,25 @@ describe("agent operations", () => {
       inoculatedOn: "2026-08-01",
       modelVersionId: "seed-detector",
     });
-    expect(failure(create).status).toBe(404);
+    expect(failure(create).code).toBe("not_found");
     expect(failure(create).message).toContain("Unknown model version");
   });
 
   test("defects are logged and sanitized, wherever they arose", async () => {
     const registry = new Map<string, AgentOperation>(
       [
-        operation({
+        command({
           name: "breaks",
           description: "Throws a non-domain error",
-          annotations: {},
+          destructive: false,
           input: z.strictObject({}),
           output: z.null(),
           handler: () => Promise.reject(new TypeError("internal detail")),
         }),
-        operation({
+        command({
           name: "lies",
           description: "Returns a value its output contract forbids",
-          annotations: {},
+          destructive: false,
           input: z.strictObject({}),
           output: z.null(),
           handler: async () => "wrong" as unknown as null,
@@ -162,12 +177,12 @@ describe("agent operations", () => {
     try {
       const defect = await callAgentOperation("breaks", {}, registry);
       expect(failure(defect)).toEqual({
-        status: 500,
+        code: "internal_error",
         message: "Internal error",
       });
       const contract = await callAgentOperation("lies", {}, registry);
       expect(failure(contract)).toEqual({
-        status: 500,
+        code: "internal_error",
         message: "Internal error",
       });
       expect(log).toHaveBeenCalledTimes(2);
@@ -198,7 +213,7 @@ describe("agent operations", () => {
       name: "T1",
       replicates: 0,
     });
-    expect(failure(duplicate).status).toBe(409);
+    expect(failure(duplicate).code).toBe("conflict");
 
     const observation = output(
       await callAgentOperation("create-observation", {

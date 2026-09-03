@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
 
+from vitroflow import inference_worker
 from vitroflow.annotations import BoundingBox
 from vitroflow.detectors import (
     DetectionInstance,
@@ -20,6 +22,7 @@ from vitroflow.detectors import (
 from vitroflow.inference_models import ModelManifest
 from vitroflow.inference_worker import (
     Assignment,
+    InferenceLeaseLostError,
     WorkerClient,
     WorkerRuntime,
     run_pass,
@@ -86,7 +89,9 @@ class FakeStore:
 
 
 DETECTOR = FakeDetector()
-WORKER = WorkerRuntime("test-worker", "2026-08-27T00:00:00+00:00", (RUNTIME,))
+WORKER = WorkerRuntime(
+    "test-worker", "test-session", "2026-08-27T00:00:00+00:00", (RUNTIME,)
+)
 PRODUCER = DetectionProducer("set.traditional-v1", "a" * 64, RUNTIME)
 
 
@@ -100,10 +105,14 @@ class Workbench:
         assignments: list[dict[str, Any]],
         *,
         result_status: int = 200,
+        lease_status: int = 200,
+        lease_statuses: list[int] | None = None,
         image: bytes = IMAGE,
     ) -> None:
-        self.assignments = assignments
+        self.assignments = list(assignments)
         self.result_status = result_status
+        self.lease_status = lease_status
+        self.lease_statuses = list(lease_statuses or [])
         self.image = image
         self.requests: list[httpx.Request] = []
 
@@ -113,8 +122,14 @@ class Workbench:
         path = request.url.path
         if path == "/api/inference/heartbeat":
             return httpx.Response(200)
-        if path == "/api/inference/pending":
-            return httpx.Response(200, json={"assignments": self.assignments})
+        if path == "/api/inference/claim":
+            assignment = self.assignments.pop(0) if self.assignments else None
+            return httpx.Response(200, json={"assignment": assignment})
+        if path.startswith("/api/inference/claims/") and path.endswith("/lease"):
+            status = (
+                self.lease_statuses.pop(0) if self.lease_statuses else self.lease_status
+            )
+            return httpx.Response(status, json={})
         if path.startswith("/api/inference/images/"):
             return httpx.Response(200, content=self.image)
         if path.startswith("/api/inference/results/"):
@@ -147,15 +162,27 @@ class Workbench:
         ]
 
 
-PENDING = [DIGEST, DIGEST]
-ASSIGNMENTS = [{"manifest": MANIFEST, "images": PENDING}]
+LEASE = "2026-09-03T12:05:00.000Z"
+ASSIGNMENTS = [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}]
 
 
-def test_assignment_images_are_digests() -> None:
-    with pytest.raises(ValueError, match="must be a SHA-256 digest"):
-        Assignment.parse({"manifest": MANIFEST, "images": ["images/set/a.jpg"]})
-    with pytest.raises(ValueError, match="must be a non-empty string"):
-        Assignment.parse({"manifest": MANIFEST, "images": [{"digest": DIGEST}]})
+def test_assignment_image_is_a_digest() -> None:
+    with pytest.raises(ValueError, match=r"assignment.image.*shared contract"):
+        Assignment.parse(
+            {
+                "manifest": MANIFEST,
+                "image": "images/set/a.jpg",
+                "leaseExpiresAt": LEASE,
+            }
+        )
+    with pytest.raises(ValueError, match=r"assignment.image.*shared contract"):
+        Assignment.parse(
+            {
+                "manifest": MANIFEST,
+                "image": {"digest": DIGEST},
+                "leaseExpiresAt": LEASE,
+            }
+        )
 
 
 @pytest.mark.parametrize(
@@ -169,11 +196,13 @@ def test_assignment_loads_shared_contract_fixtures(filename: str, kind: str) -> 
     fixture = Path(__file__).parent / "fixtures/contracts" / filename
     assignment = Assignment.parse(json.loads(fixture.read_text()))
     assert assignment.manifest.artifact["kind"] == kind
-    assert len(assignment.images) == 1
+    assert assignment.image in {"c" * 64, "d" * 64}
 
 
 def test_assignment_validates_its_manifest() -> None:
-    with pytest.raises(ValueError, match="kind is unsupported"):
+    with pytest.raises(
+        ValueError, match=r"assignment.manifest.artifact.*shared contract"
+    ):
         Assignment.parse(
             {
                 "manifest": {
@@ -182,10 +211,13 @@ def test_assignment_validates_its_manifest() -> None:
                     "classes": ["seed"],
                     "artifact": {"kind": "onnx", "digest": "a" * 64},
                 },
-                "images": PENDING[:1],
+                "image": DIGEST,
+                "leaseExpiresAt": LEASE,
             }
         )
-    with pytest.raises(ValueError, match="modelVersionId is invalid"):
+    with pytest.raises(
+        ValueError, match=r"assignment.manifest.modelVersionId.*shared contract"
+    ):
         Assignment.parse(
             {
                 "manifest": {
@@ -194,17 +226,25 @@ def test_assignment_validates_its_manifest() -> None:
                     "classes": ["seed"],
                     "artifact": {"kind": "traditional", "digest": "a" * 64},
                 },
-                "images": PENDING[:1],
+                "image": DIGEST,
+                "leaseExpiresAt": LEASE,
             }
         )
-    with pytest.raises(ValueError, match="images must not be empty"):
-        Assignment.parse({"manifest": MANIFEST, "images": []})
+    with pytest.raises(ValueError, match=r"assignment.leaseExpiresAt.*shared contract"):
+        Assignment.parse(
+            {
+                "manifest": MANIFEST,
+                "image": DIGEST,
+                "leaseExpiresAt": "2026-09-03T12:05:00",
+            }
+        )
 
 
 def test_heartbeat_describes_runtimes_and_loaded_version() -> None:
     heartbeat = WORKER.heartbeat("set.traditional-v1", DIGEST)
     assert heartbeat == {
         "workerId": "test-worker",
+        "sessionId": "test-session",
         "startedAt": "2026-08-27T00:00:00+00:00",
         "runtimes": [RUNTIME.to_dict()],
         "loaded": "set.traditional-v1",
@@ -213,7 +253,7 @@ def test_heartbeat_describes_runtimes_and_loaded_version() -> None:
     assert WORKER.heartbeat(None, None)["loaded"] is None
 
 
-def test_pass_detects_every_assigned_image(tmp_path: Path) -> None:
+def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
     workbench = Workbench(ASSIGNMENTS)
     client = workbench.client()
     models = store()
@@ -224,10 +264,11 @@ def test_pass_detects_every_assigned_image(tmp_path: Path) -> None:
 
     assert workbench.calls() == [
         ("POST", "/api/inference/heartbeat"),
-        ("GET", "/api/inference/pending"),
-        ("POST", "/api/inference/heartbeat"),
-        ("GET", f"/api/inference/images/{DIGEST}"),
-        ("PUT", f"/api/inference/results/set.traditional-v1/{DIGEST}"),
+        ("POST", "/api/inference/claim"),
+        (
+            "POST",
+            f"/api/inference/claims/set.traditional-v1/{DIGEST}/lease",
+        ),
         ("POST", "/api/inference/heartbeat"),
         ("GET", f"/api/inference/images/{DIGEST}"),
         ("PUT", f"/api/inference/results/set.traditional-v1/{DIGEST}"),
@@ -238,10 +279,19 @@ def test_pass_detects_every_assigned_image(tmp_path: Path) -> None:
         None,
         "set.traditional-v1",
         "set.traditional-v1",
-        "set.traditional-v1",
     ]
-    assert dict(workbench.requests[1].url.params) == {"workerId": "test-worker"}
-    assert dict(workbench.requests[4].url.params) == {"workerId": "test-worker"}
+    assert json.loads(workbench.requests[1].read()) == {
+        "workerId": "test-worker",
+        "sessionId": "test-session",
+    }
+    assert json.loads(workbench.requests[2].read()) == {
+        "workerId": "test-worker",
+        "sessionId": "test-session",
+    }
+    assert dict(workbench.requests[5].url.params) == {
+        "workerId": "test-worker",
+        "sessionId": "test-session",
+    }
     for body in workbench.result_bodies():
         assert body["schemaVersion"] == 1
         assert body["image"] == {"digest": DIGEST, "width": 100, "height": 80}
@@ -252,13 +302,18 @@ def test_pass_detects_every_assigned_image(tmp_path: Path) -> None:
 def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
     workbench = Workbench(
         [
-            {"manifest": OTHER_MANIFEST, "images": PENDING[:1]},
-            {"manifest": MANIFEST, "images": PENDING[:1]},
+            {
+                "manifest": OTHER_MANIFEST,
+                "image": DIGEST,
+                "leaseExpiresAt": LEASE,
+            },
+            {"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE},
         ]
     )
     client = workbench.client()
     models = store()
     try:
+        run_pass(client, tmp_path, models)
         run_pass(client, tmp_path, models)
     finally:
         client.close()
@@ -270,7 +325,8 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
 
 def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "images": PENDING[:1]}], image=b"tampered"
+        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        image=b"tampered",
     )
     client = workbench.client()
     try:
@@ -282,7 +338,9 @@ def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> No
 
 
 def test_pass_records_a_failure_document(tmp_path: Path) -> None:
-    workbench = Workbench([{"manifest": MANIFEST, "images": PENDING[:1]}])
+    workbench = Workbench(
+        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}]
+    )
     client = workbench.client()
     try:
         run_pass(client, tmp_path, store(FailingDetector()))
@@ -298,10 +356,11 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
     ]
 
 
-@pytest.mark.parametrize("status", [400, 409, 422])
+@pytest.mark.parametrize("status", [400, 422])
 def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "images": PENDING[:1]}], result_status=status
+        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        result_status=status,
     )
     client = workbench.client()
     try:
@@ -311,7 +370,57 @@ def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
         client.close()
 
 
-def test_pass_does_nothing_when_nothing_is_pending(tmp_path: Path) -> None:
+def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
+    workbench = Workbench(
+        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        lease_status=409,
+    )
+    client = workbench.client()
+    try:
+        with pytest.raises(InferenceLeaseLostError):
+            run_pass(client, tmp_path, store())
+    finally:
+        client.close()
+
+
+def test_refresh_failure_prevents_a_stale_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class SlowDetector(FakeDetector):
+        def predict(
+            self, image_path: Path, digest: str, producer: DetectionProducer
+        ) -> DetectionResult:
+            time.sleep(0.02)
+            return super().predict(image_path, digest, producer)
+
+    monkeypatch.setattr(inference_worker, "LEASE_REFRESH_SECONDS", 0.001)
+    workbench = Workbench(
+        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        lease_statuses=[200, 409],
+    )
+    client = workbench.client()
+    try:
+        with pytest.raises(InferenceLeaseLostError):
+            run_pass(client, tmp_path, store(SlowDetector()))
+    finally:
+        client.close()
+    assert workbench.result_bodies() == []
+
+
+def test_result_conflict_is_a_lost_lease(tmp_path: Path) -> None:
+    workbench = Workbench(
+        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        result_status=409,
+    )
+    client = workbench.client()
+    try:
+        with pytest.raises(InferenceLeaseLostError):
+            run_pass(client, tmp_path, store())
+    finally:
+        client.close()
+
+
+def test_pass_does_nothing_when_no_work_is_claimed(tmp_path: Path) -> None:
     workbench = Workbench([])
     client = workbench.client()
     try:
@@ -320,7 +429,7 @@ def test_pass_does_nothing_when_nothing_is_pending(tmp_path: Path) -> None:
         client.close()
     assert workbench.calls() == [
         ("POST", "/api/inference/heartbeat"),
-        ("GET", "/api/inference/pending"),
+        ("POST", "/api/inference/claim"),
     ]
 
 
@@ -335,7 +444,5 @@ def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
         client.close()
 
     assert workbench.calls() == [
-        ("POST", "/api/inference/heartbeat"),
-        ("GET", "/api/inference/pending"),
         ("POST", "/api/inference/heartbeat"),
     ]

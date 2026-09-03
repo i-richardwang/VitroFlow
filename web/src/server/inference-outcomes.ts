@@ -1,11 +1,24 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
   experimentObservationImages,
   experiments,
   images,
+  inferenceJobs,
   inferenceOutcomes,
+  inferenceWorkers,
   modelVersions,
 } from "../db/schema";
 import {
@@ -14,8 +27,9 @@ import {
   type InferenceOutcome,
 } from "../detection/schema";
 import {
+  inferenceAssignmentSchema,
   inferenceModelManifest,
-  type InferenceModelManifest,
+  type InferenceAssignment,
 } from "../inference/assignments";
 import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
@@ -48,6 +62,7 @@ export class DetectionImageNotFoundError extends Error {}
 
 /** Thrown when an outcome's producer is not the version, artifact, and runtime it claims. */
 export class ProducerMismatchError extends Error {}
+export class InferenceClaimRejectedError extends Error {}
 
 export async function readDetection(
   { versionId, digest }: DetectionTarget,
@@ -64,6 +79,38 @@ export async function readDetection(
       ),
     );
   return row && !isFailure(row.document) ? row.document : null;
+}
+
+/** Whether an experiment still requires this image-version outcome. */
+export async function inferencePending(
+  target: DetectionTarget,
+  db?: Executor,
+): Promise<boolean> {
+  const [row] = await (db ?? (await database()))
+    .select({ digest: experimentObservationImages.imageId })
+    .from(experimentObservationImages)
+    .innerJoin(
+      experiments,
+      and(
+        eq(experiments.id, experimentObservationImages.experimentId),
+        eq(experiments.modelVersionId, target.versionId),
+      ),
+    )
+    .leftJoin(
+      inferenceOutcomes,
+      and(
+        eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
+        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
+      ),
+    )
+    .where(
+      and(
+        eq(experimentObservationImages.imageId, target.digest),
+        isNull(inferenceOutcomes.imageId),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 function sameDocument(left: DetectionResult, right: DetectionResult): boolean {
@@ -127,71 +174,51 @@ async function assertProducer(
  * a failure arriving after a detection is ignored. A detection replaces any
  * failure recorded before it.
  */
-export async function recordInferenceOutcome(
+async function storeInferenceOutcome(
   target: DetectionTarget,
   outcome: InferenceOutcome,
   worker: Pick<InferenceWorkerRecord, "runtimes">,
+  tx: Executor,
 ): Promise<InferenceOutcome> {
-  return transaction(async (tx) => {
-    await lockDetection(target.digest, target.versionId, tx);
-    const [image] = await tx
-      .select({ digest: images.id, width: images.width, height: images.height })
-      .from(images)
-      .where(eq(images.id, target.digest));
-    if (!image) {
-      throw new DetectionImageNotFoundError(
-        `Image ${target.digest} is not stored`,
-      );
-    }
+  await lockDetection(target.digest, target.versionId, tx);
+  const [image] = await tx
+    .select({ digest: images.id, width: images.width, height: images.height })
+    .from(images)
+    .where(eq(images.id, target.digest));
+  if (!image) {
+    throw new DetectionImageNotFoundError(
+      `Image ${target.digest} is not stored`,
+    );
+  }
+  try {
+    assertDocumentImage("Outcome", outcome.image, image);
+  } catch (error) {
+    throw new InvalidDetectionOutcomeError(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  const model = await assertProducer(target, outcome, worker, tx);
+  if (!isFailure(outcome)) {
     try {
-      assertDocumentImage("Outcome", outcome.image, image);
+      assertInstanceClasses(model.classes, outcome.instances, "Outcome");
     } catch (error) {
       throw new InvalidDetectionOutcomeError(
         error instanceof Error ? error.message : String(error),
       );
     }
-    const model = await assertProducer(target, outcome, worker, tx);
-    if (!isFailure(outcome)) {
-      try {
-        assertInstanceClasses(model.classes, outcome.instances, "Outcome");
-      } catch (error) {
-        throw new InvalidDetectionOutcomeError(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    }
-    const [stored] = await tx
-      .select({ document: inferenceOutcomes.document })
-      .from(inferenceOutcomes)
-      .where(
-        and(
-          eq(inferenceOutcomes.imageId, target.digest),
-          eq(inferenceOutcomes.modelVersionId, target.versionId),
-        ),
-      );
-    const existing = stored?.document;
-    if (isFailure(outcome)) {
-      if (existing && !isFailure(existing)) return existing;
-      const row = { document: outcome, recordedAt: new Date() };
-      await tx
-        .insert(inferenceOutcomes)
-        .values({
-          imageId: target.digest,
-          modelVersionId: target.versionId,
-          ...row,
-        })
-        .onConflictDoUpdate({
-          target: [inferenceOutcomes.imageId, inferenceOutcomes.modelVersionId],
-          set: row,
-        });
-      return outcome;
-    }
-    if (existing && !isFailure(existing)) {
-      if (!sameDocument(existing, outcome)) {
-        throw new DetectionConflictError(target);
-      }
-      return existing;
-    }
+  }
+  const [stored] = await tx
+    .select({ document: inferenceOutcomes.document })
+    .from(inferenceOutcomes)
+    .where(
+      and(
+        eq(inferenceOutcomes.imageId, target.digest),
+        eq(inferenceOutcomes.modelVersionId, target.versionId),
+      ),
+    );
+  const existing = stored?.document;
+  if (isFailure(outcome)) {
+    if (existing && !isFailure(existing)) return existing;
     const row = { document: outcome, recordedAt: new Date() };
     await tx
       .insert(inferenceOutcomes)
@@ -205,6 +232,66 @@ export async function recordInferenceOutcome(
         set: row,
       });
     return outcome;
+  }
+  if (existing && !isFailure(existing)) {
+    if (!sameDocument(existing, outcome)) {
+      throw new DetectionConflictError(target);
+    }
+    return existing;
+  }
+  const row = { document: outcome, recordedAt: new Date() };
+  await tx
+    .insert(inferenceOutcomes)
+    .values({
+      imageId: target.digest,
+      modelVersionId: target.versionId,
+      ...row,
+    })
+    .onConflictDoUpdate({
+      target: [inferenceOutcomes.imageId, inferenceOutcomes.modelVersionId],
+      set: row,
+    });
+  return outcome;
+}
+
+/** Store an outcome supplied by a trusted in-process caller. */
+export async function recordInferenceOutcome(
+  target: DetectionTarget,
+  outcome: InferenceOutcome,
+  worker: Pick<InferenceWorkerRecord, "runtimes">,
+): Promise<InferenceOutcome> {
+  return transaction(async (tx) => {
+    const stored = await storeInferenceOutcome(target, outcome, worker, tx);
+    await tx
+      .delete(inferenceJobs)
+      .where(
+        and(
+          eq(inferenceJobs.imageId, target.digest),
+          eq(inferenceJobs.modelVersionId, target.versionId),
+        ),
+      );
+    return stored;
+  });
+}
+
+/** Complete only the task currently owned by this worker session. */
+export async function completeInferenceClaim(
+  target: DetectionTarget,
+  outcome: InferenceOutcome,
+  worker: Pick<InferenceWorkerRecord, "workerId" | "sessionId" | "runtimes">,
+  at: Date = new Date(),
+): Promise<InferenceOutcome> {
+  return transaction(async (tx) => {
+    const [consumed] = await tx
+      .delete(inferenceJobs)
+      .where(ownedActiveInferenceClaim(tx, target, worker, at))
+      .returning({ imageId: inferenceJobs.imageId });
+    if (!consumed) {
+      throw new InferenceClaimRejectedError(
+        `${target.versionId}/${target.digest} has no active lease for ${worker.workerId}/${worker.sessionId}`,
+      );
+    }
+    return storeInferenceOutcome(target, outcome, worker, tx);
   });
 }
 
@@ -225,14 +312,66 @@ export async function clearDetectionFailure(
     );
 }
 
-/** One version's share of the pending work, with the manifest to load it. */
-export interface Assignment {
-  manifest: InferenceModelManifest;
-  images: string[];
+const CLAIM_CANDIDATE_LIMIT = 64;
+export const INFERENCE_LEASE_SECONDS = 5 * 60;
+
+function inferenceLeaseUntil(at: Date): Date {
+  return new Date(at.getTime() + INFERENCE_LEASE_SECONDS * 1000);
 }
 
-/** Distinct image-version pairs required by experiments. */
-function experimentDemand(db: Executor) {
+function ownedActiveInferenceClaim(
+  db: Executor,
+  target: DetectionTarget,
+  owner: Pick<InferenceWorkerRecord, "workerId" | "sessionId">,
+  at: Date,
+) {
+  return and(
+    eq(inferenceJobs.imageId, target.digest),
+    eq(inferenceJobs.modelVersionId, target.versionId),
+    eq(inferenceJobs.workerId, owner.workerId),
+    eq(inferenceJobs.sessionId, owner.sessionId),
+    gt(inferenceJobs.leaseExpiresAt, at),
+    exists(
+      db
+        .select({ workerId: inferenceWorkers.id })
+        .from(inferenceWorkers)
+        .where(
+          and(
+            eq(inferenceWorkers.id, owner.workerId),
+            eq(inferenceWorkers.sessionId, owner.sessionId),
+          ),
+        ),
+    ),
+  );
+}
+
+/** Extend one live claim, but never revive an expired or superseded lease. */
+export async function renewInferenceClaim(
+  target: DetectionTarget,
+  owner: Pick<InferenceWorkerRecord, "workerId" | "sessionId">,
+  at: Date = new Date(),
+): Promise<{ leaseExpiresAt: string }> {
+  const db = await database();
+  const leaseExpiresAt = inferenceLeaseUntil(at);
+  const [renewed] = await db
+    .update(inferenceJobs)
+    .set({ leaseExpiresAt })
+    .where(ownedActiveInferenceClaim(db, target, owner, at))
+    .returning({ leaseExpiresAt: inferenceJobs.leaseExpiresAt });
+  if (!renewed) {
+    throw new InferenceClaimRejectedError(
+      `${target.versionId}/${target.digest} has no active lease for ${owner.workerId}/${owner.sessionId}`,
+    );
+  }
+  return { leaseExpiresAt: renewed.leaseExpiresAt.toISOString() };
+}
+
+/** A bounded set of unclaimed or expired image-version demand. */
+function claimableExperimentDemand(
+  db: Executor,
+  at: Date,
+  artifactKinds: ("traditional" | "ultralytics")[],
+) {
   return db
     .selectDistinct({
       digest: experimentObservationImages.imageId,
@@ -243,6 +382,7 @@ function experimentDemand(db: Executor) {
       experiments,
       eq(experiments.id, experimentObservationImages.experimentId),
     )
+    .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
     .leftJoin(
       inferenceOutcomes,
       and(
@@ -250,43 +390,100 @@ function experimentDemand(db: Executor) {
         eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
       ),
     )
-    .where(isNull(inferenceOutcomes.imageId));
+    .leftJoin(
+      inferenceJobs,
+      and(
+        eq(inferenceJobs.imageId, experimentObservationImages.imageId),
+        eq(inferenceJobs.modelVersionId, experiments.modelVersionId),
+      ),
+    )
+    .where(
+      and(
+        isNull(inferenceOutcomes.imageId),
+        inArray(sql`${modelVersions.artifact}->>'kind'`, artifactKinds),
+        or(
+          isNull(inferenceJobs.imageId),
+          lte(inferenceJobs.leaseExpiresAt, at),
+        ),
+      ),
+    )
+    .orderBy(
+      asc(experiments.modelVersionId),
+      asc(experimentObservationImages.imageId),
+    )
+    .limit(CLAIM_CANDIDATE_LIMIT);
 }
 
 /**
- * Pairs that have neither a detection nor a failure. Experiments are the only
- * source of demand: a dataset reviews detections its images already have.
+ * Atomically claim one image-version pair. Experiments are the only source of
+ * demand; an expired task may be fenced to a new worker session.
  */
-export async function pendingAssignments(
-  worker: Pick<InferenceWorkerRecord, "runtimes">,
-): Promise<Assignment[]> {
-  const db = await database();
-  const pairs = await experimentDemand(db);
-  if (pairs.length === 0) return [];
-  const versionIds = [...new Set(pairs.map((pair) => pair.versionId))].sort();
-  const versions = await db
-    .select()
-    .from(modelVersions)
-    .where(inArray(modelVersions.id, versionIds))
-    .orderBy(asc(modelVersions.id));
-  const byVersion = new Map<string, string[]>();
-  for (const { digest, versionId } of pairs) {
-    const images = byVersion.get(versionId) ?? [];
-    images.push(digest);
-    byVersion.set(versionId, images);
-  }
-  const assignments: Assignment[] = [];
-  for (const version of versions) {
-    const modelVersion = toModelVersion(version);
-    if (!canExecute(worker, modelVersion.artifact)) continue;
-    const model = await readModel(modelVersion.modelId, db);
-    if (!model) {
-      throw new Error(`Version ${modelVersion.id} has no model`);
+export async function claimInferenceAssignment(
+  worker: Pick<InferenceWorkerRecord, "workerId" | "sessionId" | "runtimes">,
+  at: Date = new Date(),
+): Promise<InferenceAssignment | null> {
+  return transaction(async (tx) => {
+    const artifactKinds = [
+      ...new Set(worker.runtimes.map(({ adapter }) => adapter)),
+    ];
+    const pairs = await claimableExperimentDemand(tx, at, artifactKinds);
+    if (pairs.length === 0) return null;
+    const versionIds = [...new Set(pairs.map((pair) => pair.versionId))].sort();
+    const versions = await tx
+      .select()
+      .from(modelVersions)
+      .where(inArray(modelVersions.id, versionIds))
+      .orderBy(asc(modelVersions.id));
+    const byId = new Map(
+      versions.map((row) => {
+        const version = toModelVersion(row);
+        return [version.id, version] as const;
+      }),
+    );
+    const leaseExpiresAt = inferenceLeaseUntil(at);
+    for (const pair of pairs) {
+      const version = byId.get(pair.versionId);
+      if (!version || !canExecute(worker, version.artifact)) continue;
+      const values = {
+        imageId: pair.digest,
+        modelVersionId: pair.versionId,
+        workerId: worker.workerId,
+        sessionId: worker.sessionId,
+        attempt: 1,
+        leaseExpiresAt,
+      };
+      let [claimed] = await tx
+        .insert(inferenceJobs)
+        .values(values)
+        .onConflictDoNothing()
+        .returning({ imageId: inferenceJobs.imageId });
+      if (!claimed) {
+        [claimed] = await tx
+          .update(inferenceJobs)
+          .set({
+            workerId: worker.workerId,
+            sessionId: worker.sessionId,
+            attempt: sql`${inferenceJobs.attempt} + 1`,
+            leaseExpiresAt,
+          })
+          .where(
+            and(
+              eq(inferenceJobs.imageId, pair.digest),
+              eq(inferenceJobs.modelVersionId, pair.versionId),
+              lte(inferenceJobs.leaseExpiresAt, at),
+            ),
+          )
+          .returning({ imageId: inferenceJobs.imageId });
+      }
+      if (!claimed) continue;
+      const model = await readModel(version.modelId, tx);
+      if (!model) throw new Error(`Version ${version.id} has no model`);
+      return inferenceAssignmentSchema.parse({
+        manifest: inferenceModelManifest(version, model),
+        image: pair.digest,
+        leaseExpiresAt: leaseExpiresAt.toISOString(),
+      });
     }
-    assignments.push({
-      manifest: inferenceModelManifest(modelVersion, model),
-      images: byVersion.get(version.id)!.sort(),
-    });
-  }
-  return assignments;
+    return null;
+  });
 }

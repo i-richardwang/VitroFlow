@@ -89,7 +89,7 @@ def test_annotation_classes_belong_to_the_manifest_model(tmp_path: Path) -> None
 
 def test_manifest_rejects_images_without_pixel_dimensions(tmp_path: Path) -> None:
     manifest = write_manifest(tmp_path, "batch", [manifest_entry("1" * 64, width=0)])
-    with pytest.raises(ValueError, match=r"images\[0\].width must be an integer"):
+    with pytest.raises(ValueError, match=r"images\[0\].width.*shared contract"):
         load_annotations(manifest)
 
 
@@ -97,22 +97,22 @@ def test_unversioned_annotation_is_rejected() -> None:
     payload = annotation_document("1" * 64)
     del payload["schemaVersion"]
 
-    with pytest.raises(ValueError, match="missing schemaVersion"):
+    with pytest.raises(ValueError, match="annotation.*shared contract"):
         parse_annotation(payload)
 
 
 def test_annotation_schema_rejects_unknown_fields_and_invalid_identities() -> None:
     payload = annotation_document("1" * 64)
     payload["unexpected"] = True
-    with pytest.raises(ValueError, match="unknown unexpected"):
+    with pytest.raises(ValueError, match="annotation.*shared contract"):
         parse_annotation(payload)
 
-    with pytest.raises(ValueError, match="annotation.image.digest must be a SHA-256"):
+    with pytest.raises(ValueError, match="annotation.image.digest.*shared contract"):
         parse_annotation(annotation_document("images/a.jpg"))
 
     payload = annotation_document("1" * 64, status="excluded")
     payload["excludedReason"] = ""
-    with pytest.raises(ValueError, match="excludedReason must be a non-empty string"):
+    with pytest.raises(ValueError, match="annotation.excludedReason.*shared contract"):
         parse_annotation(payload)
 
     payload = annotation_document(

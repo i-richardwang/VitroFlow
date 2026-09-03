@@ -5,6 +5,7 @@ import {
   WORKER_STALE_SECONDS,
 } from "../workers/presence";
 import {
+  InferenceWorkerSessionConflictError,
   inferenceWorkerPresence,
   listInferenceWorkers,
   recordInferenceHeartbeat,
@@ -14,6 +15,7 @@ import { baselineVersion } from "./testing";
 const version = await baselineVersion();
 const heartbeat = {
   workerId: "presence-worker",
+  sessionId: "presence-session",
   startedAt: "2026-01-01T00:00:00+00:00",
   runtimes: [{ adapter: "traditional" as const, fingerprint: "b".repeat(64) }],
   loaded: null,
@@ -81,4 +83,16 @@ test("the current digest must name a stored image", async () => {
       current: "0".repeat(64),
     }),
   ).rejects.toThrow();
+});
+
+test("an older session cannot replace a newer process with the same worker id", async () => {
+  const newer = {
+    ...heartbeat,
+    sessionId: "newer-session",
+    startedAt: "2026-01-02T00:00:00+00:00",
+  };
+  await recordInferenceHeartbeat(newer);
+  await expect(recordInferenceHeartbeat(heartbeat)).rejects.toBeInstanceOf(
+    InferenceWorkerSessionConflictError,
+  );
 });

@@ -24,6 +24,7 @@ from .documents import (
 )
 from .identifiers import CLASS_NAME, DATASET_NAME, VERSION_ID
 from .image_io import MAX_IMAGE_BYTES, content_digest
+from .wire_contracts import validate_wire_contract
 
 if TYPE_CHECKING:
     from .detectors.contract import DetectionResult
@@ -157,6 +158,7 @@ def _image(value: Any, context: str) -> ManifestImage:
 
 
 def parse_dataset_manifest(value: Any, context: str = "manifest") -> DatasetManifest:
+    validate_wire_contract("dataset-manifest", value, context)
     document = as_object(value, context)
     expect_fields(document, {"schemaVersion", "dataset", "model", "images"}, context)
     expect_schema_version(document, "schemaVersion", MANIFEST_SCHEMA_VERSION, context)

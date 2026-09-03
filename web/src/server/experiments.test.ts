@@ -33,10 +33,7 @@ import {
 } from "../experiments/schema";
 import { blobExists, imageBlobKey } from "./blobs";
 import { collectImages } from "./image-collection";
-import {
-  pendingAssignments,
-  recordInferenceOutcome,
-} from "./inference-outcomes";
+import { inferencePending, recordInferenceOutcome } from "./inference-outcomes";
 import {
   addObservationUnits,
   addTreatment,
@@ -1129,17 +1126,13 @@ describe("experiments", () => {
     const d1 = await imageDigest("c-d1");
     const d2 = await imageDigest("c-d2");
 
-    const assignment = (await pendingAssignments(worker)).find(
-      (item) => item.manifest.modelVersionId === version.id,
-    );
-    expect(assignment?.images.sort()).toEqual([d1, d2].sort());
     expect(
-      (
-        await pendingAssignments({
-          runtimes: testHeartbeat("traditional").runtimes,
-        })
-      ).some((item) => item.manifest.modelVersionId === version.id),
-    ).toBeFalse();
+      await Promise.all(
+        [d1, d2].map((digest) =>
+          inferencePending({ versionId: version.id, digest }),
+        ),
+      ),
+    ).toEqual([true, true]);
 
     await recordInferenceOutcome(
       { versionId: version.id, digest: d1 },
@@ -1179,10 +1172,8 @@ describe("experiments", () => {
     };
     await retryObservationImageAnalysis(failed);
     expect(
-      (await pendingAssignments(worker)).find(
-        (item) => item.manifest.modelVersionId === version.id,
-      )?.images,
-    ).toEqual([d2]);
+      await inferencePending({ versionId: version.id, digest: d2 }),
+    ).toBeTrue();
     expect((await readExperimentObservationImage(failed))?.failure).toBeNull();
     expect(
       (await readExperimentObservationImage(failed))?.observation.day,
@@ -1409,10 +1400,9 @@ describe("experiments", () => {
       });
     }
 
-    const assignment = (await pendingAssignments(worker)).find(
-      (item) => item.manifest.modelVersionId === version.id,
-    );
-    expect(assignment?.images).toEqual([digest]);
+    expect(
+      await inferencePending({ versionId: version.id, digest: digest! }),
+    ).toBeTrue();
   });
 
   test("the database binds failure documents to the registered artifact", async () => {

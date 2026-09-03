@@ -17,10 +17,17 @@ export const inferenceModelManifestSchema = z.strictObject({
   artifact: modelArtifactSchema,
 });
 
-/** One Server assignment: a loadable model and the images to run through it. */
+/** One leased task: a loadable model and the image to run through it. */
 export const inferenceAssignmentSchema = z.strictObject({
   manifest: inferenceModelManifestSchema,
-  images: z.array(imageDigestSchema).min(1),
+  image: imageDigestSchema,
+  leaseExpiresAt: z.string().datetime({ offset: true }),
+});
+
+/** The durable image/version pair named by inference routes. */
+export const inferenceTargetSchema = z.strictObject({
+  versionId: resourceIdSchema,
+  digest: imageDigestSchema,
 });
 
 export type InferenceModelManifest = z.infer<
