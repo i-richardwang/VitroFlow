@@ -26,7 +26,7 @@ export function InspectorPanel({
   onRetrySave,
 }: {
   model: Model;
-  result: DetectionResult;
+  result: DetectionResult | null;
   annotation: AnnotationDocument;
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
@@ -57,14 +57,18 @@ export function InspectorPanel({
         metrics={model.metrics}
         sources={[
           { label: "Review", tally: tally(annotation.instances) },
-          { label: "Detected", tally: tally(result.instances) },
+          ...(result
+            ? [{ label: "Detected", tally: tally(result.instances) }]
+            : []),
         ]}
       />
       <LayersSection layers={layers} onLayersChange={onLayersChange} />
-      <Section title="Detection">
-        <Metrics rows={diagnosticMetrics(model.id, result)} />
-        <QualityAlert quality={result.quality} />
-      </Section>
+      {result ? (
+        <Section title="Detection">
+          <Metrics rows={diagnosticMetrics(model.id, result)} />
+          <QualityAlert quality={result.quality} />
+        </Section>
+      ) : null}
     </>
   );
 }

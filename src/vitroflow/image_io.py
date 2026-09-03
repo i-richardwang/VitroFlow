@@ -8,6 +8,7 @@ import numpy as np
 
 #: Images are stored in one encoding, so a digest names a file outright.
 CANONICAL_EXTENSION = ".avif"
+MAX_IMAGE_BYTES = 64 * 1024 * 1024
 
 
 def read_image(path: str | Path) -> np.ndarray:

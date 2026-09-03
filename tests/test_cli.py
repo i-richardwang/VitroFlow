@@ -130,7 +130,9 @@ def test_recognize_requires_a_new_output_directory(
     assert "already exists" in capsys.readouterr().err
 
 
-def test_dataset_pull_requires_server_and_token(
+@pytest.mark.parametrize("command", ["pull", "push"])
+def test_dataset_transfer_requires_server_and_token(
+    command: str,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -139,7 +141,14 @@ def test_dataset_pull_requires_server_and_token(
     monkeypatch.delenv("VITROFLOW_API_KEY", raising=False)
 
     exit_code = main(
-        ["dataset", "pull", "--dataset", "seeds", "--data-root", str(tmp_path / "data")]
+        [
+            "dataset",
+            command,
+            "--dataset",
+            "seeds",
+            "--data-root",
+            str(tmp_path / "data"),
+        ]
     )
 
     assert exit_code == 2

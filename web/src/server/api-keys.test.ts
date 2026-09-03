@@ -39,22 +39,22 @@ describe("API keys", () => {
   test("a key admits its owner to its scopes and records use", async () => {
     const { user } = await signInAs("member");
     const issued = await issueApiKey(user.id, {
-      name: "Export",
-      scopes: ["export"],
+      name: "Transfer",
+      scopes: ["transfer"],
       expiresInDays: null,
     });
-    expect(await authorizeApiKey(requestWith(issued.secret), "export")).toEqual(
-      {
-        kind: "api_key",
-        userId: user.id,
-        credentialId: issued.id,
-      },
-    );
+    expect(
+      await authorizeApiKey(requestWith(issued.secret), "transfer"),
+    ).toEqual({
+      kind: "api_key",
+      userId: user.id,
+      credentialId: issued.id,
+    });
     expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
       null,
     );
-    expect(await authorizeApiKey(requestWith(null), "export")).toBe(null);
-    expect(await authorizeApiKey(requestWith("vf_nonsense"), "export")).toBe(
+    expect(await authorizeApiKey(requestWith(null), "transfer")).toBe(null);
+    expect(await authorizeApiKey(requestWith("vf_nonsense"), "transfer")).toBe(
       null,
     );
     const [listed] = await listApiKeys(user.id);

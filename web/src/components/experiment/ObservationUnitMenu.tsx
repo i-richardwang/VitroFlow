@@ -36,7 +36,7 @@ import {
   removeObservationUnit,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import {
@@ -165,7 +165,7 @@ export function ObservationUnitMenu({
         />
       ) : null}
 
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
         title={`Delete ${observationUnit.code}?`}

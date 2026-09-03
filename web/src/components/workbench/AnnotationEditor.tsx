@@ -40,14 +40,16 @@ export function AnnotationEditor({
   subject,
   model,
   filename,
-  result,
+  detection,
   annotation: initialAnnotation,
+  onRestartFromDetection,
 }: {
   subject: AnnotationRef;
   model: Model;
   filename: string;
-  result: DetectionResult;
+  detection: DetectionResult | null;
   annotation: AnnotationDocument;
+  onRestartFromDetection?: () => Promise<void>;
 }) {
   const { annotation, saveState, error, setInstances, review, retry } =
     useAnnotation(subject, initialAnnotation);
@@ -128,7 +130,11 @@ export function AnnotationEditor({
       actions={
         <>
           <ImageStateChip state={annotation.status} />
-          <ReviewStatusMenu annotation={annotation} onReview={review} />
+          <ReviewStatusMenu
+            annotation={annotation}
+            onReview={review}
+            onRestartFromDetection={onRestartFromDetection}
+          />
         </>
       }
       toolbar={
@@ -148,7 +154,7 @@ export function AnnotationEditor({
       inspector={
         <InspectorPanel
           model={model}
-          result={result}
+          result={detection}
           annotation={annotation}
           layers={layers}
           onLayersChange={setLayers}
@@ -161,7 +167,7 @@ export function AnnotationEditor({
       <AnnotationCanvas
         image={annotation.image}
         filename={filename}
-        result={result}
+        result={detection}
         instances={annotation.instances}
         layers={layers}
         editing={{

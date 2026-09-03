@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .documents import (
     as_digest,
@@ -16,8 +16,10 @@ from .documents import (
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import CLASS_NAME, FINGERPRINT, VERSION_ID
-from .manifest import ManifestImage, load_dataset_manifest
+from .identifiers import CLASS_NAME
+
+if TYPE_CHECKING:
+    from .manifest import ManifestImage
 
 ANNOTATION_SCHEMA_VERSION = 1
 _STATUSES = {"in_progress", "complete", "excluded"}
@@ -53,14 +55,38 @@ class AnnotationDocument:
     digest: str
     width: int
     height: int
-    model_version_id: str
-    artifact_digest: str
-    runtime_adapter: str
-    runtime_fingerprint: str
     status: AnnotationStatus
     excluded_reason: str | None
     revision: int
     instances: tuple[AnnotationInstance, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        document: dict[str, object] = {
+            "schemaVersion": ANNOTATION_SCHEMA_VERSION,
+            "image": {
+                "digest": self.digest,
+                "width": self.width,
+                "height": self.height,
+            },
+            "status": self.status,
+            "revision": self.revision,
+            "instances": [
+                {
+                    "id": instance.instance_id,
+                    "class": instance.class_name,
+                    "bbox": {
+                        "x": instance.bbox.x,
+                        "y": instance.bbox.y,
+                        "width": instance.bbox.width,
+                        "height": instance.bbox.height,
+                    },
+                }
+                for instance in self.instances
+            ],
+        }
+        if self.excluded_reason is not None:
+            document["excludedReason"] = self.excluded_reason
+        return document
 
 
 @dataclass(frozen=True)
@@ -127,7 +153,7 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
     payload = as_object(value, context)
     expect_fields(
         payload,
-        {"schemaVersion", "image", "source", "status", "revision", "instances"},
+        {"schemaVersion", "image", "status", "revision", "instances"},
         context,
         {"excludedReason"},
     )
@@ -139,31 +165,6 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
     digest = as_digest(image["digest"], f"{image_context}.digest")
     image_width = as_integer(image["width"], f"{image_context}.width", 1)
     image_height = as_integer(image["height"], f"{image_context}.height", 1)
-
-    source_context = f"{context}.source"
-    source = as_object(payload["source"], source_context)
-    expect_fields(
-        source, {"modelVersionId", "artifactDigest", "runtime"}, source_context
-    )
-    model_version_id = as_string(
-        source["modelVersionId"], f"{source_context}.modelVersionId"
-    )
-    if not VERSION_ID.fullmatch(model_version_id):
-        raise ValueError(f"{source_context}.modelVersionId is invalid")
-    artifact_digest = as_digest(
-        source["artifactDigest"], f"{source_context}.artifactDigest"
-    )
-    runtime_context = f"{source_context}.runtime"
-    runtime = as_object(source["runtime"], runtime_context)
-    expect_fields(runtime, {"adapter", "fingerprint"}, runtime_context)
-    runtime_adapter = as_string(runtime["adapter"], f"{runtime_context}.adapter")
-    if not VERSION_ID.fullmatch(runtime_adapter):
-        raise ValueError(f"{runtime_context}.adapter is invalid")
-    runtime_fingerprint = as_string(
-        runtime["fingerprint"], f"{runtime_context}.fingerprint"
-    )
-    if not FINGERPRINT.fullmatch(runtime_fingerprint):
-        raise ValueError(f"{runtime_context}.fingerprint must be a SHA-256 fingerprint")
 
     status = as_string(payload["status"], f"{context}.status")
     if status not in _STATUSES:
@@ -181,10 +182,6 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
         digest=digest,
         width=image_width,
         height=image_height,
-        model_version_id=model_version_id,
-        artifact_digest=artifact_digest,
-        runtime_adapter=runtime_adapter,
-        runtime_fingerprint=runtime_fingerprint,
         status=cast(AnnotationStatus, status),
         excluded_reason=excluded_reason,
         revision=as_integer(payload["revision"], f"{context}.revision"),
@@ -196,28 +193,14 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
 
 def load_annotations(manifest: str | Path) -> list[AnnotatedImage]:
     """Every annotated image of a dataset manifest, in manifest order."""
+    from .manifest import load_dataset_manifest
+
     dataset = load_dataset_manifest(manifest)
-    known_classes = set(dataset.classes)
     annotated = []
-    for index, entry in enumerate(dataset.images):
+    for entry in dataset.images:
         if entry.annotation is None:
             continue
-        annotation = parse_annotation(
-            entry.annotation, f"{manifest}: images[{index}].annotation"
-        )
-        if annotation.digest != entry.digest:
-            raise ValueError(
-                f"Annotation digest differs from its image: {entry.digest}"
-            )
-        unknown = sorted(
-            {instance.class_name for instance in annotation.instances} - known_classes
-        )
-        if unknown:
-            raise ValueError(
-                f"Annotation for {entry.digest} uses unknown class"
-                f"{'es' if len(unknown) > 1 else ''}: {', '.join(unknown)}"
-            )
-        annotated.append(AnnotatedImage(entry, annotation))
+        annotated.append(AnnotatedImage(entry, entry.annotation))
     return annotated
 
 

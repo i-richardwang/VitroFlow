@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { createAnnotationFromDetection } from "./annotations";
+import { startAnnotationFromDetection } from "./annotations";
 import { readReview } from "./review";
 import {
   TEST_RUNTIME,
@@ -14,7 +14,7 @@ import {
 } from "./testing";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
 
-test("a review starts from the version the reviewer arrived from", async () => {
+test("a review shows the version the reviewer arrived from, else the newest", async () => {
   const worker = await recordInferenceHeartbeat({
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
@@ -50,7 +50,9 @@ test("a review starts from the version the reviewer arrived from", async () => {
   expect(await readReview(ref, foreign.id)).toBeNull();
   expect(await readReview(ref, "review-nowhere")).toBeNull();
 
-  await createAnnotationFromDetection(ref, first.version.id);
-  expect((await readReview(ref, next.id))?.detection).toEqual(older);
-  expect((await readReview(ref))?.detection).toEqual(older);
+  await startAnnotationFromDetection(ref, first.version.id);
+  const started = await readReview(ref);
+  expect(started?.state).toBe("started");
+  expect(started?.detection).toEqual(newer);
+  expect((await readReview(ref, first.version.id))?.detection).toEqual(older);
 });

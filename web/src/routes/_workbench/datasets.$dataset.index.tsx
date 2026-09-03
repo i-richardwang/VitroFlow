@@ -2,17 +2,19 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Segment } from "@heroui-pro/react/segment";
-import { Button, Dropdown, Label, Table } from "@heroui/react";
+import { Button, Dropdown, Label, Link, Table } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Count } from "../../components/Count";
-import { DeleteDialog } from "../../components/DeleteDialog";
+import { DestructiveActionDialog } from "../../components/DestructiveActionDialog";
 import { QualityChips } from "../../components/DetectionQuality";
 import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
 import { MoreIcon } from "../../components/icons";
 import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
+import { archiveFilename } from "../../datasets/archive";
 import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
 import {
   getDatasetOverview,
@@ -65,17 +67,26 @@ function DatasetPage() {
     <Page
       title={<span className="block truncate font-mono">{dataset}</span>}
       actions={
-        <Button
-          variant="primary"
-          onPress={() => {
-            void router.navigate({
-              to: "/datasets/$dataset/training",
-              params: { dataset },
-            });
-          }}
-        >
-          Training
-        </Button>
+        <>
+          <Link
+            className={buttonVariants({ variant: "secondary" })}
+            href={`/datasets/${encodeURIComponent(dataset)}/archive`}
+            download={archiveFilename(dataset)}
+          >
+            Download
+          </Link>
+          <Button
+            variant="primary"
+            onPress={() => {
+              void router.navigate({
+                to: "/datasets/$dataset/training",
+                params: { dataset },
+              });
+            }}
+          >
+            Training
+          </Button>
+        </>
       }
     >
       <KPIGroup>
@@ -229,7 +240,7 @@ function ImageMenu({
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={open}
         onOpenChange={setOpen}
         title={`Remove ${image.filename}?`}
@@ -240,7 +251,7 @@ function ImageMenu({
         }}
       >
         Review stays with the image.
-      </DeleteDialog>
+      </DestructiveActionDialog>
     </>
   );
 }

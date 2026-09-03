@@ -12,12 +12,6 @@ import numpy as np
 
 from vitroflow.manifest import MANIFEST_SCHEMA_VERSION, blob_path, manifest_path
 
-SOURCE = {
-    "modelVersionId": "set.traditional-v1",
-    "artifactDigest": "a" * 64,
-    "runtime": {"adapter": "traditional", "fingerprint": "b" * 64},
-}
-
 
 def annotation_document(
     digest: str,
@@ -33,7 +27,6 @@ def annotation_document(
     return {
         "schemaVersion": 1,
         "image": {"digest": digest, "width": width, "height": height},
-        "source": SOURCE,
         "status": status,
         "revision": revision,
         "instances": [

@@ -54,7 +54,9 @@ function UsersPage() {
             >
               {accounts.map((account) => (
                 <Table.Row key={account.id}>
-                  <Table.Cell className="font-medium">{account.name}</Table.Cell>
+                  <Table.Cell className="font-medium">
+                    {account.name}
+                  </Table.Cell>
                   <Table.Cell className="font-mono text-muted">
                     {account.email}
                   </Table.Cell>

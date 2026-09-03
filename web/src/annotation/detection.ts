@@ -31,7 +31,7 @@ export function instanceFromBox(
   return { id: newInstanceId(), class: className, bbox };
 }
 
-/** A review that starts from every box the detection found. */
+/** A review that begins with every box the detection found. */
 export function documentFromDetection(
   result: DetectionResult,
 ): AnnotationDocument {
@@ -41,11 +41,6 @@ export function documentFromDetection(
       digest: result.image.digest,
       width: result.image.width,
       height: result.image.height,
-    },
-    source: {
-      modelVersionId: result.producer.modelVersionId,
-      artifactDigest: result.producer.artifactDigest,
-      runtime: result.producer.runtime,
     },
     status: "in_progress",
     revision: 0,

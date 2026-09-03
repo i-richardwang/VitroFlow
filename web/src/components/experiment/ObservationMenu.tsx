@@ -23,7 +23,7 @@ import {
   removeObservation,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
@@ -102,7 +102,7 @@ export function ObservationMenu({
         onClose={() => setOpen(null)}
       />
 
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(isOpen) => setOpen(isOpen ? "delete" : null)}
         title={`Delete ${name}?`}

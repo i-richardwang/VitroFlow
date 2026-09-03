@@ -17,7 +17,7 @@ import type { Experiment } from "../../experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { fromDay, toDay } from "./DayField";
@@ -104,7 +104,7 @@ export function ExperimentMenu({
         onClose={close}
       />
 
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
         title={`Delete ${experiment.name}?`}
@@ -116,7 +116,7 @@ export function ExperimentMenu({
         }}
       >
         Images stay stored.
-      </DeleteDialog>
+      </DestructiveActionDialog>
     </>
   );
 }

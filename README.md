@@ -68,7 +68,9 @@ An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. T
 
 `inference_outcomes` has one row per image and ModelVersion. A succeeded outcome contains classified boxes, including the valid zero-box case, and is immutable. A failed outcome contains the execution error and may be replaced through the explicit retry protocol; a conflicting successful result is rejected.
 
-An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened. Only `complete` annotations enter dataset snapshots and YOLO exports. Editing a complete annotation returns it to `in_progress`; `excluded` annotations remain recorded but are not training inputs.
+An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened and of any inference outcome. A review begins as a copy of what one ModelVersion found and is independent of that detection from then on: detections are recomputed by every version, while the annotation changes only when a person edits it or starts it again from another detection. Only `complete` annotations enter dataset snapshots and YOLO exports. Editing a complete annotation returns it to `in_progress`; `excluded` annotations remain recorded but are not training inputs.
+
+A Dataset travels as a manifest and the canonical images it names. The manifest carries the memberships and the annotations for the dataset's Model; another workbench imports it whole, provided it knows the Model with the same classes, holds every image, and has no dataset of that name and no annotation of those images for that Model. Detections in a manifest are informational and never imported.
 
 ## Scope
 
@@ -106,7 +108,7 @@ Everyone signs in with an email address and password; there is no self-service s
 
 A deployment whose directory is empty creates its first administrator from `VITROFLOW_ADMIN_EMAIL` and `VITROFLOW_ADMIN_PASSWORD` when it starts. Once any account exists those variables are inert. `BETTER_AUTH_SECRET` signs session cookies, and `BETTER_AUTH_URL` is the public workbench origin that browser requests must match.
 
-Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and export surfaces and reviews the MCP clients it has authorized. Worker credentials are separate bearer tokens configured on the deployment.
+Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and dataset transfer surfaces and reviews the MCP clients it has authorized. Worker credentials are separate bearer tokens configured on the deployment.
 
 ## Workers
 
@@ -154,9 +156,11 @@ AI agents maintain experiment records over the same domain layer the workbench u
 claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 ```
 
-## Local dataset workflows
+## Dataset transfer
 
-Pull one workbench Dataset with a personal API key that holds the export scope:
+A Dataset leaves a workbench as an archive: **Download** on the dataset page streams a ZIP holding the dataset's manifest and every image it names, stored uncompressed under the same layout as a local data root. **Import** on the Datasets page reads such an archive in the browser, stores each image under its digest, and then applies the manifest, so a dataset moves between workbenches with its annotations intact and nothing is re-encoded on the way.
+
+The same transfer runs from the command line over `/api/transfer/`, opened by a personal API key that holds the transfer scope:
 
 ```bash
 export VITROFLOW_SERVER_URL=http://localhost:3000
@@ -165,9 +169,13 @@ export VITROFLOW_API_KEY=<api-key>
 uv run vitroflow dataset pull \
   --dataset fixtures \
   --data-root data
+
+uv run vitroflow dataset push \
+  --dataset fixtures \
+  --data-root data
 ```
 
-The local layout shares content-addressed blobs across datasets:
+The local layout shares content-addressed blobs across datasets, and an unpacked archive is a data root for one dataset:
 
 ```text
 data/
@@ -175,7 +183,13 @@ data/
 └── datasets/<dataset>.json
 ```
 
-Every command verifies blob digests before reading them. Run the bundled traditional detector over the pulled dataset:
+Every command verifies blob digests before reading them. `push` sends a dataset to a workbench that does not have it yet and sends nothing otherwise.
+
+A transferable manifest contains at most 10,000 images and 16 MiB of JSON; each canonical image is at most 64 MiB. These bounds keep validation and the final database transaction finite without constraining ordinary experimental datasets.
+
+## Local dataset workflows
+
+Run the bundled traditional detector over a pulled dataset:
 
 ```bash
 uv run vitroflow recognize \

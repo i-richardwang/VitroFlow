@@ -69,7 +69,7 @@ def test_annotation_must_describe_its_manifest_image(tmp_path: Path) -> None:
         "batch",
         [manifest_entry("1" * 64, annotation=annotation_document("2" * 64))],
     )
-    with pytest.raises(ValueError, match="differs from its image"):
+    with pytest.raises(ValueError, match="describes another image"):
         load_annotations(manifest)
 
 

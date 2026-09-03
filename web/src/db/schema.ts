@@ -596,10 +596,10 @@ export const datasetImages = pgTable(
 
 /**
  * What a model version found in an image, addressed by its canonical business
- * key. Experiments read the row under the version they were created with, and
- * reviews under the version they started from; neither owns it. A
- * row is written once: an identical resubmission is accepted and a different
- * one refused, so the result stays a record and never a cache.
+ * key. Experiments read the row under the version they were created with;
+ * reviews may show one as a reference but never own it. A row is written once:
+ * an identical resubmission is accepted and a different one refused, so the
+ * result stays a record and never a cache.
  */
 export const inferenceOutcomes = pgTable(
   "inference_outcomes",
@@ -618,27 +618,9 @@ export const inferenceOutcomes = pgTable(
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`document->'producer'->>'artifactDigest'`),
-    successfulImageId: text("successful_image_id").generatedAlwaysAs(
-      sql`case when document ? 'instances' then image_id end`,
-    ),
-    successfulModelVersionId: text(
-      "successful_model_version_id",
-    ).generatedAlwaysAs(
-      sql`case when document ? 'instances' then model_version_id end`,
-    ),
-    successfulArtifactDigest: text(
-      "successful_artifact_digest",
-    ).generatedAlwaysAs(
-      sql`case when document ? 'instances' then document->'producer'->>'artifactDigest' end`,
-    ),
   },
   (table) => [
     primaryKey({ columns: [table.imageId, table.modelVersionId] }),
-    unique("inference_outcomes_success_identity").on(
-      table.successfulImageId,
-      table.successfulModelVersionId,
-      table.successfulArtifactDigest,
-    ),
     index("inference_outcomes_version_idx").on(table.modelVersionId),
     index("inference_outcomes_status_idx").on(table.status, table.recordedAt),
     /** The document was produced by the registered artifact of its version. */
@@ -665,9 +647,9 @@ export const inferenceOutcomes = pgTable(
  * What a reviewer decided about one image for one model: the human truth the
  * model's next version trains on. The review is the same document whether it
  * is opened from an experiment or from a dataset, because it belongs to the
- * image and the model, not to the place it was opened from. The version the
- * review started from is one of that model's, and its artifact is the one
- * registered for it.
+ * image and the model, not to the place it was opened from. It refers to no
+ * detection: what a version found is that version's record, and the review
+ * outlives every version it was compared with.
  */
 export const annotations = pgTable(
   "annotations",
@@ -687,35 +669,9 @@ export const annotations = pgTable(
     revision: integer("revision")
       .notNull()
       .generatedAlwaysAs(sql`(document->>'revision')::integer`),
-    sourceModelVersionId: text("source_model_version_id")
-      .notNull()
-      .generatedAlwaysAs(sql`document->'source'->>'modelVersionId'`),
-    sourceArtifactDigest: text("source_artifact_digest")
-      .notNull()
-      .generatedAlwaysAs(sql`document->'source'->>'artifactDigest'`),
   },
   (table) => [
     primaryKey({ columns: [table.imageId, table.modelId] }),
-    foreignKey({
-      columns: [table.sourceModelVersionId, table.modelId],
-      foreignColumns: [modelVersions.id, modelVersions.modelId],
-    }),
-    foreignKey({
-      columns: [table.sourceModelVersionId, table.sourceArtifactDigest],
-      foreignColumns: [modelVersions.id, modelVersions.artifactDigest],
-    }),
-    foreignKey({
-      columns: [
-        table.imageId,
-        table.sourceModelVersionId,
-        table.sourceArtifactDigest,
-      ],
-      foreignColumns: [
-        inferenceOutcomes.successfulImageId,
-        inferenceOutcomes.successfulModelVersionId,
-        inferenceOutcomes.successfulArtifactDigest,
-      ],
-    }),
     index("annotations_model_status_idx").on(table.modelId, table.status),
     check(
       "annotations_status_check",
@@ -1085,12 +1041,6 @@ export const datasetSnapshotImages = pgTable(
       .references(() => images.id),
     split: text("split", { enum: IMAGE_SPLITS }).notNull(),
     annotation: jsonb("annotation").$type<AnnotationDocument>().notNull(),
-    sourceModelVersionId: text("source_model_version_id")
-      .notNull()
-      .generatedAlwaysAs(sql`annotation->'source'->>'modelVersionId'`),
-    sourceArtifactDigest: text("source_artifact_digest")
-      .notNull()
-      .generatedAlwaysAs(sql`annotation->'source'->>'artifactDigest'`),
   },
   (table) => [
     primaryKey({ columns: [table.snapshotId, table.imageId] }),
@@ -1098,22 +1048,6 @@ export const datasetSnapshotImages = pgTable(
       columns: [table.snapshotId, table.modelId],
       foreignColumns: [datasetSnapshots.id, datasetSnapshots.modelId],
     }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.sourceModelVersionId, table.modelId],
-      foreignColumns: [modelVersions.id, modelVersions.modelId],
-    }),
-    foreignKey({
-      columns: [
-        table.imageId,
-        table.sourceModelVersionId,
-        table.sourceArtifactDigest,
-      ],
-      foreignColumns: [
-        inferenceOutcomes.successfulImageId,
-        inferenceOutcomes.successfulModelVersionId,
-        inferenceOutcomes.successfulArtifactDigest,
-      ],
-    }),
     index("dataset_snapshot_images_image_idx").on(table.imageId),
     check(
       "dataset_snapshot_images_split_check",

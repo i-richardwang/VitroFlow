@@ -13,14 +13,6 @@ function snapshotImage(digest: string, split: "train" | "val") {
     annotation: {
       schemaVersion: 1 as const,
       image: { digest, width: 100, height: 80 },
-      source: {
-        modelVersionId: "seeds.traditional-v1",
-        artifactDigest: "c".repeat(64),
-        runtime: {
-          adapter: "traditional" as const,
-          fingerprint: "d".repeat(64),
-        },
-      },
       status: "complete" as const,
       revision: 1,
       instances: [],

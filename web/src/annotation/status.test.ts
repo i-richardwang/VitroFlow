@@ -6,11 +6,6 @@ import { isCompletedReview, ReviewTransitionError, transition } from "./status";
 const base: AnnotationDocument = {
   schemaVersion: 1,
   image: { digest: "0".repeat(64), width: 100, height: 100 },
-  source: {
-    modelVersionId: "set.traditional-v1",
-    artifactDigest: "a".repeat(64),
-    runtime: { adapter: "traditional", fingerprint: "b".repeat(64) },
-  },
   status: "in_progress",
   revision: 3,
   instances: [

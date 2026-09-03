@@ -22,7 +22,7 @@ describe("initialBoxSide", () => {
 });
 
 describe("documentFromDetection", () => {
-  test("copies canonical boxes and records their producing version", () => {
+  test("copies the detection's boxes into a fresh review", () => {
     const result = makeResult([
       { id: 1, x: 100, y: 100 },
       { id: 2, x: 300, y: 200 },
@@ -31,14 +31,6 @@ describe("documentFromDetection", () => {
     expect(annotationSchema.safeParse(document).success).toBe(true);
     expect(document.status).toBe("in_progress");
     expect(document.revision).toBe(0);
-    expect(document.source).toEqual({
-      modelVersionId: "test.traditional-v1",
-      artifactDigest: "a".repeat(64),
-      runtime: {
-        adapter: "traditional",
-        fingerprint: "b".repeat(64),
-      },
-    });
     expect(document.instances.map((instance) => instance.id)).toEqual([
       "1",
       "2",

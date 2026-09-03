@@ -7,7 +7,7 @@ import {
 } from "../annotation/schema";
 import { documentFromDetection } from "../annotation/detection";
 import { database, transaction, type Executor } from "../db/client";
-import { images, annotations } from "../db/schema";
+import { annotations, images } from "../db/schema";
 import { assertInstanceClasses } from "../models/metrics";
 import { readDetection } from "./inference-outcomes";
 import { assertDocumentImage } from "./image-documents";
@@ -33,54 +33,30 @@ export async function readAnnotation(
   return row?.document ?? null;
 }
 
-async function lockedImage(digest: string, tx: Executor) {
-  await lockImage(digest, tx);
-  const [image] = await tx
-    .select({ digest: images.id, width: images.width, height: images.height })
-    .from(images)
-    .where(eq(images.id, digest));
-  if (!image) throw new Error(`Image ${digest} is not stored`);
-  return image;
-}
-
-async function insertAnnotation(
-  ref: AnnotationRef,
-  document: AnnotationDocument,
-  tx: Executor,
-): Promise<AnnotationDocument> {
-  const created = annotationSchema.parse({ ...document, revision: 0 });
-  const image = await lockedImage(ref.digest, tx);
-  assertDocumentImage("Annotation", created.image, image);
-  const version = await readModelVersion(created.source.modelVersionId, tx);
-  if (!version || version.modelId !== ref.modelId) {
-    throw new Error(
-      `Version ${created.source.modelVersionId} is not a version of ${ref.modelId}`,
-    );
-  }
-  const model = await readModel(ref.modelId, tx);
+/** The model of the review, with the classes its boxes may carry. */
+async function reviewedModel(ref: AnnotationRef, db: Executor) {
+  const model = await readModel(ref.modelId, db);
   if (!model) throw new Error(`Unknown model: ${ref.modelId}`);
-  assertInstanceClasses(model.classes, created.instances, "Annotation");
-  if (await readAnnotation(ref, tx)) {
-    throw new Error(`Annotation already exists for ${describeAnnotation(ref)}`);
-  }
-  await tx.insert(annotations).values({
-    imageId: ref.digest,
-    modelId: ref.modelId,
-    document: created,
-    updatedAt: new Date(),
-  });
-  return created;
+  return model;
 }
 
 /**
- * Starts a review from what one version of the model found. The source version
- * is the one whose result the reviewer is looking at.
+ * Starts the review of the image for the model from what `versionId` found.
+ * A review that already exists starts again: the detection's boxes replace
+ * the reviewer's and the review reopens, one revision later so that an edit
+ * of the previous boxes still in flight is refused as stale.
  */
-export async function createAnnotationFromDetection(
+export async function startAnnotationFromDetection(
   ref: AnnotationRef,
   versionId: string,
 ): Promise<AnnotationDocument> {
   return transaction(async (tx) => {
+    const version = await readModelVersion(versionId, tx);
+    if (!version || version.modelId !== ref.modelId) {
+      throw new Error(
+        `Version ${versionId} is not a version of ${ref.modelId}`,
+      );
+    }
     const detection = await readDetection(
       { versionId, digest: ref.digest },
       tx,
@@ -88,7 +64,33 @@ export async function createAnnotationFromDetection(
     if (!detection) {
       throw new Error(`${versionId} has not detected ${ref.digest}`);
     }
-    return insertAnnotation(ref, documentFromDetection(detection), tx);
+    await lockImage(ref.digest, tx);
+    const [image] = await tx
+      .select({ digest: images.id, width: images.width, height: images.height })
+      .from(images)
+      .where(eq(images.id, ref.digest));
+    if (!image) throw new Error(`Image ${ref.digest} is not stored`);
+    const model = await reviewedModel(ref, tx);
+    const current = await readAnnotation(ref, tx);
+    const started = annotationSchema.parse({
+      ...documentFromDetection(detection),
+      revision: current ? current.revision + 1 : 0,
+    });
+    assertDocumentImage("Annotation", started.image, image);
+    assertInstanceClasses(model.classes, started.instances, "Annotation");
+    await tx
+      .insert(annotations)
+      .values({
+        imageId: ref.digest,
+        modelId: ref.modelId,
+        document: started,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [annotations.imageId, annotations.modelId],
+        set: { document: started, updatedAt: new Date() },
+      });
+    return started;
   });
 }
 
@@ -97,29 +99,28 @@ export async function updateAnnotation(
   ref: AnnotationRef,
   document: AnnotationDocument,
 ): Promise<AnnotationDocument> {
-  const db = await database();
-  const current = await readAnnotation(ref, db);
-  if (!current) {
-    throw new Error(`No annotation exists for ${describeAnnotation(ref)}`);
-  }
-  const next = annotationSchema.parse({
-    ...document,
-    image: current.image,
-    source: current.source,
-    revision: current.revision + 1,
+  return transaction(async (tx) => {
+    await lockImage(ref.digest, tx);
+    const current = await readAnnotation(ref, tx);
+    if (!current) {
+      throw new Error(`No annotation exists for ${describeAnnotation(ref)}`);
+    }
+    if (document.revision !== current.revision) {
+      throw new Error(
+        `Annotation revision ${document.revision} is stale; current revision is ${current.revision}`,
+      );
+    }
+    const next = annotationSchema.parse({
+      ...document,
+      image: current.image,
+      revision: current.revision + 1,
+    });
+    const model = await reviewedModel(ref, tx);
+    assertInstanceClasses(model.classes, next.instances, "Annotation");
+    await tx
+      .update(annotations)
+      .set({ document: next, updatedAt: new Date() })
+      .where(atAnnotation(ref));
+    return next;
   });
-  const model = await readModel(ref.modelId, db);
-  if (!model) throw new Error(`Unknown model: ${ref.modelId}`);
-  assertInstanceClasses(model.classes, next.instances, "Annotation");
-  const updated = await db
-    .update(annotations)
-    .set({ document: next, updatedAt: new Date() })
-    .where(and(atAnnotation(ref), eq(annotations.revision, document.revision)))
-    .returning({ revision: annotations.revision });
-  if (updated.length === 0) {
-    throw new Error(
-      `Annotation revision ${document.revision} is stale; current revision is ${current.revision}`,
-    );
-  }
-  return next;
 }

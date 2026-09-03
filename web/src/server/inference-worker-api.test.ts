@@ -9,7 +9,7 @@ import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as PendingRoute } from "../routes/api.inference.pending";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
 import { readInferenceWorker } from "./inference-worker-store";
-import { createAnnotationFromDetection } from "./annotations";
+import { startAnnotationFromDetection } from "./annotations";
 import {
   addObservationUnits,
   addTreatment,
@@ -247,7 +247,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     ).status,
   ).toBe(409);
 
-  await createAnnotationFromDetection(
+  await startAnnotationFromDetection(
     { digest, modelId: version.modelId },
     version.id,
   );

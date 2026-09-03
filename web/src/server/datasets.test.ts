@@ -18,7 +18,7 @@ import {
 import { retryObservationImageAnalysis } from "./experiment-observation-images";
 import { readExperimentGrid } from "./experiment-queries";
 import {
-  createAnnotationFromDetection,
+  startAnnotationFromDetection,
   readAnnotation,
   updateAnnotation,
 } from "./annotations";
@@ -464,7 +464,7 @@ describe("detections", () => {
     expect(await readDetection(target)).toBeNull();
   });
 
-  test("a dataset shows the newest detection until a review keeps its own", async () => {
+  test("a dataset shows the newest detection whether or not a review exists", async () => {
     const baseline = await baselineVersion();
     const { version: next, digests } = await uploadTexts(
       "shown",
@@ -488,11 +488,25 @@ describe("detections", () => {
     await recordInferenceOutcome({ versionId: next.id, digest }, newer, worker);
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
-    await createAnnotationFromDetection(
+    const failedVersion = await nextTraditionalVersion("shown-v3");
+    const failedShape = await resultFor(failedVersion, "shown");
+    await recordInferenceOutcome(
+      { versionId: failedVersion.id, digest },
+      {
+        schemaVersion: 1,
+        image: { digest },
+        producer: failedShape.producer,
+        error: "runtime failed",
+      },
+      worker,
+    );
+    expect((await readImageRecord(ref))?.detection).toEqual(newer);
+
+    await startAnnotationFromDetection(
       { digest, modelId: baseline.modelId },
       baseline.id,
     );
-    expect((await readImageRecord(ref))?.detection).toEqual(original);
+    expect((await readImageRecord(ref))?.detection).toEqual(newer);
     expect(await stateOf(ref)).toBe("in_progress");
   });
 
@@ -507,7 +521,7 @@ describe("detections", () => {
       worker,
     );
     const labelRef = { digest, modelId: version.modelId };
-    const started = await createAnnotationFromDetection(labelRef, version.id);
+    const started = await startAnnotationFromDetection(labelRef, version.id);
     await updateAnnotation(labelRef, { ...started, status: "complete" });
     expect(await stateOf({ dataset: "ctx-one", digest })).toBe("complete");
     expect(await stateOf({ dataset: "ctx-two", digest })).toBe("complete");
@@ -522,7 +536,7 @@ describe("removal", () => {
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "rm-bytes");
     await recordInferenceOutcome(target, result, worker);
-    await createAnnotationFromDetection(
+    await startAnnotationFromDetection(
       { digest, modelId: version.modelId },
       version.id,
     );

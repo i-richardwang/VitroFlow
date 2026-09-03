@@ -39,7 +39,7 @@ const requireSession = createMiddleware().server(
     if (await readSession(request.headers)) {
       return next();
     }
-    if (handlerType === "serverFn") {
+    if (handlerType === "serverFn" || pathname.startsWith("/api/")) {
       return new Response("Unauthorized", { status: 401 });
     }
     return redirect(loginPath(requestedPath(request)));

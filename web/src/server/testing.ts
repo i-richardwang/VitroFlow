@@ -26,8 +26,8 @@ import { addObservation } from "./experiment-observations";
 import { auth } from "./auth";
 import { storeImage } from "./image-store";
 import {
-  createAnnotationFromDetection,
   readAnnotation,
+  startAnnotationFromDetection,
   updateAnnotation,
 } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
@@ -354,7 +354,7 @@ export async function reviewedDataset(
       result,
       { runtimes: [result.producer.runtime] },
     );
-    const started = await createAnnotationFromDetection(ref, seeded.version.id);
+    const started = await startAnnotationFromDetection(ref, seeded.version.id);
     await updateAnnotation(ref, { ...started, status: "complete" });
   }
   return seeded;

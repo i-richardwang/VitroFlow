@@ -23,7 +23,7 @@ import {
   suspendUser,
 } from "../../functions/users";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { PasswordField } from "./PasswordField";
@@ -124,7 +124,7 @@ export function UserMenu({ account }: { account: UserAccount }) {
         isOpen={open === "suspend"}
         onClose={() => setOpen(null)}
       />
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
         title={`Delete ${account.name}?`}
@@ -136,7 +136,7 @@ export function UserMenu({ account }: { account: UserAccount }) {
         }}
       >
         Experiment records stay.
-      </DeleteDialog>
+      </DestructiveActionDialog>
     </>
   );
 }

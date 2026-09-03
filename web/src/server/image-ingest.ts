@@ -28,6 +28,8 @@ import { contentDigest } from "./blobs";
  */
 const QUALITY = 90;
 const EFFORT = 0;
+/** The longest edge AVIF can represent. */
+const MAX_EDGE_PIXELS = 16384;
 
 const SOURCE_FORMAT_SET = new Set<string>(SOURCE_IMAGE_FORMATS);
 
@@ -58,8 +60,40 @@ async function inCanonicalizationSlot<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-/** The longest edge AVIF can represent. */
-const MAX_EDGE_PIXELS = 16384;
+/**
+ * The pixel size of bytes that are already a canonical image, as another
+ * workbench exported them. Any other encoding is refused: bytes that entered
+ * the boundary elsewhere keep their digest only if they are stored untouched.
+ */
+export async function canonicalImageSize(
+  bytes: Uint8Array,
+): Promise<{ width: number; height: number }> {
+  const metadata = await sharp(bytes, {
+    failOn: "error",
+    limitInputPixels: MAX_SOURCE_IMAGE_PIXELS,
+  })
+    .metadata()
+    .catch(() => null);
+  if (
+    !metadata ||
+    metadata.format !== "heif" ||
+    metadata.compression !== "av1" ||
+    (metadata.pages ?? 1) !== 1 ||
+    !metadata.width ||
+    !metadata.height ||
+    metadata.width > MAX_EDGE_PIXELS ||
+    metadata.height > MAX_EDGE_PIXELS ||
+    metadata.space !== "srgb" ||
+    metadata.channels !== 3 ||
+    metadata.depth !== "uchar" ||
+    metadata.hasAlpha !== false ||
+    metadata.hasProfile ||
+    metadata.orientation !== undefined
+  ) {
+    throw new ImageSourceError("The bytes are not a canonical image");
+  }
+  return { width: metadata.width, height: metadata.height };
+}
 
 /** An image as the system stores it. */
 export interface CanonicalImage {

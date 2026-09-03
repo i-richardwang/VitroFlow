@@ -23,7 +23,7 @@ import {
   unassignObservationImage,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 
 export function ReassignObservationImageModal({
   image,
@@ -167,7 +167,7 @@ export function UnassignObservationImageDialog({
 }) {
   const router = useRouter();
   return (
-    <DeleteDialog
+    <DestructiveActionDialog
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title="Unassign image?"
@@ -182,6 +182,6 @@ export function UnassignObservationImageDialog({
       }}
     >
       The image stays stored.
-    </DeleteDialog>
+    </DestructiveActionDialog>
   );
 }

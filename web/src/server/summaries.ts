@@ -39,9 +39,8 @@ export interface DatasetSummary {
 
 /**
  * A dataset image with the documents that decide its state, loaded in one
- * query. The annotation is the review for the dataset's model; the detection is
- * the one that review started from, or the model's newest for the image
- * until a review exists.
+ * query. The annotation is the review for the dataset's model; the detection
+ * is the newest the model's versions recorded for the image.
  */
 export interface ImageRecord {
   image: DatasetImage;
@@ -68,23 +67,21 @@ export function summarize(record: ImageRecord): ImageSummary {
   };
 }
 
-/**
- * The version whose detection an image shows for a model: the one its review
- * started from, otherwise the newest of the model's versions that has
- * detected it.
- */
-export function shownVersion(
+/** The newest of the model's versions that has detected the image. */
+export function newestDetectingVersion(
   imageId: SQLWrapper,
   modelId: SQLWrapper | string,
 ) {
-  return sql`coalesce(${annotations.sourceModelVersionId}, (
+  return sql`(
     select d.model_version_id
     from inference_outcomes d
     join model_versions v on v.id = d.model_version_id
-    where d.image_id = ${imageId} and v.model_id = ${modelId}
+    where d.image_id = ${imageId}
+      and v.model_id = ${modelId}
+      and d.status = 'succeeded'
     order by v.created_at desc, v.id desc
     limit 1
-  ))`;
+  )`;
 }
 
 /** Memberships with their images and the documents that decide their state. */
@@ -113,7 +110,7 @@ export function recordQuery(db: Executor) {
         eq(inferenceOutcomes.imageId, datasetImages.imageId),
         eq(
           inferenceOutcomes.modelVersionId,
-          shownVersion(datasetImages.imageId, datasets.modelId),
+          newestDetectingVersion(datasetImages.imageId, datasets.modelId),
         ),
         eq(inferenceOutcomes.status, "succeeded"),
       ),

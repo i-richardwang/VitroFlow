@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import { documentFromDetection } from "../annotation/detection";
-import { database } from "../db/client";
-import { annotations } from "../db/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import {
-  createAnnotationFromDetection,
   readAnnotation,
+  startAnnotationFromDetection,
   updateAnnotation,
 } from "./annotations";
 import {
@@ -27,21 +25,71 @@ describe("annotations", () => {
     const ref = { digest, modelId: version.modelId };
 
     expect(await readAnnotation(ref)).toBeNull();
-    const created = await createAnnotationFromDetection(ref, version.id);
+    const created = await startAnnotationFromDetection(ref, version.id);
     expect(created).toEqual({ ...documentFromDetection(result), revision: 0 });
-    await expect(
-      createAnnotationFromDetection(ref, version.id),
-    ).rejects.toThrow(/already exists/);
 
     const updated = await updateAnnotation(ref, {
       ...created,
-      source: { ...created.source, artifactDigest: "f".repeat(64) },
+      image: { ...created.image, width: 1 },
       instances: [],
     });
     expect(updated.revision).toBe(1);
-    expect(updated.source).toEqual(created.source);
+    expect(updated.image).toEqual(created.image);
     expect((await readAnnotation(ref))?.instances).toEqual([]);
     await expect(updateAnnotation(ref, created)).rejects.toThrow(/stale/);
+  });
+
+  test("starting again restores the detection's boxes one revision later", async () => {
+    const { version } = await observeImages("annotation-restart", ["restart"]);
+    const digest = await imageDigest("restart");
+    const result = await resultFor(version, "restart");
+    await recordInferenceOutcome({ versionId: version.id, digest }, result, {
+      runtimes: testHeartbeat("annotations-restart-worker").runtimes,
+    });
+    const ref = { digest, modelId: version.modelId };
+    const started = await startAnnotationFromDetection(ref, version.id);
+    const edited = await updateAnnotation(ref, {
+      ...started,
+      status: "complete",
+      instances: [],
+    });
+
+    const restarted = await startAnnotationFromDetection(ref, version.id);
+    expect(restarted).toEqual({
+      ...documentFromDetection(result),
+      revision: edited.revision + 1,
+    });
+    expect(await readAnnotation(ref)).toEqual(restarted);
+    await expect(updateAnnotation(ref, edited)).rejects.toThrow(/stale/);
+  });
+
+  test("serializes a restart with an edit", async () => {
+    const { version } = await observeImages("annotation-concurrent", [
+      "concurrent",
+    ]);
+    const digest = await imageDigest("concurrent");
+    const result = await resultFor(version, "concurrent");
+    await recordInferenceOutcome({ versionId: version.id, digest }, result, {
+      runtimes: testHeartbeat("annotations-concurrent-worker").runtimes,
+    });
+    const ref = { digest, modelId: version.modelId };
+    const started = await startAnnotationFromDetection(ref, version.id);
+
+    const outcomes = await Promise.allSettled([
+      updateAnnotation(ref, { ...started, instances: [] }),
+      startAnnotationFromDetection(ref, version.id),
+    ]);
+    const revisions = outcomes.flatMap((outcome) =>
+      outcome.status === "fulfilled" ? [outcome.value.revision] : [],
+    );
+
+    expect(new Set(revisions).size).toBe(revisions.length);
+    expect((await readAnnotation(ref))?.revision).toBe(Math.max(...revisions));
+    for (const outcome of outcomes) {
+      if (outcome.status === "rejected") {
+        expect(String(outcome.reason)).toContain("stale");
+      }
+    }
   });
 
   test("cannot start before the requested version succeeds", async () => {
@@ -52,58 +100,8 @@ describe("annotations", () => {
       digest: await imageDigest("missing-outcome"),
       modelId: version.modelId,
     };
-    await expect(
-      createAnnotationFromDetection(ref, version.id),
-    ).rejects.toThrow(/has not detected/);
-  });
-
-  test("the database rejects an annotation without its successful inference", async () => {
-    const { version } = await observeImages("annotation-db-outcome", [
-      "db-outcome",
-    ]);
-    const digest = await imageDigest("db-outcome");
-    const result = await resultFor(version, "db-outcome");
-
-    await expect(
-      (await database())
-        .insert(annotations)
-        .values({
-          imageId: digest,
-          modelId: version.modelId,
-          document: documentFromDetection(result),
-          updatedAt: new Date(),
-        })
-        .execute(),
-    ).rejects.toThrow();
-  });
-
-  test("the database rejects an annotation backed only by a failed inference", async () => {
-    const { version } = await observeImages("annotation-db-failure", [
-      "db-failure",
-    ]);
-    const digest = await imageDigest("db-failure");
-    const successfulShape = await resultFor(version, "db-failure");
-    await recordInferenceOutcome(
-      { versionId: version.id, digest },
-      {
-        schemaVersion: 1,
-        image: { digest },
-        producer: successfulShape.producer,
-        error: "runtime failed",
-      },
-      { runtimes: testHeartbeat("annotations-failure-worker").runtimes },
+    await expect(startAnnotationFromDetection(ref, version.id)).rejects.toThrow(
+      /has not detected/,
     );
-
-    await expect(
-      (await database())
-        .insert(annotations)
-        .values({
-          imageId: digest,
-          modelId: version.modelId,
-          document: documentFromDetection(successfulShape),
-          updatedAt: new Date(),
-        })
-        .execute(),
-    ).rejects.toThrow();
   });
 });

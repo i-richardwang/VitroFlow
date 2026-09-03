@@ -5,7 +5,8 @@ import { secretsEqual } from "./secrets";
 
 interface ApiRealm {
   matches: (pathname: string) => boolean;
-  admits: (request: Request) => Promise<boolean>;
+  /** Whether the request may enter; null hands it to the browser session. */
+  admits: (request: Request) => Promise<boolean | null>;
 }
 
 /**
@@ -27,11 +28,17 @@ function workerRealm(prefix: string, credential: string): ApiRealm {
   };
 }
 
-/** A realm an account opens with a personal API key issued for `scope`. */
+/**
+ * A realm an account opens with a personal API key issued for `scope`. A
+ * request that presents no key is the browser's, and the session decides.
+ */
 function apiKeyRealm(prefix: string, scope: ApiScope): ApiRealm {
   return {
     matches: (pathname) => pathname.startsWith(prefix),
-    admits: async (request) => (await authorizeApiKey(request, scope)) !== null,
+    admits: async (request) =>
+      bearerToken(request) === null
+        ? null
+        : (await authorizeApiKey(request, scope)) !== null,
   };
 }
 
@@ -39,12 +46,13 @@ function apiKeyRealm(prefix: string, scope: ApiScope): ApiRealm {
 const API_REALMS: ApiRealm[] = [
   workerRealm("/api/inference/", "VITROFLOW_INFERENCE_WORKER_TOKEN"),
   workerRealm("/api/training/", "VITROFLOW_TRAINING_WORKER_TOKEN"),
-  apiKeyRealm("/api/export/", "export"),
+  apiKeyRealm("/api/transfer/", "transfer"),
 ];
 
 /**
  * Whether a bearer realm admits the request: true or false when the pathname
- * belongs to one, or null for paths the browser session realm owns.
+ * belongs to one and the request presents a credential for it, or null when
+ * the browser session decides.
  */
 export async function apiRequestAuthorization(
   pathname: string,

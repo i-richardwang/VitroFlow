@@ -3,22 +3,38 @@ import { Button } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
 import type { Review } from "../../annotation/review";
-import { initializeAnnotation } from "../../functions/review";
+import { startAnnotation } from "../../functions/review";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { Workbench } from "../Workbench";
 import { AnnotationEditor } from "./AnnotationEditor";
 
 export function ImageWorkbench({ review }: { review: Review }) {
   const { ref, filename } = review;
+  const router = useRouter();
 
   if (review.state === "started") {
+    const detection = review.detection;
     return (
       <AnnotationEditor
+        key={review.annotation.revision}
         subject={ref}
         model={review.model}
         filename={filename}
-        result={review.detection}
+        detection={detection}
         annotation={review.annotation}
+        onRestartFromDetection={
+          detection
+            ? async () => {
+                await startAnnotation({
+                  data: {
+                    ...ref,
+                    versionId: detection.producer.modelVersionId,
+                  },
+                });
+                await router.invalidate();
+              }
+            : undefined
+        }
       />
     );
   }
@@ -32,7 +48,7 @@ export function ImageWorkbench({ review }: { review: Review }) {
             action={{
               label: "Start review",
               run: () =>
-                initializeAnnotation({
+                startAnnotation({
                   data: {
                     ...ref,
                     versionId: review.detection.producer.modelVersionId,

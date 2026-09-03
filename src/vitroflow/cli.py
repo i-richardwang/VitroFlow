@@ -12,7 +12,7 @@ import httpx
 from .annotations import load_complete_annotations
 from .artifacts import create_image_artifacts, write_image_artifacts
 from .config import PipelineConfig
-from .dataset_pull import DatasetPullError, pull_dataset
+from .dataset_transfer import pull_dataset, push_dataset
 from .files import atomic_directory
 from .manifest import (
     DatasetManifest,
@@ -138,12 +138,6 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
                             "digest": image.annotation.digest,
                             "revision": image.annotation.revision,
                             "instances": len(image.boxes),
-                            "model_version_id": image.annotation.model_version_id,
-                            "artifact_digest": image.annotation.artifact_digest,
-                            "runtime": {
-                                "adapter": image.annotation.runtime_adapter,
-                                "fingerprint": image.annotation.runtime_fingerprint,
-                            },
                         }
                         for image in images
                     ],
@@ -160,14 +154,19 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
     return 0
 
 
-def _pull_dataset(args: argparse.Namespace) -> int:
+def _workbench(args: argparse.Namespace) -> tuple[str, str]:
     server_url = args.server or os.environ.get("VITROFLOW_SERVER_URL")
     token = args.token or os.environ.get("VITROFLOW_API_KEY")
     if not server_url or not token:
         raise ValueError(
-            "dataset pull needs --server/VITROFLOW_SERVER_URL and "
-            "--token/VITROFLOW_API_KEY"
+            f"dataset {args.dataset_command} needs --server/VITROFLOW_SERVER_URL "
+            "and --token/VITROFLOW_API_KEY"
         )
+    return server_url, token
+
+
+def _pull_dataset(args: argparse.Namespace) -> int:
+    server_url, token = _workbench(args)
     data_root = Path(args.data_root)
     report = pull_dataset(server_url, token, args.dataset, data_root)
     print(
@@ -175,6 +174,13 @@ def _pull_dataset(args: argparse.Namespace) -> int:
         f"{report.kept} kept, {report.downloaded} downloaded, "
         f"{report.replaced} replaced"
     )
+    return 0
+
+
+def _push_dataset(args: argparse.Namespace) -> int:
+    server_url, token = _workbench(args)
+    report = push_dataset(server_url, token, args.dataset, Path(args.data_root))
+    print(f"pushed {report.images} images of {report.dataset} to {server_url}")
     return 0
 
 
@@ -202,6 +208,16 @@ def _add_pipeline_options(parser: argparse.ArgumentParser) -> None:
 def _add_dataset_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dataset", required=True, help="Workbench dataset name")
     parser.add_argument("--data-root", default="data")
+
+
+def _add_workbench_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--server", help="Workbench URL (default: VITROFLOW_SERVER_URL)"
+    )
+    parser.add_argument(
+        "--token",
+        help="API key with the transfer scope (default: VITROFLOW_API_KEY)",
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -254,12 +270,14 @@ def _parser() -> argparse.ArgumentParser:
         "pull", help="Download a workbench dataset into a local data directory"
     )
     _add_dataset_options(pull)
-    pull.add_argument("--server", help="Workbench URL (default: VITROFLOW_SERVER_URL)")
-    pull.add_argument(
-        "--token",
-        help="API key with the export scope (default: VITROFLOW_API_KEY)",
-    )
+    _add_workbench_options(pull)
     pull.set_defaults(handler=_pull_dataset)
+    push = dataset_commands.add_parser(
+        "push", help="Upload a local dataset to a workbench that does not have it"
+    )
+    _add_dataset_options(push)
+    _add_workbench_options(push)
+    push.set_defaults(handler=_push_dataset)
     export_yolo = dataset_commands.add_parser(
         "export-yolo", help="Export complete annotations as a YOLO dataset"
     )
@@ -283,7 +301,6 @@ def main(argv: list[str] | None = None) -> int:
         ValueError,
         RuntimeError,
         httpx.HTTPError,
-        DatasetPullError,
     ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

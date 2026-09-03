@@ -22,7 +22,7 @@ import {
   removeTreatment,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { FactorField, factorDraft, submittedFactor } from "./FactorField";
 
 export function TreatmentDialog({
@@ -195,7 +195,7 @@ function Editor({
         </Modal.Backdrop>
       </Modal>
       {treatment ? (
-        <DeleteDialog
+        <DestructiveActionDialog
           isOpen={removing}
           onOpenChange={(next) => !next && setRemoving(false)}
           title={`Delete ${treatment.name}?`}
@@ -210,7 +210,7 @@ function Editor({
           }}
         >
           Observation units stay, unassigned.
-        </DeleteDialog>
+        </DestructiveActionDialog>
       ) : null}
     </>
   );

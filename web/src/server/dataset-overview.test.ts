@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
 import {
-  createAnnotationFromDetection,
+  startAnnotationFromDetection,
   readAnnotation,
   updateAnnotation,
 } from "./annotations";
@@ -37,7 +37,7 @@ test("the overview derives review progress and training readiness", async () => 
       worker,
     );
     const ref = { digest, modelId: version.modelId };
-    const started = await createAnnotationFromDetection(ref, version.id);
+    const started = await startAnnotationFromDetection(ref, version.id);
     await updateAnnotation(ref, { ...started, status: "complete" });
   }
 

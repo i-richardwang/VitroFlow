@@ -16,6 +16,7 @@ import {
   ReviewTransitionError,
   type ReviewEvent,
 } from "../../annotation/status";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 
@@ -41,11 +42,14 @@ const ACTIONS: Record<
 export function ReviewStatusMenu({
   annotation,
   onReview,
+  onRestartFromDetection,
 }: {
   annotation: AnnotationDocument;
   onReview: (event: ReviewEvent) => void;
+  onRestartFromDetection?: () => Promise<void>;
 }) {
   const [excluding, setExcluding] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const { items, exclude } = ACTIONS[annotation.status];
 
   const review = (event: ReviewEvent) => {
@@ -79,6 +83,10 @@ export function ReviewStatusMenu({
                 setExcluding(true);
                 return;
               }
+              if (key === "restart") {
+                setRestarting(true);
+                return;
+              }
               if (key === "complete" || key === "reopen" || key === "include") {
                 review({ type: key });
               }
@@ -93,17 +101,26 @@ export function ReviewStatusMenu({
                 <Label>{action.label}</Label>
               </Dropdown.Item>
             ))}
+            {onRestartFromDetection || exclude ? (
+              <Separator orientation="horizontal" />
+            ) : null}
+            {onRestartFromDetection ? (
+              <Dropdown.Item
+                id="restart"
+                textValue="Start again from detection"
+                variant="danger"
+              >
+                <Label>Start again from detection…</Label>
+              </Dropdown.Item>
+            ) : null}
             {exclude ? (
-              <>
-                <Separator orientation="horizontal" />
-                <Dropdown.Item
-                  id="exclude"
-                  textValue="Exclude image"
-                  variant="danger"
-                >
-                  <Label>{exclude}</Label>
-                </Dropdown.Item>
-              </>
+              <Dropdown.Item
+                id="exclude"
+                textValue="Exclude image"
+                variant="danger"
+              >
+                <Label>{exclude}</Label>
+              </Dropdown.Item>
             ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -114,6 +131,17 @@ export function ReviewStatusMenu({
         onClose={() => setExcluding(false)}
         onSubmit={(reason) => review({ type: "exclude", reason })}
       />
+      {onRestartFromDetection ? (
+        <DestructiveActionDialog
+          isOpen={restarting}
+          onOpenChange={setRestarting}
+          title="Start the review again?"
+          confirmLabel="Start again"
+          onConfirm={onRestartFromDetection}
+        >
+          Every box is replaced by what the shown detection found.
+        </DestructiveActionDialog>
+      ) : null}
     </>
   );
 }

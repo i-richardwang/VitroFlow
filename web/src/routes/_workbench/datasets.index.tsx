@@ -3,6 +3,7 @@ import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Count } from "../../components/Count";
+import { ImportDatasetButton } from "../../components/dataset/ImportDatasetDialog";
 import { Page } from "../../components/Page";
 import { DatasetsIcon } from "../../components/icons";
 import { getDatasets } from "../../functions/datasets";
@@ -17,7 +18,7 @@ function DatasetsPage() {
   const datasets = Route.useLoaderData();
 
   return (
-    <Page title="Datasets">
+    <Page title="Datasets" actions={<ImportDatasetButton />}>
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label="Datasets">

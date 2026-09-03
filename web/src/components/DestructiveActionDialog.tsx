@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { useAsyncAction } from "../hooks/useAsyncAction";
 
-export function DeleteDialog({
+export function DestructiveActionDialog({
   isOpen,
   onOpenChange,
   title,

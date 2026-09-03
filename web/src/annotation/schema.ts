@@ -1,8 +1,7 @@
 import { z } from "zod";
 
-import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
+import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { runtimeDescriptorSchema } from "../inference/schema";
 import { classNameSchema } from "../models/metrics";
 
 export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
@@ -11,6 +10,13 @@ export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
  * An annotation is addressed by the image and model it describes. The same
  * image annotated for two models has two documents; opening it from an
  * experiment or a dataset reaches the same document.
+ *
+ * The document is what a reviewer decided and nothing else. It begins as a
+ * copy of what one version of the model found and is independent of that
+ * detection from then on: versions come and go, detections are recomputed,
+ * and the annotation changes only when a person edits it or starts it again
+ * from another detection. That independence is what lets a dataset carry its
+ * annotations to another workbench unchanged.
  */
 export const annotationRefSchema = z.strictObject({
   digest: imageDigestSchema,
@@ -40,11 +46,6 @@ export const annotationSchema = z
       digest: imageDigestSchema,
       width: z.number().int().positive(),
       height: z.number().int().positive(),
-    }),
-    source: z.strictObject({
-      modelVersionId: resourceIdSchema,
-      artifactDigest: sha256Schema,
-      runtime: runtimeDescriptorSchema,
     }),
     status: z.enum(REVIEW_STATUSES),
     excludedReason: z.string().min(1).optional(),

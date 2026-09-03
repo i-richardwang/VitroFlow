@@ -3,7 +3,7 @@ import { toast } from "@heroui/react";
 import { useCallback, type ReactNode } from "react";
 
 import {
-  MAX_SOURCE_IMAGE_BYTES,
+  MAX_IMAGE_BYTES,
   MAX_SOURCE_IMAGE_PIXELS,
   SOURCE_IMAGE_EXTENSIONS,
   sourceImageFileError,
@@ -66,7 +66,7 @@ export function ImageDropZone({
         <DropZone.Icon />
         <DropZone.Label>Drop images here or browse</DropZone.Label>
         <DropZone.Description>
-          JPEG, PNG, or TIFF · {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB ·{" "}
+          JPEG, PNG, or TIFF · {MAX_IMAGE_BYTES / (1024 * 1024)} MiB ·{" "}
           {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP
         </DropZone.Description>
         <DropZone.Trigger isDisabled={busy}>Select images</DropZone.Trigger>

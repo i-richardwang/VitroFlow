@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { MAX_SOURCE_IMAGE_BYTES, sourceImageFileError } from "./canonical";
+import { MAX_IMAGE_BYTES, sourceImageFileError } from "./canonical";
 
 describe("source image admission", () => {
   test("accepts the formats the server canonicalizes", () => {
@@ -17,7 +17,7 @@ describe("source image admission", () => {
     expect(
       sourceImageFileError({
         name: "a.jpg",
-        size: MAX_SOURCE_IMAGE_BYTES + 1,
+        size: MAX_IMAGE_BYTES + 1,
       }),
     ).toMatch(/64 MiB/);
   });

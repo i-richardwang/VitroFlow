@@ -3,7 +3,9 @@
   "dataset": "seed-set",
   "model": {
     "id": "seed-detector",
-    "classes": ["seed"]
+    "classes": [
+      "seed"
+    ]
   },
   "images": [
     {
@@ -52,14 +54,6 @@
           "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
           "width": 100,
           "height": 80
-        },
-        "source": {
-          "modelVersionId": "set.traditional-v1",
-          "artifactDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "runtime": {
-            "adapter": "traditional",
-            "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-          }
         },
         "status": "complete",
         "revision": 2,

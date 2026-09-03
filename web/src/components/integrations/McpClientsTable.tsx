@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import type { McpClient } from "../../auth/integrations";
 import { removeMcpClient } from "../../functions/integrations";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { Timestamp } from "../Timestamp";
@@ -79,7 +79,7 @@ function McpClientMenu({ client }: { client: McpClient }) {
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={disconnecting}
         onOpenChange={setDisconnecting}
         title={`Disconnect ${client.name}?`}

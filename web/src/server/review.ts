@@ -7,14 +7,13 @@ import { images, inferenceOutcomes, annotations } from "../db/schema";
 import type { DetectionResult } from "../detection/schema";
 import { imageFilenames } from "./image-names";
 import { readModel, readModelVersion } from "./model-registry";
-import { shownVersion } from "./summaries";
+import { newestDetectingVersion } from "./summaries";
 
 /**
- * A review that has started shows the detection it started from. Before
- * that, it shows the detection of `versionId` when the reviewer arrived from
- * a metric of that version, so the boxes are the ones they just looked at;
- * otherwise the newest of the model's versions that has detected the image.
- * A version of another model names no review.
+ * The review shows the detection of `versionId` when the reviewer arrived
+ * from a metric of that version, so the boxes are the ones they just looked
+ * at; otherwise the newest of the model's versions that has detected the
+ * image. A version of another model names no review.
  */
 export async function readReview(
   ref: AnnotationRef,
@@ -30,8 +29,8 @@ export async function readReview(
   }
   const shown =
     versionId === undefined
-      ? shownVersion(images.id, ref.modelId)
-      : sql`coalesce(${annotations.sourceModelVersionId}, ${versionId})`;
+      ? newestDetectingVersion(images.id, ref.modelId)
+      : versionId;
   const [row] = await executor
     .select({
       image: images,
@@ -65,16 +64,10 @@ export async function readReview(
     height: row.image.height,
   };
   if (row.annotation) {
-    const detection = row.detection;
-    if (!detection) {
-      throw new Error(
-        `Review ${ref.digest} for ${ref.modelId} has no source detection`,
-      );
-    }
     return {
       ...common,
       state: "started",
-      detection,
+      detection: row.detection,
       annotation: row.annotation,
     };
   }

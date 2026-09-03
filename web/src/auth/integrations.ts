@@ -7,13 +7,13 @@ import { z } from "zod";
  * consent page. Both are listed and withdrawn on the Integrations page.
  */
 
-export const API_SCOPES = ["agent", "export"] as const;
+export const API_SCOPES = ["agent", "transfer"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];
 const apiScopeSchema = z.enum(API_SCOPES);
 
 export const API_SCOPE_LABELS: Record<ApiScope, string> = {
   agent: "Agent interface",
-  export: "Dataset export",
+  transfer: "Dataset transfer",
 };
 
 /** Every key starts with this so a leaked one is recognisable. */

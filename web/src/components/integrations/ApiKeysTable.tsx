@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { API_SCOPE_LABELS, type ApiKey } from "../../auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
-import { DeleteDialog } from "../DeleteDialog";
+import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { Hint } from "../Hint";
 import { MoreIcon } from "../icons";
 import { Timestamp } from "../Timestamp";
@@ -97,7 +97,7 @@ function ApiKeyMenu({ apiKey }: { apiKey: ApiKey }) {
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
-      <DeleteDialog
+      <DestructiveActionDialog
         isOpen={revoking}
         onOpenChange={setRevoking}
         title={`Revoke ${apiKey.name}?`}

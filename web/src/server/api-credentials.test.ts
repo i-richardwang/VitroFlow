@@ -56,7 +56,7 @@ describe("API credentials", () => {
     ).toBe(false);
   });
 
-  test("the export realm admits only keys holding its scope", async () => {
+  test("the transfer realm admits keys holding its scope and defers to the session otherwise", async () => {
     const { user } = await signInAs("member");
     const agent = await issueApiKey(user.id, {
       name: "Agent",
@@ -65,7 +65,7 @@ describe("API credentials", () => {
     });
     const both = await issueApiKey(user.id, {
       name: "Both",
-      scopes: ["agent", "export"],
+      scopes: ["agent", "transfer"],
       expiresInDays: 30,
     });
     expect(
@@ -76,13 +76,13 @@ describe("API credentials", () => {
     ).toBe(null);
     expect(
       await apiRequestAuthorization(
-        "/api/export/datasets/x",
+        "/api/transfer/datasets/x",
         bearer(agent.secret),
       ),
     ).toBe(false);
     expect(
       await apiRequestAuthorization(
-        "/api/export/datasets/x",
+        "/api/transfer/datasets/x",
         bearer(both.secret),
       ),
     ).toBe(true);
@@ -95,5 +95,14 @@ describe("API credentials", () => {
     expect(
       await apiRequestAuthorization("/api/agent/list-experiments", bearer()),
     ).toBe(null);
+    expect(
+      await apiRequestAuthorization("/api/transfer/datasets/x", bearer()),
+    ).toBe(null);
+    expect(
+      await apiRequestAuthorization(
+        "/api/transfer/datasets/x",
+        bearer("vf_wrong"),
+      ),
+    ).toBe(false);
   });
 });
