@@ -40,8 +40,8 @@ CREATE TABLE "annotations" (
 	"status" text GENERATED ALWAYS AS (document->>'status') STORED NOT NULL,
 	"revision" integer GENERATED ALWAYS AS ((document->>'revision')::integer) STORED NOT NULL,
 	CONSTRAINT "annotations_image_id_model_id_pk" PRIMARY KEY("image_id","model_id"),
-	CONSTRAINT "annotations_status_check" CHECK ("annotations"."status" in ('in_progress', 'complete', 'excluded')),
-	CONSTRAINT "annotations_revision_check" CHECK ("annotations"."revision" >= 0),
+	CONSTRAINT "annotations_status_check" CHECK ("annotations"."status" in ('in_progress', 'complete')),
+	CONSTRAINT "annotations_revision_check" CHECK ("annotations"."revision" >= 1),
 	CONSTRAINT "annotations_image_check" CHECK (document->'image'->>'digest' = "annotations"."image_id")
 );
 --> statement-breakpoint

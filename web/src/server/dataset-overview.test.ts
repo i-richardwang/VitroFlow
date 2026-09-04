@@ -1,12 +1,9 @@
 import { expect, test } from "bun:test";
 
+import { documentFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
-import {
-  startAnnotationFromDetection,
-  readAnnotation,
-  updateAnnotation,
-} from "./annotations";
+import { readAnnotation, saveAnnotation } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { datasetOverview } from "./dataset-overview";
 import { trainingOverview } from "./training-console";
@@ -31,14 +28,16 @@ test("the overview derives review progress and training readiness", async () => 
   );
   for (const name of ["ov-a", "ov-b"]) {
     const digest = await imageDigest(name);
+    const result = await resultFor(version, name);
     await recordInferenceOutcome(
       { versionId: version.id, digest },
-      await resultFor(version, name),
+      result,
       worker,
     );
-    const ref = { digest, modelId: version.modelId };
-    const started = await startAnnotationFromDetection(ref, version.id);
-    await updateAnnotation(ref, { ...started, status: "complete" });
+    await saveAnnotation(
+      { digest, modelId: version.modelId },
+      { ...documentFromDetection(result), status: "complete" },
+    );
   }
 
   let overview = await datasetOverview("overview", at);
@@ -86,7 +85,7 @@ test("the overview derives review progress and training readiness", async () => 
   const a = { digest: await imageDigest("ov-a"), modelId: version.modelId };
   const annotation = await readAnnotation(a);
   if (!annotation) throw new Error("missing annotation");
-  await updateAnnotation(a, annotation);
+  await saveAnnotation(a, annotation);
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);

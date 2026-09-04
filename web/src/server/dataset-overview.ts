@@ -1,10 +1,11 @@
-import type { Dataset, ImageState } from "../datasets/schema";
+import type { ReviewState } from "../annotation/schema";
+import type { Dataset } from "../datasets/schema";
 import type { Model } from "../models/schema";
 import type { TrainingSummary } from "../training/read-model";
 import { readDataset } from "./datasets";
 import { readModel } from "./model-registry";
 import {
-  countImageStates,
+  countReviewStates,
   listImageRecords,
   summarize,
   type ImageSummary,
@@ -16,7 +17,7 @@ export interface DatasetOverview {
   dataset: Dataset;
   model: Model;
   images: ImageSummary[];
-  counts: Record<ImageState, number>;
+  counts: Record<ReviewState, number>;
   training: TrainingSummary;
 }
 
@@ -34,7 +35,7 @@ export async function datasetOverview(
     dataset,
     model,
     images: summaries,
-    counts: countImageStates(summaries),
+    counts: countReviewStates(summaries),
     training: await trainingSummary(dataset, records, at),
   };
 }

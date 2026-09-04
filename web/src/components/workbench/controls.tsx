@@ -4,8 +4,6 @@ import { AddBoxIcon, CursorIcon } from "../icons";
 export const CANVAS_COLORS = {
   box: "var(--success)",
   selected: "var(--accent)",
-  detection: "var(--warning)",
-  dish: "var(--muted)",
   handle: "var(--background)",
 } as const;
 
@@ -46,7 +44,5 @@ export function toolForShortcut(key: string): Tool | null {
 export const LAYERS = [
   { key: "boxes", label: "Boxes", color: CANVAS_COLORS.box },
   { key: "ids", label: "IDs", color: CANVAS_COLORS.box },
-  { key: "detections", label: "Detections", color: CANVAS_COLORS.detection },
-  { key: "dish", label: "Petri dish", color: CANVAS_COLORS.dish },
 ] as const;
 export type LayerKey = (typeof LAYERS)[number]["key"];

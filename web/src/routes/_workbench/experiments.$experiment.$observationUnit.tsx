@@ -10,8 +10,13 @@ import { getObservationUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import type { ObservationUnitSeries } from "../../experiments/contracts";
 
+/**
+ * An observation the link cannot name is no observation: the newest shows.
+ * `edit` opens the image's review for editing.
+ */
 const observationUnitSearchSchema = z.object({
-  observation: z.unknown().optional(),
+  observation: observationIdSchema.optional().catch(undefined),
+  edit: z.literal(true).optional().catch(undefined),
 });
 
 export const Route = createFileRoute(
@@ -24,13 +29,9 @@ export const Route = createFileRoute(
       experiment: params.experiment,
       observationUnit: params.observationUnit,
     });
-    const observation =
-      deps.observation === undefined
-        ? undefined
-        : observationIdSchema.safeParse(deps.observation);
-    if (!ref.success || (observation && !observation.success)) throw notFound();
+    if (!ref.success) throw notFound();
     const series = await getObservationUnit({
-      data: { ...ref.data, observation: observation?.data },
+      data: { ...ref.data, ...deps },
     });
     if (!series) throw notFound();
     return series;
@@ -46,24 +47,38 @@ export const Route = createFileRoute(
       ];
     },
   },
+  /** An edit opens on the stored revision, never on a cached one. */
+  gcTime: 0,
   component: ObservationUnitPage,
 });
 
 function ObservationUnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
+  const { edit } = Route.useSearch();
   const router = useRouter();
+  const navigate = Route.useNavigate();
+  const { shown } = series;
 
-  const waiting =
-    series.shown !== null &&
-    series.shown.detection === null &&
-    series.shown.failure === null;
-  useRouteRefresh(router, 5000, waiting);
+  useRouteRefresh(
+    router,
+    5000,
+    shown !== null && shown.review.detection === null && shown.failure === null,
+  );
 
   return (
     <ObservationUnitWorkbench
       key={`${series.experiment.id}/${series.observationUnit.id}`}
       series={series}
       datasets={datasets}
+      editing={edit === true}
+      onEditingChange={(editing) =>
+        void navigate({
+          search: (previous) => ({
+            ...previous,
+            edit: editing ? true : undefined,
+          }),
+        })
+      }
     />
   );
 }

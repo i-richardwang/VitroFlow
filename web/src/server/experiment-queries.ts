@@ -41,7 +41,6 @@ import {
 } from "../experiments/schema";
 import type { Tally } from "../models/metrics";
 import type { Model, ModelVersion } from "../models/schema";
-import { imageBlobKey } from "./blobs";
 import {
   listObservationUnits,
   listObservations,
@@ -420,15 +419,14 @@ export async function readExperimentObservationImage(
       code: row.observationUnitCode,
     },
     observation,
-    digest: row.image.id,
-    filename: row.observationImage.filename,
-    width: row.image.width,
-    height: row.image.height,
-    blobKey: imageBlobKey(row.image.id),
-    modelVersionId: experiment.modelVersionId,
-    modelId: row.modelId,
-    detection: row.outcome && "instances" in row.outcome ? row.outcome : null,
+    review: {
+      ref: { digest: row.image.id, modelId: row.modelId },
+      filename: row.observationImage.filename,
+      width: row.image.width,
+      height: row.image.height,
+      detection: row.outcome && "instances" in row.outcome ? row.outcome : null,
+      annotation: row.annotation,
+    },
     failure: row.outcome && "error" in row.outcome ? row.outcome : null,
-    annotation: row.annotation,
   };
 }

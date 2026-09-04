@@ -666,9 +666,10 @@ export const annotations = pgTable(
     index("annotations_model_status_idx").on(table.modelId, table.status),
     check(
       "annotations_status_check",
-      sql`${table.status} in ('in_progress', 'complete', 'excluded')`,
+      sql`${table.status} in ('in_progress', 'complete')`,
     ),
-    check("annotations_revision_check", sql`${table.revision} >= 0`),
+    /** Revision 0 is the copy of a detection the editor opens on, never stored. */
+    check("annotations_revision_check", sql`${table.revision} >= 1`),
     check(
       "annotations_image_check",
       sql`document->'image'->>'digest' = ${table.imageId}`,

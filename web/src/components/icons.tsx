@@ -182,3 +182,12 @@ export function DeleteIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function RestartIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M3 8a5 5 0 109-3" />
+      <path d="M8.5 2.5L12 5 8.5 7.5" />
+    </Icon>
+  );
+}

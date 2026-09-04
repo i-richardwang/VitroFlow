@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { documentFromDetection } from "../annotation/detection";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import {
   blobExists,
@@ -17,11 +18,7 @@ import {
 } from "./datasets";
 import { retryObservationImageAnalysis } from "./experiment-observation-images";
 import { readExperimentGrid } from "./experiment-queries";
-import {
-  startAnnotationFromDetection,
-  readAnnotation,
-  updateAnnotation,
-} from "./annotations";
+import { readAnnotation, saveAnnotation } from "./annotations";
 import { registerModelVersion } from "./model-registry";
 import {
   DetectionConflictError,
@@ -488,9 +485,9 @@ describe("detections", () => {
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
-    await startAnnotationFromDetection(
+    await saveAnnotation(
       { digest, modelId: baseline.modelId },
-      baseline.id,
+      documentFromDetection(original),
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
     expect(await stateOf(ref)).toBe("in_progress");
@@ -507,8 +504,10 @@ describe("detections", () => {
       worker,
     );
     const labelRef = { digest, modelId: version.modelId };
-    const started = await startAnnotationFromDetection(labelRef, version.id);
-    await updateAnnotation(labelRef, { ...started, status: "complete" });
+    await saveAnnotation(labelRef, {
+      ...documentFromDetection(result),
+      status: "complete",
+    });
     expect(await stateOf({ dataset: "ctx-one", digest })).toBe("complete");
     expect(await stateOf({ dataset: "ctx-two", digest })).toBe("complete");
   });
@@ -522,9 +521,9 @@ describe("removal", () => {
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "rm-bytes");
     await recordInferenceOutcome(target, result, worker);
-    await startAnnotationFromDetection(
+    await saveAnnotation(
       { digest, modelId: version.modelId },
-      version.id,
+      documentFromDetection(result),
     );
 
     await removeDatasetImage(ref);

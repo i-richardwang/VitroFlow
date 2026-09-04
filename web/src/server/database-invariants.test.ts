@@ -2,8 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { expect, test } from "bun:test";
 
+import { documentFromDetection } from "../annotation/detection";
 import { database } from "../db/client";
-import { experimentCultureEvents, modelVersions } from "../db/schema";
+import {
+  annotations,
+  experimentCultureEvents,
+  modelVersions,
+} from "../db/schema";
 import { recordCultureEvent } from "./culture-events";
 import {
   addObservationUnits,
@@ -11,7 +16,13 @@ import {
   createExperiment,
 } from "./experiment-design";
 import { addObservation } from "./experiment-observations";
-import { baselineVersion, registerTrainedVersion } from "./testing";
+import {
+  baselineVersion,
+  imageDigest,
+  observeImages,
+  registerTrainedVersion,
+  resultFor,
+} from "./testing";
 
 test("the database rejects a second active terminal event", async () => {
   const suffix = randomUUID();
@@ -109,6 +120,25 @@ test("the database rejects a trained version without its provenance", async () =
           trainingRunId: `missing-${suffix}`,
         },
         artifact: valid.artifact,
+      })
+      .execute(),
+  ).rejects.toThrow();
+});
+
+test("the database rejects a review nobody has stored", async () => {
+  const { version } = await observeImages("revision-invariant", ["rev-inv"]);
+  const digest = await imageDigest("rev-inv");
+  const opened = documentFromDetection(await resultFor(version, "rev-inv"));
+  expect(opened.revision).toBe(0);
+
+  await expect(
+    (await database())
+      .insert(annotations)
+      .values({
+        imageId: digest,
+        modelId: version.modelId,
+        document: opened,
+        updatedAt: new Date(),
       })
       .execute(),
   ).rejects.toThrow();

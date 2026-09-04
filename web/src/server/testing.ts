@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 
+import { documentFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import {
   userAccountSchema,
@@ -25,11 +26,7 @@ import { assignObservationImages } from "./experiment-observation-images";
 import { addObservation } from "./experiment-observations";
 import { auth } from "./auth";
 import { storeImage } from "./image-store";
-import {
-  readAnnotation,
-  startAnnotationFromDetection,
-  updateAnnotation,
-} from "./annotations";
+import { readAnnotation, saveAnnotation } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { readModelVersion, registerModelVersion } from "./model-registry";
@@ -355,8 +352,10 @@ export async function reviewedDataset(
       result,
       { runtimes: [result.producer.runtime] },
     );
-    const started = await startAnnotationFromDetection(ref, seeded.version.id);
-    await updateAnnotation(ref, { ...started, status: "complete" });
+    await saveAnnotation(ref, {
+      ...documentFromDetection(result),
+      status: "complete",
+    });
   }
   return seeded;
 }

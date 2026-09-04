@@ -10,12 +10,17 @@ import {
   listDatasets,
   removeDatasetImage,
 } from "../server/datasets";
+import { readDatasetImage } from "../server/dataset-image";
 import { datasetOverview } from "../server/dataset-overview";
 import { summarizeDataset } from "../server/summaries";
 
 export const getDatasetOverview = createServerFn({ method: "GET" })
   .validator(datasetRefSchema)
   .handler(({ data }) => datasetOverview(data.dataset));
+
+export const getDatasetImage = createServerFn({ method: "GET" })
+  .validator(datasetImageRefSchema)
+  .handler(({ data }) => readDatasetImage(data));
 
 export const getDatasets = createServerFn({ method: "GET" }).handler(async () =>
   Promise.all(

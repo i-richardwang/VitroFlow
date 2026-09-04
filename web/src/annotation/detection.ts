@@ -4,19 +4,23 @@ import {
   type AnnotationDocument,
   type BoundingBox,
   type AnnotationInstance,
+  type ImageSize,
 } from "./schema";
 
 /**
- * Default square for manually added instances. Existing detection boxes are the
- * strongest size prior; an image-relative fallback also supports zero-box
- * detections and future detectors without dish diagnostics.
+ * Default square for a box the reviewer adds. The boxes already on the image
+ * are the strongest size prior; an image-relative fallback covers an image
+ * with none.
  */
-export function initialBoxSide(result: DetectionResult): number {
-  const sides = result.instances
+export function initialBoxSide(
+  instances: readonly { bbox: BoundingBox }[],
+  image: ImageSize,
+): number {
+  const sides = instances
     .map(({ bbox }) => Math.sqrt(bbox.width * bbox.height))
     .sort((left, right) => left - right);
   if (sides.length === 0) {
-    return Math.min(result.image.width, result.image.height) * 0.0125;
+    return Math.min(image.width, image.height) * 0.0125;
   }
   const middle = Math.floor(sides.length / 2);
   return sides.length % 2 === 1

@@ -1187,7 +1187,7 @@ describe("experiments", () => {
           experiment: experiment.id,
           observationImage: images.get("D1")!,
         })
-      )?.detection?.instances,
+      )?.review.detection?.instances,
     ).toHaveLength(3);
   });
 
@@ -1233,7 +1233,9 @@ describe("experiments", () => {
     expect(newest?.navigation.map((item) => item.code)).toEqual(["S1", "S2"]);
 
     const earlier = await readObservationUnit(ref, day7.id);
-    expect(earlier?.shown?.digest).toBe(await imageDigest("s-d1-s1"));
+    expect(earlier?.shown?.review.ref.digest).toBe(
+      await imageDigest("s-d1-s1"),
+    );
 
     const lonely = await readObservationUnit({
       ...ref,

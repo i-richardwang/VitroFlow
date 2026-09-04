@@ -47,7 +47,6 @@ def _image(index: int) -> PreparedImage:
         width=100,
         height=100,
         status="complete",
-        excluded_reason=None,
         revision=1,
         instances=(AnnotationInstance("seed-1", "seed", BoundingBox(5, 5, 10, 10)),),
     )

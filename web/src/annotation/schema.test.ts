@@ -21,14 +21,6 @@ describe("annotation contract", () => {
     expect(document.instances).toHaveLength(1);
   });
 
-  test("rejects an empty exclusion reason", () => {
-    const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
-    document.status = "excluded";
-    document.excludedReason = "";
-
-    expect(annotationSchema.safeParse(document).success).toBe(false);
-  });
-
   test("requires an explicit schema version", () => {
     const document = JSON.parse(fs.readFileSync(CONTRACT_FIXTURE, "utf-8"));
     delete document.schemaVersion;

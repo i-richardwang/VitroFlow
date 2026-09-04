@@ -95,13 +95,8 @@
                 "type": "string",
                 "enum": [
                   "in_progress",
-                  "complete",
-                  "excluded"
+                  "complete"
                 ]
-              },
-              "excludedReason": {
-                "type": "string",
-                "minLength": 1
               },
               "revision": {
                 "type": "integer",

@@ -8,11 +8,9 @@ import {
   inferenceOutcomes,
   annotations,
 } from "../db/schema";
-import {
-  IMAGE_STATES,
-  type DatasetImageRef,
-  type ImageState,
-} from "../datasets/schema";
+import type { DatasetImageRef } from "../datasets/schema";
+import { REVIEW_STATES, type ReviewState } from "../annotation/schema";
+import { reviewState } from "../annotation/status";
 import type { DetectionQuality, DetectionResult } from "../detection/schema";
 import type { AnnotationDocument } from "../annotation/schema";
 import {
@@ -24,7 +22,7 @@ import {
 
 export interface ImageSummary extends DatasetImageRef {
   filename: string;
-  state: ImageState;
+  state: ReviewState;
   detectionCount: number | null;
   instanceCount: number | null;
   quality: DetectionQuality | null;
@@ -34,7 +32,7 @@ export interface DatasetSummary {
   dataset: string;
   modelId: string;
   imageCount: number;
-  counts: Record<ImageState, number>;
+  counts: Record<ReviewState, number>;
 }
 
 /**
@@ -60,7 +58,7 @@ export function summarize(record: ImageRecord): ImageSummary {
     dataset: image.dataset,
     digest: image.digest,
     filename: image.filename,
-    state: annotation?.status ?? "unreviewed",
+    state: reviewState(annotation),
     detectionCount: detection?.instances.length ?? null,
     instanceCount: annotation?.instances.length ?? null,
     quality: detection?.quality ?? null,
@@ -170,12 +168,12 @@ export async function listReviewedRecords(
     );
 }
 
-export function countImageStates(
+export function countReviewStates(
   images: ImageSummary[],
-): Record<ImageState, number> {
+): Record<ReviewState, number> {
   const counts = Object.fromEntries(
-    IMAGE_STATES.map((state) => [state, 0]),
-  ) as Record<ImageState, number>;
+    REVIEW_STATES.map((state) => [state, 0]),
+  ) as Record<ReviewState, number>;
   for (const image of images) {
     counts[image.state] += 1;
   }
@@ -191,6 +189,6 @@ export async function summarizeDataset(
     dataset: datasetId,
     modelId,
     imageCount: images.length,
-    counts: countImageStates(images),
+    counts: countReviewStates(images),
   };
 }

@@ -16,7 +16,6 @@ import type {
   ImageSize,
   AnnotationInstance,
 } from "../../annotation/schema";
-import type { DetectionResult } from "../../detection/schema";
 import {
   CANVAS_COLORS,
   TOOL_SPECS,
@@ -73,14 +72,12 @@ export interface Editing {
 export function AnnotationCanvas({
   image,
   filename,
-  result,
   instances,
   layers,
   editing,
 }: {
   image: ImageSize & { digest: string };
   filename: string;
-  result: DetectionResult | null;
   instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
   editing?: Editing;
@@ -227,13 +224,13 @@ export function AnnotationCanvas({
   };
 
   /**
-   * Places the same square the detector uses for existing instances, so added
+   * Places a square the size of the boxes already on the image, so added
    * boxes share one convention. The tool stays active for the next instance;
    * switching to select exposes the resize handles.
    */
   const addBoxAt = (center: Point) => {
-    if (!editing || !result) return;
-    const box = boxAround(center, initialBoxSide(result), image);
+    if (!editing) return;
+    const box = boxAround(center, initialBoxSide(instances, image), image);
     if (!box) {
       return;
     }
@@ -284,31 +281,6 @@ export function AnnotationCanvas({
           viewBox={`0 0 ${width} ${height}`}
           className="absolute inset-0 h-full w-full overflow-visible"
         >
-          {layers.has("dish") && result?.diagnostics?.dish && (
-            <circle
-              cx={result.diagnostics.dish.centerX}
-              cy={result.diagnostics.dish.centerY}
-              r={result.diagnostics.dish.radius}
-              fill="none"
-              stroke={CANVAS_COLORS.dish}
-              strokeWidth={1.5}
-              vectorEffect="non-scaling-stroke"
-              pointerEvents="none"
-            />
-          )}
-          {layers.has("detections") &&
-            result?.instances.map((instance) => (
-              <circle
-                key={instance.id}
-                cx={instance.bbox.x + instance.bbox.width / 2}
-                cy={instance.bbox.y + instance.bbox.height / 2}
-                r={3 / transform.scale}
-                fill={CANVAS_COLORS.detection}
-                pointerEvents="none"
-              >
-                <title>{`detection #${instance.id} · score ${instance.score}`}</title>
-              </circle>
-            ))}
           {layers.has("boxes") &&
             instances.map((instance, index) => {
               const box = draft?.id === instance.id ? draft.box : instance.bbox;

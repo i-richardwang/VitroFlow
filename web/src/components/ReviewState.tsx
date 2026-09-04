@@ -1,21 +1,20 @@
 import { Chip } from "@heroui/react";
 
-import type { ImageState } from "../datasets/schema";
+import type { ReviewState } from "../annotation/schema";
 
-type Tone = "default" | "warning" | "success" | "danger" | "accent";
+type Tone = "accent" | "warning" | "success";
 
-const DISPLAY: Record<ImageState, { label: string; tone: Tone }> = {
+const DISPLAY: Record<ReviewState, { label: string; tone: Tone }> = {
   unreviewed: { label: "To review", tone: "accent" },
   in_progress: { label: "In progress", tone: "warning" },
   complete: { label: "Complete", tone: "success" },
-  excluded: { label: "Excluded", tone: "default" },
 };
 
-export function imageStateLabel(state: ImageState): string {
+export function reviewStateLabel(state: ReviewState): string {
   return DISPLAY[state].label;
 }
 
-export function ImageStateChip({ state }: { state: ImageState }) {
+export function ReviewStateChip({ state }: { state: ReviewState }) {
   const { label, tone } = DISPLAY[state];
   return (
     <Chip color={tone} variant="soft" size="sm">

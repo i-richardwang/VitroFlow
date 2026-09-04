@@ -4,7 +4,14 @@ import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
 import { classNameSchema } from "../models/metrics";
 
-export const REVIEW_STATUSES = ["in_progress", "complete", "excluded"] as const;
+/**
+ * Whether the reviewer is done with the image. Changing a box puts the review
+ * in progress; finishing marks it complete, and only complete reviews train.
+ */
+export const REVIEW_STATUSES = ["in_progress", "complete"] as const;
+
+/** The statuses, and `unreviewed` for an image whose review nobody has stored. */
+export const REVIEW_STATES = ["unreviewed", ...REVIEW_STATUSES] as const;
 
 /**
  * An annotation is addressed by the image and model it describes. The same
@@ -48,21 +55,16 @@ export const annotationSchema = z
       height: z.number().int().positive(),
     }),
     status: z.enum(REVIEW_STATUSES),
-    excludedReason: z.string().min(1).optional(),
+    /**
+     * How many times the review has been stored, and the token a save carries
+     * to prove it edited the boxes that are still current. A review the editor
+     * derived from a detection and nobody has saved is at revision 0, which is
+     * how the first save is told from an update of a stored review.
+     */
     revision: z.number().int().nonnegative(),
     instances: z.array(annotationInstanceSchema),
   })
   .superRefine((document, context) => {
-    if (
-      document.status !== "excluded" &&
-      document.excludedReason !== undefined
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["excludedReason"],
-        message: "Only excluded images can have an exclusion reason",
-      });
-    }
     const ids = new Set<string>();
     document.instances.forEach((instance, index) => {
       if (ids.has(instance.id)) {
@@ -93,6 +95,7 @@ export type BoundingBox = z.infer<typeof boundingBoxSchema>;
 export type AnnotationInstance = z.infer<typeof annotationInstanceSchema>;
 export type AnnotationDocument = z.infer<typeof annotationSchema>;
 export type ReviewStatus = AnnotationDocument["status"];
+export type ReviewState = (typeof REVIEW_STATES)[number];
 export type ImageSize = Pick<AnnotationDocument["image"], "width" | "height">;
 
 export function newInstanceId(): string {

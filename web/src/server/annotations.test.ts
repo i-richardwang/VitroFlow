@@ -2,11 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { documentFromDetection } from "../annotation/detection";
 import { recordInferenceOutcome } from "./inference-outcomes";
-import {
-  readAnnotation,
-  startAnnotationFromDetection,
-  updateAnnotation,
-} from "./annotations";
+import { readAnnotation, saveAnnotation } from "./annotations";
 import {
   imageDigest,
   observeImages,
@@ -14,94 +10,66 @@ import {
   testHeartbeat,
 } from "./testing";
 
+/** Uploads one image, detects it, and returns the review as the editor opens it. */
+async function detected(name: string, worker: string) {
+  const { version } = await observeImages(name, [name]);
+  const digest = await imageDigest(name);
+  const result = await resultFor(version, name);
+  await recordInferenceOutcome({ versionId: version.id, digest }, result, {
+    runtimes: testHeartbeat(worker).runtimes,
+  });
+  return {
+    version,
+    result,
+    ref: { digest, modelId: version.modelId },
+    opened: documentFromDetection(result),
+  };
+}
+
 describe("annotations", () => {
-  test("starts from a successful inference and updates with revision checks", async () => {
-    const { version } = await observeImages("annotations", ["lb-a"]);
-    const digest = await imageDigest("lb-a");
-    const result = await resultFor(version, "lb-a");
-    await recordInferenceOutcome({ versionId: version.id, digest }, result, {
-      runtimes: testHeartbeat("annotations-worker").runtimes,
-    });
-    const ref = { digest, modelId: version.modelId };
-
+  test("the first save stores the review the editor opened on", async () => {
+    const { ref, opened } = await detected("lb-a", "annotations-worker");
     expect(await readAnnotation(ref)).toBeNull();
-    const created = await startAnnotationFromDetection(ref, version.id);
-    expect(created).toEqual({ ...documentFromDetection(result), revision: 0 });
 
-    const updated = await updateAnnotation(ref, {
-      ...created,
-      image: { ...created.image, width: 1 },
-      instances: [],
-    });
-    expect(updated.revision).toBe(1);
-    expect(updated.image).toEqual(created.image);
+    const created = await saveAnnotation(ref, opened);
+    expect(created).toEqual({ ...opened, revision: 1 });
+    expect(await readAnnotation(ref)).toEqual(created);
+    await expect(saveAnnotation(ref, opened)).rejects.toThrow(/stale/);
+
+    const emptied = await saveAnnotation(ref, { ...created, instances: [] });
+    expect(emptied.revision).toBe(2);
     expect((await readAnnotation(ref))?.instances).toEqual([]);
-    await expect(updateAnnotation(ref, created)).rejects.toThrow(/stale/);
   });
 
-  test("starting again restores the detection's boxes one revision later", async () => {
-    const { version } = await observeImages("annotation-restart", ["restart"]);
-    const digest = await imageDigest("restart");
-    const result = await resultFor(version, "restart");
-    await recordInferenceOutcome({ versionId: version.id, digest }, result, {
-      runtimes: testHeartbeat("annotations-restart-worker").runtimes,
-    });
-    const ref = { digest, modelId: version.modelId };
-    const started = await startAnnotationFromDetection(ref, version.id);
-    const edited = await updateAnnotation(ref, {
-      ...started,
-      status: "complete",
-      instances: [],
-    });
-
-    const restarted = await startAnnotationFromDetection(ref, version.id);
-    expect(restarted).toEqual({
-      ...documentFromDetection(result),
-      revision: edited.revision + 1,
-    });
-    expect(await readAnnotation(ref)).toEqual(restarted);
-    await expect(updateAnnotation(ref, edited)).rejects.toThrow(/stale/);
+  test("refuses a document that describes another image", async () => {
+    const { ref, opened } = await detected("lb-b", "annotations-image-worker");
+    await expect(
+      saveAnnotation(ref, {
+        ...opened,
+        image: { ...opened.image, width: opened.image.width + 1 },
+      }),
+    ).rejects.toThrow(/describes/);
   });
 
-  test("serializes a restart with an edit", async () => {
-    const { version } = await observeImages("annotation-concurrent", [
+  test("concurrent saves of the same revision store exactly one", async () => {
+    const { ref, opened } = await detected(
       "concurrent",
-    ]);
-    const digest = await imageDigest("concurrent");
-    const result = await resultFor(version, "concurrent");
-    await recordInferenceOutcome({ versionId: version.id, digest }, result, {
-      runtimes: testHeartbeat("annotations-concurrent-worker").runtimes,
-    });
-    const ref = { digest, modelId: version.modelId };
-    const started = await startAnnotationFromDetection(ref, version.id);
+      "annotations-concurrent-worker",
+    );
+    const started = await saveAnnotation(ref, opened);
 
     const outcomes = await Promise.allSettled([
-      updateAnnotation(ref, { ...started, instances: [] }),
-      startAnnotationFromDetection(ref, version.id),
+      saveAnnotation(ref, { ...started, instances: [] }),
+      saveAnnotation(ref, { ...started, status: "complete" }),
     ]);
-    const revisions = outcomes.flatMap((outcome) =>
-      outcome.status === "fulfilled" ? [outcome.value.revision] : [],
-    );
 
-    expect(new Set(revisions).size).toBe(revisions.length);
-    expect((await readAnnotation(ref))?.revision).toBe(Math.max(...revisions));
+    const stored = outcomes.filter((outcome) => outcome.status === "fulfilled");
+    expect(stored).toHaveLength(1);
+    expect((await readAnnotation(ref))?.revision).toBe(started.revision + 1);
     for (const outcome of outcomes) {
       if (outcome.status === "rejected") {
         expect(String(outcome.reason)).toContain("stale");
       }
     }
-  });
-
-  test("cannot start before the requested version succeeds", async () => {
-    const { version } = await observeImages("annotation-missing-outcome", [
-      "missing-outcome",
-    ]);
-    const ref = {
-      digest: await imageDigest("missing-outcome"),
-      modelId: version.modelId,
-    };
-    await expect(startAnnotationFromDetection(ref, version.id)).rejects.toThrow(
-      /has not detected/,
-    );
   });
 });

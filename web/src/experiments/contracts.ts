@@ -1,11 +1,7 @@
 import { z } from "zod";
 
-import { annotationSchema } from "../annotation/schema";
-import {
-  detectionFailureSchema,
-  detectionResultSchema,
-} from "../detection/schema";
-import { resourceIdSchema } from "../identifiers/schema";
+import { reviewSchema } from "../annotation/review";
+import { detectionFailureSchema } from "../detection/schema";
 import { imageDigestSchema } from "../images/schema";
 import { tallySchema } from "../models/metrics";
 import { modelSchema, modelVersionSchema } from "../models/schema";
@@ -86,21 +82,18 @@ export type ObservationUnitNavigationEntry = z.infer<
   typeof observationUnitNavigationEntrySchema
 >;
 
+/**
+ * An observation image with its review for the experiment's model. The
+ * detection the review carries is the experiment version's, the one every
+ * metric on the experiment is read from.
+ */
 export const experimentObservationImageSchema = z.strictObject({
   ref: observationImageRefSchema,
   experimentName: experimentNameSchema,
   observationUnit: observationUnitNavigationEntrySchema,
   observation: experimentObservationSchema,
-  digest: imageDigestSchema,
-  filename: z.string(),
-  width: z.number().int().min(1),
-  height: z.number().int().min(1),
-  blobKey: z.string(),
-  modelVersionId: resourceIdSchema,
-  modelId: resourceIdSchema,
-  detection: detectionResultSchema.nullable(),
+  review: reviewSchema,
   failure: detectionFailureSchema.nullable(),
-  annotation: annotationSchema.nullable(),
 });
 
 export type ExperimentObservationImage = z.infer<

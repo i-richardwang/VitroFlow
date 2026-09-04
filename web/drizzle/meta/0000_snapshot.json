@@ -1,5 +1,5 @@
 {
-  "id": "bede6c3e-b384-4648-aa2a-f5ec68c096b3",
+  "id": "b429353c-b925-4f98-aa50-6bfaa5b2c4f6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -429,11 +429,11 @@
       "checkConstraints": {
         "annotations_status_check": {
           "name": "annotations_status_check",
-          "value": "\"annotations\".\"status\" in ('in_progress', 'complete', 'excluded')"
+          "value": "\"annotations\".\"status\" in ('in_progress', 'complete')"
         },
         "annotations_revision_check": {
           "name": "annotations_revision_check",
-          "value": "\"annotations\".\"revision\" >= 0"
+          "value": "\"annotations\".\"revision\" >= 1"
         },
         "annotations_image_check": {
           "name": "annotations_image_check",

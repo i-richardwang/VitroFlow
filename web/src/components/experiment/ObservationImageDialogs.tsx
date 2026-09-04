@@ -52,7 +52,7 @@ export function ReassignObservationImageModal({
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Reassign {image.filename}</Modal.Heading>
+              <Modal.Heading>Reassign {image.review.filename}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form

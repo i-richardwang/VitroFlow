@@ -13,9 +13,12 @@ import { QualityChips } from "../../components/DetectionQuality";
 import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
 import { MoreIcon } from "../../components/icons";
-import { imageStateLabel, ImageStateChip } from "../../components/ImageState";
+import {
+  reviewStateLabel,
+  ReviewStateChip,
+} from "../../components/ReviewState";
 import { archiveFilename } from "../../datasets/archive";
-import { IMAGE_STATES, type ImageState } from "../../datasets/schema";
+import { REVIEW_STATES, type ReviewState } from "../../annotation/schema";
 import {
   getDatasetOverview,
   removeFromDataset,
@@ -39,15 +42,15 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   component: DatasetPage,
 });
 
-type Filter = ImageState | "all";
+type Filter = ReviewState | "all";
 
-function isImageState(value: unknown): value is ImageState {
-  return IMAGE_STATES.some((state) => state === value);
+function isReviewState(value: unknown): value is ReviewState {
+  return REVIEW_STATES.some((state) => state === value);
 }
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const { model, images, counts, training } = Route.useLoaderData();
+  const { images, counts, training } = Route.useLoaderData();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -59,7 +62,7 @@ function DatasetPage() {
       : images.filter((image) => image.state === filter);
   const countOf = (state: Filter) =>
     state === "all" ? images.length : counts[state];
-  const filters = (["all", ...IMAGE_STATES] as const).filter(
+  const filters = (["all", ...REVIEW_STATES] as const).filter(
     (state) => state === "all" || state === filter || countOf(state) > 0,
   );
 
@@ -119,14 +122,14 @@ function DatasetPage() {
         aria-label="Image state"
         selectedKey={filter}
         onSelectionChange={(key) => {
-          if (key === "all" || isImageState(key)) {
+          if (key === "all" || isReviewState(key)) {
             setFilter(key);
           }
         }}
       >
         {filters.map((state) => (
           <Segment.Item key={state} id={state}>
-            {state === "all" ? "All" : imageStateLabel(state)}
+            {state === "all" ? "All" : reviewStateLabel(state)}
           </Segment.Item>
         ))}
       </Segment>
@@ -157,14 +160,14 @@ function DatasetPage() {
               {visible.map((image) => (
                 <Table.Row
                   key={image.digest}
-                  href={`/review/${model.id}/${image.digest}`}
+                  href={`/datasets/${encodeURIComponent(dataset)}/${image.digest}`}
                   className="cursor-(--cursor-interactive)"
                 >
                   <Table.Cell className="font-mono font-medium">
                     <span className="truncate">{image.filename}</span>
                   </Table.Cell>
                   <Table.Cell>
-                    <ImageStateChip state={image.state} />
+                    <ReviewStateChip state={image.state} />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
                     <BoxCount

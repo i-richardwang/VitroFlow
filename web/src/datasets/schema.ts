@@ -42,17 +42,3 @@ export const datasetImageAdditionSchema = z.strictObject({
 });
 
 export type DatasetImageAddition = z.infer<typeof datasetImageAdditionSchema>;
-
-/**
- * An image's state within a dataset is the state of its review for the
- * dataset's model. Until a review starts, the image is unreviewed whatever
- * detections exist for it.
- */
-export const IMAGE_STATES = [
-  "unreviewed",
-  "in_progress",
-  "complete",
-  "excluded",
-] as const;
-
-export type ImageState = (typeof IMAGE_STATES)[number];

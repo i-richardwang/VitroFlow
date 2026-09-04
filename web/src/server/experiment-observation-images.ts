@@ -288,8 +288,12 @@ export async function retryObservationImageAnalysis(
         `Unknown observation image: ${ref.observationImage}`,
       );
     }
+    if (!image.failure) return;
     await clearDetectionFailure(
-      { digest: image.digest, versionId: image.modelVersionId },
+      {
+        digest: image.review.ref.digest,
+        versionId: image.failure.producer.modelVersionId,
+      },
       tx,
     );
   });

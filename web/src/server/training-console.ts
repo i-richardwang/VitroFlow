@@ -8,7 +8,7 @@ import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { readDatasetSnapshot, snapshotImageCounts } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
 import { listAllModelVersions, readModelVersion } from "./model-registry";
-import { countImageStates, listImageRecords, summarize } from "./summaries";
+import { countReviewStates, listImageRecords, summarize } from "./summaries";
 import {
   countActiveTrainingRuns,
   countTrainingRuns,
@@ -72,7 +72,7 @@ export async function trainingConsole(
   const runs = await listTrainingRunSummaries({ datasetId: dataset.id });
   return {
     dataset: dataset.id,
-    complete: countImageStates(records.map(summarize)).complete,
+    complete: countReviewStates(records.map(summarize)).complete,
     recipe: YOLO26_SEED_SMALL_RECIPE,
     training: await trainingSummary(dataset, records, at),
     runs,

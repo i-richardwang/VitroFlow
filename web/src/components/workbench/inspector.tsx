@@ -97,11 +97,9 @@ function comparedValue(
 export function LayersSection({
   layers,
   onLayersChange,
-  available = LAYERS.map((layer) => layer.key),
 }: {
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
-  available?: readonly LayerKey[];
 }) {
   const toggle = (key: LayerKey, on: boolean) => {
     const next = new Set(layers);
@@ -116,29 +114,27 @@ export function LayersSection({
   return (
     <Section title="Layers">
       <SwitchGroup role="group" aria-label="Layers" className="gap-2">
-        {LAYERS.filter((layer) => available.includes(layer.key)).map(
-          (layer) => (
-            <Switch
-              key={layer.key}
-              size="sm"
-              isSelected={layers.has(layer.key)}
-              onChange={(on) => toggle(layer.key, on)}
-            >
-              <Switch.Content className="flex w-full items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: layer.color }}
-                  />
-                  {layer.label}
-                </span>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch.Content>
-            </Switch>
-          ),
-        )}
+        {LAYERS.map((layer) => (
+          <Switch
+            key={layer.key}
+            size="sm"
+            isSelected={layers.has(layer.key)}
+            onChange={(on) => toggle(layer.key, on)}
+          >
+            <Switch.Content className="flex w-full items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-1.5 rounded-full"
+                  style={{ backgroundColor: layer.color }}
+                />
+                {layer.label}
+              </span>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
+        ))}
       </SwitchGroup>
     </Section>
   );

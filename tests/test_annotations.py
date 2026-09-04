@@ -53,16 +53,6 @@ def test_shared_annotation_contract() -> None:
     assert len(annotation.instances) == 1
 
 
-def test_excluded_annotation_preserves_its_reason() -> None:
-    document = annotation_document("1" * 64, status="excluded")
-    document["excludedReason"] = "Image is out of focus"
-
-    annotation = parse_annotation(document)
-
-    assert annotation.status == "excluded"
-    assert annotation.excluded_reason == "Image is out of focus"
-
-
 def test_annotation_must_describe_its_manifest_image(tmp_path: Path) -> None:
     manifest = write_manifest(
         tmp_path,
@@ -109,11 +99,6 @@ def test_annotation_schema_rejects_unknown_fields_and_invalid_identities() -> No
 
     with pytest.raises(ValueError, match="annotation.image.digest.*shared contract"):
         parse_annotation(annotation_document("images/a.jpg"))
-
-    payload = annotation_document("1" * 64, status="excluded")
-    payload["excludedReason"] = ""
-    with pytest.raises(ValueError, match="annotation.excludedReason.*shared contract"):
-        parse_annotation(payload)
 
     payload = annotation_document(
         "1" * 64, [{"x": 95, "y": 20, "width": 8, "height": 6}]

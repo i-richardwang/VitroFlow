@@ -1,59 +1,27 @@
-import { annotationSchema, type AnnotationDocument } from "./schema";
+import type {
+  AnnotationDocument,
+  AnnotationInstance,
+  ReviewState,
+} from "./schema";
 
-export type ReviewEvent =
-  | { type: "edit" }
-  | { type: "complete" }
-  | { type: "reopen" }
-  | { type: "exclude"; reason?: string }
-  | { type: "include" };
-
-export class ReviewTransitionError extends Error {}
-
-/** Only a completed review is a settled observation outside the editor. */
-export function isCompletedReview(
-  document: AnnotationDocument,
-): document is AnnotationDocument & { status: "complete" } {
-  return document.status === "complete";
+/**
+ * How the image reads outside the editor. A review reaches revision 1 when it
+ * is first stored, so the copy of a detection the editor opens on is still an
+ * image nobody has reviewed.
+ */
+export function reviewState(document: AnnotationDocument | null): ReviewState {
+  return document && document.revision > 0 ? document.status : "unreviewed";
 }
 
-/** Applies a review event; editing a completed image sends it back to review. */
-export function transition(
+/** The review with its boxes changed, which puts it back in progress. */
+export function editReview(
   document: AnnotationDocument,
-  event: ReviewEvent,
+  instances: AnnotationInstance[],
 ): AnnotationDocument {
-  const { status } = document;
-  switch (event.type) {
-    case "edit":
-      return status === "complete"
-        ? { ...document, status: "in_progress" }
-        : document;
-    case "complete": {
-      if (status !== "in_progress") {
-        throw new ReviewTransitionError(`Cannot complete from ${status}`);
-      }
-      const parsed = annotationSchema.safeParse(document);
-      if (!parsed.success) {
-        throw new ReviewTransitionError(parsed.error.issues[0].message);
-      }
-      return { ...document, status: "complete" };
-    }
-    case "reopen":
-      if (status !== "complete") {
-        throw new ReviewTransitionError(`Cannot reopen from ${status}`);
-      }
-      return { ...document, status: "in_progress" };
-    case "exclude": {
-      const { excludedReason: _, ...rest } = document;
-      return event.reason
-        ? { ...rest, status: "excluded", excludedReason: event.reason }
-        : { ...rest, status: "excluded" };
-    }
-    case "include": {
-      if (status !== "excluded") {
-        throw new ReviewTransitionError(`Cannot include from ${status}`);
-      }
-      const { excludedReason: _, ...rest } = document;
-      return { ...rest, status: "in_progress" };
-    }
-  }
+  return { ...document, instances, status: "in_progress" };
+}
+
+/** The review as the reviewer leaves it when they are done. */
+export function finishReview(document: AnnotationDocument): AnnotationDocument {
+  return { ...document, status: "complete" };
 }

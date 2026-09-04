@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { startAnnotationFromDetection } from "./annotations";
+import { documentFromDetection } from "../annotation/detection";
+import { saveAnnotation } from "./annotations";
 import { readReview } from "./review";
 import {
   TEST_RUNTIME,
@@ -33,10 +34,12 @@ test("a review shows the version the reviewer arrived from, else the newest", as
   );
   await recordInferenceOutcome({ versionId: next.id, digest }, newer, worker);
 
-  expect((await readReview(ref))?.detection).toEqual(newer);
-  expect((await readReview(ref, first.version.id))?.detection).toEqual(older);
-  expect((await readReview(ref, next.id))?.detection).toEqual(newer);
-  expect((await readReview(ref))?.filename).toBe("rv.jpg");
+  expect((await readReview(ref, "rv.jpg"))?.detection).toEqual(newer);
+  expect(
+    (await readReview(ref, "rv.jpg", first.version.id))?.detection,
+  ).toEqual(older);
+  expect((await readReview(ref, "rv.jpg", next.id))?.detection).toEqual(newer);
+  expect((await readReview(ref, "rv.jpg"))?.filename).toBe("rv.jpg");
 
   await registerTestModel({
     schemaVersion: 1,
@@ -47,12 +50,15 @@ test("a review shows the version the reviewer arrived from, else the newest", as
     metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   const foreign = await registerTrainedVersion("review-other");
-  expect(await readReview(ref, foreign.id)).toBeNull();
-  expect(await readReview(ref, "review-nowhere")).toBeNull();
+  expect(await readReview(ref, "rv.jpg", foreign.id)).toBeNull();
+  expect(await readReview(ref, "rv.jpg", "review-nowhere")).toBeNull();
 
-  await startAnnotationFromDetection(ref, first.version.id);
-  const started = await readReview(ref);
-  expect(started?.state).toBe("started");
+  expect((await readReview(ref, "rv.jpg"))?.annotation).toBeNull();
+  const saved = await saveAnnotation(ref, documentFromDetection(older));
+  const started = await readReview(ref, "rv.jpg");
+  expect(started?.annotation).toEqual(saved);
   expect(started?.detection).toEqual(newer);
-  expect((await readReview(ref, first.version.id))?.detection).toEqual(older);
+  expect(
+    (await readReview(ref, "rv.jpg", first.version.id))?.detection,
+  ).toEqual(older);
 });

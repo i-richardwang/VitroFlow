@@ -35,6 +35,15 @@ test("manifest documents must describe their enclosing image", () => {
   expect(datasetManifestSchema.safeParse(dataset).success).toBe(false);
 });
 
+test("a review a manifest carries has been stored at least once", () => {
+  const dataset = contractFixture() as {
+    images: [{ annotation: { revision: number } }];
+  };
+  dataset.images[0].annotation.revision = 0;
+
+  expect(datasetManifestSchema.safeParse(dataset).success).toBe(false);
+});
+
 test("a manifest names each image once", () => {
   const dataset = contractFixture() as {
     images: unknown[];

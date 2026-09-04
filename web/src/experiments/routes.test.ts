@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { isNotFound } from "@tanstack/react-router";
+import type { z } from "zod";
 
 import { Route as ObservationUnitRoute } from "../routes/_workbench/experiments.$experiment.$observationUnit";
 import { Route as ExperimentRoute } from "../routes/_workbench/experiments.$experiment.index";
@@ -33,13 +34,22 @@ test("experiment routes reject malformed resource identities as not found", asyn
     experiment: "not-a-uuid",
     observationUnit: OBSERVATION_UNIT_ID,
   });
-  await expectNotFound(
-    ObservationUnitRoute.options.loader as RouteLoader,
-    { experiment: EXPERIMENT_ID, observationUnit: OBSERVATION_UNIT_ID },
-    { observation: "not-a-uuid" },
-  );
   await expectNotFound(ObservationUnitRoute.options.loader as RouteLoader, {
     experiment: EXPERIMENT_ID,
     observationUnit: "A1",
   });
+});
+
+test("an observation the link cannot name falls back to the newest", () => {
+  const search = ObservationUnitRoute.options.validateSearch as z.ZodType<{
+    observation?: string;
+    edit?: true;
+  }>;
+  expect(search.parse({ observation: "not-a-uuid" })).toEqual({
+    observation: undefined,
+    edit: undefined,
+  });
+  expect(
+    search.parse({ observation: OBSERVATION_UNIT_ID, edit: true }),
+  ).toEqual({ observation: OBSERVATION_UNIT_ID, edit: true });
 });

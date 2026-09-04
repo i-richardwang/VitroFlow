@@ -23,8 +23,8 @@ if TYPE_CHECKING:
     from .manifest import ManifestImage
 
 ANNOTATION_SCHEMA_VERSION = 1
-_STATUSES = {"in_progress", "complete", "excluded"}
-AnnotationStatus = Literal["in_progress", "complete", "excluded"]
+_STATUSES = {"in_progress", "complete"}
+AnnotationStatus = Literal["in_progress", "complete"]
 
 
 @dataclass(frozen=True)
@@ -57,12 +57,11 @@ class AnnotationDocument:
     width: int
     height: int
     status: AnnotationStatus
-    excluded_reason: str | None
     revision: int
     instances: tuple[AnnotationInstance, ...]
 
     def to_dict(self) -> dict[str, object]:
-        document: dict[str, object] = {
+        return {
             "schemaVersion": ANNOTATION_SCHEMA_VERSION,
             "image": {
                 "digest": self.digest,
@@ -85,9 +84,6 @@ class AnnotationDocument:
                 for instance in self.instances
             ],
         }
-        if self.excluded_reason is not None:
-            document["excludedReason"] = self.excluded_reason
-        return document
 
 
 @dataclass(frozen=True)
@@ -157,7 +153,6 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
         payload,
         {"schemaVersion", "image", "status", "revision", "instances"},
         context,
-        {"excludedReason"},
     )
     expect_schema_version(payload, "schemaVersion", ANNOTATION_SCHEMA_VERSION, context)
 
@@ -171,22 +166,13 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
     status = as_string(payload["status"], f"{context}.status")
     if status not in _STATUSES:
         raise ValueError(f"{context}.status is unknown: {status}")
-    raw_excluded_reason = payload.get("excludedReason")
-    excluded_reason = (
-        None
-        if raw_excluded_reason is None
-        else as_string(raw_excluded_reason, f"{context}.excludedReason")
-    )
-    if excluded_reason is not None and status != "excluded":
-        raise ValueError(f"{context}.excludedReason requires excluded status")
 
     return AnnotationDocument(
         digest=digest,
         width=image_width,
         height=image_height,
         status=cast(AnnotationStatus, status),
-        excluded_reason=excluded_reason,
-        revision=as_integer(payload["revision"], f"{context}.revision"),
+        revision=as_integer(payload["revision"], f"{context}.revision", 1),
         instances=_parse_instances(
             payload["instances"], image_width, image_height, f"{context}.instances"
         ),
