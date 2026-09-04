@@ -11,7 +11,7 @@ kind: Template
 metadata:
     name: VitroFlow
 spec:
-    description: "VitroFlow workbench — the annotation and training control plane for plant tissue culture imagery, built from source with Postgres and a RustFS object store."
+    description: "VitroFlow workbench — the annotation and training control plane for plant tissue culture imagery, built from source with Postgres and a MinIO object store."
     tags:
         - AI
         - Vision
@@ -21,13 +21,13 @@ spec:
 
         The workbench is the single entry point for experiment photos, box
         annotation, dataset assembly, and training runs. Postgres holds the
-        records; the RustFS bucket holds image and model-weight bytes.
+        records; the MinIO bucket holds image and model-weight bytes.
 
         ## Services
         - **workbench** — built from `Dockerfile.web`, serves the UI, the agent
           API, and the MCP endpoint on port 3000
-        - **postgres** — Postgres 17.11, the source of truth for records
-        - **rustfs** — S3-compatible object store for immutable blobs
+        - **postgres** — Postgres 18, the source of truth for records
+        - **minio** — S3-compatible object store for immutable blobs
 
         Inference and training workers are not part of this template. They only
         make outbound calls, so run them next to their GPUs and give them
@@ -39,18 +39,8 @@ spec:
         bound for you. It has to be the domain you gave as the workbench domain,
         because that value is the auth issuer.
 
-        The bucket is not created for you either. Once, using the RustFS endpoint
-        and credentials shown in its instructions:
-
-        ```bash
-        AWS_ACCESS_KEY_ID=<access key> AWS_SECRET_ACCESS_KEY=<secret key> \
-        AWS_DEFAULT_REGION=us-east-1 \
-        aws --endpoint-url http://<forwarded host>:<forwarded port> \
-            s3api create-bucket --bucket vitroflow
-        ```
-
-        The workbench restarts until the bucket answers, then migrates the
-        database on first use and creates the administrator account from the
+        The workbench restarts until MinIO answers for the bucket, then migrates
+        the database on first use and creates the administrator account from the
         email and password you supplied.
 
         `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the
@@ -85,89 +75,150 @@ spec:
           icon: https://cdn.zeabur.com/marketplace/postgresql.svg
           template: PREBUILT
           spec:
+            # `id: postgresql` is what marks this as the marketplace PostgreSQL,
+            # which is how the dashboard offers its SQL tooling for the service.
+            id: postgresql
             source:
-                image: postgres:17.11
+                image: postgres:18
+                command:
+                    - docker-entrypoint.sh
+                    - -c
+                    - config_file=/etc/postgresql/postgresql.conf
             ports:
                 - id: database
                   port: 5432
                   type: TCP
             volumes:
                 - id: data
-                  dir: /var/lib/postgresql/data
+                  dir: /var/lib/postgresql/18/docker
             instructions:
-                - type: TEXT
-                  title: Connection String
-                  content: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${PORT_FORWARDED_HOSTNAME}:${DATABASE_PORT_FORWARDED_PORT}/${POSTGRES_DB}
-                - type: PASSWORD
-                  title: Password
+                - title: Connection String
+                  content: postgresql://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@${PORT_FORWARDED_HOSTNAME}:${DATABASE_PORT_FORWARDED_PORT}/${POSTGRES_DATABASE}
+                - title: PostgreSQL Connect Command
+                  content: psql "postgresql://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@${PORT_FORWARDED_HOSTNAME}:${DATABASE_PORT_FORWARDED_PORT}/${POSTGRES_DATABASE}"
+                - title: PostgresSQL password
                   content: ${POSTGRES_PASSWORD}
                   category: Credentials
             env:
                 PGDATA:
-                    default: /var/lib/postgresql/data/pgdata
-                POSTGRES_USER:
+                    default: /var/lib/postgresql/18/docker/pgdata
+                    expose: false
+                POSTGRES_CONNECTION_STRING:
+                    default: postgresql://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}
+                    expose: true
+                POSTGRES_DATABASE:
+                    default: ${POSTGRES_DB}
+                    expose: true
+                POSTGRES_DB:
                     default: vitroflow
+                POSTGRES_HOST:
+                    default: ${CONTAINER_HOSTNAME}
                     expose: true
                 POSTGRES_PASSWORD:
                     default: ${PASSWORD}
                     expose: true
-                POSTGRES_DB:
-                    default: vitroflow
+                POSTGRES_PORT:
+                    default: ${DATABASE_PORT}
                     expose: true
-                POSTGRES_CONNECTION_STRING:
-                    default: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${CONTAINER_HOSTNAME}:${DATABASE_PORT}/${POSTGRES_DB}
+                POSTGRES_USER:
+                    default: root
+                POSTGRES_USERNAME:
+                    default: ${POSTGRES_USER}
                     expose: true
-                    readonly: true
+            configs:
+                - path: /etc/postgresql/postgresql.conf
+                  template: |
+                    # https://github.com/postgres/postgres/blob/master/src/backend/utils/misc/postgresql.conf.sample
+                    listen_addresses = '*'
+                    max_connections = 256
+                    shared_buffers = 256MB
+                    dynamic_shared_memory_type = posix
+                    max_wal_size = 1GB
+                    min_wal_size = 80MB
+                    log_timezone = 'UTC'
+                    datestyle = 'iso, mdy'
+                    timezone = 'UTC'
+                    lc_messages = 'en_US.UTF-8'
+                    lc_monetary = 'en_US.UTF-8'
+                    lc_numeric = 'en_US.UTF-8'
+                    lc_time = 'en_US.UTF-8'
+                    default_text_search_config = 'pg_catalog.english'
+                  permission: null
+                  envsubst: null
 
-        - name: rustfs
+        - name: minio
+          icon: https://cdn.zeabur.com/marketplace/minio.svg
           template: PREBUILT
           spec:
+            # `id: minio` is what marks this as the marketplace MinIO, which is how
+            # the dashboard offers its object tooling for the service.
+            id: minio
             source:
-                image: rustfs/rustfs:1.0.0-beta.12
+                image: quay.io/minio/minio:latest
+                command:
+                    - /bin/sh
+                args:
+                    - -c
+                    - |
+                      minio server /data --console-address :9090 &
+                      MINIO_PID=$!
+                      while ! curl -s http://localhost:9000/minio/health/live; do
+                        echo 'Waiting for MinIO to start...'
+                        sleep 1
+                      done
+                      sleep 5
+                      mc alias set myminio http://localhost:9000 $MINIO_USERNAME $MINIO_PASSWORD
+                      echo "Creating bucket '$MINIO_DEFAULT_BUCKET'"
+                      mc mb --ignore-existing myminio/$MINIO_DEFAULT_BUCKET
+                      wait $MINIO_PID
             ports:
-                - id: s3
+                - id: web
                   port: 9000
-                  type: TCP
+                  type: HTTP
+                - id: console
+                  port: 9090
+                  type: HTTP
             volumes:
                 - id: data
                   dir: /data
             instructions:
-                - type: TEXT
-                  title: S3 Endpoint
-                  content: http://${PORT_FORWARDED_HOSTNAME}:${S3_PORT_FORWARDED_PORT}
-                - type: TEXT
-                  title: Access Key
-                  content: ${RUSTFS_ACCESS_KEY}
-                  category: Credentials
-                - type: PASSWORD
-                  title: Secret Key
-                  content: ${RUSTFS_SECRET_KEY}
-                  category: Credentials
-                - type: TEXT
-                  title: Bucket to create once
-                  content: ${VITROFLOW_BLOB_BUCKET}
+                - title: Go to MinIO Console
+                  content: ${MINIO_CONSOLE_URL}
+                - title: Default Username (S3 Access Key ID)
+                  content: ${MINIO_USERNAME}
+                - title: Default Password (S3 Secret Access Key)
+                  content: ${MINIO_PASSWORD}
+                - title: Default Bucket
+                  content: ${MINIO_DEFAULT_BUCKET}
             env:
-                RUSTFS_VOLUMES:
-                    default: /data
-                RUSTFS_ACCESS_KEY:
+                MINIO_BROWSER_REDIRECT:
+                    default: "false"
+                MINIO_CONSOLE_URL:
+                    default: ${ZEABUR_CONSOLE_URL}
+                    expose: true
+                MINIO_DEFAULT_BUCKET:
                     default: vitroflow
                     expose: true
-                RUSTFS_SECRET_KEY:
-                    default: ${PASSWORD}
-                    expose: true
-                VITROFLOW_BLOB_BUCKET:
-                    default: vitroflow
-                    expose: true
-                VITROFLOW_BLOB_ENDPOINT:
-                    default: http://${CONTAINER_HOSTNAME}:${S3_PORT}
+                MINIO_ENDPOINT:
+                    default: http://${CONTAINER_HOSTNAME}:${WEB_PORT}
                     expose: true
                     readonly: true
+                MINIO_PASSWORD:
+                    default: ${MINIO_ROOT_PASSWORD}
+                    expose: true
+                MINIO_ROOT_PASSWORD:
+                    default: ${PASSWORD}
+                MINIO_ROOT_USER:
+                    default: minio
+                MINIO_USERNAME:
+                    default: ${MINIO_ROOT_USER}
+                    expose: true
 
         - name: workbench
           template: GIT
           dependencies:
             - postgres
-            - rustfs
+            - minio
           spec:
             source:
                 source: GITHUB
@@ -199,13 +250,13 @@ spec:
                 DATABASE_URL:
                     default: ${POSTGRES_CONNECTION_STRING}
                 VITROFLOW_BLOB_ENDPOINT:
-                    default: ${VITROFLOW_BLOB_ENDPOINT}
+                    default: ${MINIO_ENDPOINT}
                 VITROFLOW_BLOB_BUCKET:
-                    default: ${VITROFLOW_BLOB_BUCKET}
+                    default: ${MINIO_DEFAULT_BUCKET}
                 AWS_ACCESS_KEY_ID:
-                    default: ${RUSTFS_ACCESS_KEY}
+                    default: ${MINIO_USERNAME}
                 AWS_SECRET_ACCESS_KEY:
-                    default: ${RUSTFS_SECRET_KEY}
+                    default: ${MINIO_PASSWORD}
                 AWS_REGION:
                     default: us-east-1
                 BETTER_AUTH_SECRET:

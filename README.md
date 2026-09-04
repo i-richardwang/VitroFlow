@@ -246,11 +246,11 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Compose runs the workbench, maintenance process, Postgres 17.11, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped.
+Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped.
 
 `HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. The inference and training tokens are distinct credentials and should not be shared between roles. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 
-`zeabur-template.yaml` deploys the same server side on Zeabur: the workbench built from `Dockerfile.web`, Postgres, and RustFS. Workers stay outside the platform. Zeabur has no one-shot service, so the bucket is created once against the RustFS domain with `aws s3api create-bucket`, as the template readme states.
+`zeabur-template.yaml` deploys the server side on Zeabur: the workbench built from `Dockerfile.web`, plus the marketplace PostgreSQL and MinIO services, which the dashboard maintains directly. Workers stay outside the platform. Zeabur has no one-shot service, so MinIO creates the bucket from its own start command.
 
 The root `.env.example` defines only Compose inputs and immutable container manifests. `web/.env.example` defines the workbench environment for source development. Registry mirrors can replace the three image values without changing the Compose file.
 
