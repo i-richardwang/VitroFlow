@@ -17,7 +17,7 @@ check-web:
 
 check-image:
 	@test -n "$(HEROUI_KEY)" || (echo "Set HEROUI_KEY" >&2; exit 2)
-	docker build --secret id=heroui_key,env=HEROUI_KEY --file Dockerfile.web --tag vitroflow-web:check .
+	docker build --build-arg HEROUI_KEY="$(HEROUI_KEY)" --file Dockerfile.web --tag vitroflow-web:check .
 
 check-reference:
 	@test -n "$(REFERENCE_IMAGE_DIR)" || (echo "Set REFERENCE_IMAGE_DIR to the reference image directory" >&2; exit 2)

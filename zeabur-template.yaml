@@ -1,0 +1,218 @@
+# yaml-language-server: $schema=https://schema.zeabur.app/template.json
+#
+# Deploys the VitroFlow server side only: the workbench, its Postgres, and its
+# S3-compatible store. Inference and training workers hold the GPUs and stay
+# outside Zeabur; point them at the deployed workbench with their own tokens.
+#
+# Prereq: the source repository is private, so install the Zeabur GitHub App on
+# the repository owner and grant it access before the first deploy.
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+    name: VitroFlow
+spec:
+    description: "VitroFlow workbench — the annotation and training control plane for plant tissue culture imagery, built from source with Postgres and a RustFS object store."
+    tags:
+        - AI
+        - Vision
+        - Tool
+    readme: |-
+        # VitroFlow
+
+        The workbench is the single entry point for experiment photos, box
+        annotation, dataset assembly, and training runs. Postgres holds the
+        records; the RustFS bucket holds image and model-weight bytes.
+
+        ## Services
+        - **workbench** — built from `Dockerfile.web`, serves the UI, the agent
+          API, and the MCP endpoint on port 3000
+        - **postgres** — Postgres 17.11, the source of truth for records
+        - **rustfs** — S3-compatible object store for immutable blobs
+
+        Inference and training workers are not part of this template. They only
+        make outbound calls, so run them next to their GPUs and give them
+        `VITROFLOW_INFERENCE_WORKER_TOKEN` / `VITROFLOW_TRAINING_WORKER_TOKEN`
+        set on the workbench.
+
+        ## After deploying
+        Bind your own domain to the workbench in its Networking tab; no domain is
+        bound for you. It has to be the domain you gave as the workbench domain,
+        because that value is the auth issuer.
+
+        The bucket is not created for you either. Once, using the RustFS endpoint
+        and credentials shown in its instructions:
+
+        ```bash
+        AWS_ACCESS_KEY_ID=<access key> AWS_SECRET_ACCESS_KEY=<secret key> \
+        AWS_DEFAULT_REGION=us-east-1 \
+        aws --endpoint-url http://<forwarded host>:<forwarded port> \
+            s3api create-bucket --bucket vitroflow
+        ```
+
+        The workbench restarts until the bucket answers, then migrates the
+        database on first use and creates the administrator account from the
+        email and password you supplied.
+
+        `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the
+        workbench at; it is the OAuth issuer, so it must match the bound domain
+        exactly, and it must be HTTPS. Change it from the workbench variables if
+        you ever move the workbench to another domain.
+
+        ## Documentation
+        - GitHub: https://github.com/i-richardwang/VitroFlow
+    resourceUsage:
+        cpu: 1
+        memory: 2048
+    variables:
+        - key: PUBLIC_DOMAIN
+          type: STRING
+          name: Workbench Domain
+          description: "The full domain the workbench is served on, such as vitroflow.example.com. Bind it in the Networking tab after deploying. It is also the auth issuer and the MCP endpoint origin."
+        - key: HEROUI_KEY
+          type: STRING
+          name: HeroUI Pro Key
+          description: "Private component-registry credential. The Web build needs it; the built image does not retain it."
+        - key: VITROFLOW_ADMIN_EMAIL
+          type: STRING
+          name: Administrator Email
+          description: "Email of the first administrator account, created on first start."
+        - key: VITROFLOW_ADMIN_PASSWORD
+          type: STRING
+          name: Administrator Password
+          description: "Password of the first administrator account. At least 8 characters."
+    services:
+        - name: postgres
+          icon: https://cdn.zeabur.com/marketplace/postgresql.svg
+          template: PREBUILT
+          spec:
+            source:
+                image: postgres:17.11
+            ports:
+                - id: database
+                  port: 5432
+                  type: TCP
+            volumes:
+                - id: data
+                  dir: /var/lib/postgresql/data
+            instructions:
+                - type: TEXT
+                  title: Connection String
+                  content: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${PORT_FORWARDED_HOSTNAME}:${DATABASE_PORT_FORWARDED_PORT}/${POSTGRES_DB}
+                - type: PASSWORD
+                  title: Password
+                  content: ${POSTGRES_PASSWORD}
+                  category: Credentials
+            env:
+                PGDATA:
+                    default: /var/lib/postgresql/data/pgdata
+                POSTGRES_USER:
+                    default: vitroflow
+                    expose: true
+                POSTGRES_PASSWORD:
+                    default: ${PASSWORD}
+                    expose: true
+                POSTGRES_DB:
+                    default: vitroflow
+                    expose: true
+                POSTGRES_CONNECTION_STRING:
+                    default: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${CONTAINER_HOSTNAME}:${DATABASE_PORT}/${POSTGRES_DB}
+                    expose: true
+                    readonly: true
+
+        - name: rustfs
+          template: PREBUILT
+          spec:
+            source:
+                image: rustfs/rustfs:1.0.0-beta.12
+            ports:
+                - id: s3
+                  port: 9000
+                  type: TCP
+            volumes:
+                - id: data
+                  dir: /data
+            instructions:
+                - type: TEXT
+                  title: S3 Endpoint
+                  content: http://${PORT_FORWARDED_HOSTNAME}:${S3_PORT_FORWARDED_PORT}
+                - type: TEXT
+                  title: Access Key
+                  content: ${RUSTFS_ACCESS_KEY}
+                  category: Credentials
+                - type: PASSWORD
+                  title: Secret Key
+                  content: ${RUSTFS_SECRET_KEY}
+                  category: Credentials
+                - type: TEXT
+                  title: Bucket to create once
+                  content: ${VITROFLOW_BLOB_BUCKET}
+            env:
+                RUSTFS_VOLUMES:
+                    default: /data
+                RUSTFS_ACCESS_KEY:
+                    default: vitroflow
+                    expose: true
+                RUSTFS_SECRET_KEY:
+                    default: ${PASSWORD}
+                    expose: true
+                VITROFLOW_BLOB_BUCKET:
+                    default: vitroflow
+                    expose: true
+                VITROFLOW_BLOB_ENDPOINT:
+                    default: http://${CONTAINER_HOSTNAME}:${S3_PORT}
+                    expose: true
+                    readonly: true
+
+        - name: workbench
+          template: GIT
+          dependencies:
+            - postgres
+            - rustfs
+          spec:
+            source:
+                source: GITHUB
+                repo: 1344507419
+                branch: main
+            ports:
+                - id: web
+                  port: 3000
+                  type: HTTP
+            instructions:
+                - type: TEXT
+                  title: Workbench
+                  content: https://${PUBLIC_DOMAIN}
+                - type: TEXT
+                  title: Administrator Email
+                  content: ${VITROFLOW_ADMIN_EMAIL}
+                  category: Credentials
+                - type: PASSWORD
+                  title: Administrator Password
+                  content: ${VITROFLOW_ADMIN_PASSWORD}
+                  category: Credentials
+            env:
+                ZBPACK_DOCKERFILE_NAME:
+                    default: web
+                HEROUI_KEY:
+                    default: ${HEROUI_KEY}
+                PORT:
+                    default: "3000"
+                DATABASE_URL:
+                    default: ${POSTGRES_CONNECTION_STRING}
+                VITROFLOW_BLOB_ENDPOINT:
+                    default: ${VITROFLOW_BLOB_ENDPOINT}
+                VITROFLOW_BLOB_BUCKET:
+                    default: ${VITROFLOW_BLOB_BUCKET}
+                AWS_ACCESS_KEY_ID:
+                    default: ${RUSTFS_ACCESS_KEY}
+                AWS_SECRET_ACCESS_KEY:
+                    default: ${RUSTFS_SECRET_KEY}
+                AWS_REGION:
+                    default: us-east-1
+                BETTER_AUTH_SECRET:
+                    default: ${PASSWORD}
+                BETTER_AUTH_URL:
+                    default: https://${PUBLIC_DOMAIN}
+                VITROFLOW_ADMIN_EMAIL:
+                    default: ${VITROFLOW_ADMIN_EMAIL}
+                VITROFLOW_ADMIN_PASSWORD:
+                    default: ${VITROFLOW_ADMIN_PASSWORD}

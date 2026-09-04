@@ -3,9 +3,8 @@ WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
 ENV CI=true
 RUN bun install --frozen-lockfile --network-concurrency=4
-RUN --mount=type=secret,id=heroui_key \
-    test -s /run/secrets/heroui_key && \
-    HEROUI_KEY="$(cat /run/secrets/heroui_key)" bunx hpsetup react --auto
+ARG HEROUI_KEY
+RUN test -n "$HEROUI_KEY" && bunx hpsetup react --auto
 COPY web .
 COPY configs /app/configs
 RUN bun run build
