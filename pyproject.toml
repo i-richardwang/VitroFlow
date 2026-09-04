@@ -1,9 +1,24 @@
 [project]
 name = "vitroflow"
 version = "0.1.0"
-description = "Seed counting and annotation for Petri-dish images"
-readme = "README.md"
+description = "Command-line client and native Worker runtime for a VitroFlow workbench"
+readme = "docs/package.md"
 license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Richard Wang" }]
+keywords = ["plant-tissue-culture", "seed-counting", "object-detection", "yolo", "worker"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Science/Research",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Image Recognition",
+]
 requires-python = ">=3.11"
 dependencies = [
   "httpx>=0.27",
@@ -53,6 +68,7 @@ packages = ["src/vitroflow"]
 [tool.hatch.build.targets.sdist]
 include = [
   "/configs",
+  "/docs/package.md",
   "/LICENSE",
   "/README.md",
   "/pyproject.toml",

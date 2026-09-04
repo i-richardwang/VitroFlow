@@ -116,10 +116,10 @@ Authentication is [Better Auth](https://better-auth.com) over the application da
 
 Workers communicate only with the workbench HTTP API. Each native Worker profile has a stable worker ID, a fresh process-session ID, role-specific credentials, runtime capabilities, and a private work directory.
 
-On macOS, install the package and configure `launchd` services:
+The Python package is published on PyPI as [`vitroflow`](https://pypi.org/project/vitroflow/); its own README is [docs/package.md](docs/package.md). On macOS, install it and configure `launchd` services:
 
 ```bash
-uv tool install '.[yolo]'
+uv tool install 'vitroflow[yolo]'
 
 vitroflow worker setup inference mac-inference \
   --server http://localhost:3000 \
@@ -236,6 +236,18 @@ uv run python scripts/train_yolo.py \
 ```
 
 `configs/yolo26/seed-small.recipe.json` fixes the base-weight digest, Ultralytics version, and training arguments. `--epochs`, `--imgsz`, and `--batch` provide explicit local overrides.
+
+## Publishing the Python package
+
+Set the new version in `pyproject.toml`, then build and upload from a clean `dist/`:
+
+```bash
+rm -rf dist
+uv build
+uv publish
+```
+
+`uv publish` reads the PyPI token from `UV_PUBLISH_TOKEN`. Tag the published commit with the same version.
 
 ## Deployment
 
