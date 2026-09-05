@@ -31,7 +31,7 @@ import type { Worker, WorkerIdentity } from "../workers/schema";
 import { lockDetection } from "./detection-lock";
 import { assertDocumentImage } from "./image-documents";
 import { readModel, toModelVersion } from "./model-registry";
-import { currentWorkerSession, sessionIsCurrent } from "./workers";
+import { lockWorkerSession, sessionIsCurrent } from "./workers";
 
 /** One image under one model version: the pair a detection is recorded for. */
 export interface DetectionTarget {
@@ -364,7 +364,7 @@ export async function claimInferenceAssignment(
   at: Date = new Date(),
 ): Promise<InferenceAssignment | null> {
   return transaction(async (tx) => {
-    const worker = await currentWorkerSession(owner, tx, { lock: true });
+    const worker = await lockWorkerSession(owner, tx);
     const artifactKinds = [
       ...new Set(worker.runtimes.map(({ adapter }) => adapter)),
     ];

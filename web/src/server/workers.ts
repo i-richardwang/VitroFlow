@@ -77,17 +77,8 @@ export async function recordWorkerHeartbeat(
   return toWorker(stored);
 }
 
-/**
- * The worker as its current session, or a conflict when the roster holds no
- * such session: a process must heartbeat before it can own work. Locking the
- * row serializes the claims of one worker.
- */
-export async function currentWorkerSession(
-  identity: WorkerIdentity,
-  db?: Executor,
-  options: { lock?: boolean } = {},
-): Promise<Worker> {
-  const query = (db ?? (await database()))
+function sessionRow(identity: WorkerIdentity, db: Executor) {
+  return db
     .select()
     .from(workers)
     .where(
@@ -96,13 +87,39 @@ export async function currentWorkerSession(
         eq(workers.sessionId, identity.sessionId),
       ),
     );
-  const [row] = await (options.lock ? query.for("update") : query);
+}
+
+function sessionOf(
+  identity: WorkerIdentity,
+  row: typeof workers.$inferSelect | undefined,
+): Worker {
   if (!row) {
     throw new WorkerSessionConflictError(
       `Worker ${identity.workerId} must heartbeat as ${identity.sessionId} before owning work`,
     );
   }
   return toWorker(row);
+}
+
+/**
+ * The worker as its current session, or a conflict when the roster holds no
+ * such session: a process must heartbeat before it can own work.
+ */
+export async function currentWorkerSession(
+  identity: WorkerIdentity,
+  db?: Executor,
+): Promise<Worker> {
+  const [row] = await sessionRow(identity, db ?? (await database()));
+  return sessionOf(identity, row);
+}
+
+/** The current session with its row locked, so one worker claims one job at a time. */
+export async function lockWorkerSession(
+  identity: WorkerIdentity,
+  tx: Executor,
+): Promise<Worker> {
+  const [row] = await sessionRow(identity, tx).for("update");
+  return sessionOf(identity, row);
 }
 
 /**

@@ -45,7 +45,11 @@ import {
 } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
 import { readModelVersion, registerModelVersion } from "./model-registry";
-import { currentWorkerSession, sessionIsCurrent } from "./workers";
+import {
+  currentWorkerSession,
+  lockWorkerSession,
+  sessionIsCurrent,
+} from "./workers";
 
 const LEASE_MILLISECONDS = 5 * 60 * 1000;
 const PHASE_PROGRESS: Record<TrainingPhase, number> = {
@@ -491,7 +495,7 @@ export async function claimTrainingRun(
   at: Date = new Date(),
 ): Promise<TrainingRun | null> {
   return transaction(async (tx) => {
-    await currentWorkerSession(owner, tx, { lock: true });
+    await lockWorkerSession(owner, tx);
     const [owned] = await tx
       .select()
       .from(trainingRuns)
