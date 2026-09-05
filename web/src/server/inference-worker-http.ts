@@ -7,10 +7,7 @@ import {
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
 } from "./inference-outcomes";
-import {
-  InferenceHeartbeatRejectedError,
-  InferenceWorkerSessionConflictError,
-} from "./inference-worker-store";
+import { InferenceWorkerSessionConflictError } from "./inference-worker-store";
 
 export class InferenceHttpError extends Error {
   constructor(
@@ -60,10 +57,7 @@ export function inferenceWorkerErrorResponse(
   ) {
     return errorResponse(message, 409);
   }
-  if (
-    error instanceof ProducerMismatchError ||
-    error instanceof InferenceHeartbeatRejectedError
-  ) {
+  if (error instanceof ProducerMismatchError) {
     return errorResponse(message, 422);
   }
   if (error instanceof InvalidDetectionOutcomeError) {

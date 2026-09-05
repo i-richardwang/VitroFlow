@@ -24,8 +24,6 @@ export const heartbeatSchema = inferenceWorkerIdentitySchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
-    /** The version held in memory, if any. */
-    loaded: resourceIdSchema.nullable(),
     /** The image being processed, if any. */
     current: imageDigestSchema.nullable(),
   })

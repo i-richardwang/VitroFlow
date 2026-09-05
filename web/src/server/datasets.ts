@@ -109,8 +109,10 @@ export async function readDataset(
   return row ? toDataset(row) : null;
 }
 
-export async function listDatasets(db?: Executor): Promise<Dataset[]> {
-  const rows = await (db ?? (await database()))
+export async function listDatasets(): Promise<Dataset[]> {
+  const rows = await (
+    await database()
+  )
     .select()
     .from(datasets)
     .orderBy(asc(datasets.id));

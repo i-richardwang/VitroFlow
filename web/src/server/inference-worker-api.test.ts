@@ -105,7 +105,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
         sessionId: "api-session",
         startedAt: "2026-01-01T00:00:00Z",
         runtimes: [runtime],
-        loaded: null,
         current: digest,
       }),
     }),
@@ -273,29 +272,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       })
     ).status,
   ).toBe(409);
-});
-
-test("an inference heartbeat cannot load an unknown model version", async () => {
-  const response = await handler(
-    HeartbeatRoute,
-    "POST",
-  )({
-    request: new Request("http://localhost/api/inference/heartbeat", {
-      method: "POST",
-      body: JSON.stringify({
-        workerId: "unknown-version-worker",
-        sessionId: "unknown-version-session",
-        startedAt: "2026-01-01T00:00:00Z",
-        runtimes: [{ adapter: "traditional", fingerprint: "b".repeat(64) }],
-        loaded: "not-published",
-        current: null,
-      }),
-    }),
-  } as never);
-  expect(response.status).toBe(422);
-  expect(await response.json()).toEqual({
-    error: "Unknown model version: not-published",
-  });
 });
 
 test("inference readiness identifies the authenticated control plane", async () => {

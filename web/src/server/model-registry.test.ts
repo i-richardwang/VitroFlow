@@ -4,7 +4,6 @@ import { modelVersionSchema, sameModelVersion } from "../models/schema";
 
 import {
   listModels,
-  listModelVersions,
   readModelVersion,
   registerModelVersion,
 } from "./model-registry";
@@ -37,7 +36,6 @@ test("registry lists immutable versions under their logical model", async () => 
   const version = await registerModelVersion(candidate);
 
   expect(await listModels()).toContainEqual(model);
-  expect(await listModelVersions(model.id)).toEqual([version]);
   expect(await readModelVersion(version.id)).toEqual(version);
   expect(
     sameModelVersion(version, {

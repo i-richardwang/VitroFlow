@@ -5,31 +5,20 @@ import type { AnnotationRef } from "../annotation/schema";
 import { database, type Executor } from "../db/client";
 import { images, inferenceOutcomes, annotations } from "../db/schema";
 import type { DetectionResult } from "../detection/schema";
-import { readModelVersion } from "./model-registry";
 import { newestDetectingVersion } from "./summaries";
 
 /**
- * The review shows the detection of `versionId` when the page is about that
- * version, so the boxes are the ones its metrics were read from; otherwise
- * the newest of the model's versions that has detected the image. A version
- * of another model names no review. Images carry no name of their own, so
- * the page names the file as it knows it.
+ * The review shows the newest of the model's versions that has detected the
+ * image. Images carry no name of their own, so the page names the file as it
+ * knows it.
  */
 export async function readReview(
   ref: AnnotationRef,
   filename: string,
-  versionId?: string,
   db?: Executor,
 ): Promise<Review | null> {
   const executor = db ?? (await database());
-  if (versionId !== undefined) {
-    const version = await readModelVersion(versionId, executor);
-    if (version?.modelId !== ref.modelId) return null;
-  }
-  const shown =
-    versionId === undefined
-      ? newestDetectingVersion(images.id, ref.modelId)
-      : versionId;
+  const shown = newestDetectingVersion(images.id, ref.modelId);
   const [row] = await executor
     .select({
       width: images.width,

@@ -14,9 +14,7 @@ import {
   workerPresence,
   type WorkerPresence,
 } from "../workers/presence";
-import { readModelVersion } from "./model-registry";
 
-export class InferenceHeartbeatRejectedError extends Error {}
 export class InferenceWorkerSessionConflictError extends Error {}
 
 /** Whether one of the worker's runtimes executes this artifact. */
@@ -39,7 +37,6 @@ function toRecord(
     sessionId: row.sessionId,
     startedAt: row.startedAt.toISOString(),
     runtimes: row.runtimes,
-    loaded: row.loadedModelVersionId,
     current: row.currentImageId,
     lastSeenAt: row.lastSeenAt.toISOString(),
   });
@@ -54,24 +51,10 @@ export async function recordInferenceHeartbeat(
     lastSeenAt: at.toISOString(),
   });
   const db = await database();
-  if (worker.loaded) {
-    const version = await readModelVersion(worker.loaded, db);
-    if (!version) {
-      throw new InferenceHeartbeatRejectedError(
-        `Unknown model version: ${worker.loaded}`,
-      );
-    }
-    if (!canExecute(worker, version.artifact)) {
-      throw new InferenceHeartbeatRejectedError(
-        "Inference runtimes cannot execute the loaded version",
-      );
-    }
-  }
   const row = {
     sessionId: worker.sessionId,
     startedAt: new Date(worker.startedAt),
     runtimes: worker.runtimes,
-    loadedModelVersionId: worker.loaded,
     currentImageId: worker.current,
     lastSeenAt: at,
   };

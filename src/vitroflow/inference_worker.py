@@ -117,13 +117,12 @@ class WorkerRuntime:
             available_runtimes(),
         )
 
-    def heartbeat(self, loaded: str | None, current: str | None) -> dict[str, object]:
+    def heartbeat(self, current: str | None) -> dict[str, object]:
         return {
             "workerId": self.worker_id,
             "sessionId": self.session_id,
             "startedAt": self.started_at,
             "runtimes": [runtime.to_dict() for runtime in self.runtimes],
-            "loaded": loaded,
             "current": current,
         }
 
@@ -151,11 +150,11 @@ class WorkerClient(WorkerHttpClient):
             "sessionId": self.runtime.session_id,
         }
 
-    def heartbeat(self, loaded: str | None, current: str | None) -> None:
+    def heartbeat(self, current: str | None) -> None:
         response = self.request(
             "POST",
             "api/inference/heartbeat",
-            json=self.runtime.heartbeat(loaded, current),
+            json=self.runtime.heartbeat(current),
         )
         response.raise_for_status()
 
@@ -217,12 +216,10 @@ class WorkerClient(WorkerHttpClient):
         response.raise_for_status()
 
 
-def report_heartbeat(
-    client: WorkerClient, loaded: str | None, current: str | None
-) -> None:
+def report_heartbeat(client: WorkerClient, current: str | None) -> None:
     """A missed heartbeat only delays the status shown in the workbench."""
     try:
-        client.heartbeat(loaded, current)
+        client.heartbeat(current)
     except WORKER_ERRORS as error:
         LOGGER.warning("heartbeat failed: %s", error)
 
@@ -243,7 +240,7 @@ def _lease(
         while not closed.wait(LEASE_REFRESH_SECONDS):
             try:
                 client.renew_lease(assignment)
-                report_heartbeat(client, assignment.version_id, assignment.image)
+                report_heartbeat(client, assignment.image)
             except Exception as error:  # noqa: BLE001 - process boundary owns the lease
                 refresh_errors.append(error)
                 lost.set()
@@ -292,7 +289,7 @@ def process_image(
     detector: Detector,
     cancelled: Callable[[], bool] | None = None,
 ) -> InferenceOutcome:
-    report_heartbeat(client, producer.model_version_id, digest)
+    report_heartbeat(client, digest)
     image_path = work_dir / f"{digest}{CANONICAL_EXTENSION}"
     image_path.write_bytes(client.download(digest))
     try:
@@ -334,7 +331,7 @@ def run_pass(
     Claim and process at most one task. Returning whether work was claimed lets
     the outer loop drain the queue without an idle polling delay.
     """
-    report_heartbeat(client, store.loaded, None)
+    report_heartbeat(client, None)
     if stopped and stopped.is_set():
         return False
     assignment = client.claim()
@@ -370,7 +367,7 @@ def run_pass(
         )
     else:
         LOGGER.info("detected %s with %s", assignment.image, assignment.version_id)
-    report_heartbeat(client, store.loaded, None)
+    report_heartbeat(client, None)
     return True
 
 
@@ -386,7 +383,7 @@ def run_inference_worker(
     store = ModelStore(client, settings.work_dir, settings.device)
     try:
         with shutdown_signals() as stopped:
-            client.heartbeat(None, None)
+            client.heartbeat(None)
             if on_ready:
                 on_ready()
             while not stopped.is_set():

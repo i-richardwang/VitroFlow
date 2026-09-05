@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import * as registry from "../db/registry";
@@ -14,8 +14,10 @@ export async function readModel(
   return registry.readModel(modelId, db ?? (await database()));
 }
 
-export async function listModels(db?: Executor): Promise<Model[]> {
-  const rows = await (db ?? (await database()))
+export async function listModels(): Promise<Model[]> {
+  const rows = await (
+    await database()
+  )
     .select()
     .from(models)
     .orderBy(models.id);
@@ -29,27 +31,14 @@ export async function readModelVersion(
   return registry.readModelVersion(versionId, db ?? (await database()));
 }
 
-/** Versions of a model, newest first. */
-export async function listModelVersions(
-  modelId: string,
-  db?: Executor,
-): Promise<ModelVersion[]> {
-  const rows = await (db ?? (await database()))
-    .select()
-    .from(modelVersions)
-    .where(eq(modelVersions.modelId, modelId))
-    .orderBy(desc(modelVersions.createdAt), desc(modelVersions.id));
-  return rows.map(registry.toModelVersion);
-}
-
 /**
  * Every version of every model, newest first. Builtin baselines carry the
  * package's date, so they follow whatever has been trained since.
  */
-export async function listAllModelVersions(
-  db?: Executor,
-): Promise<ModelVersion[]> {
-  const rows = await (db ?? (await database()))
+export async function listAllModelVersions(): Promise<ModelVersion[]> {
+  const rows = await (
+    await database()
+  )
     .select()
     .from(modelVersions)
     .orderBy(desc(modelVersions.createdAt), desc(modelVersions.id));

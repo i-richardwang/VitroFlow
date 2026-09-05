@@ -8,7 +8,6 @@ import {
   TEST_RUNTIME,
   ULTRALYTICS_RUNTIME,
   observeImages,
-  registerTestModel,
   registerTrainedVersion,
   resultFor,
   testHeartbeat,
@@ -35,30 +34,11 @@ test("a review shows the version the reviewer arrived from, else the newest", as
   await recordInferenceOutcome({ versionId: next.id, digest }, newer, worker);
 
   expect((await readReview(ref, "rv.jpg"))?.detection).toEqual(newer);
-  expect(
-    (await readReview(ref, "rv.jpg", first.version.id))?.detection,
-  ).toEqual(older);
-  expect((await readReview(ref, "rv.jpg", next.id))?.detection).toEqual(newer);
   expect((await readReview(ref, "rv.jpg"))?.filename).toBe("rv.jpg");
-
-  await registerTestModel({
-    schemaVersion: 1,
-    id: "review-other",
-    name: "Other task",
-    task: "object_detection",
-    classes: ["seed"],
-    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
-  });
-  const foreign = await registerTrainedVersion("review-other");
-  expect(await readReview(ref, "rv.jpg", foreign.id)).toBeNull();
-  expect(await readReview(ref, "rv.jpg", "review-nowhere")).toBeNull();
 
   expect((await readReview(ref, "rv.jpg"))?.annotation).toBeNull();
   const saved = await saveAnnotation(ref, instancesFromDetection(older));
   const started = await readReview(ref, "rv.jpg");
   expect(started?.annotation).toEqual(saved);
   expect(started?.detection).toEqual(newer);
-  expect(
-    (await readReview(ref, "rv.jpg", first.version.id))?.detection,
-  ).toEqual(older);
 });

@@ -31,7 +31,6 @@ export async function readDatasetImage(
   const review = await readReview(
     { digest: ref.digest, modelId: dataset.modelId },
     member.filename,
-    undefined,
     db,
   );
   if (!review) return null;

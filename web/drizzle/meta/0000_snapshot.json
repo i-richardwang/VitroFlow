@@ -1,5 +1,5 @@
 {
-  "id": "6e637e8c-1951-4ed8-b7b9-d8616248eafb",
+  "id": "2678ab38-506d-4b7c-8394-b424c3dd46e1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2086,12 +2086,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "loaded_model_version_id": {
-          "name": "loaded_model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "current_image_id": {
           "name": "current_image_id",
           "type": "text",
@@ -2123,19 +2117,6 @@
         }
       },
       "foreignKeys": {
-        "inference_workers_loaded_model_version_id_model_versions_id_fk": {
-          "name": "inference_workers_loaded_model_version_id_model_versions_id_fk",
-          "tableFrom": "inference_workers",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "loaded_model_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "inference_workers_current_image_id_images_id_fk": {
           "name": "inference_workers_current_image_id_images_id_fk",
           "tableFrom": "inference_workers",

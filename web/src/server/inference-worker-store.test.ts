@@ -10,15 +10,11 @@ import {
   listInferenceWorkers,
   recordInferenceHeartbeat,
 } from "./inference-worker-store";
-import { baselineVersion } from "./testing";
-
-const version = await baselineVersion();
 const heartbeat = {
   workerId: "presence-worker",
   sessionId: "presence-session",
   startedAt: "2026-01-01T00:00:00+00:00",
   runtimes: [{ adapter: "traditional" as const, fingerprint: "b".repeat(64) }],
-  loaded: null,
   current: null,
 };
 
@@ -55,24 +51,6 @@ test("listing forgets workers that have been silent for a week", async () => {
   expect(await ids(later(seen, 8 * 24 * 60 * 60))).not.toContain(
     "forgotten-worker",
   );
-});
-
-test("a loaded version must exist and match the worker's runtimes", async () => {
-  await expect(
-    recordInferenceHeartbeat({ ...heartbeat, loaded: "unknown-version" }),
-  ).rejects.toThrow(/Unknown model version/);
-  await expect(
-    recordInferenceHeartbeat({
-      ...heartbeat,
-      runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
-      loaded: version.id,
-    }),
-  ).rejects.toThrow(/cannot execute/);
-  const worker = await recordInferenceHeartbeat({
-    ...heartbeat,
-    loaded: version.id,
-  });
-  expect(worker.loaded).toBe(version.id);
 });
 
 test("the current digest must name a stored image", async () => {

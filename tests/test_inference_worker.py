@@ -240,17 +240,15 @@ def test_assignment_validates_its_manifest() -> None:
         )
 
 
-def test_heartbeat_describes_runtimes_and_loaded_version() -> None:
-    heartbeat = WORKER.heartbeat("set.traditional-v1", DIGEST)
-    assert heartbeat == {
+def test_heartbeat_describes_runtimes_and_current_image() -> None:
+    assert WORKER.heartbeat(DIGEST) == {
         "workerId": "test-worker",
         "sessionId": "test-session",
         "startedAt": "2026-08-27T00:00:00+00:00",
         "runtimes": [RUNTIME.to_dict()],
-        "loaded": "set.traditional-v1",
         "current": DIGEST,
     }
-    assert WORKER.heartbeat(None, None)["loaded"] is None
+    assert WORKER.heartbeat(None)["current"] is None
 
 
 def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
@@ -275,10 +273,10 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
         ("POST", "/api/inference/heartbeat"),
     ]
     assert models.loads == ["set.traditional-v1"]
-    assert [beat["loaded"] for beat in workbench.heartbeats()] == [
+    assert [beat["current"] for beat in workbench.heartbeats()] == [
         None,
-        "set.traditional-v1",
-        "set.traditional-v1",
+        DIGEST,
+        None,
     ]
     assert json.loads(workbench.requests[1].read()) == {
         "workerId": "test-worker",

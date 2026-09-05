@@ -66,17 +66,6 @@ export async function recordTrainingHeartbeat(
   return toRecord(stored);
 }
 
-export async function readTrainingWorker(
-  workerId: string,
-  db?: Executor,
-): Promise<TrainingWorkerRecord | null> {
-  const [row] = await (db ?? (await database()))
-    .select()
-    .from(trainingWorkers)
-    .where(eq(trainingWorkers.id, workerId));
-  return row ? toRecord(row) : null;
-}
-
 function forgetBefore(at: Date): Date {
   return new Date(at.getTime() - WORKER_FORGET_SECONDS * 1000);
 }

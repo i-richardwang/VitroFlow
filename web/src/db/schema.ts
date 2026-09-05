@@ -955,9 +955,6 @@ export const inferenceWorkers = pgTable(
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
-    loadedModelVersionId: text("loaded_model_version_id").references(
-      () => modelVersions.id,
-    ),
     /** The image being processed, by digest. */
     currentImageId: text("current_image_id").references(() => images.id, {
       onDelete: "set null",
