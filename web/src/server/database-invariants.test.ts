@@ -3,7 +3,14 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "bun:test";
 
 import { database } from "../db/client";
-import { experimentCultureEvents, modelVersions } from "../db/schema";
+import { isUniqueViolation } from "../db/errors";
+import {
+  experimentCultureEvents,
+  experimentObservationUnits,
+  experimentTreatments,
+  experiments,
+  modelVersions,
+} from "../db/schema";
 import { recordCultureEvent } from "./culture-events";
 import {
   addObservationUnits,
@@ -106,4 +113,98 @@ test("the database rejects a trained version without its provenance", async () =
       })
       .execute(),
   ).rejects.toThrow();
+});
+
+test("the database compares experiment, treatment and unit names without case", async () => {
+  const suffix = randomUUID();
+  const version = await baselineVersion();
+  const experiment = await createExperiment({
+    name: `Case invariant ${suffix}`,
+    plantMaterial: "",
+    explantType: "",
+    baseMedium: "",
+    notes: "",
+    inoculatedOn: "2026-08-01",
+    modelVersionId: version.id,
+  });
+  const treatment = await addTreatment({
+    experiment: experiment.id,
+    name: "Control",
+    factor: null,
+    note: "",
+    replicates: 0,
+  });
+  await addObservationUnits({
+    experiment: experiment.id,
+    treatment: treatment.id,
+    codes: ["A1"],
+  });
+  const db = await database();
+
+  const rejection = async (write: () => Promise<unknown>): Promise<unknown> => {
+    try {
+      await write();
+    } catch (error) {
+      return error;
+    }
+    throw new Error("the database accepted the duplicate");
+  };
+
+  expect(
+    isUniqueViolation(
+      await rejection(() =>
+        db
+          .insert(experiments)
+          .values({
+            id: randomUUID(),
+            name: experiment.name.toUpperCase(),
+            plantMaterial: "",
+            explantType: "",
+            baseMedium: "",
+            notes: "",
+            inoculatedOn: experiment.inoculatedOn,
+            modelVersionId: version.id,
+            createdAt: new Date(),
+          })
+          .execute(),
+      ),
+      "experiments_name",
+    ),
+  ).toBeTrue();
+
+  expect(
+    isUniqueViolation(
+      await rejection(() =>
+        db
+          .insert(experimentTreatments)
+          .values({
+            experimentId: experiment.id,
+            id: randomUUID(),
+            name: "CONTROL",
+            factor: null,
+            note: "",
+            position: 2,
+          })
+          .execute(),
+      ),
+      "experiment_treatments_name",
+    ),
+  ).toBeTrue();
+
+  expect(
+    isUniqueViolation(
+      await rejection(() =>
+        db
+          .insert(experimentObservationUnits)
+          .values({
+            experimentId: experiment.id,
+            id: randomUUID(),
+            code: "a1",
+            treatmentId: treatment.id,
+          })
+          .execute(),
+      ),
+      "experiment_observation_units_code",
+    ),
+  ).toBeTrue();
 });

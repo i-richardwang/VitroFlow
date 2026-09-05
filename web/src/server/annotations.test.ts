@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { instancesFromDetection } from "../annotation/detection";
 import type { AnnotationInstance } from "../annotation/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { readAnnotation, saveAnnotation } from "./annotations";
+import { readAnnotation, storeAnnotation } from "./annotations";
 import {
   imageDigest,
   observeImages,
@@ -41,7 +41,7 @@ describe("annotations", () => {
     );
     expect(await readAnnotation(ref)).toBeNull();
 
-    const stored = await saveAnnotation(ref, [...opening, box]);
+    const stored = await storeAnnotation(ref, [...opening, box]);
     expect(stored).toEqual({
       schemaVersion: 1,
       image: result.image,
@@ -49,7 +49,7 @@ describe("annotations", () => {
     });
     expect(await readAnnotation(ref)).toEqual(stored);
 
-    const emptied = await saveAnnotation(ref, []);
+    const emptied = await storeAnnotation(ref, []);
     expect(emptied.instances).toEqual([]);
     expect(await readAnnotation(ref)).toEqual(emptied);
   });
@@ -57,7 +57,7 @@ describe("annotations", () => {
   test("refuses a box outside the image", async () => {
     const { ref, result } = await detected("lb-b", "annotations-image-worker");
     await expect(
-      saveAnnotation(ref, [
+      storeAnnotation(ref, [
         { ...box, bbox: { ...box.bbox, x: result.image.width } },
       ]),
     ).rejects.toThrow(/exceeds image bounds/);
@@ -66,7 +66,7 @@ describe("annotations", () => {
   test("refuses a class the model does not define", async () => {
     const { ref } = await detected("lb-c", "annotations-class-worker");
     await expect(
-      saveAnnotation(ref, [{ ...box, class: "weed" }]),
+      storeAnnotation(ref, [{ ...box, class: "weed" }]),
     ).rejects.toThrow(/unknown class/);
   });
 });

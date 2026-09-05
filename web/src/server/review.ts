@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import type { Review } from "../annotation/review";
 import type { AnnotationRef } from "../annotation/schema";
-import { database, type Executor } from "../db/client";
+import type { Executor } from "../db/client";
 import { images, inferenceOutcomes, annotations } from "../db/schema";
 import type { DetectionResult } from "../detection/schema";
 import { newestDetectingVersion } from "./summaries";
@@ -15,11 +15,10 @@ import { newestDetectingVersion } from "./summaries";
 export async function readReview(
   ref: AnnotationRef,
   filename: string,
-  db?: Executor,
+  db: Executor,
 ): Promise<Review | null> {
-  const executor = db ?? (await database());
   const shown = newestDetectingVersion(images.id, ref.modelId);
-  const [row] = await executor
+  const [row] = await db
     .select({
       width: images.width,
       height: images.height,

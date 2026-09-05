@@ -164,7 +164,7 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
 
 
 def load_annotations(manifest: str | Path) -> list[AnnotatedImage]:
-    """Every reviewed image of a dataset manifest, in manifest order."""
+    """Every annotated image of a dataset manifest, in manifest order."""
     from .manifest import load_dataset_manifest
 
     dataset = load_dataset_manifest(manifest)

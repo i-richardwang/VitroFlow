@@ -110,21 +110,17 @@ export async function readDataset(
 }
 
 export async function listDatasets(): Promise<Dataset[]> {
-  const rows = await (
-    await database()
-  )
-    .select()
-    .from(datasets)
-    .orderBy(asc(datasets.id));
+  const db = await database();
+  const rows = await db.select().from(datasets).orderBy(asc(datasets.id));
   return rows.map(toDataset);
 }
 
 /** Datasets whose reviews train one model. */
 export async function listDatasetsForModel(
   modelId: string,
-  db?: Executor,
 ): Promise<Dataset[]> {
-  const rows = await (db ?? (await database()))
+  const db = await database();
+  const rows = await db
     .select()
     .from(datasets)
     .where(eq(datasets.modelId, modelId))

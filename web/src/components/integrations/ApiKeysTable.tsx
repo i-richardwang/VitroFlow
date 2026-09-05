@@ -1,11 +1,10 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Button, Table, toast } from "@heroui/react";
+import { Table, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
 
 import { API_SCOPE_LABELS, type ApiKey } from "../../auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
-import { DestructiveActionDialog } from "../DestructiveActionDialog";
+import { DestructiveActionButton } from "../DestructiveActionDialog";
 import { Timestamp } from "../Timestamp";
 
 export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
@@ -69,29 +68,17 @@ export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
 
 function RevokeApiKeyButton({ apiKey }: { apiKey: ApiKey }) {
   const router = useRouter();
-  const [revoking, setRevoking] = useState(false);
 
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={`Revoke ${apiKey.name}`}
-        onPress={() => setRevoking(true)}
-      >
-        Revoke…
-      </Button>
-      <DestructiveActionDialog
-        isOpen={revoking}
-        onOpenChange={setRevoking}
-        title={`Revoke ${apiKey.name}?`}
-        confirmLabel="Revoke"
-        onConfirm={async () => {
-          await removeApiKey({ data: { key: apiKey.id } });
-          toast.success(`${apiKey.name} revoked`);
-          await router.invalidate();
-        }}
-      />
-    </>
+    <DestructiveActionButton
+      label="Revoke"
+      title={`Revoke ${apiKey.name}?`}
+      confirmLabel="Revoke"
+      onConfirm={async () => {
+        await removeApiKey({ data: { key: apiKey.id } });
+        toast.success(`${apiKey.name} revoked`);
+        await router.invalidate();
+      }}
+    />
   );
 }

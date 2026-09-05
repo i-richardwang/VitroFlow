@@ -29,7 +29,7 @@ import {
 import { reviewState, type AnnotationInstance } from "../../annotation/schema";
 import { instancesFromDetection } from "../../annotation/detection";
 import type { DetectionResult } from "../../detection/schema";
-import { saveReview } from "../../functions/review";
+import { saveAnnotation } from "../../functions/review";
 import { useHistory } from "../../hooks/useHistory";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
@@ -88,6 +88,7 @@ export function ImageWorkbench({
   title: string;
   model: Model;
   review: Review;
+  /** Opens the draft, once there is something to review. */
   editing: boolean;
   /** The boxes shown while not editing. */
   version?: ReviewVersion;
@@ -141,7 +142,7 @@ export function ImageWorkbench({
       inspector={
         <ReviewInspector
           model={model}
-          reviewed={review.annotation?.instances ?? null}
+          instances={review.annotation?.instances ?? null}
           detection={review.detection}
           display={display}
           details={context.details}
@@ -190,7 +191,7 @@ function ReviewCanvas({
 
 function ReviewInspector({
   model,
-  reviewed,
+  instances,
   detection,
   display,
   details,
@@ -198,7 +199,7 @@ function ReviewInspector({
 }: {
   model: Model;
   /** The boxes of the review, or of the draft while editing. */
-  reviewed: AnnotationInstance[] | null;
+  instances: AnnotationInstance[] | null;
   detection: DetectionResult | null;
   display: Display;
   details?: ReactNode;
@@ -211,7 +212,7 @@ function ReviewInspector({
       <MetricsSection
         metrics={model.metrics}
         sources={[
-          ...(reviewed ? [{ label: "Review", tally: tally(reviewed) }] : []),
+          ...(instances ? [{ label: "Review", tally: tally(instances) }] : []),
           ...(detection
             ? [{ label: "Detected", tally: tally(detection.instances) }]
             : []),
@@ -300,7 +301,7 @@ function Editor({
     setSaving(true);
     setError(null);
     try {
-      await saveReview({ data: { ref: review.ref, instances } });
+      await saveAnnotation({ data: { ref: review.ref, instances } });
       await router.invalidate();
       close();
     } catch (cause) {
@@ -356,7 +357,7 @@ function Editor({
     setSelectedId(null);
   }, [detection, editInstances]);
 
-  const cancelEditing = useCallback(() => {
+  const clearSelection = useCallback(() => {
     setSelectedId(null);
     setTool("select");
   }, []);
@@ -364,7 +365,7 @@ function Editor({
   useShortcuts({
     onPanChange: setPanning,
     onToolChange: setTool,
-    onEscape: cancelEditing,
+    onEscape: clearSelection,
     onDelete: deleteSelected,
     onUndo: undo,
     onRedo: redo,
@@ -406,7 +407,7 @@ function Editor({
       inspector={
         <ReviewInspector
           model={model}
-          reviewed={instances}
+          instances={instances}
           detection={review.detection}
           display={display}
           details={context.details}
@@ -553,19 +554,21 @@ function EditingTools({
           </Button>
         </ShortcutTooltip>
       </ButtonGroup>
-      {onRestart ? <Separator /> : null}
       {onRestart ? (
-        <Tooltip delay={0}>
-          <Button
-            variant="tertiary"
-            isIconOnly
-            aria-label="Start again from detection"
-            onPress={onRestart}
-          >
-            <RestartIcon />
-          </Button>
-          <Tooltip.Content>Start again from detection</Tooltip.Content>
-        </Tooltip>
+        <>
+          <Separator />
+          <Tooltip delay={0}>
+            <Button
+              variant="tertiary"
+              isIconOnly
+              aria-label="Start again from detection"
+              onPress={onRestart}
+            >
+              <RestartIcon />
+            </Button>
+            <Tooltip.Content>Start again from detection</Tooltip.Content>
+          </Tooltip>
+        </>
       ) : null}
     </>
   );

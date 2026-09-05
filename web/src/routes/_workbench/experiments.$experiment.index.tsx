@@ -35,6 +35,8 @@ import type {
   ObservationUnit,
 } from "../../experiments/contracts";
 import {
+  observationOrdinals,
+  type ObservationOrdinals,
   observationUnitIsAvailableAt,
   observationUnitIsIncludedInAnalysis,
 } from "../../experiments/culture-events";
@@ -116,9 +118,7 @@ function ExperimentPage() {
       image,
     ]),
   );
-  const ordinals = new Map(
-    observations.map((observation) => [observation.id, observation.ordinal]),
-  );
+  const ordinals = observationOrdinals(observations);
   const hasObservations = observations.length > 0;
   const hasRecords =
     images.length > 0 ||
@@ -553,7 +553,7 @@ function groupSummary(
   units: UnitRow[],
   observation: ExperimentObservation,
   cells: Map<string, ObservationImageCell>,
-  ordinals: Map<string, number>,
+  ordinals: ObservationOrdinals,
 ): string {
   return formatMetricSummary(
     metric,

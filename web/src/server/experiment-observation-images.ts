@@ -9,7 +9,10 @@ import {
   experimentObservations,
   images,
 } from "../db/schema";
-import { observationUnitIsAvailableAt } from "../experiments/culture-events";
+import {
+  observationOrdinals,
+  observationUnitIsAvailableAt,
+} from "../experiments/culture-events";
 import {
   ExperimentObservationImageAlreadyUsedError,
   ExperimentObservationImageNotFoundError,
@@ -62,9 +65,7 @@ export async function assignObservationImages(
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);
     const observation = requireObservation(observations, observationId);
-    const ordinals = new Map(
-      observations.map((item) => [item.id, item.ordinal]),
-    );
+    const ordinals = observationOrdinals(observations);
     const observationUnits = await listObservationUnits(experimentId, tx);
     const byId = new Map(
       observationUnits.map((observationUnit) => [
@@ -214,9 +215,7 @@ export async function moveObservationImage(
         `Unknown observation unit: ${observationUnit}`,
       );
     }
-    const ordinals = new Map(
-      observations.map((item) => [item.id, item.ordinal]),
-    );
+    const ordinals = observationOrdinals(observations);
     if (!observationUnitIsAvailableAt(target.events, observation, ordinals)) {
       throw new ObservationImageRejectedError(
         `${target.code} was removed before this observation`,

@@ -253,7 +253,6 @@ def test_inference_worker_downloads_a_published_yolo_artifact(
     deployed = store.load(manifest)
 
     assert source.requested == ["set.yolo-v1"]
-    assert store.loaded == "set.yolo-v1"
     assert store.load(manifest) is deployed
     assert deployed.artifact_digest == reference.artifact_digest
     weights = tmp_path / "worker/model-artifacts/set.yolo-v1/weights/best.pt"

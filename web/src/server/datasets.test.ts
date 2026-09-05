@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { instancesFromDetection } from "../annotation/detection";
+import { database } from "../db/client";
+import { inferenceOutcomes } from "../db/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import {
   blobExists,
@@ -18,14 +21,12 @@ import {
 } from "./datasets";
 import { retryObservationImageAnalysis } from "./experiment-observation-images";
 import { readExperimentGrid } from "./experiment-queries";
-import { readAnnotation, saveAnnotation } from "./annotations";
+import { readAnnotation, storeAnnotation } from "./annotations";
 import { registerModelVersion } from "./model-registry";
 import {
   DetectionConflictError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
-  inferencePending,
-  readDetection,
   recordInferenceOutcome,
 } from "./inference-outcomes";
 import { listImageRecords, summarize } from "./summaries";
@@ -56,6 +57,22 @@ async function readImageRecord(ref: { dataset: string; digest: string }) {
       (record) => record.image.digest === ref.digest,
     ) ?? null
   );
+}
+
+/** The succeeded outcome stored for one image-version pair, if any. */
+async function storedDetection(target: { versionId: string; digest: string }) {
+  const db = await database();
+  const [row] = await db
+    .select({ document: inferenceOutcomes.document })
+    .from(inferenceOutcomes)
+    .where(
+      and(
+        eq(inferenceOutcomes.imageId, target.digest),
+        eq(inferenceOutcomes.modelVersionId, target.versionId),
+        eq(inferenceOutcomes.status, "succeeded"),
+      ),
+    );
+  return row?.document ?? null;
 }
 
 /** A later traditional version of the seed detector. */
@@ -288,14 +305,20 @@ describe("collection", () => {
 });
 
 describe("detections", () => {
+  /** The digests this version has not recorded an outcome for yet. */
   async function pendingFor(versionId: string, digests: string[]) {
-    const pending = await Promise.all(
-      digests.map(async (digest) => ({
-        digest,
-        pending: await inferencePending({ versionId, digest }),
-      })),
-    );
-    return pending.filter((entry) => entry.pending).map(({ digest }) => digest);
+    const db = await database();
+    const rows = await db
+      .select({ digest: inferenceOutcomes.imageId })
+      .from(inferenceOutcomes)
+      .where(
+        and(
+          eq(inferenceOutcomes.modelVersionId, versionId),
+          inArray(inferenceOutcomes.imageId, digests),
+        ),
+      );
+    const recorded = new Set(rows.map((row) => row.digest));
+    return digests.filter((digest) => !recorded.has(digest));
   }
 
   test("an experiment needs detections from its version only", async () => {
@@ -364,7 +387,7 @@ describe("detections", () => {
     expect(await recordInferenceOutcome(target, failure, worker)).toEqual(
       result,
     );
-    expect(await readDetection(target)).toEqual(result);
+    expect(await storedDetection(target)).toEqual(result);
   });
 
   test("an outcome must describe its image and its producer", async () => {
@@ -444,7 +467,7 @@ describe("detections", () => {
         { runtimes: [wrongRuntime] },
       ),
     ).rejects.toBeInstanceOf(ProducerMismatchError);
-    expect(await readDetection(target)).toBeNull();
+    expect(await storedDetection(target)).toBeNull();
   });
 
   test("a dataset shows the newest detection whether or not a review exists", async () => {
@@ -485,7 +508,7 @@ describe("detections", () => {
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
-    await saveAnnotation(
+    await storeAnnotation(
       { digest, modelId: baseline.modelId },
       instancesFromDetection(original),
     );
@@ -504,7 +527,7 @@ describe("detections", () => {
       worker,
     );
     const labelRef = { digest, modelId: version.modelId };
-    await saveAnnotation(labelRef, instancesFromDetection(result));
+    await storeAnnotation(labelRef, instancesFromDetection(result));
     expect(await stateOf({ dataset: "ctx-one", digest })).toBe("reviewed");
     expect(await stateOf({ dataset: "ctx-two", digest })).toBe("reviewed");
   });
@@ -518,7 +541,7 @@ describe("removal", () => {
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "rm-bytes");
     await recordInferenceOutcome(target, result, worker);
-    await saveAnnotation(
+    await storeAnnotation(
       { digest, modelId: version.modelId },
       instancesFromDetection(result),
     );
@@ -528,7 +551,7 @@ describe("removal", () => {
     expect(
       await readAnnotation({ digest, modelId: version.modelId }),
     ).not.toBeNull();
-    expect(await readDetection(target)).toEqual(result);
+    expect(await storedDetection(target)).toEqual(result);
     await expect(removeDatasetImage(ref)).rejects.toThrow(/not in dataset/);
   });
 

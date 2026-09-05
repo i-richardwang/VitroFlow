@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { observationUnitCodeKey, treatmentNameKey } from "./naming";
 
 export const experimentIdSchema = z.uuid();
 export const observationIdSchema = z.uuid();
@@ -71,11 +70,7 @@ export const treatmentNameSchema = z
   .string()
   .trim()
   .min(1, "Treatment name is required")
-  .max(120, "Treatment name must be at most 120 characters")
-  .refine(
-    (name) => treatmentNameKey(name).length > 0,
-    "Invalid treatment name",
-  );
+  .max(120, "Treatment name must be at most 120 characters");
 
 export const treatmentNoteSchema = z
   .string()
@@ -107,11 +102,7 @@ export const observationUnitCodeSchema = z
   .string()
   .trim()
   .min(1, "Observation unit code is required")
-  .max(60, "Observation unit code must be at most 60 characters")
-  .refine(
-    (code) => observationUnitCodeKey(code).length > 0,
-    "Invalid observation unit code",
-  );
+  .max(60, "Observation unit code must be at most 60 characters");
 
 export const observationNoteSchema = z
   .string()

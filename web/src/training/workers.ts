@@ -10,7 +10,6 @@ export const trainingWorkerIdentitySchema = z.strictObject({
 export const trainingWorkerHeartbeatSchema =
   trainingWorkerIdentitySchema.extend({
     startedAt: z.string().datetime({ offset: true }),
-    device: z.string().min(1),
     /** Memory the accelerator offers a training process. */
     memoryBytes: z.number().int().positive(),
     currentTrainingRunId: resourceIdSchema.nullable(),

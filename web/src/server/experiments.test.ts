@@ -34,7 +34,7 @@ import {
 } from "../experiments/schema";
 import { blobExists, imageBlobKey } from "./blobs";
 import { collectImages } from "./image-collection";
-import { inferencePending, recordInferenceOutcome } from "./inference-outcomes";
+import { recordInferenceOutcome } from "./inference-outcomes";
 import {
   addObservationUnits,
   addTreatment,
@@ -48,7 +48,7 @@ import {
   updateTreatment,
   updateExperiment,
 } from "./experiment-design";
-import { recordCultureEvent, removeCultureEvent } from "./culture-events";
+import { recordCultureEvent, deleteCultureEvent } from "./culture-events";
 import {
   assignObservationImages,
   moveObservationImage,
@@ -461,7 +461,7 @@ describe("experiments", () => {
       addObservationUnits({
         experiment: experiment.id,
         treatment: null,
-        codes: ["a_1"],
+        codes: ["a-1"],
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
 
@@ -903,7 +903,7 @@ describe("experiments", () => {
     ).toBeTrue();
   });
 
-  test("an observation unit has at most one active terminal event", async () => {
+  test("at most one terminal event", async () => {
     const version = await trainedVersion("exp-terminal-events");
     const experiment = await createExperiment({
       name: "Terminal events",
@@ -939,7 +939,7 @@ describe("experiments", () => {
     expect(rejected).toHaveLength(1);
     expect(rejected[0]!.reason).toBeInstanceOf(ObservationUnitRejectedError);
 
-    await removeCultureEvent({
+    await deleteCultureEvent({
       experiment: experiment.id,
       event: recorded[0]!.value.id,
     });
@@ -986,7 +986,7 @@ describe("experiments", () => {
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
 
-    await removeCultureEvent({ experiment: experiment.id, event: event.id });
+    await deleteCultureEvent({ experiment: experiment.id, event: event.id });
 
     const day14 = await addObservation({
       experiment: experiment.id,
@@ -1013,7 +1013,7 @@ describe("experiments", () => {
         ],
       }),
     ).rejects.toThrow(ObservationImageRejectedError);
-    await removeCultureEvent({
+    await deleteCultureEvent({
       experiment: experiment.id,
       event: terminalEvent.id,
     });
@@ -1093,13 +1093,14 @@ describe("experiments", () => {
     const d1 = await imageDigest("c-d1");
     const d2 = await imageDigest("c-d2");
 
-    expect(
-      await Promise.all(
-        [d1, d2].map((digest) =>
-          inferencePending({ versionId: version.id, digest }),
-        ),
-      ),
-    ).toEqual([true, true]);
+    const stateOf = async (digest: string) =>
+      (await readExperimentGrid(experiment.id))?.images.find(
+        (image) => image.digest === digest,
+      )?.state;
+    expect([await stateOf(d1), await stateOf(d2)]).toEqual([
+      "pending",
+      "pending",
+    ]);
 
     await recordInferenceOutcome(
       { versionId: version.id, digest: d1 },
@@ -1138,9 +1139,7 @@ describe("experiments", () => {
       observationImage: images.get("D2")!,
     };
     await retryObservationImageAnalysis(failed);
-    expect(
-      await inferencePending({ versionId: version.id, digest: d2 }),
-    ).toBeTrue();
+    expect(await stateOf(d2)).toBe("pending");
     expect((await readExperimentObservationImage(failed))?.failure).toBeNull();
     expect(
       (await readExperimentObservationImage(failed))?.observation.day,
@@ -1342,6 +1341,7 @@ describe("experiments", () => {
   test("two experiments analyzing one image with one version share one inference", async () => {
     const version = await trainedVersion("exp-shared");
     const [digest] = await storeTexts(["shared-image"]);
+    const experimentIds: string[] = [];
     for (const name of ["Shared demand A", "Shared demand B"]) {
       const experiment = await createExperiment({
         name,
@@ -1367,11 +1367,23 @@ describe("experiments", () => {
           },
         ],
       });
+      experimentIds.push(experiment.id);
     }
 
-    expect(
-      await inferencePending({ versionId: version.id, digest: digest! }),
-    ).toBeTrue();
+    const states = async () =>
+      Promise.all(
+        experimentIds.map(
+          async (id) => (await readExperimentGrid(id))?.images[0]?.state,
+        ),
+      );
+    expect(await states()).toEqual(["pending", "pending"]);
+
+    await recordInferenceOutcome(
+      { versionId: version.id, digest: digest! },
+      resultFor(version, digest!, 1),
+      worker,
+    );
+    expect(await states()).toEqual(["analyzed", "analyzed"]);
   });
 
   test("the database binds failure documents to the registered artifact", async () => {

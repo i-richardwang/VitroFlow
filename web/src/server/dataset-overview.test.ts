@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { instancesFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
-import { readAnnotation, saveAnnotation } from "./annotations";
+import { readAnnotation, storeAnnotation } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { datasetOverview } from "./dataset-overview";
 import { trainingOverview } from "./training-console";
@@ -34,7 +34,7 @@ test("the overview derives review progress and training readiness", async () => 
       result,
       worker,
     );
-    await saveAnnotation(
+    await storeAnnotation(
       { digest, modelId: version.modelId },
       instancesFromDetection(result),
     );
@@ -66,7 +66,6 @@ test("the overview derives review progress and training readiness", async () => 
       workerId: "overview-trainer",
       sessionId: "overview-trainer-session",
       startedAt: HEARTBEAT_AT.toISOString(),
-      device: "cpu",
       memoryBytes: 24 * 1024 ** 3,
       currentTrainingRunId: null,
     },
@@ -85,11 +84,11 @@ test("the overview derives review progress and training readiness", async () => 
   const a = { digest: await imageDigest("ov-a"), modelId: version.modelId };
   const annotation = await readAnnotation(a);
   if (!annotation) throw new Error("missing annotation");
-  await saveAnnotation(a, annotation.instances);
+  await storeAnnotation(a, annotation.instances);
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(0);
-  await saveAnnotation(a, [
+  await storeAnnotation(a, [
     {
       id: "added",
       class: "seed",

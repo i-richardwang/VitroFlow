@@ -35,8 +35,8 @@ import {
   updateTreatment,
 } from "../server/experiment-design";
 import {
+  deleteCultureEvent,
   recordCultureEvent,
-  removeCultureEvent,
 } from "../server/culture-events";
 import * as observationImages from "../server/experiment-observation-images";
 import {
@@ -107,6 +107,14 @@ export const removeTreatment = createServerFn({ method: "POST" })
   .validator(treatmentRefSchema)
   .handler(({ data }) => deleteTreatment(data));
 
+export const getObservationUnit = createServerFn({ method: "GET" })
+  .validator(observationUnitRequestSchema)
+  .handler(async ({ data: { observation, ...ref } }) => {
+    const series = await readObservationUnit(ref, observation);
+    if (!series) return null;
+    return { ...series, datasets: await datasetsTraining(series.model.id) };
+  });
+
 export const createObservationUnits = createServerFn({ method: "POST" })
   .validator(observationUnitBatchSchema)
   .handler(({ data }) => addObservationUnits(data));
@@ -114,14 +122,6 @@ export const createObservationUnits = createServerFn({ method: "POST" })
 export const editObservationUnit = createServerFn({ method: "POST" })
   .validator(observationUnitUpdateSchema)
   .handler(({ data }) => updateObservationUnit(data));
-
-export const createCultureEvent = createServerFn({ method: "POST" })
-  .validator(cultureEventRequestSchema)
-  .handler(({ data }) => recordCultureEvent(data));
-
-export const deleteCultureEvent = createServerFn({ method: "POST" })
-  .validator(cultureEventRefSchema)
-  .handler(({ data }) => removeCultureEvent(data));
 
 export const removeObservationUnit = createServerFn({ method: "POST" })
   .validator(observationUnitRefSchema)
@@ -132,6 +132,14 @@ export const assignObservationUnitsToTreatment = createServerFn({
 })
   .validator(observationUnitAssignmentSchema)
   .handler(({ data }) => assignObservationUnits(data));
+
+export const createCultureEvent = createServerFn({ method: "POST" })
+  .validator(cultureEventRequestSchema)
+  .handler(({ data }) => recordCultureEvent(data));
+
+export const removeCultureEvent = createServerFn({ method: "POST" })
+  .validator(cultureEventRefSchema)
+  .handler(({ data }) => deleteCultureEvent(data));
 
 export const createObservation = createServerFn({ method: "POST" })
   .validator(observationRequestSchema)
@@ -156,14 +164,6 @@ export const reassignObservationImage = createServerFn({ method: "POST" })
 export const unassignObservationImage = createServerFn({ method: "POST" })
   .validator(observationImageRefSchema)
   .handler(({ data }) => observationImages.unassignObservationImage(data));
-
-export const getObservationUnit = createServerFn({ method: "GET" })
-  .validator(observationUnitRequestSchema)
-  .handler(async ({ data: { observation, ...ref } }) => {
-    const series = await readObservationUnit(ref, observation);
-    if (!series) return null;
-    return { ...series, datasets: await datasetsTraining(series.model.id) };
-  });
 
 export const retryObservationImageAnalysis = createServerFn({ method: "POST" })
   .validator(observationImageRefSchema)

@@ -36,7 +36,7 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 | `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
 | `dataset_snapshots`, `dataset_snapshot_images`                                                                                                                  | Immutable training inputs                                                                      |
 | `training_runs`, `training_epochs`                                                                                                                              | Leased training state and per-attempt epoch metrics                                            |
-| `inference_workers`, `inference_jobs`, `training_workers`                                                                                                       | Worker sessions, leased inference jobs, capabilities, presence, and current activity            |
+| `inference_workers`, `inference_jobs`, `training_workers`                                                                                                       | Worker sessions, leased inference jobs, capabilities, presence, and current activity           |
 
 The object layout is:
 
@@ -52,7 +52,7 @@ Object creation is conditional. Identical writes are idempotent; content at an e
 
 A Model defines the classes detected in an image and the derived metrics computed from them. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
 
-An Experiment is named once in the notebook and records the plant material, explant type, shared base medium, notebook notes, and inoculation date, and selects one ModelVersion when it is created. That version never changes, so derived metrics remain comparable across observations.
+An Experiment's name is unique across the workbench, compared without regard to case. It records the plant material, explant type, shared base medium, notebook notes, and inoculation date, and selects one ModelVersion when it is created. That version never changes, so derived metrics remain comparable across observations.
 
 A Treatment names one condition the experiment compares. It may record that condition as a factor, level, and unit, written as applied; a treatment described in prose alone has no factor. Light, temperature, and other protocol that every treatment shares belong on the experiment. The factor and note can be filled in at any point.
 
@@ -149,7 +149,7 @@ Training Workers claim a queued run, download its immutable snapshot, materializ
 
 ## Agent interface
 
-AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request resolves a current API-key or MCP-client principal; each command runs in one transaction. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
+AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request is authorized afresh by its API key or MCP client; each command runs in one transaction that a failure rolls back whole. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
 
 - `POST /api/agent/<operation>` calls one operation with its JSON input, authenticated by a personal API key with the agent scope as a bearer token. `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
 - `POST /api/mcp` serves the same operations as strict MCP 2026-07-28 tools. The workbench is the OAuth 2.1 authorization server for its own MCP endpoint: a client discovers it, sends the person to sign in and approve the connection, and loses access immediately when the person disconnects it.

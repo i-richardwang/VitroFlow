@@ -626,11 +626,6 @@ export const experiments = pgTable(
     id: uuid("id").primaryKey(),
     /** Names one experiment in the notebook; two cannot read the same. */
     name: text("name").notNull(),
-    nameKey: text("name_key")
-      .notNull()
-      .generatedAlwaysAs(
-        sql`trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))`,
-      ),
     /** The plant under culture: species, cultivar, or line. */
     plantMaterial: text("plant_material").notNull(),
     /** The type of tissue used to initiate the observation units. */
@@ -649,10 +644,10 @@ export const experiments = pgTable(
   (table) => [
     index("experiments_version_idx").on(table.modelVersionId),
     unique("experiments_id_inoculated").on(table.id, table.inoculatedOn),
-    unique("experiments_name").on(table.nameKey),
+    uniqueIndex("experiments_name").on(sql`lower(${table.name})`),
     check(
       "experiments_name_check",
-      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120 and ${table.nameKey} <> ''`,
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
     ),
     check(
       "experiments_plant_material_check",
@@ -681,25 +676,23 @@ export const experimentTreatments = pgTable(
       .references(() => experiments.id, { onDelete: "cascade" }),
     id: uuid("id").notNull(),
     name: text("name").notNull(),
-    nameKey: text("name_key")
-      .notNull()
-      .generatedAlwaysAs(
-        sql`trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))`,
-      ),
     factor: jsonb("factor").$type<TreatmentFactor>(),
     note: text("note").notNull(),
     position: integer("position").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
-    unique("experiment_treatments_name").on(table.experimentId, table.nameKey),
+    uniqueIndex("experiment_treatments_name").on(
+      table.experimentId,
+      sql`lower(${table.name})`,
+    ),
     unique("experiment_treatments_position").on(
       table.experimentId,
       table.position,
     ),
     check(
       "experiment_treatments_name_check",
-      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120 and ${table.nameKey} <> ''`,
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
     ),
     check(
       "experiment_treatments_note_check",
@@ -773,19 +766,14 @@ export const experimentObservationUnits = pgTable(
       .references(() => experiments.id, { onDelete: "cascade" }),
     id: uuid("id").notNull(),
     code: text("code").notNull(),
-    codeKey: text("code_key")
-      .notNull()
-      .generatedAlwaysAs(
-        sql`trim(both '-' from lower(regexp_replace(normalize(code, NFKC), '[-[:space:]._]+', '-', 'g')))`,
-      ),
     /** The treatment this observation unit replicates. */
     treatmentId: uuid("treatment_id"),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
-    unique("experiment_observation_units_code").on(
+    uniqueIndex("experiment_observation_units_code").on(
       table.experimentId,
-      table.codeKey,
+      sql`lower(${table.code})`,
     ),
     foreignKey({
       columns: [table.experimentId, table.treatmentId],
@@ -800,7 +788,7 @@ export const experimentObservationUnits = pgTable(
     ),
     check(
       "experiment_observation_units_code_check",
-      sql`${table.code} = btrim(${table.code}) and length(${table.code}) between 1 and 60 and ${table.codeKey} <> ''`,
+      sql`${table.code} = btrim(${table.code}) and length(${table.code}) between 1 and 60`,
     ),
   ],
 );
@@ -832,11 +820,6 @@ export const experimentCultureEvents = pgTable(
         experimentObservations.id,
       ],
     }),
-    index("experiment_culture_events_unit_idx").on(
-      table.experimentId,
-      table.observationUnitId,
-      table.recordedAt,
-    ),
     uniqueIndex("experiment_culture_events_one_kind").on(
       table.experimentId,
       table.observationUnitId,
@@ -902,9 +885,8 @@ export const experimentObservationImages = pgTable(
 );
 
 /**
- * An inference process by the runtimes it can execute. Which versions it
- * detects with follows from current demand; the version it holds in memory is
- * reported for display only.
+ * An inference process by the runtimes it can execute and the image it is
+ * working on. Which versions it detects with follows from current demand.
  */
 export const inferenceWorkers = pgTable(
   "inference_workers",
@@ -1122,7 +1104,6 @@ export const trainingWorkers = pgTable(
     id: text("id").primaryKey(),
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
-    device: text("device").notNull(),
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     currentTrainingRunId: text("current_training_run_id").references(
       () => trainingRuns.id,

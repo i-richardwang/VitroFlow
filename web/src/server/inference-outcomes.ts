@@ -35,10 +35,13 @@ import { sameRuntimeDescriptor } from "../inference/schema";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import { canonicalJson } from "../json/canonical";
 import { assertInstanceClasses } from "../models/metrics";
-import { supportsRuntime, type Model } from "../models/schema";
+import {
+  supportsRuntime,
+  type Model,
+  type ModelArtifact,
+} from "../models/schema";
 import { lockDetection } from "./detection-lock";
 import { assertDocumentImage } from "./image-documents";
-import { canExecute } from "./inference-worker-store";
 import { readModel, toModelVersion } from "./model-registry";
 
 /** One image under one model version: the pair a detection is recorded for. */
@@ -63,55 +66,6 @@ export class DetectionImageNotFoundError extends Error {}
 /** Thrown when an outcome's producer is not the version, artifact, and runtime it claims. */
 export class ProducerMismatchError extends Error {}
 export class InferenceClaimRejectedError extends Error {}
-
-export async function readDetection(
-  { versionId, digest }: DetectionTarget,
-  db?: Executor,
-): Promise<DetectionResult | null> {
-  const [row] = await (db ?? (await database()))
-    .select({ document: inferenceOutcomes.document })
-    .from(inferenceOutcomes)
-    .where(
-      and(
-        eq(inferenceOutcomes.imageId, digest),
-        eq(inferenceOutcomes.modelVersionId, versionId),
-        eq(inferenceOutcomes.status, "succeeded"),
-      ),
-    );
-  return row && !isFailure(row.document) ? row.document : null;
-}
-
-/** Whether an experiment still requires this image-version outcome. */
-export async function inferencePending(
-  target: DetectionTarget,
-  db?: Executor,
-): Promise<boolean> {
-  const [row] = await (db ?? (await database()))
-    .select({ digest: experimentObservationImages.imageId })
-    .from(experimentObservationImages)
-    .innerJoin(
-      experiments,
-      and(
-        eq(experiments.id, experimentObservationImages.experimentId),
-        eq(experiments.modelVersionId, target.versionId),
-      ),
-    )
-    .leftJoin(
-      inferenceOutcomes,
-      and(
-        eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
-      ),
-    )
-    .where(
-      and(
-        eq(experimentObservationImages.imageId, target.digest),
-        isNull(inferenceOutcomes.imageId),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
-}
 
 function sameDocument(left: DetectionResult, right: DetectionResult): boolean {
   return canonicalJson(left) === canonicalJson(right);
@@ -366,6 +320,14 @@ export async function renewInferenceClaim(
   return { leaseExpiresAt: renewed.leaseExpiresAt.toISOString() };
 }
 
+/** Whether one of the worker's runtimes executes this artifact. */
+function canExecute(
+  worker: Pick<InferenceWorkerRecord, "runtimes">,
+  artifact: ModelArtifact,
+): boolean {
+  return worker.runtimes.some((runtime) => supportsRuntime(artifact, runtime));
+}
+
 /** A bounded set of unclaimed or expired image-version demand. */
 function claimableExperimentDemand(
   db: Executor,
@@ -481,7 +443,6 @@ export async function claimInferenceAssignment(
       return inferenceAssignmentSchema.parse({
         manifest: inferenceModelManifest(version, model),
         image: pair.digest,
-        leaseExpiresAt: leaseExpiresAt.toISOString(),
       });
     }
     return null;

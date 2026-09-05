@@ -59,7 +59,7 @@ data/
 └── datasets/<dataset>.json
 ```
 
-Complete annotations export as a deterministic YOLO dataset:
+Annotations export as a deterministic YOLO dataset:
 
 ```bash
 vitroflow dataset export-yolo \

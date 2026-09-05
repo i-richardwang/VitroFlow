@@ -26,7 +26,7 @@ import { assignObservationImages } from "./experiment-observation-images";
 import { addObservation } from "./experiment-observations";
 import { auth } from "./auth";
 import { storeImage } from "./image-store";
-import { readAnnotation, saveAnnotation } from "./annotations";
+import { readAnnotation, storeAnnotation } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
 import { readModelVersion, registerModelVersion } from "./model-registry";
@@ -351,7 +351,7 @@ export async function reviewedDataset(
       result,
       { runtimes: [result.producer.runtime] },
     );
-    await saveAnnotation(ref, instancesFromDetection(result));
+    await storeAnnotation(ref, instancesFromDetection(result));
   }
   return seeded;
 }

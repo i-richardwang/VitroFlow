@@ -4,7 +4,25 @@ import type {
   ExperimentObservation,
 } from "./schema";
 
-type ObservationOrdinals = ReadonlyMap<string, number>;
+export type ObservationOrdinals = ReadonlyMap<string, number>;
+
+/** Where each observation falls in the experiment's series. */
+export function observationOrdinals(
+  observations: readonly { id: string; ordinal: number }[],
+): ObservationOrdinals {
+  return new Map(observations.map((item) => [item.id, item.ordinal]));
+}
+
+export function observationOrdinal(
+  ordinals: ObservationOrdinals,
+  observation: string,
+): number {
+  const ordinal = ordinals.get(observation);
+  if (ordinal === undefined) {
+    throw new Error(`Unknown observation: ${observation}`);
+  }
+  return ordinal;
+}
 
 /**
  * What an event means for the unit: whether it leaves the bench, and whether
@@ -62,13 +80,7 @@ function eventOrdinal(
   event: CultureEvent,
   ordinals: ObservationOrdinals,
 ): number {
-  const ordinal = ordinals.get(event.observation);
-  if (ordinal === undefined) {
-    throw new Error(
-      `Unknown observation for culture event: ${event.observation}`,
-    );
-  }
-  return ordinal;
+  return observationOrdinal(ordinals, event.observation);
 }
 
 /** A terminal event takes effect after the observation that records it. */

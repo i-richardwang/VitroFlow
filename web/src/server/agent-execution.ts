@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { transaction, type Executor } from "../db/client";
+import { transaction } from "../db/client";
 import { ConflictError, NotFoundError } from "../experiments/errors";
 import { type AgentOperation, agentOperations } from "./agent-operations";
 
@@ -38,13 +38,27 @@ function prepareOperation(
     : failure("invalid_request", z.prettifyError(parsed.error));
 }
 
-async function invokeOperation(
-  { operation, input }: PreparedOperation,
-  executor?: Executor,
+/**
+ * The execution boundary both protocol faces share: it parses the input
+ * against the operation's schema, runs a command in one transaction that a
+ * failure rolls back whole, classifies a failure by the domain error that
+ * raised it, and checks the result against the published output contract
+ * before it leaves.
+ */
+export async function executeAgentOperation(
+  name: string,
+  input: unknown,
+  registry: ReadonlyMap<string, AgentOperation> = agentOperations,
 ): Promise<AgentCallResult> {
+  const prepared = prepareOperation(name, input, registry);
+  if ("ok" in prepared) return prepared;
+  const { operation, input: parsed } = prepared;
   try {
-    const value = (await operation.handler(input, executor)) ?? null;
-    return { ok: true, output: operation.output.parse(value) };
+    const value =
+      operation.kind === "query"
+        ? await operation.handler(parsed)
+        : await transaction((tx) => operation.handler(parsed, tx));
+    return { ok: true, output: operation.output.parse(value ?? null) };
   } catch (error) {
     if (error instanceof NotFoundError) {
       return failure("not_found", error.message);
@@ -55,21 +69,4 @@ async function invokeOperation(
     console.error(`Agent operation ${operation.name} failed:`, error);
     return failure("internal_error", "Internal error");
   }
-}
-
-/**
- * Executes one authenticated programmatic operation. The input is parsed
- * once, a command runs in one transaction, and the output is checked against
- * the operation's published contract before it leaves.
- */
-export async function executeAgentOperation(
-  name: string,
-  input: unknown,
-  registry: ReadonlyMap<string, AgentOperation> = agentOperations,
-): Promise<AgentCallResult> {
-  const prepared = prepareOperation(name, input, registry);
-  if ("ok" in prepared) return prepared;
-  return prepared.operation.kind === "query"
-    ? invokeOperation(prepared)
-    : transaction((tx) => invokeOperation(prepared, tx));
 }

@@ -36,9 +36,7 @@ function apiKeyRealm(prefix: string, scope: ApiScope): ApiRealm {
   return {
     matches: (pathname) => pathname.startsWith(prefix),
     admits: async (request) =>
-      bearerToken(request) === null
-        ? null
-        : (await authorizeApiKey(request, scope)) !== null,
+      bearerToken(request) === null ? null : authorizeApiKey(request, scope),
   };
 }
 

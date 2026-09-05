@@ -119,7 +119,6 @@ class TrainingWorkerClient(WorkerHttpClient):
             json={
                 **self.identity,
                 "startedAt": self.started_at,
-                "device": self.device,
                 "memoryBytes": self.memory_bytes,
                 "currentTrainingRunId": self.current_run_id,
             },

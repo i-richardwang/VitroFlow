@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { database, inTransaction, type Executor } from "../db/client";
+import { isUniqueViolation } from "../db/errors";
 import {
   experimentCultureEvents,
   experimentObservationImages,
@@ -23,12 +24,7 @@ import {
   TreatmentNotFoundError,
   TreatmentRejectedError,
 } from "../experiments/errors";
-import {
-  experimentNameKey,
-  observationUnitCodeKey,
-  replicateCodes,
-  treatmentNameKey,
-} from "../experiments/naming";
+import { replicateCodes, sameName } from "../experiments/naming";
 import {
   type ObservationUnitAssignment,
   type ObservationUnitBatch,
@@ -74,29 +70,29 @@ export async function createExperiment(
         `Unknown model version: ${modelVersionId}`,
       );
     }
-    await refuseTakenName(value.name, null, tx);
-    const [row] = await tx
-      .insert(experiments)
-      .values({ ...value, id: randomUUID(), createdAt: new Date() })
-      .returning();
+    const [row] = await refuseTakenName(value.name, () =>
+      tx
+        .insert(experiments)
+        .values({ ...value, id: randomUUID(), createdAt: new Date() })
+        .returning(),
+    );
     if (!row) throw new Error("Experiment was not created");
     return toExperiment(row);
   });
 }
 
-/** Two experiments cannot read the same name, however it is spaced or cased. */
-async function refuseTakenName(
+/** Two experiments cannot read the same name, whatever its case. */
+async function refuseTakenName<T>(
   name: string,
-  experimentId: string | null,
-  tx: Executor,
-): Promise<void> {
-  const [taken] = await tx
-    .select({ id: experiments.id })
-    .from(experiments)
-    .where(eq(experiments.nameKey, experimentNameKey(name)))
-    .limit(1);
-  if (taken && taken.id !== experimentId) {
-    throw new ExperimentRejectedError(`Experiment ${name} already exists`);
+  write: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (!isUniqueViolation(error, "experiments_name")) throw error;
+    throw new ExperimentRejectedError(
+      `An experiment named ${name} already exists`,
+    );
   }
 }
 
@@ -124,12 +120,13 @@ export async function updateExperiment(
         );
       }
     }
-    await refuseTakenName(page.name, experimentId, tx);
-    const [row] = await tx
-      .update(experiments)
-      .set(page)
-      .where(eq(experiments.id, experimentId))
-      .returning();
+    const [row] = await refuseTakenName(page.name, () =>
+      tx
+        .update(experiments)
+        .set(page)
+        .where(eq(experiments.id, experimentId))
+        .returning(),
+    );
     if (!row) {
       throw new ExperimentNotFoundError(`Unknown experiment: ${experimentId}`);
     }
@@ -214,12 +211,7 @@ export async function addTreatment(
   return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const existing = await listTreatments(experimentId, tx);
-    if (
-      existing.some(
-        (treatment) =>
-          treatmentNameKey(treatment.name) === treatmentNameKey(name),
-      )
-    ) {
+    if (existing.some((treatment) => sameName(treatment.name, name))) {
       throw new TreatmentRejectedError(`Treatment ${name} already exists`);
     }
     const [row] = await tx
@@ -258,8 +250,7 @@ export async function updateTreatment(
     await lockExperiment(experimentId, tx);
     const taken = (await listTreatments(experimentId, tx)).find(
       (treatment) =>
-        treatmentNameKey(treatment.name) === treatmentNameKey(design.name) &&
-        treatment.id !== treatmentId,
+        sameName(treatment.name, design.name) && treatment.id !== treatmentId,
     );
     if (taken) {
       throw new TreatmentRejectedError(
@@ -342,7 +333,7 @@ export async function addObservationUnits(
     await lockExperiment(experimentId, tx);
     if (treatmentId !== null)
       await requireTreatment(experimentId, treatmentId, tx);
-    const wanted = new Set(codes.map(observationUnitCodeKey));
+    const wanted = new Set(codes.map((code) => code.toLowerCase()));
     if (wanted.size !== codes.length) {
       throw new ObservationUnitRejectedError(
         "The same observation unit is listed twice",
@@ -350,7 +341,7 @@ export async function addObservationUnits(
     }
     const taken = (await listObservationUnits(experimentId, tx))
       .map((observationUnit) => observationUnit.code)
-      .filter((code) => wanted.has(observationUnitCodeKey(code)));
+      .filter((code) => wanted.has(code.toLowerCase()));
     if (taken.length > 0) {
       throw new ObservationUnitRejectedError(
         `The experiment already has ${taken.join(", ")}`,
@@ -374,8 +365,7 @@ export async function updateObservationUnit(
     const observationUnits = await listObservationUnits(experimentId, tx);
     const clash = observationUnits.find(
       (observationUnit) =>
-        observationUnitCodeKey(observationUnit.code) ===
-          observationUnitCodeKey(code) &&
+        sameName(observationUnit.code, code) &&
         observationUnit.id !== observationUnitId,
     );
     if (clash) {

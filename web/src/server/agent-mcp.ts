@@ -18,7 +18,7 @@ import { type AgentOperation, agentOperations } from "./agent-operations";
 import { auth } from "./auth";
 import { bearerToken } from "./bearer";
 import { deploymentEndpoint } from "./deployment";
-import { authorizeMcpPrincipal } from "./programmatic-access";
+import { mcpAuthorizationIsLive, mcpClientId } from "./programmatic-access";
 
 /**
  * The MCP face of the agent operations: every tool is one registry entry, so
@@ -111,8 +111,8 @@ export async function serveMcp(request: Request): Promise<Response> {
     return requireMcpAuth(
       instance,
       async (accepted, claims) => {
-        const principal = await authorizeMcpPrincipal(claims);
-        if (!principal) {
+        const clientId = mcpClientId(claims);
+        if (!clientId || !(await mcpAuthorizationIsLive(claims))) {
           return bearerAuthChallengeResponse(
             new OAuthError(
               OAuthErrorCode.InvalidToken,
@@ -132,7 +132,7 @@ export async function serveMcp(request: Request): Promise<Response> {
         return mcpHandler.fetch(accepted, {
           authInfo: {
             token,
-            clientId: principal.credentialId,
+            clientId,
             scopes,
             expiresAt: claims.exp,
             resource: new URL(deployment.mcpResource),

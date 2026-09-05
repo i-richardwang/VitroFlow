@@ -164,10 +164,6 @@ class ModelStore:
         self._device = device
         self._loaded: tuple[str, Detector] | None = None
 
-    @property
-    def loaded(self) -> str | None:
-        return self._loaded[0] if self._loaded else None
-
     def load(self, manifest: ModelManifest) -> Detector:
         version_id = manifest.model_version_id
         if self._loaded and self._loaded[0] == version_id:

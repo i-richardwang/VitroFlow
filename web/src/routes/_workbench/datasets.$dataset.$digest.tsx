@@ -1,21 +1,17 @@
 import { Segment } from "@heroui-pro/react/segment";
-import { Button, ButtonGroup, Separator, Tooltip } from "@heroui/react";
+import { ButtonGroup, Separator } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
-import type { ReactNode } from "react";
 
-import {
-  REVIEW_VERSIONS,
-  type Review,
-  type ReviewVersion,
-} from "../../annotation/review";
+import { REVIEW_VERSIONS } from "../../annotation/review";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../components/icons";
 import { ImageWorkbench } from "../../components/workbench/ImageWorkbench";
 import { Metrics, Section } from "../../components/workbench/inspector";
+import { StepButton } from "../../components/workbench/StepButton";
 import { datasetImageRefSchema } from "../../datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
-import type { DatasetImageView } from "../../datasets/image";
+import type { DatasetImageStep, DatasetImageView } from "../../datasets/image";
 
 /**
  * `show` picks the boxes to look at: what the model found, or the review;
@@ -25,11 +21,6 @@ const datasetImageSearchSchema = z.object({
   show: z.enum(REVIEW_VERSIONS).optional().catch(undefined),
   edit: z.literal(true).optional().catch(undefined),
 });
-
-/** Until a review is stored, the review is the detection; show it as such. */
-function shownVersion(review: Review, show?: ReviewVersion): ReviewVersion {
-  return show ?? (review.annotation ? "review" : "detection");
-}
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
   validateSearch: datasetImageSearchSchema,
@@ -60,13 +51,18 @@ function DatasetImagePage() {
   const router = useRouter();
   const navigate = Route.useNavigate();
   const { detection } = review;
-  const version = shownVersion(review, show);
 
   useRouteRefresh(
     router,
     5000,
     detection === null && review.annotation === null,
   );
+
+  const stepTo = (step: DatasetImageStep) =>
+    void navigate({
+      params: (current) => ({ ...current, digest: step.digest }),
+      search: (current) => current,
+    });
 
   return (
     <ImageWorkbench
@@ -75,7 +71,7 @@ function DatasetImagePage() {
       model={model}
       review={review}
       editing={edit === true}
-      version={version}
+      version={show}
       onEditingChange={(editing) =>
         void navigate({
           search: (previous) => ({
@@ -88,10 +84,18 @@ function DatasetImagePage() {
         toolbar: (
           <>
             <ButtonGroup variant="tertiary">
-              <StepButton label="Previous image" step={previous}>
+              <StepButton
+                label="Previous image"
+                neighbour={previous?.filename ?? null}
+                onPress={() => previous && stepTo(previous)}
+              >
                 <ChevronLeftIcon />
               </StepButton>
-              <StepButton label="Next image" step={next}>
+              <StepButton
+                label="Next image"
+                neighbour={next?.filename ?? null}
+                onPress={() => next && stepTo(next)}
+              >
                 <ButtonGroup.Separator />
                 <ChevronRightIcon />
               </StepButton>
@@ -102,7 +106,7 @@ function DatasetImagePage() {
                 <Segment
                   variant="ghost"
                   aria-label="Boxes shown"
-                  selectedKey={version}
+                  selectedKey={show ?? "review"}
                   onSelectionChange={(key) => {
                     if (key !== "review" && key !== "detection") return;
                     void navigate({
@@ -129,41 +133,5 @@ function DatasetImagePage() {
         ),
       }}
     />
-  );
-}
-
-function StepButton({
-  label,
-  step,
-  children,
-}: {
-  label: string;
-  step: DatasetImageView["previous"];
-  children: ReactNode;
-}) {
-  const navigate = Route.useNavigate();
-  const button = (
-    <Button
-      variant="tertiary"
-      isIconOnly
-      aria-label={label}
-      isDisabled={step === null}
-      onPress={() =>
-        step &&
-        void navigate({
-          params: (previous) => ({ ...previous, digest: step.digest }),
-          search: (previous) => previous,
-        })
-      }
-    >
-      {children}
-    </Button>
-  );
-  if (step === null) return button;
-  return (
-    <Tooltip delay={0}>
-      {button}
-      <Tooltip.Content className="font-mono">{step.filename}</Tooltip.Content>
-    </Tooltip>
   );
 }

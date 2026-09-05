@@ -7,7 +7,7 @@ import { disconnectMcpClient, listMcpClients } from "./mcp-clients";
 import { authorizeMcpClient, baselineVersion, signInAs } from "./testing";
 import { banUser, revokeUserSessions } from "./users";
 
-const envelope = {
+const meta = {
   "io.modelcontextprotocol/protocolVersion": "2026-07-28",
   "io.modelcontextprotocol/clientCapabilities": {},
 };
@@ -34,7 +34,7 @@ function modernRequest(
       jsonrpc: "2.0",
       id: 1,
       method,
-      params: { ...params, _meta: envelope },
+      params: { ...params, _meta: meta },
     }),
   });
 }
@@ -51,13 +51,6 @@ async function rpc(method: string, params?: unknown): Promise<unknown> {
         token: "test",
         clientId: "test-client",
         scopes: [],
-        extra: {
-          principal: {
-            kind: "api_key",
-            userId: "test-user",
-            credentialId: "test-key",
-          },
-        },
       },
     },
   );
@@ -102,6 +95,24 @@ describe("agent MCP surface", () => {
     expect(result.structuredContent).toBeDefined();
   });
 
+  test("an operation with no result answers null structured content", async () => {
+    const version = await baselineVersion();
+    const created = (await rpc("tools/call", {
+      name: "create-experiment",
+      arguments: {
+        name: `Transient ${crypto.randomUUID()}`,
+        inoculatedOn: "2026-09-02",
+        modelVersionId: version.id,
+      },
+    })) as { structuredContent: { id: string } };
+    const deleted = (await rpc("tools/call", {
+      name: "delete-experiment",
+      arguments: { experiment: created.structuredContent.id },
+    })) as { structuredContent: unknown; isError?: boolean };
+    expect(deleted.isError).toBeFalsy();
+    expect(deleted.structuredContent).toBeNull();
+  });
+
   test("a domain failure reads as a tool error, not a protocol error", async () => {
     const result = (await rpc("tools/call", {
       name: "get-experiment",
@@ -114,7 +125,7 @@ describe("agent MCP surface", () => {
     });
   });
 
-  test("a mutation takes the operation input directly", async () => {
+  test("a repeated create is refused by the record it would duplicate", async () => {
     const version = await baselineVersion();
     const name = `MCP ${crypto.randomUUID()}`;
     const params = {

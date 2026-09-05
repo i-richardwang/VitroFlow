@@ -76,7 +76,6 @@ class FakeStore:
 
     def __init__(self, detectors: dict[str, Any]) -> None:
         self.detectors = detectors
-        self.loaded: str | None = None
         self.loads: list[str] = []
 
     def load(self, manifest: ModelManifest) -> Any:
@@ -84,7 +83,6 @@ class FakeStore:
         self.loads.append(version_id)
         if version_id not in self.detectors:
             raise RuntimeError(f"no weights for {version_id}")
-        self.loaded = version_id
         return self.detectors[version_id]
 
 
@@ -162,8 +160,7 @@ class Workbench:
         ]
 
 
-LEASE = "2026-09-03T12:05:00.000Z"
-ASSIGNMENTS = [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}]
+ASSIGNMENTS = [{"manifest": MANIFEST, "image": DIGEST}]
 
 
 def test_assignment_image_is_a_digest() -> None:
@@ -172,7 +169,6 @@ def test_assignment_image_is_a_digest() -> None:
             {
                 "manifest": MANIFEST,
                 "image": "images/set/a.jpg",
-                "leaseExpiresAt": LEASE,
             }
         )
     with pytest.raises(ValueError, match=r"assignment.image.*shared contract"):
@@ -180,7 +176,6 @@ def test_assignment_image_is_a_digest() -> None:
             {
                 "manifest": MANIFEST,
                 "image": {"digest": DIGEST},
-                "leaseExpiresAt": LEASE,
             }
         )
 
@@ -212,7 +207,6 @@ def test_assignment_validates_its_manifest() -> None:
                     "artifact": {"kind": "onnx", "digest": "a" * 64},
                 },
                 "image": DIGEST,
-                "leaseExpiresAt": LEASE,
             }
         )
     with pytest.raises(
@@ -227,15 +221,6 @@ def test_assignment_validates_its_manifest() -> None:
                     "artifact": {"kind": "traditional", "digest": "a" * 64},
                 },
                 "image": DIGEST,
-                "leaseExpiresAt": LEASE,
-            }
-        )
-    with pytest.raises(ValueError, match=r"assignment.leaseExpiresAt.*shared contract"):
-        Assignment.parse(
-            {
-                "manifest": MANIFEST,
-                "image": DIGEST,
-                "leaseExpiresAt": "2026-09-03T12:05:00",
             }
         )
 
@@ -303,9 +288,8 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
             {
                 "manifest": OTHER_MANIFEST,
                 "image": DIGEST,
-                "leaseExpiresAt": LEASE,
             },
-            {"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE},
+            {"manifest": MANIFEST, "image": DIGEST},
         ]
     )
     client = workbench.client()
@@ -323,7 +307,7 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
 
 def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        [{"manifest": MANIFEST, "image": DIGEST}],
         image=b"tampered",
     )
     client = workbench.client()
@@ -336,9 +320,7 @@ def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> No
 
 
 def test_pass_records_a_failure_document(tmp_path: Path) -> None:
-    workbench = Workbench(
-        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}]
-    )
+    workbench = Workbench([{"manifest": MANIFEST, "image": DIGEST}])
     client = workbench.client()
     try:
         run_pass(client, tmp_path, store(FailingDetector()))
@@ -357,7 +339,7 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
 @pytest.mark.parametrize("status", [400, 422])
 def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        [{"manifest": MANIFEST, "image": DIGEST}],
         result_status=status,
     )
     client = workbench.client()
@@ -370,7 +352,7 @@ def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
 
 def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        [{"manifest": MANIFEST, "image": DIGEST}],
         lease_status=409,
     )
     client = workbench.client()
@@ -393,7 +375,7 @@ def test_refresh_failure_prevents_a_stale_result(
 
     monkeypatch.setattr(inference_worker, "LEASE_REFRESH_SECONDS", 0.001)
     workbench = Workbench(
-        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        [{"manifest": MANIFEST, "image": DIGEST}],
         lease_statuses=[200, 409],
     )
     client = workbench.client()
@@ -407,7 +389,7 @@ def test_refresh_failure_prevents_a_stale_result(
 
 def test_result_conflict_is_a_lost_lease(tmp_path: Path) -> None:
     workbench = Workbench(
-        [{"manifest": MANIFEST, "image": DIGEST, "leaseExpiresAt": LEASE}],
+        [{"manifest": MANIFEST, "image": DIGEST}],
         result_status=409,
     )
     client = workbench.client()

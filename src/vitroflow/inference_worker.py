@@ -24,7 +24,7 @@ from .detectors import (
     TraditionalDetector,
     ultralytics_runtime_descriptor,
 )
-from .documents import as_digest, as_object, as_string, expect_fields
+from .documents import as_digest, as_object, expect_fields
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .inference_models import ModelManifest, ModelStore
 from .scoring import DEFAULT_MODEL
@@ -68,23 +68,15 @@ class Assignment:
 
     manifest: ModelManifest
     image: str
-    lease_expires_at: str
 
     @classmethod
     def parse(cls, value: Any, context: str = "assignment") -> Assignment:
         validate_wire_contract("inference-assignment", value, context)
         entry = as_object(value, context)
-        expect_fields(entry, {"manifest", "image", "leaseExpiresAt"}, context)
-        lease_expires_at = as_string(
-            entry["leaseExpiresAt"], f"{context}.leaseExpiresAt"
-        )
-        lease = datetime.fromisoformat(lease_expires_at)
-        if lease.tzinfo is None:
-            raise ValueError(f"{context}.leaseExpiresAt must include an offset")
+        expect_fields(entry, {"manifest", "image"}, context)
         return cls(
             manifest=ModelManifest.parse(entry["manifest"], f"{context}.manifest"),
             image=as_digest(entry["image"], f"{context}.image"),
-            lease_expires_at=lease_expires_at,
         )
 
     @property

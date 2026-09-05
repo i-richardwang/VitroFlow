@@ -28,15 +28,15 @@ import {
 } from "../../experiments/schema";
 import {
   createCultureEvent,
-  deleteCultureEvent,
   editObservationUnit,
+  removeCultureEvent,
   removeObservationUnit,
   unassignObservationImage,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
-import { ReassignObservationImageModal } from "./ObservationImageDialogs";
+import { ReassignObservationImageModal } from "./ReassignObservationImageModal";
 
 type Action = "reassign" | "edit" | "record" | "remove-event" | "delete";
 
@@ -52,10 +52,11 @@ export function ObservationUnitMenu({
   observationUnit: ObservationUnit;
   observations: ExperimentObservation[];
   canRemove: boolean;
-  image?: ExperimentObservationImage;
-  navigation?: ObservationUnitNavigationEntry[];
+  image: ExperimentObservationImage | null;
+  navigation: ObservationUnitNavigationEntry[];
 }) {
   const router = useRouter();
+  const { busy, run } = useAsyncAction();
   const [open, setOpen] = useState<Action | null>(null);
   const unassign = async () => {
     if (!image) return;
@@ -81,9 +82,11 @@ export function ObservationUnitMenu({
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={`${observationUnit.code} actions`}
-            onAction={(key) =>
-              key === "unassign" ? void unassign() : setOpen(key as Action)
-            }
+            disabledKeys={busy ? ["unassign"] : []}
+            onAction={(key) => {
+              if (key !== "unassign") return setOpen(key as Action);
+              void run(unassign, "Image not unassigned");
+            }}
           >
             {image ? (
               <Dropdown.Item id="reassign" textValue="Reassign image">
@@ -127,13 +130,15 @@ export function ObservationUnitMenu({
       </Dropdown>
 
       <EditObservationUnitModal
+        key={open === "edit" ? "editing" : "idle"}
         experiment={experiment}
         observationUnit={observationUnit}
         isOpen={open === "edit"}
         onClose={() => setOpen(null)}
       />
 
-      <RecordCultureEventDialog
+      <RecordCultureEventModal
+        key={open === "record" ? "recording" : "idle"}
         experiment={experiment}
         observationUnit={observationUnit}
         observations={observations}
@@ -141,7 +146,8 @@ export function ObservationUnitMenu({
         onClose={() => setOpen(null)}
       />
 
-      <RemoveCultureEventDialog
+      <RemoveCultureEventModal
+        key={open === "remove-event" ? "removing" : "idle"}
         experiment={experiment}
         observationUnit={observationUnit}
         observations={observations}
@@ -149,7 +155,7 @@ export function ObservationUnitMenu({
         onClose={() => setOpen(null)}
       />
 
-      {image && navigation ? (
+      {image ? (
         <ReassignObservationImageModal
           image={image}
           navigation={navigation}
@@ -199,7 +205,7 @@ function EditObservationUnitModal({
             <Modal.Header>
               <Modal.Heading>Edit observation unit</Modal.Heading>
             </Modal.Header>
-            <Modal.Body key={isOpen ? "open" : "closed"}>
+            <Modal.Body>
               <Form
                 id="edit-observation-unit"
                 className="flex w-full min-w-0 flex-col gap-4"
@@ -256,32 +262,7 @@ function EditObservationUnitModal({
   );
 }
 
-function RecordCultureEventDialog({
-  experiment,
-  observationUnit,
-  observations,
-  isOpen,
-  onClose,
-}: {
-  experiment: string;
-  observationUnit: ObservationUnit;
-  observations: ExperimentObservation[];
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <RecordCultureEventForm
-      key={isOpen ? "open" : "closed"}
-      experiment={experiment}
-      observationUnit={observationUnit}
-      observations={observations}
-      isOpen={isOpen}
-      onClose={onClose}
-    />
-  );
-}
-
-function RecordCultureEventForm({
+function RecordCultureEventModal({
   experiment,
   observationUnit,
   observations,
@@ -411,32 +392,7 @@ function RecordCultureEventForm({
   );
 }
 
-function RemoveCultureEventDialog({
-  experiment,
-  observationUnit,
-  observations,
-  isOpen,
-  onClose,
-}: {
-  experiment: string;
-  observationUnit: ObservationUnit;
-  observations: ExperimentObservation[];
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <RemoveCultureEventForm
-      key={isOpen ? "open" : "closed"}
-      experiment={experiment}
-      observationUnit={observationUnit}
-      observations={observations}
-      isOpen={isOpen}
-      onClose={onClose}
-    />
-  );
-}
-
-function RemoveCultureEventForm({
+function RemoveCultureEventModal({
   experiment,
   observationUnit,
   observations,
@@ -478,7 +434,7 @@ function RemoveCultureEventForm({
                 onSubmit={(formEvent) => {
                   formEvent.preventDefault();
                   void run(
-                    () => deleteCultureEvent({ data: { experiment, event } }),
+                    () => removeCultureEvent({ data: { experiment, event } }),
                     "Event not removed",
                   ).then(async (result) => {
                     if (!result.ok) return;

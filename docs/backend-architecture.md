@@ -41,7 +41,7 @@ Database checks, foreign keys, uniqueness constraints, advisory locks, immutable
 
 ## Security boundary
 
-API keys, MCP OAuth, browser sessions, and worker tokens authenticate different principals. MCP access is rechecked against the account, client, consent, protected resource, and originating browser session on every request so revocation is immediate. The application receives only the minimal `{ kind, userId, credentialId }` principal after that adapter-specific authorization succeeds.
+API keys, MCP OAuth, browser sessions, and worker tokens authenticate different principals. MCP access is rechecked against the account, client, consent, protected resource, and originating browser session on every request so revocation is immediate. Authorization is decided at the adapter and answers only whether the request may proceed; the operation catalog runs without an identity.
 
 ## Module rule
 

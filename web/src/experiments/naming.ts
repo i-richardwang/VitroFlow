@@ -38,35 +38,20 @@ export function replicateCodes(
   replicates: number,
   taken: readonly string[],
 ): string[] {
-  const used = new Set(taken.map(observationUnitCodeKey));
+  const used = new Set(taken.map((code) => code.toLowerCase()));
   const codes: string[] = [];
   for (let replicate = 1; codes.length < replicates; replicate += 1) {
     const code = `${treatment}-${replicate}`;
-    if (used.has(observationUnitCodeKey(code))) continue;
-    used.add(observationUnitCodeKey(code));
+    if (used.has(code.toLowerCase())) continue;
+    used.add(code.toLowerCase());
     codes.push(code);
   }
   return codes;
 }
 
-function normalizedDesignKey(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[\s._-]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-export function experimentNameKey(name: string): string {
-  return normalizedDesignKey(name);
-}
-
-export function treatmentNameKey(name: string): string {
-  return normalizedDesignKey(name);
-}
-
-export function observationUnitCodeKey(code: string): string {
-  return normalizedDesignKey(code);
+/** Names and codes are identified the way the database compares them. */
+export function sameName(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 /** The filename without its extension, as the camera or the operator wrote it. */
@@ -76,23 +61,30 @@ export function filenameStem(filename: string): string {
   return (dot > 0 ? normalized.slice(0, dot) : normalized).trim();
 }
 
+/** Case and separators are what a camera or an operator varies freely. */
+function looseCode(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s._-]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 /**
- * The observation unit a filename most likely shows. A stem that normalizes to
- * a code names it outright; otherwise a stem ending in a code after a
- * separator does, which is how `IMG_0413_T1-2` survives a camera.
+ * The observation unit a filename most likely shows. A stem that matches a
+ * code names it outright; otherwise a stem ending in a code after a separator
+ * does, which is how `IMG_0413_T1-2` survives a camera.
  */
 export function suggestObservationUnit(
   filename: string,
   codes: readonly string[],
 ): string | null {
-  const stem = observationUnitCodeKey(filenameStem(filename));
+  const stem = looseCode(filenameStem(filename));
   if (!stem) return null;
-  const exact = codes.filter((code) => observationUnitCodeKey(code) === stem);
+  const exact = codes.filter((code) => looseCode(code) === stem);
   if (exact.length === 1) return exact[0]!;
   if (exact.length > 1) return null;
-  const suffixed = codes.filter((code) =>
-    stem.endsWith(`-${observationUnitCodeKey(code)}`),
-  );
+  const suffixed = codes.filter((code) => stem.endsWith(`-${looseCode(code)}`));
   if (suffixed.length !== 1) return null;
   return suffixed[0]!;
 }

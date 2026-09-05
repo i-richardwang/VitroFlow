@@ -6,21 +6,22 @@ import {
   type AnnotationInstance,
   type AnnotationRef,
 } from "../annotation/schema";
-import { database, transaction, type Executor } from "../db/client";
+import { database, transaction } from "../db/client";
 import { annotations, images } from "../db/schema";
 import { assertInstanceClasses } from "../models/metrics";
 import { lockImage } from "./image-lock";
 import { readModel } from "./model-registry";
 
-export function atAnnotation({ digest, modelId }: AnnotationRef) {
+function atAnnotation({ digest, modelId }: AnnotationRef) {
   return and(eq(annotations.imageId, digest), eq(annotations.modelId, modelId));
 }
 
 export async function readAnnotation(
   ref: AnnotationRef,
-  db?: Executor,
 ): Promise<AnnotationDocument | null> {
-  const [row] = await (db ?? (await database()))
+  const [row] = await (
+    await database()
+  )
     .select({ document: annotations.document })
     .from(annotations)
     .where(atAnnotation(ref));
@@ -32,7 +33,7 @@ export async function readAnnotation(
  * The document is composed here, on the stored image, so a review can only
  * ever describe the image it is addressed to; a later review replaces it.
  */
-export async function saveAnnotation(
+export async function storeAnnotation(
   ref: AnnotationRef,
   instances: AnnotationInstance[],
 ): Promise<AnnotationDocument> {

@@ -89,7 +89,7 @@ def _prepared_images(
     _traditional_manifest(source)
     annotated = load_annotations(source)
     if not annotated:
-        raise ValueError("No reviewed annotations found")
+        raise ValueError("No annotations found")
     return prepare_images([image.annotation for image in annotated], data_root, config)
 
 
@@ -243,7 +243,7 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     evaluate = traditional_commands.add_parser(
-        "evaluate", help="Evaluate a model on reviewed annotations"
+        "evaluate", help="Evaluate a model on the annotations"
     )
     _add_dataset_options(evaluate)
     _add_pipeline_options(evaluate)
@@ -251,7 +251,7 @@ def _parser() -> argparse.ArgumentParser:
     evaluate.set_defaults(handler=_evaluate_traditional)
 
     train = traditional_commands.add_parser(
-        "train", help="Train a model from reviewed annotations"
+        "train", help="Train a model from the annotations"
     )
     _add_dataset_options(train)
     _add_pipeline_options(train)
@@ -278,7 +278,7 @@ def _parser() -> argparse.ArgumentParser:
     _add_workbench_options(push)
     push.set_defaults(handler=_push_dataset)
     export_yolo = dataset_commands.add_parser(
-        "export-yolo", help="Export reviewed annotations as a YOLO dataset"
+        "export-yolo", help="Export the annotations as a YOLO dataset"
     )
     _add_dataset_options(export_yolo)
     export_yolo.add_argument("--output", required=True)

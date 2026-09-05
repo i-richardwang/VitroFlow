@@ -9,7 +9,7 @@ from vitroflow.annotations import load_annotations, parse_annotation
 CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "annotation.json"
 
 
-def test_reviewed_annotations_are_the_training_source(tmp_path: Path) -> None:
+def test_load_annotations_keeps_only_annotated_images(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     manifest = write_manifest(
         data_root,
@@ -20,11 +20,11 @@ def test_reviewed_annotations_are_the_training_source(tmp_path: Path) -> None:
         ],
     )
 
-    reviewed = load_annotations(manifest)
+    annotated = load_annotations(manifest)
 
-    assert [image.entry.digest for image in reviewed] == ["1" * 64]
-    annotation = reviewed[0].annotation
-    assert (reviewed[0].entry.width, reviewed[0].entry.height) == (100, 80)
+    assert [image.entry.digest for image in annotated] == ["1" * 64]
+    annotation = annotated[0].annotation
+    assert (annotated[0].entry.width, annotated[0].entry.height) == (100, 80)
     assert annotation.digest == "1" * 64
     assert annotation.instances[0].bbox.center == (14.0, 23.0)
 

@@ -5,26 +5,23 @@ import { database } from "../db/client";
 import { oauthClients, oauthConsents, sessions, users } from "../db/schema";
 import { deploymentEndpoint } from "./deployment";
 
-/** The identity application commands need after an adapter authorizes them. */
-export interface ProgrammaticPrincipal {
-  kind: "api_key" | "mcp_client";
-  userId: string;
-  credentialId: string;
-}
-
 function stringClaim(claims: JWTPayload, name: string): string | null {
   const value = claims[name];
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-/** Resolve a verified MCP JWT to an authorization that is still live now. */
-export async function authorizeMcpPrincipal(
+/** The MCP client a verified JWT was issued to. */
+export function mcpClientId(claims: JWTPayload): string | null {
+  return stringClaim(claims, "client_id") ?? stringClaim(claims, "azp");
+}
+
+/** Whether a verified MCP JWT still stands for a live authorization. */
+export async function mcpAuthorizationIsLive(
   claims: JWTPayload,
-): Promise<ProgrammaticPrincipal | null> {
+): Promise<boolean> {
   const userId = stringClaim(claims, "sub");
-  const clientId =
-    stringClaim(claims, "client_id") ?? stringClaim(claims, "azp");
-  if (!userId || !clientId) return null;
+  const clientId = mcpClientId(claims);
+  if (!userId || !clientId) return false;
 
   const db = await database();
   const [authorization] = await db
@@ -48,11 +45,11 @@ export async function authorizeMcpPrincipal(
     authorization.clientDisabled ||
     !authorization.resources?.includes(deploymentEndpoint().mcpResource)
   ) {
-    return null;
+    return false;
   }
 
   const sessionId = stringClaim(claims, "sid");
-  if (!sessionId) return null;
+  if (!sessionId) return false;
   const [session] = await db
     .select({ id: sessions.id })
     .from(sessions)
@@ -63,11 +60,5 @@ export async function authorizeMcpPrincipal(
         gt(sessions.expiresAt, new Date()),
       ),
     );
-  if (!session) return null;
-
-  return {
-    kind: "mcp_client",
-    userId,
-    credentialId: clientId,
-  };
+  return session !== undefined;
 }

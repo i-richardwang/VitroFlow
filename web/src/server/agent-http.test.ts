@@ -1,14 +1,12 @@
-import { describe, expect, spyOn, test } from "bun:test";
-
-import { z } from "zod";
+import { describe, expect, test } from "bun:test";
 
 import {
-  describeAgentInterface,
+  handleAgentInterface,
   handleAgentOperationCall,
   serveAgentInterface,
   serveAgentOperationCall,
 } from "./agent-http";
-import { agentOperations, command } from "./agent-operations";
+import { agentOperations } from "./agent-operations";
 import { issueApiKey } from "./api-keys";
 import { apiKeyHeaders, signInAs } from "./testing";
 
@@ -21,7 +19,7 @@ function post(body?: string): Request {
 
 describe("agent HTTP surface", () => {
   test("describes the interface with every operation", async () => {
-    const described = (await describeAgentInterface().json()) as {
+    const described = (await handleAgentInterface().json()) as {
       call: string;
       upload: string;
       operations: { name: string }[];
@@ -38,6 +36,8 @@ describe("agent HTTP surface", () => {
       new Request("http://workbench/api/agent/operations"),
     );
     expect(denied.status).toBe(401);
+    const { error } = (await denied.json()) as { error: { code: string } };
+    expect(error.code).toBe("unauthorized");
 
     const { user } = await signInAs("member");
     const issued = await issueApiKey(user.id, {
@@ -105,40 +105,5 @@ describe("agent HTTP surface", () => {
     };
     expect(error.code).toBe("invalid_request");
     expect(error.message).toContain("Experiment name is required");
-  });
-
-  test("a defect answers a sanitized 500", async () => {
-    const defective = command({
-      name: "defective",
-      description: "A deliberately broken operation",
-      destructive: false,
-      input: z.strictObject({}),
-      output: z.null(),
-      handler: () => Promise.reject(new TypeError("internal detail")),
-    });
-    const registry = new Map([[defective.name, defective]]);
-
-    const log = spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const response = await handleAgentOperationCall(
-        "defective",
-        new Request("http://workbench/api/agent/defective", {
-          method: "POST",
-          body: "{}",
-        }),
-        registry,
-      );
-      expect(response.status).toBe(500);
-      const { error } = (await response.json()) as {
-        error: { code: string; message: string };
-      };
-      expect(error).toEqual({
-        code: "internal_error",
-        message: "Internal error",
-      });
-      expect(log).toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
   });
 });

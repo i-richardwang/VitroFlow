@@ -8,7 +8,6 @@ import {
   type InferenceWorkerIdentity,
   type InferenceWorkerRecord,
 } from "../inference/workers";
-import { supportsRuntime, type ModelArtifact } from "../models/schema";
 import {
   WORKER_FORGET_SECONDS,
   workerPresence,
@@ -17,18 +16,6 @@ import {
 
 export class InferenceWorkerSessionConflictError extends Error {}
 
-/** Whether one of the worker's runtimes executes this artifact. */
-export function canExecute(
-  worker: Pick<InferenceWorkerRecord, "runtimes">,
-  artifact: ModelArtifact,
-): boolean {
-  return worker.runtimes.some((runtime) => supportsRuntime(artifact, runtime));
-}
-
-/**
- * A worker heartbeats while polling for work and before every image it
- * processes; presence is derived from the heartbeat age.
- */
 function toRecord(
   row: typeof inferenceWorkers.$inferSelect,
 ): InferenceWorkerRecord {
@@ -42,6 +29,10 @@ function toRecord(
   });
 }
 
+/**
+ * A worker heartbeats while polling for work and before every image it
+ * processes; presence is derived from the heartbeat age.
+ */
 export async function recordInferenceHeartbeat(
   heartbeat: InferenceWorkerHeartbeat,
   at: Date = new Date(),
@@ -79,22 +70,11 @@ export async function recordInferenceHeartbeat(
   return toRecord(stored);
 }
 
-export async function readInferenceWorker(
-  workerId: string,
-  db?: Executor,
-): Promise<InferenceWorkerRecord | null> {
-  const [row] = await (db ?? (await database()))
-    .select()
-    .from(inferenceWorkers)
-    .where(eq(inferenceWorkers.id, workerId));
-  return row ? toRecord(row) : null;
-}
-
 export async function readInferenceWorkerSession(
   identity: InferenceWorkerIdentity,
-  db?: Executor,
 ): Promise<InferenceWorkerRecord | null> {
-  const [row] = await (db ?? (await database()))
+  const db = await database();
+  const [row] = await db
     .select()
     .from(inferenceWorkers)
     .where(

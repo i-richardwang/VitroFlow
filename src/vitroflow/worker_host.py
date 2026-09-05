@@ -155,14 +155,21 @@ def _read_status(name: str) -> dict[str, object] | None:
 
 
 def profile_summary(name: str) -> str:
+    """
+    One line per profile. A process that is killed outright never records how
+    it left off, so a running status without a loaded service reads as stale.
+    """
     profile = load_profile(name)
     status = _read_status(name)
+    loaded = service_loaded(name)
     state = str(status.get("state")) if status else "never started"
+    if state == "running" and not loaded:
+        state = "stale"
     if status and status.get("detail"):
         state = f"{state}: {status['detail']}"
-    loaded = "loaded" if service_loaded(name) else "not loaded"
     device = profile.device or "cpu"
-    return f"{name}\t{profile.role}\t{state}\t{loaded}\t{device}"
+    service = "loaded" if loaded else "not loaded"
+    return f"{name}\t{profile.role}\t{state}\t{service}\t{device}"
 
 
 def tail_log(name: str, *, lines: int = 100, follow: bool = False) -> None:

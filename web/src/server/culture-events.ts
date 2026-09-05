@@ -9,6 +9,9 @@ import {
 } from "../db/schema";
 import {
   cultureEventIsTerminal,
+  cultureEventLabel,
+  observationOrdinal,
+  observationOrdinals,
   observationUnitIsAvailableAt,
 } from "../experiments/culture-events";
 import {
@@ -60,7 +63,7 @@ export async function recordCultureEvent(
       )
     ) {
       throw new ObservationUnitRejectedError(
-        `${type} is already recorded for ${observationUnit.code} at this observation`,
+        `${cultureEventLabel(type)} is already recorded for ${observationUnit.code} at this observation`,
       );
     }
     const hasTerminalEvent = observationUnit.events.some((event) =>
@@ -72,16 +75,7 @@ export async function recordCultureEvent(
       );
     }
 
-    const ordinals = new Map(
-      observations.map((item) => [item.id, item.ordinal]),
-    );
-    const ordinalOf = (id: string): number => {
-      const ordinal = ordinals.get(id);
-      if (ordinal === undefined) {
-        throw new Error(`Unknown observation in experiment record: ${id}`);
-      }
-      return ordinal;
-    };
+    const ordinals = observationOrdinals(observations);
     if (
       !observationUnitIsAvailableAt(
         observationUnit.events,
@@ -108,10 +102,14 @@ export async function recordCultureEvent(
         );
       const hasLaterRecord =
         imageObservations.some(
-          (image) => ordinalOf(image.observation) > observation.ordinal,
+          (image) =>
+            observationOrdinal(ordinals, image.observation) >
+            observation.ordinal,
         ) ||
         observationUnit.events.some(
-          (event) => ordinalOf(event.observation) > observation.ordinal,
+          (event) =>
+            observationOrdinal(ordinals, event.observation) >
+            observation.ordinal,
         );
       if (hasLaterRecord) {
         throw new ObservationUnitRejectedError(
@@ -142,7 +140,7 @@ export async function recordCultureEvent(
 }
 
 /** Erases an event that was recorded by mistake. */
-export async function removeCultureEvent(
+export async function deleteCultureEvent(
   { experiment: experimentId, event: eventId }: CultureEventRef,
   executor?: Executor,
 ): Promise<void> {

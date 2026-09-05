@@ -187,7 +187,7 @@ def export_yolo_dataset(
     validation_fraction: float = 0.2,
     seed: int = 0,
 ) -> YoloDatasetManifest:
-    """Export reviewed annotations as a YOLO detection dataset."""
+    """Export the annotations as a YOLO detection dataset."""
     images = [
         DatasetImage(
             digest=image.entry.digest,

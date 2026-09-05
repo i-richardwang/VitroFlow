@@ -2,35 +2,41 @@ import {
   type AgentFailureCode,
   executeAgentOperation,
 } from "./agent-execution";
-import {
-  type AgentOperation,
-  agentOperations,
-  describeAgentOperations,
-} from "./agent-operations";
+import { describeAgentOperations } from "./agent-operations";
 import { authorizeApiKey } from "./api-keys";
-import type { ProgrammaticPrincipal } from "./programmatic-access";
 
-function unauthorized(): Response {
-  return Response.json({ error: "Unauthorized" }, { status: 401 });
-}
+type HttpFailureCode = AgentFailureCode | "unauthorized";
 
-const statusByFailure: Record<AgentFailureCode, 400 | 404 | 409 | 500> = {
+const statusByFailure: Record<HttpFailureCode, 400 | 401 | 404 | 409 | 500> = {
+  unauthorized: 401,
   invalid_request: 400,
   not_found: 404,
   conflict: 409,
   internal_error: 500,
 };
 
-export async function agentApiPrincipal(
+function failureResponse(code: HttpFailureCode, message: string): Response {
+  return Response.json(
+    { error: { code, message } },
+    { status: statusByFailure[code] },
+  );
+}
+
+/** The refusal a request without a live agent-scoped API key gets, or null. */
+export async function refuseWithoutAgentKey(
   request: Request,
-): Promise<ProgrammaticPrincipal | Response> {
-  return (await authorizeApiKey(request, "agent")) ?? unauthorized();
+): Promise<Response | null> {
+  return (await authorizeApiKey(request, "agent"))
+    ? null
+    : failureResponse(
+        "unauthorized",
+        "An API key with the agent scope is required",
+      );
 }
 
 export async function handleAgentOperationCall(
   operation: string,
   request: Request,
-  registry: ReadonlyMap<string, AgentOperation> = agentOperations,
 ): Promise<Response> {
   let input: unknown = {};
   const body = await request.text();
@@ -38,37 +44,26 @@ export async function handleAgentOperationCall(
     try {
       input = JSON.parse(body);
     } catch {
-      return Response.json(
-        {
-          error: {
-            code: "invalid_request",
-            message: "Request body must be JSON",
-          },
-        },
-        { status: 400 },
-      );
+      return failureResponse("invalid_request", "Request body must be JSON");
     }
   }
-  const outcome = await executeAgentOperation(operation, input, registry);
+  const outcome = await executeAgentOperation(operation, input);
   return outcome.ok
     ? Response.json({ result: outcome.output })
-    : Response.json(
-        { error: { code: outcome.code, message: outcome.message } },
-        { status: statusByFailure[outcome.code] },
-      );
+    : failureResponse(outcome.code, outcome.message);
 }
 
 export async function serveAgentOperationCall(
   operation: string,
   request: Request,
 ): Promise<Response> {
-  const principal = await agentApiPrincipal(request);
-  return principal instanceof Response
-    ? principal
-    : handleAgentOperationCall(operation, request);
+  return (
+    (await refuseWithoutAgentKey(request)) ??
+    handleAgentOperationCall(operation, request)
+  );
 }
 
-export function describeAgentInterface(): Response {
+export function handleAgentInterface(): Response {
   return Response.json({
     call: "POST /api/agent/<name> with the operation's JSON input",
     upload:
@@ -78,6 +73,5 @@ export function describeAgentInterface(): Response {
 }
 
 export async function serveAgentInterface(request: Request): Promise<Response> {
-  const principal = await agentApiPrincipal(request);
-  return principal instanceof Response ? principal : describeAgentInterface();
+  return (await refuseWithoutAgentKey(request)) ?? handleAgentInterface();
 }

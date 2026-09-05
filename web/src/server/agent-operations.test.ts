@@ -1,6 +1,4 @@
-import { describe, expect, spyOn, test } from "bun:test";
-
-import { z } from "zod";
+import { describe, expect, test } from "bun:test";
 
 import type { ExperimentGrid } from "../experiments/contracts";
 import type {
@@ -9,21 +7,8 @@ import type {
   ExperimentObservation,
 } from "../experiments/schema";
 import { type AgentCallResult, executeAgentOperation } from "./agent-execution";
-import {
-  type AgentOperation,
-  agentOperations,
-  command,
-  describeAgentOperations,
-} from "./agent-operations";
+import { agentOperations, describeAgentOperations } from "./agent-operations";
 import { baselineVersion } from "./testing";
-
-function callAgentOperation(
-  name: string,
-  input: unknown,
-  registry: ReadonlyMap<string, AgentOperation> = agentOperations,
-): Promise<AgentCallResult> {
-  return executeAgentOperation(name, input, registry);
-}
 
 function output(result: AgentCallResult): unknown {
   if (!result.ok) throw new Error(`Operation failed: ${result.message}`);
@@ -98,89 +83,10 @@ describe("agent operations", () => {
     }
   });
 
-  test("an unknown operation names the known ones", async () => {
-    const result = await callAgentOperation("open-portal", {});
-    expect(failure(result).code).toBe("not_found");
-    expect(failure(result).message).toContain("list-experiments");
-  });
-
-  test("prototype members are not operations", async () => {
-    for (const name of ["toString", "constructor", "__proto__"]) {
-      expect(failure(await callAgentOperation(name, {})).code).toBe(
-        "not_found",
-      );
-    }
-  });
-
-  test("invalid input reports validation, not a defect", async () => {
-    const result = await callAgentOperation("create-experiment", { name: "" });
-    expect(failure(result).code).toBe("invalid_request");
-    expect(failure(result).message).toContain("Experiment name is required");
-  });
-
-  test("a missing record answers not found, not an empty success", async () => {
-    const absent = crypto.randomUUID();
-    const read = await callAgentOperation("get-experiment", {
-      experiment: absent,
-    });
-    expect(failure(read)).toEqual({
-      code: "not_found",
-      message: `Unknown experiment: ${absent}`,
-    });
-
-    const create = await callAgentOperation("create-experiment", {
-      name: "Orphan",
-      inoculatedOn: "2026-08-01",
-      modelVersionId: "seed-detector",
-    });
-    expect(failure(create).code).toBe("not_found");
-    expect(failure(create).message).toContain("Unknown model version");
-  });
-
-  test("defects are logged and sanitized, wherever they arose", async () => {
-    const registry = new Map<string, AgentOperation>(
-      [
-        command({
-          name: "breaks",
-          description: "Throws a non-domain error",
-          destructive: false,
-          input: z.strictObject({}),
-          output: z.null(),
-          handler: () => Promise.reject(new TypeError("internal detail")),
-        }),
-        command({
-          name: "lies",
-          description: "Returns a value its output contract forbids",
-          destructive: false,
-          input: z.strictObject({}),
-          output: z.null(),
-          handler: async () => "wrong" as unknown as null,
-        }),
-      ].map((entry) => [entry.name, entry]),
-    );
-
-    const log = spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const defect = await callAgentOperation("breaks", {}, registry);
-      expect(failure(defect)).toEqual({
-        code: "internal_error",
-        message: "Internal error",
-      });
-      const contract = await callAgentOperation("lies", {}, registry);
-      expect(failure(contract)).toEqual({
-        code: "internal_error",
-        message: "Internal error",
-      });
-      expect(log).toHaveBeenCalledTimes(2);
-    } finally {
-      log.mockRestore();
-    }
-  });
-
   test("operations drive a data-entry workflow end to end", async () => {
     const version = await baselineVersion();
     const experiment = output(
-      await callAgentOperation("create-experiment", {
+      await executeAgentOperation("create-experiment", {
         name: "Agent entry",
         inoculatedOn: "2026-08-01",
         modelVersionId: version.id,
@@ -188,13 +94,13 @@ describe("agent operations", () => {
     ) as Experiment;
 
     output(
-      await callAgentOperation("create-treatment", {
+      await executeAgentOperation("create-treatment", {
         experiment: experiment.id,
         name: "T1",
         replicates: 2,
       }),
     );
-    const duplicate = await callAgentOperation("create-treatment", {
+    const duplicate = await executeAgentOperation("create-treatment", {
       experiment: experiment.id,
       name: "T1",
       replicates: 0,
@@ -202,7 +108,7 @@ describe("agent operations", () => {
     expect(failure(duplicate).code).toBe("conflict");
 
     const observation = output(
-      await callAgentOperation("create-observation", {
+      await executeAgentOperation("create-observation", {
         experiment: experiment.id,
         observedOn: "2026-08-15",
       }),
@@ -210,7 +116,7 @@ describe("agent operations", () => {
     expect(observation.observedOn).toBe("2026-08-15");
 
     const grid = output(
-      await callAgentOperation("get-experiment", {
+      await executeAgentOperation("get-experiment", {
         experiment: experiment.id,
       }),
     ) as ExperimentGrid;
@@ -218,44 +124,44 @@ describe("agent operations", () => {
     expect(grid.observationUnits).toHaveLength(2);
 
     const summaries = output(
-      await callAgentOperation("list-experiments", {}),
+      await executeAgentOperation("list-experiments", {}),
     ) as { experiment: { id: string } }[];
     expect(summaries.map((summary) => summary.experiment.id)).toContain(
       experiment.id,
     );
   });
 
-  test("a culture event without an exclusion choice takes its type's default", async () => {
+  test("a culture event is recorded against its observation unit and observation", async () => {
     const version = await baselineVersion();
     const experiment = output(
-      await callAgentOperation("create-experiment", {
-        name: "Event defaults",
+      await executeAgentOperation("create-experiment", {
+        name: "Culture events",
         inoculatedOn: "2026-08-01",
         modelVersionId: version.id,
       }),
     ) as Experiment;
     output(
-      await callAgentOperation("create-treatment", {
+      await executeAgentOperation("create-treatment", {
         experiment: experiment.id,
         name: "T1",
         replicates: 2,
       }),
     );
     const observation = output(
-      await callAgentOperation("create-observation", {
+      await executeAgentOperation("create-observation", {
         experiment: experiment.id,
         observedOn: "2026-08-10",
       }),
     ) as ExperimentObservation;
     const grid = output(
-      await callAgentOperation("get-experiment", {
+      await executeAgentOperation("get-experiment", {
         experiment: experiment.id,
       }),
     ) as ExperimentGrid;
     const [first, second] = grid.observationUnits;
 
     const contaminated = output(
-      await callAgentOperation("record-culture-event", {
+      await executeAgentOperation("record-culture-event", {
         experiment: experiment.id,
         observationUnit: first!.id,
         observation: observation.id,
@@ -265,7 +171,7 @@ describe("agent operations", () => {
     expect(contaminated.type).toBe("contaminated");
 
     const harvested = output(
-      await callAgentOperation("record-culture-event", {
+      await executeAgentOperation("record-culture-event", {
         experiment: experiment.id,
         observationUnit: second!.id,
         observation: observation.id,

@@ -15,12 +15,8 @@ export async function readModel(
 }
 
 export async function listModels(): Promise<Model[]> {
-  const rows = await (
-    await database()
-  )
-    .select()
-    .from(models)
-    .orderBy(models.id);
+  const db = await database();
+  const rows = await db.select().from(models).orderBy(models.id);
   return rows.map(registry.toModel);
 }
 
@@ -36,9 +32,8 @@ export async function readModelVersion(
  * package's date, so they follow whatever has been trained since.
  */
 export async function listAllModelVersions(): Promise<ModelVersion[]> {
-  const rows = await (
-    await database()
-  )
+  const db = await database();
+  const rows = await db
     .select()
     .from(modelVersions)
     .orderBy(desc(modelVersions.createdAt), desc(modelVersions.id));

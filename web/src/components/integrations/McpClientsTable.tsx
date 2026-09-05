@@ -1,11 +1,10 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Button, Table, toast } from "@heroui/react";
+import { Table, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
 
 import type { McpClient } from "../../auth/integrations";
 import { removeMcpClient } from "../../functions/integrations";
-import { DestructiveActionDialog } from "../DestructiveActionDialog";
+import { DestructiveActionButton } from "../DestructiveActionDialog";
 import { Timestamp } from "../Timestamp";
 
 export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
@@ -47,29 +46,17 @@ export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
 
 function DisconnectMcpClientButton({ client }: { client: McpClient }) {
   const router = useRouter();
-  const [disconnecting, setDisconnecting] = useState(false);
 
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={`Disconnect ${client.name}`}
-        onPress={() => setDisconnecting(true)}
-      >
-        Disconnect…
-      </Button>
-      <DestructiveActionDialog
-        isOpen={disconnecting}
-        onOpenChange={setDisconnecting}
-        title={`Disconnect ${client.name}?`}
-        confirmLabel="Disconnect"
-        onConfirm={async () => {
-          await removeMcpClient({ data: { client: client.id } });
-          toast.success(`${client.name} disconnected`);
-          await router.invalidate();
-        }}
-      />
-    </>
+    <DestructiveActionButton
+      label="Disconnect"
+      title={`Disconnect ${client.name}?`}
+      confirmLabel="Disconnect"
+      onConfirm={async () => {
+        await removeMcpClient({ data: { client: client.id } });
+        toast.success(`${client.name} disconnected`);
+        await router.invalidate();
+      }}
+    />
   );
 }

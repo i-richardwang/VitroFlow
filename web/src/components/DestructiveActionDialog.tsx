@@ -1,5 +1,5 @@
 import { AlertDialog, Button } from "@heroui/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { useAsyncAction } from "../hooks/useAsyncAction";
 
@@ -51,5 +51,44 @@ export function DestructiveActionDialog({
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
     </AlertDialog>
+  );
+}
+
+/** A button that asks before it acts. */
+export function DestructiveActionButton({
+  label,
+  title,
+  confirmLabel,
+  onConfirm,
+  children,
+}: {
+  label: string;
+  title: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+  children?: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={title}
+        onPress={() => setOpen(true)}
+      >
+        {label}…
+      </Button>
+      <DestructiveActionDialog
+        isOpen={open}
+        onOpenChange={setOpen}
+        title={title}
+        confirmLabel={confirmLabel}
+        onConfirm={onConfirm}
+      >
+        {children}
+      </DestructiveActionDialog>
+    </>
   );
 }

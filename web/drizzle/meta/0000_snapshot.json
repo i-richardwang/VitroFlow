@@ -1,5 +1,5 @@
 {
-  "id": "8fc2176e-179a-4e1a-a37f-eb29f7957970",
+  "id": "2247dbae-2343-4c54-bb4c-526d08e2cd53",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -800,33 +800,6 @@
         }
       },
       "indexes": {
-        "experiment_culture_events_unit_idx": {
-          "name": "experiment_culture_events_unit_idx",
-          "columns": [
-            {
-              "expression": "experiment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "observation_unit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "recorded_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "experiment_culture_events_one_kind": {
           "name": "experiment_culture_events_one_kind",
           "columns": [
@@ -1091,16 +1064,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "code_key": {
-          "name": "code_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "trim(both '-' from lower(regexp_replace(normalize(code, NFKC), '[-[:space:]._]+', '-', 'g')))",
-            "type": "stored"
-          }
-        },
         "treatment_id": {
           "name": "treatment_id",
           "type": "uuid",
@@ -1109,6 +1072,27 @@
         }
       },
       "indexes": {
+        "experiment_observation_units_code": {
+          "name": "experiment_observation_units_code",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"code\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "experiment_observation_units_treatment_idx": {
           "name": "experiment_observation_units_treatment_idx",
           "columns": [
@@ -1170,21 +1154,12 @@
           ]
         }
       },
-      "uniqueConstraints": {
-        "experiment_observation_units_code": {
-          "name": "experiment_observation_units_code",
-          "nullsNotDistinct": false,
-          "columns": [
-            "experiment_id",
-            "code_key"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "experiment_observation_units_code_check": {
           "name": "experiment_observation_units_code_check",
-          "value": "\"experiment_observation_units\".\"code\" = btrim(\"experiment_observation_units\".\"code\") and length(\"experiment_observation_units\".\"code\") between 1 and 60 and \"experiment_observation_units\".\"code_key\" <> ''"
+          "value": "\"experiment_observation_units\".\"code\" = btrim(\"experiment_observation_units\".\"code\") and length(\"experiment_observation_units\".\"code\") between 1 and 60"
         }
       },
       "isRLSEnabled": false
@@ -1324,16 +1299,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))",
-            "type": "stored"
-          }
-        },
         "factor": {
           "name": "factor",
           "type": "jsonb",
@@ -1353,7 +1318,29 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "experiment_treatments_name": {
+          "name": "experiment_treatments_name",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "experiment_treatments_experiment_id_experiments_id_fk": {
           "name": "experiment_treatments_experiment_id_experiments_id_fk",
@@ -1379,14 +1366,6 @@
         }
       },
       "uniqueConstraints": {
-        "experiment_treatments_name": {
-          "name": "experiment_treatments_name",
-          "nullsNotDistinct": false,
-          "columns": [
-            "experiment_id",
-            "name_key"
-          ]
-        },
         "experiment_treatments_position": {
           "name": "experiment_treatments_position",
           "nullsNotDistinct": false,
@@ -1400,7 +1379,7 @@
       "checkConstraints": {
         "experiment_treatments_name_check": {
           "name": "experiment_treatments_name_check",
-          "value": "\"experiment_treatments\".\"name\" = btrim(\"experiment_treatments\".\"name\") and length(\"experiment_treatments\".\"name\") between 1 and 120 and \"experiment_treatments\".\"name_key\" <> ''"
+          "value": "\"experiment_treatments\".\"name\" = btrim(\"experiment_treatments\".\"name\") and length(\"experiment_treatments\".\"name\") between 1 and 120"
         },
         "experiment_treatments_note_check": {
           "name": "experiment_treatments_note_check",
@@ -1432,16 +1411,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))",
-            "type": "stored"
-          }
         },
         "plant_material": {
           "name": "plant_material",
@@ -1501,6 +1470,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "experiments_name": {
+          "name": "experiments_name",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1527,20 +1511,13 @@
             "id",
             "inoculated_on"
           ]
-        },
-        "experiments_name": {
-          "name": "experiments_name",
-          "nullsNotDistinct": false,
-          "columns": [
-            "name_key"
-          ]
         }
       },
       "policies": {},
       "checkConstraints": {
         "experiments_name_check": {
           "name": "experiments_name_check",
-          "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120 and \"experiments\".\"name_key\" <> ''"
+          "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120"
         },
         "experiments_plant_material_check": {
           "name": "experiments_plant_material_check",
@@ -3823,12 +3800,6 @@
         "started_at": {
           "name": "started_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "device": {
-          "name": "device",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },

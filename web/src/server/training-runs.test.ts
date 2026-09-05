@@ -46,7 +46,6 @@ async function trainer(workerId: string) {
     workerId,
     sessionId: identity.sessionId,
     startedAt: "2026-08-27T00:00:00.000Z",
-    device: "cuda:0",
     memoryBytes: 24 * 1024 ** 3,
     currentTrainingRunId: null,
   });
@@ -484,7 +483,6 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
     {
       ...oldSession,
       startedAt: started.toISOString(),
-      device: "mps",
       memoryBytes: 16 * 1024 ** 3,
       currentTrainingRunId: null,
     },
@@ -497,7 +495,6 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
     {
       ...newSession,
       startedAt: restarted.toISOString(),
-      device: "mps",
       memoryBytes: 16 * 1024 ** 3,
       currentTrainingRunId: null,
     },
@@ -517,7 +514,6 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
       {
         ...oldSession,
         startedAt: started.toISOString(),
-        device: "mps",
         memoryBytes: 16 * 1024 ** 3,
         currentTrainingRunId: run.id,
       },

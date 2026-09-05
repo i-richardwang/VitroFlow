@@ -29,7 +29,7 @@ function DatasetsPage() {
               <Table.Column className="whitespace-nowrap text-right">
                 To review
               </Table.Column>
-              <Table.Column className="text-right">Complete</Table.Column>
+              <Table.Column className="text-right">Reviewed</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (

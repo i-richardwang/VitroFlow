@@ -60,7 +60,6 @@ test("training HTTP routes publish one candidate version without selecting it", 
       body: JSON.stringify({
         ...OWNER,
         startedAt: "2026-08-27T00:00:00.000Z",
-        device: "cuda:0",
         memoryBytes: 24 * 1024 ** 3,
         currentTrainingRunId: null,
       }),

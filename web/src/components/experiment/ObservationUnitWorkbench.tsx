@@ -1,15 +1,7 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Segment } from "@heroui-pro/react/segment";
-import {
-  Alert,
-  Button,
-  ButtonGroup,
-  Separator,
-  Toolbar,
-  Tooltip,
-} from "@heroui/react";
+import { Alert, Button, ButtonGroup, Separator, Toolbar } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 
 import {
   observationLabel,
@@ -18,6 +10,7 @@ import {
 import {
   cultureEventLabel,
   latestCultureEvent,
+  observationOrdinals,
 } from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
@@ -29,6 +22,7 @@ import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 import { Workbench } from "../Workbench";
 import { ImageWorkbench } from "../workbench/ImageWorkbench";
+import { StepButton } from "../workbench/StepButton";
 import { Metrics, Section } from "../workbench/inspector";
 import { ObservationUnitMenu } from "./ObservationUnitMenu";
 
@@ -49,12 +43,7 @@ export function ObservationUnitWorkbench({
   const title = `Observation unit ${observationUnit.code} of ${experiment.name}`;
   const latestEvent = latestCultureEvent(
     observationUnit.events,
-    new Map(
-      series.observations.map((item) => [
-        item.observation.id,
-        item.observation.ordinal,
-      ]),
-    ),
+    observationOrdinals(series.observations.map((item) => item.observation)),
   );
 
   const menu = (
@@ -66,7 +55,7 @@ export function ObservationUnitWorkbench({
         observationUnit.events.length === 0 &&
         !series.observations.some((item) => item.image)
       }
-      image={shown ?? undefined}
+      image={shown}
       navigation={navigation}
     />
   );
@@ -224,53 +213,22 @@ function ObservationUnitStepper({
     });
   return (
     <ButtonGroup variant="tertiary">
-      <ObservationUnitStepButton
+      <StepButton
         label="Previous observation unit"
-        observationUnit={previous}
-        onPress={go}
+        neighbour={previous?.code ?? null}
+        onPress={() => previous && go(previous.id)}
       >
         <ChevronLeftIcon />
-      </ObservationUnitStepButton>
-      <ObservationUnitStepButton
+      </StepButton>
+      <StepButton
         label="Next observation unit"
-        observationUnit={next}
-        onPress={go}
+        neighbour={next?.code ?? null}
+        onPress={() => next && go(next.id)}
       >
         <ButtonGroup.Separator />
         <ChevronRightIcon />
-      </ObservationUnitStepButton>
+      </StepButton>
     </ButtonGroup>
-  );
-}
-
-function ObservationUnitStepButton({
-  label,
-  observationUnit,
-  onPress,
-  children,
-}: {
-  label: string;
-  observationUnit: ObservationUnitNavigationEntry | null;
-  onPress: (observationUnit: string) => void;
-  children: ReactNode;
-}) {
-  const button = (
-    <Button
-      variant="tertiary"
-      isIconOnly
-      aria-label={label}
-      isDisabled={observationUnit === null}
-      onPress={() => observationUnit && onPress(observationUnit.id)}
-    >
-      {children}
-    </Button>
-  );
-  if (observationUnit === null) return button;
-  return (
-    <Tooltip delay={0}>
-      {button}
-      <Tooltip.Content>{observationUnit.code}</Tooltip.Content>
-    </Tooltip>
   );
 }
 

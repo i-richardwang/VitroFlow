@@ -38,7 +38,7 @@ import {
   treatmentUpdateSchema,
 } from "../experiments/schema";
 import { modelSchema, modelVersionSchema } from "../models/schema";
-import { recordCultureEvent, removeCultureEvent } from "./culture-events";
+import { recordCultureEvent, deleteCultureEvent } from "./culture-events";
 import {
   addObservationUnits,
   addTreatment,
@@ -298,7 +298,7 @@ const operations: readonly AgentOperation[] = [
     destructive: true,
     input: cultureEventRefSchema,
     output: done,
-    handler: (input, executor) => removeCultureEvent(input, executor),
+    handler: (input, executor) => deleteCultureEvent(input, executor),
   }),
   command({
     name: "create-observation",

@@ -21,7 +21,6 @@ export const inferenceModelManifestSchema = z.strictObject({
 export const inferenceAssignmentSchema = z.strictObject({
   manifest: inferenceModelManifestSchema,
   image: imageDigestSchema,
-  leaseExpiresAt: z.string().datetime({ offset: true }),
 });
 
 /** The durable image/version pair named by inference routes. */

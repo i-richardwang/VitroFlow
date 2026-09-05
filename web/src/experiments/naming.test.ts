@@ -12,7 +12,7 @@ describe("observation unit naming", () => {
   });
 
   test("continues the series past the codes already used", () => {
-    expect(replicateCodes("T1", 2, ["T1-1", "t1_3"])).toEqual(["T1-2", "T1-4"]);
+    expect(replicateCodes("T1", 2, ["T1-1", "t1-3"])).toEqual(["T1-2", "T1-4"]);
   });
 
   test("orders observation units by treatment, then by code", () => {

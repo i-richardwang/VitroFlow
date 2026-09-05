@@ -15,7 +15,6 @@ import { database } from "../db/client";
 import { apiKeys, users } from "../db/schema";
 import { auth } from "./auth";
 import { bearerToken } from "./bearer";
-import type { ProgrammaticPrincipal } from "./programmatic-access";
 
 /**
  * Personal API keys. Issuing goes through Better Auth so the secret is hashed
@@ -103,32 +102,27 @@ export async function revokeApiKey(user: string, id: string): Promise<void> {
 }
 
 /**
- * The principal a request's bearer API key admits to `scope`, or null when
- * the request carries no key, an unknown, expired, or out-of-scope one, or a
- * key whose owner has been suspended or removed.
+ * Whether a request's bearer API key admits it to `scope`. A request carrying
+ * no key, an unknown, expired, or out-of-scope one, or a key whose owner has
+ * been suspended or removed is not admitted.
  */
 export async function authorizeApiKey(
   request: Request,
   scope: ApiScope,
-): Promise<ProgrammaticPrincipal | null> {
+): Promise<boolean> {
   const secret = bearerToken(request);
-  if (!secret) return null;
+  if (!secret) return false;
   const verdict = await (
     await auth()
   ).api.verifyApiKey({
     body: { key: secret, permissions: scopePermissions([scope]) },
   });
-  if (!verdict.valid || !verdict.key) return null;
+  if (!verdict.valid || !verdict.key) return false;
   const [owner] = await (
     await database()
   )
-    .select({ id: users.id, banned: users.banned })
+    .select({ banned: users.banned })
     .from(users)
     .where(eq(users.id, verdict.key.referenceId));
-  if (!owner || owner.banned) return null;
-  return {
-    kind: "api_key",
-    userId: owner.id,
-    credentialId: verdict.key.id,
-  };
+  return owner !== undefined && !owner.banned;
 }

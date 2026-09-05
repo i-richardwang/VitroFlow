@@ -5,13 +5,13 @@ import {
   annotationInstanceSchema,
   annotationRefSchema,
 } from "../annotation/schema";
-import { saveAnnotation } from "../server/annotations";
+import { storeAnnotation } from "../server/annotations";
 
-export const saveReview = createServerFn({ method: "POST" })
+export const saveAnnotation = createServerFn({ method: "POST" })
   .validator(
     z.strictObject({
       ref: annotationRefSchema,
       instances: z.array(annotationInstanceSchema),
     }),
   )
-  .handler(({ data }) => saveAnnotation(data.ref, data.instances));
+  .handler(({ data }) => storeAnnotation(data.ref, data.instances));

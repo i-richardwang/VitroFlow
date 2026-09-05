@@ -18,7 +18,7 @@ test("an image link names the boxes to show and whether to edit", () => {
     show: "detection",
     edit: true,
   });
-  expect(search.parse({ show: "draft", edit: "yes" })).toEqual({
+  expect(search.parse({ show: "boxes", edit: "yes" })).toEqual({
     show: undefined,
     edit: undefined,
   });

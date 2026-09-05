@@ -163,3 +163,46 @@ def test_profile_host_records_startup_failures_in_status_and_log(
     assert status["state"] == "failed"
     assert status["detail"] == "startup failed"
     assert "startup failed" in (directory / "worker.log").read_text(encoding="utf-8")
+
+
+def _status_profile(name: str, state: str, **document: object) -> None:
+    save_profile(
+        name,
+        WorkerProfile(
+            role="training",
+            server_url="https://example.test",
+            token="secret",
+            worker_id=name,
+            device="cpu",
+        ),
+    )
+    (profile_directory(name) / "status.json").write_text(
+        json.dumps({"state": state, **document}), encoding="utf-8"
+    )
+
+
+def test_profile_summary_reports_the_failure_detail(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    _status_profile("trainer", "failed", detail="startup failed")
+    monkeypatch.setattr(worker_host, "service_loaded", lambda _name: True)
+
+    assert worker_host.profile_summary("trainer").split("\t") == [
+        "trainer",
+        "training",
+        "failed: startup failed",
+        "loaded",
+        "cpu",
+    ]
+
+
+def test_profile_summary_reports_a_killed_worker_as_stale(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    _status_profile("trainer", "running")
+
+    monkeypatch.setattr(worker_host, "service_loaded", lambda _name: True)
+    assert "\trunning\tloaded\t" in worker_host.profile_summary("trainer")
+
+    monkeypatch.setattr(worker_host, "service_loaded", lambda _name: False)
+    assert "\tstale\tnot loaded\t" in worker_host.profile_summary("trainer")

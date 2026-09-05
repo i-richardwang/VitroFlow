@@ -112,11 +112,9 @@ CREATE TABLE "experiment_observation_units" (
 	"experiment_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
 	"code" text NOT NULL,
-	"code_key" text GENERATED ALWAYS AS (trim(both '-' from lower(regexp_replace(normalize(code, NFKC), '[-[:space:]._]+', '-', 'g')))) STORED NOT NULL,
 	"treatment_id" uuid,
 	CONSTRAINT "experiment_observation_units_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
-	CONSTRAINT "experiment_observation_units_code" UNIQUE("experiment_id","code_key"),
-	CONSTRAINT "experiment_observation_units_code_check" CHECK ("experiment_observation_units"."code" = btrim("experiment_observation_units"."code") and length("experiment_observation_units"."code") between 1 and 60 and "experiment_observation_units"."code_key" <> '')
+	CONSTRAINT "experiment_observation_units_code_check" CHECK ("experiment_observation_units"."code" = btrim("experiment_observation_units"."code") and length("experiment_observation_units"."code") between 1 and 60)
 );
 --> statement-breakpoint
 CREATE TABLE "experiment_observations" (
@@ -136,14 +134,12 @@ CREATE TABLE "experiment_treatments" (
 	"experiment_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
 	"name" text NOT NULL,
-	"name_key" text GENERATED ALWAYS AS (trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))) STORED NOT NULL,
 	"factor" jsonb,
 	"note" text NOT NULL,
 	"position" integer NOT NULL,
 	CONSTRAINT "experiment_treatments_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
-	CONSTRAINT "experiment_treatments_name" UNIQUE("experiment_id","name_key"),
 	CONSTRAINT "experiment_treatments_position" UNIQUE("experiment_id","position"),
-	CONSTRAINT "experiment_treatments_name_check" CHECK ("experiment_treatments"."name" = btrim("experiment_treatments"."name") and length("experiment_treatments"."name") between 1 and 120 and "experiment_treatments"."name_key" <> ''),
+	CONSTRAINT "experiment_treatments_name_check" CHECK ("experiment_treatments"."name" = btrim("experiment_treatments"."name") and length("experiment_treatments"."name") between 1 and 120),
 	CONSTRAINT "experiment_treatments_note_check" CHECK ("experiment_treatments"."note" = btrim("experiment_treatments"."note") and length("experiment_treatments"."note") <= 1000),
 	CONSTRAINT "experiment_treatments_factor_check" CHECK ("experiment_treatments"."factor" is null or (
         jsonb_typeof("experiment_treatments"."factor") = 'object'
@@ -157,7 +153,6 @@ CREATE TABLE "experiment_treatments" (
 CREATE TABLE "experiments" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
-	"name_key" text GENERATED ALWAYS AS (trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))) STORED NOT NULL,
 	"plant_material" text NOT NULL,
 	"explant_type" text NOT NULL,
 	"base_medium" text NOT NULL,
@@ -166,8 +161,7 @@ CREATE TABLE "experiments" (
 	"model_version_id" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "experiments_id_inoculated" UNIQUE("id","inoculated_on"),
-	CONSTRAINT "experiments_name" UNIQUE("name_key"),
-	CONSTRAINT "experiments_name_check" CHECK ("experiments"."name" = btrim("experiments"."name") and length("experiments"."name") between 1 and 120 and "experiments"."name_key" <> ''),
+	CONSTRAINT "experiments_name_check" CHECK ("experiments"."name" = btrim("experiments"."name") and length("experiments"."name") between 1 and 120),
 	CONSTRAINT "experiments_plant_material_check" CHECK ("experiments"."plant_material" = btrim("experiments"."plant_material") and length("experiments"."plant_material") <= 120),
 	CONSTRAINT "experiments_explant_type_check" CHECK ("experiments"."explant_type" = btrim("experiments"."explant_type") and length("experiments"."explant_type") <= 120),
 	CONSTRAINT "experiments_base_medium_check" CHECK ("experiments"."base_medium" = btrim("experiments"."base_medium") and length("experiments"."base_medium") <= 200),
@@ -453,7 +447,6 @@ CREATE TABLE "training_workers" (
 	"id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
-	"device" text NOT NULL,
 	"memory_bytes" bigint NOT NULL,
 	"current_training_run_id" text,
 	"last_seen_at" timestamp with time zone NOT NULL
@@ -539,13 +532,15 @@ CREATE INDEX "api_keys_key_idx" ON "api_keys" USING btree ("key");--> statement-
 CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshot_images_image_idx" ON "dataset_snapshot_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshots_dataset_idx" ON "dataset_snapshots" USING btree ("dataset_id");--> statement-breakpoint
-CREATE INDEX "experiment_culture_events_unit_idx" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","recorded_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "experiment_culture_events_one_kind" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","observation_id","type");--> statement-breakpoint
 CREATE UNIQUE INDEX "experiment_culture_events_one_terminal" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id") WHERE "experiment_culture_events"."type" in ('discarded', 'harvested', 'missing');--> statement-breakpoint
 CREATE INDEX "experiment_observation_images_image_idx" ON "experiment_observation_images" USING btree ("image_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "experiment_observation_units_code" ON "experiment_observation_units" USING btree ("experiment_id",lower("code"));--> statement-breakpoint
 CREATE INDEX "experiment_observation_units_treatment_idx" ON "experiment_observation_units" USING btree ("experiment_id","treatment_id");--> statement-breakpoint
 CREATE INDEX "experiment_observations_observed_idx" ON "experiment_observations" USING btree ("experiment_id","observed_on");--> statement-breakpoint
+CREATE UNIQUE INDEX "experiment_treatments_name" ON "experiment_treatments" USING btree ("experiment_id",lower("name"));--> statement-breakpoint
 CREATE INDEX "experiments_version_idx" ON "experiments" USING btree ("model_version_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "experiments_name" ON "experiments" USING btree (lower("name"));--> statement-breakpoint
 CREATE INDEX "images_received_idx" ON "images" USING btree ("received_at");--> statement-breakpoint
 CREATE INDEX "inference_jobs_claimable_idx" ON "inference_jobs" USING btree ("lease_expires_at");--> statement-breakpoint
 CREATE INDEX "inference_jobs_worker_idx" ON "inference_jobs" USING btree ("worker_id","session_id");--> statement-breakpoint

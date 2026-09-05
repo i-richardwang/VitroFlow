@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { makeResult } from "../annotation/testing";
+import { database } from "../db/client";
 import { inferenceAssignmentSchema } from "../inference/assignments";
 import { Route as StoreRoute } from "../routes/api.images";
 import { Route as ClaimRoute } from "../routes/api.inference.claim";
@@ -9,7 +10,6 @@ import { Route as HeartbeatRoute } from "../routes/api.inference.heartbeat";
 import { Route as ReadyRoute } from "../routes/api.inference.ready";
 import { Route as ImageRoute } from "../routes/api.inference.images.$digest";
 import { Route as ResultRoute } from "../routes/api.inference.results.$versionId.$digest";
-import { readInferenceWorker } from "./inference-worker-store";
 import {
   addObservationUnits,
   addTreatment,
@@ -17,7 +17,7 @@ import {
 } from "./experiment-design";
 import { assignObservationImages } from "./experiment-observation-images";
 import { addObservation } from "./experiment-observations";
-import { readDetection } from "./inference-outcomes";
+import { readReview } from "./review";
 import { contentDigest } from "./blobs";
 import {
   FIXTURE_EDGE,
@@ -110,7 +110,11 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     }),
   } as never);
   expect(heartbeatResponse.status).toBe(200);
-  expect((await readInferenceWorker("api-worker"))?.current).toBe(digest);
+  expect(await heartbeatResponse.json()).toMatchObject({
+    workerId: "api-worker",
+    sessionId: "api-session",
+    current: digest,
+  });
 
   const claim = () =>
     handler(
@@ -148,9 +152,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     artifact: version.artifact,
   });
   expect(assignment.image).toBe(digest);
-  expect(new Date(assignment.leaseExpiresAt).getTime()).toBeGreaterThan(
-    Date.now(),
-  );
   const renewed = await handler(
     LeaseRoute,
     "POST",
@@ -262,7 +263,15 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     ).status,
   ).toBe(422);
   expect((await put(result)).status).toBe(200);
-  expect(await readDetection(target)).toEqual(result);
+  expect(
+    (
+      await readReview(
+        { digest, modelId: version.modelId },
+        "api.jpg",
+        await database(),
+      )
+    )?.detection,
+  ).toEqual(result);
   expect((await put(result)).status).toBe(409);
   expect(
     (

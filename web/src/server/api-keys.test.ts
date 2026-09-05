@@ -43,19 +43,15 @@ describe("API keys", () => {
       scopes: ["transfer"],
       expiresInDays: null,
     });
-    expect(
-      await authorizeApiKey(requestWith(issued.secret), "transfer"),
-    ).toEqual({
-      kind: "api_key",
-      userId: user.id,
-      credentialId: issued.id,
-    });
-    expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
-      null,
+    expect(await authorizeApiKey(requestWith(issued.secret), "transfer")).toBe(
+      true,
     );
-    expect(await authorizeApiKey(requestWith(null), "transfer")).toBe(null);
+    expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
+      false,
+    );
+    expect(await authorizeApiKey(requestWith(null), "transfer")).toBe(false);
     expect(await authorizeApiKey(requestWith("vf_nonsense"), "transfer")).toBe(
-      null,
+      false,
     );
     const [listed] = await listApiKeys(user.id);
     expect(listed?.lastUsedAt).not.toBeNull();
@@ -76,7 +72,7 @@ describe("API keys", () => {
     await revokeApiKey(owner.user.id, issued.id);
     expect(await listApiKeys(owner.user.id)).toEqual([]);
     expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
-      null,
+      false,
     );
   });
 
@@ -90,7 +86,7 @@ describe("API keys", () => {
     });
     await banUser(admin.headers, { user: user.id });
     expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
-      null,
+      false,
     );
   });
 });

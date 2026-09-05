@@ -135,9 +135,8 @@ function toRecord(
 
 export async function listImageRecords(
   datasetId: string,
-  db?: Executor,
 ): Promise<ImageRecord[]> {
-  const rows = await recordQuery(db ?? (await database()))
+  const rows = await recordQuery(await database())
     .where(eq(datasetImages.datasetId, datasetId))
     .orderBy(...membershipOrder());
   return rows.map(toRecord);
