@@ -2,17 +2,15 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Segment } from "@heroui-pro/react/segment";
-import { Button, Dropdown, Label, Link, Table } from "@heroui/react";
+import { Button, Link, Table } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Count } from "../../components/Count";
-import { DestructiveActionDialog } from "../../components/DestructiveActionDialog";
 import { QualityChips } from "../../components/DetectionQuality";
 import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
-import { MoreIcon } from "../../components/icons";
 import {
   reviewStateLabel,
   ReviewStateChip,
@@ -23,6 +21,7 @@ import {
   getDatasetOverview,
   removeFromDataset,
 } from "../../functions/datasets";
+import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
@@ -224,35 +223,23 @@ function ImageMenu({
   image: { digest: string; filename: string };
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const label = `${image.filename} actions`;
+  const action = useAsyncAction();
 
   return (
-    <>
-      <Dropdown>
-        <Button variant="ghost" isIconOnly size="sm" aria-label={label}>
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu aria-label={label} onAction={() => setOpen(true)}>
-            <Dropdown.Item id="remove" textValue="Remove" variant="danger">
-              <Label>Remove…</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-      <DestructiveActionDialog
-        isOpen={open}
-        onOpenChange={setOpen}
-        title={`Remove ${image.filename}?`}
-        confirmLabel="Remove image"
-        onConfirm={async () => {
-          await removeFromDataset({ data: { dataset, digest: image.digest } });
-          await router.invalidate();
-        }}
-      >
-        Review stays with the image.
-      </DestructiveActionDialog>
-    </>
+    <Button
+      variant="ghost"
+      size="sm"
+      isDisabled={action.busy}
+      aria-label={`Remove ${image.filename} from the dataset`}
+      onPress={async () => {
+        const result = await action.run(
+          () => removeFromDataset({ data: { dataset, digest: image.digest } }),
+          "Image not removed",
+        );
+        if (result.ok) await router.invalidate();
+      }}
+    >
+      Remove
+    </Button>
   );
 }

@@ -1,12 +1,4 @@
-import {
-  Button,
-  Form,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  toast,
-} from "@heroui/react";
+import { Button, Form, Label, ListBox, Modal, Select } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -18,12 +10,8 @@ import {
   observationLabel,
   type ExperimentObservation,
 } from "../../experiments/schema";
-import {
-  reassignObservationImage,
-  unassignObservationImage,
-} from "../../functions/experiments";
+import { reassignObservationImage } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { DestructiveActionDialog } from "../DestructiveActionDialog";
 
 export function ReassignObservationImageModal({
   image,
@@ -153,35 +141,5 @@ export function ReassignObservationImageModal({
         </Modal.Container>
       </Modal.Backdrop>
     </Modal>
-  );
-}
-
-export function UnassignObservationImageDialog({
-  image,
-  isOpen,
-  onOpenChange,
-}: {
-  image: ExperimentObservationImage;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const router = useRouter();
-  return (
-    <DestructiveActionDialog
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title="Unassign image?"
-      confirmLabel="Unassign image"
-      onConfirm={async () => {
-        await unassignObservationImage({ data: image.ref });
-        toast.success("Image unassigned");
-        await router.navigate({
-          to: "/experiments/$experiment",
-          params: { experiment: image.ref.experiment },
-        });
-      }}
-    >
-      The image stays stored.
-    </DestructiveActionDialog>
   );
 }

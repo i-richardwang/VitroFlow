@@ -1,12 +1,11 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Button, Dropdown, Label, Table, toast } from "@heroui/react";
+import { Button, Table, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { API_SCOPE_LABELS, type ApiKey } from "../../auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { MoreIcon } from "../icons";
 import { Timestamp } from "../Timestamp";
 
 export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
@@ -57,7 +56,7 @@ export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
                   )}
                 </Table.Cell>
                 <Table.Cell className="text-right">
-                  <ApiKeyMenu apiKey={apiKey} />
+                  <RevokeApiKeyButton apiKey={apiKey} />
                 </Table.Cell>
               </Table.Row>
             ))}
@@ -68,32 +67,20 @@ export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
   );
 }
 
-function ApiKeyMenu({ apiKey }: { apiKey: ApiKey }) {
+function RevokeApiKeyButton({ apiKey }: { apiKey: ApiKey }) {
   const router = useRouter();
   const [revoking, setRevoking] = useState(false);
 
   return (
     <>
-      <Dropdown>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          aria-label={`${apiKey.name} actions`}
-        >
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={`${apiKey.name} actions`}
-            onAction={() => setRevoking(true)}
-          >
-            <Dropdown.Item id="revoke" textValue="Revoke" variant="danger">
-              <Label>Revoke…</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`Revoke ${apiKey.name}`}
+        onPress={() => setRevoking(true)}
+      >
+        Revoke…
+      </Button>
       <DestructiveActionDialog
         isOpen={revoking}
         onOpenChange={setRevoking}

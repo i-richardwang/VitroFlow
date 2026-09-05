@@ -31,17 +31,14 @@ import {
   deleteCultureEvent,
   editObservationUnit,
   removeObservationUnit,
+  unassignObservationImage,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
-import {
-  ReassignObservationImageModal,
-  UnassignObservationImageDialog,
-} from "./ObservationImageDialogs";
+import { ReassignObservationImageModal } from "./ObservationImageDialogs";
 
-type Action =
-  "reassign" | "unassign" | "edit" | "record" | "remove-event" | "delete";
+type Action = "reassign" | "edit" | "record" | "remove-event" | "delete";
 
 export function ObservationUnitMenu({
   experiment,
@@ -60,6 +57,15 @@ export function ObservationUnitMenu({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
+  const unassign = async () => {
+    if (!image) return;
+    await unassignObservationImage({ data: image.ref });
+    toast.success("Image unassigned");
+    await router.navigate({
+      to: "/experiments/$experiment",
+      params: { experiment: image.ref.experiment },
+    });
+  };
 
   return (
     <>
@@ -75,7 +81,9 @@ export function ObservationUnitMenu({
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
             aria-label={`${observationUnit.code} actions`}
-            onAction={(key) => setOpen(String(key) as Action)}
+            onAction={(key) =>
+              key === "unassign" ? void unassign() : setOpen(key as Action)
+            }
           >
             {image ? (
               <Dropdown.Item id="reassign" textValue="Reassign image">
@@ -102,7 +110,7 @@ export function ObservationUnitMenu({
                 textValue="Unassign image"
                 variant="danger"
               >
-                <Label>Unassign image…</Label>
+                <Label>Unassign image</Label>
               </Dropdown.Item>
             ) : null}
             {canRemove ? (
@@ -148,14 +156,6 @@ export function ObservationUnitMenu({
           observations={observations}
           isOpen={open === "reassign"}
           onClose={() => setOpen(null)}
-        />
-      ) : null}
-
-      {image ? (
-        <UnassignObservationImageDialog
-          image={image}
-          isOpen={open === "unassign"}
-          onOpenChange={(next) => setOpen(next ? "unassign" : null)}
         />
       ) : null}
 
