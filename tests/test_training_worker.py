@@ -18,7 +18,12 @@ from vitroflow.training_worker import (
     materialize_snapshot,
     parse_training_snapshot,
 )
-from vitroflow.worker_session import LeaseLostError, WorkerSession, keep_lease
+from vitroflow.worker_session import (
+    LeaseLostError,
+    WorkerClient,
+    WorkerSession,
+    keep_lease,
+)
 from vitroflow.yolo import DetectionLosses, EpochReport, YoloTrainingInterruptedError
 
 PARAMETERS = {
@@ -157,18 +162,20 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         return httpx.Response(404)
 
     client = TrainingClient(
-        "https://example.test",
-        "training-secret",
-        session(24 * 1024**3),
-        transport=httpx.MockTransport(server),
+        WorkerClient(
+            "https://example.test",
+            "training-secret",
+            session(24 * 1024**3),
+            transport=httpx.MockTransport(server),
+        )
     )
     try:
-        client.heartbeat()
+        client.worker.heartbeat()
         job = client.claim()
         assert job is not None
         dataset_yaml = materialize_snapshot(client, job, tmp_path / "dataset")
     finally:
-        client.close()
+        client.worker.close()
 
     assert json.loads(requests[0].content)["memoryBytes"] == 24 * 1024**3
     assert json.loads(requests[0].content)["sessionId"] == "trainer-session"
@@ -238,48 +245,56 @@ def test_snapshot_parser_validates_every_image_entry() -> None:
 
 def test_training_client_rejects_snapshot_image_corruption() -> None:
     client = TrainingClient(
-        "https://example.test",
-        "secret",
-        session(8 * 1024**3),
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, content=b"bad")),
+        WorkerClient(
+            "https://example.test",
+            "secret",
+            session(8 * 1024**3),
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, content=b"bad")
+            ),
+        )
     )
     try:
         with pytest.raises(ValueError, match="digest verification"):
             client.download_image("train-one", "a" * 64)
     finally:
-        client.close()
+        client.worker.close()
 
 
 def test_training_client_surfaces_lease_loss() -> None:
     client = TrainingClient(
-        "https://example.test",
-        "secret",
-        session(8 * 1024**3),
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(409, text="lease expired")
-        ),
+        WorkerClient(
+            "https://example.test",
+            "secret",
+            session(8 * 1024**3),
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(409, text="lease expired")
+            ),
+        )
     )
     try:
         with pytest.raises(LeaseLostError, match="lease expired"):
             client.renew_lease("train-one")
     finally:
-        client.close()
+        client.worker.close()
 
 
 def test_claim_response_requires_a_run_object() -> None:
     client = TrainingClient(
-        "https://example.test",
-        "secret",
-        session(8 * 1024**3),
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, content=json.dumps({"run": []}))
-        ),
+        WorkerClient(
+            "https://example.test",
+            "secret",
+            session(8 * 1024**3),
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, content=json.dumps({"run": []}))
+            ),
+        )
     )
     try:
         with pytest.raises(ValueError, match="training run.*shared contract"):
             client.claim()
     finally:
-        client.close()
+        client.worker.close()
 
 
 def test_training_job_parses_the_complete_claim_contract() -> None:
@@ -358,8 +373,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     artifacts: list[tuple[str, bytes, dict[str, object]]] = []
 
     class Client:
-        def heartbeat(self) -> None:
-            return None
+        worker = SimpleNamespace(heartbeat=lambda: None)
 
         def enter_phase(self, run_id: str, phase: str) -> None:
             posted.append((run_id, {"phase": phase}))
@@ -449,8 +463,7 @@ def test_training_job_reports_an_unexpected_adapter_failure(
     failures: list[tuple[str, str]] = []
 
     class Client:
-        def heartbeat(self) -> None:
-            return None
+        worker = SimpleNamespace(heartbeat=lambda: None)
 
         def enter_phase(self, _run_id: str, _phase: str) -> None:
             return None

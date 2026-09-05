@@ -8,9 +8,7 @@ from collections import deque
 
 import httpx
 
-from .detectors import ultralytics_runtime_descriptor
-from .inference_worker import run_inference_worker
-from .training_worker import run_training_worker
+from .worker import run_worker
 from .worker_launchd import service_loaded
 from .worker_profiles import WorkerProfile, load_profile, profile_directory
 from .worker_runtime import profile_logging
@@ -65,13 +63,11 @@ def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
         raise PermissionError(f"worker directory is not writable: {work}")
     _check_ready(profile)
     checks = [
-        f"profile: {name} ({profile.role})",
+        f"profile: {name}",
         f"server: {profile.server_url}",
         f"work directory: {work}",
     ]
     adapters = [runtime.adapter for runtime in available_runtimes()]
-    if profile.role == "training":
-        ultralytics_runtime_descriptor()
     runtimes = [
         f"ultralytics ({profile.device})"
         if adapter == "ultralytics" and profile.device
@@ -111,12 +107,7 @@ def run_profile(name: str) -> int:
             def ready() -> None:
                 _write_status(name, "running")
 
-            run = (
-                run_inference_worker
-                if profile.role == "inference"
-                else run_training_worker
-            )
-            result = run(_settings(name, profile), on_ready=ready)
+            result = run_worker(_settings(name, profile), on_ready=ready)
         except Exception as error:
             LOGGER.exception("worker stopped after an error")
             _write_status(name, "failed", detail=str(error))
@@ -148,7 +139,7 @@ def profile_summary(name: str) -> str:
         state = f"{state}: {status['detail']}"
     device = profile.device or "cpu"
     service = "loaded" if loaded else "not loaded"
-    return f"{name}\t{profile.role}\t{state}\t{service}\t{device}"
+    return f"{name}\t{state}\t{service}\t{device}"
 
 
 def tail_log(name: str, *, lines: int = 100, follow: bool = False) -> None:

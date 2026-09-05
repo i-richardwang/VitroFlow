@@ -21,14 +21,7 @@ from .documents import as_digest, as_object, expect_fields
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .inference_models import ModelManifest, ModelStore
 from .wire_contracts import validate_wire_contract
-from .worker_runtime import shutdown_signals
-from .worker_session import (
-    LeaseLostError,
-    WorkerClient,
-    WorkerSession,
-    WorkerSettings,
-    keep_lease,
-)
+from .worker_session import LeaseLostError, WorkerClient, keep_lease
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
@@ -58,11 +51,18 @@ class Assignment:
         return self.manifest.model_version_id
 
 
-class InferenceClient(WorkerClient):
+class InferenceClient:
     """The inference protocol: claim a pair, fetch what it needs, report the outcome."""
 
+    def __init__(self, worker: WorkerClient) -> None:
+        self.worker = worker
+
+    @property
+    def identity(self) -> dict[str, str]:
+        return self.worker.identity
+
     def claim(self) -> Assignment | None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             "api/worker/inference/claim",
             json=self.identity,
@@ -76,7 +76,7 @@ class InferenceClient(WorkerClient):
         )
 
     def weights(self, version_id: str) -> bytes:
-        response = self.request(
+        response = self.worker.request(
             "GET",
             f"api/worker/inference/model-versions/{version_id}/weights",
             timeout=None,
@@ -85,7 +85,7 @@ class InferenceClient(WorkerClient):
         return response.content
 
     def download(self, digest: str) -> bytes:
-        response = self.request("GET", f"api/worker/inference/images/{digest}")
+        response = self.worker.request("GET", f"api/worker/inference/images/{digest}")
         response.raise_for_status()
         return verify_digest(response.content, digest)
 
@@ -98,21 +98,21 @@ class InferenceClient(WorkerClient):
         refuses a detection that differs from the one it already holds, which
         is an inconsistency worth surfacing rather than a stale assignment.
         """
-        response = self.request(
+        response = self.worker.request(
             "PUT",
             f"api/worker/inference/results/{version_id}/{digest}",
             params=self.identity,
             json=document,
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
 
     def renew_lease(self, assignment: Assignment) -> None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             f"api/worker/inference/claims/{assignment.version_id}/{assignment.image}/lease",
             json=self.identity,
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
 
 
 def inference_outcome(
@@ -182,7 +182,6 @@ def run_pass(
     Claim and process at most one task. Returning whether work was claimed lets
     the outer loop drain the queue without an idle polling delay.
     """
-    client.report_heartbeat()
     if stopped and stopped.is_set():
         return False
     assignment = client.claim()
@@ -192,7 +191,7 @@ def run_pass(
     with (
         tempfile.TemporaryDirectory(prefix="vitroflow-", dir=work_root) as temporary,
         keep_lease(
-            client,
+            client.worker,
             lambda: client.renew_lease(assignment),
             cancelled=stopped.is_set if stopped else None,
         ) as cancelled,
@@ -219,34 +218,3 @@ def run_pass(
     else:
         LOGGER.info("detected %s with %s", assignment.image, assignment.version_id)
     return True
-
-
-def run_inference_worker(
-    settings: WorkerSettings,
-    *,
-    on_ready: Callable[[], None] | None = None,
-) -> int:
-    settings.work_dir.mkdir(parents=True, exist_ok=True)
-    client = InferenceClient(
-        settings.server_url,
-        settings.token,
-        WorkerSession.create(settings.worker_id, settings.device),
-    )
-    store = ModelStore(client, settings.work_dir, settings.device)
-    try:
-        with shutdown_signals() as stopped:
-            client.heartbeat()
-            if on_ready:
-                on_ready()
-            while not stopped.is_set():
-                try:
-                    worked = run_pass(client, settings.work_dir, store, stopped=stopped)
-                except WORKER_ERRORS as error:
-                    LOGGER.error("inference worker error: %s", error)
-                    worked = False
-                if not worked:
-                    stopped.wait(settings.poll_seconds)
-            return 0
-    finally:
-        store.unload()
-        client.close()

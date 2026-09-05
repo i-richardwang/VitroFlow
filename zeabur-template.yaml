@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://schema.zeabur.app/template.json
 #
 # Deploys the VitroFlow server side only: the workbench, its Postgres, and its
-# S3-compatible store. Inference and training workers hold the GPUs and stay
-# outside Zeabur; point them at the deployed workbench with their own tokens.
+# S3-compatible store. Workers hold the GPUs and stay outside Zeabur; point
+# them at the deployed workbench with the worker token.
 #
 # Prereq: the source repository is private, so install the Zeabur GitHub App on
 # the repository owner and grant it access before the first deploy.

@@ -14,14 +14,7 @@ from .training_contracts import (
     TrainingSnapshot,
     parse_training_snapshot,
 )
-from .worker_runtime import shutdown_signals
-from .worker_session import (
-    LeaseLostError,
-    WorkerClient,
-    WorkerSession,
-    WorkerSettings,
-    keep_lease,
-)
+from .worker_session import LeaseLostError, WorkerClient, keep_lease
 from .yolo import (
     DatasetImage,
     EpochReport,
@@ -37,11 +30,18 @@ class TrainingArtifactRejectedError(RuntimeError):
     pass
 
 
-class TrainingClient(WorkerClient):
+class TrainingClient:
     """The training protocol: claim a run, feed it, report on it, publish it."""
 
+    def __init__(self, worker: WorkerClient) -> None:
+        self.worker = worker
+
+    @property
+    def identity(self) -> dict[str, str]:
+        return self.worker.identity
+
     def claim(self) -> TrainingJob | None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             "api/worker/training/claim",
             json=self.identity,
@@ -57,16 +57,16 @@ class TrainingClient(WorkerClient):
         return job
 
     def fetch_snapshot(self, run_id: str) -> TrainingSnapshot:
-        response = self.request(
+        response = self.worker.request(
             "GET",
             f"api/worker/training/runs/{run_id}/snapshot",
             params=self.identity,
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
         return parse_training_snapshot(response.json())
 
     def enter_phase(self, run_id: str, phase: TrainingPhase) -> None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             f"api/worker/training/runs/{run_id}/phase",
             json={
@@ -74,35 +74,35 @@ class TrainingClient(WorkerClient):
                 "phase": phase,
             },
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
 
     def renew_lease(self, run_id: str) -> None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             f"api/worker/training/runs/{run_id}/lease",
             json=self.identity,
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
 
     def report_epoch(self, run_id: str, report: EpochReport) -> None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             f"api/worker/training/runs/{run_id}/epochs",
             json={**self.identity, **report.to_json()},
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
 
     def download_image(self, run_id: str, digest: str) -> bytes:
-        response = self.request(
+        response = self.worker.request(
             "GET",
             f"api/worker/training/runs/{run_id}/images/{digest}",
             params=self.identity,
         )
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
         return verify_digest(response.content, digest)
 
     def publish_artifact(self, run_id: str, weights: Path, inference: Path) -> None:
-        response = self.request(
+        response = self.worker.request(
             "PUT",
             f"api/worker/training/runs/{run_id}/artifact",
             data=self.identity,
@@ -118,10 +118,10 @@ class TrainingClient(WorkerClient):
         )
         if response.status_code in {400, 422}:
             raise TrainingArtifactRejectedError(response.text)
-        self.require_current_session(response)
+        self.worker.require_current_session(response)
 
     def report_failure(self, run_id: str, error: str) -> None:
-        response = self.request(
+        response = self.worker.request(
             "POST",
             f"api/worker/training/runs/{run_id}/fail",
             json={**self.identity, "error": error[:2000]},
@@ -169,7 +169,7 @@ def process_training_job(
     client: TrainingClient,
     job: TrainingJob,
     work_root: Path,
-    device: str,
+    device: str | None,
     stopped: threading.Event | None = None,
 ) -> None:
     def ensure_running() -> None:
@@ -183,7 +183,7 @@ def process_training_job(
         ) as temporary:
             root = Path(temporary)
             with keep_lease(
-                client,
+                client.worker,
                 lambda: client.renew_lease(job.run_id),
                 cancelled=stopped.is_set if stopped else None,
             ) as cancelled:
@@ -225,41 +225,3 @@ def process_training_job(
         except Exception:
             LOGGER.exception("failed to report training run failure")
         raise
-
-
-def run_training_worker(
-    settings: WorkerSettings,
-    *,
-    on_ready: Callable[[], None] | None = None,
-) -> int:
-    settings.work_dir.mkdir(parents=True, exist_ok=True)
-    device = settings.device or "cpu"
-    client = TrainingClient(
-        settings.server_url,
-        settings.token,
-        WorkerSession.create(settings.worker_id, device),
-    )
-    try:
-        with shutdown_signals() as stopped:
-            client.heartbeat()
-            if on_ready:
-                on_ready()
-            while not stopped.is_set():
-                job: TrainingJob | None = None
-                try:
-                    client.heartbeat()
-                    job = client.claim()
-                    if job:
-                        process_training_job(
-                            client, job, settings.work_dir, device, stopped=stopped
-                        )
-                except YoloTrainingInterruptedError:
-                    LOGGER.info("training interrupted; lease will be recoverable")
-                except Exception:
-                    LOGGER.exception("training worker error")
-                    job = None
-                if not job:
-                    stopped.wait(settings.poll_seconds)
-            return 0
-    finally:
-        client.close()

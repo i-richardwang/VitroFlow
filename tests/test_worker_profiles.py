@@ -15,7 +15,6 @@ from vitroflow.worker_profiles import (
 def test_profile_round_trip_is_private(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
     profile = WorkerProfile(
-        role="inference",
         server_url="https://example.test/",
         token="secret",
         worker_id="mac-studio-seed-v3",
@@ -33,7 +32,6 @@ def test_profile_round_trip_is_private(tmp_path, monkeypatch) -> None:
 def test_profile_rejects_an_unknown_device() -> None:
     with pytest.raises(ValueError, match="device must be"):
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id="trainer",
@@ -46,7 +44,7 @@ def test_profile_parser_rejects_unknown_fields(tmp_path, monkeypatch) -> None:
     path = tmp_path / "profiles" / "bad" / "config.toml"
     path.parent.mkdir(parents=True)
     path.write_text(
-        'role = "training"\nserver_url = "https://example.test"\n'
+        'server_url = "https://example.test"\n'
         'token = "secret"\nworker_id = "trainer"\nunexpected = true\n',
         encoding="utf-8",
     )

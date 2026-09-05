@@ -21,7 +21,7 @@ from vitroflow.detectors import (
 )
 from vitroflow.inference_models import ModelManifest
 from vitroflow.inference_worker import Assignment, InferenceClient, run_pass
-from vitroflow.worker_session import LeaseLostError, WorkerSession
+from vitroflow.worker_session import LeaseLostError, WorkerClient, WorkerSession
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 IMAGE = b"source"
@@ -131,21 +131,16 @@ class Workbench:
 
     def client(self) -> InferenceClient:
         return InferenceClient(
-            "https://example.test",
-            "secret",
-            SESSION,
-            transport=httpx.MockTransport(self),
+            WorkerClient(
+                "https://example.test",
+                "secret",
+                SESSION,
+                transport=httpx.MockTransport(self),
+            )
         )
 
     def calls(self) -> list[tuple[str, str]]:
         return [(request.method, request.url.path) for request in self.requests]
-
-    def heartbeats(self) -> list[dict[str, object]]:
-        return [
-            json.loads(request.read())
-            for request in self.requests
-            if request.url.path == "/api/worker/heartbeat"
-        ]
 
     def result_bodies(self) -> list[dict[str, object]]:
         return [
@@ -237,10 +232,9 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
     try:
         run_pass(client, tmp_path, models)
     finally:
-        client.close()
+        client.worker.close()
 
     assert workbench.calls() == [
-        ("POST", "/api/worker/heartbeat"),
         ("POST", "/api/worker/inference/claim"),
         (
             "POST",
@@ -250,16 +244,15 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
         ("PUT", f"/api/worker/inference/results/set.traditional-v1/{DIGEST}"),
     ]
     assert models.loads == ["set.traditional-v1"]
-    assert workbench.heartbeats() == [SESSION.heartbeat()]
+    assert json.loads(workbench.requests[0].read()) == {
+        "workerId": "test-worker",
+        "sessionId": "test-session",
+    }
     assert json.loads(workbench.requests[1].read()) == {
         "workerId": "test-worker",
         "sessionId": "test-session",
     }
-    assert json.loads(workbench.requests[2].read()) == {
-        "workerId": "test-worker",
-        "sessionId": "test-session",
-    }
-    assert dict(workbench.requests[4].url.params) == {
+    assert dict(workbench.requests[3].url.params) == {
         "workerId": "test-worker",
         "sessionId": "test-session",
     }
@@ -286,7 +279,7 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
         run_pass(client, tmp_path, models)
         run_pass(client, tmp_path, models)
     finally:
-        client.close()
+        client.worker.close()
     assert models.loads == ["set.traditional-v2", "set.traditional-v1"]
     assert [body["producer"] for body in workbench.result_bodies()] == [
         PRODUCER.to_dict()
@@ -303,7 +296,7 @@ def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> No
         with pytest.raises(ValueError, match="digest verification"):
             run_pass(client, tmp_path, store())
     finally:
-        client.close()
+        client.worker.close()
     assert workbench.result_bodies() == []
 
 
@@ -313,7 +306,7 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
     try:
         run_pass(client, tmp_path, store(FailingDetector()))
     finally:
-        client.close()
+        client.worker.close()
     assert workbench.result_bodies() == [
         {
             "schemaVersion": 1,
@@ -335,7 +328,7 @@ def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
         with pytest.raises(httpx.HTTPStatusError):
             run_pass(client, tmp_path, store())
     finally:
-        client.close()
+        client.worker.close()
 
 
 def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
@@ -348,7 +341,7 @@ def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
         with pytest.raises(LeaseLostError):
             run_pass(client, tmp_path, store())
     finally:
-        client.close()
+        client.worker.close()
 
 
 def test_refresh_failure_prevents_a_stale_result(
@@ -371,7 +364,7 @@ def test_refresh_failure_prevents_a_stale_result(
         with pytest.raises(LeaseLostError):
             run_pass(client, tmp_path, store(SlowDetector()))
     finally:
-        client.close()
+        client.worker.close()
     assert workbench.result_bodies() == []
 
 
@@ -385,7 +378,7 @@ def test_result_conflict_is_a_lost_lease(tmp_path: Path) -> None:
         with pytest.raises(LeaseLostError):
             run_pass(client, tmp_path, store())
     finally:
-        client.close()
+        client.worker.close()
 
 
 def test_pass_does_nothing_when_no_work_is_claimed(tmp_path: Path) -> None:
@@ -394,11 +387,8 @@ def test_pass_does_nothing_when_no_work_is_claimed(tmp_path: Path) -> None:
     try:
         run_pass(client, tmp_path, store())
     finally:
-        client.close()
-    assert workbench.calls() == [
-        ("POST", "/api/worker/heartbeat"),
-        ("POST", "/api/worker/inference/claim"),
-    ]
+        client.worker.close()
+    assert workbench.calls() == [("POST", "/api/worker/inference/claim")]
 
 
 def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
@@ -409,8 +399,6 @@ def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
     try:
         run_pass(client, tmp_path, store(), stopped=stopped)
     finally:
-        client.close()
+        client.worker.close()
 
-    assert workbench.calls() == [
-        ("POST", "/api/worker/heartbeat"),
-    ]
+    assert workbench.calls() == []

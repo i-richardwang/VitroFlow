@@ -103,6 +103,11 @@ class WorkerSession:
     def identity(self) -> dict[str, str]:
         return {"workerId": self.worker_id, "sessionId": self.session_id}
 
+    @property
+    def can_train(self) -> bool:
+        """Training runs on the ultralytics runtime; without it a worker only detects."""
+        return any(runtime.adapter == "ultralytics" for runtime in self.runtimes)
+
     def heartbeat(self) -> dict[str, object]:
         return {
             **self.identity,
@@ -140,13 +145,6 @@ class WorkerClient(WorkerHttpClient):
             "POST", "api/worker/heartbeat", json=self.session.heartbeat()
         )
         self.require_current_session(response)
-
-    def report_heartbeat(self) -> None:
-        """A missed heartbeat only delays the presence shown in the workbench."""
-        try:
-            self.heartbeat()
-        except (httpx.HTTPError, LeaseLostError) as error:
-            LOGGER.warning("heartbeat failed: %s", error)
 
     @staticmethod
     def require_current_session(response: httpx.Response) -> None:

@@ -35,7 +35,6 @@ def _setup(args: argparse.Namespace) -> int:
     require_launchd()
     token = getpass.getpass("Worker token: ")
     profile = WorkerProfile(
-        role=args.role,
         server_url=args.server,
         token=token,
         worker_id=args.worker_id or args.profile,
@@ -45,7 +44,7 @@ def _setup(args: argparse.Namespace) -> int:
     for check in preflight_profile(args.profile, profile):
         print(check)
     path = save_profile(args.profile, profile, overwrite=args.force)
-    print(f"saved {args.role} worker profile: {path}")
+    print(f"saved worker profile: {path}")
     if replacing:
         restart_service(args.profile)
     else:
@@ -110,7 +109,6 @@ def add_worker_commands(commands: SubparserCollection) -> None:
     setup = worker_commands.add_parser(
         "setup", help="Create and start a Worker profile"
     )
-    setup.add_argument("role", choices=("inference", "training"))
     setup.add_argument("profile")
     setup.add_argument("--server", required=True)
     setup.add_argument("--worker-id")

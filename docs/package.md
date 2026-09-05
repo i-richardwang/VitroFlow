@@ -1,6 +1,6 @@
 # vitroflow
 
-Command-line client and native Worker runtime for a [VitroFlow](https://github.com/i-richardwang/VitroFlow) workbench. The workbench owns experiments, datasets, review state, and training runs; this package runs the inference and training Workers that serve it and moves datasets between a workbench and a local data root.
+Command-line client and native Worker runtime for a [VitroFlow](https://github.com/i-richardwang/VitroFlow) workbench. The workbench owns experiments, datasets, review state, and training runs; this package runs the Workers that detect and train for it and moves datasets between a workbench and a local data root.
 
 Worker services run under `launchd` and therefore require macOS. The `dataset`, `recognize`, and `traditional` commands run wherever Python 3.11+ is available.
 
@@ -10,18 +10,14 @@ Worker services run under `launchd` and therefore require macOS. The `dataset`, 
 uv tool install 'vitroflow[yolo]'
 ```
 
-The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, an inference Worker serves only the bundled traditional detector and a training Worker cannot start.
+The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves only the bundled traditional detector and takes no training runs.
 
 ## Workers
 
-Each Worker profile has a stable worker ID, the workbench worker credential, the queue it serves, and a private work directory. Setup validates authentication, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
+Each Worker profile has a stable worker ID, the workbench worker credential, and a private work directory. Setup validates authentication, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
 
 ```bash
-vitroflow worker setup inference mac-inference \
-  --server https://<workbench> \
-  --device mps
-
-vitroflow worker setup training mac-training \
+vitroflow worker setup mac-studio \
   --server https://<workbench> \
   --device mps
 ```
@@ -30,11 +26,11 @@ The Worker token is prompted without echo and stored in `~/.vitroflow/profiles/<
 
 ```bash
 vitroflow worker list
-vitroflow worker status mac-training
-vitroflow worker doctor mac-training
-vitroflow worker logs mac-training --follow
-vitroflow worker restart mac-training
-vitroflow worker stop mac-training
+vitroflow worker status mac-studio
+vitroflow worker doctor mac-studio
+vitroflow worker logs mac-studio --follow
+vitroflow worker restart mac-studio
+vitroflow worker stop mac-studio
 ```
 
 `vitroflow worker run <profile>` runs a Worker in the foreground without `launchd`.

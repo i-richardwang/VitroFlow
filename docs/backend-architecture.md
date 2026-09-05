@@ -27,7 +27,7 @@ One credential opens the worker realm. A worker ID names a configured worker, wh
 
 Inference is a queue, not a snapshot query. A worker atomically claims one demanded image/version pair in `inference_jobs` and renews its lease while loading and predicting. Completion atomically consumes an unexpired lease owned by the current worker session in the same transaction that stores the outcome. The immutable `inference_outcomes` row remains the business record.
 
-Training shares the roster and its ownership vocabulary—worker, session, lease, and attempt—but keeps its own run state machine because epochs and publication belong to a durable training run. Both claims lock the worker row, and every owned write carries the predicate that the session is still the roster's.
+Training shares the roster and its ownership vocabulary—worker, session, lease, and attempt—but keeps its own run state machine because epochs and publication belong to a durable training run. Both claims lock the worker row, and every owned write carries the predicate that the session is still the roster's. A worker process serves both queues, taking a training run first when it advertises the ultralytics runtime, so the runtimes a session heartbeats are the whole of what it will do.
 
 ## Wire contracts
 

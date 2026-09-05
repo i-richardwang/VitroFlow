@@ -7,13 +7,11 @@ import tempfile
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 from .worker_connection import WorkerConnection, validate_worker_process
 
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PROFILE_FIELDS = {
-    "role",
     "server_url",
     "token",
     "worker_id",
@@ -26,7 +24,6 @@ PROFILE_FIELDS = {
 class WorkerProfile:
     """One native Worker process: who it serves, as whom, and on which accelerator."""
 
-    role: Literal["inference", "training"]
     server_url: str
     token: str
     worker_id: str
@@ -34,8 +31,6 @@ class WorkerProfile:
     poll_seconds: float = 5.0
 
     def __post_init__(self) -> None:
-        if self.role not in {"inference", "training"}:
-            raise ValueError("worker role must be inference or training")
         WorkerConnection(server_url=self.server_url, token=self.token)
         validate_worker_process(self.worker_id, self.poll_seconds, self.device)
 
@@ -51,7 +46,6 @@ class WorkerProfile:
 
     def to_toml(self) -> str:
         values: list[tuple[str, object]] = [
-            ("role", self.role),
             ("server_url", self.server_url),
             ("token", self.token),
             ("worker_id", self.worker_id),

@@ -12,7 +12,6 @@ def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> N
     save_profile(
         "mps-trainer",
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id="mps-trainer",

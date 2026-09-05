@@ -14,7 +14,7 @@ def _mock_setup(monkeypatch, *, token: str = "secret") -> list[str]:
     monkeypatch.setattr(
         worker_command,
         "preflight_profile",
-        lambda name, profile: (f"profile: {name} ({profile.role})",),
+        lambda name, _profile: (f"profile: {name}",),
     )
     monkeypatch.setattr(worker_command, "start_service", started.append)
     return started
@@ -30,7 +30,6 @@ def test_setup_preflights_saves_and_starts_without_exposing_token(
         [
             "worker",
             "setup",
-            "training",
             "mac-mps",
             "--server",
             "https://example.test",
@@ -52,7 +51,6 @@ def test_setup_keeps_existing_profile_when_preflight_fails(
     save_profile(
         "trainer",
         WorkerProfile(
-            role="training",
             server_url="https://old.example.test",
             token="old-secret",
             worker_id="trainer",
@@ -75,7 +73,6 @@ def test_setup_keeps_existing_profile_when_preflight_fails(
         [
             "worker",
             "setup",
-            "training",
             "trainer",
             "--server",
             "https://new.example.test",
@@ -94,7 +91,6 @@ def test_setup_restarts_a_replaced_profile(tmp_path, monkeypatch) -> None:
     save_profile(
         "trainer",
         WorkerProfile(
-            role="training",
             server_url="https://old.example.test",
             token="old-secret",
             worker_id="trainer",
@@ -116,7 +112,6 @@ def test_setup_restarts_a_replaced_profile(tmp_path, monkeypatch) -> None:
             [
                 "worker",
                 "setup",
-                "training",
                 "trainer",
                 "--server",
                 "https://new.example.test",
@@ -136,7 +131,6 @@ def test_setup_rejects_an_existing_profile_before_prompting(
     save_profile(
         "trainer",
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id="trainer",
@@ -153,7 +147,6 @@ def test_setup_rejects_an_existing_profile_before_prompting(
             [
                 "worker",
                 "setup",
-                "training",
                 "trainer",
                 "--server",
                 "https://example.test",
@@ -169,7 +162,6 @@ def test_list_reports_each_profile(tmp_path, monkeypatch, capsys) -> None:
     save_profile(
         "trainer",
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id="trainer",
@@ -178,6 +170,4 @@ def test_list_reports_each_profile(tmp_path, monkeypatch, capsys) -> None:
 
     assert main(["worker", "list"]) == 0
 
-    assert capsys.readouterr().out == (
-        "trainer\ttraining\tnever started\tnot loaded\tcpu\n"
-    )
+    assert capsys.readouterr().out == ("trainer\tnever started\tnot loaded\tcpu\n")

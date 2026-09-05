@@ -11,7 +11,7 @@ from vitroflow.worker_profiles import WorkerProfile, profile_directory, save_pro
 from vitroflow.worker_session import WorkerSettings
 
 
-def test_training_preflight_checks_authenticated_server_runtime(
+def test_preflight_checks_the_authenticated_server_and_runtimes(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
@@ -25,11 +25,6 @@ def test_training_preflight_checks_authenticated_server_runtime(
     monkeypatch.setattr(worker_host.httpx, "get", ready)
     monkeypatch.setattr(
         worker_host,
-        "ultralytics_runtime_descriptor",
-        lambda: SimpleNamespace(adapter="ultralytics"),
-    )
-    monkeypatch.setattr(
-        worker_host,
         "available_runtimes",
         lambda: (
             SimpleNamespace(adapter="traditional"),
@@ -37,7 +32,6 @@ def test_training_preflight_checks_authenticated_server_runtime(
         ),
     )
     profile = WorkerProfile(
-        role="training",
         server_url="https://example.test",
         token="training-secret",
         worker_id="trainer",
@@ -51,7 +45,7 @@ def test_training_preflight_checks_authenticated_server_runtime(
     assert checks[-2:] == ("runtimes: traditional, ultralytics (cpu)", "device: cpu")
 
 
-def test_inference_preflight_reports_the_runtimes_it_will_advertise(
+def test_preflight_reports_the_runtimes_it_will_advertise(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
@@ -69,7 +63,6 @@ def test_inference_preflight_reports_the_runtimes_it_will_advertise(
         lambda: (SimpleNamespace(adapter="traditional"),),
     )
     profile = WorkerProfile(
-        role="inference",
         server_url="https://example.test",
         token="inference-secret",
         worker_id="mac-mps",
@@ -97,7 +90,6 @@ def test_preflight_surfaces_an_installed_but_broken_runtime(
 
     monkeypatch.setattr(worker_host, "available_runtimes", broken_runtime)
     profile = WorkerProfile(
-        role="inference",
         server_url="https://example.test",
         token="inference-secret",
         worker_id="mac-mps",
@@ -114,7 +106,6 @@ def test_profile_host_passes_typed_settings_and_marks_readiness(
     save_profile(
         "trainer",
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id="trainer",
@@ -128,7 +119,7 @@ def test_profile_host_passes_typed_settings_and_marks_readiness(
         on_ready()
         return 0
 
-    monkeypatch.setattr(worker_host, "run_training_worker", run)
+    monkeypatch.setattr(worker_host, "run_worker", run)
 
     assert worker_host.run_profile("trainer") == 0
 
@@ -148,7 +139,6 @@ def test_profile_host_records_startup_failures_in_status_and_log(
     save_profile(
         "trainer",
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id="trainer",
@@ -158,7 +148,7 @@ def test_profile_host_records_startup_failures_in_status_and_log(
     def fail(_settings, *, on_ready):
         raise RuntimeError("startup failed")
 
-    monkeypatch.setattr(worker_host, "run_training_worker", fail)
+    monkeypatch.setattr(worker_host, "run_worker", fail)
 
     assert worker_host.run_profile("trainer") == 1
 
@@ -173,7 +163,6 @@ def _status_profile(name: str, state: str, **document: object) -> None:
     save_profile(
         name,
         WorkerProfile(
-            role="training",
             server_url="https://example.test",
             token="secret",
             worker_id=name,
@@ -192,7 +181,6 @@ def test_profile_summary_reports_the_failure_detail(tmp_path, monkeypatch) -> No
 
     assert worker_host.profile_summary("trainer").split("\t") == [
         "trainer",
-        "training",
         "failed: startup failed",
         "loaded",
         "cpu",

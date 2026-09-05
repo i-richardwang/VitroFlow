@@ -7,8 +7,7 @@ VitroFlow turns repeated culture images into comparable derived metrics and revi
 The system has three independently deployed parts:
 
 - the Web workbench owns experiments, datasets, review state, training runs, and worker protocols;
-- inference Workers execute published model versions;
-- training Workers train immutable dataset snapshots and publish candidate model versions.
+- Workers execute published model versions and, when they carry the Ultralytics runtime, train immutable dataset snapshots and publish candidate model versions.
 
 ## Data flow
 
@@ -114,18 +113,14 @@ Authentication is [Better Auth](https://better-auth.com) over the application da
 
 ## Workers
 
-Workers communicate only with the workbench HTTP API under one worker credential. Each native Worker profile has a stable worker ID, a fresh process-session ID, the queue it serves, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds.
+Workers communicate only with the workbench HTTP API under one worker credential. Each native Worker profile has a stable worker ID, a fresh process-session ID, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds. A Worker serves both queues: one that can train takes a queued training run before an inference pair, and one without the Ultralytics runtime only detects.
 
 The Python package is published on PyPI as [`vitroflow`](https://pypi.org/project/vitroflow/); its own README is [docs/package.md](docs/package.md). On macOS, install it and configure `launchd` services:
 
 ```bash
 uv tool install 'vitroflow[yolo]'
 
-vitroflow worker setup inference mac-inference \
-  --server http://localhost:3000 \
-  --device mps
-
-vitroflow worker setup training mac-training \
+vitroflow worker setup mac-studio \
   --server http://localhost:3000 \
   --device mps
 ```
@@ -136,16 +131,16 @@ Operational commands are:
 
 ```bash
 vitroflow worker list
-vitroflow worker status mac-training
-vitroflow worker doctor mac-training
-vitroflow worker logs mac-training --follow
-vitroflow worker restart mac-training
-vitroflow worker stop mac-training
+vitroflow worker status mac-studio
+vitroflow worker doctor mac-studio
+vitroflow worker logs mac-studio --follow
+vitroflow worker restart mac-studio
+vitroflow worker stop mac-studio
 ```
 
-Inference Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. They atomically claim one image/version pair, renew that lease while loading and predicting, download its canonical image and verified model artifact, and upload a succeeded or failed outcome. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
+Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. For inference they atomically claim one image/version pair, renew that lease while loading and predicting, download its canonical image and verified model artifact, and upload a succeeded or failed outcome. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
 
-Training Workers claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
+For training they claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
 
 ## Agent interface
 
@@ -226,7 +221,7 @@ uv run vitroflow dataset export-yolo \
   --seed 42
 ```
 
-Fine-tune with the same pinned recipe and adapter used by the Training Worker:
+Fine-tune with the same pinned recipe and adapter a Worker uses:
 
 ```bash
 uv run python scripts/train_yolo.py \
