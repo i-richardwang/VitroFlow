@@ -23,6 +23,7 @@ import {
 } from "../../functions/datasets";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   loader: async ({ params }) => {
@@ -34,10 +35,13 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   },
   staticData: {
     crumbs: ({ params }) => [
-      { label: "Datasets", href: "/datasets" },
+      { label: m.datasets_title(), href: "/datasets" },
       { label: params.dataset, mono: true },
     ],
   },
+  head: ({ params }) => ({
+    meta: [{ title: `${params.dataset} · ${m.app_name()}` }],
+  }),
   component: DatasetPage,
 });
 
@@ -75,7 +79,7 @@ function DatasetPage() {
             href={`/datasets/${encodeURIComponent(dataset)}/archive`}
             download={archiveFilename(dataset)}
           >
-            Download
+            {m.dataset_download()}
           </Link>
           <Button
             variant="primary"
@@ -86,7 +90,7 @@ function DatasetPage() {
               });
             }}
           >
-            Training
+            {m.dataset_training()}
           </Button>
         </>
       }
@@ -94,7 +98,7 @@ function DatasetPage() {
       <KPIGroup>
         <KPI>
           <KPI.Header>
-            <KPI.Title>Reviewed</KPI.Title>
+            <KPI.Title>{m.dataset_kpi_reviewed()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={counts.reviewed} />
@@ -103,14 +107,16 @@ function DatasetPage() {
         <KPIGroup.Separator />
         <KPI>
           <KPI.Header>
-            <KPI.Title>Training runs</KPI.Title>
+            <KPI.Title>{m.dataset_kpi_training_runs()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={training.runs} />
           </KPI.Content>
           {training.reviewedSinceLastRun > 0 ? (
             <KPI.Footer>
-              {training.reviewedSinceLastRun} reviewed since the last run
+              {m.dataset_reviewed_since_last_run({
+                count: training.reviewedSinceLastRun,
+              })}
             </KPI.Footer>
           ) : null}
         </KPI>
@@ -118,7 +124,7 @@ function DatasetPage() {
 
       <Segment
         className="self-start"
-        aria-label="Image state"
+        aria-label={m.dataset_filter_label()}
         selectedKey={filter}
         onSelectionChange={(key) => {
           if (key === "all" || isReviewState(key)) {
@@ -128,20 +134,24 @@ function DatasetPage() {
       >
         {filters.map((state) => (
           <Segment.Item key={state} id={state}>
-            {state === "all" ? "All" : reviewStateLabel(state)}
+            {state === "all" ? m.dataset_filter_all() : reviewStateLabel(state)}
           </Segment.Item>
         ))}
       </Segment>
 
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label={`Images in ${dataset}`}>
+          <Table.Content aria-label={m.dataset_images_table({ dataset })}>
             <Table.Header>
-              <Table.Column isRowHeader>Image</Table.Column>
-              <Table.Column>State</Table.Column>
-              <Table.Column className="text-right">Boxes</Table.Column>
-              <Table.Column>Quality</Table.Column>
-              <Table.Column aria-label="Actions" />
+              <Table.Column isRowHeader>
+                {m.dataset_column_image()}
+              </Table.Column>
+              <Table.Column>{m.dataset_column_state()}</Table.Column>
+              <Table.Column className="text-right">
+                {m.dataset_column_boxes()}
+              </Table.Column>
+              <Table.Column>{m.dataset_column_quality()}</Table.Column>
+              <Table.Column aria-label={m.dataset_column_actions()} />
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -149,8 +159,8 @@ function DatasetPage() {
                   <EmptyState.Header>
                     <EmptyState.Title>
                       {images.length === 0
-                        ? "No images yet"
-                        : "No images in this state"}
+                        ? m.dataset_empty_images()
+                        : m.dataset_empty_filtered()}
                     </EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
@@ -209,7 +219,7 @@ function BoxCount({
     return count;
   }
   return (
-    <Hint text={`Detected ${detected}`}>
+    <Hint text={m.dataset_detected_count({ count: detected })}>
       <span>{count}</span>
     </Hint>
   );
@@ -230,16 +240,16 @@ function ImageMenu({
       variant="ghost"
       size="sm"
       isDisabled={action.busy}
-      aria-label={`Remove ${image.filename} from the dataset`}
+      aria-label={m.dataset_remove_image({ file: image.filename })}
       onPress={async () => {
         const result = await action.run(
           () => removeFromDataset({ data: { dataset, digest: image.digest } }),
-          "Image not removed",
+          m.dataset_image_not_removed(),
         );
         if (result.ok) await router.invalidate();
       }}
     >
-      Remove
+      {m.dataset_remove()}
     </Button>
   );
 }

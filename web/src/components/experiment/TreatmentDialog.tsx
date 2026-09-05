@@ -22,6 +22,7 @@ import {
   removeTreatment,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { FactorField, factorDraft, submittedFactor } from "./FactorField";
 
@@ -75,10 +76,12 @@ function Editor({
         <Modal.Backdrop>
           <Modal.Container size="md">
             <Modal.Dialog>
-              <Modal.CloseTrigger />
+              <Modal.CloseTrigger aria-label={m.close()} />
               <Modal.Header>
                 <Modal.Heading>
-                  {creating ? "New treatment" : `Edit ${treatment.name}`}
+                  {creating
+                    ? m.treatment_new()
+                    : m.treatment_edit({ name: treatment.name })}
                 </Modal.Heading>
               </Modal.Header>
               <Modal.Body className="flex flex-col gap-4">
@@ -106,11 +109,13 @@ function Editor({
                                 ...draft,
                               },
                             }),
-                      creating ? "Treatment not added" : "Treatment not saved",
+                      creating
+                        ? m.treatment_not_added()
+                        : m.treatment_not_saved(),
                     ).then(async (result) => {
                       if (!result.ok) return;
                       if (creating) {
-                        toast.success(`${draft.name} added`);
+                        toast.success(m.treatment_added({ name: draft.name }));
                       }
                       onClose();
                       await router.invalidate();
@@ -125,8 +130,11 @@ function Editor({
                     value={name}
                     onChange={setName}
                   >
-                    <Label>Name</Label>
-                    <Input className="w-full" placeholder="T1" />
+                    <Label>{m.treatment_name_label()}</Label>
+                    <Input
+                      className="w-full"
+                      placeholder={m.treatment_name_placeholder()}
+                    />
                   </TextField>
                   <FactorField
                     busy={busy}
@@ -140,7 +148,7 @@ function Editor({
                     value={note}
                     onChange={setNote}
                   >
-                    <Label>Note</Label>
+                    <Label>{m.treatment_note_label()}</Label>
                     <Input className="w-full" />
                   </TextField>
                   {creating ? (
@@ -152,7 +160,7 @@ function Editor({
                       value={replicates}
                       onChange={setReplicates}
                     >
-                      <Label>Observation units</Label>
+                      <Label>{m.treatment_replicates_label()}</Label>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -167,13 +175,13 @@ function Editor({
                     isDisabled={busy}
                     onPress={() => setRemoving(true)}
                   >
-                    Remove treatment…
+                    {m.treatment_menu_remove()}
                   </Button>
                 )}
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                  Cancel
+                  {m.cancel()}
                 </Button>
                 <Button
                   type="submit"
@@ -183,11 +191,11 @@ function Editor({
                 >
                   {busy
                     ? creating
-                      ? "Adding…"
-                      : "Saving…"
+                      ? m.experiment_action_adding()
+                      : m.experiment_action_saving()
                     : creating
-                      ? "Add"
-                      : "Save"}
+                      ? m.experiment_action_add()
+                      : m.experiment_action_save()}
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>
@@ -198,8 +206,8 @@ function Editor({
         <DestructiveActionDialog
           isOpen={removing}
           onOpenChange={(next) => !next && setRemoving(false)}
-          title={`Delete ${treatment.name}?`}
-          confirmLabel="Delete treatment"
+          title={m.treatment_delete_title({ name: treatment.name })}
+          confirmLabel={m.treatment_delete()}
           onConfirm={async () => {
             await removeTreatment({
               data: { experiment, treatment: treatment.id },
@@ -209,7 +217,7 @@ function Editor({
             await router.invalidate();
           }}
         >
-          Observation units stay, unassigned.
+          {m.treatment_delete_note()}
         </DestructiveActionDialog>
       ) : null}
     </>

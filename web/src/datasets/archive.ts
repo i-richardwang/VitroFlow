@@ -4,6 +4,7 @@ import { readStoredZip } from "../archive/zip";
 import { parseHttpJson } from "../http/json";
 import { MAX_IMAGE_BYTES } from "../images/canonical";
 import { imageDigestSchema } from "../images/schema";
+import { m } from "../paraglide/messages";
 import {
   encodeDatasetManifest,
   datasetManifestSchema,
@@ -106,26 +107,26 @@ export async function importDatasetArchive(
   )) {
     const kind = entryKind(entry.name);
     if (!kind) {
-      throw new DatasetArchiveError(`Unexpected archive entry: ${entry.name}`);
+      throw new DatasetArchiveError(
+        m.dataset_archive_unexpected_entry({ entry: entry.name }),
+      );
     }
     if (kind.kind === "manifest") {
       if (manifest) {
-        throw new DatasetArchiveError(
-          "The archive holds more than one dataset",
-        );
+        throw new DatasetArchiveError(m.dataset_archive_multiple_datasets());
       }
       if (entry.bytes.byteLength > MAX_DATASET_MANIFEST_BYTES) {
-        throw new DatasetArchiveError("The manifest exceeds 16 MiB");
+        throw new DatasetArchiveError(m.dataset_archive_manifest_too_large());
       }
       let document: unknown;
       try {
         document = JSON.parse(new TextDecoder().decode(entry.bytes)) as unknown;
       } catch {
-        throw new DatasetArchiveError("The archive's manifest is not JSON");
+        throw new DatasetArchiveError(m.dataset_archive_manifest_not_json());
       }
       const parsed = datasetManifestSchema.safeParse(document);
       if (!parsed.success || parsed.data.dataset !== kind.dataset) {
-        throw new DatasetArchiveError("The archive's manifest is not valid");
+        throw new DatasetArchiveError(m.dataset_archive_manifest_invalid());
       }
       manifest = parsed.data;
       for (const image of manifest.images) {
@@ -137,36 +138,34 @@ export async function importDatasetArchive(
       );
       if (existing.status === 200) {
         throw new DatasetArchiveError(
-          `Dataset ${manifest.dataset} already exists`,
+          m.dataset_archive_exists({ dataset: manifest.dataset }),
         );
       }
       if (existing.status !== 404) {
         throw new DatasetArchiveError(
-          await refusal(existing, "Could not check the destination workbench"),
+          await refusal(existing, m.dataset_archive_destination_unchecked()),
         );
       }
       onProgress({ phase: "storing", manifest, stored: 0 });
       continue;
     }
     if (!manifest) {
-      throw new DatasetArchiveError(
-        "The archive does not start with a manifest",
-      );
+      throw new DatasetArchiveError(m.dataset_archive_manifest_first());
     }
     const expectedBytes = expected.get(kind.digest);
     if (expectedBytes === undefined) {
       throw new DatasetArchiveError(
-        `The manifest does not name image ${kind.digest}`,
+        m.dataset_archive_image_unnamed({ digest: kind.digest }),
       );
     }
     if (stored.has(kind.digest)) {
       throw new DatasetArchiveError(
-        `The archive contains image ${kind.digest} more than once`,
+        m.dataset_archive_image_duplicate({ digest: kind.digest }),
       );
     }
     if (entry.bytes.byteLength !== expectedBytes) {
       throw new DatasetArchiveError(
-        `Image ${kind.digest} has another size than the manifest declares`,
+        m.dataset_archive_image_size({ digest: kind.digest }),
       );
     }
     const response = await fetch(`/api/transfer/images/${kind.digest}`, {
@@ -177,16 +176,16 @@ export async function importDatasetArchive(
     });
     const accepted = await responseJson(response, storedImageSchema);
     if (accepted.digest !== kind.digest) {
-      throw new DatasetArchiveError(`The workbench stored another image`);
+      throw new DatasetArchiveError(m.dataset_archive_image_mismatch());
     }
     stored.add(kind.digest);
     onProgress({ phase: "storing", manifest, stored: stored.size });
   }
-  if (!manifest) throw new DatasetArchiveError("The archive holds no dataset");
+  if (!manifest) throw new DatasetArchiveError(m.dataset_archive_no_dataset());
   const missing = [...expected.keys()].filter((digest) => !stored.has(digest));
   if (missing.length > 0) {
     throw new DatasetArchiveError(
-      `The archive lacks ${missing.length} of the dataset's images`,
+      m.dataset_archive_images_missing({ count: missing.length }),
     );
   }
   const response = await fetch(

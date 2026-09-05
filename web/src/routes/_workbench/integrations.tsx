@@ -8,11 +8,14 @@ import { McpClientsTable } from "../../components/integrations/McpClientsTable";
 import { NewApiKeyDialog } from "../../components/integrations/NewApiKeyDialog";
 import { Page, PageSection } from "../../components/Page";
 import { getIntegrations } from "../../functions/integrations";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/integrations")({
   loader: () => getIntegrations(),
-  staticData: { crumbs: () => [{ label: "Integrations" }] },
-  head: () => ({ meta: [{ title: "Integrations · VitroFlow" }] }),
+  staticData: { crumbs: () => [{ label: m.integrations_title() }] },
+  head: () => ({
+    meta: [{ title: `${m.integrations_title()} · ${m.app_name()}` }],
+  }),
   component: IntegrationsPage,
 });
 
@@ -22,18 +25,18 @@ function IntegrationsPage() {
 
   return (
     <Page
-      title="Integrations"
+      title={m.integrations_title()}
       actions={
         <Button variant="primary" onPress={() => setCreating(true)}>
-          New key
+          {m.integrations_new_key()}
         </Button>
       }
     >
-      <PageSection title="API keys">
+      <PageSection title={m.integrations_api_keys()}>
         <ApiKeysTable apiKeys={apiKeys} />
       </PageSection>
-      <PageSection title="MCP clients">
-        <CopyableCode value={mcpUrl} label="Endpoint" />
+      <PageSection title={m.integrations_mcp_clients()}>
+        <CopyableCode value={mcpUrl} label={m.mcp_endpoint()} />
         <McpClientsTable mcpClients={mcpClients} />
       </PageSection>
       <NewApiKeyDialog isOpen={creating} onClose={() => setCreating(false)} />

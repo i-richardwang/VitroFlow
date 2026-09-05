@@ -1,3 +1,20 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "status_title": "状态",
+  "status_table_label": "工作节点",
+  "status_column_worker": "工作节点",
+  "status_column_presence": "在线状态",
+  "status_column_activity": "当前任务",
+  "status_column_last_seen": "最近活跃",
+  "status_empty": "暂无工作节点",
+  "worker_presence_online": "在线",
+  "worker_presence_stale": "失联",
+  "worker_presence_offline": "离线",
+  "worker_activity_idle": "空闲",
+  "worker_activity_inference": "正在分析 {image}",
+  "worker_activity_training": "正在训练 {dataset}",
+  "worker_age_seconds": "{count} 秒前",
+  "worker_age_minutes": "{count} 分钟前",
+  "worker_age_hours": "{count} 小时前",
+  "worker_age_days": "{count} 天前"
 }

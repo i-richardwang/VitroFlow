@@ -1,6 +1,7 @@
 import { Label, ListBox, Select } from "@heroui/react";
 
 import { USER_ROLES, USER_ROLE_LABELS, type UserRole } from "../../auth/schema";
+import { m } from "../../paraglide/messages";
 
 export function RoleSelect({
   value,
@@ -19,7 +20,7 @@ export function RoleSelect({
       selectedKey={value}
       onSelectionChange={(key) => onChange(String(key) as UserRole)}
     >
-      <Label>Role</Label>
+      <Label>{m.role_label()}</Label>
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
@@ -30,9 +31,9 @@ export function RoleSelect({
             <ListBox.Item
               key={role}
               id={role}
-              textValue={USER_ROLE_LABELS[role]}
+              textValue={USER_ROLE_LABELS[role]()}
             >
-              {USER_ROLE_LABELS[role]}
+              {USER_ROLE_LABELS[role]()}
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}

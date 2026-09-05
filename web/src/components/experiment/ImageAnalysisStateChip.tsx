@@ -1,14 +1,15 @@
 import { Chip } from "@heroui/react";
 
 import type { ImageAnalysisState } from "../../experiments/schema";
+import { m } from "../../paraglide/messages";
 
 const DISPLAY: Record<
   ImageAnalysisState,
-  { label: string; tone: "default" | "success" | "danger" }
+  { label: () => string; tone: "default" | "success" | "danger" }
 > = {
-  pending: { label: "Pending", tone: "default" },
-  analyzed: { label: "Analyzed", tone: "success" },
-  failed: { label: "Failed", tone: "danger" },
+  pending: { label: m.image_analysis_pending, tone: "default" },
+  analyzed: { label: m.image_analysis_analyzed, tone: "success" },
+  failed: { label: m.image_analysis_failed, tone: "danger" },
 };
 
 export function ImageAnalysisStateChip({
@@ -19,7 +20,7 @@ export function ImageAnalysisStateChip({
   const { label, tone } = DISPLAY[state];
   return (
     <Chip color={tone} variant="soft" size="sm">
-      {label}
+      {label()}
     </Chip>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import type {
   ObservationUnitNavigationEntry,
   ObservationUnitSeries,
@@ -40,7 +41,10 @@ export function ObservationUnitWorkbench({
   const { experiment, model, observationUnit, treatment, navigation, shown } =
     series;
   const at = navigation.findIndex((item) => item.id === observationUnit.id);
-  const title = `Observation unit ${observationUnit.code} of ${experiment.name}`;
+  const title = m.observation_unit_title({
+    code: observationUnit.code,
+    experiment: experiment.name,
+  });
   const latestEvent = latestCultureEvent(
     observationUnit.events,
     observationOrdinals(series.observations.map((item) => item.observation)),
@@ -79,11 +83,15 @@ export function ObservationUnitWorkbench({
     return (
       <Workbench title={title}>
         <WorkbenchActions>{menu}</WorkbenchActions>
-        <WorkbenchToolbar label="Navigation">{toolbar}</WorkbenchToolbar>
+        <WorkbenchToolbar label={m.observation_unit_navigation()}>
+          {toolbar}
+        </WorkbenchToolbar>
         <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
           <EmptyState>
             <EmptyState.Header>
-              <EmptyState.Title>No image yet</EmptyState.Title>
+              <EmptyState.Title>
+                {m.observation_unit_no_image()}
+              </EmptyState.Title>
             </EmptyState.Header>
           </EmptyState>
         </div>
@@ -106,30 +114,38 @@ export function ObservationUnitWorkbench({
         menu,
         toolbar,
         details: (
-          <Section title="Image">
+          <Section title={m.observation_unit_image_section()}>
             <Metrics
               rows={[
                 {
-                  label: "Treatment",
+                  label: m.treatment_label(),
                   value: treatment?.name ?? (
-                    <span className="text-muted">No treatment</span>
+                    <span className="text-muted">{m.treatment_none()}</span>
                   ),
                 },
                 {
-                  label: "Status",
+                  label: m.observation_unit_status(),
                   value: latestEvent
                     ? cultureEventLabel(latestEvent.type)
-                    : "Active",
+                    : m.culture_status_active(),
                 },
-                { label: "File", value: shown.review.filename },
-                { label: "Observed", value: shown.observation.observedOn },
+                {
+                  label: m.observation_unit_file(),
+                  value: shown.review.filename,
+                },
+                {
+                  label: m.observation_unit_observed(),
+                  value: shown.observation.observedOn,
+                },
               ]}
             />
             {shown.failure ? (
               <Alert status="danger">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Title>Detection failed</Alert.Title>
+                  <Alert.Title>
+                    {m.observation_unit_detection_failed()}
+                  </Alert.Title>
                   <Alert.Description>{shown.failure.error}</Alert.Description>
                 </Alert.Content>
                 <RetryButton image={shown.ref} />
@@ -154,7 +170,7 @@ function ObservationSwitch({
   return (
     <Segment
       variant="ghost"
-      aria-label="Observations"
+      aria-label={m.observations_label()}
       selectedKey={shown ?? undefined}
       onSelectionChange={(key) => {
         if (key == null) return;
@@ -208,14 +224,14 @@ function ObservationUnitStepper({
   return (
     <ButtonGroup variant="tertiary">
       <StepButton
-        label="Previous observation unit"
+        label={m.observation_unit_previous()}
         neighbour={previous?.code ?? null}
         onPress={() => previous && go(previous.id)}
       >
         <ChevronLeftIcon />
       </StepButton>
       <StepButton
-        label="Next observation unit"
+        label={m.observation_unit_next()}
         neighbour={next?.code ?? null}
         onPress={() => next && go(next.id)}
       >
@@ -237,12 +253,12 @@ function RetryButton({ image }: { image: ObservationImageRef }) {
       onPress={async () => {
         const result = await action.run(
           () => retryObservationImageAnalysis({ data: image }),
-          "Could not retry image analysis",
+          m.observation_unit_retry_failed(),
         );
         if (result.ok) await router.invalidate();
       }}
     >
-      Try again
+      {m.observation_unit_retry()}
     </Button>
   );
 }

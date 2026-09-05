@@ -1,3 +1,4 @@
+import { m } from "../paraglide/messages";
 import type {
   CultureEvent,
   CultureEventType,
@@ -29,41 +30,41 @@ export function observationOrdinal(
  * its readings leave the analysis.
  */
 interface CultureEventKind {
-  label: string;
+  label: () => string;
   terminal: boolean;
   excludesFromAnalysis: boolean;
 }
 
 const CULTURE_EVENT_KINDS: Record<CultureEventType, CultureEventKind> = {
   contaminated: {
-    label: "Contaminated",
+    label: m.culture_event_contaminated,
     terminal: false,
     excludesFromAnalysis: true,
   },
   nonviable: {
-    label: "Nonviable",
+    label: m.culture_event_nonviable,
     terminal: false,
     excludesFromAnalysis: false,
   },
   discarded: {
-    label: "Discarded",
+    label: m.culture_event_discarded,
     terminal: true,
     excludesFromAnalysis: true,
   },
   harvested: {
-    label: "Harvested",
+    label: m.culture_event_harvested,
     terminal: true,
     excludesFromAnalysis: false,
   },
   missing: {
-    label: "Missing",
+    label: m.culture_event_missing,
     terminal: true,
     excludesFromAnalysis: true,
   },
 };
 
 export function cultureEventLabel(type: CultureEventType): string {
-  return CULTURE_EVENT_KINDS[type].label;
+  return CULTURE_EVENT_KINDS[type].label();
 }
 
 export function cultureEventIsTerminal(type: CultureEventType): boolean {

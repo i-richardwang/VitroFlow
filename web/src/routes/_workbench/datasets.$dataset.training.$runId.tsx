@@ -13,6 +13,7 @@ import { TrainingRunState } from "../../components/training/TrainingRunState";
 import { versionSlug } from "../../models/schema";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 import { bestEpoch } from "../../training/metrics";
 import { isTrainingRunActive, trainingRunLabel } from "../../training/schema";
 
@@ -28,19 +29,26 @@ export const Route = createFileRoute(
   },
   staticData: {
     crumbs: ({ params }) => [
-      { label: "Datasets", href: "/datasets" },
+      { label: m.training_datasets_crumb(), href: "/datasets" },
       {
         label: params.dataset,
         href: `/datasets/${params.dataset}`,
         mono: true,
       },
       {
-        label: "Training",
+        label: m.training_title(),
         href: `/datasets/${params.dataset}/training`,
       },
       { label: trainingRunLabel({ id: params.runId }), mono: true },
     ],
   },
+  head: ({ params }) => ({
+    meta: [
+      {
+        title: `${trainingRunLabel({ id: params.runId })} · ${m.training_title()} · ${m.app_name()}`,
+      },
+    ],
+  }),
   component: TrainingRunPage,
 });
 
@@ -72,7 +80,7 @@ function TrainingRunPage() {
         <Alert status="danger">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Training failed</Alert.Title>
+            <Alert.Title>{m.training_failed_title()}</Alert.Title>
             <Alert.Description>{run.state.error}</Alert.Description>
           </Alert.Content>
         </Alert>
@@ -81,20 +89,21 @@ function TrainingRunPage() {
       <KPIGroup>
         <KPI>
           <KPI.Header>
-            <KPI.Title>Epochs</KPI.Title>
+            <KPI.Title>{m.training_kpi_epochs()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={current.length} />
           </KPI.Content>
           <KPI.Footer>
-            of {total}
-            {earlier > 0 ? ` · ${earlier} from earlier attempts hidden` : ""}
+            {earlier > 0
+              ? `${m.training_kpi_epochs_of_total({ total })} · ${m.training_kpi_epochs_earlier_hidden({ count: earlier })}`
+              : m.training_kpi_epochs_of_total({ total })}
           </KPI.Footer>
         </KPI>
         <KPIGroup.Separator />
         <KPI>
           <KPI.Header>
-            <KPI.Title>Best mAP50-95</KPI.Title>
+            <KPI.Title>{m.training_kpi_best_map()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             {best ? (
@@ -106,18 +115,20 @@ function TrainingRunPage() {
           {version && version.artifact.kind === "ultralytics" ? (
             <KPI.Footer>
               <Link href={`/datasets/${dataset}`} className="text-sm">
-                Published {versionSlug(version)}
+                {m.training_kpi_published({ version: versionSlug(version) })}
               </Link>
             </KPI.Footer>
           ) : best ? (
-            <KPI.Footer>Epoch {best.epoch}</KPI.Footer>
+            <KPI.Footer>
+              {m.training_kpi_best_epoch({ epoch: best.epoch })}
+            </KPI.Footer>
           ) : null}
         </KPI>
       </KPIGroup>
 
       <Widget>
         <Widget.Header>
-          <Widget.Title>Curves</Widget.Title>
+          <Widget.Title>{m.training_curves()}</Widget.Title>
         </Widget.Header>
         <Widget.Content>
           {current.length > 0 ? (
@@ -127,8 +138,8 @@ function TrainingRunPage() {
               <EmptyState.Header>
                 <EmptyState.Title>
                   {run.state.status === "failed"
-                    ? "No epochs finished"
-                    : "Waiting for the first epoch"}
+                    ? m.training_no_epochs_finished()
+                    : m.training_waiting_first_epoch()}
                 </EmptyState.Title>
               </EmptyState.Header>
             </EmptyState>
@@ -136,7 +147,7 @@ function TrainingRunPage() {
         </Widget.Content>
       </Widget>
 
-      <PageSection title="Parameters">
+      <PageSection title={m.training_parameters()}>
         <ParametersList parameters={run.recipe.parameters} columns={2} />
       </PageSection>
     </Page>

@@ -8,6 +8,7 @@ import {
 } from "../../experiments/schema";
 import { getObservationUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 import type { ObservationUnitSeries } from "../../experiments/contracts";
 
 /**
@@ -41,11 +42,21 @@ export const Route = createFileRoute(
       const { experiment, observationUnit } =
         loaderData as ObservationUnitSeries;
       return [
-        { label: "Experiments", href: "/experiments" },
+        { label: m.experiments_title(), href: "/experiments" },
         { label: experiment.name, href: `/experiments/${experiment.id}` },
         { label: observationUnit.code, mono: true },
       ];
     },
+  },
+  head: ({ loaderData }) => {
+    const { experiment, observationUnit } = loaderData as ObservationUnitSeries;
+    return {
+      meta: [
+        {
+          title: `${observationUnit.code} · ${experiment.name} · ${m.app_name()}`,
+        },
+      ],
+    };
   },
   component: ObservationUnitPage,
 });

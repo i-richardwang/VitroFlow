@@ -2,6 +2,7 @@ import type { DateValue } from "@internationalized/date";
 import { FieldError, Input, Label, TextArea, TextField } from "@heroui/react";
 
 import type { Experiment } from "../../experiments/schema";
+import { m } from "../../paraglide/messages";
 import { DayField } from "./DayField";
 
 type NotebookPage = Pick<
@@ -41,8 +42,11 @@ export function ExperimentFields({
         name="name"
         defaultValue={defaults?.name}
       >
-        <Label>Name</Label>
-        <Input className="w-full" placeholder="September germination study" />
+        <Label>{m.experiment_field_name()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.experiment_field_name_placeholder()}
+        />
         <FieldError />
       </TextField>
       <TextField
@@ -52,8 +56,11 @@ export function ExperimentFields({
         name="plantMaterial"
         defaultValue={defaults?.plantMaterial}
       >
-        <Label>Plant material</Label>
-        <Input className="w-full" placeholder="Chrysanthemum 'Jinba'" />
+        <Label>{m.experiment_field_plant_material()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.experiment_field_plant_material_placeholder()}
+        />
         <FieldError />
       </TextField>
       <TextField
@@ -63,8 +70,11 @@ export function ExperimentFields({
         name="explantType"
         defaultValue={defaults?.explantType}
       >
-        <Label>Explant type</Label>
-        <Input className="w-full" placeholder="Stem segments" />
+        <Label>{m.experiment_field_explant_type()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.experiment_field_explant_type_placeholder()}
+        />
         <FieldError />
       </TextField>
       <TextField
@@ -74,12 +84,15 @@ export function ExperimentFields({
         name="baseMedium"
         defaultValue={defaults?.baseMedium}
       >
-        <Label>Base medium</Label>
-        <Input className="w-full" placeholder="MS + 3% sucrose, pH 5.8" />
+        <Label>{m.experiment_field_base_medium()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.experiment_field_base_medium_placeholder()}
+        />
         <FieldError />
       </TextField>
       <DayField
-        label="Inoculated"
+        label={m.experiment_field_inoculated()}
         busy={busy}
         value={inoculatedOn}
         onChange={onInoculatedOnChange}
@@ -91,7 +104,7 @@ export function ExperimentFields({
         name="notes"
         defaultValue={defaults?.notes}
       >
-        <Label>Notes</Label>
+        <Label>{m.experiment_field_notes()}</Label>
         <TextArea className="w-full" rows={3} />
         <FieldError />
       </TextField>

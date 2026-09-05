@@ -2,6 +2,7 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Link, Table } from "@heroui/react";
 
 import { versionSlug } from "../../models/schema";
+import { m } from "../../paraglide/messages";
 import type { TrainingRunSummary } from "../../training/read-model";
 import { trainingRunLabel } from "../../training/schema";
 import { Hint } from "../Hint";
@@ -19,19 +20,23 @@ export function TrainingRunsTable({
   return (
     <Table>
       <Table.ScrollContainer>
-        <Table.Content aria-label="Training runs">
+        <Table.Content aria-label={m.run_table_label()}>
           <Table.Header>
-            <Table.Column isRowHeader>Run</Table.Column>
-            {datasetColumn && <Table.Column>Dataset</Table.Column>}
-            <Table.Column>State</Table.Column>
-            <Table.Column className="text-right">Epochs</Table.Column>
-            <Table.Column className="whitespace-nowrap text-right">
-              Best mAP50
+            <Table.Column isRowHeader>{m.run_column_run()}</Table.Column>
+            {datasetColumn && (
+              <Table.Column>{m.run_column_dataset()}</Table.Column>
+            )}
+            <Table.Column>{m.run_column_state()}</Table.Column>
+            <Table.Column className="text-right">
+              {m.run_column_epochs()}
             </Table.Column>
             <Table.Column className="whitespace-nowrap text-right">
-              mAP50-95
+              {m.run_column_best_map50()}
             </Table.Column>
-            <Table.Column>Version</Table.Column>
+            <Table.Column className="whitespace-nowrap text-right">
+              {m.run_column_map50_95()}
+            </Table.Column>
+            <Table.Column>{m.run_column_version()}</Table.Column>
           </Table.Header>
           <Table.Body
             renderEmptyState={() => (
@@ -40,12 +45,12 @@ export function TrainingRunsTable({
                   <EmptyState.Media variant="icon">
                     <TrainingIcon />
                   </EmptyState.Media>
-                  <EmptyState.Title>No training runs yet</EmptyState.Title>
+                  <EmptyState.Title>{m.run_empty_title()}</EmptyState.Title>
                 </EmptyState.Header>
                 {datasetColumn ? (
                   <EmptyState.Content>
                     <Link href="/datasets" className="text-sm font-medium">
-                      Open datasets
+                      {m.run_empty_open_datasets()}
                     </Link>
                   </EmptyState.Content>
                 ) : null}

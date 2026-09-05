@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { startTrainingRun } from "../../functions/training";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import type { TrainingConsole } from "../../training/read-model";
 import {
   PARAMETER_FIELDS,
@@ -32,7 +33,7 @@ export function TrainDialog({ console }: { console: TrainingConsole }) {
         isDisabled={!canTrain}
         onPress={() => setOpen(true)}
       >
-        Train
+        {m.train_button()}
       </Button>
       <TrainingModal
         console={console}
@@ -65,9 +66,9 @@ function TrainingModal({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Train a new version</Modal.Heading>
+              <Modal.Heading>{m.train_dialog_title()}</Modal.Heading>
               <Description>
                 {recipe.baseModel.reference} · {recipe.runtime.framework}{" "}
                 {recipe.runtime.version}
@@ -91,7 +92,7 @@ function TrainingModal({
                       }))
                     }
                   >
-                    <Label>{field.label}</Label>
+                    <Label>{field.label()}</Label>
                     <NumberField.Group>
                       <NumberField.DecrementButton />
                       <NumberField.Input />
@@ -104,14 +105,14 @@ function TrainingModal({
                 <Alert status="warning">
                   <Alert.Indicator />
                   <Alert.Content>
-                    <Alert.Title>No training worker is online</Alert.Title>
+                    <Alert.Title>{m.train_dialog_no_worker()}</Alert.Title>
                   </Alert.Content>
                 </Alert>
               ) : null}
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 variant="primary"
@@ -119,17 +120,17 @@ function TrainingModal({
                 onPress={() => {
                   void run(
                     () => startTrainingRun({ data: { dataset, overrides } }),
-                    "Training not started",
+                    m.train_not_started(),
                   ).then(async (result) => {
                     if (result.ok) {
                       onClose();
-                      toast.success("Training run queued");
+                      toast.success(m.train_queued());
                       await router.invalidate();
                     }
                   });
                 }}
               >
-                Train
+                {m.train_button()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

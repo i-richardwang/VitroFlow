@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { m } from "../paraglide/messages";
+
 const OPTIMIZERS = [
   "auto",
   "SGD",
@@ -60,9 +62,27 @@ export function trainingOverrides(
   };
 }
 
+/** Display name of each parameter, resolved in the reader's language. */
+export const PARAMETER_LABELS: Record<keyof TrainingParameters, () => string> =
+  {
+    epochs: m.parameter_epochs,
+    patience: m.parameter_patience,
+    batch: m.parameter_batch,
+    imgsz: m.parameter_imgsz,
+    optimizer: m.parameter_optimizer,
+    lr0: m.parameter_lr0,
+    warmup_epochs: m.parameter_warmup_epochs,
+    mosaic: m.parameter_mosaic,
+    mixup: m.parameter_mixup,
+    copy_paste: m.parameter_copy_paste,
+    max_det: m.parameter_max_det,
+    seed: m.parameter_seed,
+    deterministic: m.parameter_deterministic,
+  };
+
 export interface ParameterField {
   key: keyof TrainingOverrides;
-  label: string;
+  label: () => string;
   min: number;
   max: number;
   step: number;
@@ -70,9 +90,9 @@ export interface ParameterField {
 
 /** Bounds mirror `trainingParametersSchema`, which stays the validator. */
 export const PARAMETER_FIELDS: ParameterField[] = [
-  { key: "epochs", label: "Epochs", min: 1, max: 300, step: 1 },
-  { key: "imgsz", label: "Image size", min: 320, max: 2048, step: 32 },
-  { key: "batch", label: "Batch", min: 1, max: 64, step: 1 },
-  { key: "patience", label: "Patience", min: 0, max: 300, step: 1 },
-  { key: "lr0", label: "Learning rate", min: 0.00001, max: 0.1, step: 0.00001 },
+  { key: "epochs", label: m.parameter_epochs, min: 1, max: 300, step: 1 },
+  { key: "imgsz", label: m.parameter_imgsz, min: 320, max: 2048, step: 32 },
+  { key: "batch", label: m.parameter_batch, min: 1, max: 64, step: 1 },
+  { key: "patience", label: m.parameter_patience, min: 0, max: 300, step: 1 },
+  { key: "lr0", label: m.parameter_lr0, min: 0.00001, max: 0.1, step: 0.00001 },
 ];

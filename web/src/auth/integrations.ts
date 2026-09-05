@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { m } from "../paraglide/messages";
+
 /**
  * Programmatic access to the workbench belongs to accounts. A personal API
  * key opens the HTTP surfaces its scopes name on behalf of the account that
@@ -11,9 +13,9 @@ export const API_SCOPES = ["agent", "transfer"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];
 const apiScopeSchema = z.enum(API_SCOPES);
 
-export const API_SCOPE_LABELS: Record<ApiScope, string> = {
-  agent: "Agent interface",
-  transfer: "Dataset transfer",
+export const API_SCOPE_LABELS: Record<ApiScope, () => string> = {
+  agent: m.api_key_scope_agent,
+  transfer: m.api_key_scope_transfer,
 };
 
 /** Every key starts with this so a leaked one is recognisable. */

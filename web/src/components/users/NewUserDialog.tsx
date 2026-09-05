@@ -13,6 +13,7 @@ import { useState } from "react";
 import type { UserRole } from "../../auth/schema";
 import { addUser } from "../../functions/users";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { PasswordField } from "./PasswordField";
 import { RoleSelect } from "./RoleSelect";
 
@@ -42,9 +43,9 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>New user</Modal.Heading>
+              <Modal.Heading>{m.user_dialog_new_title()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -64,10 +65,10 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                           role,
                         },
                       }),
-                    "User not added",
+                    m.user_not_added(),
                   ).then(async (result) => {
                     if (!result.ok) return;
-                    toast.success(`${result.value.name} added`);
+                    toast.success(m.user_added({ name: result.value.name }));
                     onClose();
                     await router.invalidate();
                   });
@@ -81,7 +82,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                   name="name"
                   autoFocus
                 >
-                  <Label>Name</Label>
+                  <Label>{m.user_dialog_name_label()}</Label>
                   <Input className="w-full" autoComplete="off" />
                 </TextField>
                 <TextField
@@ -92,11 +93,11 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                   name="email"
                   type="email"
                 >
-                  <Label>Email</Label>
+                  <Label>{m.user_dialog_email_label()}</Label>
                   <Input className="w-full" autoComplete="off" />
                 </TextField>
                 <PasswordField
-                  label="Initial password"
+                  label={m.user_dialog_initial_password_label()}
                   isDisabled={busy}
                   variant="secondary"
                 />
@@ -105,7 +106,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -113,7 +114,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Adding…" : "Add"}
+                {busy ? m.user_dialog_adding() : m.user_dialog_add()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

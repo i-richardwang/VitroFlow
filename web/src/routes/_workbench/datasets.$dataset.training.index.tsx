@@ -7,6 +7,7 @@ import { TrainDialog } from "../../components/training/TrainDialog";
 import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../functions/training";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
   {
@@ -19,15 +20,22 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
     },
     staticData: {
       crumbs: ({ params }) => [
-        { label: "Datasets", href: "/datasets" },
+        { label: m.training_datasets_crumb(), href: "/datasets" },
         {
           label: params.dataset,
           href: `/datasets/${params.dataset}`,
           mono: true,
         },
-        { label: "Training" },
+        { label: m.training_title() },
       ],
     },
+    head: ({ params }) => ({
+      meta: [
+        {
+          title: `${m.training_title()} · ${params.dataset} · ${m.app_name()}`,
+        },
+      ],
+    }),
     component: TrainingPage,
   },
 );
@@ -40,25 +48,30 @@ function TrainingPage() {
   useRouteRefresh(router, 10_000);
 
   return (
-    <Page title="Training" actions={<TrainDialog console={console} />}>
+    <Page
+      title={m.training_title()}
+      actions={<TrainDialog console={console} />}
+    >
       <KPIGroup>
         <KPI>
           <KPI.Header>
-            <KPI.Title>Ready</KPI.Title>
+            <KPI.Title>{m.training_kpi_ready()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={reviewed} />
           </KPI.Content>
           {training.reviewedSinceLastRun > 0 ? (
             <KPI.Footer>
-              {training.reviewedSinceLastRun} new since last run
+              {m.training_kpi_new_since_last_run({
+                count: training.reviewedSinceLastRun,
+              })}
             </KPI.Footer>
           ) : null}
         </KPI>
         <KPIGroup.Separator />
         <KPI>
           <KPI.Header>
-            <KPI.Title>Workers</KPI.Title>
+            <KPI.Title>{m.training_kpi_workers()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value

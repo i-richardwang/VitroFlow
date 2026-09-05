@@ -8,6 +8,7 @@ import {
   type Tally,
 } from "../../models/metrics";
 import { LAYERS, type LayerKey } from "./controls";
+import { m } from "../../paraglide/messages";
 
 export function Section({
   title,
@@ -63,7 +64,7 @@ export function MetricsSection({
   if (!primary) return null;
 
   return (
-    <Section title="Metrics">
+    <Section title={m.workbench_section_metrics()}>
       <Metrics
         rows={metrics.map((metric) => ({
           label: metric.name,
@@ -112,8 +113,12 @@ export function LayersSection({
   };
 
   return (
-    <Section title="Layers">
-      <SwitchGroup role="group" aria-label="Layers" className="gap-2">
+    <Section title={m.workbench_section_layers()}>
+      <SwitchGroup
+        role="group"
+        aria-label={m.workbench_section_layers()}
+        className="gap-2"
+      >
         {LAYERS.map((layer) => (
           <Switch
             key={layer.key}
@@ -127,7 +132,7 @@ export function LayersSection({
                   className="size-1.5 rounded-full"
                   style={{ backgroundColor: layer.color }}
                 />
-                {layer.label}
+                {layer.label()}
               </span>
               <Switch.Control>
                 <Switch.Thumb />

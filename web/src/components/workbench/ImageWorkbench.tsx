@@ -32,6 +32,7 @@ import { saveAnnotation } from "../../functions/review";
 import { useHistory } from "../../hooks/useHistory";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
+import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../DetectionQuality";
 import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../icons";
 import { ReviewStateChip } from "../ReviewState";
@@ -168,13 +169,13 @@ function Viewing({
       <WorkbenchActions>
         <ReviewStateChip state={reviewState(review.annotation)} />
         <Button variant="primary" isDisabled={!onEdit} onPress={onEdit}>
-          Edit
+          {m.workbench_edit()}
         </Button>
         {context.actions}
         {context.menu}
       </WorkbenchActions>
       {context.toolbar ? (
-        <WorkbenchToolbar label="Navigation">
+        <WorkbenchToolbar label={m.workbench_navigation()}>
           {context.toolbar}
         </WorkbenchToolbar>
       ) : null}
@@ -219,9 +220,16 @@ function ReviewInspector({
       <MetricsSection
         metrics={model.metrics}
         sources={[
-          ...(instances ? [{ label: "Review", tally: tally(instances) }] : []),
+          ...(instances
+            ? [{ label: m.workbench_source_review(), tally: tally(instances) }]
+            : []),
           ...(detection
-            ? [{ label: "Detected", tally: tally(detection.instances) }]
+            ? [
+                {
+                  label: m.workbench_source_detected(),
+                  tally: tally(detection.instances),
+                },
+              ]
             : []),
         ]}
       />
@@ -231,7 +239,7 @@ function ReviewInspector({
         onLayersChange={display.onLayersChange}
       />
       {detection ? (
-        <Section title="Detection">
+        <Section title={m.workbench_section_detection()}>
           <Metrics rows={detectionMetrics(model.id, detection)} />
           <QualityAlert quality={detection.quality} />
         </Section>
@@ -244,13 +252,13 @@ function detectionMetrics(modelId: string, result: DetectionResult): Metric[] {
   const metrics = result.diagnostics?.metrics;
   const rows: Metric[] = [
     {
-      label: "Version",
+      label: m.workbench_detection_version(),
       value: versionSlug({ id: result.producer.modelVersionId, modelId }),
     },
   ];
   if (metrics?.confidence_threshold !== undefined) {
     rows.push({
-      label: "Threshold",
+      label: m.workbench_detection_threshold(),
       value: String(metrics.confidence_threshold),
     });
   }
@@ -293,7 +301,9 @@ function Editing({
   const dirty = history.canUndo;
   useBlocker({
     shouldBlockFn: () =>
-      dirty && !closing.current && !window.confirm("Discard unsaved changes?"),
+      dirty &&
+      !closing.current &&
+      !window.confirm(m.workbench_discard_confirm()),
     enableBeforeUnload: () => dirty && !closing.current,
   });
 
@@ -380,14 +390,14 @@ function Editing({
     <>
       <WorkbenchActions>
         <Button variant="tertiary" isDisabled={saving} onPress={close}>
-          Cancel
+          {m.cancel()}
         </Button>
         <Button variant="primary" isDisabled={saving} onPress={done}>
-          {saving ? "Saving…" : "Done"}
+          {saving ? m.workbench_saving() : m.workbench_done()}
         </Button>
         {context.menu}
       </WorkbenchActions>
-      <WorkbenchToolbar label="Navigation and tools">
+      <WorkbenchToolbar label={m.workbench_navigation_and_tools()}>
         {context.toolbar}
         {context.toolbar ? <Separator /> : null}
         <EditingTools
@@ -416,7 +426,7 @@ function Editing({
             <Alert status="danger">
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Title>Save failed</Alert.Title>
+                <Alert.Title>{m.workbench_save_failed()}</Alert.Title>
                 <Alert.Description>{error}</Alert.Description>
               </Alert.Content>
             </Alert>
@@ -467,7 +477,7 @@ function EditingTools({
   return (
     <>
       <ToggleButtonGroup
-        aria-label="Tool"
+        aria-label={m.workbench_tool_label()}
         selectionMode="single"
         disallowEmptySelection
         selectedKeys={new Set([tool])}
@@ -477,7 +487,8 @@ function EditingTools({
         }}
       >
         {TOOLS.map((id, index) => {
-          const { label: name, shortcut, icon: Icon } = TOOL_SPECS[id];
+          const { label, shortcut, icon: Icon } = TOOL_SPECS[id];
+          const name = label();
           return (
             <ShortcutTooltip key={id} label={name} shortcut={shortcut}>
               <ToggleButton id={id} isIconOnly aria-label={name}>
@@ -491,7 +502,7 @@ function EditingTools({
       {classes.length > 1 ? <Separator /> : null}
       {classes.length > 1 ? (
         <InlineSelect
-          aria-label="Box class"
+          aria-label={m.workbench_box_class()}
           selectedKey={className}
           onSelectionChange={(key) =>
             key !== null && onClassChange(String(key))
@@ -515,22 +526,22 @@ function EditingTools({
       ) : null}
       <Separator />
       <ButtonGroup variant="tertiary">
-        <ShortcutTooltip label="Undo" shortcut="⌘Z">
+        <ShortcutTooltip label={m.workbench_undo()} shortcut="⌘Z">
           <Button
             variant="tertiary"
             isIconOnly
-            aria-label="Undo"
+            aria-label={m.workbench_undo()}
             isDisabled={!history.canUndo}
             onPress={onUndo}
           >
             <UndoIcon />
           </Button>
         </ShortcutTooltip>
-        <ShortcutTooltip label="Redo" shortcut="⇧⌘Z">
+        <ShortcutTooltip label={m.workbench_redo()} shortcut="⇧⌘Z">
           <Button
             variant="tertiary"
             isIconOnly
-            aria-label="Redo"
+            aria-label={m.workbench_redo()}
             isDisabled={!history.canRedo}
             onPress={onRedo}
           >
@@ -538,11 +549,11 @@ function EditingTools({
             <RedoIcon />
           </Button>
         </ShortcutTooltip>
-        <ShortcutTooltip label="Delete" shortcut="⌫">
+        <ShortcutTooltip label={m.workbench_delete()} shortcut="⌫">
           <Button
             variant="tertiary"
             isIconOnly
-            aria-label="Delete"
+            aria-label={m.workbench_delete()}
             isDisabled={!canDelete}
             onPress={onDelete}
           >
@@ -558,12 +569,14 @@ function EditingTools({
             <Button
               variant="tertiary"
               isIconOnly
-              aria-label="Start again from detection"
+              aria-label={m.workbench_restart_from_detection()}
               onPress={onRestart}
             >
               <RestartIcon />
             </Button>
-            <Tooltip.Content>Start again from detection</Tooltip.Content>
+            <Tooltip.Content>
+              {m.workbench_restart_from_detection()}
+            </Tooltip.Content>
           </Tooltip>
         </>
       ) : null}

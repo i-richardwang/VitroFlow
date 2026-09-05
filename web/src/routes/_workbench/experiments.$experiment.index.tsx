@@ -62,6 +62,7 @@ import {
   type Tally,
 } from "../../models/metrics";
 import { primaryMetric } from "../../models/schema";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   validateSearch: z.object({ metric: z.string().optional().catch(undefined) }),
@@ -79,10 +80,14 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
     crumbs: ({ loaderData }) => {
       const { experiment } = loaderData as ExperimentGrid;
       return [
-        { label: "Experiments", href: "/experiments" },
+        { label: m.experiments_title(), href: "/experiments" },
         { label: experiment.name },
       ];
     },
+  },
+  head: ({ loaderData }) => {
+    const { experiment } = loaderData as ExperimentGrid;
+    return { meta: [{ title: `${experiment.name} · ${m.app_name()}` }] };
   },
   component: ExperimentPage,
 });
@@ -132,7 +137,7 @@ function ExperimentPage() {
     (): DataGridColumn<GridRow>[] => [
       {
         id: "treatment",
-        header: "Treatment",
+        header: m.experiment_column_treatment(),
         isRowHeader: true,
         cell: (row) => {
           if (row.kind === "group") {
@@ -244,7 +249,7 @@ function ExperimentPage() {
         <>
           {hasObservations && model.metrics.length > 1 ? (
             <Select
-              aria-label="Metric"
+              aria-label={m.experiment_metric_select()}
               className="w-44"
               selectedKey={metric.id}
               onSelectionChange={(key) => {
@@ -279,7 +284,7 @@ function ExperimentPage() {
             </Select>
           ) : null}
           <Button variant="primary" onPress={() => setOpen("observation")}>
-            New observation
+            {m.observation_new()}
           </Button>
           <ExperimentMenu
             experiment={experiment}
@@ -297,11 +302,11 @@ function ExperimentPage() {
             <EmptyState.Media variant="icon">
               <ExperimentsIcon />
             </EmptyState.Media>
-            <EmptyState.Title>No observation units yet</EmptyState.Title>
+            <EmptyState.Title>{m.experiment_empty_units()}</EmptyState.Title>
           </EmptyState.Header>
           <EmptyState.Content>
             <Button variant="primary" onPress={() => setOpen("units")}>
-              Add observation units
+              {m.observation_units_add()}
             </Button>
             <Button
               variant="tertiary"
@@ -310,7 +315,7 @@ function ExperimentPage() {
                 setOpen("treatment");
               }}
             >
-              New treatment
+              {m.treatment_new()}
             </Button>
           </EmptyState.Content>
         </EmptyState>
@@ -331,7 +336,10 @@ function ExperimentPage() {
           ) : null}
           <DataGrid
             showSelectionCheckboxes
-            aria-label={`${metric.name} in ${experiment.name}`}
+            aria-label={m.experiment_grid_label({
+              metric: metric.name,
+              experiment: experiment.name,
+            })}
             columns={columns}
             data={rows}
             defaultExpandedKeys={rows.map((row) => row.id)}
@@ -414,7 +422,7 @@ function AssignmentBar({
   return (
     <ActionBar
       isOpen={selected.length > 0}
-      aria-label="Selected observation units"
+      aria-label={m.experiment_selection_label()}
     >
       <ActionBar.Prefix>
         <Chip className="size-5 shrink-0 tabular-nums" size="sm">
@@ -425,10 +433,12 @@ function AssignmentBar({
       <ActionBar.Content>
         <Dropdown>
           <Button size="sm" variant="ghost" isDisabled={busy}>
-            Assign to…
+            {m.experiment_assign_to()}
           </Button>
           <TreatmentChoices
-            label={`Treatment of ${selected.length} selected observation units`}
+            label={m.experiment_selection_treatment_label({
+              count: selected.length,
+            })}
             treatments={treatments}
             onPick={(treatment) => {
               void run(
@@ -440,7 +450,7 @@ function AssignmentBar({
                       treatment,
                     },
                   }),
-                "Observation units not assigned",
+                m.observation_units_not_assigned(),
               ).then(async (result) => {
                 if (!result.ok) return;
                 onDone();
@@ -460,13 +470,13 @@ function AssignmentBar({
               variant="ghost"
               isIconOnly
               isDisabled={busy}
-              aria-label="Clear selection"
+              aria-label={m.experiment_clear_selection()}
               onPress={onDone}
             >
               <CloseIcon />
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content>Clear</Tooltip.Content>
+          <Tooltip.Content>{m.experiment_clear()}</Tooltip.Content>
         </Tooltip>
       </ActionBar.Suffix>
     </ActionBar>
@@ -501,7 +511,7 @@ type GroupRow = {
 type GridRow = GroupRow | UnitRow;
 
 function treatmentLabel(treatment: Treatment | null): string {
-  return treatment?.name ?? "No treatment";
+  return treatment?.name ?? m.treatment_none();
 }
 
 function experimentRows(
@@ -595,8 +605,10 @@ function Cell({
   if (image.annotationTally) {
     return explain(
       [
-        image.detectionTally ? `Analyzed ${value(image.detectionTally)}` : null,
-        counted ? null : "Excluded from analysis at this observation",
+        image.detectionTally
+          ? m.experiment_cell_analyzed({ value: value(image.detectionTally) })
+          : null,
+        counted ? null : m.experiment_cell_excluded(),
       ]
         .filter(Boolean)
         .join(" · "),
@@ -607,7 +619,7 @@ function Cell({
   }
   if (image.detectionTally) {
     return explain(
-      counted ? null : "Excluded from analysis at this observation",
+      counted ? null : m.experiment_cell_excluded(),
       <Link href={href} className={dimmed}>
         {value(image.detectionTally)}
       </Link>,
@@ -617,13 +629,13 @@ function Cell({
     return explain(
       image.error,
       <Link href={href} className="text-danger">
-        Failed
+        {m.image_analysis_failed()}
       </Link>,
     );
   }
   return (
     <Link href={href} className="text-muted">
-      Pending
+      {m.image_analysis_pending()}
     </Link>
   );
 }

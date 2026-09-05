@@ -34,6 +34,7 @@ import {
   unassignObservationImage,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
 import { ReassignObservationImageModal } from "./ReassignObservationImageModal";
@@ -61,7 +62,7 @@ export function ObservationUnitMenu({
   const unassign = async () => {
     if (!image) return;
     await unassignObservationImage({ data: image.ref });
-    toast.success("Image unassigned");
+    toast.success(m.observation_unit_image_unassigned());
     await router.navigate({
       to: "/experiments/$experiment",
       params: { experiment: image.ref.experiment },
@@ -75,54 +76,64 @@ export function ObservationUnitMenu({
           variant="ghost"
           isIconOnly
           size="sm"
-          aria-label={`${observationUnit.code} actions`}
+          aria-label={m.observation_unit_actions({
+            code: observationUnit.code,
+          })}
         >
           <MoreIcon />
         </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label={`${observationUnit.code} actions`}
+            aria-label={m.observation_unit_actions({
+              code: observationUnit.code,
+            })}
             disabledKeys={busy ? ["unassign"] : []}
             onAction={(key) => {
               if (key !== "unassign") return setOpen(key as Action);
-              void run(unassign, "Image not unassigned");
+              void run(unassign, m.observation_unit_image_not_unassigned());
             }}
           >
             {image ? (
-              <Dropdown.Item id="reassign" textValue="Reassign image">
-                <Label>Reassign image…</Label>
+              <Dropdown.Item
+                id="reassign"
+                textValue={m.observation_unit_reassign_image()}
+              >
+                <Label>{m.observation_unit_menu_reassign()}</Label>
               </Dropdown.Item>
             ) : null}
-            <Dropdown.Item id="edit" textValue="Edit observation unit">
-              <Label>Edit observation unit…</Label>
+            <Dropdown.Item id="edit" textValue={m.observation_unit_edit()}>
+              <Label>{m.observation_unit_menu_edit()}</Label>
             </Dropdown.Item>
             {observations.length > 0 ? (
-              <Dropdown.Item id="record" textValue="Record culture event">
-                <Label>Record culture event…</Label>
+              <Dropdown.Item id="record" textValue={m.culture_event_record()}>
+                <Label>{m.culture_event_menu_record()}</Label>
               </Dropdown.Item>
             ) : null}
             {observationUnit.events.length > 0 ? (
-              <Dropdown.Item id="remove-event" textValue="Remove culture event">
-                <Label>Remove culture event…</Label>
+              <Dropdown.Item
+                id="remove-event"
+                textValue={m.culture_event_remove()}
+              >
+                <Label>{m.culture_event_menu_remove()}</Label>
               </Dropdown.Item>
             ) : null}
             {image || canRemove ? <Separator orientation="horizontal" /> : null}
             {image ? (
               <Dropdown.Item
                 id="unassign"
-                textValue="Unassign image"
+                textValue={m.observation_unit_unassign_image()}
                 variant="danger"
               >
-                <Label>Unassign image</Label>
+                <Label>{m.observation_unit_unassign_image()}</Label>
               </Dropdown.Item>
             ) : null}
             {canRemove ? (
               <Dropdown.Item
                 id="delete"
-                textValue="Delete observation unit"
+                textValue={m.observation_unit_delete()}
                 variant="danger"
               >
-                <Label>Delete observation unit…</Label>
+                <Label>{m.observation_unit_menu_delete()}</Label>
               </Dropdown.Item>
             ) : null}
           </Dropdown.Menu>
@@ -168,13 +179,15 @@ export function ObservationUnitMenu({
       <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={`Delete ${observationUnit.code}?`}
-        confirmLabel="Delete observation unit"
+        title={m.observation_unit_delete_title({ code: observationUnit.code })}
+        confirmLabel={m.observation_unit_delete()}
         onConfirm={async () => {
           await removeObservationUnit({
             data: { experiment, observationUnit: observationUnit.id },
           });
-          toast.success(`${observationUnit.code} deleted`);
+          toast.success(
+            m.observation_unit_deleted({ code: observationUnit.code }),
+          );
           await router.invalidate();
         }}
       />
@@ -201,9 +214,9 @@ function EditObservationUnitModal({
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Edit observation unit</Modal.Heading>
+              <Modal.Heading>{m.observation_unit_edit()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -221,7 +234,7 @@ function EditObservationUnitModal({
                           code: String(form.get("code") ?? ""),
                         },
                       }),
-                    "Observation unit not saved",
+                    m.observation_unit_not_saved(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
@@ -237,14 +250,14 @@ function EditObservationUnitModal({
                   name="code"
                   defaultValue={observationUnit.code}
                 >
-                  <Label>Code</Label>
+                  <Label>{m.observation_unit_code_label()}</Label>
                   <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -252,7 +265,9 @@ function EditObservationUnitModal({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Saving…" : "Save"}
+                {busy
+                  ? m.experiment_action_saving()
+                  : m.experiment_action_save()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -285,9 +300,9 @@ function RecordCultureEventModal({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Record culture event</Modal.Heading>
+              <Modal.Heading>{m.culture_event_record()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -305,10 +320,14 @@ function RecordCultureEventModal({
                           observation,
                         },
                       }),
-                    "Event not recorded",
+                    m.culture_event_not_recorded(),
                   ).then(async (result) => {
                     if (!result.ok) return;
-                    toast.success(`${cultureEventLabel(type)} recorded`);
+                    toast.success(
+                      m.culture_event_recorded({
+                        event: cultureEventLabel(type),
+                      }),
+                    );
                     onClose();
                     await router.invalidate();
                   });
@@ -323,7 +342,7 @@ function RecordCultureEventModal({
                     setType(String(key) as CultureEventType)
                   }
                 >
-                  <Label>Event</Label>
+                  <Label>{m.culture_event_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -350,7 +369,7 @@ function RecordCultureEventModal({
                   selectedKey={observation}
                   onSelectionChange={(key) => setObservation(String(key))}
                 >
-                  <Label>Observation</Label>
+                  <Label>{m.observation_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -374,7 +393,7 @@ function RecordCultureEventModal({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -382,7 +401,9 @@ function RecordCultureEventModal({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Recording…" : "Record"}
+                {busy
+                  ? m.culture_event_recording()
+                  : m.culture_event_record_action()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -423,9 +444,9 @@ function RemoveCultureEventModal({
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Remove culture event</Modal.Heading>
+              <Modal.Heading>{m.culture_event_remove()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -435,7 +456,7 @@ function RemoveCultureEventModal({
                   formEvent.preventDefault();
                   void run(
                     () => removeCultureEvent({ data: { experiment, event } }),
-                    "Event not removed",
+                    m.culture_event_not_removed(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
@@ -450,7 +471,7 @@ function RemoveCultureEventModal({
                   selectedKey={event}
                   onSelectionChange={(key) => setEvent(String(key))}
                 >
-                  <Label>Event</Label>
+                  <Label>{m.culture_event_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -474,7 +495,7 @@ function RemoveCultureEventModal({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -482,7 +503,9 @@ function RemoveCultureEventModal({
                 variant="danger"
                 isDisabled={busy || event === ""}
               >
-                {busy ? "Removing…" : "Remove event"}
+                {busy
+                  ? m.culture_event_removing()
+                  : m.culture_event_remove_action()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

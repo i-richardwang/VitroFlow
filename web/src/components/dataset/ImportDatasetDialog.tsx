@@ -8,13 +8,14 @@ import {
   type ImportProgress,
 } from "../../datasets/archive";
 import { errorMessage } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 
 export function ImportDatasetButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button variant="secondary" onPress={() => setOpen(true)}>
-        Import
+        {m.dataset_import()}
       </Button>
       <ImportDatasetDialog isOpen={open} onClose={() => setOpen(false)} />
     </>
@@ -35,14 +36,16 @@ function ImportDatasetDialog({
   const importArchive = async (file: File) => {
     try {
       const dataset = await importDatasetArchive(file, setProgress);
-      toast.success(`Imported ${dataset.id}`);
+      toast.success(m.dataset_import_done({ dataset: dataset.id }));
       onClose();
       await router.navigate({
         to: "/datasets/$dataset",
         params: { dataset: dataset.id },
       });
     } catch (error) {
-      toast.danger("Import failed", { description: errorMessage(error) });
+      toast.danger(m.dataset_import_failed(), {
+        description: errorMessage(error),
+      });
     } finally {
       setProgress(null);
     }
@@ -53,9 +56,9 @@ function ImportDatasetDialog({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Import dataset</Modal.Heading>
+              <Modal.Heading>{m.dataset_import_heading()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               {progress ? (
@@ -66,7 +69,7 @@ function ImportDatasetDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" onPress={onClose} isDisabled={busy}>
-                Cancel
+                {m.cancel()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -90,14 +93,14 @@ function ArchiveDropZone({ onSelect }: { onSelect: (file: File) => void }) {
         }}
       >
         <DropZone.Icon />
-        <DropZone.Label>Drop a dataset archive here or browse</DropZone.Label>
+        <DropZone.Label>{m.dataset_import_drop_label()}</DropZone.Label>
         <DropZone.Description>
-          A ZIP downloaded from a workbench dataset
+          {m.dataset_import_drop_description()}
         </DropZone.Description>
-        <DropZone.Trigger>Select archive</DropZone.Trigger>
+        <DropZone.Trigger>{m.dataset_import_select()}</DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
-        aria-label="Select archive"
+        aria-label={m.dataset_import_select()}
         accept=".zip,application/zip"
         onSelect={(list) => {
           const file = list?.[0];
@@ -112,11 +115,11 @@ function ImportProgressBar({ progress }: { progress: ImportProgress }) {
   if (progress.phase === "reading") {
     return (
       <ProgressBar
-        aria-label="Import progress"
+        aria-label={m.dataset_import_progress()}
         isIndeterminate
         className="w-full"
       >
-        <Label>Reading archive</Label>
+        <Label>{m.dataset_import_reading()}</Label>
         <ProgressBar.Track>
           <ProgressBar.Fill />
         </ProgressBar.Track>
@@ -126,12 +129,16 @@ function ImportProgressBar({ progress }: { progress: ImportProgress }) {
   const total = progress.manifest.images.length;
   return (
     <ProgressBar
-      aria-label="Import progress"
+      aria-label={m.dataset_import_progress()}
       value={total === 0 ? 100 : (progress.stored / total) * 100}
       className="w-full"
     >
       <Label>
-        {`Storing ${progress.manifest.dataset}: ${progress.stored} of ${total} images`}
+        {m.dataset_import_storing({
+          dataset: progress.manifest.dataset,
+          stored: progress.stored,
+          total,
+        })}
       </Label>
       <ProgressBar.Track>
         <ProgressBar.Fill />

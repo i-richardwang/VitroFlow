@@ -13,6 +13,7 @@ import { useState } from "react";
 
 import { startExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import type { Model, ModelVersion } from "../../models/schema";
 import { currentDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
@@ -39,15 +40,15 @@ export function NewExperimentDialog({
           setOpen(true);
         }}
       >
-        New experiment
+        {m.experiment_new()}
       </Button>
       <Modal isOpen={open} onOpenChange={(next) => !next && close()}>
         <Modal.Backdrop>
           <Modal.Container size="md">
             <Modal.Dialog>
-              <Modal.CloseTrigger />
+              <Modal.CloseTrigger aria-label={m.close()} />
               <Modal.Header>
-                <Modal.Heading>New experiment</Modal.Heading>
+                <Modal.Heading>{m.experiment_new()}</Modal.Heading>
               </Modal.Header>
               <Modal.Body key={open ? "open" : "closed"}>
                 <Form
@@ -66,7 +67,7 @@ export function NewExperimentDialog({
                             modelVersionId: String(form.get("version") ?? ""),
                           },
                         }),
-                      "Experiment not started",
+                      m.experiment_not_started(),
                     ).then(async (result) => {
                       if (result.ok) {
                         close();
@@ -91,7 +92,7 @@ export function NewExperimentDialog({
                     name="version"
                     defaultSelectedKey={versions[0]?.version.id}
                   >
-                    <Label>Version</Label>
+                    <Label>{m.experiment_version_label()}</Label>
                     <Select.Trigger>
                       <Select.Value />
                       <Select.Indicator />
@@ -116,7 +117,7 @@ export function NewExperimentDialog({
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="tertiary" isDisabled={busy} onPress={close}>
-                  Cancel
+                  {m.cancel()}
                 </Button>
                 <Button
                   type="submit"
@@ -124,7 +125,7 @@ export function NewExperimentDialog({
                   variant="primary"
                   isDisabled={busy}
                 >
-                  {busy ? "Starting…" : "Start"}
+                  {busy ? m.experiment_starting() : m.experiment_start()}
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>

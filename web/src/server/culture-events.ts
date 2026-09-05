@@ -9,7 +9,6 @@ import {
 } from "../db/schema";
 import {
   cultureEventIsTerminal,
-  cultureEventLabel,
   observationOrdinal,
   observationOrdinals,
   observationUnitIsAvailableAt,
@@ -63,7 +62,7 @@ export async function recordCultureEvent(
       )
     ) {
       throw new ObservationUnitRejectedError(
-        `${cultureEventLabel(type)} is already recorded for ${observationUnit.code} at this observation`,
+        `${type} is already recorded for ${observationUnit.code} at this observation`,
       );
     }
     const hasTerminalEvent = observationUnit.events.some((event) =>

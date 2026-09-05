@@ -1,6 +1,7 @@
 import { Input, Label, TextField } from "@heroui/react";
 
 import type { TreatmentFactor } from "../../experiments/schema";
+import { m } from "../../paraglide/messages";
 
 const EMPTY_FACTOR: TreatmentFactor = { name: "", level: "", unit: "" };
 
@@ -32,8 +33,11 @@ export function FactorField({
         value={factor.name}
         onChange={(name) => onChange({ ...factor, name })}
       >
-        <Label>Factor</Label>
-        <Input className="w-full" placeholder="6-BA" />
+        <Label>{m.treatment_factor_label()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.treatment_factor_placeholder()}
+        />
       </TextField>
       <TextField
         className="w-24 shrink-0"
@@ -42,8 +46,11 @@ export function FactorField({
         value={factor.level}
         onChange={(level) => onChange({ ...factor, level })}
       >
-        <Label>Level</Label>
-        <Input className="w-full" placeholder="1.0" />
+        <Label>{m.treatment_level_label()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.treatment_level_placeholder()}
+        />
       </TextField>
       <TextField
         className="w-28 shrink-0"
@@ -52,8 +59,11 @@ export function FactorField({
         value={factor.unit}
         onChange={(unit) => onChange({ ...factor, unit })}
       >
-        <Label>Unit</Label>
-        <Input className="w-full" placeholder="mg/L" />
+        <Label>{m.treatment_unit_label()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.treatment_unit_placeholder()}
+        />
       </TextField>
     </div>
   );

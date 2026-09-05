@@ -8,14 +8,17 @@ import { Page } from "../../components/Page";
 import { NewUserDialog } from "../../components/users/NewUserDialog";
 import { UserMenu } from "../../components/users/UserMenu";
 import { getUsers } from "../../functions/users";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/users")({
   beforeLoad: ({ context }) => {
     if (!isAdmin(context.user)) throw notFound();
   },
   loader: () => getUsers(),
-  staticData: { crumbs: () => [{ label: "Users" }] },
-  head: () => ({ meta: [{ title: "Users · VitroFlow" }] }),
+  staticData: { crumbs: () => [{ label: m.users_title() }] },
+  head: () => ({
+    meta: [{ title: `${m.users_title()} · ${m.app_name()}` }],
+  }),
   component: UsersPage,
 });
 
@@ -26,28 +29,28 @@ function UsersPage() {
 
   return (
     <Page
-      title="Users"
+      title={m.users_title()}
       actions={
         <Button variant="primary" onPress={() => setCreating(true)}>
-          New user
+          {m.users_new()}
         </Button>
       }
     >
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="Users">
+          <Table.Content aria-label={m.users_title()}>
             <Table.Header>
-              <Table.Column isRowHeader>Name</Table.Column>
-              <Table.Column>Email</Table.Column>
-              <Table.Column>Role</Table.Column>
-              <Table.Column>Status</Table.Column>
-              <Table.Column aria-label="Actions" />
+              <Table.Column isRowHeader>{m.users_column_name()}</Table.Column>
+              <Table.Column>{m.users_column_email()}</Table.Column>
+              <Table.Column>{m.users_column_role()}</Table.Column>
+              <Table.Column>{m.users_column_status()}</Table.Column>
+              <Table.Column aria-label={m.users_column_actions()} />
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState size="sm">
                   <EmptyState.Header>
-                    <EmptyState.Title>No accounts</EmptyState.Title>
+                    <EmptyState.Title>{m.users_empty()}</EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
               )}
@@ -66,7 +69,7 @@ function UsersPage() {
                       variant="soft"
                       size="sm"
                     >
-                      {USER_ROLE_LABELS[account.role]}
+                      {USER_ROLE_LABELS[account.role]()}
                     </Chip>
                   </Table.Cell>
                   <Table.Cell>
@@ -91,11 +94,11 @@ function UsersPage() {
 function StatusChip({ account }: { account: UserAccount }) {
   return account.banned ? (
     <Chip color="warning" variant="soft" size="sm">
-      Suspended
+      {m.user_status_suspended()}
     </Chip>
   ) : (
     <Chip color="success" variant="soft" size="sm">
-      Active
+      {m.user_status_active()}
     </Chip>
   );
 }

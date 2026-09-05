@@ -13,6 +13,7 @@ import {
 
 import type { Point } from "../../annotation/geometry";
 import type { ImageSize } from "../../annotation/schema";
+import { m } from "../../paraglide/messages";
 import {
   FIT,
   resolveView,
@@ -214,7 +215,7 @@ export function ImageViewport({
       </div>
       <Toolbar
         isAttached
-        aria-label="Zoom"
+        aria-label={m.workbench_zoom()}
         className="absolute bottom-3 left-1/2 -translate-x-1/2"
       >
         <span className="w-12 text-center font-mono text-xs tabular-nums text-muted">
@@ -226,7 +227,7 @@ export function ImageViewport({
           isDisabled={view.fitted}
           onPress={() => setIntent(FIT)}
         >
-          Fit
+          {m.workbench_fit()}
         </Button>
       </Toolbar>
     </div>

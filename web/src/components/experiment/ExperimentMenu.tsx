@@ -16,6 +16,7 @@ import type { ObservationImageCell } from "../../experiments/contracts";
 import type { Experiment } from "../../experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
@@ -44,12 +45,12 @@ export function ExperimentMenu({
   return (
     <>
       <Dropdown>
-        <Button variant="ghost" isIconOnly aria-label="Experiment actions">
+        <Button variant="ghost" isIconOnly aria-label={m.experiment_actions()}>
           <MoreIcon />
         </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label="Experiment actions"
+            aria-label={m.experiment_actions()}
             onAction={(key) => {
               const id = String(key);
               if (id === "units") {
@@ -59,25 +60,28 @@ export function ExperimentMenu({
               setOpen(id as Action);
             }}
           >
-            <Dropdown.Item id="units" textValue="Add observation units">
-              <Label>Add observation units…</Label>
+            <Dropdown.Item id="units" textValue={m.observation_units_add()}>
+              <Label>{m.experiment_menu_add_units()}</Label>
             </Dropdown.Item>
             {images.length > 0 ? (
-              <Dropdown.Item id="dataset" textValue="Add all to dataset">
-                <Label>Add all to dataset…</Label>
+              <Dropdown.Item
+                id="dataset"
+                textValue={m.experiment_add_all_to_dataset()}
+              >
+                <Label>{m.experiment_menu_add_to_dataset()}</Label>
               </Dropdown.Item>
             ) : null}
             <Separator orientation="horizontal" />
-            <Dropdown.Item id="edit" textValue="Edit details">
-              <Label>Edit details…</Label>
+            <Dropdown.Item id="edit" textValue={m.experiment_edit_details()}>
+              <Label>{m.experiment_menu_edit()}</Label>
             </Dropdown.Item>
             {!hasRecords ? (
               <Dropdown.Item
                 id="delete"
-                textValue="Delete experiment"
+                textValue={m.experiment_delete()}
                 variant="danger"
               >
-                <Label>Delete experiment…</Label>
+                <Label>{m.experiment_menu_delete()}</Label>
               </Dropdown.Item>
             ) : null}
           </Dropdown.Menu>
@@ -91,7 +95,7 @@ export function ExperimentMenu({
           observationImage: image.id,
         }))}
         datasets={datasets}
-        heading="Add all to dataset"
+        heading={m.experiment_add_all_to_dataset()}
         onClose={close}
       />
 
@@ -104,15 +108,15 @@ export function ExperimentMenu({
       <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={`Delete ${experiment.name}?`}
-        confirmLabel="Delete experiment"
+        title={m.experiment_delete_title({ name: experiment.name })}
+        confirmLabel={m.experiment_delete()}
         onConfirm={async () => {
           await removeExperiment({ data: { experiment: experiment.id } });
-          toast.success(`${experiment.name} deleted`);
+          toast.success(m.experiment_deleted({ name: experiment.name }));
           await router.navigate({ to: "/experiments" });
         }}
       >
-        Images stay stored.
+        {m.experiment_delete_note()}
       </DestructiveActionDialog>
     </>
   );
@@ -138,9 +142,9 @@ function EditExperimentDialog({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Edit experiment</Modal.Heading>
+              <Modal.Heading>{m.experiment_edit_heading()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -160,7 +164,7 @@ function EditExperimentDialog({
                           inoculatedOn: toDay(inoculatedOn),
                         },
                       }),
-                    "Experiment not saved",
+                    m.experiment_not_saved(),
                   ).then(async (result) => {
                     if (result.ok) {
                       onClose();
@@ -179,7 +183,7 @@ function EditExperimentDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -187,7 +191,9 @@ function EditExperimentDialog({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Saving…" : "Save"}
+                {busy
+                  ? m.experiment_action_saving()
+                  : m.experiment_action_save()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

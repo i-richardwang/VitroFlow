@@ -4,6 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 
 import type { McpClient } from "../../auth/integrations";
 import { removeMcpClient } from "../../functions/integrations";
+import { m } from "../../paraglide/messages";
 import { DestructiveActionButton } from "../DestructiveActionDialog";
 import { Timestamp } from "../Timestamp";
 
@@ -11,17 +12,17 @@ export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
   return (
     <Table>
       <Table.ScrollContainer>
-        <Table.Content aria-label="MCP clients">
+        <Table.Content aria-label={m.integrations_mcp_clients()}>
           <Table.Header>
-            <Table.Column isRowHeader>Client</Table.Column>
-            <Table.Column>Approved</Table.Column>
-            <Table.Column aria-label="Actions" />
+            <Table.Column isRowHeader>{m.mcp_column_client()}</Table.Column>
+            <Table.Column>{m.mcp_column_approved()}</Table.Column>
+            <Table.Column aria-label={m.mcp_column_actions()} />
           </Table.Header>
           <Table.Body
             renderEmptyState={() => (
               <EmptyState size="sm">
                 <EmptyState.Header>
-                  <EmptyState.Title>No MCP clients</EmptyState.Title>
+                  <EmptyState.Title>{m.mcp_empty()}</EmptyState.Title>
                 </EmptyState.Header>
               </EmptyState>
             )}
@@ -49,12 +50,12 @@ function DisconnectMcpClientButton({ client }: { client: McpClient }) {
 
   return (
     <DestructiveActionButton
-      label="Disconnect"
-      title={`Disconnect ${client.name}?`}
-      confirmLabel="Disconnect"
+      label={m.mcp_disconnect()}
+      title={m.mcp_disconnect_title({ name: client.name })}
+      confirmLabel={m.mcp_disconnect()}
       onConfirm={async () => {
         await removeMcpClient({ data: { client: client.id } });
-        toast.success(`${client.name} disconnected`);
+        toast.success(m.mcp_disconnected({ name: client.name }));
         await router.invalidate();
       }}
     />

@@ -21,6 +21,7 @@ import {
   suspendUser,
 } from "../../functions/users";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
 import { PasswordField } from "./PasswordField";
@@ -48,28 +49,28 @@ export function UserMenu({ account }: { account: UserAccount }) {
           variant="ghost"
           isIconOnly
           size="sm"
-          aria-label={`${account.name} actions`}
+          aria-label={m.user_menu_label({ name: account.name })}
         >
           <MoreIcon />
         </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label={`${account.name} actions`}
+            aria-label={m.user_menu_label({ name: account.name })}
             onAction={(key) => {
               const action = String(key);
               switch (action) {
                 case "reinstate":
                   act(
                     () => reinstateUser({ data: { user: account.id } }),
-                    "User not reinstated",
-                    `${account.name} reinstated`,
+                    m.user_not_reinstated(),
+                    m.user_reinstated({ name: account.name }),
                   );
                   return;
                 case "revoke":
                   act(
                     () => signOutUserEverywhere({ data: { user: account.id } }),
-                    "Sessions not revoked",
-                    `${account.name} signed out everywhere`,
+                    m.user_sessions_not_revoked(),
+                    m.user_signed_out_everywhere({ name: account.name }),
                   );
                   return;
                 default:
@@ -77,27 +78,37 @@ export function UserMenu({ account }: { account: UserAccount }) {
               }
             }}
           >
-            <Dropdown.Item id="reset-password" textValue="Reset password">
-              <Label>Reset password…</Label>
+            <Dropdown.Item
+              id="reset-password"
+              textValue={m.user_menu_reset_password()}
+            >
+              <Label>{m.user_menu_reset_password_item()}</Label>
             </Dropdown.Item>
-            <Dropdown.Item id="role" textValue="Change role">
-              <Label>Change role…</Label>
+            <Dropdown.Item id="role" textValue={m.user_menu_change_role()}>
+              <Label>{m.user_menu_change_role_item()}</Label>
             </Dropdown.Item>
-            <Dropdown.Item id="revoke" textValue="Sign out everywhere">
-              <Label>Sign out everywhere</Label>
+            <Dropdown.Item
+              id="revoke"
+              textValue={m.user_menu_sign_out_everywhere()}
+            >
+              <Label>{m.user_menu_sign_out_everywhere()}</Label>
             </Dropdown.Item>
             {account.banned ? (
-              <Dropdown.Item id="reinstate" textValue="Reinstate">
-                <Label>Reinstate</Label>
+              <Dropdown.Item id="reinstate" textValue={m.user_menu_reinstate()}>
+                <Label>{m.user_menu_reinstate()}</Label>
               </Dropdown.Item>
             ) : (
-              <Dropdown.Item id="suspend" textValue="Suspend">
-                <Label>Suspend…</Label>
+              <Dropdown.Item id="suspend" textValue={m.user_menu_suspend()}>
+                <Label>{m.user_menu_suspend_item()}</Label>
               </Dropdown.Item>
             )}
             <Separator orientation="horizontal" />
-            <Dropdown.Item id="delete" textValue="Delete user" variant="danger">
-              <Label>Delete user…</Label>
+            <Dropdown.Item
+              id="delete"
+              textValue={m.user_menu_delete()}
+              variant="danger"
+            >
+              <Label>{m.user_menu_delete_item()}</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -117,28 +128,28 @@ export function UserMenu({ account }: { account: UserAccount }) {
       <DestructiveActionDialog
         isOpen={open === "suspend"}
         onOpenChange={(next) => setOpen(next ? "suspend" : null)}
-        title={`Suspend ${account.name}?`}
-        confirmLabel="Suspend user"
+        title={m.user_suspend_title({ name: account.name })}
+        confirmLabel={m.user_suspend_confirm()}
         onConfirm={async () => {
           await suspendUser({ data: { user: account.id } });
-          toast.success(`${account.name} suspended`);
+          toast.success(m.user_suspended({ name: account.name }));
           await router.invalidate();
         }}
       >
-        Signed out everywhere. The account is kept.
+        {m.user_suspend_body()}
       </DestructiveActionDialog>
       <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={`Delete ${account.name}?`}
-        confirmLabel="Delete user"
+        title={m.user_delete_title({ name: account.name })}
+        confirmLabel={m.user_delete_confirm()}
         onConfirm={async () => {
           await removeUser({ data: { user: account.id } });
-          toast.success(`${account.name} deleted`);
+          toast.success(m.user_deleted({ name: account.name }));
           await router.invalidate();
         }}
       >
-        Experiment records stay.
+        {m.user_delete_body()}
       </DestructiveActionDialog>
     </>
   );
@@ -162,9 +173,9 @@ function ChangeRoleDialog({
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Change role</Modal.Heading>
+              <Modal.Heading>{m.user_role_dialog_title()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -174,7 +185,7 @@ function ChangeRoleDialog({
                   event.preventDefault();
                   void run(
                     () => changeUserRole({ data: { user: account.id, role } }),
-                    "Role not changed",
+                    m.user_role_not_changed(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
@@ -187,7 +198,7 @@ function ChangeRoleDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -195,7 +206,7 @@ function ChangeRoleDialog({
                 variant="primary"
                 isDisabled={busy || role === account.role}
               >
-                {busy ? "Saving…" : "Save"}
+                {busy ? m.user_dialog_saving() : m.user_dialog_save()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -221,10 +232,12 @@ function ResetPasswordDialog({
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Reset password for {account.name}</Modal.Heading>
-              <Description>Existing sessions stay signed in.</Description>
+              <Modal.Heading>
+                {m.user_reset_password_title({ name: account.name })}
+              </Modal.Heading>
+              <Description>{m.user_reset_password_description()}</Description>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -241,16 +254,16 @@ function ResetPasswordDialog({
                           password: String(form.get("password") ?? ""),
                         },
                       }),
-                    "Password not changed",
+                    m.user_reset_password_not_changed(),
                   ).then((result) => {
                     if (!result.ok) return;
-                    toast.success("Password changed");
+                    toast.success(m.user_reset_password_changed());
                     onClose();
                   });
                 }}
               >
                 <PasswordField
-                  label="New password"
+                  label={m.user_reset_password_new_label()}
                   isDisabled={busy}
                   variant="secondary"
                 />
@@ -258,7 +271,7 @@ function ResetPasswordDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -266,7 +279,7 @@ function ResetPasswordDialog({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Saving…" : "Save"}
+                {busy ? m.user_dialog_saving() : m.user_dialog_save()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

@@ -7,10 +7,14 @@ import { Page } from "../../components/Page";
 import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
 import { getTrainingOverview } from "../../functions/training";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/training")({
   loader: () => getTrainingOverview(),
-  staticData: { crumbs: () => [{ label: "Training" }] },
+  staticData: { crumbs: () => [{ label: m.training_title() }] },
+  head: () => ({
+    meta: [{ title: `${m.training_title()} · ${m.app_name()}` }],
+  }),
   component: TrainingPage,
 });
 
@@ -22,11 +26,11 @@ function TrainingPage() {
   useRouteRefresh(router, 10_000);
 
   return (
-    <Page title="Training">
+    <Page title={m.training_title()}>
       <KPIGroup>
         <KPI>
           <KPI.Header>
-            <KPI.Title>Runs</KPI.Title>
+            <KPI.Title>{m.training_kpi_runs()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={total} />
@@ -35,7 +39,7 @@ function TrainingPage() {
         <KPIGroup.Separator />
         <KPI>
           <KPI.Header>
-            <KPI.Title>In progress</KPI.Title>
+            <KPI.Title>{m.training_kpi_in_progress()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={inProgress} />
@@ -44,7 +48,7 @@ function TrainingPage() {
         <KPIGroup.Separator />
         <KPI>
           <KPI.Header>
-            <KPI.Title>Workers</KPI.Title>
+            <KPI.Title>{m.training_kpi_workers()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
             <KPI.Value maximumFractionDigits={0} value={workersOnline} />

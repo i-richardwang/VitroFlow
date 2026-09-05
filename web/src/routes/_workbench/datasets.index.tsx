@@ -7,10 +7,14 @@ import { ImportDatasetButton } from "../../components/dataset/ImportDatasetDialo
 import { Page } from "../../components/Page";
 import { DatasetsIcon } from "../../components/icons";
 import { getDatasets } from "../../functions/datasets";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/")({
   loader: () => getDatasets(),
-  staticData: { crumbs: () => [{ label: "Datasets" }] },
+  staticData: { crumbs: () => [{ label: m.datasets_title() }] },
+  head: () => ({
+    meta: [{ title: `${m.datasets_title()} · ${m.app_name()}` }],
+  }),
   component: DatasetsPage,
 });
 
@@ -18,18 +22,24 @@ function DatasetsPage() {
   const datasets = Route.useLoaderData();
 
   return (
-    <Page title="Datasets" actions={<ImportDatasetButton />}>
+    <Page title={m.datasets_title()} actions={<ImportDatasetButton />}>
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="Datasets">
+          <Table.Content aria-label={m.datasets_title()}>
             <Table.Header>
-              <Table.Column isRowHeader>Dataset</Table.Column>
-              <Table.Column>Model</Table.Column>
-              <Table.Column className="text-right">Images</Table.Column>
-              <Table.Column className="whitespace-nowrap text-right">
-                To review
+              <Table.Column isRowHeader>
+                {m.datasets_column_dataset()}
               </Table.Column>
-              <Table.Column className="text-right">Reviewed</Table.Column>
+              <Table.Column>{m.datasets_column_model()}</Table.Column>
+              <Table.Column className="text-right">
+                {m.datasets_column_images()}
+              </Table.Column>
+              <Table.Column className="whitespace-nowrap text-right">
+                {m.datasets_column_unreviewed()}
+              </Table.Column>
+              <Table.Column className="text-right">
+                {m.datasets_column_reviewed()}
+              </Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -38,7 +48,7 @@ function DatasetsPage() {
                     <EmptyState.Media variant="icon">
                       <DatasetsIcon />
                     </EmptyState.Media>
-                    <EmptyState.Title>No datasets yet</EmptyState.Title>
+                    <EmptyState.Title>{m.datasets_empty()}</EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
               )}

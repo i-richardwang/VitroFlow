@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
+import { m } from "../paraglide/messages";
 
 export const experimentIdSchema = z.uuid();
 export const observationIdSchema = z.uuid();
@@ -273,7 +274,7 @@ export const experimentObservationSchema = z.strictObject({
 export type ExperimentObservation = z.infer<typeof experimentObservationSchema>;
 
 export function observationLabel(observation: ExperimentObservation): string {
-  return `Day ${observation.day}`;
+  return m.observation_day_label({ day: observation.day });
 }
 
 export const observationRefSchema = z.strictObject({

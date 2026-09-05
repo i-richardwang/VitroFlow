@@ -1,3 +1,5 @@
+import { m } from "../paraglide/messages";
+
 /** Source files accepted at the image boundary. */
 export const SOURCE_IMAGE_EXTENSIONS = [
   ".jpg",
@@ -27,9 +29,9 @@ export function sourceImageFileError(file: {
   const dot = file.name.lastIndexOf(".");
   const extension = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
   if (!SOURCE_IMAGE_EXTENSIONS.some((accepted) => accepted === extension)) {
-    return "Choose a JPEG, PNG, or TIFF image";
+    return m.image_file_unsupported();
   }
-  if (file.size === 0) return "The file is empty";
-  if (file.size > MAX_IMAGE_BYTES) return "The file exceeds 64 MiB";
+  if (file.size === 0) return m.image_file_empty();
+  if (file.size > MAX_IMAGE_BYTES) return m.image_file_too_large();
   return null;
 }

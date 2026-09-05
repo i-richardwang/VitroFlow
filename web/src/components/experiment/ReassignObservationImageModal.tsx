@@ -12,6 +12,7 @@ import {
 } from "../../experiments/schema";
 import { reassignObservationImage } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 
 export function ReassignObservationImageModal({
   image,
@@ -38,9 +39,13 @@ export function ReassignObservationImageModal({
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Reassign {image.review.filename}</Modal.Heading>
+              <Modal.Heading>
+                {m.observation_unit_reassign_heading({
+                  file: image.review.filename,
+                })}
+              </Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
@@ -53,7 +58,7 @@ export function ReassignObservationImageModal({
                       reassignObservationImage({
                         data: { ...image.ref, observationUnit, observation },
                       }),
-                    "Image not reassigned",
+                    m.observation_unit_image_not_reassigned(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
@@ -75,7 +80,7 @@ export function ReassignObservationImageModal({
                   selectedKey={observationUnit}
                   onSelectionChange={(key) => setObservationUnit(String(key))}
                 >
-                  <Label>Observation unit</Label>
+                  <Label>{m.observation_unit_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -102,7 +107,7 @@ export function ReassignObservationImageModal({
                   selectedKey={observation}
                   onSelectionChange={(key) => setObservation(String(key))}
                 >
-                  <Label>Observation</Label>
+                  <Label>{m.observation_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -126,7 +131,7 @@ export function ReassignObservationImageModal({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -134,7 +139,9 @@ export function ReassignObservationImageModal({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Reassigning…" : "Reassign"}
+                {busy
+                  ? m.observation_unit_reassigning()
+                  : m.observation_unit_reassign()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

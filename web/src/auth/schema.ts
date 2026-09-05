@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { m } from "../paraglide/messages";
+
 /**
  * Workbench accounts. Every signed-in person holds one role: administrators
  * maintain accounts, members use the workbench. Accounts are created by an
@@ -11,9 +13,9 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 const userRoleSchema = z.enum(USER_ROLES);
 
-export const USER_ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Administrator",
-  member: "Member",
+export const USER_ROLE_LABELS: Record<UserRole, () => string> = {
+  admin: m.role_admin,
+  member: m.role_member,
 };
 
 export const MIN_PASSWORD_LENGTH = 12;

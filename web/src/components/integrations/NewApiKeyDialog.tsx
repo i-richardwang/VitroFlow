@@ -23,13 +23,18 @@ import {
 } from "../../auth/integrations";
 import { addApiKey } from "../../functions/integrations";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { CopyableCode } from "./CopyableCode";
 
 const EXPIRY_OPTIONS = [
-  { id: "30", label: "30 days", days: 30 },
-  { id: "90", label: "90 days", days: 90 },
-  { id: String(MAX_API_KEY_DAYS), label: "1 year", days: MAX_API_KEY_DAYS },
-  { id: "never", label: "Never", days: null },
+  { id: "30", label: m.api_key_expiry_30_days, days: 30 },
+  { id: "90", label: m.api_key_expiry_90_days, days: 90 },
+  {
+    id: String(MAX_API_KEY_DAYS),
+    label: m.api_key_expiry_1_year,
+    days: MAX_API_KEY_DAYS,
+  },
+  { id: "never", label: m.api_key_expiry_never, days: null },
 ] as const;
 
 export function NewApiKeyDialog({
@@ -66,30 +71,30 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             {issued ? (
               <>
                 <Modal.Header>
                   <Modal.Heading>{issued.name}</Modal.Heading>
-                  <Description>Shown only once.</Description>
+                  <Description>{m.api_key_dialog_shown_once()}</Description>
                 </Modal.Header>
                 <Modal.Body>
                   <CopyableCode
                     value={issued.secret}
-                    label="API key"
+                    label={m.api_key_dialog_secret_label()}
                     variant="secondary"
                   />
                 </Modal.Body>
                 <Modal.Footer>
                   <Button variant="primary" onPress={close}>
-                    Done
+                    {m.api_key_dialog_done()}
                   </Button>
                 </Modal.Footer>
               </>
             ) : (
               <>
                 <Modal.Header>
-                  <Modal.Heading>New API key</Modal.Heading>
+                  <Modal.Heading>{m.api_key_dialog_title()}</Modal.Heading>
                 </Modal.Header>
                 <Modal.Body>
                   <Form
@@ -110,7 +115,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                               expiresInDays,
                             },
                           }),
-                        "API key not created",
+                        m.api_key_not_created(),
                       ).then((result) => {
                         if (result.ok) setIssued(result.value);
                       });
@@ -124,11 +129,11 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                       name="name"
                       autoFocus
                     >
-                      <Label>Name</Label>
+                      <Label>{m.api_key_dialog_name_label()}</Label>
                       <Input
                         className="w-full"
                         autoComplete="off"
-                        placeholder="Claude on the lab laptop"
+                        placeholder={m.api_key_dialog_name_placeholder()}
                       />
                     </TextField>
                     <CheckboxGroup
@@ -137,14 +142,14 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                       value={scopes}
                       onChange={(next) => setScopes(next as ApiScope[])}
                     >
-                      <Label>Scopes</Label>
+                      <Label>{m.api_key_dialog_scopes_label()}</Label>
                       {API_SCOPES.map((scope) => (
                         <Checkbox key={scope} value={scope}>
                           <Checkbox.Content>
                             <Checkbox.Control>
                               <Checkbox.Indicator />
                             </Checkbox.Control>
-                            {API_SCOPE_LABELS[scope]}
+                            {API_SCOPE_LABELS[scope]()}
                           </Checkbox.Content>
                         </Checkbox>
                       ))}
@@ -156,7 +161,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                       selectedKey={expiry}
                       onSelectionChange={(key) => setExpiry(String(key))}
                     >
-                      <Label>Expires</Label>
+                      <Label>{m.api_key_dialog_expires_label()}</Label>
                       <Select.Trigger>
                         <Select.Value />
                         <Select.Indicator />
@@ -167,9 +172,9 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                             <ListBox.Item
                               key={option.id}
                               id={option.id}
-                              textValue={option.label}
+                              textValue={option.label()}
                             >
-                              {option.label}
+                              {option.label()}
                               <ListBox.ItemIndicator />
                             </ListBox.Item>
                           ))}
@@ -180,7 +185,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                 </Modal.Body>
                 <Modal.Footer>
                   <Button variant="tertiary" isDisabled={busy} onPress={close}>
-                    Cancel
+                    {m.cancel()}
                   </Button>
                   <Button
                     type="submit"
@@ -188,7 +193,9 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                     variant="primary"
                     isDisabled={busy || scopes.length === 0}
                   >
-                    {busy ? "Creating…" : "Create"}
+                    {busy
+                      ? m.api_key_dialog_creating()
+                      : m.api_key_dialog_create()}
                   </Button>
                 </Modal.Footer>
               </>

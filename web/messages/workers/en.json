@@ -1,3 +1,20 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "status_title": "Status",
+  "status_table_label": "Workers",
+  "status_column_worker": "Worker",
+  "status_column_presence": "Presence",
+  "status_column_activity": "Activity",
+  "status_column_last_seen": "Last seen",
+  "status_empty": "No workers yet",
+  "worker_presence_online": "Online",
+  "worker_presence_stale": "Stale",
+  "worker_presence_offline": "Offline",
+  "worker_activity_idle": "Idle",
+  "worker_activity_inference": "Analyzing {image}",
+  "worker_activity_training": "Training {dataset}",
+  "worker_age_seconds": "{count}s ago",
+  "worker_age_minutes": "{count}m ago",
+  "worker_age_hours": "{count}h ago",
+  "worker_age_days": "{count}d ago"
 }

@@ -4,6 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 
 import { API_SCOPE_LABELS, type ApiKey } from "../../auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
+import { m } from "../../paraglide/messages";
 import { DestructiveActionButton } from "../DestructiveActionDialog";
 import { Timestamp } from "../Timestamp";
 
@@ -11,20 +12,20 @@ export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
   return (
     <Table>
       <Table.ScrollContainer>
-        <Table.Content aria-label="API keys">
+        <Table.Content aria-label={m.integrations_api_keys()}>
           <Table.Header>
-            <Table.Column isRowHeader>Name</Table.Column>
-            <Table.Column>Key</Table.Column>
-            <Table.Column>Scopes</Table.Column>
-            <Table.Column>Expires</Table.Column>
-            <Table.Column>Last used</Table.Column>
-            <Table.Column aria-label="Actions" />
+            <Table.Column isRowHeader>{m.api_key_column_name()}</Table.Column>
+            <Table.Column>{m.api_key_column_key()}</Table.Column>
+            <Table.Column>{m.api_key_column_scopes()}</Table.Column>
+            <Table.Column>{m.api_key_column_expires()}</Table.Column>
+            <Table.Column>{m.api_key_column_last_used()}</Table.Column>
+            <Table.Column aria-label={m.api_key_column_actions()} />
           </Table.Header>
           <Table.Body
             renderEmptyState={() => (
               <EmptyState size="sm">
                 <EmptyState.Header>
-                  <EmptyState.Title>No API keys</EmptyState.Title>
+                  <EmptyState.Title>{m.api_key_empty()}</EmptyState.Title>
                 </EmptyState.Header>
               </EmptyState>
             )}
@@ -37,7 +38,7 @@ export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
                 </Table.Cell>
                 <Table.Cell className="text-muted">
                   {apiKey.scopes
-                    .map((scope) => API_SCOPE_LABELS[scope])
+                    .map((scope) => API_SCOPE_LABELS[scope]())
                     .join(" · ")}
                 </Table.Cell>
                 <Table.Cell className="text-muted">
@@ -71,12 +72,12 @@ function RevokeApiKeyButton({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <DestructiveActionButton
-      label="Revoke"
-      title={`Revoke ${apiKey.name}?`}
-      confirmLabel="Revoke"
+      label={m.api_key_revoke()}
+      title={m.api_key_revoke_title({ name: apiKey.name })}
+      confirmLabel={m.api_key_revoke()}
       onConfirm={async () => {
         await removeApiKey({ data: { key: apiKey.id } });
-        toast.success(`${apiKey.name} revoked`);
+        toast.success(m.api_key_revoked({ name: apiKey.name }));
         await router.invalidate();
       }}
     />

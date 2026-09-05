@@ -11,6 +11,7 @@ import { StepButton } from "../../components/workbench/StepButton";
 import { datasetImageRefSchema } from "../../datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 import type { DatasetImageStep, DatasetImageView } from "../../datasets/image";
 
 /**
@@ -35,12 +36,17 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
     crumbs: ({ loaderData }) => {
       const { dataset, review } = loaderData as DatasetImageView;
       return [
-        { label: "Datasets", href: "/datasets" },
+        { label: m.datasets_title(), href: "/datasets" },
         { label: dataset.id, href: `/datasets/${dataset.id}`, mono: true },
         { label: review.filename, mono: true },
       ];
     },
   },
+  head: ({ loaderData }) => ({
+    meta: loaderData
+      ? [{ title: `${loaderData.review.filename} · ${m.app_name()}` }]
+      : [],
+  }),
   component: DatasetImagePage,
 });
 
@@ -67,7 +73,7 @@ function DatasetImagePage() {
   return (
     <ImageWorkbench
       key={review.ref.digest}
-      title={`${review.filename} in ${dataset.id}`}
+      title={m.image_title({ file: review.filename, dataset: dataset.id })}
       model={model}
       review={review}
       editing={edit === true}
@@ -85,14 +91,14 @@ function DatasetImagePage() {
           <>
             <ButtonGroup variant="tertiary">
               <StepButton
-                label="Previous image"
+                label={m.image_previous()}
                 neighbour={previous?.filename ?? null}
                 onPress={() => previous && stepTo(previous)}
               >
                 <ChevronLeftIcon />
               </StepButton>
               <StepButton
-                label="Next image"
+                label={m.image_next()}
                 neighbour={next?.filename ?? null}
                 onPress={() => next && stepTo(next)}
               >
@@ -105,7 +111,7 @@ function DatasetImagePage() {
                 <Separator />
                 <Segment
                   variant="ghost"
-                  aria-label="Boxes shown"
+                  aria-label={m.image_boxes_shown()}
                   selectedKey={show ?? "review"}
                   onSelectionChange={(key) => {
                     if (key !== "review" && key !== "detection") return;
@@ -114,19 +120,23 @@ function DatasetImagePage() {
                     });
                   }}
                 >
-                  <Segment.Item id="detection">Detected</Segment.Item>
-                  <Segment.Item id="review">Reviewed</Segment.Item>
+                  <Segment.Item id="detection">
+                    {m.image_boxes_detected()}
+                  </Segment.Item>
+                  <Segment.Item id="review">
+                    {m.image_boxes_reviewed()}
+                  </Segment.Item>
                 </Segment>
               </>
             ) : null}
           </>
         ),
         details: (
-          <Section title="Image">
+          <Section title={m.image_section()}>
             <Metrics
               rows={[
-                { label: "File", value: review.filename },
-                ...(split ? [{ label: "Split", value: split }] : []),
+                { label: m.image_file(), value: review.filename },
+                ...(split ? [{ label: m.image_split(), value: split }] : []),
               ]}
             />
           </Section>

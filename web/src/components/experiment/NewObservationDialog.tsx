@@ -14,6 +14,7 @@ import { useState } from "react";
 import { observationLabel } from "../../experiments/schema";
 import { createObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { currentDay, DayField, fromDay, toDay } from "./DayField";
 
 export function NewObservationDialog({
@@ -36,9 +37,9 @@ export function NewObservationDialog({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>New observation</Modal.Heading>
+              <Modal.Heading>{m.observation_new()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -57,17 +58,21 @@ export function NewObservationDialog({
                           note: String(form.get("note") ?? ""),
                         },
                       }),
-                    "Observation not added",
+                    m.observation_not_added(),
                   ).then(async (result) => {
                     if (!result.ok) return;
-                    toast.success(`${observationLabel(result.value)} added`);
+                    toast.success(
+                      m.observation_added({
+                        observation: observationLabel(result.value),
+                      }),
+                    );
                     await router.invalidate();
                     onClose();
                   });
                 }}
               >
                 <DayField
-                  label="Observation date"
+                  label={m.observation_date_label()}
                   busy={busy}
                   value={observedOn}
                   minValue={fromDay(inoculatedOn)}
@@ -79,14 +84,14 @@ export function NewObservationDialog({
                   isDisabled={busy}
                   name="note"
                 >
-                  <Label>Note</Label>
+                  <Label>{m.observation_note_label()}</Label>
                   <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -94,7 +99,9 @@ export function NewObservationDialog({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Adding…" : "Add"}
+                {busy
+                  ? m.experiment_action_adding()
+                  : m.experiment_action_add()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

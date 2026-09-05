@@ -15,6 +15,7 @@ import { useState } from "react";
 import type { Treatment } from "../../experiments/schema";
 import { createObservationUnits } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { TreatmentDot } from "./TreatmentDot";
 
 const UNASSIGNED = "unassigned";
@@ -52,9 +53,9 @@ export function AddObservationUnitsDialog({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Add observation units</Modal.Heading>
+              <Modal.Heading>{m.observation_units_add()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -73,13 +74,11 @@ export function AddObservationUnitsDialog({
                           codes: parsedCodes,
                         },
                       }),
-                    "Observation units not added",
+                    m.observation_units_not_added(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     toast.success(
-                      parsedCodes.length === 1
-                        ? "1 observation unit added"
-                        : `${parsedCodes.length} observation units added`,
+                      m.observation_units_added({ count: parsedCodes.length }),
                     );
                     setCodes("");
                     setTreatment(UNASSIGNED);
@@ -96,8 +95,11 @@ export function AddObservationUnitsDialog({
                   value={codes}
                   onChange={setCodes}
                 >
-                  <Label>Codes</Label>
-                  <Input className="w-full" placeholder="CK-1, CK-2" />
+                  <Label>{m.observation_units_codes_label()}</Label>
+                  <Input
+                    className="w-full"
+                    placeholder={m.observation_units_codes_placeholder()}
+                  />
                 </TextField>
                 <Select
                   variant="secondary"
@@ -108,16 +110,19 @@ export function AddObservationUnitsDialog({
                     setTreatment(key === null ? UNASSIGNED : String(key))
                   }
                 >
-                  <Label>Treatment</Label>
+                  <Label>{m.treatment_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
                   </Select.Trigger>
                   <Select.Popover>
                     <ListBox>
-                      <ListBox.Item id={UNASSIGNED} textValue="No treatment">
+                      <ListBox.Item
+                        id={UNASSIGNED}
+                        textValue={m.treatment_none()}
+                      >
                         <TreatmentDot position={null} />
-                        No treatment
+                        {m.treatment_none()}
                         <ListBox.ItemIndicator />
                       </ListBox.Item>
                       {treatments.map((item) => (
@@ -138,7 +143,7 @@ export function AddObservationUnitsDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -146,7 +151,9 @@ export function AddObservationUnitsDialog({
                 variant="primary"
                 isDisabled={busy || parsedCodes.length === 0}
               >
-                {busy ? "Adding…" : "Add"}
+                {busy
+                  ? m.experiment_action_adding()
+                  : m.experiment_action_add()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

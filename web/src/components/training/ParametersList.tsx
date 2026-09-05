@@ -1,20 +1,7 @@
-import type { TrainingParameters } from "../../training/parameters";
-
-const LABELS: Record<keyof TrainingParameters, string> = {
-  epochs: "Epochs",
-  patience: "Patience",
-  batch: "Batch",
-  imgsz: "Image size",
-  optimizer: "Optimizer",
-  lr0: "Learning rate",
-  warmup_epochs: "Warmup epochs",
-  mosaic: "Mosaic",
-  mixup: "Mixup",
-  copy_paste: "Copy-paste",
-  max_det: "Max detections",
-  seed: "Seed",
-  deterministic: "Deterministic",
-};
+import {
+  PARAMETER_LABELS,
+  type TrainingParameters,
+} from "../../training/parameters";
 
 export function ParametersList({
   parameters,
@@ -32,9 +19,15 @@ export function ParametersList({
           : "grid-cols-[max-content_1fr]",
       ].join(" ")}
     >
-      {(Object.keys(LABELS) as (keyof TrainingParameters)[]).map((key) => (
-        <Parameter key={key} label={LABELS[key]} value={parameters[key]} />
-      ))}
+      {(Object.keys(PARAMETER_LABELS) as (keyof TrainingParameters)[]).map(
+        (key) => (
+          <Parameter
+            key={key}
+            label={PARAMETER_LABELS[key]()}
+            value={parameters[key]}
+          />
+        ),
+      )}
     </dl>
   );
 }

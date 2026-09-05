@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Hint } from "../Hint";
 import { CheckIcon, CopyIcon } from "../icons";
+import { m } from "../../paraglide/messages";
 
 export function CopyableCode({
   value,
@@ -36,10 +37,14 @@ export function CopyableCode({
         <InputGroup fullWidth variant={variant}>
           <InputGroup.Input />
           <InputGroup.Suffix className="pe-0">
-            <Hint text={copied ? "Copied" : "Copy"}>
+            <Hint
+              text={copied ? m.integrations_copied() : m.integrations_copy()}
+            >
               <Button
                 isIconOnly
-                aria-label={copied ? "Copied" : "Copy"}
+                aria-label={
+                  copied ? m.integrations_copied() : m.integrations_copy()
+                }
                 size="sm"
                 variant="ghost"
                 onPress={() => {

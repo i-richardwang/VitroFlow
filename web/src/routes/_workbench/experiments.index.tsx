@@ -13,6 +13,7 @@ import {
   getExperiments,
   getExperimentVersions,
 } from "../../functions/experiments";
+import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
   loader: async () => {
@@ -22,7 +23,10 @@ export const Route = createFileRoute("/_workbench/experiments/")({
     ]);
     return { experiments, versions };
   },
-  staticData: { crumbs: () => [{ label: "Experiments" }] },
+  staticData: { crumbs: () => [{ label: m.experiments_title() }] },
+  head: () => ({
+    meta: [{ title: `${m.experiments_title()} · ${m.app_name()}` }],
+  }),
   component: ExperimentsPage,
 });
 
@@ -31,19 +35,21 @@ function ExperimentsPage() {
 
   return (
     <Page
-      title="Experiments"
+      title={m.experiments_title()}
       actions={<NewExperimentDialog versions={versions} />}
     >
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="Experiments">
+          <Table.Content aria-label={m.experiments_title()}>
             <Table.Header>
-              <Table.Column isRowHeader>Experiment</Table.Column>
-              <Table.Column>Material</Table.Column>
-              <Table.Column>Treatments</Table.Column>
-              <Table.Column>Inoculated</Table.Column>
-              <Table.Column>Latest</Table.Column>
-              <Table.Column>Analysis</Table.Column>
+              <Table.Column isRowHeader>
+                {m.experiments_column_experiment()}
+              </Table.Column>
+              <Table.Column>{m.experiments_column_material()}</Table.Column>
+              <Table.Column>{m.experiments_column_treatments()}</Table.Column>
+              <Table.Column>{m.experiments_column_inoculated()}</Table.Column>
+              <Table.Column>{m.experiments_column_latest()}</Table.Column>
+              <Table.Column>{m.experiments_column_analysis()}</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -52,7 +58,7 @@ function ExperimentsPage() {
                     <EmptyState.Media variant="icon">
                       <ExperimentsIcon />
                     </EmptyState.Media>
-                    <EmptyState.Title>No experiments yet</EmptyState.Title>
+                    <EmptyState.Title>{m.experiments_empty()}</EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
               )}
@@ -87,7 +93,9 @@ function ExperimentsPage() {
                         {experiment.inoculatedOn}
                       </Table.Cell>
                       <Table.Cell className="text-muted">
-                        {latestDay === null ? "—" : `Day ${latestDay}`}
+                        {latestDay === null
+                          ? "—"
+                          : m.observation_day_label({ day: latestDay })}
                       </Table.Cell>
                       <Table.Cell>
                         {state ? (

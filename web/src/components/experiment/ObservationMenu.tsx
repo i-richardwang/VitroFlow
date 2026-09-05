@@ -23,6 +23,7 @@ import {
   removeObservation,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
@@ -52,7 +53,7 @@ export function ObservationMenu({
           variant="ghost"
           isIconOnly
           size="sm"
-          aria-label={`${name} actions`}
+          aria-label={m.observation_actions({ observation: name })}
         >
           <MoreIcon />
         </Button>
@@ -61,21 +62,24 @@ export function ObservationMenu({
             aria-label={name}
             onAction={(key) => setOpen(String(key) as Action)}
           >
-            <Dropdown.Item id="images" textValue="Assign images">
-              <Label>Assign images…</Label>
+            <Dropdown.Item
+              id="images"
+              textValue={m.observation_assign_images()}
+            >
+              <Label>{m.observation_menu_assign_images()}</Label>
             </Dropdown.Item>
-            <Dropdown.Item id="edit" textValue="Edit observation">
-              <Label>Edit observation…</Label>
+            <Dropdown.Item id="edit" textValue={m.observation_edit()}>
+              <Label>{m.observation_menu_edit()}</Label>
             </Dropdown.Item>
             {!observation.hasRecords ? (
               <>
                 <Separator orientation="horizontal" />
                 <Dropdown.Item
                   id="delete"
-                  textValue="Delete observation"
+                  textValue={m.observation_delete()}
                   variant="danger"
                 >
-                  <Label>Delete empty observation…</Label>
+                  <Label>{m.observation_menu_delete()}</Label>
                 </Dropdown.Item>
               </>
             ) : null}
@@ -102,13 +106,13 @@ export function ObservationMenu({
       <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(isOpen) => setOpen(isOpen ? "delete" : null)}
-        title={`Delete ${name}?`}
-        confirmLabel="Delete observation"
+        title={m.observation_delete_title({ observation: name })}
+        confirmLabel={m.observation_delete()}
         onConfirm={async () => {
           await removeObservation({
             data: { experiment, observation: observation.id },
           });
-          toast.success(`${name} deleted`);
+          toast.success(m.observation_deleted({ observation: name }));
           await router.invalidate();
         }}
       />
@@ -138,9 +142,9 @@ function EditObservationModal({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>Edit observation</Modal.Heading>
+              <Modal.Heading>{m.observation_edit()}</Modal.Heading>
             </Modal.Header>
             <Modal.Body key={isOpen ? "open" : "closed"}>
               <Form
@@ -160,7 +164,7 @@ function EditObservationModal({
                           note: String(form.get("note") ?? ""),
                         },
                       }),
-                    "Observation not saved",
+                    m.observation_not_saved(),
                   ).then(async (result) => {
                     if (result.ok) {
                       onClose();
@@ -170,7 +174,7 @@ function EditObservationModal({
                 }}
               >
                 <DayField
-                  label="Observation date"
+                  label={m.observation_date_label()}
                   busy={busy}
                   value={observedOn}
                   onChange={setObservedOn}
@@ -182,14 +186,14 @@ function EditObservationModal({
                   name="note"
                   defaultValue={observation.note}
                 >
-                  <Label>Note</Label>
+                  <Label>{m.observation_note_label()}</Label>
                   <Input className="w-full" />
                 </TextField>
               </Form>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -197,7 +201,9 @@ function EditObservationModal({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Saving…" : "Save"}
+                {busy
+                  ? m.experiment_action_saving()
+                  : m.experiment_action_save()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

@@ -5,22 +5,26 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Page } from "../../components/Page";
 import { getStatus } from "../../functions/status";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { m } from "../../paraglide/messages";
 import type { WorkerPresence } from "../../workers/presence";
 import type { WorkerActivity } from "../../workers/schema";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
-  staticData: { crumbs: () => [{ label: "Status" }] },
+  staticData: { crumbs: () => [{ label: m.status_title() }] },
+  head: () => ({
+    meta: [{ title: `${m.status_title()} · ${m.app_name()}` }],
+  }),
   component: StatusPage,
 });
 
 const PRESENCE: Record<
   WorkerPresence,
-  { label: string; color: "success" | "warning" | "default" }
+  { label: () => string; color: "success" | "warning" | "default" }
 > = {
-  online: { label: "Online", color: "success" },
-  stale: { label: "Stale", color: "warning" },
-  offline: { label: "Offline", color: "default" },
+  online: { label: m.worker_presence_online, color: "success" },
+  stale: { label: m.worker_presence_stale, color: "warning" },
+  offline: { label: m.worker_presence_offline, color: "default" },
 };
 
 function StatusPage() {
@@ -29,21 +33,23 @@ function StatusPage() {
   useRouteRefresh(router, 5000);
 
   return (
-    <Page title="Status">
+    <Page title={m.status_title()}>
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="Workers">
+          <Table.Content aria-label={m.status_table_label()}>
             <Table.Header>
-              <Table.Column isRowHeader>Worker</Table.Column>
-              <Table.Column>Presence</Table.Column>
-              <Table.Column>Activity</Table.Column>
-              <Table.Column>Last seen</Table.Column>
+              <Table.Column isRowHeader>
+                {m.status_column_worker()}
+              </Table.Column>
+              <Table.Column>{m.status_column_presence()}</Table.Column>
+              <Table.Column>{m.status_column_activity()}</Table.Column>
+              <Table.Column>{m.status_column_last_seen()}</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState size="sm">
                   <EmptyState.Header>
-                    <EmptyState.Title>No workers yet</EmptyState.Title>
+                    <EmptyState.Title>{m.status_empty()}</EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
               )}
@@ -59,7 +65,7 @@ function StatusPage() {
                       variant="soft"
                       size="sm"
                     >
-                      {PRESENCE[worker.presence].label}
+                      {PRESENCE[worker.presence].label()}
                     </Chip>
                   </Table.Cell>
                   <Table.Cell>
@@ -79,21 +85,29 @@ function StatusPage() {
 }
 
 function Activity({ activity }: { activity: WorkerActivity | null }) {
-  if (!activity) return <span className="text-muted">Idle</span>;
-  if (activity.kind === "inference") return `Analyzing ${activity.image}`;
+  if (!activity) {
+    return <span className="text-muted">{m.worker_activity_idle()}</span>;
+  }
+  if (activity.kind === "inference") {
+    return m.worker_activity_inference({ image: activity.image });
+  }
   return (
     <Link
       href={`/datasets/${activity.dataset}/training/${activity.runId}`}
       className="font-medium"
     >
-      Training {activity.dataset}
+      {m.worker_activity_training({ dataset: activity.dataset })}
     </Link>
   );
 }
 
 function formatAge(seconds: number) {
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return m.worker_age_seconds({ count: seconds });
+  if (seconds < 3600) {
+    return m.worker_age_minutes({ count: Math.floor(seconds / 60) });
+  }
+  if (seconds < 86400) {
+    return m.worker_age_hours({ count: Math.floor(seconds / 3600) });
+  }
+  return m.worker_age_days({ count: Math.floor(seconds / 86400) });
 }

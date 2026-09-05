@@ -32,5 +32,6 @@
   "review_state_reviewed": "Reviewed",
   "quality_dish_detection_failed": "Petri dish not detected",
   "quality_exposure_clipping": "Exposure clipped",
-  "quality_low_focus": "Low focus"
+  "quality_low_focus": "Low focus",
+  "close": "Close"
 }

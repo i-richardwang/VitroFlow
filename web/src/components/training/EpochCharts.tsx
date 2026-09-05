@@ -2,17 +2,19 @@ import { ChartTooltip } from "@heroui-pro/react/chart-tooltip";
 import { LineChart } from "@heroui-pro/react/line-chart";
 import { ReferenceLine } from "recharts";
 
+import { m } from "../../paraglide/messages";
 import type { TrainingEpoch } from "../../training/schema";
 
 interface Series {
   key: string;
-  label: string;
+  label: () => string;
   color: string;
   value: (epoch: TrainingEpoch) => number;
 }
 
 interface Panel {
-  title: string;
+  key: string;
+  title: () => string;
   series: Series[];
   /** Metrics live in [0, 1]; losses take whatever range the run produces. */
   unit?: boolean;
@@ -26,52 +28,54 @@ const LOSS_COLORS = [
 
 function losses(split: "train" | "val"): Series[] {
   const components = [
-    ["box", "Box"],
-    ["classification", "Classification"],
-    ["regression", "Regression"],
+    ["box", m.epoch_series_box_loss],
+    ["classification", m.epoch_series_classification_loss],
+    ["regression", m.epoch_series_regression_loss],
   ] as const;
   return components.map(([component, label], index) => ({
     key: `${split}-${component}`,
-    label: `${label} loss`,
+    label,
     color: LOSS_COLORS[index]!,
     value: (epoch) => epoch[split][component],
   }));
 }
 
 const PANELS: Panel[] = [
-  { title: "Train loss", series: losses("train") },
-  { title: "Validation loss", series: losses("val") },
+  { key: "train", title: m.epoch_chart_train_loss, series: losses("train") },
+  { key: "val", title: m.epoch_chart_val_loss, series: losses("val") },
   {
-    title: "mAP",
+    key: "map",
+    title: m.epoch_chart_map,
     unit: true,
     series: [
       {
         key: "map50",
-        label: "mAP50",
+        label: m.epoch_series_map50,
         color: "var(--chart-1, var(--accent))",
         value: (epoch) => epoch.map50,
       },
       {
         key: "map50To95",
-        label: "mAP50-95",
+        label: m.epoch_series_map50_95,
         color: "var(--chart-2, var(--success))",
         value: (epoch) => epoch.map50To95,
       },
     ],
   },
   {
-    title: "Precision and recall",
+    key: "precision-recall",
+    title: m.epoch_chart_precision_recall,
     unit: true,
     series: [
       {
         key: "precision",
-        label: "Precision",
+        label: m.epoch_series_precision,
         color: "var(--chart-1, var(--accent))",
         value: (epoch) => epoch.precision,
       },
       {
         key: "recall",
-        label: "Recall",
+        label: m.epoch_series_recall,
         color: "var(--chart-3, var(--warning))",
         value: (epoch) => epoch.recall,
       },
@@ -92,7 +96,7 @@ export function EpochCharts({
     <div className="grid gap-6 sm:grid-cols-2">
       {PANELS.map((panel) => (
         <EpochChart
-          key={panel.title}
+          key={panel.key}
           panel={panel}
           epochs={epochs}
           total={total}
@@ -124,7 +128,7 @@ function EpochChart({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium">{panel.title}</span>
+        <span className="text-sm font-medium">{panel.title()}</span>
         <span className="flex gap-3 text-xs text-muted">
           {panel.series.map((series) => (
             <span key={series.key} className="flex items-center gap-1.5">
@@ -133,7 +137,7 @@ function EpochChart({
                 className="size-2 rounded-full"
                 style={{ background: series.color }}
               />
-              {series.label}
+              {series.label()}
             </span>
           ))}
         </span>
@@ -168,7 +172,7 @@ function EpochChart({
             key={series.key}
             type="monotone"
             dataKey={series.key}
-            name={series.label}
+            name={series.label()}
             stroke={series.color}
             strokeWidth={2}
             dot={false}
@@ -180,7 +184,9 @@ function EpochChart({
             if (!active || !payload?.length) return null;
             return (
               <ChartTooltip>
-                <ChartTooltip.Header>Epoch {label}</ChartTooltip.Header>
+                <ChartTooltip.Header>
+                  {m.epoch_tooltip_epoch({ epoch: String(label) })}
+                </ChartTooltip.Header>
                 {payload.map((entry) => (
                   <ChartTooltip.Item key={String(entry.dataKey)}>
                     <ChartTooltip.Indicator

@@ -17,13 +17,14 @@ import { DATASET_NAME_PATTERN } from "../../datasets/schema";
 import type { ObservationImageRef } from "../../experiments/schema";
 import { addToDataset } from "../../functions/datasets";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 
 const NEW_DATASET = "\0new";
 
 export function AddToDatasetButton({
   images,
   datasets,
-  heading = "Add to dataset",
+  heading = m.dataset_add_heading(),
 }: {
   images: ObservationImageRef[];
   datasets: string[];
@@ -54,7 +55,7 @@ export function AddToDatasetDialog({
   isOpen,
   images,
   datasets,
-  heading = "Add to dataset",
+  heading = m.dataset_add_heading(),
   onClose,
 }: {
   isOpen: boolean;
@@ -72,7 +73,7 @@ export function AddToDatasetDialog({
       <Modal.Backdrop>
         <Modal.Container size="md">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
               <Modal.Heading>{heading}</Modal.Heading>
             </Modal.Header>
@@ -89,15 +90,19 @@ export function AddToDatasetDialog({
                       : choice;
                   void run(
                     () => addToDataset({ data: { dataset, images } }),
-                    "Nothing was added",
+                    m.dataset_add_nothing_added(),
                   ).then(async (result) => {
                     if (result.ok) {
                       const { added, existing } = result.value;
                       onClose();
                       toast.success(
                         existing > 0
-                          ? `${added} added to ${dataset}; ${existing} already there`
-                          : `${added} added to ${dataset}`,
+                          ? m.dataset_add_result_existing({
+                              added,
+                              dataset,
+                              existing,
+                            })
+                          : m.dataset_add_result({ added, dataset }),
                       );
                       await router.invalidate();
                     }
@@ -113,7 +118,7 @@ export function AddToDatasetDialog({
                     if (key != null) setChoice(String(key));
                   }}
                 >
-                  <Label>Dataset</Label>
+                  <Label>{m.dataset_add_dataset_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -130,8 +135,11 @@ export function AddToDatasetDialog({
                           <ListBox.ItemIndicator />
                         </ListBox.Item>
                       ))}
-                      <ListBox.Item id={NEW_DATASET} textValue="New dataset">
-                        New dataset
+                      <ListBox.Item
+                        id={NEW_DATASET}
+                        textValue={m.dataset_add_new()}
+                      >
+                        {m.dataset_add_new()}
                         <ListBox.ItemIndicator />
                       </ListBox.Item>
                     </ListBox>
@@ -146,8 +154,11 @@ export function AddToDatasetDialog({
                     name="name"
                     pattern={DATASET_NAME_PATTERN}
                   >
-                    <Label>Name</Label>
-                    <Input className="w-full" placeholder="seeds-2026-09" />
+                    <Label>{m.dataset_add_name_label()}</Label>
+                    <Input
+                      className="w-full"
+                      placeholder={m.dataset_add_name_placeholder()}
+                    />
                     <FieldError />
                   </TextField>
                 ) : null}
@@ -155,7 +166,7 @@ export function AddToDatasetDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 type="submit"
@@ -163,7 +174,7 @@ export function AddToDatasetDialog({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy ? "Adding…" : "Add"}
+                {busy ? m.dataset_add_submitting() : m.dataset_add_submit()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

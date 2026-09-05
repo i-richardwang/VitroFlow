@@ -3,6 +3,7 @@ import { Table } from "@heroui/react";
 
 import { validationMetric, versionSlug } from "../../models/schema";
 import type { VersionOverview } from "../../training/read-model";
+import { m } from "../../paraglide/messages";
 import { Count } from "../Count";
 import { Metric } from "../training/Metric";
 import { Timestamp } from "../Timestamp";
@@ -12,14 +13,16 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
   return (
     <Table>
       <Table.ScrollContainer>
-        <Table.Content aria-label="Model versions">
+        <Table.Content aria-label={m.versions_table()}>
           <Table.Header>
-            <Table.Column isRowHeader>Version</Table.Column>
-            <Table.Column>Model</Table.Column>
-            <Table.Column>Kind</Table.Column>
-            <Table.Column>Published</Table.Column>
+            <Table.Column isRowHeader>
+              {m.versions_column_version()}
+            </Table.Column>
+            <Table.Column>{m.versions_column_model()}</Table.Column>
+            <Table.Column>{m.versions_column_kind()}</Table.Column>
+            <Table.Column>{m.versions_column_published()}</Table.Column>
             <Table.Column className="whitespace-nowrap text-right">
-              Trained on
+              {m.versions_column_trained_on()}
             </Table.Column>
             <Table.Column className="text-right">mAP50</Table.Column>
             <Table.Column className="whitespace-nowrap text-right">
@@ -30,7 +33,7 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
             renderEmptyState={() => (
               <EmptyState size="sm">
                 <EmptyState.Header>
-                  <EmptyState.Title>No versions</EmptyState.Title>
+                  <EmptyState.Title>{m.versions_empty()}</EmptyState.Title>
                 </EmptyState.Header>
               </EmptyState>
             )}

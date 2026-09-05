@@ -11,6 +11,7 @@ import {
 } from "../../experiments/schema";
 import { assignImagesToObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { ImageDropZone, type ListedImage } from "../ImageDropZone";
 import { useUploads } from "./uploads";
 
@@ -99,10 +100,12 @@ export function AssignImagesDialog({
       <Modal.Backdrop>
         <Modal.Container size="lg">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
               <Modal.Heading>
-                Images for {observationLabel(observation)}
+                {m.observation_images_heading({
+                  observation: observationLabel(observation),
+                })}
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body>
@@ -111,7 +114,7 @@ export function AssignImagesDialog({
                   <Alert.Indicator />
                   <Alert.Content>
                     <Alert.Title>
-                      Every observation unit has an image
+                      {m.observation_images_all_assigned()}
                     </Alert.Title>
                   </Alert.Content>
                 </Alert>
@@ -130,14 +133,17 @@ export function AssignImagesDialog({
                             images: ready,
                           },
                         }),
-                      "No images were assigned",
+                      m.observation_images_not_assigned(),
                     ).then(async (result) => {
                       if (!result.ok) return;
                       uploads.clearStored();
                       setAssignments({});
                       const count = result.value.assigned;
                       toast.success(
-                        `${count} ${count === 1 ? "image" : "images"} assigned to ${observationLabel(observation)}`,
+                        m.observation_images_assigned({
+                          count,
+                          observation: observationLabel(observation),
+                        }),
                       );
                       await router.invalidate();
                       if (!uploads.failed) onClose();
@@ -183,9 +189,9 @@ export function AssignImagesDialog({
                       <Alert.Indicator />
                       <Alert.Content>
                         <Alert.Title>
-                          {unassigned === 1
-                            ? "Assign the remaining image"
-                            : `Assign the remaining ${unassigned} images`}
+                          {m.observation_images_remaining({
+                            count: unassigned,
+                          })}
                         </Alert.Title>
                       </Alert.Content>
                     </Alert>
@@ -195,7 +201,7 @@ export function AssignImagesDialog({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
+                {m.cancel()}
               </Button>
               {open.length === 0 ? null : (
                 <Button
@@ -210,10 +216,12 @@ export function AssignImagesDialog({
                   }
                 >
                   {busy
-                    ? "Assigning…"
+                    ? m.observation_images_assigning()
                     : uploads.storing
-                      ? "Uploading…"
-                      : `Assign ${ready.length}`}
+                      ? m.observation_images_uploading()
+                      : m.observation_images_assign_count({
+                          count: ready.length,
+                        })}
                 </Button>
               )}
             </Modal.Footer>
@@ -242,7 +250,7 @@ function ObservationUnitChoice({
   if (image.state.status !== "stored") return null;
   return (
     <InlineSelect
-      aria-label={`Observation unit shown by ${image.file.name}`}
+      aria-label={m.observation_images_unit_label({ file: image.file.name })}
       isDisabled={busy}
       disabledKeys={[...taken]}
       selectedKey={value ?? UNASSIGNED}
@@ -256,8 +264,11 @@ function ObservationUnitChoice({
       </InlineSelect.Trigger>
       <InlineSelect.Popover className="w-48">
         <ListBox>
-          <ListBox.Item id={UNASSIGNED} textValue="Unassigned">
-            Unassigned
+          <ListBox.Item
+            id={UNASSIGNED}
+            textValue={m.observation_images_unassigned()}
+          >
+            {m.observation_images_unassigned()}
             <ListBox.ItemIndicator />
           </ListBox.Item>
           {observationUnits.map((observationUnit) => (

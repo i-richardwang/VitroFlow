@@ -5,6 +5,7 @@ import type { ObservationUnit } from "../../experiments/contracts";
 import type { Treatment } from "../../experiments/schema";
 import { assignObservationUnitsToTreatment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
 import { Hint } from "../Hint";
 import { TreatmentDot } from "./TreatmentDot";
 
@@ -54,17 +55,20 @@ export function TreatmentChoices({
             <Label>{treatment.name}</Label>
           </Dropdown.Item>
         ))}
-        <Dropdown.Item id={UNASSIGNED} textValue="No treatment">
+        <Dropdown.Item id={UNASSIGNED} textValue={m.treatment_none()}>
           <TreatmentDot position={null} />
-          <Label>No treatment</Label>
+          <Label>{m.treatment_none()}</Label>
         </Dropdown.Item>
         <Separator orientation="horizontal" />
-        <Dropdown.Item id={NEW} textValue="New treatment">
-          <Label>New treatment…</Label>
+        <Dropdown.Item id={NEW} textValue={m.treatment_new()}>
+          <Label>{m.treatment_menu_new()}</Label>
         </Dropdown.Item>
         {editing && onEdit ? (
-          <Dropdown.Item id={EDIT} textValue={`Edit ${editing.name}`}>
-            <Label>Edit {editing.name}…</Label>
+          <Dropdown.Item
+            id={EDIT}
+            textValue={m.treatment_edit({ name: editing.name })}
+          >
+            <Label>{m.treatment_menu_edit({ name: editing.name })}</Label>
           </Dropdown.Item>
         ) : null}
       </Dropdown.Menu>
@@ -92,7 +96,7 @@ export function ObservationUnitTreatmentMenu({
     treatments.find(
       (treatment) => treatment.id === observationUnit.treatment,
     ) ?? null;
-  const name = current?.name ?? "No treatment";
+  const name = current?.name ?? m.treatment_none();
 
   return (
     <Dropdown>
@@ -102,13 +106,16 @@ export function ObservationUnitTreatmentMenu({
           isIconOnly
           size="sm"
           isDisabled={busy}
-          aria-label={`Treatment of ${observationUnit.code}: ${name}`}
+          aria-label={m.treatment_of_named({
+            code: observationUnit.code,
+            name,
+          })}
         >
           <TreatmentDot position={current?.position ?? null} />
         </Button>
       </Hint>
       <TreatmentChoices
-        label={`Treatment of ${observationUnit.code}`}
+        label={m.treatment_of({ code: observationUnit.code })}
         treatments={treatments}
         onPick={(treatment) => {
           if (treatment === observationUnit.treatment) return;
@@ -121,7 +128,7 @@ export function ObservationUnitTreatmentMenu({
                   treatment,
                 },
               }),
-            "Observation unit not assigned",
+            m.observation_unit_not_assigned(),
           ).then(async (result) => {
             if (result.ok) await router.invalidate();
           });
