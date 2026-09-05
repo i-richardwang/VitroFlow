@@ -4,43 +4,29 @@ from pathlib import Path
 import pytest
 from conftest import annotation_document, manifest_entry, write_manifest
 
-from vitroflow.annotations import (
-    load_annotations,
-    load_complete_annotations,
-    parse_annotation,
-)
+from vitroflow.annotations import load_annotations, parse_annotation
 
 CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "annotation.json"
 
 
-def test_complete_annotations_are_the_training_source(tmp_path: Path) -> None:
+def test_reviewed_annotations_are_the_training_source(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     manifest = write_manifest(
         data_root,
         "batch",
         [
-            manifest_entry(
-                "1" * 64, annotation=annotation_document("1" * 64, revision=3)
-            ),
-            manifest_entry(
-                "2" * 64, annotation=annotation_document("2" * 64, status="in_progress")
-            ),
-            manifest_entry("3" * 64),
+            manifest_entry("1" * 64, annotation=annotation_document("1" * 64)),
+            manifest_entry("2" * 64),
         ],
     )
 
-    complete = load_complete_annotations(manifest)
+    reviewed = load_annotations(manifest)
 
-    assert [image.entry.digest for image in load_annotations(manifest)] == [
-        "1" * 64,
-        "2" * 64,
-    ]
-    assert len(complete) == 1
-    annotation = complete[0].annotation
-    assert (complete[0].entry.width, complete[0].entry.height) == (100, 80)
+    assert [image.entry.digest for image in reviewed] == ["1" * 64]
+    annotation = reviewed[0].annotation
+    assert (reviewed[0].entry.width, reviewed[0].entry.height) == (100, 80)
     assert annotation.digest == "1" * 64
     assert annotation.instances[0].bbox.center == (14.0, 23.0)
-    assert annotation.revision == 3
 
 
 def test_shared_annotation_contract() -> None:
@@ -49,7 +35,6 @@ def test_shared_annotation_contract() -> None:
     )
 
     assert annotation.digest == "c" * 64
-    assert annotation.status == "complete"
     assert len(annotation.instances) == 1
 
 

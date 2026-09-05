@@ -17,8 +17,6 @@ def annotation_document(
     digest: str,
     boxes: list[dict[str, float]] | None = None,
     *,
-    status: str = "complete",
-    revision: int = 1,
     width: int = 100,
     height: int = 80,
 ) -> dict[str, Any]:
@@ -27,8 +25,6 @@ def annotation_document(
     return {
         "schemaVersion": 1,
         "image": {"digest": digest, "width": width, "height": height},
-        "status": status,
-        "revision": revision,
         "instances": [
             {"id": f"seed-{index + 1}", "class": "seed", "bbox": box}
             for index, box in enumerate(boxes)

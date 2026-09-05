@@ -116,7 +116,7 @@ export async function readDatasetSnapshot(
 }
 
 /**
- * Freezes the complete annotations into a snapshot named by their content.
+ * Freezes the reviewed annotations into a snapshot named by their content.
  * Images are referenced, not copied: the snapshot rows keep the bytes alive.
  * An identical set returns the existing snapshot.
  */
@@ -129,7 +129,7 @@ export async function createDatasetSnapshot(
   const reviewed = await listReviewedRecords(datasetId, tx, true);
   if (reviewed.length < MIN_SNAPSHOT_IMAGES) {
     throw new Error(
-      `Training requires at least ${MIN_SNAPSHOT_IMAGES} complete annotations`,
+      `Training requires at least ${MIN_SNAPSHOT_IMAGES} reviewed images`,
     );
   }
   const splits = await assignSplits(datasetId, reviewed, tx);

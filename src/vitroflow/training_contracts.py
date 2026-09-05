@@ -150,8 +150,6 @@ def _snapshot_image(value: Any, context: str) -> SnapshotImage:
     annotation = parse_annotation(entry["annotation"], f"{context}.annotation")
     if annotation.digest != digest:
         raise ValueError(f"{context}.annotation describes another image")
-    if annotation.status != "complete":
-        raise ValueError(f"{context}.annotation is not complete")
     width = as_integer(entry["width"], f"{context}.width", minimum=1)
     height = as_integer(entry["height"], f"{context}.height", minimum=1)
     if (annotation.width, annotation.height) != (width, height):

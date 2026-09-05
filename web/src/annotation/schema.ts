@@ -5,25 +5,22 @@ import { imageDigestSchema } from "../images/schema";
 import { classNameSchema } from "../models/metrics";
 
 /**
- * Whether the reviewer is done with the image. Changing a box puts the review
- * in progress; finishing marks it complete, and only complete reviews train.
+ * An image is reviewed once a reviewer has stored boxes for it, and only
+ * reviewed images train.
  */
-export const REVIEW_STATUSES = ["in_progress", "complete"] as const;
-
-/** The statuses, and `unreviewed` for an image whose review nobody has stored. */
-export const REVIEW_STATES = ["unreviewed", ...REVIEW_STATUSES] as const;
+export const REVIEW_STATES = ["unreviewed", "reviewed"] as const;
 
 /**
  * An annotation is addressed by the image and model it describes. The same
  * image annotated for two models has two documents; opening it from an
  * experiment or a dataset reaches the same document.
  *
- * The document is what a reviewer decided and nothing else. It begins as a
- * copy of what one version of the model found and is independent of that
+ * The document is what a reviewer decided and nothing else. A review begins
+ * from what one version of the model found and is independent of that
  * detection from then on: versions come and go, detections are recomputed,
- * and the annotation changes only when a person edits it or starts it again
- * from another detection. That independence is what lets a dataset carry its
- * annotations to another workbench unchanged.
+ * and the annotation changes only when a person stores another review. That
+ * independence is what lets a dataset carry its annotations to another
+ * workbench unchanged.
  */
 export const annotationRefSchema = z.strictObject({
   digest: imageDigestSchema,
@@ -40,7 +37,7 @@ export const boundingBoxSchema = z.strictObject({
 });
 
 /** One box a reviewer keeps, with the class the model's task defines. */
-const annotationInstanceSchema = z.strictObject({
+export const annotationInstanceSchema = z.strictObject({
   id: z.string().min(1),
   class: classNameSchema,
   bbox: boundingBoxSchema,
@@ -54,14 +51,6 @@ export const annotationSchema = z
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
-    status: z.enum(REVIEW_STATUSES),
-    /**
-     * How many times the review has been stored, and the token a save carries
-     * to prove it edited the boxes that are still current. A review the editor
-     * derived from a detection and nobody has saved is at revision 0, which is
-     * how the first save is told from an update of a stored review.
-     */
-    revision: z.number().int().nonnegative(),
     instances: z.array(annotationInstanceSchema),
   })
   .superRefine((document, context) => {
@@ -94,9 +83,15 @@ export const annotationSchema = z
 export type BoundingBox = z.infer<typeof boundingBoxSchema>;
 export type AnnotationInstance = z.infer<typeof annotationInstanceSchema>;
 export type AnnotationDocument = z.infer<typeof annotationSchema>;
-export type ReviewStatus = AnnotationDocument["status"];
 export type ReviewState = (typeof REVIEW_STATES)[number];
 export type ImageSize = Pick<AnnotationDocument["image"], "width" | "height">;
+
+/** How the image reads on a page: reviewed once an annotation is stored. */
+export function reviewState(
+  annotation: AnnotationDocument | null,
+): ReviewState {
+  return annotation ? "reviewed" : "unreviewed";
+}
 
 export function newInstanceId(): string {
   return crypto.randomUUID();

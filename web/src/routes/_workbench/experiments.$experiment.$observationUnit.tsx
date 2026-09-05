@@ -47,8 +47,6 @@ export const Route = createFileRoute(
       ];
     },
   },
-  /** An edit opens on the stored revision, never on a cached one. */
-  gcTime: 0,
   component: ObservationUnitPage,
 });
 

@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
 
 function TrainingPage() {
   const console = Route.useLoaderData();
-  const { complete, training, runs } = console;
+  const { reviewed, training, runs } = console;
   const router = useRouter();
 
   useRouteRefresh(router, 10_000);
@@ -47,7 +47,7 @@ function TrainingPage() {
             <KPI.Title>Ready</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={complete} />
+            <KPI.Value maximumFractionDigits={0} value={reviewed} />
           </KPI.Content>
           {training.reviewedSinceLastRun > 0 ? (
             <KPI.Footer>

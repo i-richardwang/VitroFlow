@@ -50,8 +50,6 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
       ];
     },
   },
-  /** An edit opens on the stored revision, never on a cached one. */
-  gcTime: 0,
   component: DatasetImagePage,
 });
 

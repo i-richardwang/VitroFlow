@@ -1,3 +1,4 @@
+import type { AnnotationDocument } from "../annotation/schema";
 import type { Dataset } from "../datasets/schema";
 import type { TrainingRun } from "../training/schema";
 import type { TrainingSummary } from "../training/read-model";
@@ -13,7 +14,10 @@ import {
   trainingWorkerPresence,
 } from "./training-worker-store";
 
-/** Where one dataset and its model stand before another training run. */
+/**
+ * Reviews the last run did not train on: images reviewed since, and images
+ * whose review has changed since the snapshot froze it.
+ */
 async function reviewedSinceLastRun(
   records: ImageRecord[],
   latest: TrainingRun | undefined,
@@ -21,16 +25,28 @@ async function reviewedSinceLastRun(
   const snapshot = latest
     ? await readDatasetSnapshot(latest.datasetSnapshotId)
     : null;
-  const captured = new Set(
-    snapshot?.images.map(
-      (image) => `${image.digest}#${image.annotation.revision}`,
-    ) ?? [],
+  const trained = new Map(
+    snapshot?.images.map((image) => [image.digest, boxes(image.annotation)]) ??
+      [],
   );
   return records.filter(
     ({ image, annotation }) =>
-      annotation?.status === "complete" &&
-      !captured.has(`${image.digest}#${annotation.revision}`),
+      annotation !== null && trained.get(image.digest) !== boxes(annotation),
   ).length;
+}
+
+/** The boxes of a review in a form two reviews can be compared by. */
+function boxes(annotation: AnnotationDocument): string {
+  return JSON.stringify(
+    annotation.instances.map(({ id, class: className, bbox }) => [
+      id,
+      className,
+      bbox.x,
+      bbox.y,
+      bbox.width,
+      bbox.height,
+    ]),
+  );
 }
 
 /**

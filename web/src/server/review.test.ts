@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { documentFromDetection } from "../annotation/detection";
+import { instancesFromDetection } from "../annotation/detection";
 import { saveAnnotation } from "./annotations";
 import { readReview } from "./review";
 import {
@@ -54,7 +54,7 @@ test("a review shows the version the reviewer arrived from, else the newest", as
   expect(await readReview(ref, "rv.jpg", "review-nowhere")).toBeNull();
 
   expect((await readReview(ref, "rv.jpg"))?.annotation).toBeNull();
-  const saved = await saveAnnotation(ref, documentFromDetection(older));
+  const saved = await saveAnnotation(ref, instancesFromDetection(older));
   const started = await readReview(ref, "rv.jpg");
   expect(started?.annotation).toEqual(saved);
   expect(started?.detection).toEqual(newer);

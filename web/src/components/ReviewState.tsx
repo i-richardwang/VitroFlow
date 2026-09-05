@@ -2,12 +2,11 @@ import { Chip } from "@heroui/react";
 
 import type { ReviewState } from "../annotation/schema";
 
-type Tone = "accent" | "warning" | "success";
+type Tone = "accent" | "success";
 
 const DISPLAY: Record<ReviewState, { label: string; tone: Tone }> = {
   unreviewed: { label: "To review", tone: "accent" },
-  in_progress: { label: "In progress", tone: "warning" },
-  complete: { label: "Complete", tone: "success" },
+  reviewed: { label: "Reviewed", tone: "success" },
 };
 
 export function reviewStateLabel(state: ReviewState): string {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any
 
 from .documents import (
     as_digest,
@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from .manifest import ManifestImage
 
 ANNOTATION_SCHEMA_VERSION = 1
-_STATUSES = {"in_progress", "complete"}
-AnnotationStatus = Literal["in_progress", "complete"]
 
 
 @dataclass(frozen=True)
@@ -56,8 +54,6 @@ class AnnotationDocument:
     digest: str
     width: int
     height: int
-    status: AnnotationStatus
-    revision: int
     instances: tuple[AnnotationInstance, ...]
 
     def to_dict(self) -> dict[str, object]:
@@ -68,8 +64,6 @@ class AnnotationDocument:
                 "width": self.width,
                 "height": self.height,
             },
-            "status": self.status,
-            "revision": self.revision,
             "instances": [
                 {
                     "id": instance.instance_id,
@@ -149,11 +143,7 @@ def _parse_instances(
 def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocument:
     validate_wire_contract("annotation", value, context)
     payload = as_object(value, context)
-    expect_fields(
-        payload,
-        {"schemaVersion", "image", "status", "revision", "instances"},
-        context,
-    )
+    expect_fields(payload, {"schemaVersion", "image", "instances"}, context)
     expect_schema_version(payload, "schemaVersion", ANNOTATION_SCHEMA_VERSION, context)
 
     image_context = f"{context}.image"
@@ -163,16 +153,10 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
     image_width = as_integer(image["width"], f"{image_context}.width", 1)
     image_height = as_integer(image["height"], f"{image_context}.height", 1)
 
-    status = as_string(payload["status"], f"{context}.status")
-    if status not in _STATUSES:
-        raise ValueError(f"{context}.status is unknown: {status}")
-
     return AnnotationDocument(
         digest=digest,
         width=image_width,
         height=image_height,
-        status=cast(AnnotationStatus, status),
-        revision=as_integer(payload["revision"], f"{context}.revision", 1),
         instances=_parse_instances(
             payload["instances"], image_width, image_height, f"{context}.instances"
         ),
@@ -180,7 +164,7 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
 
 
 def load_annotations(manifest: str | Path) -> list[AnnotatedImage]:
-    """Every annotated image of a dataset manifest, in manifest order."""
+    """Every reviewed image of a dataset manifest, in manifest order."""
     from .manifest import load_dataset_manifest
 
     dataset = load_dataset_manifest(manifest)
@@ -190,11 +174,3 @@ def load_annotations(manifest: str | Path) -> list[AnnotatedImage]:
             continue
         annotated.append(AnnotatedImage(entry, entry.annotation))
     return annotated
-
-
-def load_complete_annotations(manifest: str | Path) -> list[AnnotatedImage]:
-    return [
-        image
-        for image in load_annotations(manifest)
-        if image.annotation.status == "complete"
-    ]

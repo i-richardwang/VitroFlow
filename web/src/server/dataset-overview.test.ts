@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
+import { instancesFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { recordInferenceHeartbeat } from "./inference-worker-store";
 import { readAnnotation, saveAnnotation } from "./annotations";
@@ -36,14 +36,14 @@ test("the overview derives review progress and training readiness", async () => 
     );
     await saveAnnotation(
       { digest, modelId: version.modelId },
-      { ...documentFromDetection(result), status: "complete" },
+      instancesFromDetection(result),
     );
   }
 
   let overview = await datasetOverview("overview", at);
   if (!overview) throw new Error("missing overview");
   expect(overview.model.id).toBe(version.modelId);
-  expect(overview.counts).toMatchObject({ unreviewed: 1, complete: 2 });
+  expect(overview.counts).toMatchObject({ unreviewed: 1, reviewed: 2 });
   expect(overview.images.map((image) => image.detectionCount)).toEqual([
     0,
     0,
@@ -85,7 +85,17 @@ test("the overview derives review progress and training readiness", async () => 
   const a = { digest: await imageDigest("ov-a"), modelId: version.modelId };
   const annotation = await readAnnotation(a);
   if (!annotation) throw new Error("missing annotation");
-  await saveAnnotation(a, annotation);
+  await saveAnnotation(a, annotation.instances);
+  expect(
+    (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
+  ).toBe(0);
+  await saveAnnotation(a, [
+    {
+      id: "added",
+      class: "seed",
+      bbox: { x: 0, y: 0, width: 1, height: 1 },
+    },
+  ]);
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);

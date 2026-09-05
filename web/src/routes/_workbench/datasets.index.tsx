@@ -59,14 +59,10 @@ function DatasetsPage() {
                     {dataset.imageCount}
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    <Count
-                      value={
-                        dataset.counts.unreviewed + dataset.counts.in_progress
-                      }
-                    />
+                    <Count value={dataset.counts.unreviewed} />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    <Count value={dataset.counts.complete} />
+                    <Count value={dataset.counts.reviewed} />
                   </Table.Cell>
                 </Table.Row>
               ))}

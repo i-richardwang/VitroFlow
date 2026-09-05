@@ -72,7 +72,7 @@ export async function trainingConsole(
   const runs = await listTrainingRunSummaries({ datasetId: dataset.id });
   return {
     dataset: dataset.id,
-    complete: countReviewStates(records.map(summarize)).complete,
+    reviewed: countReviewStates(records.map(summarize)).reviewed,
     recipe: YOLO26_SEED_SMALL_RECIPE,
     training: await trainingSummary(dataset, records, at),
     runs,

@@ -1,5 +1,5 @@
 {
-  "id": "b429353c-b925-4f98-aa50-6bfaa5b2c4f6",
+  "id": "657bbf35-f867-4388-9a9d-3398b586d971",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -342,51 +342,9 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "document->>'status'",
-            "type": "stored"
-          }
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "generated": {
-            "as": "(document->>'revision')::integer",
-            "type": "stored"
-          }
         }
       },
-      "indexes": {
-        "annotations_model_status_idx": {
-          "name": "annotations_model_status_idx",
-          "columns": [
-            {
-              "expression": "model_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "annotations_image_id_images_id_fk": {
           "name": "annotations_image_id_images_id_fk",
@@ -427,14 +385,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "annotations_status_check": {
-          "name": "annotations_status_check",
-          "value": "\"annotations\".\"status\" in ('in_progress', 'complete')"
-        },
-        "annotations_revision_check": {
-          "name": "annotations_revision_check",
-          "value": "\"annotations\".\"revision\" >= 1"
-        },
         "annotations_image_check": {
           "name": "annotations_image_check",
           "value": "document->'image'->>'digest' = \"annotations\".\"image_id\""
@@ -834,7 +784,7 @@
         },
         "dataset_snapshot_images_annotation_check": {
           "name": "dataset_snapshot_images_annotation_check",
-          "value": "annotation->'image'->>'digest' = \"dataset_snapshot_images\".\"image_id\" and annotation->>'status' = 'complete'"
+          "value": "annotation->'image'->>'digest' = \"dataset_snapshot_images\".\"image_id\""
         }
       },
       "isRLSEnabled": false

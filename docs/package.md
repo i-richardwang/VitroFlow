@@ -70,4 +70,4 @@ vitroflow dataset export-yolo \
   --seed 42
 ```
 
-`vitroflow recognize` runs the bundled traditional detector over a pulled dataset, and `vitroflow traditional evaluate` and `vitroflow traditional train` score and retrain its candidate scorer from complete annotations.
+`vitroflow recognize` runs the bundled traditional detector over a pulled dataset, and `vitroflow traditional evaluate` and `vitroflow traditional train` score and retrain its candidate scorer from reviewed annotations.

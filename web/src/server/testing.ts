@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 
-import { documentFromDetection } from "../annotation/detection";
+import { instancesFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import {
   userAccountSchema,
@@ -331,9 +331,9 @@ export async function resultFor(
 }
 
 /**
- * Uploads the texts and completes a review of each, ready for training. A
- * review belongs to the image and the model, so texts already reviewed by an
- * earlier call keep the review they have.
+ * Uploads the texts and reviews each, ready for training. A review belongs
+ * to the image and the model, so texts already reviewed by an earlier call
+ * keep the review they have.
  */
 export async function reviewedDataset(
   datasetId: string,
@@ -352,10 +352,7 @@ export async function reviewedDataset(
       result,
       { runtimes: [result.producer.runtime] },
     );
-    await saveAnnotation(ref, {
-      ...documentFromDetection(result),
-      status: "complete",
-    });
+    await saveAnnotation(ref, instancesFromDetection(result));
   }
   return seeded;
 }

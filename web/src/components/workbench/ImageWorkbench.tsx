@@ -11,22 +11,25 @@ import {
   Toolbar,
   Tooltip,
 } from "@heroui/react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useBlocker, useRouter } from "@tanstack/react-router";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
-  reviewDocument,
-  versionInstances,
+  reviewInstances,
+  shownInstances,
   type Review,
   type ReviewVersion,
 } from "../../annotation/review";
-import type {
-  AnnotationDocument,
-  AnnotationInstance,
-} from "../../annotation/schema";
-import { documentFromDetection } from "../../annotation/detection";
-import { reviewState } from "../../annotation/status";
+import { reviewState, type AnnotationInstance } from "../../annotation/schema";
+import { instancesFromDetection } from "../../annotation/detection";
 import type { DetectionResult } from "../../detection/schema";
-import { useAnnotation } from "../../hooks/useAnnotation";
+import { saveReview } from "../../functions/review";
 import { useHistory } from "../../hooks/useHistory";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
@@ -67,11 +70,11 @@ export interface ImageWorkbenchContext {
 /**
  * One image reviewed for one model, wherever the page shows it.
  *
- * The canvas shows the review document: the saved review, or a copy of the
- * detection until the first edit. Editing turns the same canvas editable
- * and adds the tools; the page keeps that flag in its address so a link can
- * open straight into editing. Every change is stored as it is made, and Done
- * marks the review complete.
+ * The page shows what is stored: the review, or the detection until one is.
+ * Editing opens a draft of the boxes on the same canvas and adds the tools;
+ * the page keeps that flag in its address so a link can open straight into
+ * editing. Done stores the draft as the review and the page reloads what it
+ * shows; Cancel discards the draft.
  */
 export function ImageWorkbench({
   title,
@@ -91,22 +94,21 @@ export function ImageWorkbench({
   onEditingChange: (editing: boolean) => void;
   context?: ImageWorkbenchContext;
 }) {
-  const document = reviewDocument(review);
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(DEFAULT_LAYERS),
   );
   const display = { layers, onLayersChange: setLayers };
+  const opening = reviewInstances(review);
 
-  if (editing && document) {
+  if (editing && opening) {
     return (
       <Editor
-        key={`${review.ref.digest}/${document.revision}`}
         title={title}
         model={model}
         review={review}
-        opened={document}
+        opening={opening}
         display={display}
-        onDone={() => onEditingChange(false)}
+        onClose={() => onEditingChange(false)}
         context={context}
       />
     );
@@ -117,10 +119,10 @@ export function ImageWorkbench({
       title={title}
       actions={
         <>
-          <ReviewStateChip state={reviewState(document)} />
+          <ReviewStateChip state={reviewState(review.annotation)} />
           <Button
             variant="primary"
-            isDisabled={document === null}
+            isDisabled={opening === null}
             onPress={() => onEditingChange(true)}
           >
             Edit
@@ -139,7 +141,7 @@ export function ImageWorkbench({
       inspector={
         <ReviewInspector
           model={model}
-          document={document}
+          reviewed={review.annotation?.instances ?? null}
           detection={review.detection}
           display={display}
           details={context.details}
@@ -148,7 +150,7 @@ export function ImageWorkbench({
     >
       <ReviewCanvas
         review={review}
-        instances={versionInstances(review, version)}
+        instances={shownInstances(review, version)}
         layers={layers}
       />
     </Workbench>
@@ -188,14 +190,15 @@ function ReviewCanvas({
 
 function ReviewInspector({
   model,
-  document,
+  reviewed,
   detection,
   display,
   details,
   children,
 }: {
   model: Model;
-  document: AnnotationDocument | null;
+  /** The boxes of the review, or of the draft while editing. */
+  reviewed: AnnotationInstance[] | null;
   detection: DetectionResult | null;
   display: Display;
   details?: ReactNode;
@@ -208,9 +211,7 @@ function ReviewInspector({
       <MetricsSection
         metrics={model.metrics}
         sources={[
-          ...(document
-            ? [{ label: "Review", tally: tally(document.instances) }]
-            : []),
+          ...(reviewed ? [{ label: "Review", tally: tally(reviewed) }] : []),
           ...(detection
             ? [{ label: "Detected", tally: tally(detection.instances) }]
             : []),
@@ -248,79 +249,110 @@ function detectionMetrics(modelId: string, result: DetectionResult): Metric[] {
   return rows;
 }
 
+/**
+ * A draft of the boxes, edited locally and stored once. The draft is dirty
+ * while an edit can be undone; leaving with one asks first, whether by
+ * navigation or by closing the tab.
+ */
 function Editor({
   title,
   model,
   review,
-  opened,
+  opening,
   display,
-  onDone,
+  onClose,
   context,
 }: {
   title: string;
   model: Model;
   review: Review;
-  /** The document the editor opens on, keyed by its revision by the caller. */
-  opened: AnnotationDocument;
+  /** The boxes the draft begins from. */
+  opening: AnnotationInstance[];
   display: Display;
-  /** Called once the finished review is stored. */
-  onDone: () => void;
+  /** Called once the review is stored, or the draft discarded. */
+  onClose: () => void;
   context: ImageWorkbenchContext;
 }) {
-  const { annotation, saveState, error, setInstances, finish, retry } =
-    useAnnotation(review.ref, opened);
+  const router = useRouter();
+  const [instances, setInstances] = useState(opening);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const closing = useRef(false);
   const history = useHistory<AnnotationInstance[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [panning, setPanning] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeClass, setActiveClass] = useState(model.classes[0]!);
 
+  const dirty = history.canUndo;
+  useBlocker({
+    shouldBlockFn: () =>
+      dirty && !closing.current && !window.confirm("Discard unsaved changes?"),
+    enableBeforeUnload: () => dirty && !closing.current,
+  });
+
+  const close = useCallback(() => {
+    closing.current = true;
+    onClose();
+  }, [onClose]);
+
+  const done = useCallback(async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveReview({ data: { ref: review.ref, instances } });
+      await router.invalidate();
+      close();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setSaving(false);
+    }
+  }, [review.ref, instances, router, close]);
+
   const selected =
-    annotation.instances.find((instance) => instance.id === selectedId) ?? null;
+    instances.find((instance) => instance.id === selectedId) ?? null;
 
   const editInstances = useCallback(
-    (instances: AnnotationInstance[]) => {
-      history.record(annotation.instances);
-      setInstances(instances);
+    (next: AnnotationInstance[]) => {
+      history.record(instances);
+      setInstances(next);
     },
-    [history, annotation.instances, setInstances],
+    [history, instances],
   );
   const undo = useCallback(() => {
-    const previous = history.undo(annotation.instances);
+    const previous = history.undo(instances);
     if (previous) setInstances(previous);
-  }, [history, annotation.instances, setInstances]);
+  }, [history, instances]);
   const redo = useCallback(() => {
-    const next = history.redo(annotation.instances);
+    const next = history.redo(instances);
     if (next) setInstances(next);
-  }, [history, annotation.instances, setInstances]);
+  }, [history, instances]);
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
-    editInstances(
-      annotation.instances.filter((instance) => instance.id !== selectedId),
-    );
+    editInstances(instances.filter((instance) => instance.id !== selectedId));
     setSelectedId(null);
-  }, [annotation.instances, selectedId, editInstances]);
+  }, [instances, selectedId, editInstances]);
 
   const changeClass = useCallback(
     (className: string) => {
       setActiveClass(className);
       if (!selected || selected.class === className) return;
       editInstances(
-        annotation.instances.map((instance) =>
+        instances.map((instance) =>
           instance.id === selected.id
             ? { ...instance, class: className }
             : instance,
         ),
       );
     },
-    [annotation.instances, editInstances, selected],
+    [instances, editInstances, selected],
   );
 
   const { detection } = review;
   const restartFromDetection = useCallback(() => {
     if (!detection) return;
-    editInstances(documentFromDetection(detection).instances);
+    editInstances(instancesFromDetection(detection));
     setSelectedId(null);
   }, [detection, editInstances]);
 
@@ -343,13 +375,11 @@ function Editor({
       title={title}
       actions={
         <>
-          <Button
-            variant="primary"
-            onPress={async () => {
-              if (await finish()) onDone();
-            }}
-          >
-            Done
+          <Button variant="tertiary" isDisabled={saving} onPress={close}>
+            Cancel
+          </Button>
+          <Button variant="primary" isDisabled={saving} onPress={done}>
+            {saving ? "Saving…" : "Done"}
           </Button>
           {context.menu}
         </>
@@ -376,21 +406,18 @@ function Editor({
       inspector={
         <ReviewInspector
           model={model}
-          document={annotation}
+          reviewed={instances}
           detection={review.detection}
           display={display}
           details={context.details}
         >
-          {saveState === "failed" ? (
+          {error ? (
             <Alert status="danger">
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Title>Save failed</Alert.Title>
-                {error ? <Alert.Description>{error}</Alert.Description> : null}
+                <Alert.Description>{error}</Alert.Description>
               </Alert.Content>
-              <Button size="sm" variant="danger" onPress={retry}>
-                Retry
-              </Button>
             </Alert>
           ) : null}
         </ReviewInspector>
@@ -398,7 +425,7 @@ function Editor({
     >
       <ReviewCanvas
         review={review}
-        instances={annotation.instances}
+        instances={instances}
         layers={display.layers}
         editing={{
           tool,

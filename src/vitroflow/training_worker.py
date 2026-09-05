@@ -252,7 +252,6 @@ def materialize_snapshot(
                 height=image.annotation.height,
                 instances=image.annotation.instances,
                 split=image.split,
-                revision=image.annotation.revision,
                 file_path=downloaded,
             )
         )

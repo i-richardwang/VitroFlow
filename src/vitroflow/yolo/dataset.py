@@ -6,7 +6,7 @@ import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NotRequired, TypedDict
+from typing import TypedDict
 
 from ..annotations import AnnotatedImage, AnnotationInstance
 from ..files import atomic_directory
@@ -21,7 +21,6 @@ class YoloManifestImage(TypedDict):
     image: str
     label: str
     instances: int
-    revision: NotRequired[int]
 
 
 class YoloDatasetManifest(TypedDict):
@@ -44,7 +43,6 @@ class DatasetImage:
     height: int
     instances: tuple[AnnotationInstance, ...]
     split: str | None = None
-    revision: int | None = None
     file_path: Path | None = None
 
 
@@ -163,8 +161,6 @@ def export_dataset_images(
                 label=label_destination.relative_to(working).as_posix(),
                 instances=len(image.instances),
             )
-            if image.revision is not None:
-                entry["revision"] = image.revision
             manifest_images.append(entry)
 
         manifest = YoloDatasetManifest(
@@ -191,7 +187,7 @@ def export_yolo_dataset(
     validation_fraction: float = 0.2,
     seed: int = 0,
 ) -> YoloDatasetManifest:
-    """Export complete annotations as a YOLO detection dataset."""
+    """Export reviewed annotations as a YOLO detection dataset."""
     images = [
         DatasetImage(
             digest=image.entry.digest,
@@ -199,7 +195,6 @@ def export_yolo_dataset(
             height=image.annotation.height,
             instances=image.annotation.instances,
             split=image.entry.split,
-            revision=image.annotation.revision,
         )
         for image in annotated
     ]

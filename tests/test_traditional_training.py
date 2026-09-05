@@ -46,8 +46,6 @@ def _image(index: int) -> PreparedImage:
         digest=f"{index:064x}",
         width=100,
         height=100,
-        status="complete",
-        revision=1,
         instances=(AnnotationInstance("seed-1", "seed", BoundingBox(5, 5, 10, 10)),),
     )
     return PreparedImage(

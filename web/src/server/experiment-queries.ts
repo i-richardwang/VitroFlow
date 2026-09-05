@@ -61,7 +61,7 @@ function observationImageGridQuery(db: Executor) {
       outcomeStatus: inferenceOutcomes.status,
       detectionTally: tallyOf(inferenceOutcomes.document),
       annotationTally: tallyOf(annotations.document),
-      reviewComplete: sql<boolean | null>`${annotations.status} = 'complete'`,
+      reviewed: sql<boolean>`${annotations.imageId} is not null`,
       error: sql<string | null>`${inferenceOutcomes.document}->>'error'`,
     })
     .from(experimentObservationImages)
@@ -106,7 +106,7 @@ function toCell(row: ObservationImageGridRow): ObservationImageCell {
     state,
     detectionTally:
       row.outcomeStatus === "succeeded" ? (row.detectionTally ?? {}) : null,
-    annotationTally: row.reviewComplete ? (row.annotationTally ?? {}) : null,
+    annotationTally: row.reviewed ? (row.annotationTally ?? {}) : null,
     error: row.error,
   };
 }

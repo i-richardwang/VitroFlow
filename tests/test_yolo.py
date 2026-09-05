@@ -13,7 +13,7 @@ from vitroflow.annotations import (
     AnnotatedImage,
     AnnotationInstance,
     BoundingBox,
-    load_complete_annotations,
+    load_annotations,
     parse_annotation,
 )
 from vitroflow.image_io import CANONICAL_EXTENSION
@@ -38,7 +38,7 @@ def _annotated(digest: str, split: str | None = None) -> AnnotatedImage:
         annotation=None,
     )
     annotation = annotation_document(
-        digest, [{"x": 10, "y": 20, "width": 20, "height": 10}], revision=2
+        digest, [{"x": 10, "y": 20, "width": 20, "height": 10}]
     )
     return AnnotatedImage(entry, parse_annotation(annotation))
 
@@ -74,7 +74,6 @@ def test_yolo_export_is_deterministic_and_self_contained(tmp_path: Path) -> None
             == f"images/{entry['split']}/{entry['digest']}{CANONICAL_EXTENSION}"
         )
         assert entry["label"] == f"labels/{entry['split']}/{entry['digest']}.txt"
-        assert entry["revision"] == 2
         assert (output / entry["image"]).is_file()
     dataset_yaml = (output / "dataset.yaml").read_text()
     assert "path:" not in dataset_yaml
@@ -246,7 +245,7 @@ def test_export_reads_recorded_splits_from_the_manifest(tmp_path: Path) -> None:
         )
     manifest_path = write_manifest(data_root, "batch", entries)
 
-    annotated = load_complete_annotations(manifest_path)
+    annotated = load_annotations(manifest_path)
     manifest = export_yolo_dataset(annotated, ("seed",), data_root, tmp_path / "yolo")
 
     recorded = {entry["digest"]: entry["split"] for entry in entries}

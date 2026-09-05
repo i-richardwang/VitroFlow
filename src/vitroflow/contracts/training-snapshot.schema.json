@@ -91,18 +91,6 @@
                 ],
                 "additionalProperties": false
               },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "in_progress",
-                  "complete"
-                ]
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
               "instances": {
                 "type": "array",
                 "items": {
@@ -155,8 +143,6 @@
             "required": [
               "schemaVersion",
               "image",
-              "status",
-              "revision",
               "instances"
             ],
             "additionalProperties": false

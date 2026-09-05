@@ -101,6 +101,7 @@ export function ObservationUnitWorkbench({
 
   return (
     <ImageWorkbench
+      key={shown.review.ref.digest}
       title={title}
       model={model}
       review={shown.review}

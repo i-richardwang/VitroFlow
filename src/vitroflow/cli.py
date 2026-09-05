@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 
-from .annotations import load_complete_annotations
+from .annotations import load_annotations
 from .artifacts import create_image_artifacts, write_image_artifacts
 from .config import PipelineConfig
 from .dataset_transfer import pull_dataset, push_dataset
@@ -87,9 +87,9 @@ def _prepared_images(
     data_root = Path(args.data_root)
     source = manifest_path(data_root, args.dataset)
     _traditional_manifest(source)
-    annotated = load_complete_annotations(source)
+    annotated = load_annotations(source)
     if not annotated:
-        raise ValueError("No complete annotations found")
+        raise ValueError("No reviewed annotations found")
     return prepare_images([image.annotation for image in annotated], data_root, config)
 
 
@@ -136,7 +136,6 @@ def _train_candidate_scoring(args: argparse.Namespace) -> int:
                     "training_set": [
                         {
                             "digest": image.annotation.digest,
-                            "revision": image.annotation.revision,
                             "instances": len(image.boxes),
                         }
                         for image in images
@@ -188,7 +187,7 @@ def _export_yolo(args: argparse.Namespace) -> int:
     data_root = Path(args.data_root)
     source = manifest_path(data_root, args.dataset)
     dataset = load_dataset_manifest(source)
-    annotated = load_complete_annotations(source)
+    annotated = load_annotations(source)
     manifest = export_yolo_dataset(
         annotated,
         dataset.classes,
@@ -244,7 +243,7 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     evaluate = traditional_commands.add_parser(
-        "evaluate", help="Evaluate a model on complete annotations"
+        "evaluate", help="Evaluate a model on reviewed annotations"
     )
     _add_dataset_options(evaluate)
     _add_pipeline_options(evaluate)
@@ -252,7 +251,7 @@ def _parser() -> argparse.ArgumentParser:
     evaluate.set_defaults(handler=_evaluate_traditional)
 
     train = traditional_commands.add_parser(
-        "train", help="Train a model from complete annotations"
+        "train", help="Train a model from reviewed annotations"
     )
     _add_dataset_options(train)
     _add_pipeline_options(train)
@@ -279,7 +278,7 @@ def _parser() -> argparse.ArgumentParser:
     _add_workbench_options(push)
     push.set_defaults(handler=_push_dataset)
     export_yolo = dataset_commands.add_parser(
-        "export-yolo", help="Export complete annotations as a YOLO dataset"
+        "export-yolo", help="Export reviewed annotations as a YOLO dataset"
     )
     _add_dataset_options(export_yolo)
     export_yolo.add_argument("--output", required=True)

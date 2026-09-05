@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
+import { instancesFromDetection } from "../annotation/detection";
 import type { InferenceWorkerRecord } from "../inference/workers";
 import {
   blobExists,
@@ -487,10 +487,10 @@ describe("detections", () => {
 
     await saveAnnotation(
       { digest, modelId: baseline.modelId },
-      documentFromDetection(original),
+      instancesFromDetection(original),
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
-    expect(await stateOf(ref)).toBe("in_progress");
+    expect(await stateOf(ref)).toBe("reviewed");
   });
 
   test("a review is one document per image and model, wherever it is opened", async () => {
@@ -504,12 +504,9 @@ describe("detections", () => {
       worker,
     );
     const labelRef = { digest, modelId: version.modelId };
-    await saveAnnotation(labelRef, {
-      ...documentFromDetection(result),
-      status: "complete",
-    });
-    expect(await stateOf({ dataset: "ctx-one", digest })).toBe("complete");
-    expect(await stateOf({ dataset: "ctx-two", digest })).toBe("complete");
+    await saveAnnotation(labelRef, instancesFromDetection(result));
+    expect(await stateOf({ dataset: "ctx-one", digest })).toBe("reviewed");
+    expect(await stateOf({ dataset: "ctx-two", digest })).toBe("reviewed");
   });
 });
 
@@ -523,7 +520,7 @@ describe("removal", () => {
     await recordInferenceOutcome(target, result, worker);
     await saveAnnotation(
       { digest, modelId: version.modelId },
-      documentFromDetection(result),
+      instancesFromDetection(result),
     );
 
     await removeDatasetImage(ref);

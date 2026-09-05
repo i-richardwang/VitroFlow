@@ -10,7 +10,7 @@ from conftest import (
     write_manifest,
 )
 
-from vitroflow.annotations import load_complete_annotations
+from vitroflow.annotations import load_annotations
 from vitroflow.yolo import export_yolo_dataset
 
 ultralytics = pytest.importorskip("ultralytics")
@@ -46,7 +46,7 @@ def test_ultralytics_resolves_exported_dataset_from_its_yaml(
     for variant in range(2):
         digest = write_blob(data_root, encoded_image(variant=variant))
         entries.append(manifest_entry(digest, annotation=annotation_document(digest)))
-    annotated = load_complete_annotations(write_manifest(data_root, "batch", entries))
+    annotated = load_annotations(write_manifest(data_root, "batch", entries))
 
     output = tmp_path / "dataset"
     export_yolo_dataset(annotated, ("seed",), data_root, output)

@@ -17,7 +17,6 @@ describe("annotation contract", () => {
     );
 
     expect(document.image.digest).toBe("c".repeat(64));
-    expect(document.status).toBe("complete");
     expect(document.instances).toHaveLength(1);
   });
 

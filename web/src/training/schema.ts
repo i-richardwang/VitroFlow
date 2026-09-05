@@ -32,10 +32,7 @@ const snapshotImageSchema = z
     width: z.number().int().positive(),
     height: z.number().int().positive(),
     split: z.enum(IMAGE_SPLITS),
-    annotation: annotationSchema.refine(
-      (annotation) => annotation.status === "complete",
-      "Snapshot annotations must be complete",
-    ),
+    annotation: annotationSchema,
   })
   .superRefine((image, context) => {
     if (image.annotation.image.digest !== image.digest) {

@@ -1,7 +1,6 @@
 import type { DetectionResult } from "../detection/schema";
 import {
   newInstanceId,
-  type AnnotationDocument,
   type BoundingBox,
   type AnnotationInstance,
   type ImageSize,
@@ -35,23 +34,13 @@ export function instanceFromBox(
   return { id: newInstanceId(), class: className, bbox };
 }
 
-/** A review that begins with every box the detection found. */
-export function documentFromDetection(
+/** Every box the detection found, as the boxes a review begins from. */
+export function instancesFromDetection(
   result: DetectionResult,
-): AnnotationDocument {
-  return {
-    schemaVersion: 1,
-    image: {
-      digest: result.image.digest,
-      width: result.image.width,
-      height: result.image.height,
-    },
-    status: "in_progress",
-    revision: 0,
-    instances: result.instances.map(({ id, class: className, bbox }) => ({
-      id,
-      class: className,
-      bbox,
-    })),
-  };
+): AnnotationInstance[] {
+  return result.instances.map(({ id, class: className, bbox }) => ({
+    id,
+    class: className,
+    bbox,
+  }));
 }

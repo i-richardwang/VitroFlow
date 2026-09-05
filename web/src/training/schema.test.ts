@@ -13,8 +13,6 @@ function snapshotImage(digest: string, split: "train" | "val") {
     annotation: {
       schemaVersion: 1 as const,
       image: { digest, width: 100, height: 80 },
-      status: "complete" as const,
-      revision: 1,
       instances: [],
     },
   };

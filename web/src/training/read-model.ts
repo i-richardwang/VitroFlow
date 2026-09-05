@@ -31,7 +31,7 @@ export interface TrainingOverview {
 
 export interface TrainingConsole {
   dataset: string;
-  complete: number;
+  reviewed: number;
   recipe: TrainingRecipe;
   training: TrainingSummary;
   runs: TrainingRunSummary[];

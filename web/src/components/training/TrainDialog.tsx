@@ -21,9 +21,9 @@ import {
 import { MIN_SNAPSHOT_IMAGES } from "../../training/schema";
 
 export function TrainDialog({ console }: { console: TrainingConsole }) {
-  const { complete, training } = console;
+  const { reviewed, training } = console;
   const [open, setOpen] = useState(false);
-  const canTrain = complete >= MIN_SNAPSHOT_IMAGES && training.active === null;
+  const canTrain = reviewed >= MIN_SNAPSHOT_IMAGES && training.active === null;
 
   return (
     <>

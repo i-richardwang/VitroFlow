@@ -98,7 +98,7 @@ function DatasetPage() {
             <KPI.Title>Reviewed</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={counts.complete} />
+            <KPI.Value maximumFractionDigits={0} value={counts.reviewed} />
           </KPI.Content>
         </KPI>
         <KPIGroup.Separator />

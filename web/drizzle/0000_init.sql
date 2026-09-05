@@ -37,11 +37,7 @@ CREATE TABLE "annotations" (
 	"model_id" text NOT NULL,
 	"document" jsonb NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
-	"status" text GENERATED ALWAYS AS (document->>'status') STORED NOT NULL,
-	"revision" integer GENERATED ALWAYS AS ((document->>'revision')::integer) STORED NOT NULL,
 	CONSTRAINT "annotations_image_id_model_id_pk" PRIMARY KEY("image_id","model_id"),
-	CONSTRAINT "annotations_status_check" CHECK ("annotations"."status" in ('in_progress', 'complete')),
-	CONSTRAINT "annotations_revision_check" CHECK ("annotations"."revision" >= 1),
 	CONSTRAINT "annotations_image_check" CHECK (document->'image'->>'digest' = "annotations"."image_id")
 );
 --> statement-breakpoint
@@ -88,7 +84,7 @@ CREATE TABLE "dataset_snapshot_images" (
 	"annotation" jsonb NOT NULL,
 	CONSTRAINT "dataset_snapshot_images_snapshot_id_image_id_pk" PRIMARY KEY("snapshot_id","image_id"),
 	CONSTRAINT "dataset_snapshot_images_split_check" CHECK ("dataset_snapshot_images"."split" in ('train', 'val')),
-	CONSTRAINT "dataset_snapshot_images_annotation_check" CHECK (annotation->'image'->>'digest' = "dataset_snapshot_images"."image_id" and annotation->>'status' = 'complete')
+	CONSTRAINT "dataset_snapshot_images_annotation_check" CHECK (annotation->'image'->>'digest' = "dataset_snapshot_images"."image_id")
 );
 --> statement-breakpoint
 CREATE TABLE "dataset_snapshots" (
@@ -564,7 +560,6 @@ CREATE UNIQUE INDEX "accounts_issuer_account_idx" ON "accounts" USING btree ("is
 CREATE UNIQUE INDEX "agent_executions_principal_key_idx" ON "agent_executions" USING btree ("principal_kind","credential_id","idempotency_key");--> statement-breakpoint
 CREATE INDEX "agent_executions_user_created_idx" ON "agent_executions" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "agent_executions_operation_created_idx" ON "agent_executions" USING btree ("operation","created_at");--> statement-breakpoint
-CREATE INDEX "annotations_model_status_idx" ON "annotations" USING btree ("model_id","status");--> statement-breakpoint
 CREATE INDEX "api_keys_reference_idx" ON "api_keys" USING btree ("reference_id");--> statement-breakpoint
 CREATE INDEX "api_keys_key_idx" ON "api_keys" USING btree ("key");--> statement-breakpoint
 CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_id");--> statement-breakpoint

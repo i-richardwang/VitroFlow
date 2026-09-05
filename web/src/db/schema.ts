@@ -20,7 +20,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { REVIEW_STATUSES, type AnnotationDocument } from "../annotation/schema";
+import type { AnnotationDocument } from "../annotation/schema";
 import { USER_ROLES } from "../auth/schema";
 import {
   CULTURE_EVENT_TYPES,
@@ -653,23 +653,9 @@ export const annotations = pgTable(
       .references(() => models.id),
     document: jsonb("document").$type<AnnotationDocument>().notNull(),
     updatedAt: instant("updated_at"),
-    /** Projections of `document` the workbench queries by. */
-    status: text("status", { enum: REVIEW_STATUSES })
-      .notNull()
-      .generatedAlwaysAs(sql`document->>'status'`),
-    revision: integer("revision")
-      .notNull()
-      .generatedAlwaysAs(sql`(document->>'revision')::integer`),
   },
   (table) => [
     primaryKey({ columns: [table.imageId, table.modelId] }),
-    index("annotations_model_status_idx").on(table.modelId, table.status),
-    check(
-      "annotations_status_check",
-      sql`${table.status} in ('in_progress', 'complete')`,
-    ),
-    /** Revision 0 is the copy of a detection the editor opens on, never stored. */
-    check("annotations_revision_check", sql`${table.revision} >= 1`),
     check(
       "annotations_image_check",
       sql`document->'image'->>'digest' = ${table.imageId}`,
@@ -1080,7 +1066,7 @@ export const datasetSnapshotImages = pgTable(
     ),
     check(
       "dataset_snapshot_images_annotation_check",
-      sql`annotation->'image'->>'digest' = ${table.imageId} and annotation->>'status' = 'complete'`,
+      sql`annotation->'image'->>'digest' = ${table.imageId}`,
     ),
   ],
 );

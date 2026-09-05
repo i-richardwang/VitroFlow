@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { annotationSchema } from "./schema";
-import { documentFromDetection, initialBoxSide } from "./detection";
+import { initialBoxSide, instancesFromDetection } from "./detection";
 import { makeResult } from "./testing";
 
 describe("initialBoxSide", () => {
@@ -21,19 +20,14 @@ describe("initialBoxSide", () => {
   });
 });
 
-describe("documentFromDetection", () => {
-  test("copies the detection's boxes into a fresh review", () => {
+describe("instancesFromDetection", () => {
+  test("keeps every box the detection found", () => {
     const result = makeResult([
       { id: 1, x: 100, y: 100 },
       { id: 2, x: 300, y: 200 },
     ]);
-    const document = documentFromDetection(result);
-    expect(annotationSchema.safeParse(document).success).toBe(true);
-    expect(document.status).toBe("in_progress");
-    expect(document.revision).toBe(0);
-    expect(document.instances.map((instance) => instance.id)).toEqual([
-      "1",
-      "2",
-    ]);
+    expect(
+      instancesFromDetection(result).map((instance) => instance.id),
+    ).toEqual(["1", "2"]);
   });
 });

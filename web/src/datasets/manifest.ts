@@ -34,13 +34,6 @@ const datasetManifestImageSchema = z
     annotation: annotationSchema.nullable(),
   })
   .superRefine((image, context) => {
-    if (image.annotation && image.annotation.revision < 1) {
-      context.addIssue({
-        code: "custom",
-        path: ["annotation", "revision"],
-        message: "A review that has been stored is at revision 1 or later",
-      });
-    }
     for (const [field, document] of [
       ["detection", image.detection],
       ["annotation", image.annotation],

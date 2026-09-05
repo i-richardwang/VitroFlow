@@ -1,4 +1,4 @@
-import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
+import { and, eq, isNotNull, sql, type SQLWrapper } from "drizzle-orm";
 
 import { database, type Executor } from "../db/client";
 import {
@@ -9,10 +9,13 @@ import {
   annotations,
 } from "../db/schema";
 import type { DatasetImageRef } from "../datasets/schema";
-import { REVIEW_STATES, type ReviewState } from "../annotation/schema";
-import { reviewState } from "../annotation/status";
+import {
+  REVIEW_STATES,
+  reviewState,
+  type AnnotationDocument,
+  type ReviewState,
+} from "../annotation/schema";
 import type { DetectionQuality, DetectionResult } from "../detection/schema";
-import type { AnnotationDocument } from "../annotation/schema";
 import {
   membershipOrder,
   toDatasetImage,
@@ -47,7 +50,7 @@ export interface ImageRecord {
   annotation: AnnotationDocument | null;
 }
 
-/** An image whose review is complete; the annotation is present by construction. */
+/** An image that has been reviewed; the annotation is present by construction. */
 export interface ReviewedRecord extends ImageRecord {
   annotation: AnnotationDocument;
 }
@@ -141,7 +144,7 @@ export async function listImageRecords(
 }
 
 /**
- * Images whose review is complete, the only ones training may use. With
+ * Images that have been reviewed, the only ones training may use. With
  * `lock`, the memberships are share-locked so a removal waits for the
  * caller's transaction.
  */
@@ -154,7 +157,7 @@ export async function listReviewedRecords(
     .where(
       and(
         eq(datasetImages.datasetId, datasetId),
-        eq(annotations.status, "complete"),
+        isNotNull(annotations.imageId),
       ),
     )
     .orderBy(...membershipOrder());

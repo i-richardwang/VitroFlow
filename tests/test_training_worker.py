@@ -230,12 +230,6 @@ def test_snapshot_parser_validates_every_image_entry() -> None:
                 ]
             )
         )
-    incomplete = _snapshot_image("1" * 64, "val", [])
-    incomplete["annotation"] = annotation_document("1" * 64, status="in_progress")
-    with pytest.raises(ValueError, match=r"images\[0\].annotation is not complete"):
-        parse_training_snapshot(
-            _snapshot([incomplete, _snapshot_image("2" * 64, "train", [])])
-        )
 
 
 def test_training_client_rejects_snapshot_image_corruption() -> None:

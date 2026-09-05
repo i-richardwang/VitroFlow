@@ -70,7 +70,7 @@ An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. T
 
 `inference_outcomes` has one row per image and ModelVersion. A succeeded outcome contains classified boxes, including the valid zero-box case, and is immutable. A failed outcome contains the execution error and may be replaced through the explicit retry protocol; a conflicting successful result is rejected.
 
-An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened and of any inference outcome. A review begins as a copy of what one ModelVersion found and is independent of that detection from then on: detections are recomputed by every version, while the annotation changes only when a person edits it or starts it again from another detection. Only `complete` annotations enter dataset snapshots and YOLO exports. Changing a box returns the annotation to `in_progress`, and finishing the review marks it `complete` again. An image that should not train is removed from the dataset.
+An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened and of any inference outcome. A review begins from what one ModelVersion found and is independent of that detection from then on: detections are recomputed by every version, while the annotation changes only when a person stores another review. The reviewer edits a draft of the boxes and stores it once; an image is reviewed once an annotation is stored for it, and only reviewed images enter dataset snapshots and YOLO exports. An image that should not train is removed from the dataset.
 
 A Dataset travels as a manifest and the canonical images it names. The manifest carries the memberships and the annotations for the dataset's Model; another workbench imports it whole, provided it knows the Model with the same classes, holds every image, and has no dataset of that name and no annotation of those images for that Model. Detections in a manifest are informational and never imported.
 
@@ -202,7 +202,7 @@ uv run vitroflow recognize \
   --output output/recognition
 ```
 
-Evaluate or train its candidate scorer from complete annotations:
+Evaluate or train its candidate scorer from reviewed annotations:
 
 ```bash
 uv run vitroflow traditional evaluate \
@@ -215,7 +215,7 @@ uv run vitroflow traditional train \
   --output output/models/traditional-candidate
 ```
 
-Export complete human-reviewed annotations as a deterministic YOLO dataset:
+Export the reviewed annotations as a deterministic YOLO dataset:
 
 ```bash
 uv run vitroflow dataset export-yolo \

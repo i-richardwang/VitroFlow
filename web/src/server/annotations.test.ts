@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { documentFromDetection } from "../annotation/detection";
+import { instancesFromDetection } from "../annotation/detection";
+import type { AnnotationInstance } from "../annotation/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { readAnnotation, saveAnnotation } from "./annotations";
 import {
@@ -10,7 +11,7 @@ import {
   testHeartbeat,
 } from "./testing";
 
-/** Uploads one image, detects it, and returns the review as the editor opens it. */
+/** Uploads one image, detects it, and returns the boxes a review begins from. */
 async function detected(name: string, worker: string) {
   const { version } = await observeImages(name, [name]);
   const digest = await imageDigest(name);
@@ -22,54 +23,50 @@ async function detected(name: string, worker: string) {
     version,
     result,
     ref: { digest, modelId: version.modelId },
-    opened: documentFromDetection(result),
+    opening: instancesFromDetection(result),
   };
 }
 
+const box: AnnotationInstance = {
+  id: "kept",
+  class: "seed",
+  bbox: { x: 2, y: 3, width: 4, height: 5 },
+};
+
 describe("annotations", () => {
-  test("the first save stores the review the editor opened on", async () => {
-    const { ref, opened } = await detected("lb-a", "annotations-worker");
+  test("a save stores the boxes as the review; a later save replaces it", async () => {
+    const { ref, result, opening } = await detected(
+      "lb-a",
+      "annotations-worker",
+    );
     expect(await readAnnotation(ref)).toBeNull();
 
-    const created = await saveAnnotation(ref, opened);
-    expect(created).toEqual({ ...opened, revision: 1 });
-    expect(await readAnnotation(ref)).toEqual(created);
-    await expect(saveAnnotation(ref, opened)).rejects.toThrow(/stale/);
+    const stored = await saveAnnotation(ref, [...opening, box]);
+    expect(stored).toEqual({
+      schemaVersion: 1,
+      image: result.image,
+      instances: [...opening, box],
+    });
+    expect(await readAnnotation(ref)).toEqual(stored);
 
-    const emptied = await saveAnnotation(ref, { ...created, instances: [] });
-    expect(emptied.revision).toBe(2);
-    expect((await readAnnotation(ref))?.instances).toEqual([]);
+    const emptied = await saveAnnotation(ref, []);
+    expect(emptied.instances).toEqual([]);
+    expect(await readAnnotation(ref)).toEqual(emptied);
   });
 
-  test("refuses a document that describes another image", async () => {
-    const { ref, opened } = await detected("lb-b", "annotations-image-worker");
+  test("refuses a box outside the image", async () => {
+    const { ref, result } = await detected("lb-b", "annotations-image-worker");
     await expect(
-      saveAnnotation(ref, {
-        ...opened,
-        image: { ...opened.image, width: opened.image.width + 1 },
-      }),
-    ).rejects.toThrow(/describes/);
+      saveAnnotation(ref, [
+        { ...box, bbox: { ...box.bbox, x: result.image.width } },
+      ]),
+    ).rejects.toThrow(/exceeds image bounds/);
   });
 
-  test("concurrent saves of the same revision store exactly one", async () => {
-    const { ref, opened } = await detected(
-      "concurrent",
-      "annotations-concurrent-worker",
-    );
-    const started = await saveAnnotation(ref, opened);
-
-    const outcomes = await Promise.allSettled([
-      saveAnnotation(ref, { ...started, instances: [] }),
-      saveAnnotation(ref, { ...started, status: "complete" }),
-    ]);
-
-    const stored = outcomes.filter((outcome) => outcome.status === "fulfilled");
-    expect(stored).toHaveLength(1);
-    expect((await readAnnotation(ref))?.revision).toBe(started.revision + 1);
-    for (const outcome of outcomes) {
-      if (outcome.status === "rejected") {
-        expect(String(outcome.reason)).toContain("stale");
-      }
-    }
+  test("refuses a class the model does not define", async () => {
+    const { ref } = await detected("lb-c", "annotations-class-worker");
+    await expect(
+      saveAnnotation(ref, [{ ...box, class: "weed" }]),
+    ).rejects.toThrow(/unknown class/);
   });
 });
