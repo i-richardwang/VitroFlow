@@ -89,7 +89,7 @@ describe("agent operations", () => {
       "update-observation-unit",
       "delete-observation-unit",
       "assign-observation-units",
-      "void-culture-event",
+      "remove-culture-event",
       "update-observation",
       "delete-observation",
       "reassign-observation-image",
@@ -276,7 +276,7 @@ describe("agent operations", () => {
         type: "contaminated",
       }),
     ) as CultureEvent;
-    expect(contaminated.excludeFromObservation).toBe(true);
+    expect(contaminated.type).toBe("contaminated");
 
     const harvested = output(
       await callAgentOperation("record-culture-event", {
@@ -284,9 +284,8 @@ describe("agent operations", () => {
         observationUnit: second!.id,
         observation: observation.id,
         type: "harvested",
-        excludeFromObservation: true,
       }),
     ) as CultureEvent;
-    expect(harvested.excludeFromObservation).toBe(true);
+    expect(harvested.observation).toBe(observation.id);
   });
 });

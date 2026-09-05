@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
 import {
-  userBanSchema,
   userCreateSchema,
   userPasswordUpdateSchema,
   userRefSchema,
@@ -27,7 +26,7 @@ export const resetUserPassword = createServerFn({ method: "POST" })
   .handler(({ data }) => directory.setUserPassword(getRequestHeaders(), data));
 
 export const suspendUser = createServerFn({ method: "POST" })
-  .validator(userBanSchema)
+  .validator(userRefSchema)
   .handler(({ data }) => directory.banUser(getRequestHeaders(), data));
 
 export const reinstateUser = createServerFn({ method: "POST" })

@@ -1,5 +1,5 @@
 {
-  "id": "657bbf35-f867-4388-9a9d-3398b586d971",
+  "id": "6e637e8c-1951-4ed8-b7b9-d8616248eafb",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -955,33 +955,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "exclude_from_observation": {
-          "name": "exclude_from_observation",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "recorded_at": {
           "name": "recorded_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voided_at": {
-          "name": "voided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "void_reason": {
-          "name": "void_reason",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         }
@@ -1014,8 +990,8 @@
           "method": "btree",
           "with": {}
         },
-        "experiment_culture_events_one_active_kind": {
-          "name": "experiment_culture_events_one_active_kind",
+        "experiment_culture_events_one_kind": {
+          "name": "experiment_culture_events_one_kind",
           "columns": [
             {
               "expression": "experiment_id",
@@ -1043,13 +1019,12 @@
             }
           ],
           "isUnique": true,
-          "where": "\"experiment_culture_events\".\"voided_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "experiment_culture_events_one_active_terminal": {
-          "name": "experiment_culture_events_one_active_terminal",
+        "experiment_culture_events_one_terminal": {
+          "name": "experiment_culture_events_one_terminal",
           "columns": [
             {
               "expression": "experiment_id",
@@ -1065,7 +1040,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"experiment_culture_events\".\"voided_at\" is null and \"experiment_culture_events\".\"type\" in ('discarded', 'harvested', 'missing')",
+          "where": "\"experiment_culture_events\".\"type\" in ('discarded', 'harvested', 'missing')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1115,17 +1090,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "experiment_culture_events_note_check": {
-          "name": "experiment_culture_events_note_check",
-          "value": "\"experiment_culture_events\".\"note\" = btrim(\"experiment_culture_events\".\"note\") and length(\"experiment_culture_events\".\"note\") <= 500"
-        },
         "experiment_culture_events_type_check": {
           "name": "experiment_culture_events_type_check",
           "value": "\"experiment_culture_events\".\"type\" in ('contaminated', 'nonviable', 'discarded', 'harvested', 'missing')"
-        },
-        "experiment_culture_events_void_check": {
-          "name": "experiment_culture_events_void_check",
-          "value": "(\"experiment_culture_events\".\"voided_at\" is null) = (\"experiment_culture_events\".\"void_reason\" = '')"
         }
       },
       "isRLSEnabled": false

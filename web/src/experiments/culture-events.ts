@@ -6,37 +6,41 @@ import type {
 
 type ObservationOrdinals = ReadonlyMap<string, number>;
 
+/**
+ * What an event means for the unit: whether it leaves the bench, and whether
+ * its readings leave the analysis.
+ */
 interface CultureEventKind {
   label: string;
   terminal: boolean;
-  excludesFromAnalysisByDefault: boolean;
+  excludesFromAnalysis: boolean;
 }
 
 const CULTURE_EVENT_KINDS: Record<CultureEventType, CultureEventKind> = {
   contaminated: {
     label: "Contaminated",
     terminal: false,
-    excludesFromAnalysisByDefault: true,
+    excludesFromAnalysis: true,
   },
   nonviable: {
     label: "Nonviable",
     terminal: false,
-    excludesFromAnalysisByDefault: false,
+    excludesFromAnalysis: false,
   },
   discarded: {
     label: "Discarded",
     terminal: true,
-    excludesFromAnalysisByDefault: true,
+    excludesFromAnalysis: true,
   },
   harvested: {
     label: "Harvested",
     terminal: true,
-    excludesFromAnalysisByDefault: false,
+    excludesFromAnalysis: false,
   },
   missing: {
     label: "Missing",
     terminal: true,
-    excludesFromAnalysisByDefault: true,
+    excludesFromAnalysis: true,
   },
 };
 
@@ -48,10 +52,10 @@ export function cultureEventIsTerminal(type: CultureEventType): boolean {
   return CULTURE_EVENT_KINDS[type].terminal;
 }
 
-export function cultureEventExcludesFromAnalysisByDefault(
+export function cultureEventExcludesFromAnalysis(
   type: CultureEventType,
 ): boolean {
-  return CULTURE_EVENT_KINDS[type].excludesFromAnalysisByDefault;
+  return CULTURE_EVENT_KINDS[type].excludesFromAnalysis;
 }
 
 function eventOrdinal(
@@ -67,17 +71,13 @@ function eventOrdinal(
   return ordinal;
 }
 
-function activeEvents(events: readonly CultureEvent[]): CultureEvent[] {
-  return events.filter((event) => event.voidedAt === null);
-}
-
 /** A terminal event takes effect after the observation that records it. */
 export function observationUnitIsAvailableAt(
   events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
 ): boolean {
-  return !activeEvents(events).some(
+  return !events.some(
     (event) =>
       cultureEventIsTerminal(event.type) &&
       eventOrdinal(event, ordinals) < observation.ordinal,
@@ -85,29 +85,30 @@ export function observationUnitIsAvailableAt(
 }
 
 /**
- * An explicit exclusion starts in its recorded observation. Leaving the bench
- * also takes the unit out of every later analysis denominator.
+ * An exclusion starts in its recorded observation. Leaving the bench also
+ * takes the unit out of every later analysis denominator.
  */
 export function observationUnitIsIncludedInAnalysis(
   events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
 ): boolean {
-  return !activeEvents(events).some((event) => {
+  return !events.some((event) => {
     const ordinal = eventOrdinal(event, ordinals);
     return (
-      (event.excludeFromObservation && ordinal <= observation.ordinal) ||
+      (cultureEventExcludesFromAnalysis(event.type) &&
+        ordinal <= observation.ordinal) ||
       (cultureEventIsTerminal(event.type) && ordinal < observation.ordinal)
     );
   });
 }
 
 /** The latest biological event, regardless of when it was entered. */
-export function latestActiveCultureEvent(
+export function latestCultureEvent(
   events: readonly CultureEvent[],
   ordinals: ObservationOrdinals,
 ): CultureEvent | null {
-  return activeEvents(events).reduce<CultureEvent | null>((latest, event) => {
+  return events.reduce<CultureEvent | null>((latest, event) => {
     if (!latest) return event;
     const byObservation =
       eventOrdinal(event, ordinals) - eventOrdinal(latest, ordinals);

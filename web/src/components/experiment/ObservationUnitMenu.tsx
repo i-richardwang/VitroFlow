@@ -19,10 +19,7 @@ import type {
   ObservationUnit,
   ObservationUnitNavigationEntry,
 } from "../../experiments/contracts";
-import {
-  cultureEventExcludesFromAnalysisByDefault,
-  cultureEventLabel,
-} from "../../experiments/culture-events";
+import { cultureEventLabel } from "../../experiments/culture-events";
 import {
   CULTURE_EVENT_TYPES,
   observationLabel,
@@ -30,8 +27,8 @@ import {
   type ExperimentObservation,
 } from "../../experiments/schema";
 import {
-  correctCultureEvent,
   createCultureEvent,
+  deleteCultureEvent,
   editObservationUnit,
   removeObservationUnit,
 } from "../../functions/experiments";
@@ -44,7 +41,7 @@ import {
 } from "./ObservationImageDialogs";
 
 type Action =
-  "reassign" | "unassign" | "edit" | "record" | "correct" | "delete";
+  "reassign" | "unassign" | "edit" | "record" | "remove-event" | "delete";
 
 export function ObservationUnitMenu({
   experiment,
@@ -93,9 +90,9 @@ export function ObservationUnitMenu({
                 <Label>Record culture event…</Label>
               </Dropdown.Item>
             ) : null}
-            {observationUnit.events.some((event) => event.voidedAt === null) ? (
-              <Dropdown.Item id="correct" textValue="Correct culture event">
-                <Label>Correct culture event…</Label>
+            {observationUnit.events.length > 0 ? (
+              <Dropdown.Item id="remove-event" textValue="Remove culture event">
+                <Label>Remove culture event…</Label>
               </Dropdown.Item>
             ) : null}
             {image || canRemove ? <Separator orientation="horizontal" /> : null}
@@ -136,11 +133,11 @@ export function ObservationUnitMenu({
         onClose={() => setOpen(null)}
       />
 
-      <CorrectCultureEventDialog
+      <RemoveCultureEventDialog
         experiment={experiment}
         observationUnit={observationUnit}
         observations={observations}
-        isOpen={open === "correct"}
+        isOpen={open === "remove-event"}
         onClose={() => setOpen(null)}
       />
 
@@ -301,14 +298,6 @@ function RecordCultureEventForm({
   const { busy, run } = useAsyncAction();
   const [type, setType] = useState<CultureEventType>("contaminated");
   const [observation, setObservation] = useState(observations.at(-1)?.id ?? "");
-  const [exclude, setExclude] = useState(
-    cultureEventExcludesFromAnalysisByDefault(type),
-  );
-
-  const changeType = (next: CultureEventType) => {
-    setType(next);
-    setExclude(cultureEventExcludesFromAnalysisByDefault(next));
-  };
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
@@ -325,7 +314,6 @@ function RecordCultureEventForm({
                 className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const form = new FormData(event.currentTarget);
                   void run(
                     () =>
                       createCultureEvent({
@@ -334,8 +322,6 @@ function RecordCultureEventForm({
                           observationUnit: observationUnit.id,
                           type,
                           observation,
-                          excludeFromObservation: exclude,
-                          note: String(form.get("note") ?? ""),
                         },
                       }),
                     "Event not recorded",
@@ -353,7 +339,7 @@ function RecordCultureEventForm({
                   isDisabled={busy}
                   selectedKey={type}
                   onSelectionChange={(key) =>
-                    changeType(String(key) as CultureEventType)
+                    setType(String(key) as CultureEventType)
                   }
                 >
                   <Label>Event</Label>
@@ -403,43 +389,6 @@ function RecordCultureEventForm({
                     </ListBox>
                   </Select.Popover>
                 </Select>
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={exclude ? "exclude" : "include"}
-                  onSelectionChange={(key) => setExclude(key === "exclude")}
-                >
-                  <Label>Analysis</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      <ListBox.Item
-                        id="exclude"
-                        textValue="Exclude from this and later observations"
-                      >
-                        Exclude from this and later observations
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                      <ListBox.Item id="include" textValue="Keep in analysis">
-                        Keep in analysis
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                <TextField
-                  variant="secondary"
-                  fullWidth
-                  name="note"
-                  isDisabled={busy}
-                >
-                  <Label>Note</Label>
-                  <Input className="w-full" />
-                </TextField>
               </Form>
             </Modal.Body>
             <Modal.Footer>
@@ -462,7 +411,7 @@ function RecordCultureEventForm({
   );
 }
 
-function CorrectCultureEventDialog({
+function RemoveCultureEventDialog({
   experiment,
   observationUnit,
   observations,
@@ -476,7 +425,7 @@ function CorrectCultureEventDialog({
   onClose: () => void;
 }) {
   return (
-    <CorrectCultureEventForm
+    <RemoveCultureEventForm
       key={isOpen ? "open" : "closed"}
       experiment={experiment}
       observationUnit={observationUnit}
@@ -487,7 +436,7 @@ function CorrectCultureEventDialog({
   );
 }
 
-function CorrectCultureEventForm({
+function RemoveCultureEventForm({
   experiment,
   observationUnit,
   observations,
@@ -502,10 +451,16 @@ function CorrectCultureEventForm({
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const active = observationUnit.events.filter(
-    (event) => event.voidedAt === null,
-  );
-  const [event, setEvent] = useState(active.at(-1)?.id ?? "");
+  const { events } = observationUnit;
+  const [event, setEvent] = useState(events.at(-1)?.id ?? "");
+  const describe = (item: (typeof events)[number]) => {
+    const observation = observations.find(
+      (entry) => entry.id === item.observation,
+    );
+    return observation
+      ? `${cultureEventLabel(item.type)} · ${observationLabel(observation)}`
+      : cultureEventLabel(item.type);
+  };
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
@@ -514,25 +469,17 @@ function CorrectCultureEventForm({
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Correct culture event</Modal.Heading>
+              <Modal.Heading>Remove culture event</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <Form
-                id="correct-culture-event"
+                id="remove-culture-event"
                 className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(formEvent) => {
                   formEvent.preventDefault();
-                  const form = new FormData(formEvent.currentTarget);
                   void run(
-                    () =>
-                      correctCultureEvent({
-                        data: {
-                          experiment,
-                          event,
-                          reason: String(form.get("reason") ?? ""),
-                        },
-                      }),
-                    "Correction not recorded",
+                    () => deleteCultureEvent({ data: { experiment, event } }),
+                    "Event not removed",
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
@@ -540,56 +487,33 @@ function CorrectCultureEventForm({
                   });
                 }}
               >
-                {active.length > 1 ? (
-                  <Select
-                    variant="secondary"
-                    fullWidth
-                    isDisabled={busy}
-                    selectedKey={event}
-                    onSelectionChange={(key) => setEvent(String(key))}
-                  >
-                    <Label>Event</Label>
-                    <Select.Trigger>
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {active.map((item) => {
-                          const observation = observations.find(
-                            (entry) => entry.id === item.observation,
-                          );
-                          const text = [
-                            cultureEventLabel(item.type),
-                            observation ? observationLabel(observation) : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ");
-                          return (
-                            <ListBox.Item
-                              key={item.id}
-                              id={item.id}
-                              textValue={text}
-                            >
-                              {text}
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          );
-                        })}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                ) : null}
-                <TextField
+                <Select
                   variant="secondary"
                   fullWidth
-                  isRequired
                   isDisabled={busy}
-                  name="reason"
+                  selectedKey={event}
+                  onSelectionChange={(key) => setEvent(String(key))}
                 >
-                  <Label>Correction reason</Label>
-                  <Input className="w-full" />
-                </TextField>
+                  <Label>Event</Label>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {events.map((item) => (
+                        <ListBox.Item
+                          key={item.id}
+                          id={item.id}
+                          textValue={describe(item)}
+                        >
+                          {describe(item)}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
               </Form>
             </Modal.Body>
             <Modal.Footer>
@@ -598,11 +522,11 @@ function CorrectCultureEventForm({
               </Button>
               <Button
                 type="submit"
-                form="correct-culture-event"
+                form="remove-culture-event"
                 variant="danger"
                 isDisabled={busy || event === ""}
               >
-                {busy ? "Voiding…" : "Void record"}
+                {busy ? "Removing…" : "Remove event"}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

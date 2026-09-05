@@ -94,7 +94,6 @@ describe("account directory", () => {
     const target = await signInAs("member");
     const suspended = await banUser(admin.headers, {
       user: target.user.id,
-      reason: "Left the lab",
     });
     expect(suspended.banned).toBe(true);
     expect(await readSession(target.headers)).toBeNull();
@@ -102,7 +101,7 @@ describe("account directory", () => {
       sessionHeaders(target.user.email, TEST_PASSWORD),
     ).rejects.toThrow();
     await expect(
-      banUser(admin.headers, { user: admin.user.id, reason: "" }),
+      banUser(admin.headers, { user: admin.user.id }),
     ).rejects.toBeInstanceOf(UserRejectedError);
 
     const reinstated = await unbanUser(admin.headers, {

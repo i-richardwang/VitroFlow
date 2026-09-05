@@ -7,17 +7,15 @@ import {
   observationUnitRecordSchema,
   observationUnitSeriesSchema,
 } from "../experiments/contracts";
-import { cultureEventExcludesFromAnalysisByDefault } from "../experiments/culture-events";
 import {
   ExperimentNotFoundError,
   ObservationUnitNotFoundError,
 } from "../experiments/errors";
 import {
-  CULTURE_EVENT_TYPES,
   observationUnitAssignmentSchema,
   cultureEventRequestSchema,
   cultureEventSchema,
-  cultureEventVoidSchema,
+  cultureEventRefSchema,
   observationUnitBatchSchema,
   observationUnitRefSchema,
   observationUnitRequestSchema,
@@ -40,7 +38,7 @@ import {
   treatmentUpdateSchema,
 } from "../experiments/schema";
 import { modelSchema, modelVersionSchema } from "../models/schema";
-import { recordCultureEvent, voidCultureEvent } from "./culture-events";
+import { recordCultureEvent, removeCultureEvent } from "./culture-events";
 import {
   addObservationUnits,
   addTreatment,
@@ -132,13 +130,6 @@ export function command<Input extends z.ZodType, Output extends z.ZodType>(
 
 const nothing = z.strictObject({});
 const done = z.null();
-
-const excludedByDefault = CULTURE_EVENT_TYPES.filter((type) =>
-  cultureEventExcludesFromAnalysisByDefault(type),
-);
-const includedByDefault = CULTURE_EVENT_TYPES.filter(
-  (type) => !cultureEventExcludesFromAnalysisByDefault(type),
-);
 
 const operations: readonly AgentOperation[] = [
   query({
@@ -293,21 +284,21 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "record-culture-event",
     description:
-      "Record a culture event on an observation unit. When excludeFromObservation " +
-      `is omitted, the event type's default applies: ${excludedByDefault.join(", ")} ` +
-      `exclude the unit from analysis; ${includedByDefault.join(", ")} keep it included`,
+      "Record a culture event on an observation unit: contaminated, discarded, " +
+      "and missing exclude the unit from analysis from that observation on; " +
+      "discarded, harvested, and missing take it off the bench afterwards",
     destructive: false,
     input: cultureEventRequestSchema,
     output: cultureEventSchema,
     handler: (input, executor) => recordCultureEvent(input, executor),
   }),
   command({
-    name: "void-culture-event",
-    description: "Void a mistakenly recorded culture event",
+    name: "remove-culture-event",
+    description: "Erase a culture event that was recorded by mistake",
     destructive: true,
-    input: cultureEventVoidSchema,
-    output: cultureEventSchema,
-    handler: (input, executor) => voidCultureEvent(input, executor),
+    input: cultureEventRefSchema,
+    output: done,
+    handler: (input, executor) => removeCultureEvent(input, executor),
   }),
   command({
     name: "create-observation",

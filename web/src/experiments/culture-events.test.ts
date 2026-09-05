@@ -6,11 +6,11 @@ import {
   type ExperimentObservation,
 } from "./schema";
 import {
-  cultureEventExcludesFromAnalysisByDefault,
+  cultureEventExcludesFromAnalysis,
   cultureEventIsTerminal,
+  latestCultureEvent,
   observationUnitIsAvailableAt,
   observationUnitIsIncludedInAnalysis,
-  latestActiveCultureEvent,
 } from "./culture-events";
 
 const observations: ExperimentObservation[] = [
@@ -41,11 +41,7 @@ function event(overrides: Partial<CultureEvent>): CultureEvent {
     id: "d7863741-fbc8-439b-8a43-de9f3dfb613c",
     type: "discarded",
     observation: observations[0]!.id,
-    excludeFromObservation: false,
-    note: "",
     recordedAt: "2026-08-08T12:00:00.000Z",
-    voidedAt: null,
-    voidReason: "",
     ...overrides,
   };
 }
@@ -56,7 +52,7 @@ describe("observation unit event effects", () => {
       CULTURE_EVENT_TYPES.map((type) => [
         type,
         cultureEventIsTerminal(type),
-        cultureEventExcludesFromAnalysisByDefault(type),
+        cultureEventExcludesFromAnalysis(type),
       ]),
     ).toEqual([
       ["contaminated", false, true],
@@ -93,9 +89,7 @@ describe("observation unit event effects", () => {
   });
 
   test("analysis exclusion starts in the recorded observation", () => {
-    const events = [
-      event({ type: "contaminated", excludeFromObservation: true }),
-    ];
+    const events = [event({ type: "contaminated" })];
 
     expect(
       observationUnitIsAvailableAt(events, observations[0]!, ordinals),
@@ -106,23 +100,6 @@ describe("observation unit event effects", () => {
     expect(
       observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
-  });
-
-  test("voided events have no active effect", () => {
-    const events = [
-      event({
-        excludeFromObservation: true,
-        voidedAt: "2026-08-09T12:00:00.000Z",
-        voidReason: "Recorded for the wrong observation unit",
-      }),
-    ];
-
-    expect(
-      observationUnitIsAvailableAt(events, observations[1]!, ordinals),
-    ).toBeTrue();
-    expect(
-      observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
-    ).toBeTrue();
   });
 
   test("current state follows observation time rather than entry time", () => {
@@ -138,8 +115,7 @@ describe("observation unit event effects", () => {
     });
 
     expect(
-      latestActiveCultureEvent([laterObservation, retrospectiveEntry], ordinals)
-        ?.id,
+      latestCultureEvent([laterObservation, retrospectiveEntry], ordinals)?.id,
     ).toBe(laterObservation.id);
   });
 });

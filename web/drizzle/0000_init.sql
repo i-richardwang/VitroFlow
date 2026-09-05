@@ -108,15 +108,9 @@ CREATE TABLE "experiment_culture_events" (
 	"observation_unit_id" uuid NOT NULL,
 	"observation_id" uuid NOT NULL,
 	"type" text NOT NULL,
-	"exclude_from_observation" boolean NOT NULL,
-	"note" text NOT NULL,
 	"recorded_at" timestamp with time zone NOT NULL,
-	"voided_at" timestamp with time zone,
-	"void_reason" text NOT NULL,
 	CONSTRAINT "experiment_culture_events_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
-	CONSTRAINT "experiment_culture_events_note_check" CHECK ("experiment_culture_events"."note" = btrim("experiment_culture_events"."note") and length("experiment_culture_events"."note") <= 500),
-	CONSTRAINT "experiment_culture_events_type_check" CHECK ("experiment_culture_events"."type" in ('contaminated', 'nonviable', 'discarded', 'harvested', 'missing')),
-	CONSTRAINT "experiment_culture_events_void_check" CHECK (("experiment_culture_events"."voided_at" is null) = ("experiment_culture_events"."void_reason" = ''))
+	CONSTRAINT "experiment_culture_events_type_check" CHECK ("experiment_culture_events"."type" in ('contaminated', 'nonviable', 'discarded', 'harvested', 'missing'))
 );
 --> statement-breakpoint
 CREATE TABLE "experiment_observation_images" (
@@ -566,8 +560,8 @@ CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_
 CREATE INDEX "dataset_snapshot_images_image_idx" ON "dataset_snapshot_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshots_dataset_idx" ON "dataset_snapshots" USING btree ("dataset_id");--> statement-breakpoint
 CREATE INDEX "experiment_culture_events_unit_idx" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","recorded_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "experiment_culture_events_one_active_kind" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","observation_id","type") WHERE "experiment_culture_events"."voided_at" is null;--> statement-breakpoint
-CREATE UNIQUE INDEX "experiment_culture_events_one_active_terminal" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id") WHERE "experiment_culture_events"."voided_at" is null and "experiment_culture_events"."type" in ('discarded', 'harvested', 'missing');--> statement-breakpoint
+CREATE UNIQUE INDEX "experiment_culture_events_one_kind" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id","observation_id","type");--> statement-breakpoint
+CREATE UNIQUE INDEX "experiment_culture_events_one_terminal" ON "experiment_culture_events" USING btree ("experiment_id","observation_unit_id") WHERE "experiment_culture_events"."type" in ('discarded', 'harvested', 'missing');--> statement-breakpoint
 CREATE INDEX "experiment_observation_images_image_idx" ON "experiment_observation_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "experiment_observation_units_treatment_idx" ON "experiment_observation_units" USING btree ("experiment_id","treatment_id");--> statement-breakpoint
 CREATE INDEX "experiment_observations_observed_idx" ON "experiment_observations" USING btree ("experiment_id","observed_on");--> statement-breakpoint

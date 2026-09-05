@@ -113,11 +113,6 @@ export const observationUnitCodeSchema = z
     "Invalid observation unit code",
   );
 
-export const cultureEventNoteSchema = z
-  .string()
-  .trim()
-  .max(500, "Culture event note must be at most 500 characters");
-
 export const observationNoteSchema = z
   .string()
   .trim()
@@ -251,36 +246,29 @@ export type ObservationUnitAssignment = z.infer<
 
 export const cultureEventIdSchema = z.uuid();
 
+/** Something that happened to a unit, seen at an observation. */
 export const cultureEventSchema = z.strictObject({
   id: cultureEventIdSchema,
   type: cultureEventTypeSchema,
   observation: observationIdSchema,
-  excludeFromObservation: z.boolean(),
-  note: cultureEventNoteSchema,
   recordedAt: z.string().datetime({ offset: true }),
-  voidedAt: z.string().datetime({ offset: true }).nullable(),
-  voidReason: cultureEventNoteSchema,
 });
 
 export type CultureEvent = z.infer<typeof cultureEventSchema>;
 
-/** When excludeFromObservation is omitted, the event type's default applies. */
 export const cultureEventRequestSchema = observationUnitRefSchema.extend({
   type: cultureEventTypeSchema,
   observation: observationIdSchema,
-  excludeFromObservation: z.boolean().optional(),
-  note: cultureEventNoteSchema.default(""),
 });
 
 export type CultureEventRequest = z.infer<typeof cultureEventRequestSchema>;
 
-export const cultureEventVoidSchema = z.strictObject({
+export const cultureEventRefSchema = z.strictObject({
   experiment: experimentIdSchema,
   event: cultureEventIdSchema,
-  reason: cultureEventNoteSchema.min(1, "A correction reason is required"),
 });
 
-export type CultureEventVoid = z.infer<typeof cultureEventVoidSchema>;
+export type CultureEventRef = z.infer<typeof cultureEventRefSchema>;
 
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,

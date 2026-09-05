@@ -71,11 +71,7 @@ function toCultureEvent(
     id: row.id,
     type: row.type,
     observation: row.observationId,
-    excludeFromObservation: row.excludeFromObservation,
-    note: row.note,
     recordedAt: row.recordedAt.toISOString(),
-    voidedAt: row.voidedAt?.toISOString() ?? null,
-    voidReason: row.voidReason,
   });
 }
 

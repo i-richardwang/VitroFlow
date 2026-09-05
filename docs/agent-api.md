@@ -80,7 +80,7 @@ Entering one round of observation photos:
 2. `create-observation` adds the observation date, unless the grid already holds it.
 3. `POST /api/agent/images` stores each photo and returns its digest.
 4. `assign-images-to-observation` attaches the digests to observation units in that observation, keeping each source filename for traceability. Filenames may suggest unit codes, but the unit id in the assignment is authoritative.
-5. `record-culture-event` records contamination or loss observed while photographing. When the request omits `excludeFromObservation`, the event type's default applies: contaminated, discarded, and missing exclude the unit from analysis; nonviable and harvested keep it included.
+5. `record-culture-event` records contamination or loss observed while photographing. Contaminated, discarded, and missing exclude the unit from analysis from that observation on; nonviable and harvested keep it included. `remove-culture-event` erases an event recorded by mistake.
 
 Analysis needs no request: assigned images are queued for the experiment's model version automatically, and `retry-observation-image-analysis` requeues one that failed.
 

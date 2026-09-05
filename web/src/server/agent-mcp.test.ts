@@ -247,10 +247,7 @@ describe("MCP endpoint authorization", () => {
     const member = await signInAs("member");
     const { accessToken } = await authorizeMcpClient(member.headers);
     expect((await call(accessToken)).status).toBe(200);
-    await banUser(admin.headers, {
-      user: member.user.id,
-      reason: "left the lab",
-    });
+    await banUser(admin.headers, { user: member.user.id });
     expect((await call(accessToken)).status).toBe(401);
   });
 

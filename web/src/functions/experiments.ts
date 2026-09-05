@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import {
   observationUnitAssignmentSchema,
   cultureEventRequestSchema,
-  cultureEventVoidSchema,
+  cultureEventRefSchema,
   observationUnitBatchSchema,
   observationUnitRefSchema,
   observationUnitUpdateSchema,
@@ -34,7 +34,10 @@ import {
   updateExperiment,
   updateTreatment,
 } from "../server/experiment-design";
-import { recordCultureEvent, voidCultureEvent } from "../server/culture-events";
+import {
+  recordCultureEvent,
+  removeCultureEvent,
+} from "../server/culture-events";
 import * as observationImages from "../server/experiment-observation-images";
 import {
   addObservation,
@@ -116,9 +119,9 @@ export const createCultureEvent = createServerFn({ method: "POST" })
   .validator(cultureEventRequestSchema)
   .handler(({ data }) => recordCultureEvent(data));
 
-export const correctCultureEvent = createServerFn({ method: "POST" })
-  .validator(cultureEventVoidSchema)
-  .handler(({ data }) => voidCultureEvent(data));
+export const deleteCultureEvent = createServerFn({ method: "POST" })
+  .validator(cultureEventRefSchema)
+  .handler(({ data }) => removeCultureEvent(data));
 
 export const removeObservationUnit = createServerFn({ method: "POST" })
   .validator(observationUnitRefSchema)

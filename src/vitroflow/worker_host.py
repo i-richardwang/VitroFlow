@@ -5,7 +5,6 @@ import logging
 import os
 import time
 from collections import deque
-from datetime import UTC, datetime
 
 import httpx
 
@@ -110,12 +109,9 @@ def doctor_profile(name: str) -> tuple[str, ...]:
 
 
 def _write_status(name: str, state: str, *, detail: str | None = None) -> None:
+    """Records how the process last left off, and why when it failed."""
     path = profile_directory(name) / "status.json"
-    document: dict[str, object] = {
-        "state": state,
-        "pid": os.getpid(),
-        "updatedAt": datetime.now(UTC).isoformat(),
-    }
+    document: dict[str, object] = {"state": state}
     if detail:
         document["detail"] = detail
     temporary = path.with_suffix(".json.tmp")
@@ -162,6 +158,8 @@ def profile_summary(name: str) -> str:
     profile = load_profile(name)
     status = _read_status(name)
     state = str(status.get("state")) if status else "never started"
+    if status and status.get("detail"):
+        state = f"{state}: {status['detail']}"
     loaded = "loaded" if service_loaded(name) else "not loaded"
     device = profile.device or "cpu"
     return f"{name}\t{profile.role}\t{state}\t{loaded}\t{device}"

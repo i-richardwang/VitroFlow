@@ -47,7 +47,7 @@ import {
   updateTreatment,
   updateExperiment,
 } from "./experiment-design";
-import { recordCultureEvent, voidCultureEvent } from "./culture-events";
+import { recordCultureEvent, removeCultureEvent } from "./culture-events";
 import {
   assignObservationImages,
   moveObservationImage,
@@ -923,16 +923,12 @@ describe("experiments", () => {
         observationUnit: observationUnits.get("A1")!,
         type: "discarded",
         observation: day7.id,
-        excludeFromObservation: false,
-        note: "Discarded after imaging",
       }),
       recordCultureEvent({
         experiment: experiment.id,
         observationUnit: observationUnits.get("A1")!,
         type: "harvested",
         observation: day7.id,
-        excludeFromObservation: false,
-        note: "Harvested after imaging",
       }),
     ]);
     const recorded = results.filter((result) => result.status === "fulfilled");
@@ -941,10 +937,9 @@ describe("experiments", () => {
     expect(rejected).toHaveLength(1);
     expect(rejected[0]!.reason).toBeInstanceOf(ObservationUnitRejectedError);
 
-    await voidCultureEvent({
+    await removeCultureEvent({
       experiment: experiment.id,
       event: recorded[0]!.value.id,
-      reason: "Wrong terminal event",
     });
     await expect(
       recordCultureEvent({
@@ -952,13 +947,11 @@ describe("experiments", () => {
         observationUnit: observationUnits.get("A1")!,
         type: "missing",
         observation: day7.id,
-        excludeFromObservation: true,
-        note: "Unit could not be located",
       }),
     ).resolves.toMatchObject({ type: "missing" });
   });
 
-  test("culture events preserve their effects and corrections", async () => {
+  test("culture events take effect until they are removed", async () => {
     const version = await trainedVersion("exp-missing");
     const experiment = await createExperiment({
       name: "Contamination",
@@ -980,33 +973,18 @@ describe("experiments", () => {
       observationUnit: observationUnits.get("A1")!,
       type: "contaminated",
       observation: day7.id,
-      excludeFromObservation: true,
-      note: "Fungus on the medium",
     });
-    expect([
-      event.type,
-      event.observation,
-      event.excludeFromObservation,
-      event.note,
-    ]).toEqual(["contaminated", day7.id, true, "Fungus on the medium"]);
+    expect([event.type, event.observation]).toEqual(["contaminated", day7.id]);
     await expect(
       recordCultureEvent({
         experiment: experiment.id,
         observationUnit: observationUnits.get("A1")!,
         type: "contaminated",
         observation: day7.id,
-        excludeFromObservation: true,
-        note: "Duplicate",
       }),
     ).rejects.toThrow(ObservationUnitRejectedError);
 
-    const corrected = await voidCultureEvent({
-      experiment: experiment.id,
-      event: event.id,
-      reason: "Culture was clean on review",
-    });
-    expect(corrected.voidedAt).not.toBeNull();
-    expect(corrected.voidReason).toBe("Culture was clean on review");
+    await removeCultureEvent({ experiment: experiment.id, event: event.id });
 
     const day14 = await addObservation({
       experiment: experiment.id,
@@ -1018,8 +996,6 @@ describe("experiments", () => {
       observationUnit: observationUnits.get("A1")!,
       type: "discarded",
       observation: day7.id,
-      excludeFromObservation: false,
-      note: "Discarded after imaging",
     });
     const [futurePhoto] = await storeTexts(["terminal-a1"]);
     await expect(
@@ -1035,10 +1011,9 @@ describe("experiments", () => {
         ],
       }),
     ).rejects.toThrow(ObservationImageRejectedError);
-    await voidCultureEvent({
+    await removeCultureEvent({
       experiment: experiment.id,
       event: terminalEvent.id,
-      reason: "Observation unit was retained",
     });
     await assignObservationImages({
       experiment: experiment.id,
@@ -1058,8 +1033,6 @@ describe("experiments", () => {
         observationUnit: observationUnits.get("A1")!,
         type: "harvested",
         observation: day7.id,
-        excludeFromObservation: false,
-        note: "",
       }),
     ).rejects.toThrow("has records after this observation");
 
@@ -1068,8 +1041,6 @@ describe("experiments", () => {
       observationUnit: observationUnits.get("A2")!,
       type: "contaminated",
       observation: day14.id,
-      excludeFromObservation: false,
-      note: "Late contamination",
     });
     await expect(
       recordCultureEvent({
@@ -1077,8 +1048,6 @@ describe("experiments", () => {
         observationUnit: observationUnits.get("A2")!,
         type: "discarded",
         observation: day7.id,
-        excludeFromObservation: false,
-        note: "",
       }),
     ).rejects.toThrow("has records after this observation");
 
@@ -1088,8 +1057,6 @@ describe("experiments", () => {
         observationUnit: randomUUID(),
         type: "missing",
         observation: day7.id,
-        excludeFromObservation: true,
-        note: "",
       }),
     ).rejects.toThrow(ObservationUnitNotFoundError);
 
@@ -1098,9 +1065,7 @@ describe("experiments", () => {
     )
       .select()
       .from(experimentCultureEvents);
-    expect(
-      rows.some((row) => row.id === event.id && row.voidedAt !== null),
-    ).toBeTrue();
+    expect(rows.some((row) => row.id === event.id)).toBeFalse();
   });
 
   test("analyzes images under the experiment version and exposes tallies", async () => {

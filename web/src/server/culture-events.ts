@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { inTransaction, type Executor } from "../db/client";
 import {
@@ -8,7 +8,6 @@ import {
   experimentObservationImages,
 } from "../db/schema";
 import {
-  cultureEventExcludesFromAnalysisByDefault,
   cultureEventIsTerminal,
   observationUnitIsAvailableAt,
 } from "../experiments/culture-events";
@@ -20,8 +19,8 @@ import {
 } from "../experiments/errors";
 import type {
   CultureEvent,
+  CultureEventRef,
   CultureEventRequest,
-  CultureEventVoid,
 } from "../experiments/schema";
 import {
   listObservationUnits,
@@ -38,11 +37,7 @@ export async function recordCultureEvent(
     observationUnit: observationUnitId,
     observation: observationId,
     type,
-    note,
   } = value;
-  const excludeFromObservation =
-    value.excludeFromObservation ??
-    cultureEventExcludesFromAnalysisByDefault(type);
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);
@@ -61,22 +56,19 @@ export async function recordCultureEvent(
       );
     if (
       observationUnit.events.some(
-        (event) =>
-          event.voidedAt === null &&
-          event.observation === observationId &&
-          event.type === type,
+        (event) => event.observation === observationId && event.type === type,
       )
     ) {
       throw new ObservationUnitRejectedError(
         `${type} is already recorded for ${observationUnit.code} at this observation`,
       );
     }
-    const hasActiveTerminalEvent = observationUnit.events.some(
-      (event) => event.voidedAt === null && cultureEventIsTerminal(event.type),
+    const hasTerminalEvent = observationUnit.events.some((event) =>
+      cultureEventIsTerminal(event.type),
     );
-    if (cultureEventIsTerminal(type) && hasActiveTerminalEvent) {
+    if (cultureEventIsTerminal(type) && hasTerminalEvent) {
       throw new ObservationUnitRejectedError(
-        `${observationUnit.code} already has an active terminal event`,
+        `${observationUnit.code} has already left the bench`,
       );
     }
 
@@ -119,9 +111,7 @@ export async function recordCultureEvent(
           (image) => ordinalOf(image.observation) > observation.ordinal,
         ) ||
         observationUnit.events.some(
-          (event) =>
-            event.voidedAt === null &&
-            ordinalOf(event.observation) > observation.ordinal,
+          (event) => ordinalOf(event.observation) > observation.ordinal,
         );
       if (hasLaterRecord) {
         throw new ObservationUnitRejectedError(
@@ -138,11 +128,7 @@ export async function recordCultureEvent(
         observationUnitId,
         observationId,
         type,
-        excludeFromObservation,
-        note,
         recordedAt: new Date(),
-        voidedAt: null,
-        voidReason: "",
       })
       .returning();
     if (!row) throw new Error("Culture event was not recorded");
@@ -155,36 +141,24 @@ export async function recordCultureEvent(
   });
 }
 
-export async function voidCultureEvent(
-  value: CultureEventVoid,
+/** Erases an event that was recorded by mistake. */
+export async function removeCultureEvent(
+  { experiment: experimentId, event: eventId }: CultureEventRef,
   executor?: Executor,
-): Promise<CultureEvent> {
-  const { experiment: experimentId, event: eventId, reason } = value;
-  return inTransaction(executor, async (tx) => {
+): Promise<void> {
+  await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const [row] = await tx
-      .update(experimentCultureEvents)
-      .set({ voidedAt: new Date(), voidReason: reason })
+      .delete(experimentCultureEvents)
       .where(
         and(
           eq(experimentCultureEvents.experimentId, experimentId),
           eq(experimentCultureEvents.id, eventId),
-          sql`${experimentCultureEvents.voidedAt} is null`,
         ),
       )
-      .returning({
-        observationUnitId: experimentCultureEvents.observationUnitId,
-      });
+      .returning({ id: experimentCultureEvents.id });
     if (!row) {
-      throw new CultureEventNotFoundError(
-        `Unknown active culture event: ${eventId}`,
-      );
+      throw new CultureEventNotFoundError(`Unknown culture event: ${eventId}`);
     }
-    const observationUnit = (await listObservationUnits(experimentId, tx)).find(
-      (item) => item.id === row.observationUnitId,
-    );
-    const event = observationUnit?.events.find((item) => item.id === eventId);
-    if (!event) throw new Error("Voided culture event was not read back");
-    return event;
   });
 }

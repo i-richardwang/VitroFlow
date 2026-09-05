@@ -3,11 +3,9 @@ import {
   Description,
   Dropdown,
   Form,
-  Input,
   Label,
   Modal,
   Separator,
-  TextField,
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
@@ -116,11 +114,19 @@ export function UserMenu({ account }: { account: UserAccount }) {
         isOpen={open === "reset-password"}
         onClose={() => setOpen(null)}
       />
-      <SuspendDialog
-        account={account}
+      <DestructiveActionDialog
         isOpen={open === "suspend"}
-        onClose={() => setOpen(null)}
-      />
+        onOpenChange={(next) => setOpen(next ? "suspend" : null)}
+        title={`Suspend ${account.name}?`}
+        confirmLabel="Suspend user"
+        onConfirm={async () => {
+          await suspendUser({ data: { user: account.id } });
+          toast.success(`${account.name} suspended`);
+          await router.invalidate();
+        }}
+      >
+        Signed out everywhere. The account is kept.
+      </DestructiveActionDialog>
       <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
@@ -261,85 +267,6 @@ function ResetPasswordDialog({
                 isDisabled={busy}
               >
                 {busy ? "Saving…" : "Save"}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
-}
-
-function SuspendDialog({
-  account,
-  isOpen,
-  onClose,
-}: {
-  account: UserAccount;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const { busy, run } = useAsyncAction();
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.CloseTrigger />
-            <Modal.Header>
-              <Modal.Heading>Suspend {account.name}?</Modal.Heading>
-              <Description>
-                Signed out everywhere. The account is kept.
-              </Description>
-            </Modal.Header>
-            <Modal.Body key={isOpen ? "open" : "closed"}>
-              <Form
-                id="suspend-user"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  void run(
-                    () =>
-                      suspendUser({
-                        data: {
-                          user: account.id,
-                          reason: String(form.get("reason") ?? ""),
-                        },
-                      }),
-                    "User not suspended",
-                  ).then(async (result) => {
-                    if (!result.ok) return;
-                    toast.success(`${account.name} suspended`);
-                    onClose();
-                    await router.invalidate();
-                  });
-                }}
-              >
-                <TextField
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  name="reason"
-                >
-                  <Label>Reason</Label>
-                  <Input className="w-full" placeholder="Left the lab" />
-                </TextField>
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                form="suspend-user"
-                variant="danger"
-                isDisabled={busy}
-              >
-                {busy ? "Suspending…" : "Suspend"}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

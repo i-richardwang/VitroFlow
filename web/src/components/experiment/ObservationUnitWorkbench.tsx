@@ -15,7 +15,10 @@ import {
   observationLabel,
   type ObservationImageRef,
 } from "../../experiments/schema";
-import { cultureEventLabel } from "../../experiments/culture-events";
+import {
+  cultureEventLabel,
+  latestCultureEvent,
+} from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import type {
@@ -44,9 +47,15 @@ export function ObservationUnitWorkbench({
     series;
   const at = navigation.findIndex((item) => item.id === observationUnit.id);
   const title = `Observation unit ${observationUnit.code} of ${experiment.name}`;
-  const latestEvent = [...observationUnit.events]
-    .reverse()
-    .find((event) => event.voidedAt === null);
+  const latestEvent = latestCultureEvent(
+    observationUnit.events,
+    new Map(
+      series.observations.map((item) => [
+        item.observation.id,
+        item.observation.ordinal,
+      ]),
+    ),
+  );
 
   const menu = (
     <ObservationUnitMenu

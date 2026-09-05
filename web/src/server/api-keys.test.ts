@@ -88,7 +88,7 @@ describe("API keys", () => {
       scopes: ["agent"],
       expiresInDays: null,
     });
-    await banUser(admin.headers, { user: user.id, reason: "left the lab" });
+    await banUser(admin.headers, { user: user.id });
     expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
       null,
     );

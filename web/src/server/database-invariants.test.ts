@@ -13,7 +13,7 @@ import {
 import { addObservation } from "./experiment-observations";
 import { baselineVersion, registerTrainedVersion } from "./testing";
 
-test("the database rejects a second active terminal event", async () => {
+test("the database rejects a second terminal event", async () => {
   const suffix = randomUUID();
   const version = await baselineVersion();
   const experiment = await createExperiment({
@@ -52,8 +52,6 @@ test("the database rejects a second active terminal event", async () => {
     observationUnit: observationUnit!.id,
     type: "discarded",
     observation: day7.id,
-    excludeFromObservation: false,
-    note: "Discarded after imaging",
   });
 
   let rejection: unknown;
@@ -68,11 +66,7 @@ test("the database rejects a second active terminal event", async () => {
         observationUnitId: observationUnit!.id,
         observationId: day14.id,
         type: "missing",
-        excludeFromObservation: true,
-        note: "",
         recordedAt: new Date(),
-        voidedAt: null,
-        voidReason: "",
       })
       .execute();
   } catch (error) {
@@ -82,7 +76,7 @@ test("the database rejects a second active terminal event", async () => {
   const cause = (rejection as Error & { cause?: unknown }).cause;
   expect((cause as Error & { code?: string }).code).toBe("23505");
   expect((cause as Error).message).toContain(
-    "experiment_culture_events_one_active_terminal",
+    "experiment_culture_events_one_terminal",
   );
 });
 

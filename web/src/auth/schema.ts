@@ -55,10 +55,6 @@ export const userPasswordUpdateSchema = userRefSchema.extend({
   password: passwordSchema,
 });
 
-export const userBanSchema = userRefSchema.extend({
-  reason: z.string().trim().max(500),
-});
-
 export function isAdmin(user: Pick<WorkbenchUser, "role">): boolean {
   return user.role === "admin";
 }

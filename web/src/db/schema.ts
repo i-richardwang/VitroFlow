@@ -847,7 +847,7 @@ export const experimentObservationUnits = pgTable(
   ],
 );
 
-/** An observed culture event; corrections void the event without erasing it. */
+/** Something that happened to a unit, seen at an observation. */
 export const experimentCultureEvents = pgTable(
   "experiment_culture_events",
   {
@@ -856,15 +856,7 @@ export const experimentCultureEvents = pgTable(
     observationUnitId: uuid("observation_unit_id").notNull(),
     observationId: uuid("observation_id").notNull(),
     type: text("type", { enum: CULTURE_EVENT_TYPES }).notNull(),
-    /** Whether this unit leaves analysis from the recorded observation onward. */
-    excludeFromObservation: boolean("exclude_from_observation").notNull(),
-    note: text("note").notNull(),
     recordedAt: instant("recorded_at"),
-    voidedAt: timestamp("voided_at", {
-      withTimezone: true,
-      mode: "date",
-    }),
-    voidReason: text("void_reason").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
@@ -887,30 +879,18 @@ export const experimentCultureEvents = pgTable(
       table.observationUnitId,
       table.recordedAt,
     ),
-    uniqueIndex("experiment_culture_events_one_active_kind")
-      .on(
-        table.experimentId,
-        table.observationUnitId,
-        table.observationId,
-        table.type,
-      )
-      .where(sql`${table.voidedAt} is null`),
-    uniqueIndex("experiment_culture_events_one_active_terminal")
-      .on(table.experimentId, table.observationUnitId)
-      .where(
-        sql`${table.voidedAt} is null and ${table.type} in ('discarded', 'harvested', 'missing')`,
-      ),
-    check(
-      "experiment_culture_events_note_check",
-      sql`${table.note} = btrim(${table.note}) and length(${table.note}) <= 500`,
+    uniqueIndex("experiment_culture_events_one_kind").on(
+      table.experimentId,
+      table.observationUnitId,
+      table.observationId,
+      table.type,
     ),
+    uniqueIndex("experiment_culture_events_one_terminal")
+      .on(table.experimentId, table.observationUnitId)
+      .where(sql`${table.type} in ('discarded', 'harvested', 'missing')`),
     check(
       "experiment_culture_events_type_check",
       sql`${table.type} in ('contaminated', 'nonviable', 'discarded', 'harvested', 'missing')`,
-    ),
-    check(
-      "experiment_culture_events_void_check",
-      sql`(${table.voidedAt} is null) = (${table.voidReason} = '')`,
     ),
   ],
 );

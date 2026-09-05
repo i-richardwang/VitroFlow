@@ -111,16 +111,11 @@ export async function setUserPassword(
 
 export async function banUser(
   headers: Headers,
-  input: { user: string; reason: string },
+  input: { user: string },
 ): Promise<UserAccount> {
   refuseSelf(await actor(headers), input.user, "suspend");
   await readUser(input.user);
-  await (
-    await api()
-  ).banUser({
-    headers,
-    body: { userId: input.user, banReason: input.reason || undefined },
-  });
+  await (await api()).banUser({ headers, body: { userId: input.user } });
   return readUser(input.user);
 }
 
