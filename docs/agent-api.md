@@ -31,18 +31,15 @@ Every result is validated against the operation's published output schema before
 - `409` — a domain rule rejected the request, such as deleting an observation that has images.
 - `500` — a workbench defect; the body carries no detail, and the cause is in the server log.
 
-Command calls require an `Idempotency-Key` header containing a UUID:
-
 ```http
 POST /api/agent/create-observation HTTP/1.1
 Authorization: Bearer vf_…
-Idempotency-Key: 22fd73d4-3d30-4c4e-855f-8bc46f499735
 Content-Type: application/json
 
 {"experiment":"…","observedOn":"2026-09-02"}
 ```
 
-Repeating the same operation and input with the same key returns the original result. Reusing a key for a different request answers 409. Read operations need no key.
+Every record an agent can create is named by something it already knows: an experiment by its name, a treatment by its name within the experiment, an observation by its date, an observation unit by its code, an image by its digest. Repeating a create therefore answers 409 rather than making a second record, so a call whose response was lost is safe to send again.
 
 Image upload posts the raw source bytes as the request body with an exact `Content-Length`, up to 64 MiB. The image is canonicalized on entry, and the returned digest identifies the canonical bytes; identical uploads are idempotent.
 
@@ -52,16 +49,10 @@ Image upload posts the raw source bytes as the request body with an exact `Conte
 
 The workbench is the OAuth 2.1 authorization server for its own MCP endpoint. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/mcp`. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
 
-Read tools take the operation input directly. Command tools take an idempotency envelope:
+Every tool takes the operation input directly:
 
 ```json
-{
-  "idempotencyKey": "22fd73d4-3d30-4c4e-855f-8bc46f499735",
-  "input": {
-    "experiment": "…",
-    "observedOn": "2026-09-02"
-  }
-}
+{ "experiment": "…", "observedOn": "2026-09-02" }
 ```
 
 Connect with:
@@ -84,6 +75,6 @@ Entering one round of observation photos:
 
 Analysis needs no request: assigned images are queued for the experiment's model version automatically, and `retry-observation-image-analysis` requeues one that failed.
 
-## Attribution
+## Transactions
 
-Each successful command stores one immutable execution record in the same database transaction as the domain change. It is both the idempotency record and the audit record, identifying the account, API key or MCP client, operation, validated input, validated output, key, and time. Failed commands roll back both the domain change and the reservation. Image upload only stages immutable content by digest; assigning that content to an observation is the audited command. Secrets are never part of an operation input or execution record.
+A command runs in one database transaction: it either changes the record as a whole or leaves it untouched. Image upload only stages immutable content by digest; assigning that content to an observation is the command that changes the record.

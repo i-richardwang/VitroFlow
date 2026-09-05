@@ -390,55 +390,6 @@ export const oauthClientAssertions = pgTable("oauth_client_assertions", {
   expiresAt: instant("expires_at"),
 });
 
-/**
- * One successful programmatic command: its replay identity and audit record.
- * The row is reserved and completed in the same transaction as the domain
- * change, so incomplete and failed commands never become durable history.
- */
-export const agentExecutions = pgTable(
-  "agent_executions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    principalKind: text("principal_kind").notNull(),
-    credentialId: text("credential_id").notNull(),
-    userId: text("user_id").notNull(),
-    idempotencyKey: text("idempotency_key").notNull(),
-    operation: text("operation").notNull(),
-    requestHash: text("request_hash").notNull(),
-    input: jsonb("input").notNull(),
-    response: jsonb("response"),
-    createdAt: instant("created_at"),
-    completedAt: optionalInstant("completed_at"),
-  },
-  (table) => [
-    uniqueIndex("agent_executions_principal_key_idx").on(
-      table.principalKind,
-      table.credentialId,
-      table.idempotencyKey,
-    ),
-    index("agent_executions_user_created_idx").on(
-      table.userId,
-      table.createdAt,
-    ),
-    index("agent_executions_operation_created_idx").on(
-      table.operation,
-      table.createdAt,
-    ),
-    check(
-      "agent_executions_principal_kind_check",
-      sql`${table.principalKind} in ('api_key', 'mcp_client')`,
-    ),
-    check(
-      "agent_executions_hash_check",
-      sql`${table.requestHash} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      "agent_executions_completion_check",
-      sql`(${table.response} is null) = (${table.completedAt} is null)`,
-    ),
-  ],
-);
-
 export const models = pgTable("models", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -673,7 +624,13 @@ export const experiments = pgTable(
   "experiments",
   {
     id: uuid("id").primaryKey(),
+    /** Names one experiment in the notebook; two cannot read the same. */
     name: text("name").notNull(),
+    nameKey: text("name_key")
+      .notNull()
+      .generatedAlwaysAs(
+        sql`trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))`,
+      ),
     /** The plant under culture: species, cultivar, or line. */
     plantMaterial: text("plant_material").notNull(),
     /** The type of tissue used to initiate the observation units. */
@@ -692,9 +649,10 @@ export const experiments = pgTable(
   (table) => [
     index("experiments_version_idx").on(table.modelVersionId),
     unique("experiments_id_inoculated").on(table.id, table.inoculatedOn),
+    unique("experiments_name").on(table.nameKey),
     check(
       "experiments_name_check",
-      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120`,
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 120 and ${table.nameKey} <> ''`,
     ),
     check(
       "experiments_plant_material_check",

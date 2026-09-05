@@ -17,6 +17,7 @@ import {
   ObservationUnitNotFoundError,
   ObservationUnitRejectedError,
   ExperimentHasRecordsError,
+  ExperimentRejectedError,
   ExperimentNotFoundError,
   ExperimentObservationImageAlreadyUsedError,
   ObservationImageRejectedError,
@@ -208,20 +209,21 @@ describe("experiments", () => {
     expect(experiment.inoculatedOn).toBe(INOCULATED);
   });
 
-  test("have server-owned identities, user-facing names, and one fixed version", async () => {
+  test("have server-owned identities, one name each, and one fixed version", async () => {
     const version = await trainedVersion("exp-kind");
     const first = await createExperiment({
       name: "  Germination A  ",
       inoculatedOn: INOCULATED,
       modelVersionId: version.id,
     });
-    const second = await createExperiment({
-      name: "Germination A",
-      inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
-    });
+    await expect(
+      createExperiment({
+        name: "germination a",
+        inoculatedOn: INOCULATED,
+        modelVersionId: version.id,
+      }),
+    ).rejects.toThrow(ExperimentRejectedError);
 
-    expect(first.id).not.toBe(second.id);
     expect(first.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );

@@ -15,6 +15,7 @@ import type { ObservationUnitRecord } from "../experiments/contracts";
 import {
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
+  ExperimentRejectedError,
   ModelVersionNotFoundError,
   ObservationRejectedError,
   ObservationUnitNotFoundError,
@@ -23,6 +24,7 @@ import {
   TreatmentRejectedError,
 } from "../experiments/errors";
 import {
+  experimentNameKey,
   observationUnitCodeKey,
   replicateCodes,
   treatmentNameKey,
@@ -72,6 +74,7 @@ export async function createExperiment(
         `Unknown model version: ${modelVersionId}`,
       );
     }
+    await refuseTakenName(value.name, null, tx);
     const [row] = await tx
       .insert(experiments)
       .values({ ...value, id: randomUUID(), createdAt: new Date() })
@@ -79,6 +82,22 @@ export async function createExperiment(
     if (!row) throw new Error("Experiment was not created");
     return toExperiment(row);
   });
+}
+
+/** Two experiments cannot read the same name, however it is spaced or cased. */
+async function refuseTakenName(
+  name: string,
+  experimentId: string | null,
+  tx: Executor,
+): Promise<void> {
+  const [taken] = await tx
+    .select({ id: experiments.id })
+    .from(experiments)
+    .where(eq(experiments.nameKey, experimentNameKey(name)))
+    .limit(1);
+  if (taken && taken.id !== experimentId) {
+    throw new ExperimentRejectedError(`Experiment ${name} already exists`);
+  }
 }
 
 export async function updateExperiment(
@@ -105,6 +124,7 @@ export async function updateExperiment(
         );
       }
     }
+    await refuseTakenName(page.name, experimentId, tx);
     const [row] = await tx
       .update(experiments)
       .set(page)

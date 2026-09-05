@@ -1,5 +1,5 @@
 {
-  "id": "2678ab38-506d-4b7c-8394-b424c3dd46e1",
+  "id": "8fc2176e-179a-4e1a-a37f-eb29f7957970",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -150,169 +150,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.agent_executions": {
-      "name": "agent_executions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "principal_kind": {
-          "name": "principal_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operation": {
-          "name": "operation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_hash": {
-          "name": "request_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "input": {
-          "name": "input",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "response": {
-          "name": "response",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "agent_executions_principal_key_idx": {
-          "name": "agent_executions_principal_key_idx",
-          "columns": [
-            {
-              "expression": "principal_kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "credential_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "idempotency_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agent_executions_user_created_idx": {
-          "name": "agent_executions_user_created_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agent_executions_operation_created_idx": {
-          "name": "agent_executions_operation_created_idx",
-          "columns": [
-            {
-              "expression": "operation",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "agent_executions_principal_kind_check": {
-          "name": "agent_executions_principal_kind_check",
-          "value": "\"agent_executions\".\"principal_kind\" in ('api_key', 'mcp_client')"
-        },
-        "agent_executions_hash_check": {
-          "name": "agent_executions_hash_check",
-          "value": "\"agent_executions\".\"request_hash\" ~ '^[0-9a-f]{64}$'"
-        },
-        "agent_executions_completion_check": {
-          "name": "agent_executions_completion_check",
-          "value": "(\"agent_executions\".\"response\" is null) = (\"agent_executions\".\"completed_at\" is null)"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.annotations": {
@@ -1596,6 +1433,16 @@
           "primaryKey": false,
           "notNull": true
         },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))",
+            "type": "stored"
+          }
+        },
         "plant_material": {
           "name": "plant_material",
           "type": "text",
@@ -1680,13 +1527,20 @@
             "id",
             "inoculated_on"
           ]
+        },
+        "experiments_name": {
+          "name": "experiments_name",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name_key"
+          ]
         }
       },
       "policies": {},
       "checkConstraints": {
         "experiments_name_check": {
           "name": "experiments_name_check",
-          "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120"
+          "value": "\"experiments\".\"name\" = btrim(\"experiments\".\"name\") and length(\"experiments\".\"name\") between 1 and 120 and \"experiments\".\"name_key\" <> ''"
         },
         "experiments_plant_material_check": {
           "name": "experiments_plant_material_check",

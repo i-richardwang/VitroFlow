@@ -1,100 +1,39 @@
 import { describe, expect, test } from "bun:test";
-import { count, eq } from "drizzle-orm";
 
-import { database } from "../db/client";
-import { agentExecutions } from "../db/schema";
 import { executeAgentOperation } from "./agent-execution";
-import type { ProgrammaticPrincipal } from "./programmatic-access";
 import { baselineVersion } from "./testing";
 
-const principal: ProgrammaticPrincipal = {
-  kind: "api_key",
-  userId: "agent-execution-user",
-  credentialId: "agent-execution-key",
-};
-
 describe("agent execution", () => {
-  test("commands require a UUID idempotency key", async () => {
+  test("a command that fails leaves nothing behind", async () => {
     const version = await baselineVersion();
-    const result = await executeAgentOperation(
-      "create-experiment",
-      {
-        name: "Missing idempotency",
-        inoculatedOn: "2026-09-01",
-        modelVersionId: version.id,
-      },
-      principal,
-      null,
-    );
-    expect(result).toEqual({
-      ok: false,
-      code: "invalid_request",
-      message: "Idempotency-Key must be a UUID for command operations",
+    const name = `Partial ${crypto.randomUUID()}`;
+    const result = await executeAgentOperation("create-experiment", {
+      name,
+      inoculatedOn: "2026-09-01",
+      modelVersionId: "not-a-model",
     });
+    expect(result).toMatchObject({ ok: false, code: "not_found" });
+
+    const created = await executeAgentOperation("create-experiment", {
+      name,
+      inoculatedOn: "2026-09-01",
+      modelVersionId: version.id,
+    });
+    expect(created.ok).toBe(true);
   });
 
-  test("a repeated command returns one result and records one execution", async () => {
+  test("a repeated command is refused by the record it would duplicate", async () => {
     const version = await baselineVersion();
-    const key = crypto.randomUUID();
     const input = {
-      name: `Idempotent ${key}`,
+      name: `Twice ${crypto.randomUUID()}`,
       inoculatedOn: "2026-09-01",
       modelVersionId: version.id,
     };
-    const first = await executeAgentOperation(
-      "create-experiment",
-      input,
-      principal,
-      key,
+    expect((await executeAgentOperation("create-experiment", input)).ok).toBe(
+      true,
     );
-    const repeated = await executeAgentOperation(
-      "create-experiment",
-      input,
-      principal,
-      key,
-    );
-    expect(first.ok).toBe(true);
-    expect(repeated).toEqual(first);
-
-    const db = await database();
-    const executions = await db
-      .select()
-      .from(agentExecutions)
-      .where(eq(agentExecutions.idempotencyKey, key));
-    expect(executions).toHaveLength(1);
-    expect(executions[0]).toMatchObject({
-      operation: "create-experiment",
-      input,
-      response: { output: first.ok ? first.output : undefined },
-    });
-
-    const conflict = await executeAgentOperation(
-      "create-experiment",
-      { ...input, name: `${input.name} changed` },
-      principal,
-      key,
-    );
-    expect(conflict).toMatchObject({ ok: false, code: "conflict" });
-  });
-
-  test("failed commands leave no execution record", async () => {
-    const key = crypto.randomUUID();
-    const result = await executeAgentOperation(
-      "create-experiment",
-      {
-        name: "Unknown model",
-        inoculatedOn: "2026-09-01",
-        modelVersionId: "not-a-model",
-      },
-      principal,
-      key,
-    );
-    expect(result).toMatchObject({ ok: false, code: "not_found" });
-    const db = await database();
-    const [requests] = await db
-      .select({ total: count() })
-      .from(agentExecutions)
-      .where(eq(agentExecutions.idempotencyKey, key));
-    expect(requests?.total).toBe(0);
+    expect(
+      await executeAgentOperation("create-experiment", input),
+    ).toMatchObject({ ok: false, code: "conflict" });
   });
 });

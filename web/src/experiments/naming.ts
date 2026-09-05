@@ -57,6 +57,10 @@ function normalizedDesignKey(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
+export function experimentNameKey(name: string): string {
+  return normalizedDesignKey(name);
+}
+
 export function treatmentNameKey(name: string): string {
   return normalizedDesignKey(name);
 }

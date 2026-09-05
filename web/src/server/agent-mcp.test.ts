@@ -114,27 +114,23 @@ describe("agent MCP surface", () => {
     });
   });
 
-  test("a mutation carries an explicit idempotency envelope", async () => {
+  test("a mutation takes the operation input directly", async () => {
     const version = await baselineVersion();
-    const idempotencyKey = crypto.randomUUID();
+    const name = `MCP ${crypto.randomUUID()}`;
     const params = {
       name: "create-experiment",
       arguments: {
-        idempotencyKey,
-        input: {
-          name: `MCP ${idempotencyKey}`,
-          inoculatedOn: "2026-09-02",
-          modelVersionId: version.id,
-        },
+        name,
+        inoculatedOn: "2026-09-02",
+        modelVersionId: version.id,
       },
     };
-    const first = (await rpc("tools/call", params)) as {
-      structuredContent: { id: string };
+    const created = (await rpc("tools/call", params)) as {
+      structuredContent: { name: string };
     };
-    const repeated = (await rpc("tools/call", params)) as {
-      structuredContent: { id: string };
-    };
-    expect(repeated.structuredContent.id).toBe(first.structuredContent.id);
+    expect(created.structuredContent.name).toBe(name);
+    const repeated = (await rpc("tools/call", params)) as { isError?: boolean };
+    expect(repeated.isError).toBe(true);
   });
 });
 

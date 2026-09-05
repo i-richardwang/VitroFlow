@@ -17,9 +17,9 @@ database repositories, immutable blob storage, and external runtimes
 
 ## Agent control plane
 
-`agent-operations.ts` is a protocol-neutral catalog. An entry declares a query or command, whether a command is destructive, its input/output contracts, and its handler. `agent-execution.ts` is the only production execution boundary: it parses input once, classifies domain failures, validates output, and gives commands transactional idempotency and attribution.
+`agent-operations.ts` is a protocol-neutral catalog. An entry declares a query or command, whether a command is destructive, its input/output contracts, and its handler. `agent-execution.ts` is the only production execution boundary: it parses input once, runs a command in one transaction, classifies domain failures, and validates output.
 
-HTTP maps failure codes to status codes. MCP derives tool annotations and formats tool errors. Neither choice leaks back into the catalog. A successful command and its domain change commit with one `agent_executions` row; failed commands leave neither a reservation nor an audit record.
+HTTP maps failure codes to status codes. MCP derives tool annotations and formats tool errors. Neither choice leaks back into the catalog. A failed command leaves the record as it was.
 
 ## Worker control planes
 

@@ -15,23 +15,6 @@ CREATE TABLE "accounts" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "agent_executions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"principal_kind" text NOT NULL,
-	"credential_id" text NOT NULL,
-	"user_id" text NOT NULL,
-	"idempotency_key" text NOT NULL,
-	"operation" text NOT NULL,
-	"request_hash" text NOT NULL,
-	"input" jsonb NOT NULL,
-	"response" jsonb,
-	"created_at" timestamp with time zone NOT NULL,
-	"completed_at" timestamp with time zone,
-	CONSTRAINT "agent_executions_principal_kind_check" CHECK ("agent_executions"."principal_kind" in ('api_key', 'mcp_client')),
-	CONSTRAINT "agent_executions_hash_check" CHECK ("agent_executions"."request_hash" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "agent_executions_completion_check" CHECK (("agent_executions"."response" is null) = ("agent_executions"."completed_at" is null))
-);
---> statement-breakpoint
 CREATE TABLE "annotations" (
 	"image_id" text NOT NULL,
 	"model_id" text NOT NULL,
@@ -174,6 +157,7 @@ CREATE TABLE "experiment_treatments" (
 CREATE TABLE "experiments" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
+	"name_key" text GENERATED ALWAYS AS (trim(both '-' from lower(regexp_replace(normalize(name, NFKC), '[-[:space:]._]+', '-', 'g')))) STORED NOT NULL,
 	"plant_material" text NOT NULL,
 	"explant_type" text NOT NULL,
 	"base_medium" text NOT NULL,
@@ -182,7 +166,8 @@ CREATE TABLE "experiments" (
 	"model_version_id" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "experiments_id_inoculated" UNIQUE("id","inoculated_on"),
-	CONSTRAINT "experiments_name_check" CHECK ("experiments"."name" = btrim("experiments"."name") and length("experiments"."name") between 1 and 120),
+	CONSTRAINT "experiments_name" UNIQUE("name_key"),
+	CONSTRAINT "experiments_name_check" CHECK ("experiments"."name" = btrim("experiments"."name") and length("experiments"."name") between 1 and 120 and "experiments"."name_key" <> ''),
 	CONSTRAINT "experiments_plant_material_check" CHECK ("experiments"."plant_material" = btrim("experiments"."plant_material") and length("experiments"."plant_material") <= 120),
 	CONSTRAINT "experiments_explant_type_check" CHECK ("experiments"."explant_type" = btrim("experiments"."explant_type") and length("experiments"."explant_type") <= 120),
 	CONSTRAINT "experiments_base_medium_check" CHECK ("experiments"."base_medium" = btrim("experiments"."base_medium") and length("experiments"."base_medium") <= 200),
@@ -549,9 +534,6 @@ ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_id_at
 ALTER TABLE "training_workers" ADD CONSTRAINT "training_workers_current_training_run_id_training_runs_id_fk" FOREIGN KEY ("current_training_run_id") REFERENCES "public"."training_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_user_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "accounts_issuer_account_idx" ON "accounts" USING btree ("issuer","account_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "agent_executions_principal_key_idx" ON "agent_executions" USING btree ("principal_kind","credential_id","idempotency_key");--> statement-breakpoint
-CREATE INDEX "agent_executions_user_created_idx" ON "agent_executions" USING btree ("user_id","created_at");--> statement-breakpoint
-CREATE INDEX "agent_executions_operation_created_idx" ON "agent_executions" USING btree ("operation","created_at");--> statement-breakpoint
 CREATE INDEX "api_keys_reference_idx" ON "api_keys" USING btree ("reference_id");--> statement-breakpoint
 CREATE INDEX "api_keys_key_idx" ON "api_keys" USING btree ("key");--> statement-breakpoint
 CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_id");--> statement-breakpoint

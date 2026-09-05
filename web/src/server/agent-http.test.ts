@@ -10,14 +10,7 @@ import {
 } from "./agent-http";
 import { agentOperations, command } from "./agent-operations";
 import { issueApiKey } from "./api-keys";
-import type { ProgrammaticPrincipal } from "./programmatic-access";
 import { apiKeyHeaders, signInAs } from "./testing";
-
-const principal: ProgrammaticPrincipal = {
-  kind: "api_key",
-  userId: "user-1",
-  credentialId: "key-1",
-};
 
 function post(body?: string): Request {
   return new Request("http://workbench/api/agent/op", {
@@ -70,11 +63,7 @@ describe("agent HTTP surface", () => {
   });
 
   test("an empty body calls the operation with no input", async () => {
-    const response = await handleAgentOperationCall(
-      "list-experiments",
-      post(),
-      principal,
-    );
+    const response = await handleAgentOperationCall("list-experiments", post());
     expect(response.status).toBe(200);
     const { result } = (await response.json()) as { result: unknown };
     expect(Array.isArray(result)).toBe(true);
@@ -84,7 +73,6 @@ describe("agent HTTP surface", () => {
     const response = await handleAgentOperationCall(
       "list-experiments",
       post("not json"),
-      principal,
     );
     expect(response.status).toBe(400);
     const { error } = (await response.json()) as {
@@ -97,11 +85,7 @@ describe("agent HTTP surface", () => {
   });
 
   test("an unknown operation answers 404 naming the known ones", async () => {
-    const response = await handleAgentOperationCall(
-      "open-portal",
-      post("{}"),
-      principal,
-    );
+    const response = await handleAgentOperationCall("open-portal", post("{}"));
     expect(response.status).toBe(404);
     const { error } = (await response.json()) as {
       error: { code: string; message: string };
@@ -114,7 +98,6 @@ describe("agent HTTP surface", () => {
     const response = await handleAgentOperationCall(
       "create-experiment",
       post(JSON.stringify({ name: "" })),
-      principal,
     );
     expect(response.status).toBe(400);
     const { error } = (await response.json()) as {
@@ -141,10 +124,8 @@ describe("agent HTTP surface", () => {
         "defective",
         new Request("http://workbench/api/agent/defective", {
           method: "POST",
-          headers: { "idempotency-key": crypto.randomUUID() },
           body: "{}",
         }),
-        principal,
         registry,
       );
       expect(response.status).toBe(500);

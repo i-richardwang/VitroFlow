@@ -17,26 +17,12 @@ import {
 } from "./agent-operations";
 import { baselineVersion } from "./testing";
 
-const testPrincipal = {
-  kind: "api_key" as const,
-  userId: "agent-operations-test",
-  credentialId: "agent-operations-test",
-};
-
 function callAgentOperation(
   name: string,
   input: unknown,
   registry: ReadonlyMap<string, AgentOperation> = agentOperations,
 ): Promise<AgentCallResult> {
-  const idempotencyKey =
-    registry.get(name)?.kind === "command" ? crypto.randomUUID() : null;
-  return executeAgentOperation(
-    name,
-    input,
-    testPrincipal,
-    idempotencyKey,
-    registry,
-  );
+  return executeAgentOperation(name, input, registry);
 }
 
 function output(result: AgentCallResult): unknown {

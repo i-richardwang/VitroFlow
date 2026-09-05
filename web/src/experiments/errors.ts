@@ -12,6 +12,7 @@ export class TreatmentNotFoundError extends NotFoundError {}
 export class ObservationUnitNotFoundError extends NotFoundError {}
 export class CultureEventNotFoundError extends NotFoundError {}
 
+export class ExperimentRejectedError extends ConflictError {}
 export class ExperimentHasRecordsError extends ConflictError {}
 export class ImagesNotStoredError extends ConflictError {}
 export class ObservationRejectedError extends ConflictError {}

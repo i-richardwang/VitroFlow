@@ -30,7 +30,6 @@ export async function agentApiPrincipal(
 export async function handleAgentOperationCall(
   operation: string,
   request: Request,
-  principal: ProgrammaticPrincipal,
   registry: ReadonlyMap<string, AgentOperation> = agentOperations,
 ): Promise<Response> {
   let input: unknown = {};
@@ -50,13 +49,7 @@ export async function handleAgentOperationCall(
       );
     }
   }
-  const outcome = await executeAgentOperation(
-    operation,
-    input,
-    principal,
-    request.headers.get("idempotency-key"),
-    registry,
-  );
+  const outcome = await executeAgentOperation(operation, input, registry);
   return outcome.ok
     ? Response.json({ result: outcome.output })
     : Response.json(
@@ -72,14 +65,12 @@ export async function serveAgentOperationCall(
   const principal = await agentApiPrincipal(request);
   return principal instanceof Response
     ? principal
-    : handleAgentOperationCall(operation, request, principal);
+    : handleAgentOperationCall(operation, request);
 }
 
 export function describeAgentInterface(): Response {
   return Response.json({
     call: "POST /api/agent/<name> with the operation's JSON input",
-    idempotency:
-      "Command calls require an Idempotency-Key header containing a UUID",
     upload:
       "POST image bytes to /api/agent/images to obtain the digest assign-images-to-observation expects",
     operations: describeAgentOperations(),
