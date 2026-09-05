@@ -4,15 +4,8 @@ import { apiRequestAuthorization } from "./api-credentials";
 import { issueApiKey } from "./api-keys";
 import { apiKeyHeaders, signInAs } from "./testing";
 
-const WORKER_CREDENTIALS = [
-  "VITROFLOW_INFERENCE_WORKER_TOKEN",
-  "VITROFLOW_TRAINING_WORKER_TOKEN",
-] as const;
-
 afterEach(() => {
-  for (const credential of WORKER_CREDENTIALS) {
-    delete process.env[credential];
-  }
+  delete process.env.VITROFLOW_WORKER_TOKEN;
 });
 
 function bearer(token?: string): Request {
@@ -28,31 +21,26 @@ describe("API credentials", () => {
     }
   });
 
-  test("worker realms admit only their own credential", async () => {
-    process.env.VITROFLOW_INFERENCE_WORKER_TOKEN = "inference-secret";
-    process.env.VITROFLOW_TRAINING_WORKER_TOKEN = "training-secret";
-    const realms = [
-      ["/api/inference/claims", "inference-secret"],
-      ["/api/training/claims", "training-secret"],
-    ] as const;
-    for (const [pathname, token] of realms) {
-      expect(await apiRequestAuthorization(pathname, bearer(token))).toBe(true);
+  test("the worker realm admits only the worker credential", async () => {
+    process.env.VITROFLOW_WORKER_TOKEN = "worker-secret";
+    for (const pathname of [
+      "/api/worker/heartbeat",
+      "/api/worker/inference/claim",
+      "/api/worker/training/claim",
+    ]) {
+      expect(
+        await apiRequestAuthorization(pathname, bearer("worker-secret")),
+      ).toBe(true);
       expect(await apiRequestAuthorization(pathname, bearer("wrong"))).toBe(
         false,
       );
       expect(await apiRequestAuthorization(pathname, bearer())).toBe(false);
     }
-    expect(
-      await apiRequestAuthorization(
-        "/api/training/claims",
-        bearer("inference-secret"),
-      ),
-    ).toBe(false);
   });
 
   test("an unconfigured worker realm is closed", async () => {
     expect(
-      await apiRequestAuthorization("/api/inference/claims", bearer("any")),
+      await apiRequestAuthorization("/api/worker/heartbeat", bearer("any")),
     ).toBe(false);
   });
 

@@ -1,15 +1,4 @@
-import {
-  and,
-  asc,
-  eq,
-  exists,
-  gt,
-  inArray,
-  isNull,
-  lte,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
 import {
@@ -18,7 +7,6 @@ import {
   images,
   inferenceJobs,
   inferenceOutcomes,
-  inferenceWorkers,
   modelVersions,
 } from "../db/schema";
 import {
@@ -32,7 +20,6 @@ import {
   type InferenceAssignment,
 } from "../inference/assignments";
 import { sameRuntimeDescriptor } from "../inference/schema";
-import type { InferenceWorkerRecord } from "../inference/workers";
 import { canonicalJson } from "../json/canonical";
 import { assertInstanceClasses } from "../models/metrics";
 import {
@@ -40,9 +27,11 @@ import {
   type Model,
   type ModelArtifact,
 } from "../models/schema";
+import type { Worker, WorkerIdentity } from "../workers/schema";
 import { lockDetection } from "./detection-lock";
 import { assertDocumentImage } from "./image-documents";
 import { readModel, toModelVersion } from "./model-registry";
+import { currentWorkerSession, sessionIsCurrent } from "./workers";
 
 /** One image under one model version: the pair a detection is recorded for. */
 export interface DetectionTarget {
@@ -74,7 +63,7 @@ function sameDocument(left: DetectionResult, right: DetectionResult): boolean {
 async function assertProducer(
   target: DetectionTarget,
   outcome: InferenceOutcome,
-  worker: Pick<InferenceWorkerRecord, "runtimes">,
+  worker: Pick<Worker, "runtimes">,
   tx: Executor,
 ): Promise<Model> {
   const { producer } = outcome;
@@ -131,7 +120,7 @@ async function assertProducer(
 async function storeInferenceOutcome(
   target: DetectionTarget,
   outcome: InferenceOutcome,
-  worker: Pick<InferenceWorkerRecord, "runtimes">,
+  worker: Pick<Worker, "runtimes">,
   tx: Executor,
 ): Promise<InferenceOutcome> {
   await lockDetection(target.digest, target.versionId, tx);
@@ -212,7 +201,7 @@ async function storeInferenceOutcome(
 export async function recordInferenceOutcome(
   target: DetectionTarget,
   outcome: InferenceOutcome,
-  worker: Pick<InferenceWorkerRecord, "runtimes">,
+  worker: Pick<Worker, "runtimes">,
 ): Promise<InferenceOutcome> {
   return transaction(async (tx) => {
     const stored = await storeInferenceOutcome(target, outcome, worker, tx);
@@ -232,13 +221,13 @@ export async function recordInferenceOutcome(
 export async function completeInferenceClaim(
   target: DetectionTarget,
   outcome: InferenceOutcome,
-  worker: Pick<InferenceWorkerRecord, "workerId" | "sessionId" | "runtimes">,
+  worker: Pick<Worker, "workerId" | "sessionId" | "runtimes">,
   at: Date = new Date(),
 ): Promise<InferenceOutcome> {
   return transaction(async (tx) => {
     const [consumed] = await tx
       .delete(inferenceJobs)
-      .where(ownedActiveInferenceClaim(tx, target, worker, at))
+      .where(ownedActiveInferenceClaim(target, worker, at))
       .returning({ imageId: inferenceJobs.imageId });
     if (!consumed) {
       throw new InferenceClaimRejectedError(
@@ -274,9 +263,8 @@ function inferenceLeaseUntil(at: Date): Date {
 }
 
 function ownedActiveInferenceClaim(
-  db: Executor,
   target: DetectionTarget,
-  owner: Pick<InferenceWorkerRecord, "workerId" | "sessionId">,
+  owner: Pick<Worker, "workerId" | "sessionId">,
   at: Date,
 ) {
   return and(
@@ -285,24 +273,14 @@ function ownedActiveInferenceClaim(
     eq(inferenceJobs.workerId, owner.workerId),
     eq(inferenceJobs.sessionId, owner.sessionId),
     gt(inferenceJobs.leaseExpiresAt, at),
-    exists(
-      db
-        .select({ workerId: inferenceWorkers.id })
-        .from(inferenceWorkers)
-        .where(
-          and(
-            eq(inferenceWorkers.id, owner.workerId),
-            eq(inferenceWorkers.sessionId, owner.sessionId),
-          ),
-        ),
-    ),
+    sessionIsCurrent(owner),
   );
 }
 
 /** Extend one live claim, but never revive an expired or superseded lease. */
 export async function renewInferenceClaim(
   target: DetectionTarget,
-  owner: Pick<InferenceWorkerRecord, "workerId" | "sessionId">,
+  owner: Pick<Worker, "workerId" | "sessionId">,
   at: Date = new Date(),
 ): Promise<{ leaseExpiresAt: string }> {
   const db = await database();
@@ -310,7 +288,7 @@ export async function renewInferenceClaim(
   const [renewed] = await db
     .update(inferenceJobs)
     .set({ leaseExpiresAt })
-    .where(ownedActiveInferenceClaim(db, target, owner, at))
+    .where(ownedActiveInferenceClaim(target, owner, at))
     .returning({ leaseExpiresAt: inferenceJobs.leaseExpiresAt });
   if (!renewed) {
     throw new InferenceClaimRejectedError(
@@ -322,7 +300,7 @@ export async function renewInferenceClaim(
 
 /** Whether one of the worker's runtimes executes this artifact. */
 function canExecute(
-  worker: Pick<InferenceWorkerRecord, "runtimes">,
+  worker: Pick<Worker, "runtimes">,
   artifact: ModelArtifact,
 ): boolean {
   return worker.runtimes.some((runtime) => supportsRuntime(artifact, runtime));
@@ -377,14 +355,16 @@ function claimableExperimentDemand(
 }
 
 /**
- * Atomically claim one image-version pair. Experiments are the only source of
- * demand; an expired task may be fenced to a new worker session.
+ * Atomically claim one image-version pair for a worker's current session.
+ * Experiments are the only source of demand; an expired task may be fenced to
+ * a new worker session.
  */
 export async function claimInferenceAssignment(
-  worker: Pick<InferenceWorkerRecord, "workerId" | "sessionId" | "runtimes">,
+  owner: WorkerIdentity,
   at: Date = new Date(),
 ): Promise<InferenceAssignment | null> {
   return transaction(async (tx) => {
+    const worker = await currentWorkerSession(owner, tx, { lock: true });
     const artifactKinds = [
       ...new Set(worker.runtimes.map(({ adapter }) => adapter)),
     ];

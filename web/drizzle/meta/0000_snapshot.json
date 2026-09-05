@@ -1,5 +1,5 @@
 {
-  "id": "2247dbae-2343-4c54-bb4c-526d08e2cd53",
+  "id": "7f93431f-0acf-4c6d-81a7-938c50e393ca",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1716,10 +1716,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "inference_jobs_worker_id_inference_workers_id_fk": {
-          "name": "inference_jobs_worker_id_inference_workers_id_fk",
+        "inference_jobs_worker_id_workers_id_fk": {
+          "name": "inference_jobs_worker_id_workers_id_fk",
           "tableFrom": "inference_jobs",
-          "tableTo": "inference_workers",
+          "tableTo": "workers",
           "columnsFrom": [
             "worker_id"
           ],
@@ -1887,85 +1887,6 @@
           "value": "case \"inference_outcomes\".\"status\"\n        when 'succeeded' then document ? 'instances' and not document ? 'error'\n        when 'failed' then document ? 'error' and not document ? 'instances'\n        else false\n      end"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.inference_workers": {
-      "name": "inference_workers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "runtimes": {
-          "name": "runtimes",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "current_image_id": {
-          "name": "current_image_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "inference_workers_seen_idx": {
-          "name": "inference_workers_seen_idx",
-          "columns": [
-            {
-              "expression": "last_seen_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "inference_workers_current_image_id_images_id_fk": {
-          "name": "inference_workers_current_image_id_images_id_fk",
-          "tableFrom": "inference_workers",
-          "tableTo": "images",
-          "columnsFrom": [
-            "current_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.jwks": {
@@ -3781,85 +3702,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.training_workers": {
-      "name": "training_workers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "memory_bytes": {
-          "name": "memory_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "current_training_run_id": {
-          "name": "current_training_run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "training_workers_seen_idx": {
-          "name": "training_workers_seen_idx",
-          "columns": [
-            {
-              "expression": "last_seen_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "training_workers_current_training_run_id_training_runs_id_fk": {
-          "name": "training_workers_current_training_run_id_training_runs_id_fk",
-          "tableFrom": "training_workers",
-          "tableTo": "training_runs",
-          "columnsFrom": [
-            "current_training_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.users": {
       "name": "users",
       "schema": "",
@@ -4001,6 +3843,71 @@
           "columns": [
             {
               "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workers": {
+      "name": "workers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "runtimes": {
+          "name": "runtimes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memory_bytes": {
+          "name": "memory_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "workers_seen_idx": {
+          "name": "workers_seen_idx",
+          "columns": [
+            {
+              "expression": "last_seen_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

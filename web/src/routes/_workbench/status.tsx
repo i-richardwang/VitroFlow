@@ -6,22 +6,13 @@ import { Page } from "../../components/Page";
 import { getStatus } from "../../functions/status";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import type { WorkerPresence } from "../../workers/presence";
+import type { WorkerActivity } from "../../workers/schema";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
   staticData: { crumbs: [{ label: "Status" }] },
   component: StatusPage,
 });
-
-type WorkerRow = {
-  key: string;
-  workerId: string;
-  kind: "Analysis" | "Training";
-  presence: WorkerPresence;
-  lastSeenSeconds: number;
-  activity: string | null;
-  href?: string;
-};
 
 const PRESENCE: Record<
   WorkerPresence,
@@ -33,32 +24,9 @@ const PRESENCE: Record<
 };
 
 function StatusPage() {
-  const { inferenceWorkers, trainingWorkers } = Route.useLoaderData();
+  const { workers } = Route.useLoaderData();
   const router = useRouter();
   useRouteRefresh(router, 5000);
-
-  const rows: WorkerRow[] = [
-    ...inferenceWorkers.map((worker) => ({
-      key: `analysis:${worker.workerId}`,
-      workerId: worker.workerId,
-      kind: "Analysis" as const,
-      presence: worker.presence,
-      lastSeenSeconds: worker.lastSeenSeconds,
-      activity: worker.image ? `Analyzing ${worker.image}` : null,
-    })),
-    ...trainingWorkers.map((worker) => ({
-      key: `training:${worker.workerId}`,
-      workerId: worker.workerId,
-      kind: "Training" as const,
-      presence: worker.presence,
-      lastSeenSeconds: worker.lastSeenSeconds,
-      activity: worker.dataset ? `Training ${worker.dataset}` : null,
-      href:
-        worker.dataset && worker.currentTrainingRunId
-          ? `/datasets/${worker.dataset}/training/${worker.currentTrainingRunId}`
-          : undefined,
-    })),
-  ];
 
   return (
     <Page title="Status">
@@ -67,7 +35,6 @@ function StatusPage() {
           <Table.Content aria-label="Workers">
             <Table.Header>
               <Table.Column isRowHeader>Worker</Table.Column>
-              <Table.Column>Kind</Table.Column>
               <Table.Column>Presence</Table.Column>
               <Table.Column>Activity</Table.Column>
               <Table.Column>Last seen</Table.Column>
@@ -81,26 +48,25 @@ function StatusPage() {
                 </EmptyState>
               )}
             >
-              {rows.map((row) => (
-                <Table.Row key={row.key}>
+              {workers.map((worker) => (
+                <Table.Row key={worker.workerId}>
                   <Table.Cell className="font-mono font-medium">
-                    {row.workerId}
+                    {worker.workerId}
                   </Table.Cell>
-                  <Table.Cell className="text-muted">{row.kind}</Table.Cell>
                   <Table.Cell>
                     <Chip
-                      color={PRESENCE[row.presence].color}
+                      color={PRESENCE[worker.presence].color}
                       variant="soft"
                       size="sm"
                     >
-                      {PRESENCE[row.presence].label}
+                      {PRESENCE[worker.presence].label}
                     </Chip>
                   </Table.Cell>
                   <Table.Cell>
-                    <Activity activity={row.activity} href={row.href} />
+                    <Activity activity={worker.activity} />
                   </Table.Cell>
                   <Table.Cell className="font-mono text-muted tabular-nums">
-                    {formatAge(row.lastSeenSeconds)}
+                    {formatAge(worker.lastSeenSeconds)}
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -112,22 +78,17 @@ function StatusPage() {
   );
 }
 
-function Activity({
-  activity,
-  href,
-}: {
-  activity: string | null;
-  href?: string;
-}) {
-  if (activity && href) {
-    return (
-      <Link href={href} className="font-medium">
-        {activity}
-      </Link>
-    );
-  }
-  if (activity) return activity;
-  return <span className="text-muted">Idle</span>;
+function Activity({ activity }: { activity: WorkerActivity | null }) {
+  if (!activity) return <span className="text-muted">Idle</span>;
+  if (activity.kind === "inference") return `Analyzing ${activity.image}`;
+  return (
+    <Link
+      href={`/datasets/${activity.dataset}/training/${activity.runId}`}
+      className="font-medium"
+    >
+      Training {activity.dataset}
+    </Link>
+  );
 }
 
 function formatAge(seconds: number) {

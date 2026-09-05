@@ -2,13 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { readModelVersion } from "../server/model-registry";
 import { modelWeightsBlobKey, openBlob } from "../server/blobs";
-import {
-  InferenceHttpError,
-  inferenceWorkerErrorResponse,
-} from "../server/inference-worker-http";
+import { WorkerRequestError, workerErrorResponse } from "../server/worker-http";
 
 export const Route = createFileRoute(
-  "/api/inference/model-versions/$versionId/weights",
+  "/api/worker/inference/model-versions/$versionId/weights",
 )({
   server: {
     handlers: {
@@ -16,15 +13,15 @@ export const Route = createFileRoute(
         try {
           const version = await readModelVersion(params.versionId);
           if (!version) {
-            throw new InferenceHttpError(404, "Model version not found");
+            throw new WorkerRequestError("Model version not found", 404);
           }
           if (
             version.source.kind !== "training_run" ||
             version.artifact.kind !== "ultralytics"
           ) {
-            throw new InferenceHttpError(
-              409,
+            throw new WorkerRequestError(
               "Model version has no downloadable weights",
+              409,
             );
           }
           const weights = await openBlob(
@@ -51,10 +48,7 @@ export const Route = createFileRoute(
             },
           });
         } catch (error) {
-          return inferenceWorkerErrorResponse(
-            error,
-            "Could not download model weights",
-          );
+          return workerErrorResponse(error, "Could not download model weights");
         }
       },
     },

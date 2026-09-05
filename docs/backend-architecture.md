@@ -23,11 +23,11 @@ HTTP maps failure codes to status codes. MCP derives tool annotations and format
 
 ## Worker control planes
 
-Worker credentials authorize a role. A worker ID names a configured worker, while a fresh session ID fences one process incarnation from another.
+One credential opens the worker realm. A worker ID names a configured worker, while a fresh session ID fences one process incarnation from another. The `workers` roster holds one row per worker: its current session, the runtimes it executes, the memory it offers, and when it was last heard from. Presence is the heartbeat age; what a worker is doing is the lease it holds, never a second copy in the roster.
 
 Inference is a queue, not a snapshot query. A worker atomically claims one demanded image/version pair in `inference_jobs` and renews its lease while loading and predicting. Completion atomically consumes an unexpired lease owned by the current worker session in the same transaction that stores the outcome. The immutable `inference_outcomes` row remains the business record.
 
-Training uses the same ownership vocabulary—worker, session, lease, and attempt—but keeps its richer run state machine because epochs and publication belong to a durable training run.
+Training shares the roster and its ownership vocabulary—worker, session, lease, and attempt—but keeps its own run state machine because epochs and publication belong to a durable training run. Both claims lock the worker row, and every owned write carries the predicate that the session is still the roster's.
 
 ## Wire contracts
 

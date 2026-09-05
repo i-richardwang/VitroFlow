@@ -31,15 +31,11 @@ def validate_worker_process(
     worker_id: str,
     poll_seconds: float,
     device: str | None,
-    *,
-    device_required: bool = False,
 ) -> None:
     if not WORKER_ID.fullmatch(worker_id):
         raise ValueError("worker id is invalid")
     if poll_seconds <= 0:
         raise ValueError("poll interval must be positive")
-    if device_required and device is None:
-        raise ValueError("worker device is required")
     if device is not None and not WORKER_DEVICE.fullmatch(device):
         raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
 

@@ -1,17 +1,10 @@
 from __future__ import annotations
 
 import logging
-import os
 import tempfile
 import threading
 from collections.abc import Callable
-from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
-
-import httpx
 
 from .documents import as_object, expect_fields
 from .image_io import CANONICAL_EXTENSION, verify_digest
@@ -21,12 +14,14 @@ from .training_contracts import (
     TrainingSnapshot,
     parse_training_snapshot,
 )
-from .worker_connection import (
-    WorkerConnection,
-    WorkerHttpClient,
-    validate_worker_process,
-)
 from .worker_runtime import shutdown_signals
+from .worker_session import (
+    LeaseLostError,
+    WorkerClient,
+    WorkerSession,
+    WorkerSettings,
+    keep_lease,
+)
 from .yolo import (
     DatasetImage,
     EpochReport,
@@ -35,100 +30,20 @@ from .yolo import (
     train_yolo_detector,
 )
 
-LEASE_REFRESH_SECONDS = 30.0
 LOGGER = logging.getLogger(__name__)
-
-
-def device_memory_bytes(device: str) -> int:
-    """The memory the accelerator offers a training process.
-
-    Unified-memory Macs report Metal's recommended working set, CUDA devices
-    their total memory, and the CPU the machine's physical memory.
-    """
-    if device == "cpu":
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
-    import torch
-
-    if device == "mps":
-        return int(torch.mps.recommended_max_memory())
-    index = int(device.partition(":")[2] or "0")
-    return int(torch.cuda.mem_get_info(index)[1])
 
 
 class TrainingArtifactRejectedError(RuntimeError):
     pass
 
 
-class TrainingLeaseLostError(RuntimeError):
-    pass
-
-
-@dataclass(frozen=True)
-class TrainingWorkerSettings:
-    server_url: str
-    token: str
-    worker_id: str
-    device: str
-    work_dir: Path
-    poll_seconds: float = 10.0
-
-    def __post_init__(self) -> None:
-        WorkerConnection(server_url=self.server_url, token=self.token)
-        validate_worker_process(
-            self.worker_id,
-            self.poll_seconds,
-            self.device,
-            device_required=True,
-        )
-
-
-class TrainingWorkerClient(WorkerHttpClient):
-    def __init__(
-        self,
-        server_url: str,
-        token: str,
-        worker_id: str,
-        session_id: str,
-        started_at: str,
-        device: str,
-        memory_bytes: int,
-        *,
-        timeout: float = 120.0,
-        transport: httpx.BaseTransport | None = None,
-    ) -> None:
-        self.worker_id = worker_id
-        self.session_id = session_id
-        self.started_at = started_at
-        self.device = device
-        self.memory_bytes = memory_bytes
-        self.current_run_id: str | None = None
-        super().__init__(
-            WorkerConnection(server_url=server_url, token=token),
-            timeout=timeout,
-            transport=transport,
-        )
-
-    @property
-    def identity(self) -> dict[str, str]:
-        return {"workerId": self.worker_id, "sessionId": self.session_id}
-
-    def heartbeat(self) -> None:
-        response = self.request(
-            "POST",
-            "api/training/heartbeat",
-            json={
-                **self.identity,
-                "startedAt": self.started_at,
-                "memoryBytes": self.memory_bytes,
-                "currentTrainingRunId": self.current_run_id,
-            },
-        )
-        response.raise_for_status()
+class TrainingClient(WorkerClient):
+    """The training protocol: claim a run, feed it, report on it, publish it."""
 
     def claim(self) -> TrainingJob | None:
         response = self.request(
             "POST",
-            "api/training/claim",
+            "api/worker/training/claim",
             json=self.identity,
         )
         response.raise_for_status()
@@ -137,65 +52,59 @@ class TrainingWorkerClient(WorkerHttpClient):
         if document["run"] is None:
             return None
         job = TrainingJob.parse(document["run"])
-        if (job.worker_id, job.session_id) != (self.worker_id, self.session_id):
+        if {"workerId": job.worker_id, "sessionId": job.session_id} != self.identity:
             raise ValueError("Training claim returned another worker's lease")
         return job
-
-    @staticmethod
-    def _require_active_lease(response: httpx.Response) -> None:
-        if response.status_code == 409:
-            raise TrainingLeaseLostError(response.text)
-        response.raise_for_status()
 
     def fetch_snapshot(self, run_id: str) -> TrainingSnapshot:
         response = self.request(
             "GET",
-            f"api/training/runs/{run_id}/snapshot",
+            f"api/worker/training/runs/{run_id}/snapshot",
             params=self.identity,
         )
-        self._require_active_lease(response)
+        self.require_current_session(response)
         return parse_training_snapshot(response.json())
 
     def enter_phase(self, run_id: str, phase: TrainingPhase) -> None:
         response = self.request(
             "POST",
-            f"api/training/runs/{run_id}/phase",
+            f"api/worker/training/runs/{run_id}/phase",
             json={
                 **self.identity,
                 "phase": phase,
             },
         )
-        self._require_active_lease(response)
+        self.require_current_session(response)
 
     def renew_lease(self, run_id: str) -> None:
         response = self.request(
             "POST",
-            f"api/training/runs/{run_id}/lease",
+            f"api/worker/training/runs/{run_id}/lease",
             json=self.identity,
         )
-        self._require_active_lease(response)
+        self.require_current_session(response)
 
     def report_epoch(self, run_id: str, report: EpochReport) -> None:
         response = self.request(
             "POST",
-            f"api/training/runs/{run_id}/epochs",
+            f"api/worker/training/runs/{run_id}/epochs",
             json={**self.identity, **report.to_json()},
         )
-        self._require_active_lease(response)
+        self.require_current_session(response)
 
     def download_image(self, run_id: str, digest: str) -> bytes:
         response = self.request(
             "GET",
-            f"api/training/runs/{run_id}/images/{digest}",
+            f"api/worker/training/runs/{run_id}/images/{digest}",
             params=self.identity,
         )
-        self._require_active_lease(response)
+        self.require_current_session(response)
         return verify_digest(response.content, digest)
 
     def publish_artifact(self, run_id: str, weights: Path, inference: Path) -> None:
         response = self.request(
             "PUT",
-            f"api/training/runs/{run_id}/artifact",
+            f"api/worker/training/runs/{run_id}/artifact",
             data=self.identity,
             files={
                 "weights": ("best.pt", weights.read_bytes()),
@@ -209,14 +118,12 @@ class TrainingWorkerClient(WorkerHttpClient):
         )
         if response.status_code in {400, 422}:
             raise TrainingArtifactRejectedError(response.text)
-        if response.status_code == 409:
-            raise TrainingLeaseLostError(response.text)
-        response.raise_for_status()
+        self.require_current_session(response)
 
     def report_failure(self, run_id: str, error: str) -> None:
         response = self.request(
             "POST",
-            f"api/training/runs/{run_id}/fail",
+            f"api/worker/training/runs/{run_id}/fail",
             json={**self.identity, "error": error[:2000]},
         )
         if response.status_code == 409:
@@ -225,7 +132,7 @@ class TrainingWorkerClient(WorkerHttpClient):
 
 
 def materialize_snapshot(
-    client: TrainingWorkerClient,
+    client: TrainingClient,
     job: TrainingJob,
     output: Path,
     *,
@@ -258,66 +165,26 @@ def materialize_snapshot(
     return output / "dataset.yaml"
 
 
-@contextmanager
-def _lease(
-    client: TrainingWorkerClient,
-    run_id: str,
-    *,
-    cancelled: Callable[[], bool] | None = None,
-):
-    """Keep ownership alive without writing phase or business progress."""
-    closed = threading.Event()
-    lost = threading.Event()
-    refresh_errors: list[Exception] = []
-
-    def refresh() -> None:
-        while not closed.wait(LEASE_REFRESH_SECONDS):
-            try:
-                client.renew_lease(run_id)
-                client.heartbeat()
-            except Exception as error:  # noqa: BLE001 - process boundary owns the lease
-                refresh_errors.append(error)
-                lost.set()
-                return
-
-    def should_stop() -> bool:
-        return lost.is_set() or bool(cancelled and cancelled())
-
-    client.renew_lease(run_id)
-    thread = threading.Thread(target=refresh, name="training-lease", daemon=True)
-    thread.start()
-    try:
-        yield should_stop
-    finally:
-        closed.set()
-        thread.join()
-        if refresh_errors:
-            raise TrainingLeaseLostError("Training lease refresh failed") from (
-                refresh_errors[0]
-            )
-
-
 def process_training_job(
-    client: TrainingWorkerClient,
+    client: TrainingClient,
     job: TrainingJob,
     work_root: Path,
+    device: str,
     stopped: threading.Event | None = None,
 ) -> None:
     def ensure_running() -> None:
         if stopped and stopped.is_set():
             raise YoloTrainingInterruptedError("training interrupted")
 
-    client.current_run_id = job.run_id
-    client.heartbeat()
     try:
         recipe = job.recipe
         with tempfile.TemporaryDirectory(
             prefix="vitroflow-training-", dir=work_root
         ) as temporary:
             root = Path(temporary)
-            with _lease(
+            with keep_lease(
                 client,
-                job.run_id,
+                lambda: client.renew_lease(job.run_id),
                 cancelled=stopped.is_set if stopped else None,
             ) as cancelled:
                 client.enter_phase(job.run_id, "preparing")
@@ -334,7 +201,7 @@ def process_training_job(
                     model=recipe.base_model_reference,
                     model_digest=recipe.base_model_digest,
                     runtime_version=recipe.runtime_version,
-                    device=client.device,
+                    device=device,
                     cancelled=cancelled,
                     on_training_start=lambda: client.enter_phase(
                         job.run_id, "training"
@@ -350,7 +217,7 @@ def process_training_job(
                     "Training completed without a usable validation signal"
                 )
             client.publish_artifact(job.run_id, result.best_weights, result.summary)
-    except (YoloTrainingInterruptedError, TrainingLeaseLostError):
+    except (YoloTrainingInterruptedError, LeaseLostError):
         raise
     except Exception as error:
         try:
@@ -358,28 +225,19 @@ def process_training_job(
         except Exception:
             LOGGER.exception("failed to report training run failure")
         raise
-    finally:
-        client.current_run_id = None
-        try:
-            client.heartbeat()
-        except Exception:
-            LOGGER.exception("failed to clear training worker heartbeat")
 
 
 def run_training_worker(
-    settings: TrainingWorkerSettings,
+    settings: WorkerSettings,
     *,
     on_ready: Callable[[], None] | None = None,
 ) -> int:
     settings.work_dir.mkdir(parents=True, exist_ok=True)
-    client = TrainingWorkerClient(
+    device = settings.device or "cpu"
+    client = TrainingClient(
         settings.server_url,
         settings.token,
-        settings.worker_id,
-        f"session-{uuid4()}",
-        datetime.now(UTC).isoformat(),
-        settings.device,
-        device_memory_bytes(settings.device),
+        WorkerSession.create(settings.worker_id, device),
     )
     try:
         with shutdown_signals() as stopped:
@@ -393,7 +251,7 @@ def run_training_worker(
                     job = client.claim()
                     if job:
                         process_training_job(
-                            client, job, settings.work_dir, stopped=stopped
+                            client, job, settings.work_dir, device, stopped=stopped
                         )
                 except YoloTrainingInterruptedError:
                     LOGGER.info("training interrupted; lease will be recoverable")

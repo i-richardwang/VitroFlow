@@ -9,10 +9,7 @@ import {
   countTrainingRuns,
   latestTrainingRun,
 } from "./training-runs";
-import {
-  listTrainingWorkers,
-  trainingWorkerPresence,
-} from "./training-worker-store";
+import { listOnlineTrainers } from "./workers";
 
 /**
  * Reviews the last run did not train on: images reviewed since, and images
@@ -58,15 +55,12 @@ export async function trainingSummary(
   records: ImageRecord[],
   at: Date,
 ): Promise<TrainingSummary> {
-  const [workers, active, runs, latest] = await Promise.all([
-    listTrainingWorkers(at),
+  const [online, active, runs, latest] = await Promise.all([
+    listOnlineTrainers(at),
     activeTrainingRun(dataset.modelId),
     countTrainingRuns(dataset.id),
     latestTrainingRun(dataset.id),
   ]);
-  const online = workers.filter(
-    (worker) => trainingWorkerPresence(worker, at) === "online",
-  );
   return {
     runs,
     active,

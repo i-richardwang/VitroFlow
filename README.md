@@ -36,7 +36,7 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 | `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
 | `dataset_snapshots`, `dataset_snapshot_images`                                                                                                                  | Immutable training inputs                                                                      |
 | `training_runs`, `training_epochs`                                                                                                                              | Leased training state and per-attempt epoch metrics                                            |
-| `inference_workers`, `inference_jobs`, `training_workers`                                                                                                       | Worker sessions, leased inference jobs, capabilities, presence, and current activity           |
+| `workers`, `inference_jobs`                                                                                                                                     | Worker sessions with their capabilities and presence, and leased inference jobs                |
 
 The object layout is:
 
@@ -114,7 +114,7 @@ Authentication is [Better Auth](https://better-auth.com) over the application da
 
 ## Workers
 
-Workers communicate only with the workbench HTTP API. Each native Worker profile has a stable worker ID, a fresh process-session ID, role-specific credentials, runtime capabilities, and a private work directory.
+Workers communicate only with the workbench HTTP API under one worker credential. Each native Worker profile has a stable worker ID, a fresh process-session ID, the queue it serves, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds.
 
 The Python package is published on PyPI as [`vitroflow`](https://pypi.org/project/vitroflow/); its own README is [docs/package.md](docs/package.md). On macOS, install it and configure `launchd` services:
 
@@ -260,7 +260,7 @@ docker compose up --build -d
 
 Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped.
 
-`HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. The inference and training tokens are distinct credentials and should not be shared between roles. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
+`HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. `VITROFLOW_WORKER_TOKEN` is the credential every Worker presents. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 
 `zeabur-template.yaml` deploys the server side on Zeabur: the workbench built from `Dockerfile.web`, plus the marketplace PostgreSQL and MinIO services, which the dashboard maintains directly. Workers stay outside the platform. Zeabur has no one-shot service, so MinIO creates the bucket from its own start command.
 

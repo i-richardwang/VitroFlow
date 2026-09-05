@@ -9,38 +9,24 @@ from collections import deque
 import httpx
 
 from .detectors import ultralytics_runtime_descriptor
-from .inference_worker import (
-    InferenceWorkerSettings,
-    available_runtimes,
-    run_inference_worker,
-)
-from .training_worker import TrainingWorkerSettings, run_training_worker
+from .inference_worker import run_inference_worker
+from .training_worker import run_training_worker
 from .worker_launchd import service_loaded
 from .worker_profiles import WorkerProfile, load_profile, profile_directory
 from .worker_runtime import profile_logging
+from .worker_session import WorkerSettings, available_runtimes
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _inference_settings(name: str, profile: WorkerProfile) -> InferenceWorkerSettings:
-    return InferenceWorkerSettings(
+def _settings(name: str, profile: WorkerProfile) -> WorkerSettings:
+    return WorkerSettings(
         server_url=profile.server_url,
         token=profile.token,
         worker_id=profile.worker_id,
         work_dir=profile_directory(name) / "work",
         poll_seconds=profile.poll_seconds,
         device=profile.device,
-    )
-
-
-def _training_settings(name: str, profile: WorkerProfile) -> TrainingWorkerSettings:
-    return TrainingWorkerSettings(
-        server_url=profile.server_url,
-        token=profile.token,
-        worker_id=profile.worker_id,
-        device=profile.device or "cpu",
-        work_dir=profile_directory(name) / "work",
-        poll_seconds=profile.poll_seconds,
     )
 
 
@@ -62,17 +48,13 @@ def _check_device(device: str | None) -> None:
 
 
 def _check_ready(profile: WorkerProfile) -> None:
-    """The Server accepts this credential for this role."""
+    """The Server admits this credential to the worker realm."""
     response = httpx.get(
-        f"{profile.server_url.rstrip('/')}/api/{profile.role}/ready",
+        f"{profile.server_url.rstrip('/')}/api/worker/ready",
         headers={"Authorization": f"Bearer {profile.token}"},
         timeout=30,
     )
     response.raise_for_status()
-    if response.json() != {"role": profile.role}:
-        raise ValueError(
-            f"Server returned an invalid {profile.role} readiness response"
-        )
 
 
 def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
@@ -87,17 +69,16 @@ def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
         f"server: {profile.server_url}",
         f"work directory: {work}",
     ]
-    if profile.role == "inference":
-        adapters = [runtime.adapter for runtime in available_runtimes()]
-        runtimes = [
-            f"ultralytics ({profile.device})"
-            if adapter == "ultralytics" and profile.device
-            else adapter
-            for adapter in adapters
-        ]
-        checks.append(f"runtimes: {', '.join(runtimes)}")
-    else:
+    adapters = [runtime.adapter for runtime in available_runtimes()]
+    if profile.role == "training":
         ultralytics_runtime_descriptor()
+    runtimes = [
+        f"ultralytics ({profile.device})"
+        if adapter == "ultralytics" and profile.device
+        else adapter
+        for adapter in adapters
+    ]
+    checks.append(f"runtimes: {', '.join(runtimes)}")
     _check_device(profile.device)
     if profile.device:
         checks.append(f"device: {profile.device}")
@@ -130,14 +111,12 @@ def run_profile(name: str) -> int:
             def ready() -> None:
                 _write_status(name, "running")
 
-            if profile.role == "inference":
-                result = run_inference_worker(
-                    _inference_settings(name, profile), on_ready=ready
-                )
-            else:
-                result = run_training_worker(
-                    _training_settings(name, profile), on_ready=ready
-                )
+            run = (
+                run_inference_worker
+                if profile.role == "inference"
+                else run_training_worker
+            )
+            result = run(_settings(name, profile), on_ready=ready)
         except Exception as error:
             LOGGER.exception("worker stopped after an error")
             _write_status(name, "failed", detail=str(error))

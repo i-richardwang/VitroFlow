@@ -17,10 +17,7 @@ import {
   readTrainingRun,
 } from "./training-runs";
 import { trainingSummary } from "./training-summary";
-import {
-  listTrainingWorkers,
-  trainingWorkerPresence,
-} from "./training-worker-store";
+import { listOnlineTrainers } from "./workers";
 
 export async function listVersionOverviews(): Promise<VersionOverview[]> {
   const versions = await listAllModelVersions();
@@ -43,21 +40,19 @@ export async function listVersionOverviews(): Promise<VersionOverview[]> {
 export async function trainingOverview(
   at: Date = new Date(),
 ): Promise<TrainingOverview> {
-  const [versions, runs, total, inProgress, workers] = await Promise.all([
+  const [versions, runs, total, inProgress, trainers] = await Promise.all([
     listVersionOverviews(),
     listTrainingRunSummaries(),
     countTrainingRuns(),
     countActiveTrainingRuns(),
-    listTrainingWorkers(at),
+    listOnlineTrainers(at),
   ]);
   return {
     versions,
     total,
     runs,
     inProgress,
-    workersOnline: workers.filter(
-      (worker) => trainingWorkerPresence(worker, at) === "online",
-    ).length,
+    workersOnline: trainers.length,
   };
 }
 

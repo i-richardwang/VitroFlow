@@ -10,15 +10,15 @@ import httpx
 import pytest
 from conftest import annotation_document, encoded_image, write_blob
 
-from vitroflow import training_worker
+from vitroflow import training_worker, worker_session
 from vitroflow.image_io import CANONICAL_EXTENSION
 from vitroflow.training_worker import (
+    TrainingClient,
     TrainingJob,
-    TrainingLeaseLostError,
-    TrainingWorkerClient,
     materialize_snapshot,
     parse_training_snapshot,
 )
+from vitroflow.worker_session import LeaseLostError, WorkerSession, keep_lease
 from vitroflow.yolo import DetectionLosses, EpochReport, YoloTrainingInterruptedError
 
 PARAMETERS = {
@@ -92,12 +92,18 @@ def _snapshot_image(
     }
 
 
-def test_training_memory_capacity_follows_the_selected_device(
+def session(memory_bytes: int) -> WorkerSession:
+    return WorkerSession(
+        "trainer", "trainer-session", "2026-08-27T00:00:00.000Z", (), memory_bytes
+    )
+
+
+def test_worker_memory_capacity_follows_the_selected_device(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pages = {"SC_PAGE_SIZE": 4096, "SC_PHYS_PAGES": 1_000_000}
-    monkeypatch.setattr(training_worker.os, "sysconf", pages.__getitem__)
-    assert training_worker.device_memory_bytes("cpu") == 4_096_000_000
+    monkeypatch.setattr(worker_session.os, "sysconf", pages.__getitem__)
+    assert worker_session.device_memory_bytes("cpu") == 4_096_000_000
 
     cuda_devices: list[int] = []
 
@@ -111,9 +117,9 @@ def test_training_memory_capacity_follows_the_selected_device(
     )
     monkeypatch.setitem(sys.modules, "torch", torch)
 
-    assert training_worker.device_memory_bytes("mps") == 18_000_000_000
-    assert training_worker.device_memory_bytes("cuda") == 24_000_000_000
-    assert training_worker.device_memory_bytes("cuda:2") == 24_000_000_000
+    assert worker_session.device_memory_bytes("mps") == 18_000_000_000
+    assert worker_session.device_memory_bytes("cuda") == 24_000_000_000
+    assert worker_session.device_memory_bytes("cuda:2") == 24_000_000_000
     assert cuda_devices == [0, 2]
 
 
@@ -137,25 +143,23 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     def server(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         assert request.headers["authorization"] == "Bearer training-secret"
-        if request.url.path == "/api/training/heartbeat":
+        if request.url.path == "/api/worker/heartbeat":
             return httpx.Response(200, json={})
-        if request.url.path == "/api/training/claim":
+        if request.url.path == "/api/worker/training/claim":
             return httpx.Response(200, json={"run": run})
-        if request.url.path == "/api/training/runs/train-one/snapshot":
+        if request.url.path == "/api/worker/training/runs/train-one/snapshot":
             return httpx.Response(200, json=snapshot)
-        digest = request.url.path.removeprefix("/api/training/runs/train-one/images/")
+        digest = request.url.path.removeprefix(
+            "/api/worker/training/runs/train-one/images/"
+        )
         if digest in images:
             return httpx.Response(200, content=images[digest])
         return httpx.Response(404)
 
-    client = TrainingWorkerClient(
+    client = TrainingClient(
         "https://example.test",
         "training-secret",
-        "trainer",
-        "trainer-session",
-        "2026-08-27T00:00:00.000Z",
-        "cuda:0",
-        24 * 1024**3,
+        session(24 * 1024**3),
         transport=httpx.MockTransport(server),
     )
     try:
@@ -169,11 +173,11 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     assert json.loads(requests[0].content)["memoryBytes"] == 24 * 1024**3
     assert json.loads(requests[0].content)["sessionId"] == "trainer-session"
     assert [request.url.path for request in requests] == [
-        "/api/training/heartbeat",
-        "/api/training/claim",
-        "/api/training/runs/train-one/snapshot",
-        f"/api/training/runs/train-one/images/{train_digest}",
-        f"/api/training/runs/train-one/images/{val_digest}",
+        "/api/worker/heartbeat",
+        "/api/worker/training/claim",
+        "/api/worker/training/runs/train-one/snapshot",
+        f"/api/worker/training/runs/train-one/images/{train_digest}",
+        f"/api/worker/training/runs/train-one/images/{val_digest}",
     ]
     train_image = next((tmp_path / "dataset/images/train").iterdir())
     train_label = next((tmp_path / "dataset/labels/train").iterdir())
@@ -233,14 +237,10 @@ def test_snapshot_parser_validates_every_image_entry() -> None:
 
 
 def test_training_client_rejects_snapshot_image_corruption() -> None:
-    client = TrainingWorkerClient(
+    client = TrainingClient(
         "https://example.test",
         "secret",
-        "trainer",
-        "trainer-session",
-        "2026-08-27T00:00:00.000Z",
-        "cpu",
-        8 * 1024**3,
+        session(8 * 1024**3),
         transport=httpx.MockTransport(lambda _: httpx.Response(200, content=b"bad")),
     )
     try:
@@ -251,34 +251,26 @@ def test_training_client_rejects_snapshot_image_corruption() -> None:
 
 
 def test_training_client_surfaces_lease_loss() -> None:
-    client = TrainingWorkerClient(
+    client = TrainingClient(
         "https://example.test",
         "secret",
-        "trainer",
-        "trainer-session",
-        "2026-08-27T00:00:00.000Z",
-        "cpu",
-        8 * 1024**3,
+        session(8 * 1024**3),
         transport=httpx.MockTransport(
             lambda _: httpx.Response(409, text="lease expired")
         ),
     )
     try:
-        with pytest.raises(TrainingLeaseLostError, match="lease expired"):
+        with pytest.raises(LeaseLostError, match="lease expired"):
             client.renew_lease("train-one")
     finally:
         client.close()
 
 
 def test_claim_response_requires_a_run_object() -> None:
-    client = TrainingWorkerClient(
+    client = TrainingClient(
         "https://example.test",
         "secret",
-        "trainer",
-        "trainer-session",
-        "2026-08-27T00:00:00.000Z",
-        "cpu",
-        8 * 1024**3,
+        session(8 * 1024**3),
         transport=httpx.MockTransport(
             lambda _: httpx.Response(200, content=json.dumps({"run": []}))
         ),
@@ -342,14 +334,15 @@ def test_lease_refresh_failure_cancels_training_and_surfaces_lease_loss(
         def heartbeat(self) -> None:
             return None
 
-    monkeypatch.setattr(training_worker, "LEASE_REFRESH_SECONDS", 0.001)
+    monkeypatch.setattr(worker_session, "LEASE_REFRESH_SECONDS", 0.001)
     deadline = time.monotonic() + 1
 
+    client = FailingClient()
     with (
-        pytest.raises(TrainingLeaseLostError, match="refresh failed"),
-        training_worker._lease(
-            FailingClient(),  # type: ignore[arg-type]
-            "train-one",
+        pytest.raises(LeaseLostError, match="refresh failed"),
+        keep_lease(
+            client,  # type: ignore[arg-type]
+            lambda: client.renew_lease("train-one"),
         ) as cancelled,
     ):
         while not cancelled() and time.monotonic() < deadline:
@@ -365,10 +358,6 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     artifacts: list[tuple[str, bytes, dict[str, object]]] = []
 
     class Client:
-        worker_id = "trainer"
-        device = "mps"
-        current_run_id: str | None = None
-
         def heartbeat(self) -> None:
             return None
 
@@ -442,7 +431,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     monkeypatch.setattr(training_worker, "train_yolo_detector", train)
     job = TrainingJob.parse(_run(parameters=_parameters(epochs=2)))
 
-    training_worker.process_training_job(Client(), job, tmp_path)  # type: ignore[arg-type]
+    training_worker.process_training_job(Client(), job, tmp_path, "mps")  # type: ignore[arg-type]
 
     assert [entry["phase"] for _, entry in posted if "phase" in entry] == [
         "preparing",
@@ -460,9 +449,6 @@ def test_training_job_reports_an_unexpected_adapter_failure(
     failures: list[tuple[str, str]] = []
 
     class Client:
-        device = "mps"
-        current_run_id: str | None = None
-
         def heartbeat(self) -> None:
             return None
 
@@ -483,7 +469,7 @@ def test_training_job_reports_an_unexpected_adapter_failure(
 
     with pytest.raises(KeyError, match="unexpected Ultralytics field"):
         training_worker.process_training_job(  # type: ignore[arg-type]
-            Client(), job, tmp_path
+            Client(), job, tmp_path, "mps"
         )
 
     assert failures == [("train-broken", "'unexpected Ultralytics field'")]

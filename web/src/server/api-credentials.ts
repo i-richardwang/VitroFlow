@@ -10,7 +10,7 @@ interface ApiRealm {
 }
 
 /**
- * A realm workers open with the role credential configured for them. An
+ * A realm worker processes open with the credential configured for them. An
  * unconfigured credential closes the realm: every request answers 401.
  */
 function workerRealm(prefix: string, credential: string): ApiRealm {
@@ -42,8 +42,7 @@ function apiKeyRealm(prefix: string, scope: ApiScope): ApiRealm {
 
 /** Each bearer-guarded API realm and what opens it. */
 const API_REALMS: ApiRealm[] = [
-  workerRealm("/api/inference/", "VITROFLOW_INFERENCE_WORKER_TOKEN"),
-  workerRealm("/api/training/", "VITROFLOW_TRAINING_WORKER_TOKEN"),
+  workerRealm("/api/worker/", "VITROFLOW_WORKER_TOKEN"),
   apiKeyRealm("/api/transfer/", "transfer"),
 ];
 

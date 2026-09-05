@@ -7,7 +7,7 @@ import {
   completeInferenceClaim,
   renewInferenceClaim,
 } from "./inference-outcomes";
-import { recordInferenceHeartbeat } from "./inference-worker-store";
+import { recordWorkerHeartbeat } from "./workers";
 import { ULTRALYTICS_RUNTIME, observeImages, testHeartbeat } from "./testing";
 
 function targetOf(
@@ -26,11 +26,11 @@ test("inference claims are exclusive and expired ownership is fenced", async () 
     ...testHeartbeat("claim-runtime").runtimes,
     ULTRALYTICS_RUNTIME,
   ];
-  const first = await recordInferenceHeartbeat({
+  const first = await recordWorkerHeartbeat({
     ...testHeartbeat("claim-worker-a"),
     runtimes,
   });
-  const second = await recordInferenceHeartbeat({
+  const second = await recordWorkerHeartbeat({
     ...testHeartbeat("claim-worker-b"),
     runtimes,
   });
@@ -69,7 +69,7 @@ test("inference claims are exclusive and expired ownership is fenced", async () 
 
 test("only a live owner can renew an inference claim", async () => {
   await observeImages("claim-renew", ["claim-renew"]);
-  const worker = await recordInferenceHeartbeat(
+  const worker = await recordWorkerHeartbeat(
     testHeartbeat("claim-renew-worker"),
   );
   const claimedAt = new Date("2026-09-03T12:00:00.000Z");

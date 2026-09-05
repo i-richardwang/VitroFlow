@@ -13,10 +13,10 @@ import {
   resultFor,
   testHeartbeat,
 } from "./testing";
-import { recordInferenceHeartbeat } from "./inference-worker-store";
+import { recordWorkerHeartbeat } from "./workers";
 
 test("a review shows the newest detection and the stored annotation", async () => {
-  const worker = await recordInferenceHeartbeat({
+  const worker = await recordWorkerHeartbeat({
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
   });

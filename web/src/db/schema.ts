@@ -885,23 +885,21 @@ export const experimentObservationImages = pgTable(
 );
 
 /**
- * An inference process by the runtimes it can execute and the image it is
- * working on. Which versions it detects with follows from current demand.
+ * A worker process by what it can execute and how much memory it offers a
+ * job. What it is doing follows from the lease it holds.
  */
-export const inferenceWorkers = pgTable(
-  "inference_workers",
+export const workers = pgTable(
+  "workers",
   {
     id: text("id").primaryKey(),
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
-    /** The image being processed, by digest. */
-    currentImageId: text("current_image_id").references(() => images.id, {
-      onDelete: "set null",
-    }),
+    /** Memory the accelerator offers a job. */
+    memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),
   },
-  (table) => [index("inference_workers_seen_idx").on(table.lastSeenAt)],
+  (table) => [index("workers_seen_idx").on(table.lastSeenAt)],
 );
 
 /**
@@ -920,7 +918,7 @@ export const inferenceJobs = pgTable(
       .references(() => modelVersions.id, { onDelete: "cascade" }),
     workerId: text("worker_id")
       .notNull()
-      .references(() => inferenceWorkers.id, { onDelete: "cascade" }),
+      .references(() => workers.id, { onDelete: "cascade" }),
     sessionId: text("session_id").notNull(),
     attempt: integer("attempt").notNull(),
     leaseExpiresAt: timestamp("lease_expires_at", {
@@ -1096,20 +1094,4 @@ export const trainingEpochs = pgTable(
       sql`${table.attempt} >= 1 and ${table.epoch} >= 1`,
     ),
   ],
-);
-
-export const trainingWorkers = pgTable(
-  "training_workers",
-  {
-    id: text("id").primaryKey(),
-    sessionId: text("session_id").notNull(),
-    startedAt: instant("started_at"),
-    memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
-    currentTrainingRunId: text("current_training_run_id").references(
-      () => trainingRuns.id,
-      { onDelete: "set null" },
-    ),
-    lastSeenAt: instant("last_seen_at"),
-  },
-  (table) => [index("training_workers_seen_idx").on(table.lastSeenAt)],
 );

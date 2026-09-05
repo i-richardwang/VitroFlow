@@ -25,9 +25,13 @@ import {
   recordTrainingEpoch,
   renewTrainingLease,
 } from "./training-runs";
-import { recordTrainingHeartbeat } from "./training-worker-store";
-import { imageDigest, reviewedDataset as reviewed } from "./testing";
-import type { TrainingWorkerIdentity } from "../training/workers";
+import {
+  ULTRALYTICS_RUNTIME,
+  imageDigest,
+  reviewedDataset as reviewed,
+} from "./testing";
+import { recordWorkerHeartbeat } from "./workers";
+import type { WorkerHeartbeat, WorkerIdentity } from "../workers/schema";
 
 const CONTENTS = ["first-image", "second-image"];
 
@@ -37,18 +41,23 @@ async function reviewedDataset(datasetId: string) {
 }
 
 function owner(workerId: string, sessionId = `${workerId}-session`) {
-  return { workerId, sessionId } satisfies TrainingWorkerIdentity;
+  return { workerId, sessionId } satisfies WorkerIdentity;
+}
+
+function heartbeat(identity: WorkerIdentity, startedAt: Date): WorkerHeartbeat {
+  return {
+    ...identity,
+    startedAt: startedAt.toISOString(),
+    runtimes: [ULTRALYTICS_RUNTIME],
+    memoryBytes: 24 * 1024 ** 3,
+  };
 }
 
 async function trainer(workerId: string) {
   const identity = owner(workerId);
-  await recordTrainingHeartbeat({
-    workerId,
-    sessionId: identity.sessionId,
-    startedAt: "2026-08-27T00:00:00.000Z",
-    memoryBytes: 24 * 1024 ** 3,
-    currentTrainingRunId: null,
-  });
+  await recordWorkerHeartbeat(
+    heartbeat(identity, new Date("2026-08-27T00:00:00.000Z")),
+  );
   return identity;
 }
 
@@ -479,27 +488,11 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
   const oldSession = owner("restarting-trainer", "session-old");
   const newSession = owner("restarting-trainer", "session-new");
   const started = new Date("2026-08-28T00:00:00.000Z");
-  await recordTrainingHeartbeat(
-    {
-      ...oldSession,
-      startedAt: started.toISOString(),
-      memoryBytes: 16 * 1024 ** 3,
-      currentTrainingRunId: null,
-    },
-    started,
-  );
+  await recordWorkerHeartbeat(heartbeat(oldSession, started), started);
   expect((await claimTrainingRun(oldSession, started))?.attempt).toBe(1);
 
   const restarted = new Date(started.getTime() + 1_000);
-  await recordTrainingHeartbeat(
-    {
-      ...newSession,
-      startedAt: restarted.toISOString(),
-      memoryBytes: 16 * 1024 ** 3,
-      currentTrainingRunId: null,
-    },
-    restarted,
-  );
+  await recordWorkerHeartbeat(heartbeat(newSession, restarted), restarted);
   await expect(
     renewTrainingLease(run.id, oldSession, restarted),
   ).rejects.toThrow(/not owned/);
@@ -510,15 +503,7 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
     state: { status: "running", phase: "preparing" },
   });
   await expect(
-    recordTrainingHeartbeat(
-      {
-        ...oldSession,
-        startedAt: started.toISOString(),
-        memoryBytes: 16 * 1024 ** 3,
-        currentTrainingRunId: run.id,
-      },
-      restarted,
-    ),
+    recordWorkerHeartbeat(heartbeat(oldSession, started), restarted),
   ).rejects.toThrow(/newer active session/);
   await failTrainingRun(run.id, newSession, "stopped");
 });

@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { instancesFromDetection } from "../annotation/detection";
 import { database } from "../db/client";
 import { inferenceOutcomes } from "../db/schema";
-import type { InferenceWorkerRecord } from "../inference/workers";
+import type { Worker } from "../workers/schema";
 import {
   blobExists,
   contentDigest,
@@ -46,7 +46,7 @@ import {
   uploadTexts,
 } from "./testing";
 
-const worker: InferenceWorkerRecord = {
+const worker: Worker = {
   ...testHeartbeat("worker"),
   lastSeenAt: "2026-08-27T00:00:00.000Z",
 };

@@ -4,62 +4,36 @@ import logging
 import tempfile
 import threading
 from collections.abc import Callable
-from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 import cv2
 import httpx
 
-from .config import PipelineConfig
 from .detectors import (
     DetectionFailure,
     DetectionProducer,
     Detector,
     InferenceOutcome,
-    RuntimeDescriptor,
-    TraditionalDetector,
-    ultralytics_runtime_descriptor,
 )
 from .documents import as_digest, as_object, expect_fields
 from .image_io import CANONICAL_EXTENSION, verify_digest
 from .inference_models import ModelManifest, ModelStore
-from .scoring import DEFAULT_MODEL
 from .wire_contracts import validate_wire_contract
-from .worker_connection import (
-    WorkerConnection,
-    WorkerHttpClient,
-    validate_worker_process,
-)
 from .worker_runtime import shutdown_signals
-from .yolo.runtime import ultralytics_installed
+from .worker_session import (
+    LeaseLostError,
+    WorkerClient,
+    WorkerSession,
+    WorkerSettings,
+    keep_lease,
+)
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
 _ERROR_MESSAGE_LIMIT = 2000
-LEASE_REFRESH_SECONDS = 30.0
 LOGGER = logging.getLogger(__name__)
-
-
-class InferenceLeaseLostError(RuntimeError):
-    pass
-
-
-@dataclass(frozen=True)
-class InferenceWorkerSettings:
-    server_url: str
-    token: str
-    worker_id: str
-    work_dir: Path
-    poll_seconds: float = 5.0
-    device: str | None = None
-
-    def __post_init__(self) -> None:
-        WorkerConnection(server_url=self.server_url, token=self.token)
-        validate_worker_process(self.worker_id, self.poll_seconds, self.device)
 
 
 @dataclass(frozen=True)
@@ -84,76 +58,13 @@ class Assignment:
         return self.manifest.model_version_id
 
 
-def available_runtimes() -> tuple[RuntimeDescriptor, ...]:
-    runtimes = [TraditionalDetector(PipelineConfig(), DEFAULT_MODEL).runtime]
-    if ultralytics_installed():
-        runtimes.append(ultralytics_runtime_descriptor())
-    return tuple(runtimes)
-
-
-@dataclass(frozen=True)
-class WorkerRuntime:
-    """What an inference process is: its name and the adapters it can run."""
-
-    worker_id: str
-    session_id: str
-    started_at: str
-    runtimes: tuple[RuntimeDescriptor, ...]
-
-    @classmethod
-    def create(cls, worker_id: str) -> WorkerRuntime:
-        return cls(
-            worker_id,
-            f"session-{uuid4()}",
-            datetime.now(UTC).isoformat(),
-            available_runtimes(),
-        )
-
-    def heartbeat(self, current: str | None) -> dict[str, object]:
-        return {
-            "workerId": self.worker_id,
-            "sessionId": self.session_id,
-            "startedAt": self.started_at,
-            "runtimes": [runtime.to_dict() for runtime in self.runtimes],
-            "current": current,
-        }
-
-
-class WorkerClient(WorkerHttpClient):
-    def __init__(
-        self,
-        server_url: str,
-        token: str,
-        runtime: WorkerRuntime,
-        timeout: float = 120.0,
-        transport: httpx.BaseTransport | None = None,
-    ) -> None:
-        self.runtime = runtime
-        super().__init__(
-            WorkerConnection(server_url=server_url, token=token),
-            timeout=timeout,
-            transport=transport,
-        )
-
-    @property
-    def identity(self) -> dict[str, str]:
-        return {
-            "workerId": self.runtime.worker_id,
-            "sessionId": self.runtime.session_id,
-        }
-
-    def heartbeat(self, current: str | None) -> None:
-        response = self.request(
-            "POST",
-            "api/inference/heartbeat",
-            json=self.runtime.heartbeat(current),
-        )
-        response.raise_for_status()
+class InferenceClient(WorkerClient):
+    """The inference protocol: claim a pair, fetch what it needs, report the outcome."""
 
     def claim(self) -> Assignment | None:
         response = self.request(
             "POST",
-            "api/inference/claim",
+            "api/worker/inference/claim",
             json=self.identity,
         )
         response.raise_for_status()
@@ -167,14 +78,14 @@ class WorkerClient(WorkerHttpClient):
     def weights(self, version_id: str) -> bytes:
         response = self.request(
             "GET",
-            f"api/inference/model-versions/{version_id}/weights",
+            f"api/worker/inference/model-versions/{version_id}/weights",
             timeout=None,
         )
         response.raise_for_status()
         return response.content
 
     def download(self, digest: str) -> bytes:
-        response = self.request("GET", f"api/inference/images/{digest}")
+        response = self.request("GET", f"api/worker/inference/images/{digest}")
         response.raise_for_status()
         return verify_digest(response.content, digest)
 
@@ -189,70 +100,19 @@ class WorkerClient(WorkerHttpClient):
         """
         response = self.request(
             "PUT",
-            f"api/inference/results/{version_id}/{digest}",
+            f"api/worker/inference/results/{version_id}/{digest}",
             params=self.identity,
             json=document,
         )
-        if response.status_code == 409:
-            raise InferenceLeaseLostError(response.text)
-        response.raise_for_status()
+        self.require_current_session(response)
 
     def renew_lease(self, assignment: Assignment) -> None:
         response = self.request(
             "POST",
-            f"api/inference/claims/{assignment.version_id}/{assignment.image}/lease",
+            f"api/worker/inference/claims/{assignment.version_id}/{assignment.image}/lease",
             json=self.identity,
         )
-        if response.status_code == 409:
-            raise InferenceLeaseLostError(response.text)
-        response.raise_for_status()
-
-
-def report_heartbeat(client: WorkerClient, current: str | None) -> None:
-    """A missed heartbeat only delays the status shown in the workbench."""
-    try:
-        client.heartbeat(current)
-    except WORKER_ERRORS as error:
-        LOGGER.warning("heartbeat failed: %s", error)
-
-
-@contextmanager
-def _lease(
-    client: WorkerClient,
-    assignment: Assignment,
-    *,
-    cancelled: Callable[[], bool] | None = None,
-):
-    """Keep one inference claim live while model loading and prediction run."""
-    closed = threading.Event()
-    lost = threading.Event()
-    refresh_errors: list[Exception] = []
-
-    def refresh() -> None:
-        while not closed.wait(LEASE_REFRESH_SECONDS):
-            try:
-                client.renew_lease(assignment)
-                report_heartbeat(client, assignment.image)
-            except Exception as error:  # noqa: BLE001 - process boundary owns the lease
-                refresh_errors.append(error)
-                lost.set()
-                return
-
-    def should_stop() -> bool:
-        return lost.is_set() or bool(cancelled and cancelled())
-
-    client.renew_lease(assignment)
-    thread = threading.Thread(target=refresh, name="inference-lease", daemon=True)
-    thread.start()
-    try:
-        yield should_stop
-    finally:
-        closed.set()
-        thread.join()
-        if refresh_errors:
-            raise InferenceLeaseLostError("Inference lease refresh failed") from (
-                refresh_errors[0]
-            )
+        self.require_current_session(response)
 
 
 def inference_outcome(
@@ -274,14 +134,13 @@ def inference_outcome(
 
 
 def process_image(
-    client: WorkerClient,
+    client: InferenceClient,
     digest: str,
     work_dir: Path,
     producer: DetectionProducer,
     detector: Detector,
     cancelled: Callable[[], bool] | None = None,
 ) -> InferenceOutcome:
-    report_heartbeat(client, digest)
     image_path = work_dir / f"{digest}{CANONICAL_EXTENSION}"
     image_path.write_bytes(client.download(digest))
     try:
@@ -289,12 +148,12 @@ def process_image(
     finally:
         image_path.unlink(missing_ok=True)
     if cancelled and cancelled():
-        raise InferenceLeaseLostError("Inference lease is no longer active")
+        raise LeaseLostError("Inference lease is no longer active")
     return outcome
 
 
 def process_assignment(
-    client: WorkerClient,
+    client: InferenceClient,
     assignment: Assignment,
     work_dir: Path,
     detector: Detector,
@@ -314,7 +173,7 @@ def process_assignment(
 
 
 def run_pass(
-    client: WorkerClient,
+    client: InferenceClient,
     work_root: Path,
     store: ModelStore,
     stopped: threading.Event | None = None,
@@ -323,7 +182,7 @@ def run_pass(
     Claim and process at most one task. Returning whether work was claimed lets
     the outer loop drain the queue without an idle polling delay.
     """
-    report_heartbeat(client, None)
+    client.report_heartbeat()
     if stopped and stopped.is_set():
         return False
     assignment = client.claim()
@@ -332,9 +191,9 @@ def run_pass(
     LOGGER.info("claimed %s with %s", assignment.image, assignment.version_id)
     with (
         tempfile.TemporaryDirectory(prefix="vitroflow-", dir=work_root) as temporary,
-        _lease(
+        keep_lease(
             client,
-            assignment,
+            lambda: client.renew_lease(assignment),
             cancelled=stopped.is_set if stopped else None,
         ) as cancelled,
     ):
@@ -359,23 +218,24 @@ def run_pass(
         )
     else:
         LOGGER.info("detected %s with %s", assignment.image, assignment.version_id)
-    report_heartbeat(client, None)
     return True
 
 
 def run_inference_worker(
-    settings: InferenceWorkerSettings,
+    settings: WorkerSettings,
     *,
     on_ready: Callable[[], None] | None = None,
 ) -> int:
     settings.work_dir.mkdir(parents=True, exist_ok=True)
-    client = WorkerClient(
-        settings.server_url, settings.token, WorkerRuntime.create(settings.worker_id)
+    client = InferenceClient(
+        settings.server_url,
+        settings.token,
+        WorkerSession.create(settings.worker_id, settings.device),
     )
     store = ModelStore(client, settings.work_dir, settings.device)
     try:
         with shutdown_signals() as stopped:
-            client.heartbeat(None)
+            client.heartbeat()
             if on_ready:
                 on_ready()
             while not stopped.is_set():

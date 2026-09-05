@@ -14,12 +14,7 @@ import {
 } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../db/client";
-import {
-  datasetSnapshots,
-  trainingEpochs,
-  trainingRuns,
-  trainingWorkers,
-} from "../db/schema";
+import { datasetSnapshots, trainingEpochs, trainingRuns } from "../db/schema";
 import { sameModelVersion, type ModelVersion } from "../models/schema";
 import { canonicalJson } from "../json/canonical";
 import {
@@ -37,7 +32,7 @@ import {
   type TrainingRun,
 } from "../training/schema";
 import type { TrainingRunSummary } from "../training/read-model";
-import type { TrainingWorkerIdentity } from "../training/workers";
+import type { WorkerIdentity } from "../workers/schema";
 import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
@@ -50,6 +45,7 @@ import {
 } from "./dataset-snapshots";
 import { readDataset } from "./datasets";
 import { readModelVersion, registerModelVersion } from "./model-registry";
+import { currentWorkerSession, sessionIsCurrent } from "./workers";
 
 const LEASE_MILLISECONDS = 5 * 60 * 1000;
 const PHASE_PROGRESS: Record<TrainingPhase, number> = {
@@ -208,7 +204,7 @@ async function transition(
  */
 async function ownedTransition(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   state: TrainingRun["state"],
   db: Executor,
 ): Promise<TrainingRun> {
@@ -221,7 +217,7 @@ async function ownedTransition(
         eq(trainingRuns.status, "running"),
         eq(trainingRuns.workerId, owner.workerId),
         eq(trainingRuns.sessionId, owner.sessionId),
-        currentWorkerSession(owner),
+        sessionIsCurrent(owner),
       ),
     )
     .returning();
@@ -239,15 +235,6 @@ function leaseUntil(at: Date): Date {
 
 function leaseFrom(at: Date): string {
   return leaseUntil(at).toISOString();
-}
-
-/** A session is a fencing token: only the process in the worker roster may write. */
-function currentWorkerSession(owner: TrainingWorkerIdentity) {
-  return sql`exists (
-    select 1 from ${trainingWorkers}
-    where ${trainingWorkers.id} = ${owner.workerId}
-      and ${trainingWorkers.sessionId} = ${owner.sessionId}
-  )`;
 }
 
 function artifactDigest(
@@ -500,20 +487,11 @@ export async function createTrainingRun(
  * run back idempotently; a newer session of that worker starts a fresh attempt.
  */
 export async function claimTrainingRun(
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   at: Date = new Date(),
 ): Promise<TrainingRun | null> {
   return transaction(async (tx) => {
-    const [worker] = await tx
-      .select({ sessionId: trainingWorkers.sessionId })
-      .from(trainingWorkers)
-      .where(eq(trainingWorkers.id, owner.workerId))
-      .for("update");
-    if (!worker || worker.sessionId !== owner.sessionId) {
-      throw new TrainingRunConflictError(
-        "Training worker session must heartbeat before claiming work",
-      );
-    }
+    await currentWorkerSession(owner, tx, { lock: true });
     const [owned] = await tx
       .select()
       .from(trainingRuns)
@@ -569,7 +547,7 @@ export async function claimTrainingRun(
 /** The run as its leaseholder sees it; any other caller gets a conflict. */
 async function ownedRunningRun(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   db: Executor,
 ): Promise<RunningTrainingRun> {
   return requireOwnedRunningRun(
@@ -583,15 +561,11 @@ async function ownedRunningRun(
 async function requireOwnedRunningRun(
   runId: string,
   run: TrainingRun | null,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   db: Executor,
 ): Promise<RunningTrainingRun> {
-  const [worker] = await db
-    .select({ sessionId: trainingWorkers.sessionId })
-    .from(trainingWorkers)
-    .where(eq(trainingWorkers.id, owner.workerId));
+  await currentWorkerSession(owner, db);
   if (
-    worker?.sessionId !== owner.sessionId ||
     !run ||
     run.state.status !== "running" ||
     run.state.workerId !== owner.workerId ||
@@ -607,7 +581,7 @@ async function requireOwnedRunningRun(
 /** Renew ownership without changing the run's phase or business progress. */
 export async function renewTrainingLease(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
   const db = await database();
@@ -620,7 +594,7 @@ export async function renewTrainingLease(
         eq(trainingRuns.status, "running"),
         eq(trainingRuns.workerId, owner.workerId),
         eq(trainingRuns.sessionId, owner.sessionId),
-        currentWorkerSession(owner),
+        sessionIsCurrent(owner),
       ),
     )
     .returning();
@@ -635,7 +609,7 @@ export async function renewTrainingLease(
 /** Advance through the ordered execution phases; retries are idempotent. */
 export async function enterTrainingPhase(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   phase: TrainingPhase,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
@@ -670,7 +644,7 @@ export async function enterTrainingPhase(
  */
 export async function recordTrainingEpoch(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   report: TrainingEpochReport,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
@@ -764,7 +738,7 @@ export async function listTrainingEpochs(
 
 export async function failTrainingRun(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   error: string,
 ): Promise<TrainingRun> {
   return ownedTransition(
@@ -783,7 +757,7 @@ export async function failTrainingRun(
  */
 export async function publishTrainingArtifact(
   runId: string,
-  owner: TrainingWorkerIdentity,
+  owner: WorkerIdentity,
   weights: Uint8Array,
   inference: unknown,
 ): Promise<TrainingRun> {
@@ -856,10 +830,7 @@ export async function publishTrainingArtifact(
   });
 }
 
-export async function snapshotForRun(
-  runId: string,
-  owner: TrainingWorkerIdentity,
-) {
+export async function snapshotForRun(runId: string, owner: WorkerIdentity) {
   const db = await database();
   const run = await ownedRunningRun(runId, owner, db);
   const snapshot = await readDatasetSnapshot(run.datasetSnapshotId, db);

@@ -206,15 +206,6 @@ CREATE TABLE "inference_outcomes" (
       end)
 );
 --> statement-breakpoint
-CREATE TABLE "inference_workers" (
-	"id" text PRIMARY KEY NOT NULL,
-	"session_id" text NOT NULL,
-	"started_at" timestamp with time zone NOT NULL,
-	"runtimes" jsonb NOT NULL,
-	"current_image_id" text,
-	"last_seen_at" timestamp with time zone NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "jwks" (
 	"id" text PRIMARY KEY NOT NULL,
 	"public_key" text NOT NULL,
@@ -443,15 +434,6 @@ CREATE TABLE "training_runs" (
       end)
 );
 --> statement-breakpoint
-CREATE TABLE "training_workers" (
-	"id" text PRIMARY KEY NOT NULL,
-	"session_id" text NOT NULL,
-	"started_at" timestamp with time zone NOT NULL,
-	"memory_bytes" bigint NOT NULL,
-	"current_training_run_id" text,
-	"last_seen_at" timestamp with time zone NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "users" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
@@ -477,6 +459,15 @@ CREATE TABLE "verifications" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "workers" (
+	"id" text PRIMARY KEY NOT NULL,
+	"session_id" text NOT NULL,
+	"started_at" timestamp with time zone NOT NULL,
+	"runtimes" jsonb NOT NULL,
+	"memory_bytes" bigint NOT NULL,
+	"last_seen_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotations" ADD CONSTRAINT "annotations_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotations" ADD CONSTRAINT "annotations_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -499,10 +490,9 @@ ALTER TABLE "experiment_treatments" ADD CONSTRAINT "experiment_treatments_experi
 ALTER TABLE "experiments" ADD CONSTRAINT "experiments_model_version_id_model_versions_id_fk" FOREIGN KEY ("model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_jobs" ADD CONSTRAINT "inference_jobs_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_jobs" ADD CONSTRAINT "inference_jobs_model_version_id_model_versions_id_fk" FOREIGN KEY ("model_version_id") REFERENCES "public"."model_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "inference_jobs" ADD CONSTRAINT "inference_jobs_worker_id_inference_workers_id_fk" FOREIGN KEY ("worker_id") REFERENCES "public"."inference_workers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "inference_jobs" ADD CONSTRAINT "inference_jobs_worker_id_workers_id_fk" FOREIGN KEY ("worker_id") REFERENCES "public"."workers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_outcomes" ADD CONSTRAINT "inference_outcomes_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_outcomes" ADD CONSTRAINT "inference_outcomes_model_version_id_artifact_digest_model_versions_id_artifact_digest_fk" FOREIGN KEY ("model_version_id","artifact_digest") REFERENCES "public"."model_versions"("id","artifact_digest") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "inference_workers" ADD CONSTRAINT "inference_workers_current_image_id_images_id_fk" FOREIGN KEY ("current_image_id") REFERENCES "public"."images"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_source_training_run_id_training_runs_id_fk" FOREIGN KEY ("source_training_run_id") REFERENCES "public"."training_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_source_dataset_snapshot_id_dataset_snapshots_id_fk" FOREIGN KEY ("source_dataset_snapshot_id") REFERENCES "public"."dataset_snapshots"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -524,7 +514,6 @@ ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_id_models_id_fk"
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_dataset_snapshot_id_model_id_dataset_snapshots_id_model_id_fk" FOREIGN KEY ("dataset_snapshot_id","model_id") REFERENCES "public"."dataset_snapshots"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk" FOREIGN KEY ("model_version_id","id","attempt","dataset_snapshot_id","model_id") REFERENCES "public"."model_versions"("id","source_training_run_id","source_training_attempt","source_dataset_snapshot_id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "training_workers" ADD CONSTRAINT "training_workers_current_training_run_id_training_runs_id_fk" FOREIGN KEY ("current_training_run_id") REFERENCES "public"."training_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_user_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "accounts_issuer_account_idx" ON "accounts" USING btree ("issuer","account_id");--> statement-breakpoint
 CREATE INDEX "api_keys_reference_idx" ON "api_keys" USING btree ("reference_id");--> statement-breakpoint
@@ -546,7 +535,6 @@ CREATE INDEX "inference_jobs_claimable_idx" ON "inference_jobs" USING btree ("le
 CREATE INDEX "inference_jobs_worker_idx" ON "inference_jobs" USING btree ("worker_id","session_id");--> statement-breakpoint
 CREATE INDEX "inference_outcomes_version_idx" ON "inference_outcomes" USING btree ("model_version_id");--> statement-breakpoint
 CREATE INDEX "inference_outcomes_status_idx" ON "inference_outcomes" USING btree ("status","recorded_at");--> statement-breakpoint
-CREATE INDEX "inference_workers_seen_idx" ON "inference_workers" USING btree ("last_seen_at");--> statement-breakpoint
 CREATE INDEX "model_versions_model_idx" ON "model_versions" USING btree ("model_id","created_at");--> statement-breakpoint
 CREATE INDEX "oauth_access_tokens_client_idx" ON "oauth_access_tokens" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "oauth_access_tokens_user_idx" ON "oauth_access_tokens" USING btree ("user_id");--> statement-breakpoint
@@ -560,5 +548,5 @@ CREATE INDEX "sessions_user_idx" ON "sessions" USING btree ("user_id");--> state
 CREATE UNIQUE INDEX "training_runs_one_active_per_model" ON "training_runs" USING btree ("model_id") WHERE "training_runs"."status" in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "training_runs_model_idx" ON "training_runs" USING btree ("model_id","created_at");--> statement-breakpoint
 CREATE INDEX "training_runs_claimable_idx" ON "training_runs" USING btree ("created_at") WHERE "training_runs"."status" in ('queued', 'running');--> statement-breakpoint
-CREATE INDEX "training_workers_seen_idx" ON "training_workers" USING btree ("last_seen_at");--> statement-breakpoint
-CREATE INDEX "verifications_identifier_idx" ON "verifications" USING btree ("identifier");
+CREATE INDEX "verifications_identifier_idx" ON "verifications" USING btree ("identifier");--> statement-breakpoint
+CREATE INDEX "workers_seen_idx" ON "workers" USING btree ("last_seen_at");

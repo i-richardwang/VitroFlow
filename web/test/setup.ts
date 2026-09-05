@@ -7,8 +7,7 @@ process.env.BETTER_AUTH_SECRET = "test-secret-test-secret-test-secret";
 for (const credential of [
   "VITROFLOW_ADMIN_EMAIL",
   "VITROFLOW_ADMIN_PASSWORD",
-  "VITROFLOW_INFERENCE_WORKER_TOKEN",
-  "VITROFLOW_TRAINING_WORKER_TOKEN",
+  "VITROFLOW_WORKER_TOKEN",
 ]) {
   delete process.env[credential];
 }

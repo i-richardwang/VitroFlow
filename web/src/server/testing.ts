@@ -14,7 +14,7 @@ import type { DetectionResult } from "../detection/schema";
 import type { Experiment, ObservationImageRef } from "../experiments/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
 import type { Model, ModelVersion } from "../models/schema";
-import type { InferenceWorkerHeartbeat } from "../inference/workers";
+import type { WorkerHeartbeat } from "../workers/schema";
 import { canonicalize } from "./image-ingest";
 import { addExperimentObservationImages } from "./datasets";
 import {
@@ -132,16 +132,13 @@ export async function registerTrainedVersion(
 }
 
 /** A heartbeat from a worker that executes only `TEST_RUNTIME`. */
-export function testHeartbeat(
-  workerId: string,
-  current: string | null = null,
-): InferenceWorkerHeartbeat {
+export function testHeartbeat(workerId: string): WorkerHeartbeat {
   return {
     workerId,
     sessionId: `session-${workerId}`,
     startedAt: "2026-08-27T00:00:00.000Z",
     runtimes: [TEST_RUNTIME],
-    current,
+    memoryBytes: 8 * 1024 ** 3,
   };
 }
 

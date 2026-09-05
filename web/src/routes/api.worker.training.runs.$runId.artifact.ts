@@ -3,11 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { resourceIdSchema } from "../identifiers/schema";
 import { publishTrainingArtifact } from "../server/training-runs";
 import {
-  parseTrainingForm,
-  parseTrainingJsonText,
-  parseTrainingValue,
-  trainingWorkerErrorResponse,
-} from "../server/training-worker-http";
+  parseWorkerForm,
+  parseWorkerJsonText,
+  parseWorkerValue,
+  workerErrorResponse,
+} from "../server/worker-http";
 import {
   MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
   MAX_TRAINING_MANIFEST_BYTES,
@@ -18,7 +18,9 @@ function payloadTooLarge(message: string): Response {
   return new Response(message, { status: 413 });
 }
 
-export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
+export const Route = createFileRoute(
+  "/api/worker/training/runs/$runId/artifact",
+)({
   server: {
     handlers: {
       PUT: async ({ params, request }) => {
@@ -33,7 +35,7 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
         let weights: Uint8Array;
         let publication: unknown;
         try {
-          const form = await parseTrainingForm(request);
+          const form = await parseWorkerForm(request);
           const worker = form.get("workerId");
           const session = form.get("sessionId");
           const weightsFile = form.get("weights");
@@ -53,17 +55,13 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
             return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
           owner = {
-            workerId: parseTrainingValue(worker, resourceIdSchema, "workerId"),
-            sessionId: parseTrainingValue(
-              session,
-              resourceIdSchema,
-              "sessionId",
-            ),
+            workerId: parseWorkerValue(worker, resourceIdSchema, "workerId"),
+            sessionId: parseWorkerValue(session, resourceIdSchema, "sessionId"),
           };
           weights = new Uint8Array(await weightsFile.arrayBuffer());
-          publication = parseTrainingJsonText(await inference.text());
+          publication = parseWorkerJsonText(await inference.text());
         } catch (error) {
-          return trainingWorkerErrorResponse(
+          return workerErrorResponse(
             error,
             "Invalid training artifact request",
           );
@@ -78,7 +76,7 @@ export const Route = createFileRoute("/api/training/runs/$runId/artifact")({
             ),
           );
         } catch (error) {
-          return trainingWorkerErrorResponse(
+          return workerErrorResponse(
             error,
             "Training artifact publication failed",
           );

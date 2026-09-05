@@ -11,7 +11,7 @@ import {
   experiments,
   inferenceOutcomes,
 } from "../db/schema";
-import type { InferenceWorkerRecord } from "../inference/workers";
+import type { Worker } from "../workers/schema";
 import type { ModelVersion } from "../models/schema";
 import {
   ObservationUnitNotFoundError,
@@ -85,7 +85,7 @@ function createExperiment(value: ExperimentRequestInput) {
   return createExperimentRecord(experimentRequestSchema.parse(value));
 }
 
-const worker: InferenceWorkerRecord = {
+const worker: Worker = {
   ...testHeartbeat("ultralytics-worker"),
   runtimes: [ULTRALYTICS_RUNTIME],
   lastSeenAt: "2026-08-27T00:00:00.000Z",

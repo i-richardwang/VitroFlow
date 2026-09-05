@@ -10,11 +10,11 @@ Worker services run under `launchd` and therefore require macOS. The `dataset`, 
 uv tool install 'vitroflow[yolo]'
 ```
 
-The `yolo` extra installs the pinned Ultralytics runtime that inference and training Workers advertise. Without it, an inference Worker serves only the bundled traditional detector and a training Worker cannot start.
+The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, an inference Worker serves only the bundled traditional detector and a training Worker cannot start.
 
 ## Workers
 
-Each Worker profile has a stable worker ID, role-specific credentials, runtime capabilities, and a private work directory. Setup validates authentication, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
+Each Worker profile has a stable worker ID, the workbench worker credential, the queue it serves, and a private work directory. Setup validates authentication, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
 
 ```bash
 vitroflow worker setup inference mac-inference \

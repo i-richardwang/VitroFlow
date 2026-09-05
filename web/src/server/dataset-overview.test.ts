@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 
 import { instancesFromDetection } from "../annotation/detection";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
-import { recordInferenceHeartbeat } from "./inference-worker-store";
 import { readAnnotation, storeAnnotation } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { datasetOverview } from "./dataset-overview";
@@ -12,8 +11,14 @@ import {
   createTrainingRun,
   failTrainingRun,
 } from "./training-runs";
-import { recordTrainingHeartbeat } from "./training-worker-store";
-import { testHeartbeat, imageDigest, resultFor, uploadTexts } from "./testing";
+import {
+  ULTRALYTICS_RUNTIME,
+  imageDigest,
+  resultFor,
+  testHeartbeat,
+  uploadTexts,
+} from "./testing";
+import { recordWorkerHeartbeat } from "./workers";
 
 /** This test's clock; workers heartbeating at wall-clock time are offline here. */
 const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -22,7 +27,7 @@ const OVERVIEW_AT = new Date(HEARTBEAT_AT.getTime() + 10_000);
 test("the overview derives review progress and training readiness", async () => {
   const at = OVERVIEW_AT;
   const { version } = await uploadTexts("overview", ["ov-a", "ov-b", "ov-c"]);
-  const worker = await recordInferenceHeartbeat(
+  const worker = await recordWorkerHeartbeat(
     testHeartbeat("overview-worker"),
     HEARTBEAT_AT,
   );
@@ -61,20 +66,14 @@ test("the overview derives review progress and training readiness", async () => 
   overview = await datasetOverview("overview", at);
   expect(overview?.training.active?.id).toBe(run.id);
   expect(overview?.training.reviewedSinceLastRun).toBe(0);
-  await recordTrainingHeartbeat(
+  const owner = await recordWorkerHeartbeat(
     {
-      workerId: "overview-trainer",
-      sessionId: "overview-trainer-session",
-      startedAt: HEARTBEAT_AT.toISOString(),
+      ...testHeartbeat("overview-trainer"),
+      runtimes: [ULTRALYTICS_RUNTIME],
       memoryBytes: 24 * 1024 ** 3,
-      currentTrainingRunId: null,
     },
     HEARTBEAT_AT,
   );
-  const owner = {
-    workerId: "overview-trainer",
-    sessionId: "overview-trainer-session",
-  };
   expect((await claimTrainingRun(owner))?.id).toBe(run.id);
   await failTrainingRun(run.id, owner, "stopped");
   overview = await datasetOverview("overview", at);

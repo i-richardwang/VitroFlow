@@ -2,22 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { failTrainingRun } from "../server/training-runs";
-import {
-  parseTrainingJson,
-  trainingWorkerErrorResponse,
-} from "../server/training-worker-http";
-import { trainingWorkerIdentitySchema } from "../training/workers";
+import { parseWorkerJson, workerErrorResponse } from "../server/worker-http";
+import { workerIdentitySchema } from "../workers/schema";
 
-const bodySchema = trainingWorkerIdentitySchema.extend({
+const bodySchema = workerIdentitySchema.extend({
   error: z.string().min(1).max(2000),
 });
 
-export const Route = createFileRoute("/api/training/runs/$runId/fail")({
+export const Route = createFileRoute("/api/worker/training/runs/$runId/fail")({
   server: {
     handlers: {
       POST: async ({ params, request }) => {
         try {
-          const body = await parseTrainingJson(request, bodySchema);
+          const body = await parseWorkerJson(request, bodySchema);
           return Response.json(
             await failTrainingRun(
               params.runId,
@@ -26,7 +23,7 @@ export const Route = createFileRoute("/api/training/runs/$runId/fail")({
             ),
           );
         } catch (error) {
-          return trainingWorkerErrorResponse(
+          return workerErrorResponse(
             error,
             "Training run failure report failed",
           );

@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 import pytest
 
-from vitroflow import inference_worker
+from vitroflow import worker_session
 from vitroflow.annotations import BoundingBox
 from vitroflow.detectors import (
     DetectionInstance,
@@ -20,13 +20,8 @@ from vitroflow.detectors import (
     RuntimeDescriptor,
 )
 from vitroflow.inference_models import ModelManifest
-from vitroflow.inference_worker import (
-    Assignment,
-    InferenceLeaseLostError,
-    WorkerClient,
-    WorkerRuntime,
-    run_pass,
-)
+from vitroflow.inference_worker import Assignment, InferenceClient, run_pass
+from vitroflow.worker_session import LeaseLostError, WorkerSession
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 IMAGE = b"source"
@@ -87,8 +82,8 @@ class FakeStore:
 
 
 DETECTOR = FakeDetector()
-WORKER = WorkerRuntime(
-    "test-worker", "test-session", "2026-08-27T00:00:00+00:00", (RUNTIME,)
+SESSION = WorkerSession(
+    "test-worker", "test-session", "2026-08-27T00:00:00+00:00", (RUNTIME,), 8_192
 )
 PRODUCER = DetectionProducer("set.traditional-v1", "a" * 64, RUNTIME)
 
@@ -118,27 +113,27 @@ class Workbench:
         self.requests.append(request)
         assert request.headers["authorization"] == "Bearer secret"
         path = request.url.path
-        if path == "/api/inference/heartbeat":
+        if path == "/api/worker/heartbeat":
             return httpx.Response(200)
-        if path == "/api/inference/claim":
+        if path == "/api/worker/inference/claim":
             assignment = self.assignments.pop(0) if self.assignments else None
             return httpx.Response(200, json={"assignment": assignment})
-        if path.startswith("/api/inference/claims/") and path.endswith("/lease"):
+        if path.startswith("/api/worker/inference/claims/") and path.endswith("/lease"):
             status = (
                 self.lease_statuses.pop(0) if self.lease_statuses else self.lease_status
             )
             return httpx.Response(status, json={})
-        if path.startswith("/api/inference/images/"):
+        if path.startswith("/api/worker/inference/images/"):
             return httpx.Response(200, content=self.image)
-        if path.startswith("/api/inference/results/"):
+        if path.startswith("/api/worker/inference/results/"):
             return httpx.Response(self.result_status, json={})
         return httpx.Response(404)
 
-    def client(self) -> WorkerClient:
-        return WorkerClient(
+    def client(self) -> InferenceClient:
+        return InferenceClient(
             "https://example.test",
             "secret",
-            WORKER,
+            SESSION,
             transport=httpx.MockTransport(self),
         )
 
@@ -149,7 +144,7 @@ class Workbench:
         return [
             json.loads(request.read())
             for request in self.requests
-            if request.url.path == "/api/inference/heartbeat"
+            if request.url.path == "/api/worker/heartbeat"
         ]
 
     def result_bodies(self) -> list[dict[str, object]]:
@@ -225,15 +220,14 @@ def test_assignment_validates_its_manifest() -> None:
         )
 
 
-def test_heartbeat_describes_runtimes_and_current_image() -> None:
-    assert WORKER.heartbeat(DIGEST) == {
+def test_heartbeat_describes_what_the_session_can_do() -> None:
+    assert SESSION.heartbeat() == {
         "workerId": "test-worker",
         "sessionId": "test-session",
         "startedAt": "2026-08-27T00:00:00+00:00",
         "runtimes": [RUNTIME.to_dict()],
-        "current": DIGEST,
+        "memoryBytes": 8_192,
     }
-    assert WORKER.heartbeat(None)["current"] is None
 
 
 def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
@@ -246,23 +240,17 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
         client.close()
 
     assert workbench.calls() == [
-        ("POST", "/api/inference/heartbeat"),
-        ("POST", "/api/inference/claim"),
+        ("POST", "/api/worker/heartbeat"),
+        ("POST", "/api/worker/inference/claim"),
         (
             "POST",
-            f"/api/inference/claims/set.traditional-v1/{DIGEST}/lease",
+            f"/api/worker/inference/claims/set.traditional-v1/{DIGEST}/lease",
         ),
-        ("POST", "/api/inference/heartbeat"),
-        ("GET", f"/api/inference/images/{DIGEST}"),
-        ("PUT", f"/api/inference/results/set.traditional-v1/{DIGEST}"),
-        ("POST", "/api/inference/heartbeat"),
+        ("GET", f"/api/worker/inference/images/{DIGEST}"),
+        ("PUT", f"/api/worker/inference/results/set.traditional-v1/{DIGEST}"),
     ]
     assert models.loads == ["set.traditional-v1"]
-    assert [beat["current"] for beat in workbench.heartbeats()] == [
-        None,
-        DIGEST,
-        None,
-    ]
+    assert workbench.heartbeats() == [SESSION.heartbeat()]
     assert json.loads(workbench.requests[1].read()) == {
         "workerId": "test-worker",
         "sessionId": "test-session",
@@ -271,7 +259,7 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
         "workerId": "test-worker",
         "sessionId": "test-session",
     }
-    assert dict(workbench.requests[5].url.params) == {
+    assert dict(workbench.requests[4].url.params) == {
         "workerId": "test-worker",
         "sessionId": "test-session",
     }
@@ -357,7 +345,7 @@ def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
     )
     client = workbench.client()
     try:
-        with pytest.raises(InferenceLeaseLostError):
+        with pytest.raises(LeaseLostError):
             run_pass(client, tmp_path, store())
     finally:
         client.close()
@@ -373,14 +361,14 @@ def test_refresh_failure_prevents_a_stale_result(
             time.sleep(0.02)
             return super().predict(image_path, digest, producer)
 
-    monkeypatch.setattr(inference_worker, "LEASE_REFRESH_SECONDS", 0.001)
+    monkeypatch.setattr(worker_session, "LEASE_REFRESH_SECONDS", 0.001)
     workbench = Workbench(
         [{"manifest": MANIFEST, "image": DIGEST}],
         lease_statuses=[200, 409],
     )
     client = workbench.client()
     try:
-        with pytest.raises(InferenceLeaseLostError):
+        with pytest.raises(LeaseLostError):
             run_pass(client, tmp_path, store(SlowDetector()))
     finally:
         client.close()
@@ -394,7 +382,7 @@ def test_result_conflict_is_a_lost_lease(tmp_path: Path) -> None:
     )
     client = workbench.client()
     try:
-        with pytest.raises(InferenceLeaseLostError):
+        with pytest.raises(LeaseLostError):
             run_pass(client, tmp_path, store())
     finally:
         client.close()
@@ -408,8 +396,8 @@ def test_pass_does_nothing_when_no_work_is_claimed(tmp_path: Path) -> None:
     finally:
         client.close()
     assert workbench.calls() == [
-        ("POST", "/api/inference/heartbeat"),
-        ("POST", "/api/inference/claim"),
+        ("POST", "/api/worker/heartbeat"),
+        ("POST", "/api/worker/inference/claim"),
     ]
 
 
@@ -424,5 +412,5 @@ def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
         client.close()
 
     assert workbench.calls() == [
-        ("POST", "/api/inference/heartbeat"),
+        ("POST", "/api/worker/heartbeat"),
     ]

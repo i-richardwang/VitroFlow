@@ -3,18 +3,17 @@ import { expect, test } from "bun:test";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../training/artifact";
 import { trainingRunSchema } from "../training/schema";
-import { Route as WeightsRoute } from "../routes/api.inference.model-versions.$versionId.weights";
-import { Route as ArtifactRoute } from "../routes/api.training.runs.$runId.artifact";
-import { Route as ClaimRoute } from "../routes/api.training.claim";
-import { Route as EpochsRoute } from "../routes/api.training.runs.$runId.epochs";
-import { Route as HeartbeatRoute } from "../routes/api.training.heartbeat";
-import { Route as LeaseRoute } from "../routes/api.training.runs.$runId.lease";
-import { Route as PhaseRoute } from "../routes/api.training.runs.$runId.phase";
-import { Route as ReadyRoute } from "../routes/api.training.ready";
-import { Route as ImageRoute } from "../routes/api.training.runs.$runId.images.$digest";
-import { Route as SnapshotRoute } from "../routes/api.training.runs.$runId.snapshot";
+import { Route as HeartbeatRoute } from "../routes/api.worker.heartbeat";
+import { Route as WeightsRoute } from "../routes/api.worker.inference.model-versions.$versionId.weights";
+import { Route as ClaimRoute } from "../routes/api.worker.training.claim";
+import { Route as ArtifactRoute } from "../routes/api.worker.training.runs.$runId.artifact";
+import { Route as EpochsRoute } from "../routes/api.worker.training.runs.$runId.epochs";
+import { Route as ImageRoute } from "../routes/api.worker.training.runs.$runId.images.$digest";
+import { Route as LeaseRoute } from "../routes/api.worker.training.runs.$runId.lease";
+import { Route as PhaseRoute } from "../routes/api.worker.training.runs.$runId.phase";
+import { Route as SnapshotRoute } from "../routes/api.worker.training.runs.$runId.snapshot";
 import { contentDigest } from "./blobs";
-import { reviewedDataset } from "./testing";
+import { ULTRALYTICS_RUNTIME, reviewedDataset } from "./testing";
 import { createTrainingRun } from "./training-runs";
 
 const OWNER = { workerId: "api-trainer", sessionId: "api-trainer-session" };
@@ -55,13 +54,13 @@ test("training HTTP routes publish one candidate version without selecting it", 
     HeartbeatRoute,
     "POST",
   )({
-    request: new Request("http://localhost/api/training/heartbeat", {
+    request: new Request("http://localhost/api/worker/heartbeat", {
       method: "POST",
       body: JSON.stringify({
         ...OWNER,
         startedAt: "2026-08-27T00:00:00.000Z",
+        runtimes: [ULTRALYTICS_RUNTIME],
         memoryBytes: 24 * 1024 ** 3,
-        currentTrainingRunId: null,
       }),
     }),
   } as never);
@@ -71,7 +70,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     ClaimRoute,
     "POST",
   )({
-    request: new Request("http://localhost/api/training/claim", {
+    request: new Request("http://localhost/api/worker/training/claim", {
       method: "POST",
       body: JSON.stringify(OWNER),
     }),
@@ -86,7 +85,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
   )({
     params: { runId: created.id },
     request: new Request(
-      `http://localhost/api/training/runs/${created.id}/snapshot?${new URLSearchParams(OWNER)}`,
+      `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams(OWNER)}`,
     ),
   } as never);
   const snapshotImages = (await snapshot.json()).images;
@@ -99,7 +98,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
   )({
     params: { runId: created.id, digest },
     request: new Request(
-      `http://localhost/api/training/runs/${created.id}/images/${digest}?${new URLSearchParams(OWNER)}`,
+      `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams(OWNER)}`,
     ),
   } as never);
   expect(image.status).toBe(200);
@@ -241,13 +240,6 @@ test("training HTTP routes publish one candidate version without selecting it", 
     params: { versionId },
   } as never);
   expect(await weights.text()).toBe("weights");
-});
-
-test("training readiness identifies the authenticated control plane", async () => {
-  const response = await handler(ReadyRoute, "GET")({} as never);
-
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ role: "training" });
 });
 
 test("training HTTP routes distinguish invalid requests from lease conflicts", async () => {

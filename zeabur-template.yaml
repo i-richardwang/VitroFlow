@@ -29,9 +29,8 @@ spec:
         - **postgres** — Postgres 18, the source of truth for records
         - **minio** — S3-compatible object store for immutable blobs
 
-        Inference and training workers are not part of this template. They only
-        make outbound calls, so run them next to their GPUs and give them
-        `VITROFLOW_INFERENCE_WORKER_TOKEN` / `VITROFLOW_TRAINING_WORKER_TOKEN`
+        Workers are not part of this template. They only make outbound calls,
+        so run them next to their GPUs and give them the `VITROFLOW_WORKER_TOKEN`
         set on the workbench.
 
         ## After deploying
