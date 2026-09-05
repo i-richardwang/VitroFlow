@@ -1,6 +1,6 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Segment } from "@heroui-pro/react/segment";
-import { Alert, Button, ButtonGroup, Separator, Toolbar } from "@heroui/react";
+import { Alert, Button, ButtonGroup, Separator } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
 import {
@@ -20,7 +20,7 @@ import type {
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
-import { Workbench } from "../Workbench";
+import { Workbench, WorkbenchActions, WorkbenchToolbar } from "../Workbench";
 import { ImageWorkbench } from "../workbench/ImageWorkbench";
 import { StepButton } from "../workbench/StepButton";
 import { Metrics, Section } from "../workbench/inspector";
@@ -77,15 +77,9 @@ export function ObservationUnitWorkbench({
 
   if (!shown) {
     return (
-      <Workbench
-        title={title}
-        actions={menu}
-        toolbar={
-          <Toolbar isAttached aria-label="Navigation">
-            {toolbar}
-          </Toolbar>
-        }
-      >
+      <Workbench title={title}>
+        <WorkbenchActions>{menu}</WorkbenchActions>
+        <WorkbenchToolbar label="Navigation">{toolbar}</WorkbenchToolbar>
         <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
           <EmptyState>
             <EmptyState.Header>

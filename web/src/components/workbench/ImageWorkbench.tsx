@@ -8,7 +8,6 @@ import {
   Separator,
   ToggleButton,
   ToggleButtonGroup,
-  Toolbar,
   Tooltip,
 } from "@heroui/react";
 import { useBlocker, useRouter } from "@tanstack/react-router";
@@ -36,8 +35,14 @@ import { versionSlug, type Model } from "../../models/schema";
 import { QualityAlert } from "../DetectionQuality";
 import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../icons";
 import { ReviewStateChip } from "../ReviewState";
-import { Workbench } from "../Workbench";
-import { AnnotationCanvas, type Editing } from "./AnnotationCanvas";
+import {
+  Workbench,
+  WorkbenchActions,
+  WorkbenchInspector,
+  WorkbenchToolbar,
+} from "../Workbench";
+import { BoxLayer, EditableBoxLayer } from "./BoxLayer";
+import { ImageViewport } from "./ImageViewport";
 import {
   TOOL_SPECS,
   TOOLS,
@@ -70,11 +75,13 @@ export interface ImageWorkbenchContext {
 /**
  * One image reviewed for one model, wherever the page shows it.
  *
- * The page shows what is stored: the review, or the detection until one is.
- * Editing opens a draft of the boxes on the same canvas and adds the tools;
- * the page keeps that flag in its address so a link can open straight into
- * editing. Done stores the draft as the review and the page reloads what it
- * shows; Cancel discards the draft.
+ * The image sits in one viewport for both modes, so opening or closing the
+ * editor changes what is drawn over it and what surrounds it, never where
+ * it is. Viewing shows what is stored: the review, or the detection until
+ * there is one. Editing opens a draft of the boxes; the page keeps that
+ * flag in its address so a link can open straight into editing. Done stores
+ * the draft as the review and the page reloads what it shows; Cancel
+ * discards the draft.
  */
 export function ImageWorkbench({
   title,
@@ -101,59 +108,36 @@ export function ImageWorkbench({
   const display = { layers, onLayersChange: setLayers };
   const opening = reviewInstances(review);
 
-  if (editing && opening) {
-    return (
-      <Editor
-        title={title}
-        model={model}
-        review={review}
-        opening={opening}
-        display={display}
-        onClose={() => onEditingChange(false)}
-        context={context}
-      />
-    );
-  }
-
   return (
-    <Workbench
-      title={title}
-      actions={
-        <>
-          <ReviewStateChip state={reviewState(review.annotation)} />
-          <Button
-            variant="primary"
-            isDisabled={opening === null}
-            onPress={() => onEditingChange(true)}
-          >
-            Edit
-          </Button>
-          {context.actions}
-          {context.menu}
-        </>
-      }
-      toolbar={
-        context.toolbar ? (
-          <Toolbar isAttached aria-label="Navigation">
-            {context.toolbar}
-          </Toolbar>
-        ) : undefined
-      }
-      inspector={
-        <ReviewInspector
-          model={model}
-          instances={review.annotation?.instances ?? null}
-          detection={review.detection}
-          display={display}
-          details={context.details}
-        />
-      }
-    >
-      <ReviewCanvas
-        review={review}
-        instances={shownInstances(review, version)}
-        layers={layers}
-      />
+    <Workbench title={title}>
+      <ImageViewport
+        image={{
+          digest: review.ref.digest,
+          width: review.width,
+          height: review.height,
+        }}
+        filename={review.filename}
+      >
+        {editing && opening ? (
+          <Editing
+            model={model}
+            review={review}
+            opening={opening}
+            display={display}
+            onClose={() => onEditingChange(false)}
+            context={context}
+          />
+        ) : (
+          <Viewing
+            model={model}
+            review={review}
+            version={version}
+            display={display}
+            onEdit={opening ? () => onEditingChange(true) : undefined}
+            context={context}
+          />
+        )}
+      </ImageViewport>
     </Workbench>
   );
 }
@@ -163,29 +147,52 @@ interface Display {
   onLayersChange: (layers: Set<LayerKey>) => void;
 }
 
-function ReviewCanvas({
+function Viewing({
+  model,
   review,
-  instances,
-  layers,
-  editing,
+  version,
+  display,
+  onEdit,
+  context,
 }: {
+  model: Model;
   review: Review;
-  instances: AnnotationInstance[];
-  layers: ReadonlySet<LayerKey>;
-  editing?: Editing;
+  version: ReviewVersion;
+  display: Display;
+  /** Present once there is something to review. */
+  onEdit?: () => void;
+  context: ImageWorkbenchContext;
 }) {
   return (
-    <AnnotationCanvas
-      image={{
-        digest: review.ref.digest,
-        width: review.width,
-        height: review.height,
-      }}
-      filename={review.filename}
-      instances={instances}
-      layers={layers}
-      editing={editing}
-    />
+    <>
+      <WorkbenchActions>
+        <ReviewStateChip state={reviewState(review.annotation)} />
+        <Button variant="primary" isDisabled={!onEdit} onPress={onEdit}>
+          Edit
+        </Button>
+        {context.actions}
+        {context.menu}
+      </WorkbenchActions>
+      {context.toolbar ? (
+        <WorkbenchToolbar label="Navigation">
+          {context.toolbar}
+        </WorkbenchToolbar>
+      ) : null}
+      <WorkbenchInspector>
+        <ReviewInspector
+          model={model}
+          instances={review.annotation?.instances ?? null}
+          detection={review.detection}
+          display={display}
+          details={context.details}
+        />
+      </WorkbenchInspector>
+      <BoxLayer
+        image={review}
+        instances={shownInstances(review, version)}
+        layers={display.layers}
+      />
+    </>
   );
 }
 
@@ -255,8 +262,7 @@ function detectionMetrics(modelId: string, result: DetectionResult): Metric[] {
  * while an edit can be undone; leaving with one asks first, whether by
  * navigation or by closing the tab.
  */
-function Editor({
-  title,
+function Editing({
   model,
   review,
   opening,
@@ -264,7 +270,6 @@ function Editor({
   onClose,
   context,
 }: {
-  title: string;
   model: Model;
   review: Review;
   /** The boxes the draft begins from. */
@@ -372,43 +377,38 @@ function Editor({
   });
 
   return (
-    <Workbench
-      title={title}
-      actions={
-        <>
-          <Button variant="tertiary" isDisabled={saving} onPress={close}>
-            Cancel
-          </Button>
-          <Button variant="primary" isDisabled={saving} onPress={done}>
-            {saving ? "Saving…" : "Done"}
-          </Button>
-          {context.menu}
-        </>
-      }
-      toolbar={
-        <Toolbar isAttached aria-label="Navigation and tools">
-          {context.toolbar}
-          {context.toolbar ? <Separator /> : null}
-          <EditingTools
-            tool={tool}
-            history={history}
-            canDelete={selectedId !== null}
-            onToolChange={setTool}
-            onUndo={undo}
-            onRedo={redo}
-            onDelete={deleteSelected}
-            onRestart={detection ? restartFromDetection : undefined}
-            classes={model.classes}
-            className={selected?.class ?? activeClass}
-            onClassChange={changeClass}
-          />
-        </Toolbar>
-      }
-      inspector={
+    <>
+      <WorkbenchActions>
+        <Button variant="tertiary" isDisabled={saving} onPress={close}>
+          Cancel
+        </Button>
+        <Button variant="primary" isDisabled={saving} onPress={done}>
+          {saving ? "Saving…" : "Done"}
+        </Button>
+        {context.menu}
+      </WorkbenchActions>
+      <WorkbenchToolbar label="Navigation and tools">
+        {context.toolbar}
+        {context.toolbar ? <Separator /> : null}
+        <EditingTools
+          tool={tool}
+          history={history}
+          canDelete={selectedId !== null}
+          onToolChange={setTool}
+          onUndo={undo}
+          onRedo={redo}
+          onDelete={deleteSelected}
+          onRestart={detection ? restartFromDetection : undefined}
+          classes={model.classes}
+          className={selected?.class ?? activeClass}
+          onClassChange={changeClass}
+        />
+      </WorkbenchToolbar>
+      <WorkbenchInspector>
         <ReviewInspector
           model={model}
           instances={instances}
-          detection={review.detection}
+          detection={detection}
           display={display}
           details={context.details}
         >
@@ -422,22 +422,19 @@ function Editor({
             </Alert>
           ) : null}
         </ReviewInspector>
-      }
-    >
-      <ReviewCanvas
-        review={review}
+      </WorkbenchInspector>
+      <EditableBoxLayer
+        image={review}
         instances={instances}
         layers={display.layers}
-        editing={{
-          tool,
-          panning,
-          className: activeClass,
-          selectedId,
-          onSelect: setSelectedId,
-          onInstancesChange: editInstances,
-        }}
+        tool={tool}
+        panning={panning}
+        className={activeClass}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        onInstancesChange={editInstances}
       />
-    </Workbench>
+    </>
   );
 }
 
