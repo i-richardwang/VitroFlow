@@ -10,7 +10,7 @@ import { getDatasets } from "../../functions/datasets";
 
 export const Route = createFileRoute("/_workbench/datasets/")({
   loader: () => getDatasets(),
-  staticData: { crumbs: [{ label: "Datasets" }] },
+  staticData: { crumbs: () => [{ label: "Datasets" }] },
   component: DatasetsPage,
 });
 

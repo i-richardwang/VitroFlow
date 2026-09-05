@@ -3,6 +3,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { WorkbenchNotice } from "../components/WorkbenchNotice";
 import { Shell } from "../components/shell";
 import { getSession } from "../functions/session";
+import { m } from "../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench")({
   beforeLoad: () => getSession(),
@@ -22,7 +23,7 @@ function WorkbenchLayout() {
 function WorkbenchNotFound() {
   return (
     <Shell>
-      <WorkbenchNotice title="Not found" />
+      <WorkbenchNotice title={m.not_found()} />
     </Shell>
   );
 }
@@ -31,7 +32,7 @@ function WorkbenchError({ error }: { error: Error }) {
   return (
     <Shell>
       <WorkbenchNotice
-        title="Something went wrong"
+        title={m.something_went_wrong()}
         description={error.message}
       />
     </Shell>

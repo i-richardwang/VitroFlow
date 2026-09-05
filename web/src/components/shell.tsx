@@ -21,6 +21,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { authClient } from "../auth/client";
+import { m } from "../paraglide/messages";
 import { isAdmin, type WorkbenchUser } from "../auth/schema";
 import { BrandLogo } from "./BrandLogo";
 import { Hint } from "./Hint";
@@ -37,51 +38,56 @@ import {
 
 const NAV = [
   {
-    label: "Lab",
+    label: m.nav_group_lab,
     items: [
       {
         href: "/experiments",
-        label: "Experiments",
+        label: m.nav_experiments,
         icon: ExperimentsIcon,
         match: "experiments",
       },
     ],
   },
   {
-    label: "Model",
+    label: m.nav_group_model,
     items: [
       {
         href: "/datasets",
-        label: "Datasets",
+        label: m.nav_datasets,
         icon: DatasetsIcon,
         match: "datasets",
       },
       {
         href: "/training",
-        label: "Training",
+        label: m.nav_training,
         icon: TrainingIcon,
         match: "training",
       },
     ],
   },
   {
-    label: "Workers",
+    label: m.nav_group_workers,
     items: [
-      { href: "/status", label: "Status", icon: StatusIcon, match: "status" },
+      {
+        href: "/status",
+        label: m.nav_status,
+        icon: StatusIcon,
+        match: "status",
+      },
     ],
   },
   {
-    label: "Settings",
+    label: m.nav_group_settings,
     items: [
       {
         href: "/account",
-        label: "Account",
+        label: m.nav_account,
         icon: AccountIcon,
         match: "account",
       },
       {
         href: "/integrations",
-        label: "Integrations",
+        label: m.nav_integrations,
         icon: KeyIcon,
         match: "integrations",
       },
@@ -92,9 +98,9 @@ const NAV = [
 /** Navigation only administrators see. */
 const ADMIN_NAV = [
   {
-    label: "Workbench",
+    label: m.nav_group_workbench,
     items: [
-      { href: "/users", label: "Users", icon: UsersIcon, match: "users" },
+      { href: "/users", label: m.nav_users, icon: UsersIcon, match: "users" },
     ],
   },
 ] as const;
@@ -190,7 +196,7 @@ function AppNavbar({
     <Navbar maxWidth="full">
       <Navbar.Header>
         <AppLayout.MenuToggle />
-        <Sidebar.Trigger aria-label="Toggle navigation" />
+        <Sidebar.Trigger aria-label={m.nav_toggle()} />
         {crumbs.length > 0 ? (
           <Breadcrumbs className="min-w-0">
             {crumbs.map((crumb, index) => {
@@ -220,30 +226,24 @@ function AppNavbar({
   );
 }
 
+/** The deepest settled match that declares a trail decides it. */
 function trail(
   matches: ReadonlyArray<{
+    status: string;
     loaderData: unknown;
     params: unknown;
     staticData: {
-      crumbs?:
-        | Crumb[]
-        | ((match: {
-            loaderData: unknown;
-            params: Record<string, string>;
-          }) => Crumb[]);
+      crumbs?: (match: {
+        loaderData: unknown;
+        params: Record<string, string>;
+      }) => Crumb[];
     };
   }>,
 ): Crumb[] {
   for (let i = matches.length - 1; i >= 0; i--) {
     const match = matches[i]!;
     const spec = match.staticData.crumbs;
-    if (!spec) {
-      continue;
-    }
-    if (typeof spec !== "function") {
-      return spec;
-    }
-    if (match.loaderData === undefined) {
+    if (!spec || match.status !== "success") {
       continue;
     }
     return spec({
@@ -295,15 +295,15 @@ function SidebarContents({
             className="truncate text-base font-semibold text-foreground"
             data-sidebar="label"
           >
-            VitroFlow
+            {m.app_name()}
           </span>
         </div>
       </Sidebar.Header>
       <Sidebar.Content>
         {groups.map((group) => (
-          <Sidebar.Group key={group.label}>
-            <Sidebar.GroupLabel>{group.label}</Sidebar.GroupLabel>
-            <Sidebar.Menu aria-label={group.label}>
+          <Sidebar.Group key={group.label()}>
+            <Sidebar.GroupLabel>{group.label()}</Sidebar.GroupLabel>
+            <Sidebar.Menu aria-label={group.label()}>
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -312,12 +312,12 @@ function SidebarContents({
                     href={item.href}
                     id={`${idPrefix}${item.match}`}
                     isCurrent={section === item.match}
-                    textValue={item.label}
+                    textValue={item.label()}
                   >
                     <Sidebar.MenuIcon>
                       <Icon />
                     </Sidebar.MenuIcon>
-                    <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+                    <Sidebar.MenuLabel>{item.label()}</Sidebar.MenuLabel>
                   </Sidebar.MenuItem>
                 );
               })}
@@ -356,12 +356,12 @@ function SignedInUser({ user }: { user: WorkbenchUser }) {
       >
         {user.name}
       </div>
-      <Hint text="Sign out">
+      <Hint text={m.sign_out()}>
         <Button
           variant="ghost"
           isIconOnly
           size="sm"
-          aria-label="Sign out"
+          aria-label={m.sign_out()}
           isDisabled={busy}
           onPress={() => void signOut()}
         >

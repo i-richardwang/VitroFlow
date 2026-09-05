@@ -10,7 +10,7 @@ import type { WorkerActivity } from "../../workers/schema";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
-  staticData: { crumbs: [{ label: "Status" }] },
+  staticData: { crumbs: () => [{ label: "Status" }] },
   component: StatusPage,
 });
 

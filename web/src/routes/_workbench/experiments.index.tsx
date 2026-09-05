@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_workbench/experiments/")({
     ]);
     return { experiments, versions };
   },
-  staticData: { crumbs: [{ label: "Experiments" }] },
+  staticData: { crumbs: () => [{ label: "Experiments" }] },
   component: ExperimentsPage,
 });
 

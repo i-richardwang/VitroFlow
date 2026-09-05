@@ -8,6 +8,7 @@ import {
   SOURCE_IMAGE_EXTENSIONS,
   sourceImageFileError,
 } from "../images/canonical";
+import { m } from "../paraglide/messages";
 
 export interface ListedImage {
   id: number;
@@ -64,15 +65,19 @@ export function ImageDropZone({
         }}
       >
         <DropZone.Icon />
-        <DropZone.Label>Drop images here or browse</DropZone.Label>
+        <DropZone.Label>{m.dropzone_label()}</DropZone.Label>
         <DropZone.Description>
-          JPEG, PNG, or TIFF · {MAX_IMAGE_BYTES / (1024 * 1024)} MiB ·{" "}
-          {MAX_SOURCE_IMAGE_PIXELS / 1_000_000} MP
+          {m.dropzone_limits({
+            megabytes: MAX_IMAGE_BYTES / (1024 * 1024),
+            megapixels: MAX_SOURCE_IMAGE_PIXELS / 1_000_000,
+          })}
         </DropZone.Description>
-        <DropZone.Trigger isDisabled={busy}>Select images</DropZone.Trigger>
+        <DropZone.Trigger isDisabled={busy}>
+          {m.dropzone_select()}
+        </DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
-        aria-label="Select images"
+        aria-label={m.dropzone_select()}
         accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
         disabled={busy}
         multiple
@@ -94,7 +99,10 @@ export function ImageDropZone({
                     {formatSize(file.size)}
                     {state.status === "storing" && ` | ${state.progress}%`}
                     {state.status === "stored" && (
-                      <span className="text-success"> | ready</span>
+                      <span className="text-success">
+                        {" "}
+                        | {m.dropzone_ready()}
+                      </span>
                     )}
                     {state.status === "failed" && (
                       <span className="text-danger"> | {state.reason}</span>
@@ -102,7 +110,7 @@ export function ImageDropZone({
                   </DropZone.FileMeta>
                   {state.status === "storing" && (
                     <DropZone.FileProgress
-                      aria-label={`Upload progress for ${file.name}`}
+                      aria-label={m.dropzone_progress({ file: file.name })}
                       value={state.progress}
                     >
                       <DropZone.FileProgressTrack>
@@ -115,7 +123,7 @@ export function ImageDropZone({
                   {annotate?.({ id, file, state })}
                   {busy ? null : (
                     <DropZone.FileRemoveTrigger
-                      aria-label={`Remove ${file.name}`}
+                      aria-label={m.dropzone_remove({ file: file.name })}
                       onPress={() => onRemove(id)}
                     />
                   )}

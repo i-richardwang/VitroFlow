@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_workbench/users")({
     if (!isAdmin(context.user)) throw notFound();
   },
   loader: () => getUsers(),
-  staticData: { crumbs: [{ label: "Users" }] },
+  staticData: { crumbs: () => [{ label: "Users" }] },
   head: () => ({ meta: [{ title: "Users · VitroFlow" }] }),
   component: UsersPage,
 });

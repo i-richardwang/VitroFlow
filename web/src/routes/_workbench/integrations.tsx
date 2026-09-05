@@ -11,7 +11,7 @@ import { getIntegrations } from "../../functions/integrations";
 
 export const Route = createFileRoute("/_workbench/integrations")({
   loader: () => getIntegrations(),
-  staticData: { crumbs: [{ label: "Integrations" }] },
+  staticData: { crumbs: () => [{ label: "Integrations" }] },
   head: () => ({ meta: [{ title: "Integrations · VitroFlow" }] }),
   component: IntegrationsPage,
 });

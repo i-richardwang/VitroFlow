@@ -5,12 +5,14 @@ import { routeTree } from "./routeTree.gen";
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
-    crumbs?:
-      | Crumb[]
-      | ((match: {
-          loaderData: unknown;
-          params: Record<string, string>;
-        }) => Crumb[]);
+    /**
+     * The breadcrumb trail the navbar shows while this route is the deepest
+     * match. Evaluated at render, so labels resolve in the request's locale.
+     */
+    crumbs?: (match: {
+      loaderData: unknown;
+      params: Record<string, string>;
+    }) => Crumb[];
   }
 }
 

@@ -4,3 +4,5 @@ dist/
 src/routeTree.gen.ts
 *.pglite/
 .pglite/
+
+src/paraglide/

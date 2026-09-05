@@ -7,6 +7,7 @@ import { authClient, continuation } from "../auth/client";
 import { BrandLogo } from "../components/BrandLogo";
 import { describeOAuthClient } from "../functions/integrations";
 import { useAsyncAction } from "../hooks/useAsyncAction";
+import { m } from "../paraglide/messages";
 
 /**
  * The consent step of an MCP client's authorization request. The signed
@@ -18,7 +19,9 @@ export const Route = createFileRoute("/consent")({
   loaderDeps: ({ search }) => ({ clientId: search.client_id }),
   loader: ({ deps }) =>
     describeOAuthClient({ data: { clientId: deps.clientId } }),
-  head: () => ({ meta: [{ title: "Authorize · VitroFlow" }] }),
+  head: () => ({
+    meta: [{ title: `${m.consent_allow()} · ${m.app_name()}` }],
+  }),
   component: ConsentPage,
 });
 
@@ -30,11 +33,11 @@ function ConsentPage() {
   const decide = (accept: boolean) =>
     void run(async () => {
       const { data, error } = await authClient.oauth2.consent({ accept });
-      if (error) throw new Error(error.message ?? "Authorization failed");
+      if (error) throw new Error(error.message ?? m.consent_failed());
       const next = continuation(data);
-      if (!next) throw new Error("The authorization request has expired");
+      if (!next) throw new Error(m.consent_expired());
       return next;
-    }, "Authorization failed").then((result) => {
+    }, m.consent_failed()).then((result) => {
       if (!result.ok) return;
       setDecided(true);
       window.location.assign(result.value);
@@ -45,12 +48,12 @@ function ConsentPage() {
       <div className="flex w-full max-w-sm flex-col gap-6">
         <header className="flex items-center gap-2.5 self-center">
           <BrandLogo className="size-10" />
-          <span className="text-sm font-semibold">VitroFlow</span>
+          <span className="text-sm font-semibold">{m.app_name()}</span>
         </header>
         <Card className="w-full">
           <Card.Header>
             <Card.Title render={(props) => <h1 {...props} />}>
-              Authorize {client.name}
+              {m.consent_title({ client: client.name })}
             </Card.Title>
             {client.uri ? (
               <Card.Description>
@@ -67,7 +70,7 @@ function ConsentPage() {
               isDisabled={busy || decided}
               onPress={() => decide(false)}
             >
-              Deny
+              {m.consent_deny()}
             </Button>
             <Button
               variant="primary"
@@ -75,7 +78,7 @@ function ConsentPage() {
               isDisabled={busy || decided}
               onPress={() => decide(true)}
             >
-              {busy || decided ? "Authorizing…" : "Allow"}
+              {busy || decided ? m.consent_authorizing() : m.consent_allow()}
             </Button>
           </Card.Footer>
         </Card>

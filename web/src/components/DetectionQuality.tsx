@@ -1,15 +1,16 @@
 import { Alert, Chip } from "@heroui/react";
 
 import type { DetectionQuality } from "../detection/schema";
+import { m } from "../paraglide/messages";
 
-const WARNING_LABELS: Record<string, string> = {
-  dish_detection_failed: "Petri dish not detected",
-  exposure_clipping: "Exposure clipped",
-  low_focus: "Low focus",
+const WARNING_LABELS: Record<string, () => string> = {
+  dish_detection_failed: m.quality_dish_detection_failed,
+  exposure_clipping: m.quality_exposure_clipping,
+  low_focus: m.quality_low_focus,
 };
 
 function warningLabel(warning: string): string {
-  return WARNING_LABELS[warning] ?? warning.replaceAll("_", " ");
+  return WARNING_LABELS[warning]?.() ?? warning.replaceAll("_", " ");
 }
 
 export function QualityChips({ quality }: { quality: DetectionQuality }) {

@@ -2,6 +2,7 @@ import { AlertDialog, Button } from "@heroui/react";
 import { type ReactNode, useState } from "react";
 
 import { useAsyncAction } from "../hooks/useAsyncAction";
+import { m } from "../paraglide/messages";
 
 export function DestructiveActionDialog({
   isOpen,
@@ -31,20 +32,23 @@ export function DestructiveActionDialog({
             {children ? <AlertDialog.Body>{children}</AlertDialog.Body> : null}
             <AlertDialog.Footer>
               <Button variant="tertiary" slot="close" isDisabled={busy}>
-                Cancel
+                {m.cancel()}
               </Button>
               <Button
                 variant="danger"
                 isDisabled={busy}
                 onPress={() => {
-                  void run(onConfirm, `${confirmLabel} failed`).then(
-                    (result) => {
-                      if (result.ok) onOpenChange(false);
-                    },
-                  );
+                  void run(
+                    onConfirm,
+                    m.action_failed({ action: confirmLabel }),
+                  ).then((result) => {
+                    if (result.ok) onOpenChange(false);
+                  });
                 }}
               >
-                {busy ? `${confirmLabel}…` : confirmLabel}
+                {busy
+                  ? m.action_in_progress({ action: confirmLabel })
+                  : confirmLabel}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>
@@ -78,7 +82,7 @@ export function DestructiveActionButton({
         aria-label={title}
         onPress={() => setOpen(true)}
       >
-        {label}…
+        {m.action_in_progress({ action: label })}
       </Button>
       <DestructiveActionDialog
         isOpen={open}

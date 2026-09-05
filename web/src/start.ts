@@ -6,6 +6,7 @@ import {
 
 import { loginPath, requestedPath } from "./auth/navigation";
 import { apiRequestAuthorization } from "./server/api-credentials";
+import { withRequestLocale } from "./server/locale";
 import { readSession, redirect } from "./server/session";
 
 /**
@@ -46,10 +47,18 @@ const requireSession = createMiddleware().server(
   },
 );
 
+const resolveLocale = createMiddleware().server(({ request, next }) =>
+  withRequestLocale(request, () => next()),
+);
+
 const requireSameOriginServerFunction = createCsrfMiddleware({
   filter: ({ handlerType }) => handlerType === "serverFn",
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [requireSameOriginServerFunction, requireSession],
+  requestMiddleware: [
+    requireSameOriginServerFunction,
+    resolveLocale,
+    requireSession,
+  ],
 }));

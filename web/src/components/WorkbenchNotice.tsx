@@ -1,6 +1,8 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Link } from "@heroui/react";
 
+import { m } from "../paraglide/messages";
+
 export function WorkbenchNotice({
   title,
   description,
@@ -19,7 +21,7 @@ export function WorkbenchNotice({
         </EmptyState.Header>
         <EmptyState.Content>
           <Link href="/experiments" className="text-sm font-medium">
-            Return to experiments
+            {m.return_to_experiments()}
           </Link>
         </EmptyState.Content>
       </EmptyState>

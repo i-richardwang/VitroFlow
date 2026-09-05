@@ -19,6 +19,7 @@ import { authClient, continuation } from "../auth/client";
 import { carriesAuthorizationRequest, returnPath } from "../auth/navigation";
 import { BrandLogo } from "../components/BrandLogo";
 import { useAsyncAction } from "../hooks/useAsyncAction";
+import { m } from "../paraglide/messages";
 import { readSession, redirect } from "../server/session";
 
 /**
@@ -28,7 +29,9 @@ import { readSession, redirect } from "../server/session";
  */
 export const Route = createFileRoute("/login")({
   validateSearch: z.object({ returnTo: z.string().optional() }).loose(),
-  head: () => ({ meta: [{ title: "Sign in · VitroFlow" }] }),
+  head: () => ({
+    meta: [{ title: `${m.login_title()} · ${m.app_name()}` }],
+  }),
   server: {
     handlers: {
       GET: async ({ request, next }) => {
@@ -56,12 +59,12 @@ function LoginPage() {
       <div className="flex w-full max-w-sm flex-col gap-6">
         <header className="flex items-center gap-2.5 self-center">
           <BrandLogo className="size-10" />
-          <span className="text-sm font-semibold">VitroFlow</span>
+          <span className="text-sm font-semibold">{m.app_name()}</span>
         </header>
         <Card className="w-full">
           <Card.Header>
             <Card.Title render={(props) => <h1 {...props} />}>
-              Sign in
+              {m.login_title()}
             </Card.Title>
           </Card.Header>
           <Form
@@ -78,7 +81,7 @@ function LoginPage() {
                   return null;
                 }
                 return continuation(data) ?? destination;
-              }, "Sign-in failed").then(async (result) => {
+              }, m.login_failed()).then(async (result) => {
                 if (!result.ok || result.value === null) return;
                 if (result.value !== destination) {
                   window.location.assign(result.value);
@@ -100,7 +103,7 @@ function LoginPage() {
                 type="email"
                 onChange={() => setRejected(false)}
               >
-                <Label>Email</Label>
+                <Label>{m.login_email()}</Label>
                 <Input autoComplete="email" />
               </TextField>
               <TextField
@@ -113,9 +116,9 @@ function LoginPage() {
                 type="password"
                 onChange={() => setRejected(false)}
               >
-                <Label>Password</Label>
+                <Label>{m.login_password()}</Label>
                 <Input autoComplete="current-password" />
-                <FieldError>Incorrect email or password.</FieldError>
+                <FieldError>{m.login_rejected()}</FieldError>
               </TextField>
             </Card.Content>
             <Card.Footer className="mt-4 flex flex-col items-stretch gap-2">
@@ -125,7 +128,7 @@ function LoginPage() {
                 fullWidth
                 isDisabled={busy}
               >
-                {busy ? "Signing in…" : "Sign in"}
+                {busy ? m.login_submitting() : m.login_submit()}
               </Button>
             </Card.Footer>
           </Form>

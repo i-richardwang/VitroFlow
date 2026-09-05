@@ -10,7 +10,7 @@ import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 
 export const Route = createFileRoute("/_workbench/training")({
   loader: () => getTrainingOverview(),
-  staticData: { crumbs: [{ label: "Training" }] },
+  staticData: { crumbs: () => [{ label: "Training" }] },
   component: TrainingPage,
 });
 

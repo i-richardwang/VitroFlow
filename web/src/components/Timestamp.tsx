@@ -1,5 +1,8 @@
+import { getLocale } from "../paraglide/runtime";
+
+/** Instants render in UTC for every reader; the locale decides the notation. */
 export function formatTimestampUtc(value: string): string {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(getLocale(), {
     year: "numeric",
     month: "short",
     day: "numeric",
