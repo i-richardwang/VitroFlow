@@ -48,7 +48,7 @@ test("the overview derives review progress and training readiness", async () => 
   let overview = await datasetOverview("overview", at);
   if (!overview) throw new Error("missing overview");
   expect(overview.model.id).toBe(version.modelId);
-  expect(overview.counts).toMatchObject({ unreviewed: 1, reviewed: 2 });
+  expect(overview.reviewedCount).toBe(2);
   expect(overview.images.map((image) => image.detectionCount)).toEqual([
     0,
     0,

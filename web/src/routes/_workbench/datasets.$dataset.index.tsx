@@ -1,22 +1,15 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
-import { Segment } from "@heroui-pro/react/segment";
 import { Button, Link, Table } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
 
 import { Count } from "../../components/Count";
 import { QualityChips } from "../../components/DetectionQuality";
 import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
-import {
-  reviewStateLabel,
-  ReviewStateChip,
-} from "../../components/ReviewState";
 import { archiveFilename } from "../../datasets/archive";
-import { REVIEW_STATES, type ReviewState } from "../../annotation/schema";
 import {
   getDatasetOverview,
   removeFromDataset,
@@ -45,29 +38,12 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   component: DatasetPage,
 });
 
-type Filter = ReviewState | "all";
-
-function isReviewState(value: unknown): value is ReviewState {
-  return REVIEW_STATES.some((state) => state === value);
-}
-
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const { images, counts, training } = Route.useLoaderData();
+  const { images, reviewedCount, training } = Route.useLoaderData();
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("all");
 
   useRouteRefresh(router, 10_000);
-
-  const visible =
-    filter === "all"
-      ? images
-      : images.filter((image) => image.state === filter);
-  const countOf = (state: Filter) =>
-    state === "all" ? images.length : counts[state];
-  const filters = (["all", ...REVIEW_STATES] as const).filter(
-    (state) => state === "all" || state === filter || countOf(state) > 0,
-  );
 
   return (
     <Page
@@ -101,8 +77,11 @@ function DatasetPage() {
             <KPI.Title>{m.dataset_kpi_reviewed()}</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={counts.reviewed} />
+            <KPI.Value maximumFractionDigits={0} value={reviewedCount} />
           </KPI.Content>
+          <KPI.Footer>
+            {m.dataset_kpi_reviewed_of({ count: images.length })}
+          </KPI.Footer>
         </KPI>
         <KPIGroup.Separator />
         <KPI>
@@ -122,23 +101,6 @@ function DatasetPage() {
         </KPI>
       </KPIGroup>
 
-      <Segment
-        className="self-start"
-        aria-label={m.dataset_filter_label()}
-        selectedKey={filter}
-        onSelectionChange={(key) => {
-          if (key === "all" || isReviewState(key)) {
-            setFilter(key);
-          }
-        }}
-      >
-        {filters.map((state) => (
-          <Segment.Item key={state} id={state}>
-            {state === "all" ? m.dataset_filter_all() : reviewStateLabel(state)}
-          </Segment.Item>
-        ))}
-      </Segment>
-
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label={m.dataset_images_table({ dataset })}>
@@ -146,7 +108,6 @@ function DatasetPage() {
               <Table.Column isRowHeader>
                 {m.dataset_column_image()}
               </Table.Column>
-              <Table.Column>{m.dataset_column_state()}</Table.Column>
               <Table.Column className="text-right">
                 {m.dataset_column_boxes()}
               </Table.Column>
@@ -158,15 +119,13 @@ function DatasetPage() {
                 <EmptyState size="sm">
                   <EmptyState.Header>
                     <EmptyState.Title>
-                      {images.length === 0
-                        ? m.dataset_empty_images()
-                        : m.dataset_empty_filtered()}
+                      {m.dataset_empty_images()}
                     </EmptyState.Title>
                   </EmptyState.Header>
                 </EmptyState>
               )}
             >
-              {visible.map((image) => (
+              {images.map((image) => (
                 <Table.Row
                   key={image.digest}
                   href={`/datasets/${encodeURIComponent(dataset)}/${image.digest}`}
@@ -174,9 +133,6 @@ function DatasetPage() {
                 >
                   <Table.Cell className="font-mono font-medium">
                     <span className="truncate">{image.filename}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <ReviewStateChip state={image.state} />
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
                     <BoxCount
@@ -207,6 +163,10 @@ function DatasetPage() {
   );
 }
 
+/**
+ * Reviewed boxes read as a plain number; a detection nobody has reviewed yet
+ * reads muted, so the column itself shows which images still need a review.
+ */
 function BoxCount({
   detected,
   boxes,
@@ -214,13 +174,18 @@ function BoxCount({
   detected: number | null;
   boxes: number | null;
 }) {
-  const count = <Count value={boxes ?? detected} />;
-  if (boxes === null || detected === null || boxes === detected) {
-    return count;
+  if (boxes === null) {
+    if (detected === null) return <Count value={null} />;
+    return (
+      <Hint text={m.dataset_boxes_unreviewed()}>
+        <span className="text-muted">{detected}</span>
+      </Hint>
+    );
   }
+  if (detected === null || detected === boxes) return <>{boxes}</>;
   return (
     <Hint text={m.dataset_detected_count({ count: detected })}>
-      <span>{count}</span>
+      <span>{boxes}</span>
     </Hint>
   );
 }

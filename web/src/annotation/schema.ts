@@ -8,7 +8,6 @@ import { classNameSchema } from "../models/metrics";
  * An image is reviewed once a reviewer has stored boxes for it, and only
  * reviewed images train.
  */
-export const REVIEW_STATES = ["unreviewed", "reviewed"] as const;
 
 /**
  * An annotation is addressed by the image and model it describes. The same
@@ -83,15 +82,7 @@ export const annotationSchema = z
 export type BoundingBox = z.infer<typeof boundingBoxSchema>;
 export type AnnotationInstance = z.infer<typeof annotationInstanceSchema>;
 export type AnnotationDocument = z.infer<typeof annotationSchema>;
-export type ReviewState = (typeof REVIEW_STATES)[number];
 export type ImageSize = Pick<AnnotationDocument["image"], "width" | "height">;
-
-/** How the image reads on a page: reviewed once an annotation is stored. */
-export function reviewState(
-  annotation: AnnotationDocument | null,
-): ReviewState {
-  return annotation ? "reviewed" : "unreviewed";
-}
 
 export function newInstanceId(): string {
   return crypto.randomUUID();

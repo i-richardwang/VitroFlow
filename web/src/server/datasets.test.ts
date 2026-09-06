@@ -29,7 +29,7 @@ import {
   ProducerMismatchError,
   recordInferenceOutcome,
 } from "./inference-outcomes";
-import { listImageRecords, summarize } from "./summaries";
+import { listImageRecords } from "./summaries";
 import { collectImages } from "./image-collection";
 import { canonicalize } from "./image-ingest";
 import { storeImage } from "./image-store";
@@ -88,10 +88,10 @@ function nextTraditionalVersion(slug: string) {
   });
 }
 
-async function stateOf(ref: { dataset: string; digest: string }) {
+async function isReviewed(ref: { dataset: string; digest: string }) {
   const record = await readImageRecord(ref);
   if (!record) throw new Error(`missing image ${ref.digest}`);
-  return summarize(record).state;
+  return record.annotation !== null;
 }
 
 describe("datasets", () => {
@@ -479,7 +479,7 @@ describe("detections", () => {
     );
     const digest = digests[0]!;
     const ref = { dataset: "shown", digest };
-    expect(await stateOf(ref)).toBe("unreviewed");
+    expect(await isReviewed(ref)).toBe(false);
     expect((await readImageRecord(ref))?.detection).toBeNull();
 
     const original = await resultFor(baseline, "shown");
@@ -513,7 +513,7 @@ describe("detections", () => {
       instancesFromDetection(original),
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
-    expect(await stateOf(ref)).toBe("reviewed");
+    expect(await isReviewed(ref)).toBe(true);
   });
 
   test("a review is one document per image and model, wherever it is opened", async () => {
@@ -528,8 +528,8 @@ describe("detections", () => {
     );
     const labelRef = { digest, modelId: version.modelId };
     await storeAnnotation(labelRef, instancesFromDetection(result));
-    expect(await stateOf({ dataset: "ctx-one", digest })).toBe("reviewed");
-    expect(await stateOf({ dataset: "ctx-two", digest })).toBe("reviewed");
+    expect(await isReviewed({ dataset: "ctx-one", digest })).toBe(true);
+    expect(await isReviewed({ dataset: "ctx-two", digest })).toBe(true);
   });
 });
 

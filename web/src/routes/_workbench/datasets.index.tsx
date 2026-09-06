@@ -34,9 +34,6 @@ function DatasetsPage() {
               <Table.Column className="text-right">
                 {m.datasets_column_images()}
               </Table.Column>
-              <Table.Column className="whitespace-nowrap text-right">
-                {m.datasets_column_unreviewed()}
-              </Table.Column>
               <Table.Column className="text-right">
                 {m.datasets_column_reviewed()}
               </Table.Column>
@@ -69,10 +66,7 @@ function DatasetsPage() {
                     {dataset.imageCount}
                   </Table.Cell>
                   <Table.Cell className="text-right font-mono tabular-nums">
-                    <Count value={dataset.counts.unreviewed} />
-                  </Table.Cell>
-                  <Table.Cell className="text-right font-mono tabular-nums">
-                    <Count value={dataset.counts.reviewed} />
+                    <Count value={dataset.reviewedCount} />
                   </Table.Cell>
                 </Table.Row>
               ))}

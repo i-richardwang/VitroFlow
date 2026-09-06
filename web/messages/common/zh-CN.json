@@ -28,8 +28,6 @@
   "dropzone_ready": "就绪",
   "dropzone_progress": "{file} 的上传进度",
   "dropzone_remove": "移除 {file}",
-  "review_state_unreviewed": "待复核",
-  "review_state_reviewed": "已复核",
   "quality_dish_detection_failed": "未检测到培养皿",
   "quality_exposure_clipping": "曝光溢出",
   "quality_low_focus": "对焦不足",

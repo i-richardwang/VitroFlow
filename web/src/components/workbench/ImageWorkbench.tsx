@@ -25,7 +25,7 @@ import {
   type Review,
   type ReviewVersion,
 } from "../../annotation/review";
-import { reviewState, type AnnotationInstance } from "../../annotation/schema";
+import type { AnnotationInstance } from "../../annotation/schema";
 import { instancesFromDetection } from "../../annotation/detection";
 import type { DetectionResult } from "../../detection/schema";
 import { saveAnnotation } from "../../functions/review";
@@ -35,7 +35,6 @@ import { versionSlug, type Model } from "../../models/schema";
 import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../DetectionQuality";
 import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../icons";
-import { ReviewStateChip } from "../ReviewState";
 import {
   Workbench,
   WorkbenchActions,
@@ -167,7 +166,6 @@ function Viewing({
   return (
     <>
       <WorkbenchActions>
-        <ReviewStateChip state={reviewState(review.annotation)} />
         <Button variant="primary" isDisabled={!onEdit} onPress={onEdit}>
           {m.workbench_edit()}
         </Button>

@@ -9,12 +9,7 @@ import {
   annotations,
 } from "../db/schema";
 import type { DatasetImageRef } from "../datasets/schema";
-import {
-  REVIEW_STATES,
-  reviewState,
-  type AnnotationDocument,
-  type ReviewState,
-} from "../annotation/schema";
+import type { AnnotationDocument } from "../annotation/schema";
 import type { DetectionQuality, DetectionResult } from "../detection/schema";
 import {
   membershipOrder,
@@ -25,8 +20,9 @@ import {
 
 export interface ImageSummary extends DatasetImageRef {
   filename: string;
-  state: ReviewState;
+  /** Boxes of the newest detection, or null until a version has run. */
   detectionCount: number | null;
+  /** Boxes of the stored review, or null until someone has reviewed the image. */
   instanceCount: number | null;
   quality: DetectionQuality | null;
 }
@@ -35,7 +31,7 @@ export interface DatasetSummary {
   dataset: string;
   modelId: string;
   imageCount: number;
-  counts: Record<ReviewState, number>;
+  reviewedCount: number;
 }
 
 /**
@@ -61,7 +57,6 @@ export function summarize(record: ImageRecord): ImageSummary {
     dataset: image.dataset,
     digest: image.digest,
     filename: image.filename,
-    state: reviewState(annotation),
     detectionCount: detection?.instances.length ?? null,
     instanceCount: annotation?.instances.length ?? null,
     quality: detection?.quality ?? null,
@@ -170,27 +165,19 @@ export async function listReviewedRecords(
     );
 }
 
-export function countReviewStates(
-  images: ImageSummary[],
-): Record<ReviewState, number> {
-  const counts = Object.fromEntries(
-    REVIEW_STATES.map((state) => [state, 0]),
-  ) as Record<ReviewState, number>;
-  for (const image of images) {
-    counts[image.state] += 1;
-  }
-  return counts;
+export function countReviewed(records: ImageRecord[]): number {
+  return records.filter((record) => record.annotation !== null).length;
 }
 
 export async function summarizeDataset(
   datasetId: string,
   modelId: string,
 ): Promise<DatasetSummary> {
-  const images = (await listImageRecords(datasetId)).map(summarize);
+  const records = await listImageRecords(datasetId);
   return {
     dataset: datasetId,
     modelId,
-    imageCount: images.length,
-    counts: countReviewStates(images),
+    imageCount: records.length,
+    reviewedCount: countReviewed(records),
   };
 }
