@@ -16,8 +16,8 @@
     "contracts:check": "bun scripts/generate-contracts.ts --check",
     "blobs:collect": "bun scripts/collect-blobs.ts",
     "maintenance": "bun scripts/maintenance.ts",
-    "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx}\""
+    "format": "prettier --write \"**/*.{ts,tsx}\" \"messages/**/*.json\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx}\" \"messages/**/*.json\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",

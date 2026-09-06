@@ -8,12 +8,14 @@ check-python:
 	uv run pyright
 	uv run pytest
 
+# The build comes first: it generates the route tree and the compiled messages
+# that the type check and the tests import.
 check-web:
+	cd web && bun run build
 	cd web && bun run contracts:check
 	cd web && bun run format:check
 	cd web && bunx tsc --noEmit
 	cd web && bun test
-	cd web && bun run build
 
 check-image:
 	@test -n "$(HEROUI_KEY)" || (echo "Set HEROUI_KEY" >&2; exit 2)

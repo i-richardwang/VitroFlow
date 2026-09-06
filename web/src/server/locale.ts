@@ -7,14 +7,10 @@ import {
   cookieName,
   extractLocaleFromRequest,
   overwriteServerAsyncLocalStorage,
-  type Locale,
+  type ParaglideAsyncLocalStorage,
 } from "../paraglide/runtime";
 
-type LocaleScope = {
-  locale?: Locale;
-  origin?: string;
-  messageCalls?: Set<string>;
-};
+type LocaleScope = Parameters<ParaglideAsyncLocalStorage["run"]>[0];
 
 /**
  * Paraglide reads the request's locale from async local storage while the
@@ -24,14 +20,20 @@ type LocaleScope = {
 const localeScope = new AsyncLocalStorage<LocaleScope>();
 overwriteServerAsyncLocalStorage(localeScope);
 
+/** A browser asking for a page, as opposed to an API client or a fetch. */
+function requestsDocument(request: Request): boolean {
+  return request.headers.get("accept")?.includes("text/html") ?? false;
+}
+
 /**
- * Runs the request handler with its locale resolved (cookie, then
- * Accept-Language, then the base locale) and pins that locale in a cookie on
- * the first visit, so the client hydrates with the locale the server rendered.
+ * Runs the request handler with its locale resolved: the cookie, then
+ * Accept-Language, then the base locale. A document request without the
+ * cookie gets one, so the client hydrates with the locale the server
+ * rendered and later visits stay in it until the reader chooses another.
  */
 export function withRequestLocale<T>(request: Request, handle: () => T): T {
   const locale = extractLocaleFromRequest(request);
-  if (getCookie(cookieName) !== locale) {
+  if (requestsDocument(request) && getCookie(cookieName) !== locale) {
     setCookie(cookieName, locale, {
       path: "/",
       maxAge: cookieMaxAge,
