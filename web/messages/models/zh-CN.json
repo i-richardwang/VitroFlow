@@ -1,0 +1,5 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "builtin_version_traditional_v1": "传统视觉基线",
+  "builtin_metric_seeds": "种子数"
+}

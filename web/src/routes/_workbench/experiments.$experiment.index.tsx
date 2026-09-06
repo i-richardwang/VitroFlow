@@ -61,6 +61,7 @@ import {
   type DerivedMetric,
   type Tally,
 } from "../../models/metrics";
+import { metricName } from "../../models/names";
 import { primaryMetric } from "../../models/schema";
 import { m } from "../../paraglide/messages";
 
@@ -273,9 +274,9 @@ function ExperimentPage() {
                     <ListBox.Item
                       key={item.id}
                       id={item.id}
-                      textValue={item.name}
+                      textValue={metricName(item)}
                     >
-                      {item.name}
+                      {metricName(item)}
                       <ListBox.ItemIndicator />
                     </ListBox.Item>
                   ))}
@@ -337,7 +338,7 @@ function ExperimentPage() {
           <DataGrid
             showSelectionCheckboxes
             aria-label={m.experiment_grid_label({
-              metric: metric.name,
+              metric: metricName(metric),
               experiment: experiment.name,
             })}
             columns={columns}

@@ -12,6 +12,7 @@
   "plugin.inlang.messageFormat": {
     "pathPattern": [
       "./messages/common/{locale}.json",
+      "./messages/models/{locale}.json",
       "./messages/auth/{locale}.json",
       "./messages/experiments/{locale}.json",
       "./messages/datasets/{locale}.json",

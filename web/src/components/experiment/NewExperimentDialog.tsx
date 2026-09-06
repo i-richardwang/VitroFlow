@@ -13,6 +13,7 @@ import { useState } from "react";
 
 import { startExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { modelVersionName } from "../../models/names";
 import { m } from "../../paraglide/messages";
 import type { Model, ModelVersion } from "../../models/schema";
 import { currentDay, toDay } from "./DayField";
@@ -103,9 +104,9 @@ export function NewExperimentDialog({
                           <ListBox.Item
                             key={version.id}
                             id={version.id}
-                            textValue={version.name}
+                            textValue={modelVersionName(version)}
                           >
-                            {version.name}
+                            {modelVersionName(version)}
                             <ListBox.ItemIndicator />
                           </ListBox.Item>
                         ))}

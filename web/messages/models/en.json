@@ -1,0 +1,5 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "builtin_version_traditional_v1": "Traditional vision baseline",
+  "builtin_metric_seeds": "Seeds"
+}

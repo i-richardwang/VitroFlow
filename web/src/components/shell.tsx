@@ -195,7 +195,7 @@ function AppNavbar({
   return (
     <Navbar maxWidth="full">
       <Navbar.Header>
-        <AppLayout.MenuToggle />
+        <AppLayout.MenuToggle aria-label={m.nav_toggle()} />
         <Sidebar.Trigger aria-label={m.nav_toggle()} />
         {crumbs.length > 0 ? (
           <Breadcrumbs className="min-w-0">

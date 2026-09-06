@@ -8,6 +8,7 @@ import {
   type Tally,
 } from "../../models/metrics";
 import { LAYERS, type LayerKey } from "./controls";
+import { metricName } from "../../models/names";
 import { m } from "../../paraglide/messages";
 
 export function Section({
@@ -67,7 +68,7 @@ export function MetricsSection({
     <Section title={m.workbench_section_metrics()}>
       <Metrics
         rows={metrics.map((metric) => ({
-          label: metric.name,
+          label: metricName(metric),
           value: comparedValue(metric, primary, sources[1]),
         }))}
       />

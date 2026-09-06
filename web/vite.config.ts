@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-import { paraglideOptions } from "./paraglide.config";
+import { paraglideOptions } from "./paraglide.config.ts";
 
 export default defineConfig({
   server: {
