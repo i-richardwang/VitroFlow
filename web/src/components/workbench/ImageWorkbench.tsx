@@ -1,6 +1,5 @@
 import { InlineSelect } from "@heroui-pro/react/inline-select";
 import {
-  Alert,
   Button,
   ButtonGroup,
   Kbd,
@@ -9,6 +8,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  toast,
 } from "@heroui/react";
 import { useBlocker, useRouter } from "@tanstack/react-router";
 import {
@@ -203,7 +203,6 @@ function ReviewInspector({
   detection,
   display,
   details,
-  children,
 }: {
   model: Model;
   /** The boxes of the review, or of the draft while editing. */
@@ -211,12 +210,9 @@ function ReviewInspector({
   detection: DetectionResult | null;
   display: Display;
   details?: ReactNode;
-  /** Notices that belong above everything, such as a failed save. */
-  children?: ReactNode;
 }) {
   return (
     <>
-      {children}
       <MetricsSection
         metrics={model.metrics}
         sources={[
@@ -290,7 +286,6 @@ function Editing({
   const router = useRouter();
   const [instances, setInstances] = useState(opening);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const closing = useRef(false);
   const history = useHistory<AnnotationInstance[]>();
   const [tool, setTool] = useState<Tool>("select");
@@ -314,13 +309,14 @@ function Editing({
 
   const done = useCallback(async () => {
     setSaving(true);
-    setError(null);
     try {
       await saveAnnotation({ data: { ref: review.ref, instances } });
       await router.invalidate();
       close();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      toast.danger(m.workbench_save_failed(), {
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
       setSaving(false);
     }
   }, [review.ref, instances, router, close]);
@@ -421,17 +417,7 @@ function Editing({
           detection={detection}
           display={display}
           details={context.details}
-        >
-          {error ? (
-            <Alert status="danger">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>{m.workbench_save_failed()}</Alert.Title>
-                <Alert.Description>{error}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          ) : null}
-        </ReviewInspector>
+        />
       </WorkbenchInspector>
       <EditableBoxLayer
         image={review}
