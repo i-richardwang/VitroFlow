@@ -4,9 +4,9 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { inTransaction, type Executor } from "../db/client";
 import {
-  experimentUnits,
   experimentObservationImages,
   experimentObservations,
+  experimentUnits,
   images,
 } from "../db/schema";
 import {
@@ -28,8 +28,8 @@ import {
   type ObservationImageRef,
 } from "../experiments/schema";
 import {
-  listUnits,
   listObservations,
+  listUnits,
   lockExperiment,
   requireObservation,
 } from "./experiment-records";

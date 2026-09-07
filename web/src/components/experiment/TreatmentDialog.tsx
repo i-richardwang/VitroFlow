@@ -4,7 +4,6 @@ import {
   Input,
   Label,
   Modal,
-  NumberField,
   TextField,
   toast,
 } from "@heroui/react";
@@ -26,25 +25,30 @@ import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { FactorField, factorDraft, submittedFactor } from "./FactorField";
+import { DEFAULT_REPLICATES, ReplicatesField } from "./ReplicatesField";
 
+type TreatmentDialogProps =
+  | { treatment: null; deletable?: undefined }
+  | { treatment: Treatment; deletable: boolean };
+
+/** Creates a treatment with its replicates, or edits or deletes one. */
 export function TreatmentDialog({
   experiment,
-  treatment,
   isOpen,
   onClose,
-}: {
+  ...props
+}: TreatmentDialogProps & {
   experiment: string;
-  treatment: Treatment | null;
   isOpen: boolean;
   onClose: () => void;
 }) {
   return (
     <Editor
-      key={treatment?.id ?? "new"}
+      key={props.treatment?.id ?? "new"}
       experiment={experiment}
-      treatment={treatment}
       isOpen={isOpen}
       onClose={onClose}
+      {...props}
     />
   );
 }
@@ -52,11 +56,11 @@ export function TreatmentDialog({
 function Editor({
   experiment,
   treatment,
+  deletable,
   isOpen,
   onClose,
-}: {
+}: TreatmentDialogProps & {
   experiment: string;
-  treatment: Treatment | null;
   isOpen: boolean;
   onClose: () => void;
 }) {
@@ -67,7 +71,7 @@ function Editor({
     factorDraft(treatment?.factor ?? null),
   );
   const [note, setNote] = useState(treatment?.note ?? "");
-  const [replicates, setReplicates] = useState(3);
+  const [replicates, setReplicates] = useState(DEFAULT_REPLICATES);
   const [removing, setRemoving] = useState(false);
   const creating = treatment === null;
 
@@ -153,24 +157,14 @@ function Editor({
                     <Input className="w-full" />
                   </TextField>
                   {creating ? (
-                    <NumberField
-                      variant="secondary"
-                      minValue={1}
-                      maxValue={200}
-                      isDisabled={busy}
+                    <ReplicatesField
+                      busy={busy}
                       value={replicates}
                       onChange={setReplicates}
-                    >
-                      <Label>{m.treatment_replicates_label()}</Label>
-                      <NumberField.Group>
-                        <NumberField.DecrementButton />
-                        <NumberField.Input />
-                        <NumberField.IncrementButton />
-                      </NumberField.Group>
-                    </NumberField>
+                    />
                   ) : null}
                 </Form>
-                {creating ? null : (
+                {deletable ? (
                   <Button
                     variant="danger-soft"
                     isDisabled={busy}
@@ -178,7 +172,7 @@ function Editor({
                   >
                     {m.treatment_menu_remove()}
                   </Button>
-                )}
+                ) : null}
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
@@ -237,15 +231,33 @@ export function ReplicatesDialog({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  return (
+    <ReplicatesEditor
+      key={isOpen ? treatment.id : "closed"}
+      experiment={experiment}
+      treatment={treatment}
+      isOpen={isOpen}
+      onClose={onClose}
+    />
+  );
+}
+
+function ReplicatesEditor({
+  experiment,
+  treatment,
+  isOpen,
+  onClose,
+}: {
+  experiment: string;
+  treatment: Treatment;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   const [replicates, setReplicates] = useState(1);
-  const close = () => {
-    setReplicates(1);
-    onClose();
-  };
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && close()}>
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
         <Modal.Container size="sm">
           <Modal.Dialog>
@@ -279,30 +291,20 @@ export function ReplicatesDialog({
                         name: treatment.name,
                       }),
                     );
-                    close();
+                    onClose();
                     await router.invalidate();
                   });
                 }}
               >
-                <NumberField
-                  variant="secondary"
-                  minValue={1}
-                  maxValue={200}
-                  isDisabled={busy}
+                <ReplicatesField
+                  busy={busy}
                   value={replicates}
                   onChange={setReplicates}
-                >
-                  <Label>{m.treatment_replicates_label()}</Label>
-                  <NumberField.Group>
-                    <NumberField.DecrementButton />
-                    <NumberField.Input />
-                    <NumberField.IncrementButton />
-                  </NumberField.Group>
-                </NumberField>
+                />
               </Form>
             </Modal.Body>
             <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={close}>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
                 {m.cancel()}
               </Button>
               <Button

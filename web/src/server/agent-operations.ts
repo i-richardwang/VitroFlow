@@ -4,7 +4,7 @@ import type { Executor } from "../db/client";
 import {
   experimentGridSchema,
   experimentSummarySchema,
-  unitRecordSchema,
+  unitSchema,
   unitSeriesSchema,
 } from "../experiments/contracts";
 import {
@@ -12,12 +12,9 @@ import {
   UnitNotFoundError,
 } from "../experiments/errors";
 import {
+  cultureEventRefSchema,
   cultureEventRequestSchema,
   cultureEventSchema,
-  cultureEventRefSchema,
-  unitRefSchema,
-  unitRequestSchema,
-  unitUpdateSchema,
   experimentObservationSchema,
   experimentRefSchema,
   experimentRequestSchema,
@@ -35,6 +32,9 @@ import {
   treatmentRequestSchema,
   treatmentSchema,
   treatmentUpdateSchema,
+  unitRefSchema,
+  unitRequestSchema,
+  unitUpdateSchema,
 } from "../experiments/schema";
 import { modelSchema, modelVersionSchema } from "../models/schema";
 import { recordCultureEvent, deleteCultureEvent } from "./culture-events";
@@ -42,12 +42,12 @@ import {
   addReplicates,
   addTreatment,
   createExperiment,
-  deleteUnit,
   deleteExperiment,
   deleteTreatment,
-  updateUnit,
+  deleteUnit,
   updateExperiment,
   updateTreatment,
+  updateUnit,
 } from "./experiment-design";
 import {
   assignObservationImages,
@@ -62,8 +62,8 @@ import {
 } from "./experiment-observations";
 import {
   listExperiments,
-  readUnit,
   readExperimentGrid,
+  readUnit,
 } from "./experiment-queries";
 import { listAllModelVersions, listModels } from "./model-registry";
 
@@ -234,7 +234,7 @@ const operations: readonly AgentOperation[] = [
     description: "Lay out more replicates of a treatment",
     destructive: false,
     input: replicateRequestSchema,
-    output: z.array(unitRecordSchema),
+    output: z.array(unitSchema),
     handler: (input, executor) => addReplicates(input, executor),
   }),
   command({
@@ -248,7 +248,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "delete-treatment",
     description:
-      "Delete a treatment and its units, none of which may have records",
+      "Delete a treatment and its units; the last treatment and recorded units stay",
     destructive: true,
     input: treatmentRefSchema,
     output: done,
@@ -260,12 +260,13 @@ const operations: readonly AgentOperation[] = [
       "Correct a unit's code or treatment, preserving its identity and records",
     destructive: true,
     input: unitUpdateSchema,
-    output: unitRecordSchema,
+    output: unitSchema,
     handler: (input, executor) => updateUnit(input, executor),
   }),
   command({
     name: "delete-unit",
-    description: "Delete a unit that has no images and no culture events",
+    description:
+      "Delete a unit that has no records and is not its treatment's last replicate",
     destructive: true,
     input: unitRefSchema,
     output: done,

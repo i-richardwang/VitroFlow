@@ -58,7 +58,10 @@ export function UnitWorkbench({
       observations={series.observations.map((item) => item.observation)}
       canRemove={
         unit.events.length === 0 &&
-        !series.observations.some((item) => item.image)
+        !series.observations.some((item) => item.image) &&
+        navigation.some(
+          (item) => item.treatment === unit.treatment && item.id !== unit.id,
+        )
       }
       image={shown}
       navigation={navigation}

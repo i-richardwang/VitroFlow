@@ -1,8 +1,7 @@
 import { DataGrid, type DataGridColumn } from "@heroui-pro/react/data-grid";
-import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Button, Link, ListBox, Select, Tooltip } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useMemo, useState, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { z } from "zod";
 
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
@@ -13,7 +12,7 @@ import { TreatmentDot } from "../../components/experiment/TreatmentDot";
 import { TreatmentMenu } from "../../components/experiment/TreatmentMenu";
 import { UnitDialog } from "../../components/experiment/UnitDialog";
 import { Hint } from "../../components/Hint";
-import { EditIcon, ExperimentsIcon } from "../../components/icons";
+import { EditIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
 import type {
   ExperimentGrid,
@@ -108,94 +107,92 @@ function ExperimentPage() {
   const hasRecords =
     images.length > 0 || units.some((unit) => unit.events.length > 0);
   const rows = experimentRows(treatments, units);
-  const columns = useMemo(
-    (): DataGridColumn<GridRow>[] => [
-      {
-        id: "design",
-        header: m.experiment_column_treatment(),
-        isRowHeader: true,
-        cell: (row) =>
-          row.kind === "treatment" ? (
-            <span className="flex items-center gap-2">
-              <TreatmentDot position={row.treatment.position} />
-              <span className="truncate font-medium">{row.treatment.name}</span>
-              {row.treatment.factor ? (
-                <span className="truncate text-muted">
-                  {formatFactor(row.treatment.factor)}
-                </span>
-              ) : null}
-              <span className="ms-auto">
-                <TreatmentMenu
-                  experiment={experiment.id}
-                  treatment={row.treatment}
-                />
+  const columns: DataGridColumn<GridRow>[] = [
+    {
+      id: "design",
+      header: m.experiment_column_treatment(),
+      isRowHeader: true,
+      cell: (row) =>
+        row.kind === "treatment" ? (
+          <span className="flex items-center gap-2">
+            <TreatmentDot position={row.treatment.position} />
+            <span className="truncate font-medium">{row.treatment.name}</span>
+            {row.treatment.factor ? (
+              <span className="truncate text-muted">
+                {formatFactor(row.treatment.factor)}
               </span>
+            ) : null}
+            <span className="ms-auto">
+              <TreatmentMenu
+                experiment={experiment.id}
+                treatment={row.treatment}
+                deletable={treatments.length > 1}
+              />
             </span>
-          ) : (
-            <span className="flex items-center gap-2 ps-6 font-mono font-medium">
-              <Link href={`/experiments/${experiment.id}/${row.unit.id}`}>
-                {row.unit.code}
-              </Link>
-              <span className="ms-auto">
-                <Tooltip delay={0}>
-                  <Tooltip.Trigger>
-                    <Button
-                      variant="ghost"
-                      isIconOnly
-                      size="sm"
-                      aria-label={m.unit_edit()}
-                      onPress={() => setOpen({ kind: "unit", unit: row.unit })}
-                    >
-                      <EditIcon />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{m.unit_edit()}</Tooltip.Content>
-                </Tooltip>
-              </span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-2 ps-6 font-mono font-medium">
+            <Link href={`/experiments/${experiment.id}/${row.unit.id}`}>
+              {row.unit.code}
+            </Link>
+            <span className="ms-auto">
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>
+                  <Button
+                    variant="ghost"
+                    isIconOnly
+                    size="sm"
+                    aria-label={m.unit_edit()}
+                    onPress={() => setOpen({ kind: "unit", unit: row.unit })}
+                  >
+                    <EditIcon />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>{m.unit_edit()}</Tooltip.Content>
+              </Tooltip>
             </span>
-          ),
-      },
-      ...observations.map((observation): DataGridColumn<GridRow> => ({
-        id: observation.id,
-        align: "end",
-        cellClassName: "font-mono tabular-nums",
-        header: (
-          <span className="inline-flex w-full items-center justify-end gap-1">
-            <Hint text={observation.note || observation.observedOn}>
-              <span>{observationLabel(observation)}</span>
-            </Hint>
-            <ObservationMenu
-              experiment={experiment.id}
-              observation={observation}
-              units={units.filter((unit) =>
-                unitIsAvailableAt(unit.events, observation, ordinals),
-              )}
-              assigned={assignedIn(images, observation.id)}
-            />
           </span>
         ),
-        cell: (row) =>
-          row.kind === "treatment" ? (
-            <span className="font-medium">
-              {groupSummary(metric, row.units, observation, cells, ordinals)}
-            </span>
-          ) : (
-            <Cell
-              experiment={experiment.id}
-              metric={metric}
-              unit={row.unit}
-              image={cells.get(cellKey(row.unit.id, observation.id))}
-              counted={unitIsIncludedInAnalysis(
-                row.unit.events,
-                observation,
-                ordinals,
-              )}
-            />
-          ),
-      })),
-    ],
-    [cells, experiment.id, images, metric, observations, ordinals, units],
-  );
+    },
+    ...observations.map((observation): DataGridColumn<GridRow> => ({
+      id: observation.id,
+      align: "end",
+      cellClassName: "font-mono tabular-nums",
+      header: (
+        <span className="inline-flex w-full items-center justify-end gap-1">
+          <Hint text={observation.note || observation.observedOn}>
+            <span>{observationLabel(observation)}</span>
+          </Hint>
+          <ObservationMenu
+            experiment={experiment.id}
+            observation={observation}
+            units={units.filter((unit) =>
+              unitIsAvailableAt(unit.events, observation, ordinals),
+            )}
+            assigned={assignedIn(images, observation.id)}
+          />
+        </span>
+      ),
+      cell: (row) =>
+        row.kind === "treatment" ? (
+          <span className="font-medium">
+            {groupSummary(metric, row.units, observation, cells, ordinals)}
+          </span>
+        ) : (
+          <Cell
+            experiment={experiment.id}
+            metric={metric}
+            unit={row.unit}
+            image={cells.get(cellKey(row.unit.id, observation.id))}
+            counted={unitIsIncludedInAnalysis(
+              row.unit.events,
+              observation,
+              ordinals,
+            )}
+          />
+        ),
+    })),
+  ];
 
   return (
     <Page
@@ -247,7 +244,6 @@ function ExperimentPage() {
           ) : null}
           <Button
             variant="primary"
-            isDisabled={units.length === 0}
             onPress={() => setOpen({ kind: "observation" })}
           >
             {m.observation_new()}
@@ -262,34 +258,15 @@ function ExperimentPage() {
         </>
       }
     >
-      {treatments.length === 0 ? (
-        <EmptyState size="sm">
-          <EmptyState.Header>
-            <EmptyState.Media variant="icon">
-              <ExperimentsIcon />
-            </EmptyState.Media>
-            <EmptyState.Title>{m.experiment_empty_design()}</EmptyState.Title>
-          </EmptyState.Header>
-          <EmptyState.Content>
-            <Button
-              variant="primary"
-              onPress={() => setOpen({ kind: "treatment" })}
-            >
-              {m.treatment_new()}
-            </Button>
-          </EmptyState.Content>
-        </EmptyState>
-      ) : (
-        <DataGrid
-          aria-label={m.experiment_grid_label({
-            metric: metricName(metric),
-            experiment: experiment.name,
-          })}
-          columns={columns}
-          data={rows}
-          getRowId={(row) => row.id}
-        />
-      )}
+      <DataGrid
+        aria-label={m.experiment_grid_label({
+          metric: metricName(metric),
+          experiment: experiment.name,
+        })}
+        columns={columns}
+        data={rows}
+        getRowId={(row) => row.id}
+      />
 
       <TreatmentDialog
         experiment={experiment.id}
@@ -341,7 +318,7 @@ function cellTally(
 
 type GridRow =
   | { kind: "treatment"; id: string; treatment: Treatment; units: Unit[] }
-  | { kind: "unit"; id: string; unit: Unit; treatment: Treatment };
+  | { kind: "unit"; id: string; unit: Unit };
 
 /** The design as rows: each treatment, then the units that replicate it. */
 function experimentRows(treatments: Treatment[], units: Unit[]): GridRow[] {
@@ -353,7 +330,6 @@ function experimentRows(treatments: Treatment[], units: Unit[]): GridRow[] {
         kind: "unit",
         id: unit.id,
         unit,
-        treatment,
       })),
     ];
   });

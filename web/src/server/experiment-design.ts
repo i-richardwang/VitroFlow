@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
 
 import { database, inTransaction, type Executor } from "../db/client";
 import { isUniqueViolation } from "../db/errors";
@@ -12,7 +12,7 @@ import {
   experimentUnits,
   experiments,
 } from "../db/schema";
-import type { UnitRecord } from "../experiments/contracts";
+import type { Unit } from "../experiments/contracts";
 import {
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
@@ -242,7 +242,7 @@ async function insertReplicates(
   treatment: Treatment,
   replicates: number,
   tx: Executor,
-): Promise<UnitRecord[]> {
+): Promise<Unit[]> {
   const taken = (await listUnits(experimentId, tx)).map((unit) => unit.code);
   const rows = await tx
     .insert(experimentUnits)
@@ -279,7 +279,7 @@ export async function addTreatment(
 export async function addReplicates(
   value: ReplicateRequest,
   executor?: Executor,
-): Promise<UnitRecord[]> {
+): Promise<Unit[]> {
   const {
     experiment: experimentId,
     treatment: treatmentId,
@@ -320,7 +320,10 @@ export async function updateTreatment(
   });
 }
 
-/** A treatment leaves with its units, which is why recorded ones stay. */
+/**
+ * A treatment leaves with its units, which is why recorded ones stay. The
+ * last treatment stays too: an experiment keeps a design.
+ */
 export async function deleteTreatment(
   value: TreatmentRef,
   executor?: Executor,
@@ -328,6 +331,21 @@ export async function deleteTreatment(
   const { experiment: experimentId, treatment: treatmentId } = value;
   await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
+    const [other] = await tx
+      .select({ id: experimentTreatments.id })
+      .from(experimentTreatments)
+      .where(
+        and(
+          eq(experimentTreatments.experimentId, experimentId),
+          ne(experimentTreatments.id, treatmentId),
+        ),
+      )
+      .limit(1);
+    if (!other) {
+      throw new TreatmentRejectedError(
+        "The last treatment of an experiment cannot be deleted",
+      );
+    }
     if (await hasRecords(experimentId, { treatment: treatmentId }, tx)) {
       throw new TreatmentRejectedError(
         "A treatment whose units have images or culture events cannot be deleted",
@@ -355,16 +373,23 @@ export async function deleteTreatment(
 export async function updateUnit(
   value: UnitUpdate,
   executor?: Executor,
-): Promise<UnitRecord> {
+): Promise<Unit> {
   const { experiment: experimentId, unit: unitId, code, treatment } = value;
   return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     await requireTreatment(experimentId, treatment, tx);
-    const clash = (await listUnits(experimentId, tx)).find(
-      (unit) => sameName(unit.code, code) && unit.id !== unitId,
+    const units = await listUnits(experimentId, tx);
+    const unit = requireUnit(units, unitId);
+    const clash = units.find(
+      (item) => sameName(item.code, code) && item.id !== unitId,
     );
     if (clash) {
       throw new UnitRejectedError(`The experiment already has ${code}`);
+    }
+    if (unit.treatment !== treatment && isLastReplicate(units, unit)) {
+      throw new UnitRejectedError(
+        "The last replicate of a treatment cannot be moved",
+      );
     }
     const [row] = await tx
       .update(experimentUnits)
@@ -376,6 +401,7 @@ export async function updateUnit(
   });
 }
 
+/** A recorded unit stays, and so does the last replicate of its treatment. */
 export async function deleteUnit(
   value: UnitRef,
   executor?: Executor,
@@ -383,17 +409,32 @@ export async function deleteUnit(
   const { experiment: experimentId, unit: unitId } = value;
   await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
+    const units = await listUnits(experimentId, tx);
+    const unit = requireUnit(units, unitId);
+    if (isLastReplicate(units, unit)) {
+      throw new UnitRejectedError(
+        "The last replicate of a treatment cannot be deleted",
+      );
+    }
     if (await hasRecords(experimentId, { unit: unitId }, tx)) {
       throw new UnitRejectedError(
         "A unit with images or culture events cannot be deleted",
       );
     }
-    const [row] = await tx
-      .delete(experimentUnits)
-      .where(atUnit(experimentId, unitId))
-      .returning({ id: experimentUnits.id });
-    if (!row) throw new UnitNotFoundError(`Unknown unit: ${unitId}`);
+    await tx.delete(experimentUnits).where(atUnit(experimentId, unitId));
   });
+}
+
+function requireUnit(units: readonly Unit[], unitId: string): Unit {
+  const unit = units.find((item) => item.id === unitId);
+  if (!unit) throw new UnitNotFoundError(`Unknown unit: ${unitId}`);
+  return unit;
+}
+
+function isLastReplicate(units: readonly Unit[], unit: Unit): boolean {
+  return !units.some(
+    (item) => item.treatment === unit.treatment && item.id !== unit.id,
+  );
 }
 
 async function requireTreatment(

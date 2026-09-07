@@ -45,7 +45,6 @@
   "experiment_action_saving": "Saving…",
   "experiment_metric_select": "Metric",
   "experiment_grid_label": "{metric} in {experiment}",
-  "experiment_empty_design": "No treatments yet",
   "experiment_column_treatment": "Treatment",
   "experiment_cell_analyzed": "Analyzed {value}",
   "experiment_cell_excluded": "Excluded from analysis at this observation",

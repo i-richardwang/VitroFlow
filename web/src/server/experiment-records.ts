@@ -3,25 +3,25 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Executor } from "../db/client";
 import {
   experimentCultureEvents,
-  experimentUnits,
   experimentObservationImages,
   experimentObservations,
   experimentTreatments,
+  experimentUnits,
   experiments,
 } from "../db/schema";
-import type { UnitRecord } from "../experiments/contracts";
+import type { Unit } from "../experiments/contracts";
 import {
   ExperimentNotFoundError,
   ObservationNotFoundError,
 } from "../experiments/errors";
 import {
-  daysBetween,
   cultureEventSchema,
+  daysBetween,
   experimentObservationSchema,
   experimentSchema,
   treatmentSchema,
-  type Experiment,
   type CultureEvent,
+  type Experiment,
   type ExperimentObservation,
   type Treatment,
 } from "../experiments/schema";
@@ -55,7 +55,7 @@ export function toTreatment(
 export function toUnit(
   row: typeof experimentUnits.$inferSelect,
   events: CultureEvent[] = [],
-): UnitRecord {
+): Unit {
   return {
     id: row.id,
     code: row.code,
@@ -153,7 +153,7 @@ export function atObservation(experimentId: string, observationId: string) {
 export async function listUnits(
   experimentId: string,
   db: Executor,
-): Promise<UnitRecord[]> {
+): Promise<Unit[]> {
   const [rows, eventRows] = await Promise.all([
     db
       .select()

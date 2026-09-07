@@ -45,7 +45,6 @@
   "experiment_action_saving": "保存中…",
   "experiment_metric_select": "指标",
   "experiment_grid_label": "{experiment} 的{metric}",
-  "experiment_empty_design": "还没有处理",
   "experiment_column_treatment": "处理",
   "experiment_cell_analyzed": "检测值 {value}",
   "experiment_cell_excluded": "本次观测不计入分析",

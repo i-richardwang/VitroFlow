@@ -241,6 +241,13 @@ export const unitRefSchema = z.strictObject({
 
 export type UnitRef = z.infer<typeof unitRefSchema>;
 
+/** A unit's image series, opened at one observation or at the newest. */
+export const unitRequestSchema = unitRefSchema.extend({
+  observation: observationIdSchema.optional(),
+});
+
+export type UnitRequest = z.infer<typeof unitRequestSchema>;
+
 /** A unit's code and treatment are corrected together; its records stay. */
 export const unitUpdateSchema = unitRefSchema.extend({
   code: unitCodeSchema,
@@ -363,10 +370,6 @@ export const observationImageMoveSchema = observationImageRefSchema.extend({
 });
 
 export type ObservationImageMove = z.infer<typeof observationImageMoveSchema>;
-
-export const unitRequestSchema = unitRefSchema.extend({
-  observation: observationIdSchema.optional(),
-});
 
 export const IMAGE_ANALYSIS_STATES = ["pending", "failed", "analyzed"] as const;
 

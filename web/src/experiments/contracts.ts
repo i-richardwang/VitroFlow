@@ -14,29 +14,21 @@ import {
   observationIdSchema,
   observationImageIdSchema,
   observationImageRefSchema,
-  unitCodeSchema,
-  unitIdSchema,
   treatmentIdSchema,
   treatmentNameSchema,
   treatmentSchema,
+  unitCodeSchema,
+  unitIdSchema,
 } from "./schema";
 
 export const unitSchema = z.strictObject({
   id: unitIdSchema,
   code: unitCodeSchema,
-  position: z.number().int().min(1),
   treatment: treatmentIdSchema,
   events: z.array(cultureEventSchema),
 });
 
 export type Unit = z.infer<typeof unitSchema>;
-
-/** A unit as stored, before display ordering assigns a position. */
-export const unitRecordSchema = unitSchema.omit({
-  position: true,
-});
-
-export type UnitRecord = z.infer<typeof unitRecordSchema>;
 
 export const observationImageCellSchema = z.strictObject({
   id: observationImageIdSchema,
@@ -71,9 +63,11 @@ export const unitObservationSchema = z.strictObject({
 
 export type UnitObservation = z.infer<typeof unitObservationSchema>;
 
+/** A unit as the series steps through it: enough to name it and its treatment. */
 export const unitNavigationEntrySchema = z.strictObject({
   id: unitIdSchema,
   code: unitCodeSchema,
+  treatment: treatmentIdSchema,
 });
 
 export type UnitNavigationEntry = z.infer<typeof unitNavigationEntrySchema>;

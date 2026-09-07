@@ -2,7 +2,6 @@ import {
   Button,
   Input,
   Label,
-  NumberField,
   Separator,
   TextField,
   Tooltip,
@@ -12,9 +11,8 @@ import type { TreatmentDesignInput } from "../../experiments/schema";
 import { replicateCodes } from "../../experiments/naming";
 import { m } from "../../paraglide/messages";
 import { CloseIcon } from "../icons";
+import { DEFAULT_REPLICATES, ReplicatesField } from "./ReplicatesField";
 import { TreatmentDot } from "./TreatmentDot";
-
-const DEFAULT_REPLICATES = 3;
 
 export type DesignRow = { name: string; replicates: number };
 
@@ -77,22 +75,13 @@ export function DesignField({
                 placeholder={m.treatment_name_placeholder()}
               />
             </TextField>
-            <NumberField
+            <ReplicatesField
               className="w-32 shrink-0"
-              variant="secondary"
-              minValue={1}
-              maxValue={200}
-              isDisabled={busy}
-              aria-label={m.treatment_replicates_label()}
+              labelled={false}
+              busy={busy}
               value={row.replicates}
               onChange={(replicates) => update(index, { replicates })}
-            >
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-            </NumberField>
+            />
             <Tooltip delay={0}>
               <Tooltip.Trigger>
                 <Button

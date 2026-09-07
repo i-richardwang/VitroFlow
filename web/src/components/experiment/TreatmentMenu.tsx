@@ -12,9 +12,12 @@ type Action = "edit" | "replicates";
 export function TreatmentMenu({
   experiment,
   treatment,
+  deletable,
 }: {
   experiment: string;
   treatment: Treatment;
+  /** The last treatment of an experiment is not offered for deletion. */
+  deletable: boolean;
 }) {
   const [open, setOpen] = useState<Action | null>(null);
   const label = m.treatment_actions({ name: treatment.name });
@@ -47,6 +50,7 @@ export function TreatmentMenu({
       <TreatmentDialog
         experiment={experiment}
         treatment={treatment}
+        deletable={deletable}
         isOpen={open === "edit"}
         onClose={() => setOpen(null)}
       />

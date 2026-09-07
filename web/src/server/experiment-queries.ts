@@ -11,40 +11,37 @@ import {
 
 import { database, type Executor } from "../db/client";
 import {
-  experimentUnits,
+  annotations,
   experimentObservationImages,
   experimentObservations,
   experimentTreatments,
+  experimentUnits,
   experiments,
   images,
   inferenceOutcomes,
-  annotations,
   modelVersions,
 } from "../db/schema";
 import type {
-  UnitRecord,
-  Unit,
-  UnitSeries,
   ExperimentGrid,
   ExperimentObservationImage,
   ExperimentSummary,
   ObservationImageCell,
+  UnitSeries,
 } from "../experiments/contracts";
 import { unitOrder } from "../experiments/naming";
 import {
   daysBetween,
-  type UnitRef,
   type Experiment,
-  type ObservationImageRef,
   type ImageAnalysisState,
-  type Treatment,
+  type ObservationImageRef,
+  type UnitRef,
 } from "../experiments/schema";
 import type { Tally } from "../models/metrics";
 import type { Model, ModelVersion } from "../models/schema";
 import {
-  listUnits,
   listObservations,
   listTreatments,
+  listUnits,
   readExperimentRecord,
   toExperiment,
 } from "./experiment-records";
@@ -121,13 +118,6 @@ async function listObservationImageCells(
   return rows.map(toCell);
 }
 
-function orderedUnits(units: UnitRecord[], treatments: Treatment[]): Unit[] {
-  return unitOrder(units, treatments).map((unit, index) => ({
-    ...unit,
-    position: index + 1,
-  }));
-}
-
 export async function readExperimentGrid(
   experimentId: string,
 ): Promise<ExperimentGrid | null> {
@@ -147,7 +137,7 @@ export async function readExperimentGrid(
     model,
     version,
     treatments,
-    units: orderedUnits(units, treatments),
+    units: unitOrder(units, treatments),
     observations,
     images: observationImages,
   };
@@ -188,10 +178,9 @@ export async function readUnit(
         )
         .then((rows) => rows.map(toCell)),
     ]);
-  const ordered = orderedUnits(units, treatments);
-  const position = ordered.findIndex((unit) => unit.id === ref.unit);
-  if (position < 0) return null;
-  const unit = ordered[position]!;
+  const ordered = unitOrder(units, treatments);
+  const unit = ordered.find((item) => item.id === ref.unit);
+  if (!unit) return null;
   const byObservation = new Map(cells.map((cell) => [cell.observation, cell]));
   const series = observations.map((observation) => ({
     observation,
@@ -219,7 +208,11 @@ export async function readUnit(
     version,
     unit,
     treatments,
-    navigation: ordered.map((item) => ({ id: item.id, code: item.code })),
+    navigation: ordered.map(({ id, code, treatment }) => ({
+      id,
+      code,
+      treatment,
+    })),
     observations: series,
     shown,
   };
@@ -330,7 +323,7 @@ export async function readExperimentObservationImage(
       observationImage: experimentObservationImages,
       image: images,
       experiment: experiments,
-      unitCode: experimentUnits.code,
+      unit: experimentUnits,
       modelId: modelVersions.modelId,
       observation: experimentObservations,
       outcome: inferenceOutcomes.document,
@@ -394,8 +387,9 @@ export async function readExperimentObservationImage(
     ref,
     experimentName: experiment.name,
     unit: {
-      id: row.observationImage.unitId,
-      code: row.unitCode,
+      id: row.unit.id,
+      code: row.unit.code,
+      treatment: row.unit.treatmentId,
     },
     observation,
     review: {

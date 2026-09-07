@@ -9,11 +9,10 @@ export function unitOrder<Unit extends { code: string; treatment: string }>(
   treatments: readonly { id: string; position: number }[],
 ): Unit[] {
   const rank = new Map(treatments.map((item) => [item.id, item.position]));
-  const group = (unit: Unit) =>
-    rank.get(unit.treatment) ?? Number.MAX_SAFE_INTEGER;
   return [...units].sort(
     (left, right) =>
-      group(left) - group(right) || compareUnitCodes(left.code, right.code),
+      rank.get(left.treatment)! - rank.get(right.treatment)! ||
+      compareUnitCodes(left.code, right.code),
   );
 }
 
