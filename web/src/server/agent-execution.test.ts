@@ -138,6 +138,41 @@ describe("agent execution", () => {
     expect(rows).toEqual([]);
   });
 
+  test("a command commits only if its output satisfies the contract", async () => {
+    const id = `invalid-output-${crypto.randomUUID()}`;
+    const registry = registryOf(
+      command({
+        name: "invalid-output",
+        description: "Writes a row but violates the output contract",
+        destructive: false,
+        input: z.strictObject({}),
+        output: z.null(),
+        handler: async (_input, tx) => {
+          await tx!
+            .insert(models)
+            .values({ id, name: id, task: "detect", classes: [], metrics: [] });
+          return "wrong" as unknown as null;
+        },
+      }),
+    );
+    const log = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        failure(await executeAgentOperation("invalid-output", {}, registry))
+          .code,
+      ).toBe("internal_error");
+      const rows = await (
+        await database()
+      )
+        .select({ id: models.id })
+        .from(models)
+        .where(eq(models.id, id));
+      expect(rows).toEqual([]);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   test("a repeated command is refused by the record it would duplicate", async () => {
     const version = await baselineVersion();
     const input = {

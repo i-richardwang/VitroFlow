@@ -348,7 +348,7 @@ export async function reviewedDataset(
       result,
       { runtimes: [result.producer.runtime] },
     );
-    await storeAnnotation(ref, instancesFromDetection(result));
+    await storeAnnotation(ref, instancesFromDetection(result), null);
   }
   return seeded;
 }

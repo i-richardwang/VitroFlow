@@ -5,13 +5,33 @@ import {
   annotationInstanceSchema,
   annotationRefSchema,
 } from "../annotation/schema";
-import { storeAnnotation } from "../server/annotations";
+import {
+  AnnotationConflictError,
+  readAnnotation,
+  storeAnnotation,
+} from "../server/annotations";
 
 export const saveAnnotation = createServerFn({ method: "POST" })
   .validator(
     z.strictObject({
       ref: annotationRefSchema,
       instances: z.array(annotationInstanceSchema),
+      base: z.array(annotationInstanceSchema).nullable(),
     }),
   )
-  .handler(({ data }) => storeAnnotation(data.ref, data.instances));
+  .handler(async ({ data }) => {
+    try {
+      await storeAnnotation(data.ref, data.instances, data.base);
+      return { status: "saved" } as const;
+    } catch (error) {
+      if (error instanceof AnnotationConflictError) {
+        return { status: "conflict" } as const;
+      }
+      throw error;
+    }
+  });
+
+/** Opening an editor reads its own baseline, independently of the page cache. */
+export const getAnnotation = createServerFn({ method: "GET" })
+  .validator(annotationRefSchema)
+  .handler(({ data }) => readAnnotation(data));

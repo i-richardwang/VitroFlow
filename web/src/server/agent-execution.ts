@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { transaction } from "../db/client";
+import { transaction, type Executor } from "../db/client";
 import { ConflictError, NotFoundError } from "../experiments/errors";
 import { type AgentOperation, agentOperations } from "./agent-operations";
 
@@ -54,11 +54,11 @@ export async function executeAgentOperation(
   if ("ok" in prepared) return prepared;
   const { operation, input: parsed } = prepared;
   try {
-    const value =
-      operation.kind === "query"
-        ? await operation.handler(parsed)
-        : await transaction((tx) => operation.handler(parsed, tx));
-    return { ok: true, output: operation.output.parse(value ?? null) };
+    const invoke = async (tx?: Executor) =>
+      operation.output.parse((await operation.handler(parsed, tx)) ?? null);
+    const output =
+      operation.kind === "query" ? await invoke() : await transaction(invoke);
+    return { ok: true, output };
   } catch (error) {
     if (error instanceof NotFoundError) {
       return failure("not_found", error.message);

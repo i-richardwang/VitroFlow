@@ -39,7 +39,7 @@ test("a review shows the newest detection and the stored annotation", async () =
   expect((await readReview(ref, "rv.jpg", db))?.filename).toBe("rv.jpg");
 
   expect((await readReview(ref, "rv.jpg", db))?.annotation).toBeNull();
-  const saved = await storeAnnotation(ref, instancesFromDetection(older));
+  const saved = await storeAnnotation(ref, instancesFromDetection(older), null);
   const reviewed = await readReview(ref, "rv.jpg", db);
   expect(reviewed?.annotation).toEqual(saved);
   expect(reviewed?.detection).toEqual(newer);

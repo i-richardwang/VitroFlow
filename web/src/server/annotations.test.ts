@@ -3,7 +3,11 @@ import { describe, expect, test } from "bun:test";
 import { instancesFromDetection } from "../annotation/detection";
 import type { AnnotationInstance } from "../annotation/schema";
 import { recordInferenceOutcome } from "./inference-outcomes";
-import { readAnnotation, storeAnnotation } from "./annotations";
+import {
+  AnnotationConflictError,
+  readAnnotation,
+  storeAnnotation,
+} from "./annotations";
 import {
   imageDigest,
   observeImages,
@@ -41,7 +45,7 @@ describe("annotations", () => {
     );
     expect(await readAnnotation(ref)).toBeNull();
 
-    const stored = await storeAnnotation(ref, [...opening, box]);
+    const stored = await storeAnnotation(ref, [...opening, box], null);
     expect(stored).toEqual({
       schemaVersion: 1,
       image: result.image,
@@ -49,7 +53,7 @@ describe("annotations", () => {
     });
     expect(await readAnnotation(ref)).toEqual(stored);
 
-    const emptied = await storeAnnotation(ref, []);
+    const emptied = await storeAnnotation(ref, [], stored.instances);
     expect(emptied.instances).toEqual([]);
     expect(await readAnnotation(ref)).toEqual(emptied);
   });
@@ -57,16 +61,50 @@ describe("annotations", () => {
   test("refuses a box outside the image", async () => {
     const { ref, result } = await detected("lb-b", "annotations-image-worker");
     await expect(
-      storeAnnotation(ref, [
-        { ...box, bbox: { ...box.bbox, x: result.image.width } },
-      ]),
+      storeAnnotation(
+        ref,
+        [{ ...box, bbox: { ...box.bbox, x: result.image.width } }],
+        null,
+      ),
     ).rejects.toThrow(/exceeds image bounds/);
   });
 
   test("refuses a class the model does not define", async () => {
     const { ref } = await detected("lb-c", "annotations-class-worker");
     await expect(
-      storeAnnotation(ref, [{ ...box, class: "weed" }]),
+      storeAnnotation(ref, [{ ...box, class: "weed" }], null),
     ).rejects.toThrow(/unknown class/);
   });
+});
+
+test("only one editor can replace a shared base, including an unreviewed image", async () => {
+  const { ref } = await detected("shared-draft", "shared-draft-worker");
+  const contenders = await Promise.allSettled([
+    storeAnnotation(ref, [box], null),
+    storeAnnotation(ref, [{ ...box, id: "other" }], null),
+  ]);
+  expect(
+    contenders.filter(({ status }) => status === "fulfilled"),
+  ).toHaveLength(1);
+  const rejected = contenders.find(({ status }) => status === "rejected");
+  expect(rejected?.status === "rejected" && rejected.reason).toBeInstanceOf(
+    AnnotationConflictError,
+  );
+
+  const base = (await readAnnotation(ref))!.instances;
+  await storeAnnotation(ref, [], base);
+  await expect(storeAnnotation(ref, [box], base)).rejects.toBeInstanceOf(
+    AnnotationConflictError,
+  );
+  expect((await readAnnotation(ref))!.instances).toEqual([]);
+});
+
+test("a base compares content regardless of JSON object property order", async () => {
+  const { ref } = await detected("draft-order", "draft-order-worker");
+  await storeAnnotation(ref, [box], null);
+  const base = [
+    { bbox: { height: 5, width: 4, y: 3, x: 2 }, class: "seed", id: "kept" },
+  ];
+  await storeAnnotation(ref, [], base);
+  expect((await readAnnotation(ref))!.instances).toEqual([]);
 });

@@ -103,5 +103,9 @@
   "workbench_layer_boxes": "Boxes",
   "workbench_layer_ids": "IDs",
   "workbench_zoom": "Zoom",
-  "workbench_fill": "Fill"
+  "workbench_fill": "Fill",
+  "workbench_save_conflict": "This review changed in another page. Your draft is kept. Cancel and reopen the editor to read the latest review.",
+  "workbench_saved_refresh_failed": "Your review was saved, but the page could not refresh. Reload the page to see it.",
+  "workbench_opening": "Opening…",
+  "workbench_open_failed": "Could not open the review"
 }

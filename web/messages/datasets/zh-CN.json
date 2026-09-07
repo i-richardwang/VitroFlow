@@ -103,5 +103,9 @@
   "workbench_layer_boxes": "框",
   "workbench_layer_ids": "编号",
   "workbench_zoom": "缩放",
-  "workbench_fill": "充满窗口"
+  "workbench_fill": "充满窗口",
+  "workbench_save_conflict": "这份复核已在其他页面修改。当前草稿仍保留；请取消并重新打开编辑器，读取最新复核。",
+  "workbench_saved_refresh_failed": "复核已保存，但页面刷新失败。请重新加载页面查看。",
+  "workbench_opening": "正在打开…",
+  "workbench_open_failed": "无法打开复核"
 }

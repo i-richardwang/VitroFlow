@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 from importlib.metadata import PackageNotFoundError, version
 
 
@@ -21,3 +22,16 @@ def load_yolo() -> type:
     except Exception as error:
         raise RuntimeError("Ultralytics is installed but cannot be imported") from error
     return YOLO
+
+
+def release_accelerator() -> None:
+    """Release unreachable runtime objects and their cached device allocations."""
+    gc.collect()
+    try:
+        import torch
+    except ImportError:
+        return
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()

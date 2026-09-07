@@ -14,7 +14,9 @@ import { useBlocker, useRouter } from "@tanstack/react-router";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
+  useReducer,
   useState,
   type ReactNode,
 } from "react";
@@ -28,8 +30,12 @@ import {
 import type { AnnotationInstance } from "../../annotation/schema";
 import { instancesFromDetection } from "../../annotation/detection";
 import type { DetectionResult } from "../../detection/schema";
-import { saveAnnotation } from "../../functions/review";
-import { useHistory } from "../../hooks/useHistory";
+import { getAnnotation, saveAnnotation } from "../../functions/review";
+import {
+  openDraft,
+  reduceDraft,
+  type AnnotationDraft,
+} from "../../annotation/draft";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
 import { m } from "../../paraglide/messages";
@@ -120,6 +126,7 @@ export function ImageWorkbench({
       >
         {editing && opening ? (
           <Editing
+            key={`${review.ref.modelId}:${review.ref.digest}`}
             model={model}
             review={review}
             opening={opening}
@@ -259,33 +266,90 @@ function detectionMetrics(modelId: string, result: DetectionResult): Metric[] {
   return rows;
 }
 
-/**
- * A draft of the boxes, edited locally and stored once. The draft is dirty
- * while an edit can be undone; leaving with one asks first, whether by
- * navigation or by closing the tab.
- */
-function Editing({
+interface EditingProps {
+  model: Model;
+  review: Review;
+  opening: AnnotationInstance[];
+  display: Display;
+  onClose: () => void;
+  context: ImageWorkbenchContext;
+}
+
+/** Each editor reads its own base; route refreshes never replace an open draft. */
+function Editing(props: EditingProps) {
+  const [initial, setInitial] = useState<AnnotationDraft | null>(null);
+  const { digest, modelId } = props.review.ref;
+  const failed = useEffectEvent((cause: unknown) => {
+    toast.danger(m.workbench_open_failed(), {
+      description: cause instanceof Error ? cause.message : String(cause),
+    });
+    props.onClose();
+  });
+  const opened = useEffectEvent((base: AnnotationInstance[] | null) =>
+    setInitial(openDraft(base, base ?? props.opening)),
+  );
+  useEffect(() => {
+    let active = true;
+    getAnnotation({ data: { digest, modelId } }).then(
+      (annotation) => {
+        if (active) opened(annotation?.instances ?? null);
+      },
+      (cause: unknown) => {
+        if (active) failed(cause);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [digest, modelId]);
+
+  return initial ? (
+    <Editor {...props} initial={initial} />
+  ) : (
+    <>
+      <WorkbenchActions>
+        <Button variant="tertiary" onPress={props.onClose}>
+          {m.cancel()}
+        </Button>
+        <Button variant="primary" isDisabled>
+          {m.workbench_opening()}
+        </Button>
+      </WorkbenchActions>
+      <WorkbenchInspector>
+        <ReviewInspector
+          model={props.model}
+          instances={props.review.annotation?.instances ?? null}
+          detection={props.review.detection}
+          display={props.display}
+          details={props.context.details}
+        />
+      </WorkbenchInspector>
+      <BoxLayer
+        image={props.review}
+        instances={props.opening}
+        layers={props.display.layers}
+      />
+    </>
+  );
+}
+
+/** A locally edited draft is immutable while its single submission is pending. */
+function Editor({
   model,
   review,
-  opening,
+  initial,
   display,
   onClose,
   context,
-}: {
-  model: Model;
-  review: Review;
-  /** The boxes the draft begins from. */
-  opening: AnnotationInstance[];
-  display: Display;
-  /** Called once the review is stored, or the draft discarded. */
-  onClose: () => void;
-  context: ImageWorkbenchContext;
-}) {
+}: Omit<EditingProps, "opening"> & { initial: AnnotationDraft }) {
   const router = useRouter();
-  const [instances, setInstances] = useState(opening);
-  const [saving, setSaving] = useState(false);
+  const [draft, dispatch] = useReducer(reduceDraft, initial);
+  const { instances, saving } = draft;
+  const history = {
+    canUndo: draft.past.length > 0,
+    canRedo: draft.future.length > 0,
+  };
   const closing = useRef(false);
-  const history = useHistory<AnnotationInstance[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [panning, setPanning] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -294,10 +358,9 @@ function Editing({
   const dirty = history.canUndo;
   useBlocker({
     shouldBlockFn: () =>
-      dirty &&
       !closing.current &&
-      !window.confirm(m.workbench_discard_confirm()),
-    enableBeforeUnload: () => dirty && !closing.current,
+      (saving || (dirty && !window.confirm(m.workbench_discard_confirm()))),
+    enableBeforeUnload: () => (dirty || saving) && !closing.current,
   });
 
   const close = useCallback(() => {
@@ -306,37 +369,40 @@ function Editing({
   }, [onClose]);
 
   const done = useCallback(async () => {
-    setSaving(true);
+    if (saving) return;
+    dispatch({ type: "submit" });
     try {
-      await saveAnnotation({ data: { ref: review.ref, instances } });
-      await router.invalidate();
+      const result = await saveAnnotation({
+        data: { ref: review.ref, base: draft.base, instances },
+      });
+      if (result.status === "conflict") {
+        toast.danger(m.workbench_save_conflict());
+        dispatch({ type: "failed" });
+        return;
+      }
+      try {
+        await router.invalidate();
+      } catch {
+        toast.warning(m.workbench_saved_refresh_failed());
+      }
       close();
     } catch (cause) {
       toast.danger(m.workbench_save_failed(), {
         description: cause instanceof Error ? cause.message : String(cause),
       });
-      setSaving(false);
+      dispatch({ type: "failed" });
     }
-  }, [review.ref, instances, router, close]);
+  }, [review.ref, draft.base, instances, saving, router, close]);
 
   const selected =
     instances.find((instance) => instance.id === selectedId) ?? null;
 
   const editInstances = useCallback(
-    (next: AnnotationInstance[]) => {
-      history.record(instances);
-      setInstances(next);
-    },
-    [history, instances],
+    (instances: AnnotationInstance[]) => dispatch({ type: "edit", instances }),
+    [],
   );
-  const undo = useCallback(() => {
-    const previous = history.undo(instances);
-    if (previous) setInstances(previous);
-  }, [history, instances]);
-  const redo = useCallback(() => {
-    const next = history.redo(instances);
-    if (next) setInstances(next);
-  }, [history, instances]);
+  const undo = useCallback(() => dispatch({ type: "undo" }), []);
+  const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
@@ -372,6 +438,7 @@ function Editing({
   }, []);
 
   useShortcuts({
+    enabled: !saving,
     onPanChange: setPanning,
     onToolChange: setTool,
     onEscape: clearSelection,
@@ -389,24 +456,28 @@ function Editing({
         <Button variant="primary" isDisabled={saving} onPress={done}>
           {saving ? m.workbench_saving() : m.workbench_done()}
         </Button>
-        {context.menu}
+        <div inert={saving} className="contents">
+          {context.menu}
+        </div>
       </WorkbenchActions>
       <WorkbenchToolbar label={m.workbench_navigation_and_tools()}>
-        {context.toolbar}
-        {context.toolbar ? <Separator /> : null}
-        <EditingTools
-          tool={tool}
-          history={history}
-          canDelete={selectedId !== null}
-          onToolChange={setTool}
-          onUndo={undo}
-          onRedo={redo}
-          onDelete={deleteSelected}
-          onRestart={detection ? restartFromDetection : undefined}
-          classes={model.classes}
-          className={selected?.class ?? activeClass}
-          onClassChange={changeClass}
-        />
+        <div inert={saving} className="contents">
+          {context.toolbar}
+          {context.toolbar ? <Separator /> : null}
+          <EditingTools
+            tool={tool}
+            history={history}
+            canDelete={selectedId !== null}
+            onToolChange={setTool}
+            onUndo={undo}
+            onRedo={redo}
+            onDelete={deleteSelected}
+            onRestart={detection ? restartFromDetection : undefined}
+            classes={model.classes}
+            className={selected?.class ?? activeClass}
+            onClassChange={changeClass}
+          />
+        </div>
       </WorkbenchToolbar>
       <WorkbenchInspector>
         <ReviewInspector
@@ -417,17 +488,25 @@ function Editing({
           details={context.details}
         />
       </WorkbenchInspector>
-      <EditableBoxLayer
-        image={review}
-        instances={instances}
-        layers={display.layers}
-        tool={tool}
-        panning={panning}
-        className={activeClass}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        onInstancesChange={editInstances}
-      />
+      {saving ? (
+        <BoxLayer
+          image={review}
+          instances={instances}
+          layers={display.layers}
+        />
+      ) : (
+        <EditableBoxLayer
+          image={review}
+          instances={instances}
+          layers={display.layers}
+          tool={tool}
+          panning={panning}
+          className={activeClass}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onInstancesChange={editInstances}
+        />
+      )}
     </>
   );
 }
@@ -598,6 +677,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function useShortcuts({
+  enabled,
   onPanChange,
   onToolChange,
   onEscape,
@@ -605,6 +685,7 @@ function useShortcuts({
   onUndo,
   onRedo,
 }: {
+  enabled: boolean;
   onPanChange: (panning: boolean) => void;
   onToolChange: (tool: Tool) => void;
   onEscape: () => void;
@@ -613,6 +694,10 @@ function useShortcuts({
   onRedo: () => void;
 }) {
   useEffect(() => {
+    if (!enabled) {
+      onPanChange(false);
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) || event.altKey) return;
       if (event.metaKey || event.ctrlKey) {
@@ -648,5 +733,5 @@ function useShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [onPanChange, onToolChange, onEscape, onDelete, onUndo, onRedo]);
+  }, [enabled, onPanChange, onToolChange, onEscape, onDelete, onUndo, onRedo]);
 }

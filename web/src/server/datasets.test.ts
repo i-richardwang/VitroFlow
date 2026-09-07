@@ -511,6 +511,7 @@ describe("detections", () => {
     await storeAnnotation(
       { digest, modelId: baseline.modelId },
       instancesFromDetection(original),
+      null,
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
     expect(await isReviewed(ref)).toBe(true);
@@ -527,7 +528,7 @@ describe("detections", () => {
       worker,
     );
     const labelRef = { digest, modelId: version.modelId };
-    await storeAnnotation(labelRef, instancesFromDetection(result));
+    await storeAnnotation(labelRef, instancesFromDetection(result), null);
     expect(await isReviewed({ dataset: "ctx-one", digest })).toBe(true);
     expect(await isReviewed({ dataset: "ctx-two", digest })).toBe(true);
   });
@@ -544,6 +545,7 @@ describe("removal", () => {
     await storeAnnotation(
       { digest, modelId: version.modelId },
       instancesFromDetection(result),
+      null,
     );
 
     await removeDatasetImage(ref);

@@ -26,6 +26,7 @@ from .documents import (
 from .identifiers import CLASS_NAME, VERSION_ID
 from .scoring import DEFAULT_MODEL
 from .training_recipe import parse_training_recipe
+from .yolo.runtime import release_accelerator
 
 MODEL_MANIFEST_SCHEMA_VERSION = 1
 CACHE_VALIDATION_ERRORS = (OSError, TypeError, ValueError, RuntimeError)
@@ -142,15 +143,6 @@ class ModelManifest:
         )
 
 
-def _release_accelerator() -> None:
-    try:
-        import torch
-    except ImportError:
-        return
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-
 class ModelStore:
     """
     Materializes assigned versions into detectors. Downloaded YOLO
@@ -192,7 +184,7 @@ class ModelStore:
         _, detector = self._loaded
         self._loaded = None
         del detector
-        _release_accelerator()
+        release_accelerator()
 
     def _ultralytics_detector(
         self, version_id: str, classes: tuple[str, ...], artifact: dict[str, Any]

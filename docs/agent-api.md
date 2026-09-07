@@ -24,7 +24,7 @@ The MCP surface is opened by OAuth instead: see below.
 | `POST /api/agent/<name>`    | Call one operation with its JSON input                                                        |
 | `POST /api/agent/images`    | Store image bytes; the response is the digest assignment expects                              |
 
-Every result is validated against the operation's published output schema before it leaves the workbench, so the discovery document is the contract on both sides of a call. A successful call answers `{"result": ...}`. A failed call answers `{"error":{"code":"...","message":"..."}}`; HTTP maps the protocol-neutral code to the status describing what the agent can do about it:
+Every result is validated against the operation's published output schema before it leaves the workbench; for commands this validation must succeed before the transaction commits, so the discovery document is the contract on both sides of a call. A successful call answers `{"result": ...}`. A failed call answers `{"error":{"code":"...","message":"..."}}`; HTTP maps the protocol-neutral code to the status describing what the agent can do about it:
 
 - `400` — the input does not satisfy the operation's schema; the message names the offending fields.
 - `401` — the request presents no live API key with the agent scope.

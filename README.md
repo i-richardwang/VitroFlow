@@ -4,7 +4,7 @@ The backend's dependency and concurrency boundaries are documented in [docs/back
 
 VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, observation units provide independent replicates, observations follow those units over time, and one immutable model version analyzes every image in an experiment.
 
-The system has three independently deployed parts:
+The application has two independently deployed parts:
 
 - the Web workbench owns experiments, datasets, review state, training runs, and worker protocols;
 - Workers execute published model versions and, when they carry the Ultralytics runtime, train immutable dataset snapshots and publish candidate model versions.
@@ -31,7 +31,7 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 | `images`                                                                                                                                                        | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes                      |
 | `experiments`, `experiment_treatments`, `experiment_observation_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations under one fixed model version                    |
 | `inference_outcomes`                                                                                                                                            | The single success-or-failure outcome for an image and model-version pair                      |
-| `annotations`                                                                                                                                                   | Versioned reviewer annotations for an image and model                                          |
+| `annotations`                                                                                                                                                   | Current reviewer annotations for an image and model                                          |
 | `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
 | `dataset_snapshots`, `dataset_snapshot_images`                                                                                                                  | Immutable training inputs                                                                      |
 | `training_runs`, `training_epochs`                                                                                                                              | Leased training state and per-attempt epoch metrics                                            |
@@ -69,7 +69,7 @@ An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. T
 
 `inference_outcomes` has one row per image and ModelVersion. A succeeded outcome contains classified boxes, including the valid zero-box case, and is immutable. A failed outcome contains the execution error and may be replaced through the explicit retry protocol; a conflicting successful result is rejected.
 
-An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened and of any inference outcome. A review begins from what one ModelVersion found and is independent of that detection from then on: detections are recomputed by every version, while the annotation changes only when a person stores another review. The reviewer edits a draft of the boxes and stores it once; an image is reviewed once an annotation is stored for it, and only reviewed images enter dataset snapshots and YOLO exports. An image that should not train is removed from the dataset.
+An annotation belongs to an image and Model, independent of the experiment or dataset from which it was opened and of any inference outcome. A review begins from what one ModelVersion found and is independent of that detection from then on: detections are recomputed by every version, while the annotation changes only when a person stores another review. The reviewer edits a local draft and submits it once. Submission freezes the draft; the save compares its original stored boxes with the current review in the same transaction. A conflict keeps the draft without overwriting another review. This editing baseline belongs to the save request, not to the transferable annotation document; an image is reviewed once an annotation is stored for it, and only reviewed images enter dataset snapshots and YOLO exports. An image that should not train is removed from the dataset.
 
 A Dataset travels as a manifest and the canonical images it names. The manifest carries the memberships and the annotations for the dataset's Model; another workbench imports it whole, provided it knows the Model with the same classes, holds every image, and has no dataset of that name and no annotation of those images for that Model. Detections in a manifest are informational and never imported.
 
@@ -295,7 +295,7 @@ export VITROFLOW_TEST_S3_BUCKET=vitroflow
 make check-s3
 ```
 
-CI runs `make check`, builds the production image with the configured `HEROUI_KEY`, verifies the database invariants on PostgreSQL, and runs the S3 contract against RustFS. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
+`make check` is the local verification gate. The production image, real PostgreSQL invariants, and S3 contract are separate gates: run `make check-image`, `make check-postgres`, and `make check-s3` with their documented environment variables. The default suite uses PGlite and skips the external S3 contract when no endpoint is configured. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
 
 ## Repository layout
 

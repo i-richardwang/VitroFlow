@@ -1,6 +1,6 @@
 import type { ImageSize } from "../../annotation/schema";
 
-/** The largest magnification, in screen pixels per image pixel. */
+/** Manual magnification limit; filling the frame always takes precedence. */
 export const MAX_SCALE = 40;
 
 export interface Size {
@@ -10,7 +10,7 @@ export interface Size {
 
 /** Where the image sits: filling the frame, or zoomed and panned by hand. */
 export type ViewIntent =
-  { kind: "fill" } | { kind: "zoomed"; scale: number; x: number; y: number };
+  { kind: "fill" } | { kind: "manual"; scale: number; x: number; y: number };
 
 export const FILL: ViewIntent = { kind: "fill" };
 
@@ -29,6 +29,16 @@ export interface View {
  */
 export function fillScale(frame: Size, image: ImageSize): number {
   return Math.max(frame.width / image.width, frame.height / image.height);
+}
+
+/** One scale interval for wheel gestures, panning, and frame resizing. */
+function constrainedScale(
+  requested: number,
+  frame: Size,
+  image: ImageSize,
+): number {
+  const minimum = fillScale(frame, image);
+  return Math.max(minimum, Math.min(Math.max(minimum, MAX_SCALE), requested));
 }
 
 /** Keeps the frame covered along one axis, holding the requested offset. */
@@ -54,7 +64,7 @@ export function resolveView(
   const scale =
     intent.kind === "fill"
       ? fill
-      : Math.min(MAX_SCALE, Math.max(fill, intent.scale));
+      : constrainedScale(intent.scale, frame, image);
   const width = image.width * scale;
   const height = image.height * scale;
   const requested =
@@ -71,7 +81,7 @@ export function resolveView(
 
 /** Moves the image by hand; the offset is held until the frame is refilled. */
 export function pannedTo(view: View, x: number, y: number): ViewIntent {
-  return { kind: "zoomed", scale: view.scale, x, y };
+  return { kind: "manual", scale: view.scale, x, y };
 }
 
 /**
@@ -86,9 +96,10 @@ export function zoomedAbout(
   image: ImageSize,
 ): ViewIntent {
   if (scale <= fillScale(frame, image)) return FILL;
+  scale = constrainedScale(scale, frame, image);
   const ratio = scale / view.scale;
   return {
-    kind: "zoomed",
+    kind: "manual",
     scale,
     x: anchor.x - (anchor.x - view.x) * ratio,
     y: anchor.y - (anchor.y - view.y) * ratio,

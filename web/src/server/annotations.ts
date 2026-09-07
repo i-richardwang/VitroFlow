@@ -8,9 +8,16 @@ import {
 } from "../annotation/schema";
 import { database, transaction } from "../db/client";
 import { annotations, images } from "../db/schema";
+import { canonicalJson } from "../json/canonical";
 import { assertInstanceClasses } from "../models/metrics";
 import { lockImage } from "./image-lock";
 import { readModel } from "./model-registry";
+
+export class AnnotationConflictError extends Error {
+  constructor() {
+    super("The annotation changed after this draft was opened");
+  }
+}
 
 function atAnnotation({ digest, modelId }: AnnotationRef) {
   return and(eq(annotations.imageId, digest), eq(annotations.modelId, modelId));
@@ -31,14 +38,25 @@ export async function readAnnotation(
 /**
  * Stores the boxes a reviewer decided on as the image's review for the model.
  * The document is composed here, on the stored image, so a review can only
- * ever describe the image it is addressed to; a later review replaces it.
+ * ever describe the image it is addressed to. The base is the stored boxes
+ * the editor read, or null for a first review. Only that base can be replaced.
  */
 export async function storeAnnotation(
   ref: AnnotationRef,
   instances: AnnotationInstance[],
+  base: AnnotationInstance[] | null,
 ): Promise<AnnotationDocument> {
   return transaction(async (tx) => {
     await lockImage(ref.digest, tx);
+    const [current] = await tx
+      .select({ document: annotations.document })
+      .from(annotations)
+      .where(atAnnotation(ref));
+    if (
+      canonicalJson(current?.document.instances ?? null) !== canonicalJson(base)
+    ) {
+      throw new AnnotationConflictError();
+    }
     const [image] = await tx
       .select({ width: images.width, height: images.height })
       .from(images)

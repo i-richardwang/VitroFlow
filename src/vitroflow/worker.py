@@ -19,6 +19,7 @@ from .training_worker import TrainingClient, process_training_job
 from .worker_runtime import shutdown_signals
 from .worker_session import WorkerClient, WorkerSession, WorkerSettings
 from .yolo import YoloTrainingInterruptedError
+from .yolo.runtime import release_accelerator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,13 +56,17 @@ class Worker:
         if self.client.session.can_train:
             job = self.training.claim()
             if job is not None:
-                process_training_job(
-                    self.training,
-                    job,
-                    self.settings.work_dir,
-                    self.settings.device,
-                    stopped=stopped,
-                )
+                self.store.unload()
+                try:
+                    process_training_job(
+                        self.training,
+                        job,
+                        self.settings.work_dir,
+                        self.settings.device,
+                        stopped=stopped,
+                    )
+                finally:
+                    release_accelerator()
                 return True
         return run_pass(
             self.inference, self.settings.work_dir, self.store, stopped=stopped

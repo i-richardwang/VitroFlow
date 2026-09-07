@@ -4,6 +4,7 @@ import threading
 from pathlib import Path
 
 import httpx
+import pytest
 
 from vitroflow import worker_session
 from vitroflow.detectors import RuntimeDescriptor
@@ -79,3 +80,39 @@ def test_a_stopping_worker_takes_nothing(tmp_path: Path, monkeypatch) -> None:
     finally:
         served.close()
     assert workbench.calls == ["/api/worker/heartbeat"]
+
+
+def test_training_releases_the_inference_model_and_its_own_allocations(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from vitroflow import worker
+
+    served, _ = _worker(tmp_path, monkeypatch, (TRADITIONAL, ULTRALYTICS))
+    events: list[str] = []
+    jobs = iter([None, object(), object()])
+    monkeypatch.setattr(served.training, "claim", lambda: next(jobs))
+    monkeypatch.setattr(served.store, "unload", lambda: events.append("unload"))
+    monkeypatch.setattr(
+        worker, "run_pass", lambda *args, **kwargs: events.append("inference") or True
+    )
+    monkeypatch.setattr(worker, "release_accelerator", lambda: events.append("release"))
+
+    def train(*args, **kwargs):
+        assert events[-1] == "unload"
+        events.append("training")
+
+    monkeypatch.setattr(worker, "process_training_job", train)
+    try:
+        assert served.serve_once(threading.Event()) is True
+        assert served.serve_once(threading.Event()) is True
+        assert events == ["inference", "unload", "training", "release"]
+
+        def fail(*args, **kwargs):
+            raise RuntimeError("training failed")
+
+        monkeypatch.setattr(worker, "process_training_job", fail)
+        with pytest.raises(RuntimeError, match="training failed"):
+            served.serve_once(threading.Event())
+        assert events[-2:] == ["unload", "release"]
+    finally:
+        served.close()

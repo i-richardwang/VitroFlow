@@ -42,6 +42,7 @@ test("the overview derives review progress and training readiness", async () => 
     await storeAnnotation(
       { digest, modelId: version.modelId },
       instancesFromDetection(result),
+      null,
     );
   }
 
@@ -83,17 +84,21 @@ test("the overview derives review progress and training readiness", async () => 
   const a = { digest: await imageDigest("ov-a"), modelId: version.modelId };
   const annotation = await readAnnotation(a);
   if (!annotation) throw new Error("missing annotation");
-  await storeAnnotation(a, annotation.instances);
+  await storeAnnotation(a, annotation.instances, annotation.instances);
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(0);
-  await storeAnnotation(a, [
-    {
-      id: "added",
-      class: "seed",
-      bbox: { x: 0, y: 0, width: 1, height: 1 },
-    },
-  ]);
+  await storeAnnotation(
+    a,
+    [
+      {
+        id: "added",
+        class: "seed",
+        bbox: { x: 0, y: 0, width: 1, height: 1 },
+      },
+    ],
+    annotation.instances,
+  );
   expect(
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);
