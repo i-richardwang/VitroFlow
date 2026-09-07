@@ -9,7 +9,7 @@ export class ModelVersionNotFoundError extends NotFoundError {}
 export class ExperimentObservationImageNotFoundError extends NotFoundError {}
 export class ObservationNotFoundError extends NotFoundError {}
 export class TreatmentNotFoundError extends NotFoundError {}
-export class ObservationUnitNotFoundError extends NotFoundError {}
+export class UnitNotFoundError extends NotFoundError {}
 export class CultureEventNotFoundError extends NotFoundError {}
 
 export class ExperimentRejectedError extends ConflictError {}
@@ -17,13 +17,13 @@ export class ExperimentHasRecordsError extends ConflictError {}
 export class ImagesNotStoredError extends ConflictError {}
 export class ObservationRejectedError extends ConflictError {}
 export class TreatmentRejectedError extends ConflictError {}
-export class ObservationUnitRejectedError extends ConflictError {}
+export class UnitRejectedError extends ConflictError {}
 export class ObservationImageRejectedError extends ConflictError {}
 
 export interface UsedExperimentObservationImage {
   digest: string;
   filename: string;
-  observationUnit: string;
+  unit: string;
   day: number;
 }
 
@@ -32,7 +32,7 @@ export class ExperimentObservationImageAlreadyUsedError extends ConflictError {
     const [first] = images;
     super(
       first
-        ? `${first.filename} already represents observation unit ${first.observationUnit} on day ${first.day}`
+        ? `${first.filename} already represents unit ${first.unit} on day ${first.day}`
         : "An image was already used in this experiment",
     );
   }

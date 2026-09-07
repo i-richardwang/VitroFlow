@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { instancesFromDetection } from "../annotation/detection";
 import { database } from "../db/client";
 import { inferenceOutcomes } from "../db/schema";
+import { filenameStem } from "../experiments/naming";
 import type { Worker } from "../workers/schema";
 import {
   blobExists,
@@ -573,19 +574,14 @@ describe("removal", () => {
   });
 });
 
-/** Experiment observation-image references, indexed by observation unit code. */
+/** Experiment observation-image references, indexed by unit code. */
+/** Observation-image references by the content each image was stored from. */
 async function listObservationImageRefs(experimentId: string) {
   const grid = await readExperimentGrid(experimentId);
   if (!grid) throw new Error(`missing experiment ${experimentId}`);
-  const codes = new Map(
-    grid.observationUnits.map((observationUnit) => [
-      observationUnit.id,
-      observationUnit.code,
-    ]),
-  );
   return new Map(
     grid.images.map((image) => [
-      codes.get(image.observationUnit)!,
+      filenameStem(image.filename),
       { experiment: experimentId, observationImage: image.id },
     ]),
   );

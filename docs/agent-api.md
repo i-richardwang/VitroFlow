@@ -40,7 +40,7 @@ Content-Type: application/json
 {"experiment":"…","observedOn":"2026-09-02"}
 ```
 
-Every record an agent can create is named by something it already knows: an experiment by its name, a treatment by its name within the experiment, an observation by its date, an observation unit by its code, an image by its digest. Repeating a create therefore answers 409 rather than making a second record, so a call whose response was lost is safe to send again.
+Every record an agent can create is named by something it already knows: an experiment by its name, a treatment by its name within the experiment, an observation by its date, a unit by its code, an image by its digest. Repeating a create therefore answers 409 rather than making a second record, so a call whose response was lost is safe to send again.
 
 Image upload posts the raw source bytes as the request body with an exact `Content-Length`, up to 64 MiB. The image is canonicalized on entry, and the returned digest identifies the canonical bytes; identical uploads are idempotent.
 
@@ -62,10 +62,10 @@ Image bytes do not travel through MCP. Upload them to `POST /api/agent/images` a
 
 Entering one round of observation photos:
 
-1. `get-experiment` reads the experiment grid: treatments, observation units with their codes, and existing observations.
+1. `get-experiment` reads the experiment grid: treatments, units with their codes, and existing observations.
 2. `create-observation` adds the observation date, unless the grid already holds it.
 3. `POST /api/agent/images` stores each photo and returns its digest.
-4. `assign-images-to-observation` attaches the digests to observation units in that observation, keeping each source filename for traceability. Filenames may suggest unit codes, but the unit id in the assignment is authoritative.
+4. `assign-images-to-observation` attaches the digests to units in that observation, keeping each source filename for traceability. Filenames may suggest unit codes, but the unit id in the assignment is authoritative.
 5. `record-culture-event` records contamination or loss observed while photographing. Contaminated, discarded, and missing exclude the unit from analysis from that observation on; nonviable and harvested keep it included. `remove-culture-event` erases an event recorded by mistake.
 
 Analysis needs no request: assigned images are queued for the experiment's model version automatically, and `retry-observation-image-analysis` requeues one that failed.

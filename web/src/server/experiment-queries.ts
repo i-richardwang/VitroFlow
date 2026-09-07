@@ -11,7 +11,7 @@ import {
 
 import { database, type Executor } from "../db/client";
 import {
-  experimentObservationUnits,
+  experimentUnits,
   experimentObservationImages,
   experimentObservations,
   experimentTreatments,
@@ -22,18 +22,18 @@ import {
   modelVersions,
 } from "../db/schema";
 import type {
-  ObservationUnitRecord,
-  ObservationUnit,
-  ObservationUnitSeries,
+  UnitRecord,
+  Unit,
+  UnitSeries,
   ExperimentGrid,
   ExperimentObservationImage,
   ExperimentSummary,
   ObservationImageCell,
 } from "../experiments/contracts";
-import { observationUnitOrder } from "../experiments/naming";
+import { unitOrder } from "../experiments/naming";
 import {
   daysBetween,
-  type ObservationUnitRef,
+  type UnitRef,
   type Experiment,
   type ObservationImageRef,
   type ImageAnalysisState,
@@ -42,7 +42,7 @@ import {
 import type { Tally } from "../models/metrics";
 import type { Model, ModelVersion } from "../models/schema";
 import {
-  listObservationUnits,
+  listUnits,
   listObservations,
   listTreatments,
   readExperimentRecord,
@@ -99,7 +99,7 @@ function toCell(row: ObservationImageGridRow): ObservationImageCell {
         : "pending";
   return {
     id: row.observationImage.id,
-    observationUnit: row.observationImage.observationUnitId,
+    unit: row.observationImage.unitId,
     observation: row.observationImage.observationId,
     digest: row.observationImage.imageId,
     filename: row.observationImage.filename,
@@ -121,16 +121,11 @@ async function listObservationImageCells(
   return rows.map(toCell);
 }
 
-function orderedObservationUnits(
-  observationUnits: ObservationUnitRecord[],
-  treatments: Treatment[],
-): ObservationUnit[] {
-  return observationUnitOrder(observationUnits, treatments).map(
-    (observationUnit, index) => ({
-      ...observationUnit,
-      position: index + 1,
-    }),
-  );
+function orderedUnits(units: UnitRecord[], treatments: Treatment[]): Unit[] {
+  return unitOrder(units, treatments).map((unit, index) => ({
+    ...unit,
+    position: index + 1,
+  }));
 }
 
 export async function readExperimentGrid(
@@ -140,10 +135,10 @@ export async function readExperimentGrid(
   const experiment = await readExperimentRecord(experimentId, db);
   if (!experiment) return null;
   const { model, version } = await readTask(experiment, db);
-  const [treatments, observationUnits, observations, observationImages] =
+  const [treatments, units, observations, observationImages] =
     await Promise.all([
       listTreatments(experimentId, db),
-      listObservationUnits(experimentId, db),
+      listUnits(experimentId, db),
       listObservations(experiment, db),
       listObservationImageCells(experimentId, db),
     ]);
@@ -152,7 +147,7 @@ export async function readExperimentGrid(
     model,
     version,
     treatments,
-    observationUnits: orderedObservationUnits(observationUnits, treatments),
+    units: orderedUnits(units, treatments),
     observations,
     images: observationImages,
   };
@@ -171,42 +166,32 @@ async function readTask(
   return { model, version };
 }
 
-export async function readObservationUnit(
-  ref: ObservationUnitRef,
+export async function readUnit(
+  ref: UnitRef,
   observationId?: string,
-): Promise<ObservationUnitSeries | null> {
+): Promise<UnitSeries | null> {
   const db = await database();
   const experiment = await readExperimentRecord(ref.experiment, db);
   if (!experiment) return null;
-  const [
-    { model, version },
-    treatments,
-    observationUnits,
-    observations,
-    cells,
-  ] = await Promise.all([
-    readTask(experiment, db),
-    listTreatments(ref.experiment, db),
-    listObservationUnits(ref.experiment, db),
-    listObservations(experiment, db),
-    observationImageGridQuery(db)
-      .where(
-        and(
-          eq(experimentObservationImages.experimentId, ref.experiment),
-          eq(
-            experimentObservationImages.observationUnitId,
-            ref.observationUnit,
+  const [{ model, version }, treatments, units, observations, cells] =
+    await Promise.all([
+      readTask(experiment, db),
+      listTreatments(ref.experiment, db),
+      listUnits(ref.experiment, db),
+      listObservations(experiment, db),
+      observationImageGridQuery(db)
+        .where(
+          and(
+            eq(experimentObservationImages.experimentId, ref.experiment),
+            eq(experimentObservationImages.unitId, ref.unit),
           ),
-        ),
-      )
-      .then((rows) => rows.map(toCell)),
-  ]);
-  const ordered = orderedObservationUnits(observationUnits, treatments);
-  const position = ordered.findIndex(
-    (observationUnit) => observationUnit.id === ref.observationUnit,
-  );
+        )
+        .then((rows) => rows.map(toCell)),
+    ]);
+  const ordered = orderedUnits(units, treatments);
+  const position = ordered.findIndex((unit) => unit.id === ref.unit);
   if (position < 0) return null;
-  const observationUnit = ordered[position]!;
+  const unit = ordered[position]!;
   const byObservation = new Map(cells.map((cell) => [cell.observation, cell]));
   const series = observations.map((observation) => ({
     observation,
@@ -232,11 +217,8 @@ export async function readObservationUnit(
     experiment,
     model,
     version,
-    observationUnit,
-    treatment:
-      treatments.find(
-        (treatment) => treatment.id === observationUnit.treatment,
-      ) ?? null,
+    unit,
+    treatments,
     navigation: ordered.map((item) => ({ id: item.id, code: item.code })),
     observations: series,
     shown,
@@ -348,7 +330,7 @@ export async function readExperimentObservationImage(
       observationImage: experimentObservationImages,
       image: images,
       experiment: experiments,
-      observationUnitCode: experimentObservationUnits.code,
+      unitCode: experimentUnits.code,
       modelId: modelVersions.modelId,
       observation: experimentObservations,
       outcome: inferenceOutcomes.document,
@@ -362,16 +344,13 @@ export async function readExperimentObservationImage(
     .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
     .innerJoin(images, eq(images.id, experimentObservationImages.imageId))
     .innerJoin(
-      experimentObservationUnits,
+      experimentUnits,
       and(
         eq(
-          experimentObservationUnits.experimentId,
+          experimentUnits.experimentId,
           experimentObservationImages.experimentId,
         ),
-        eq(
-          experimentObservationUnits.id,
-          experimentObservationImages.observationUnitId,
-        ),
+        eq(experimentUnits.id, experimentObservationImages.unitId),
       ),
     )
     .innerJoin(
@@ -414,9 +393,9 @@ export async function readExperimentObservationImage(
   return {
     ref,
     experimentName: experiment.name,
-    observationUnit: {
-      id: row.observationImage.observationUnitId,
-      code: row.observationUnitCode,
+    unit: {
+      id: row.observationImage.unitId,
+      code: row.unitCode,
     },
     observation,
     review: {

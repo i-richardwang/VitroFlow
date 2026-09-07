@@ -6,18 +6,15 @@ import { database } from "../db/client";
 import { isUniqueViolation } from "../db/errors";
 import {
   experimentCultureEvents,
-  experimentObservationUnits,
+  experimentUnits,
   experimentTreatments,
   experiments,
   modelVersions,
 } from "../db/schema";
 import { recordCultureEvent } from "./culture-events";
-import {
-  addObservationUnits,
-  addTreatment,
-  createExperiment,
-} from "./experiment-design";
+import { createExperiment } from "./experiment-design";
 import { addObservation } from "./experiment-observations";
+import { listTreatments, listUnits } from "./experiment-records";
 import { baselineVersion, registerTrainedVersion } from "./testing";
 
 test("the database rejects a second terminal event", async () => {
@@ -31,19 +28,9 @@ test("the database rejects a second terminal event", async () => {
     notes: "",
     inoculatedOn: "2026-08-01",
     modelVersionId: version.id,
+    treatments: [{ name: "Control", factor: null, note: "", replicates: 1 }],
   });
-  const treatment = await addTreatment({
-    experiment: experiment.id,
-    name: "Control",
-    factor: null,
-    note: "",
-    replicates: 1,
-  });
-  const [observationUnit] = await addObservationUnits({
-    experiment: experiment.id,
-    treatment: treatment.id,
-    codes: ["A1"],
-  });
+  const [unit] = await listUnits(experiment.id, await database());
   const day7 = await addObservation({
     experiment: experiment.id,
     observedOn: "2026-08-08",
@@ -56,7 +43,7 @@ test("the database rejects a second terminal event", async () => {
   });
   await recordCultureEvent({
     experiment: experiment.id,
-    observationUnit: observationUnit!.id,
+    unit: unit!.id,
     type: "discarded",
     observation: day7.id,
   });
@@ -70,7 +57,7 @@ test("the database rejects a second terminal event", async () => {
       .values({
         experimentId: experiment.id,
         id: randomUUID(),
-        observationUnitId: observationUnit!.id,
+        unitId: unit!.id,
         observationId: day14.id,
         type: "missing",
         recordedAt: new Date(),
@@ -126,20 +113,10 @@ test("the database compares experiment, treatment and unit names without case", 
     notes: "",
     inoculatedOn: "2026-08-01",
     modelVersionId: version.id,
-  });
-  const treatment = await addTreatment({
-    experiment: experiment.id,
-    name: "Control",
-    factor: null,
-    note: "",
-    replicates: 0,
-  });
-  await addObservationUnits({
-    experiment: experiment.id,
-    treatment: treatment.id,
-    codes: ["A1"],
+    treatments: [{ name: "Control", factor: null, note: "", replicates: 1 }],
   });
   const db = await database();
+  const [treatment] = await listTreatments(experiment.id, db);
 
   const rejection = async (write: () => Promise<unknown>): Promise<unknown> => {
     try {
@@ -195,16 +172,16 @@ test("the database compares experiment, treatment and unit names without case", 
     isUniqueViolation(
       await rejection(() =>
         db
-          .insert(experimentObservationUnits)
+          .insert(experimentUnits)
           .values({
             experimentId: experiment.id,
             id: randomUUID(),
-            code: "a1",
-            treatmentId: treatment.id,
+            code: "control-1",
+            treatmentId: treatment!.id,
           })
           .execute(),
       ),
-      "experiment_observation_units_code",
+      "experiment_units_code",
     ),
   ).toBeTrue();
 });

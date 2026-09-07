@@ -103,6 +103,7 @@ describe("agent MCP surface", () => {
         name: `Transient ${crypto.randomUUID()}`,
         inoculatedOn: "2026-09-02",
         modelVersionId: version.id,
+        treatments: [{ name: "T1", replicates: 1 }],
       },
     })) as { structuredContent: { id: string } };
     const deleted = (await rpc("tools/call", {
@@ -134,6 +135,7 @@ describe("agent MCP surface", () => {
         name,
         inoculatedOn: "2026-09-02",
         modelVersionId: version.id,
+        treatments: [{ name: "T1", replicates: 1 }],
       },
     };
     const created = (await rpc("tools/call", params)) as {

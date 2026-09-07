@@ -9,8 +9,8 @@ import {
   cultureEventExcludesFromAnalysis,
   cultureEventIsTerminal,
   latestCultureEvent,
-  observationUnitIsAvailableAt,
-  observationUnitIsIncludedInAnalysis,
+  unitIsAvailableAt,
+  unitIsIncludedInAnalysis,
 } from "./culture-events";
 
 const observations: ExperimentObservation[] = [
@@ -46,7 +46,7 @@ function event(overrides: Partial<CultureEvent>): CultureEvent {
   };
 }
 
-describe("observation unit event effects", () => {
+describe("unit event effects", () => {
   test("each event type has one stable domain meaning", () => {
     expect(
       CULTURE_EVENT_TYPES.map((type) => [
@@ -66,39 +66,31 @@ describe("observation unit event effects", () => {
   test("an event that takes the unit off the bench applies afterwards", () => {
     const events = [event({ type: "harvested" })];
 
+    expect(unitIsAvailableAt(events, observations[0]!, ordinals)).toBeTrue();
     expect(
-      observationUnitIsAvailableAt(events, observations[0]!, ordinals),
+      unitIsIncludedInAnalysis(events, observations[0]!, ordinals),
     ).toBeTrue();
+    expect(unitIsAvailableAt(events, observations[1]!, ordinals)).toBeFalse();
     expect(
-      observationUnitIsIncludedInAnalysis(events, observations[0]!, ordinals),
-    ).toBeTrue();
-    expect(
-      observationUnitIsAvailableAt(events, observations[1]!, ordinals),
-    ).toBeFalse();
-    expect(
-      observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
+      unitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
   });
 
   test("an event the unit survives leaves it on the bench", () => {
     const events = [event({ type: "contaminated" })];
 
-    expect(
-      observationUnitIsAvailableAt(events, observations[1]!, ordinals),
-    ).toBeTrue();
+    expect(unitIsAvailableAt(events, observations[1]!, ordinals)).toBeTrue();
   });
 
   test("analysis exclusion starts in the recorded observation", () => {
     const events = [event({ type: "contaminated" })];
 
+    expect(unitIsAvailableAt(events, observations[0]!, ordinals)).toBeTrue();
     expect(
-      observationUnitIsAvailableAt(events, observations[0]!, ordinals),
-    ).toBeTrue();
-    expect(
-      observationUnitIsIncludedInAnalysis(events, observations[0]!, ordinals),
+      unitIsIncludedInAnalysis(events, observations[0]!, ordinals),
     ).toBeFalse();
     expect(
-      observationUnitIsIncludedInAnalysis(events, observations[1]!, ordinals),
+      unitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
   });
 

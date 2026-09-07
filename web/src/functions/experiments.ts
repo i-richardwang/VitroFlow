@@ -1,13 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import {
-  observationUnitAssignmentSchema,
   cultureEventRequestSchema,
   cultureEventRefSchema,
-  observationUnitBatchSchema,
-  observationUnitRefSchema,
-  observationUnitUpdateSchema,
-  observationUnitRequestSchema,
   experimentRefSchema,
   experimentRequestSchema,
   experimentUpdateSchema,
@@ -17,22 +12,25 @@ import {
   observationRefSchema,
   observationRequestSchema,
   observationUpdateSchema,
+  replicateRequestSchema,
   treatmentRefSchema,
   treatmentRequestSchema,
   treatmentUpdateSchema,
+  unitRefSchema,
+  unitRequestSchema,
+  unitUpdateSchema,
 } from "../experiments/schema";
 import { listDatasetsForModel } from "../server/datasets";
 import {
-  addObservationUnits,
+  addReplicates,
   addTreatment,
-  assignObservationUnits,
   createExperiment,
-  deleteObservationUnit,
   deleteExperiment,
   deleteTreatment,
-  updateObservationUnit,
+  deleteUnit,
   updateExperiment,
   updateTreatment,
+  updateUnit,
 } from "../server/experiment-design";
 import {
   deleteCultureEvent,
@@ -46,7 +44,7 @@ import {
 } from "../server/experiment-observations";
 import {
   listExperiments,
-  readObservationUnit,
+  readUnit,
   readExperimentGrid,
 } from "../server/experiment-queries";
 import { listAllModelVersions, listModels } from "../server/model-registry";
@@ -107,31 +105,25 @@ export const removeTreatment = createServerFn({ method: "POST" })
   .validator(treatmentRefSchema)
   .handler(({ data }) => deleteTreatment(data));
 
-export const getObservationUnit = createServerFn({ method: "GET" })
-  .validator(observationUnitRequestSchema)
+export const createReplicates = createServerFn({ method: "POST" })
+  .validator(replicateRequestSchema)
+  .handler(({ data }) => addReplicates(data));
+
+export const getUnit = createServerFn({ method: "GET" })
+  .validator(unitRequestSchema)
   .handler(async ({ data: { observation, ...ref } }) => {
-    const series = await readObservationUnit(ref, observation);
+    const series = await readUnit(ref, observation);
     if (!series) return null;
     return { ...series, datasets: await datasetsTraining(series.model.id) };
   });
 
-export const createObservationUnits = createServerFn({ method: "POST" })
-  .validator(observationUnitBatchSchema)
-  .handler(({ data }) => addObservationUnits(data));
+export const editUnit = createServerFn({ method: "POST" })
+  .validator(unitUpdateSchema)
+  .handler(({ data }) => updateUnit(data));
 
-export const editObservationUnit = createServerFn({ method: "POST" })
-  .validator(observationUnitUpdateSchema)
-  .handler(({ data }) => updateObservationUnit(data));
-
-export const removeObservationUnit = createServerFn({ method: "POST" })
-  .validator(observationUnitRefSchema)
-  .handler(({ data }) => deleteObservationUnit(data));
-
-export const assignObservationUnitsToTreatment = createServerFn({
-  method: "POST",
-})
-  .validator(observationUnitAssignmentSchema)
-  .handler(({ data }) => assignObservationUnits(data));
+export const removeUnit = createServerFn({ method: "POST" })
+  .validator(unitRefSchema)
+  .handler(({ data }) => deleteUnit(data));
 
 export const createCultureEvent = createServerFn({ method: "POST" })
   .validator(cultureEventRequestSchema)

@@ -17,6 +17,12 @@ import { modelVersionName } from "../../models/names";
 import { m } from "../../paraglide/messages";
 import type { Model, ModelVersion } from "../../models/schema";
 import { currentDay, toDay } from "./DayField";
+import {
+  DesignField,
+  INITIAL_DESIGN,
+  submittedDesign,
+  type DesignRow,
+} from "./DesignField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
 export function NewExperimentDialog({
@@ -30,6 +36,8 @@ export function NewExperimentDialog({
   const [inoculatedOn, setInoculatedOn] = useState<DateValue | null>(
     currentDay,
   );
+  const [design, setDesign] = useState<DesignRow[]>(INITIAL_DESIGN);
+  const treatments = submittedDesign(design);
   const close = () => setOpen(false);
 
   return (
@@ -38,6 +46,7 @@ export function NewExperimentDialog({
         variant="primary"
         onPress={() => {
           setInoculatedOn(currentDay());
+          setDesign(INITIAL_DESIGN);
           setOpen(true);
         }}
       >
@@ -57,7 +66,9 @@ export function NewExperimentDialog({
                   className="flex w-full min-w-0 flex-col gap-4"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (inoculatedOn === null) return;
+                    if (inoculatedOn === null || treatments.length === 0) {
+                      return;
+                    }
                     const form = new FormData(event.currentTarget);
                     void run(
                       () =>
@@ -66,6 +77,7 @@ export function NewExperimentDialog({
                             ...readExperimentFields(form),
                             inoculatedOn: toDay(inoculatedOn),
                             modelVersionId: String(form.get("version") ?? ""),
+                            treatments,
                           },
                         }),
                       m.experiment_not_started(),
@@ -114,6 +126,7 @@ export function NewExperimentDialog({
                     </Select.Popover>
                     <FieldError />
                   </Select>
+                  <DesignField busy={busy} rows={design} onChange={setDesign} />
                 </Form>
               </Modal.Body>
               <Modal.Footer>
@@ -124,7 +137,7 @@ export function NewExperimentDialog({
                   type="submit"
                   form="new-experiment"
                   variant="primary"
-                  isDisabled={busy}
+                  isDisabled={busy || treatments.length === 0}
                 >
                   {busy ? m.experiment_starting() : m.experiment_start()}
                 </Button>

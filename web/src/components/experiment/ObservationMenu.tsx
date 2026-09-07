@@ -13,7 +13,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { ObservationUnit } from "../../experiments/contracts";
+import type { Unit } from "../../experiments/contracts";
 import {
   observationLabel,
   type ExperimentObservation,
@@ -34,12 +34,12 @@ type Action = "images" | "edit" | "delete";
 export function ObservationMenu({
   experiment,
   observation,
-  observationUnits,
+  units,
   assigned,
 }: {
   experiment: string;
   observation: ExperimentObservation;
-  observationUnits: ObservationUnit[];
+  units: Unit[];
   assigned: ReadonlySet<string>;
 }) {
   const router = useRouter();
@@ -90,7 +90,7 @@ export function ObservationMenu({
       <AssignImagesDialog
         experiment={experiment}
         observation={observation}
-        observationUnits={observationUnits}
+        units={units}
         assigned={assigned}
         isOpen={open === "images"}
         onClose={() => setOpen(null)}

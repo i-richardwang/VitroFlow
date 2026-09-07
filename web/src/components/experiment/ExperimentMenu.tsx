@@ -30,13 +30,13 @@ export function ExperimentMenu({
   images,
   datasets,
   hasRecords,
-  onAddUnits,
+  onNewTreatment,
 }: {
   experiment: Experiment;
   images: ObservationImageCell[];
   datasets: string[];
   hasRecords: boolean;
-  onAddUnits: () => void;
+  onNewTreatment: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -53,15 +53,15 @@ export function ExperimentMenu({
             aria-label={m.experiment_actions()}
             onAction={(key) => {
               const id = String(key);
-              if (id === "units") {
-                onAddUnits();
+              if (id === "treatment") {
+                onNewTreatment();
                 return;
               }
               setOpen(id as Action);
             }}
           >
-            <Dropdown.Item id="units" textValue={m.observation_units_add()}>
-              <Label>{m.experiment_menu_add_units()}</Label>
+            <Dropdown.Item id="treatment" textValue={m.treatment_new()}>
+              <Label>{m.treatment_menu_new()}</Label>
             </Dropdown.Item>
             {images.length > 0 ? (
               <Dropdown.Item

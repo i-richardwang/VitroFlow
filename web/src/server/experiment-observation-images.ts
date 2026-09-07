@@ -4,21 +4,21 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { inTransaction, type Executor } from "../db/client";
 import {
-  experimentObservationUnits,
+  experimentUnits,
   experimentObservationImages,
   experimentObservations,
   images,
 } from "../db/schema";
 import {
   observationOrdinals,
-  observationUnitIsAvailableAt,
+  unitIsAvailableAt,
 } from "../experiments/culture-events";
 import {
   ExperimentObservationImageAlreadyUsedError,
   ExperimentObservationImageNotFoundError,
   ImagesNotStoredError,
   ObservationImageRejectedError,
-  ObservationUnitNotFoundError,
+  UnitNotFoundError,
 } from "../experiments/errors";
 import {
   daysBetween,
@@ -28,7 +28,7 @@ import {
   type ObservationImageRef,
 } from "../experiments/schema";
 import {
-  listObservationUnits,
+  listUnits,
   listObservations,
   lockExperiment,
   requireObservation,
@@ -46,12 +46,10 @@ export async function assignObservationImages(
     observation: observationId,
     images: assignments,
   } = value;
-  const observationUnitIds = assignments.map(
-    (assignment) => assignment.observationUnit,
-  );
-  if (new Set(observationUnitIds).size !== observationUnitIds.length) {
+  const unitIds = assignments.map((assignment) => assignment.unit);
+  if (new Set(unitIds).size !== unitIds.length) {
     throw new ObservationImageRejectedError(
-      "Two images cannot be assigned to the same observation unit",
+      "Two images cannot be assigned to the same unit",
     );
   }
   const digests = [
@@ -66,34 +64,20 @@ export async function assignObservationImages(
     const observations = await listObservations(experiment, tx);
     const observation = requireObservation(observations, observationId);
     const ordinals = observationOrdinals(observations);
-    const observationUnits = await listObservationUnits(experimentId, tx);
-    const byId = new Map(
-      observationUnits.map((observationUnit) => [
-        observationUnit.id,
-        observationUnit,
-      ]),
-    );
-    const unknown = observationUnitIds.filter(
-      (observationUnit) => !byId.has(observationUnit),
-    );
+    const units = await listUnits(experimentId, tx);
+    const byId = new Map(units.map((unit) => [unit.id, unit]));
+    const unknown = unitIds.filter((unit) => !byId.has(unit));
     if (unknown.length > 0) {
-      throw new ObservationUnitNotFoundError(
-        `Observation units do not belong to this experiment: ${unknown.join(", ")}`,
+      throw new UnitNotFoundError(
+        `Units do not belong to this experiment: ${unknown.join(", ")}`,
       );
     }
-    const unavailable = observationUnitIds
-      .map((observationUnitId) => byId.get(observationUnitId)!)
-      .filter(
-        (observationUnit) =>
-          !observationUnitIsAvailableAt(
-            observationUnit.events,
-            observation,
-            ordinals,
-          ),
-      );
+    const unavailable = unitIds
+      .map((unitId) => byId.get(unitId)!)
+      .filter((unit) => !unitIsAvailableAt(unit.events, observation, ordinals));
     if (unavailable.length > 0) {
       throw new ObservationImageRejectedError(
-        `Images cannot be assigned to observation units removed before this observation: ${unavailable.map((observationUnit) => observationUnit.code).join(", ")}`,
+        `Images cannot be assigned to units removed before this observation: ${unavailable.map((unit) => unit.code).join(", ")}`,
       );
     }
 
@@ -112,21 +96,18 @@ export async function assignObservationImages(
       .select({
         digest: experimentObservationImages.imageId,
         filename: experimentObservationImages.filename,
-        observationUnit: experimentObservationUnits.code,
+        unit: experimentUnits.code,
         observedOn: experimentObservations.observedOn,
       })
       .from(experimentObservationImages)
       .innerJoin(
-        experimentObservationUnits,
+        experimentUnits,
         and(
           eq(
-            experimentObservationUnits.experimentId,
+            experimentUnits.experimentId,
             experimentObservationImages.experimentId,
           ),
-          eq(
-            experimentObservationUnits.id,
-            experimentObservationImages.observationUnitId,
-          ),
+          eq(experimentUnits.id, experimentObservationImages.unitId),
         ),
       )
       .innerJoin(
@@ -153,7 +134,7 @@ export async function assignObservationImages(
         used.map((row) => ({
           digest: row.digest,
           filename: row.filename,
-          observationUnit: row.observationUnit,
+          unit: row.unit,
           day: daysBetween(experiment.inoculatedOn, row.observedOn),
         })),
       );
@@ -161,22 +142,19 @@ export async function assignObservationImages(
 
     const filled = await tx
       .select({
-        observationUnit: experimentObservationImages.observationUnitId,
+        unit: experimentObservationImages.unitId,
       })
       .from(experimentObservationImages)
       .where(
         and(
           eq(experimentObservationImages.experimentId, experimentId),
           eq(experimentObservationImages.observationId, observationId),
-          inArray(
-            experimentObservationImages.observationUnitId,
-            observationUnitIds,
-          ),
+          inArray(experimentObservationImages.unitId, unitIds),
         ),
       );
     if (filled.length > 0) {
       throw new ObservationImageRejectedError(
-        `Some observation units already have images on day ${observation.day}`,
+        `Some units already have images on day ${observation.day}`,
       );
     }
 
@@ -184,7 +162,7 @@ export async function assignObservationImages(
       assignments.map((assignment) => ({
         experimentId,
         id: randomUUID(),
-        observationUnitId: assignment.observationUnit,
+        unitId: assignment.unit,
         observationId,
         imageId: assignment.digest,
         filename: assignment.filename,
@@ -201,22 +179,20 @@ export async function moveObservationImage(
   const {
     experiment: experimentId,
     observationImage: observationImageId,
-    observationUnit,
+    unit,
     observation: observationId,
   } = value;
   await inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     const observations = await listObservations(experiment, tx);
     const observation = requireObservation(observations, observationId);
-    const observationUnits = await listObservationUnits(experimentId, tx);
-    const target = observationUnits.find((item) => item.id === observationUnit);
+    const units = await listUnits(experimentId, tx);
+    const target = units.find((item) => item.id === unit);
     if (!target) {
-      throw new ObservationUnitNotFoundError(
-        `Unknown observation unit: ${observationUnit}`,
-      );
+      throw new UnitNotFoundError(`Unknown unit: ${unit}`);
     }
     const ordinals = observationOrdinals(observations);
-    if (!observationUnitIsAvailableAt(target.events, observation, ordinals)) {
+    if (!unitIsAvailableAt(target.events, observation, ordinals)) {
       throw new ObservationImageRejectedError(
         `${target.code} was removed before this observation`,
       );
@@ -227,18 +203,18 @@ export async function moveObservationImage(
       .where(
         and(
           eq(experimentObservationImages.experimentId, experimentId),
-          eq(experimentObservationImages.observationUnitId, observationUnit),
+          eq(experimentObservationImages.unitId, unit),
           eq(experimentObservationImages.observationId, observationId),
         ),
       );
     if (taken && taken.id !== observationImageId) {
       throw new ObservationImageRejectedError(
-        "That observation unit already has an image for this observation",
+        "That unit already has an image for this observation",
       );
     }
     const [row] = await tx
       .update(experimentObservationImages)
-      .set({ observationUnitId: observationUnit, observationId })
+      .set({ unitId: unit, observationId })
       .where(atObservationImage(experimentId, observationImageId))
       .returning({ id: experimentObservationImages.id });
     if (!row) {

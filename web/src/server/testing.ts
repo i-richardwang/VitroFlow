@@ -17,13 +17,10 @@ import type { Model, ModelVersion } from "../models/schema";
 import type { WorkerHeartbeat } from "../workers/schema";
 import { canonicalize } from "./image-ingest";
 import { addExperimentObservationImages } from "./datasets";
-import {
-  addObservationUnits,
-  addTreatment,
-  createExperiment,
-} from "./experiment-design";
+import { createExperiment } from "./experiment-design";
 import { assignObservationImages } from "./experiment-observation-images";
 import { addObservation } from "./experiment-observations";
+import { listUnits } from "./experiment-records";
 import { auth } from "./auth";
 import { storeImage } from "./image-store";
 import { readAnnotation, storeAnnotation } from "./annotations";
@@ -204,8 +201,8 @@ export interface ObservedImages {
 }
 
 /**
- * Creates one observation unit per text and assigns an image to each in the
- * experiment's first observation.
+ * Lays out one replicate per text and assigns an image to each in the
+ * experiment's first observation; the replicate `Test-n` shows `contents[n-1]`.
  */
 export async function observeImages(
   experimentName: string,
@@ -221,23 +218,15 @@ export async function observeImages(
     notes: "",
     inoculatedOn: "2026-08-01",
     modelVersionId: selectedVersion.id,
+    treatments: [
+      { name: "Test", factor: null, note: "", replicates: contents.length },
+    ],
   });
-  const treatment = await addTreatment({
-    experiment: experiment.id,
-    name: "Test",
-    factor: null,
-    note: "",
-    replicates: 0,
-  });
-  const observationUnits = await addObservationUnits({
-    experiment: experiment.id,
-    treatment: treatment.id,
-    codes: contents,
-  });
+  const units = await listUnits(experiment.id, await database());
   const byCode = new Map(
-    observationUnits.map((observationUnit) => [
-      observationUnit.code,
-      observationUnit.id,
+    contents.map((content, index) => [
+      content,
+      units.find((unit) => unit.code === `Test-${index + 1}`)!.id,
     ]),
   );
   const digests = await storeTexts(contents);
@@ -250,7 +239,7 @@ export async function observeImages(
     experiment: experiment.id,
     observation: observation.id,
     images: contents.map((content, index) => ({
-      observationUnit: byCode.get(content)!,
+      unit: byCode.get(content)!,
       digest: digests[index]!,
       filename: `${content}.jpg`,
     })),
@@ -267,7 +256,7 @@ export async function observeImages(
   };
 }
 
-/** Observation-image identifiers indexed by observation unit. */
+/** Observation-image identifiers indexed by unit. */
 async function listExperimentObservationImages(
   experimentId: string,
 ): Promise<Map<string, string>> {
@@ -275,12 +264,12 @@ async function listExperimentObservationImages(
     await database()
   )
     .select({
-      observationUnitId: experimentObservationImages.observationUnitId,
+      unitId: experimentObservationImages.unitId,
       id: experimentObservationImages.id,
     })
     .from(experimentObservationImages)
     .where(eq(experimentObservationImages.experimentId, experimentId));
-  return new Map(rows.map((row) => [row.observationUnitId, row.id]));
+  return new Map(rows.map((row) => [row.unitId, row.id]));
 }
 
 export interface SeededDataset extends ObservedImages {

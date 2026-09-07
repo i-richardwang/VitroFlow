@@ -1,5 +1,5 @@
 {
-  "id": "7f93431f-0acf-4c6d-81a7-938c50e393ca",
+  "id": "ff7e3cc9-7ac6-49fd-91de-0031229b37da",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -774,8 +774,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "observation_unit_id": {
-          "name": "observation_unit_id",
+        "unit_id": {
+          "name": "unit_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -810,7 +810,7 @@
               "nulls": "last"
             },
             {
-              "expression": "observation_unit_id",
+              "expression": "unit_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -843,7 +843,7 @@
               "nulls": "last"
             },
             {
-              "expression": "observation_unit_id",
+              "expression": "unit_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -857,13 +857,13 @@
         }
       },
       "foreignKeys": {
-        "experiment_culture_events_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk": {
-          "name": "experiment_culture_events_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk",
+        "experiment_culture_events_experiment_id_unit_id_experiment_units_experiment_id_id_fk": {
+          "name": "experiment_culture_events_experiment_id_unit_id_experiment_units_experiment_id_id_fk",
           "tableFrom": "experiment_culture_events",
-          "tableTo": "experiment_observation_units",
+          "tableTo": "experiment_units",
           "columnsFrom": [
             "experiment_id",
-            "observation_unit_id"
+            "unit_id"
           ],
           "columnsTo": [
             "experiment_id",
@@ -923,8 +923,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "observation_unit_id": {
-          "name": "observation_unit_id",
+        "unit_id": {
+          "name": "unit_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -979,13 +979,13 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "experiment_observation_images_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk": {
-          "name": "experiment_observation_images_experiment_id_observation_unit_id_experiment_observation_units_experiment_id_id_fk",
+        "experiment_observation_images_experiment_id_unit_id_experiment_units_experiment_id_id_fk": {
+          "name": "experiment_observation_images_experiment_id_unit_id_experiment_units_experiment_id_id_fk",
           "tableFrom": "experiment_observation_images",
-          "tableTo": "experiment_observation_units",
+          "tableTo": "experiment_units",
           "columnsFrom": [
             "experiment_id",
-            "observation_unit_id"
+            "unit_id"
           ],
           "columnsTo": [
             "experiment_id",
@@ -1025,7 +1025,7 @@
           "nullsNotDistinct": false,
           "columns": [
             "experiment_id",
-            "observation_unit_id",
+            "unit_id",
             "observation_id"
           ]
         },
@@ -1040,128 +1040,6 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.experiment_observation_units": {
-      "name": "experiment_observation_units",
-      "schema": "",
-      "columns": {
-        "experiment_id": {
-          "name": "experiment_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "treatment_id": {
-          "name": "treatment_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "experiment_observation_units_code": {
-          "name": "experiment_observation_units_code",
-          "columns": [
-            {
-              "expression": "experiment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "lower(\"code\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "experiment_observation_units_treatment_idx": {
-          "name": "experiment_observation_units_treatment_idx",
-          "columns": [
-            {
-              "expression": "experiment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "treatment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "experiment_observation_units_experiment_id_experiments_id_fk": {
-          "name": "experiment_observation_units_experiment_id_experiments_id_fk",
-          "tableFrom": "experiment_observation_units",
-          "tableTo": "experiments",
-          "columnsFrom": [
-            "experiment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "experiment_observation_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk": {
-          "name": "experiment_observation_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk",
-          "tableFrom": "experiment_observation_units",
-          "tableTo": "experiment_treatments",
-          "columnsFrom": [
-            "experiment_id",
-            "treatment_id"
-          ],
-          "columnsTo": [
-            "experiment_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "experiment_observation_units_experiment_id_id_pk": {
-          "name": "experiment_observation_units_experiment_id_id_pk",
-          "columns": [
-            "experiment_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "experiment_observation_units_code_check": {
-          "name": "experiment_observation_units_code_check",
-          "value": "\"experiment_observation_units\".\"code\" = btrim(\"experiment_observation_units\".\"code\") and length(\"experiment_observation_units\".\"code\") between 1 and 60"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.experiment_observations": {
@@ -1392,6 +1270,128 @@
         "experiment_treatments_position_check": {
           "name": "experiment_treatments_position_check",
           "value": "\"experiment_treatments\".\"position\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.experiment_units": {
+      "name": "experiment_units",
+      "schema": "",
+      "columns": {
+        "experiment_id": {
+          "name": "experiment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "treatment_id": {
+          "name": "treatment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "experiment_units_code": {
+          "name": "experiment_units_code",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"code\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "experiment_units_treatment_idx": {
+          "name": "experiment_units_treatment_idx",
+          "columns": [
+            {
+              "expression": "experiment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "treatment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "experiment_units_experiment_id_experiments_id_fk": {
+          "name": "experiment_units_experiment_id_experiments_id_fk",
+          "tableFrom": "experiment_units",
+          "tableTo": "experiments",
+          "columnsFrom": [
+            "experiment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "experiment_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk": {
+          "name": "experiment_units_experiment_id_treatment_id_experiment_treatments_experiment_id_id_fk",
+          "tableFrom": "experiment_units",
+          "tableTo": "experiment_treatments",
+          "columnsFrom": [
+            "experiment_id",
+            "treatment_id"
+          ],
+          "columnsTo": [
+            "experiment_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "experiment_units_experiment_id_id_pk": {
+          "name": "experiment_units_experiment_id_id_pk",
+          "columns": [
+            "experiment_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "experiment_units_code_check": {
+          "name": "experiment_units_code_check",
+          "value": "\"experiment_units\".\"code\" = btrim(\"experiment_units\".\"code\") and length(\"experiment_units\".\"code\") between 1 and 60"
         }
       },
       "isRLSEnabled": false

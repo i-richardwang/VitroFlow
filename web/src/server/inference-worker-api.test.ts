@@ -10,13 +10,10 @@ import { Route as LeaseRoute } from "../routes/api.worker.inference.claims.$vers
 import { Route as ImageRoute } from "../routes/api.worker.inference.images.$digest";
 import { Route as ResultRoute } from "../routes/api.worker.inference.results.$versionId.$digest";
 import { Route as ReadyRoute } from "../routes/api.worker.ready";
-import {
-  addObservationUnits,
-  addTreatment,
-  createExperiment,
-} from "./experiment-design";
+import { createExperiment } from "./experiment-design";
 import { assignObservationImages } from "./experiment-observation-images";
 import { addObservation } from "./experiment-observations";
+import { listUnits } from "./experiment-records";
 import { readReview } from "./review";
 import { contentDigest } from "./blobs";
 import {
@@ -65,19 +62,9 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     notes: "",
     inoculatedOn: "2026-08-01",
     modelVersionId: version.id,
+    treatments: [{ name: "Test", factor: null, note: "", replicates: 1 }],
   });
-  const treatment = await addTreatment({
-    experiment: experiment.id,
-    name: "Test",
-    factor: null,
-    note: "",
-    replicates: 1,
-  });
-  const [observationUnit] = await addObservationUnits({
-    experiment: experiment.id,
-    treatment: treatment.id,
-    codes: ["A1"],
-  });
+  const [unit] = await listUnits(experiment.id, await database());
   const observation = await addObservation({
     experiment: experiment.id,
     observedOn: "2026-08-08",
@@ -86,9 +73,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   await assignObservationImages({
     experiment: experiment.id,
     observation: observation.id,
-    images: [
-      { observationUnit: observationUnit!.id, digest, filename: "api.jpg" },
-    ],
+    images: [{ unit: unit!.id, digest, filename: "api.jpg" }],
   });
   const runtime = {
     adapter: "traditional" as const,

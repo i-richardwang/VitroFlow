@@ -7,81 +7,84 @@ import {
   Modal,
   Select,
   TextField,
-  toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import type { Unit } from "../../experiments/contracts";
 import type { Treatment } from "../../experiments/schema";
-import { createObservationUnits } from "../../functions/experiments";
+import { editUnit } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import { TreatmentDot } from "./TreatmentDot";
 
-const UNASSIGNED = "unassigned";
-
-export function AddObservationUnitsDialog({
+/** Corrects a unit's code or the treatment it replicates; its records stay. */
+export function UnitDialog({
   experiment,
+  unit,
   treatments,
   isOpen,
   onClose,
 }: {
   experiment: string;
+  unit: Unit;
+  treatments: Treatment[];
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Editor
+      key={isOpen ? unit.id : "closed"}
+      experiment={experiment}
+      unit={unit}
+      treatments={treatments}
+      isOpen={isOpen}
+      onClose={onClose}
+    />
+  );
+}
+
+function Editor({
+  experiment,
+  unit,
+  treatments,
+  isOpen,
+  onClose,
+}: {
+  experiment: string;
+  unit: Unit;
   treatments: Treatment[];
   isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const [codes, setCodes] = useState("");
-  const [treatment, setTreatment] = useState<string>(UNASSIGNED);
-  const parsedCodes = codes
-    .split(/[\n,]/)
-    .map((code) => code.trim())
-    .filter(Boolean);
+  const [code, setCode] = useState(unit.code);
+  const [treatment, setTreatment] = useState(unit.treatment);
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onOpenChange={(next) => {
-        if (next) return;
-        setCodes("");
-        setTreatment(UNASSIGNED);
-        onClose();
-      }}
-    >
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
-        <Modal.Container size="md">
+        <Modal.Container size="sm">
           <Modal.Dialog>
             <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
-              <Modal.Heading>{m.observation_units_add()}</Modal.Heading>
+              <Modal.Heading>{m.unit_edit()}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body key={isOpen ? "open" : "closed"}>
+            <Modal.Body>
               <Form
-                id="add-observation-units"
+                id="edit-unit"
                 className="flex w-full min-w-0 flex-col gap-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (parsedCodes.length === 0) return;
                   void run(
                     () =>
-                      createObservationUnits({
-                        data: {
-                          experiment,
-                          treatment:
-                            treatment === UNASSIGNED ? null : treatment,
-                          codes: parsedCodes,
-                        },
+                      editUnit({
+                        data: { experiment, unit: unit.id, code, treatment },
                       }),
-                    m.observation_units_not_added(),
+                    m.unit_not_saved(),
                   ).then(async (result) => {
                     if (!result.ok) return;
-                    toast.success(
-                      m.observation_units_added({ count: parsedCodes.length }),
-                    );
-                    setCodes("");
-                    setTreatment(UNASSIGNED);
                     onClose();
                     await router.invalidate();
                   });
@@ -92,23 +95,20 @@ export function AddObservationUnitsDialog({
                   fullWidth
                   isRequired
                   isDisabled={busy}
-                  value={codes}
-                  onChange={setCodes}
+                  value={code}
+                  onChange={setCode}
                 >
-                  <Label>{m.observation_units_codes_label()}</Label>
-                  <Input
-                    className="w-full"
-                    placeholder={m.observation_units_codes_placeholder()}
-                  />
+                  <Label>{m.unit_code_label()}</Label>
+                  <Input className="w-full" />
                 </TextField>
                 <Select
                   variant="secondary"
                   fullWidth
                   isDisabled={busy}
                   selectedKey={treatment}
-                  onSelectionChange={(key) =>
-                    setTreatment(key === null ? UNASSIGNED : String(key))
-                  }
+                  onSelectionChange={(key) => {
+                    if (key !== null) setTreatment(String(key));
+                  }}
                 >
                   <Label>{m.treatment_label()}</Label>
                   <Select.Trigger>
@@ -117,14 +117,6 @@ export function AddObservationUnitsDialog({
                   </Select.Trigger>
                   <Select.Popover>
                     <ListBox>
-                      <ListBox.Item
-                        id={UNASSIGNED}
-                        textValue={m.treatment_none()}
-                      >
-                        <TreatmentDot position={null} />
-                        {m.treatment_none()}
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
                       {treatments.map((item) => (
                         <ListBox.Item
                           key={item.id}
@@ -147,13 +139,13 @@ export function AddObservationUnitsDialog({
               </Button>
               <Button
                 type="submit"
-                form="add-observation-units"
+                form="edit-unit"
                 variant="primary"
-                isDisabled={busy || parsedCodes.length === 0}
+                isDisabled={busy || code.trim() === ""}
               >
                 {busy
-                  ? m.experiment_action_adding()
-                  : m.experiment_action_add()}
+                  ? m.experiment_action_saving()
+                  : m.experiment_action_save()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

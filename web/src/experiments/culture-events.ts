@@ -85,7 +85,7 @@ function eventOrdinal(
 }
 
 /** A terminal event takes effect after the observation that records it. */
-export function observationUnitIsAvailableAt(
+export function unitIsAvailableAt(
   events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
@@ -101,7 +101,7 @@ export function observationUnitIsAvailableAt(
  * An exclusion starts in its recorded observation. Leaving the bench also
  * takes the unit out of every later analysis denominator.
  */
-export function observationUnitIsIncludedInAnalysis(
+export function unitIsIncludedInAnalysis(
   events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,

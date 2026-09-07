@@ -58,6 +58,7 @@ describe("agent execution", () => {
       name: "Orphan",
       inoculatedOn: "2026-08-01",
       modelVersionId: "seed-detector",
+      treatments: [{ name: "T1", replicates: 1 }],
     });
     expect(failure(create).code).toBe("not_found");
     expect(failure(create).message).toContain("Unknown model version");
@@ -179,6 +180,7 @@ describe("agent execution", () => {
       name: `Twice ${crypto.randomUUID()}`,
       inoculatedOn: "2026-09-01",
       modelVersionId: version.id,
+      treatments: [{ name: "T1", replicates: 1 }],
     };
     expect((await executeAgentOperation("create-experiment", input)).ok).toBe(
       true,

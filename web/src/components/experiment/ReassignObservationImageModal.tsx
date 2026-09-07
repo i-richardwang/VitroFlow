@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type {
   ExperimentObservationImage,
-  ObservationUnitNavigationEntry,
+  UnitNavigationEntry,
 } from "../../experiments/contracts";
 import {
   observationLabel,
@@ -22,16 +22,14 @@ export function ReassignObservationImageModal({
   onClose,
 }: {
   image: ExperimentObservationImage;
-  navigation: ObservationUnitNavigationEntry[];
+  navigation: UnitNavigationEntry[];
   observations: ExperimentObservation[];
   isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const [observationUnit, setObservationUnit] = useState(
-    image.observationUnit.id,
-  );
+  const [unit, setUnit] = useState(image.unit.id);
   const [observation, setObservation] = useState(image.observation.id);
 
   return (
@@ -42,7 +40,7 @@ export function ReassignObservationImageModal({
             <Modal.CloseTrigger aria-label={m.close()} />
             <Modal.Header>
               <Modal.Heading>
-                {m.observation_unit_reassign_heading({
+                {m.unit_reassign_heading({
                   file: image.review.filename,
                 })}
               </Modal.Heading>
@@ -56,17 +54,17 @@ export function ReassignObservationImageModal({
                   void run(
                     () =>
                       reassignObservationImage({
-                        data: { ...image.ref, observationUnit, observation },
+                        data: { ...image.ref, unit, observation },
                       }),
-                    m.observation_unit_image_not_reassigned(),
+                    m.unit_image_not_reassigned(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     onClose();
                     await router.navigate({
-                      to: "/experiments/$experiment/$observationUnit",
+                      to: "/experiments/$experiment/$unit",
                       params: {
                         experiment: image.ref.experiment,
-                        observationUnit,
+                        unit,
                       },
                       search: { observation },
                     });
@@ -77,10 +75,10 @@ export function ReassignObservationImageModal({
                   variant="secondary"
                   fullWidth
                   isDisabled={busy}
-                  selectedKey={observationUnit}
-                  onSelectionChange={(key) => setObservationUnit(String(key))}
+                  selectedKey={unit}
+                  onSelectionChange={(key) => setUnit(String(key))}
                 >
-                  <Label>{m.observation_unit_label()}</Label>
+                  <Label>{m.unit_label()}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -139,9 +137,7 @@ export function ReassignObservationImageModal({
                 variant="primary"
                 isDisabled={busy}
               >
-                {busy
-                  ? m.observation_unit_reassigning()
-                  : m.observation_unit_reassign()}
+                {busy ? m.unit_reassigning() : m.unit_reassign()}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

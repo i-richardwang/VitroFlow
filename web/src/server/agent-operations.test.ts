@@ -42,12 +42,12 @@ describe("agent operations", () => {
       "list-experiments",
       "list-model-versions",
       "get-experiment",
-      "get-observation-unit",
+      "get-unit",
     ]);
     const additive = new Set([
       "create-experiment",
       "create-treatment",
-      "create-observation-units",
+      "add-replicates",
       "record-culture-event",
       "create-observation",
       "assign-images-to-observation",
@@ -57,9 +57,8 @@ describe("agent operations", () => {
       "delete-experiment",
       "update-treatment",
       "delete-treatment",
-      "update-observation-unit",
-      "delete-observation-unit",
-      "assign-observation-units",
+      "update-unit",
+      "delete-unit",
       "remove-culture-event",
       "update-observation",
       "delete-observation",
@@ -90,20 +89,14 @@ describe("agent operations", () => {
         name: "Agent entry",
         inoculatedOn: "2026-08-01",
         modelVersionId: version.id,
+        treatments: [{ name: "T1", replicates: 2 }],
       }),
     ) as Experiment;
 
-    output(
-      await executeAgentOperation("create-treatment", {
-        experiment: experiment.id,
-        name: "T1",
-        replicates: 2,
-      }),
-    );
     const duplicate = await executeAgentOperation("create-treatment", {
       experiment: experiment.id,
       name: "T1",
-      replicates: 0,
+      replicates: 1,
     });
     expect(failure(duplicate).code).toBe("conflict");
 
@@ -121,7 +114,7 @@ describe("agent operations", () => {
       }),
     ) as ExperimentGrid;
     expect(grid.treatments.map(({ name }) => name)).toContain("T1");
-    expect(grid.observationUnits).toHaveLength(2);
+    expect(grid.units).toHaveLength(2);
 
     const summaries = output(
       await executeAgentOperation("list-experiments", {}),
@@ -131,22 +124,16 @@ describe("agent operations", () => {
     );
   });
 
-  test("a culture event is recorded against its observation unit and observation", async () => {
+  test("a culture event is recorded against its unit and observation", async () => {
     const version = await baselineVersion();
     const experiment = output(
       await executeAgentOperation("create-experiment", {
         name: "Culture events",
         inoculatedOn: "2026-08-01",
         modelVersionId: version.id,
+        treatments: [{ name: "T1", replicates: 2 }],
       }),
     ) as Experiment;
-    output(
-      await executeAgentOperation("create-treatment", {
-        experiment: experiment.id,
-        name: "T1",
-        replicates: 2,
-      }),
-    );
     const observation = output(
       await executeAgentOperation("create-observation", {
         experiment: experiment.id,
@@ -158,12 +145,12 @@ describe("agent operations", () => {
         experiment: experiment.id,
       }),
     ) as ExperimentGrid;
-    const [first, second] = grid.observationUnits;
+    const [first, second] = grid.units;
 
     const contaminated = output(
       await executeAgentOperation("record-culture-event", {
         experiment: experiment.id,
-        observationUnit: first!.id,
+        unit: first!.id,
         observation: observation.id,
         type: "contaminated",
       }),
@@ -173,7 +160,7 @@ describe("agent operations", () => {
     const harvested = output(
       await executeAgentOperation("record-culture-event", {
         experiment: experiment.id,
-        observationUnit: second!.id,
+        unit: second!.id,
         observation: observation.id,
         type: "harvested",
       }),

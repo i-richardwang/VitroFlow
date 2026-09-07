@@ -3,8 +3,8 @@ import { Alert, Button, Form, ListBox, Modal, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import type { ObservationUnit } from "../../experiments/contracts";
-import { suggestObservationUnit } from "../../experiments/naming";
+import type { Unit } from "../../experiments/contracts";
+import { suggestUnit } from "../../experiments/naming";
 import {
   observationLabel,
   type ExperimentObservation,
@@ -20,14 +20,14 @@ const UNASSIGNED = "unassigned";
 export function AssignImagesDialog({
   experiment,
   observation,
-  observationUnits,
+  units,
   assigned,
   isOpen,
   onClose,
 }: {
   experiment: string;
   observation: ExperimentObservation;
-  observationUnits: ObservationUnit[];
+  units: Unit[];
   assigned: ReadonlySet<string>;
   isOpen: boolean;
   onClose: () => void;
@@ -40,11 +40,9 @@ export function AssignImagesDialog({
   );
   const suggested = useRef(new Set<number>());
 
-  const open = observationUnits.filter(
-    (observationUnit) => !assigned.has(observationUnit.id),
-  );
-  const openObservationUnits = useRef(open);
-  openObservationUnits.current = open;
+  const open = units.filter((unit) => !assigned.has(unit.id));
+  const openUnits = useRef(open);
+  openUnits.current = open;
 
   /** Each file is guessed once, when it arrives; a choice made is never undone. */
   const { images } = uploads;
@@ -54,25 +52,18 @@ export function AssignImagesDialog({
     for (const image of arrived) suggested.current.add(image.id);
     setAssignments((current) => {
       const claimed = new Set(
-        Object.values(current).filter(
-          (observationUnit): observationUnit is string =>
-            observationUnit !== null,
-        ),
+        Object.values(current).filter((unit): unit is string => unit !== null),
       );
       const next = { ...current };
       for (const image of arrived) {
-        const code = suggestObservationUnit(
+        const code = suggestUnit(
           image.file.name,
-          openObservationUnits.current.map(
-            (observationUnit) => observationUnit.code,
-          ),
+          openUnits.current.map((unit) => unit.code),
         );
-        const observationUnit = openObservationUnits.current.find(
-          (item) => item.code === code,
-        );
-        if (!observationUnit || claimed.has(observationUnit.id)) continue;
-        claimed.add(observationUnit.id);
-        next[image.id] = observationUnit.id;
+        const unit = openUnits.current.find((item) => item.code === code);
+        if (!unit || claimed.has(unit.id)) continue;
+        claimed.add(unit.id);
+        next[image.id] = unit.id;
       }
       return next;
     });
@@ -80,11 +71,11 @@ export function AssignImagesDialog({
 
   const ready = uploads.images.flatMap((image) => {
     if (image.state.status !== "stored") return [];
-    const observationUnit = assignments[image.id];
-    if (!observationUnit) return [];
+    const unit = assignments[image.id];
+    if (!unit) return [];
     return [
       {
-        observationUnit,
+        unit,
         digest: image.state.digest,
         filename: image.file.name,
       },
@@ -159,26 +150,25 @@ export function AssignImagesDialog({
                     }}
                     busy={busy}
                     annotate={(image) => (
-                      <ObservationUnitChoice
+                      <UnitChoice
                         image={image}
-                        observationUnits={open}
+                        units={open}
                         taken={
                           new Set(
                             Object.entries(assignments)
                               .filter(
-                                ([id, observationUnit]) =>
-                                  observationUnit !== null &&
-                                  Number(id) !== image.id,
+                                ([id, unit]) =>
+                                  unit !== null && Number(id) !== image.id,
                               )
-                              .map(([, observationUnit]) => observationUnit!),
+                              .map(([, unit]) => unit!),
                           )
                         }
                         value={assignments[image.id] ?? null}
                         busy={busy}
-                        onChange={(observationUnit) =>
+                        onChange={(unit) =>
                           setAssignments((current) => ({
                             ...current,
-                            [image.id]: observationUnit,
+                            [image.id]: unit,
                           }))
                         }
                       />
@@ -232,20 +222,20 @@ export function AssignImagesDialog({
   );
 }
 
-function ObservationUnitChoice({
+function UnitChoice({
   image,
-  observationUnits,
+  units,
   taken,
   value,
   busy,
   onChange,
 }: {
   image: ListedImage;
-  observationUnits: ObservationUnit[];
+  units: Unit[];
   taken: ReadonlySet<string>;
   value: string | null;
   busy: boolean;
-  onChange: (observationUnit: string | null) => void;
+  onChange: (unit: string | null) => void;
 }) {
   if (image.state.status !== "stored") return null;
   return (
@@ -271,13 +261,9 @@ function ObservationUnitChoice({
             {m.observation_images_unassigned()}
             <ListBox.ItemIndicator />
           </ListBox.Item>
-          {observationUnits.map((observationUnit) => (
-            <ListBox.Item
-              key={observationUnit.id}
-              id={observationUnit.id}
-              textValue={observationUnit.code}
-            >
-              {observationUnit.code}
+          {units.map((unit) => (
+            <ListBox.Item key={unit.id} id={unit.id} textValue={unit.code}>
+              {unit.code}
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}

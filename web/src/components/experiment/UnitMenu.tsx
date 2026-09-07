@@ -2,13 +2,11 @@ import {
   Button,
   Dropdown,
   Form,
-  Input,
   Label,
   ListBox,
   Modal,
   Select,
   Separator,
-  TextField,
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
@@ -16,8 +14,8 @@ import { useState } from "react";
 
 import type {
   ExperimentObservationImage,
-  ObservationUnit,
-  ObservationUnitNavigationEntry,
+  Unit,
+  UnitNavigationEntry,
 } from "../../experiments/contracts";
 import { cultureEventLabel } from "../../experiments/culture-events";
 import {
@@ -25,12 +23,12 @@ import {
   observationLabel,
   type CultureEventType,
   type ExperimentObservation,
+  type Treatment,
 } from "../../experiments/schema";
 import {
   createCultureEvent,
-  editObservationUnit,
   removeCultureEvent,
-  removeObservationUnit,
+  removeUnit,
   unassignObservationImage,
 } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
@@ -38,23 +36,26 @@ import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
 import { ReassignObservationImageModal } from "./ReassignObservationImageModal";
+import { UnitDialog } from "./UnitDialog";
 
 type Action = "reassign" | "edit" | "record" | "remove-event" | "delete";
 
-export function ObservationUnitMenu({
+export function UnitMenu({
   experiment,
-  observationUnit,
+  unit,
+  treatments,
   observations,
   canRemove,
   image,
   navigation,
 }: {
   experiment: string;
-  observationUnit: ObservationUnit;
+  unit: Unit;
+  treatments: Treatment[];
   observations: ExperimentObservation[];
   canRemove: boolean;
   image: ExperimentObservationImage | null;
-  navigation: ObservationUnitNavigationEntry[];
+  navigation: UnitNavigationEntry[];
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
@@ -62,7 +63,7 @@ export function ObservationUnitMenu({
   const unassign = async () => {
     if (!image) return;
     await unassignObservationImage({ data: image.ref });
-    toast.success(m.observation_unit_image_unassigned());
+    toast.success(m.unit_image_unassigned());
     await router.navigate({
       to: "/experiments/$experiment",
       params: { experiment: image.ref.experiment },
@@ -76,40 +77,37 @@ export function ObservationUnitMenu({
           variant="ghost"
           isIconOnly
           size="sm"
-          aria-label={m.observation_unit_actions({
-            code: observationUnit.code,
+          aria-label={m.unit_actions({
+            code: unit.code,
           })}
         >
           <MoreIcon />
         </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label={m.observation_unit_actions({
-              code: observationUnit.code,
+            aria-label={m.unit_actions({
+              code: unit.code,
             })}
             disabledKeys={busy ? ["unassign"] : []}
             onAction={(key) => {
               if (key !== "unassign") return setOpen(key as Action);
-              void run(unassign, m.observation_unit_image_not_unassigned());
+              void run(unassign, m.unit_image_not_unassigned());
             }}
           >
             {image ? (
-              <Dropdown.Item
-                id="reassign"
-                textValue={m.observation_unit_reassign_image()}
-              >
-                <Label>{m.observation_unit_menu_reassign()}</Label>
+              <Dropdown.Item id="reassign" textValue={m.unit_reassign_image()}>
+                <Label>{m.unit_menu_reassign()}</Label>
               </Dropdown.Item>
             ) : null}
-            <Dropdown.Item id="edit" textValue={m.observation_unit_edit()}>
-              <Label>{m.observation_unit_menu_edit()}</Label>
+            <Dropdown.Item id="edit" textValue={m.unit_edit()}>
+              <Label>{m.unit_menu_edit()}</Label>
             </Dropdown.Item>
             {observations.length > 0 ? (
               <Dropdown.Item id="record" textValue={m.culture_event_record()}>
                 <Label>{m.culture_event_menu_record()}</Label>
               </Dropdown.Item>
             ) : null}
-            {observationUnit.events.length > 0 ? (
+            {unit.events.length > 0 ? (
               <Dropdown.Item
                 id="remove-event"
                 textValue={m.culture_event_remove()}
@@ -121,29 +119,29 @@ export function ObservationUnitMenu({
             {image ? (
               <Dropdown.Item
                 id="unassign"
-                textValue={m.observation_unit_unassign_image()}
+                textValue={m.unit_unassign_image()}
                 variant="danger"
               >
-                <Label>{m.observation_unit_unassign_image()}</Label>
+                <Label>{m.unit_unassign_image()}</Label>
               </Dropdown.Item>
             ) : null}
             {canRemove ? (
               <Dropdown.Item
                 id="delete"
-                textValue={m.observation_unit_delete()}
+                textValue={m.unit_delete()}
                 variant="danger"
               >
-                <Label>{m.observation_unit_menu_delete()}</Label>
+                <Label>{m.unit_menu_delete()}</Label>
               </Dropdown.Item>
             ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
 
-      <EditObservationUnitModal
-        key={open === "edit" ? "editing" : "idle"}
+      <UnitDialog
         experiment={experiment}
-        observationUnit={observationUnit}
+        unit={unit}
+        treatments={treatments}
         isOpen={open === "edit"}
         onClose={() => setOpen(null)}
       />
@@ -151,7 +149,7 @@ export function ObservationUnitMenu({
       <RecordCultureEventModal
         key={open === "record" ? "recording" : "idle"}
         experiment={experiment}
-        observationUnit={observationUnit}
+        unit={unit}
         observations={observations}
         isOpen={open === "record"}
         onClose={() => setOpen(null)}
@@ -160,7 +158,7 @@ export function ObservationUnitMenu({
       <RemoveCultureEventModal
         key={open === "remove-event" ? "removing" : "idle"}
         experiment={experiment}
-        observationUnit={observationUnit}
+        unit={unit}
         observations={observations}
         isOpen={open === "remove-event"}
         onClose={() => setOpen(null)}
@@ -179,15 +177,13 @@ export function ObservationUnitMenu({
       <DestructiveActionDialog
         isOpen={open === "delete"}
         onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={m.observation_unit_delete_title({ code: observationUnit.code })}
-        confirmLabel={m.observation_unit_delete()}
+        title={m.unit_delete_title({ code: unit.code })}
+        confirmLabel={m.unit_delete()}
         onConfirm={async () => {
-          await removeObservationUnit({
-            data: { experiment, observationUnit: observationUnit.id },
+          await removeUnit({
+            data: { experiment, unit: unit.id },
           });
-          toast.success(
-            m.observation_unit_deleted({ code: observationUnit.code }),
-          );
+          toast.success(m.unit_deleted({ code: unit.code }));
           await router.invalidate();
         }}
       />
@@ -195,97 +191,15 @@ export function ObservationUnitMenu({
   );
 }
 
-function EditObservationUnitModal({
-  experiment,
-  observationUnit,
-  isOpen,
-  onClose,
-}: {
-  experiment: string;
-  observationUnit: ObservationUnit;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const { busy, run } = useAsyncAction();
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.observation_unit_edit()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              <Form
-                id="edit-observation-unit"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  void run(
-                    () =>
-                      editObservationUnit({
-                        data: {
-                          experiment,
-                          observationUnit: observationUnit.id,
-                          code: String(form.get("code") ?? ""),
-                        },
-                      }),
-                    m.observation_unit_not_saved(),
-                  ).then(async (result) => {
-                    if (!result.ok) return;
-                    onClose();
-                    await router.invalidate();
-                  });
-                }}
-              >
-                <TextField
-                  variant="secondary"
-                  fullWidth
-                  isRequired
-                  isDisabled={busy}
-                  name="code"
-                  defaultValue={observationUnit.code}
-                >
-                  <Label>{m.observation_unit_code_label()}</Label>
-                  <Input className="w-full" />
-                </TextField>
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="edit-observation-unit"
-                variant="primary"
-                isDisabled={busy}
-              >
-                {busy
-                  ? m.experiment_action_saving()
-                  : m.experiment_action_save()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
-}
-
 function RecordCultureEventModal({
   experiment,
-  observationUnit,
+  unit,
   observations,
   isOpen,
   onClose,
 }: {
   experiment: string;
-  observationUnit: ObservationUnit;
+  unit: Unit;
   observations: ExperimentObservation[];
   isOpen: boolean;
   onClose: () => void;
@@ -315,7 +229,7 @@ function RecordCultureEventModal({
                       createCultureEvent({
                         data: {
                           experiment,
-                          observationUnit: observationUnit.id,
+                          unit: unit.id,
                           type,
                           observation,
                         },
@@ -415,20 +329,20 @@ function RecordCultureEventModal({
 
 function RemoveCultureEventModal({
   experiment,
-  observationUnit,
+  unit,
   observations,
   isOpen,
   onClose,
 }: {
   experiment: string;
-  observationUnit: ObservationUnit;
+  unit: Unit;
   observations: ExperimentObservation[];
   isOpen: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const { events } = observationUnit;
+  const { events } = unit;
   const [event, setEvent] = useState(events.at(-1)?.id ?? "");
   const describe = (item: (typeof events)[number]) => {
     const observation = observations.find(

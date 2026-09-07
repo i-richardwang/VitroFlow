@@ -11,12 +11,12 @@ import {
   cultureEventIsTerminal,
   observationOrdinal,
   observationOrdinals,
-  observationUnitIsAvailableAt,
+  unitIsAvailableAt,
 } from "../experiments/culture-events";
 import {
   CultureEventNotFoundError,
-  ObservationUnitNotFoundError,
-  ObservationUnitRejectedError,
+  UnitNotFoundError,
+  UnitRejectedError,
   ObservationNotFoundError,
 } from "../experiments/errors";
 import type {
@@ -25,7 +25,7 @@ import type {
   CultureEventRequest,
 } from "../experiments/schema";
 import {
-  listObservationUnits,
+  listUnits,
   listObservations,
   lockExperiment,
 } from "./experiment-records";
@@ -36,7 +36,7 @@ export async function recordCultureEvent(
 ): Promise<CultureEvent> {
   const {
     experiment: experimentId,
-    observationUnit: observationUnitId,
+    unit: unitId,
     observation: observationId,
     type,
   } = value;
@@ -49,41 +49,30 @@ export async function recordCultureEvent(
         `Unknown observation: ${observationId}`,
       );
     }
-    const observationUnit = (await listObservationUnits(experimentId, tx)).find(
-      (item) => item.id === observationUnitId,
+    const unit = (await listUnits(experimentId, tx)).find(
+      (item) => item.id === unitId,
     );
-    if (!observationUnit)
-      throw new ObservationUnitNotFoundError(
-        `Unknown observation unit: ${observationUnitId}`,
-      );
+    if (!unit) throw new UnitNotFoundError(`Unknown unit: ${unitId}`);
     if (
-      observationUnit.events.some(
+      unit.events.some(
         (event) => event.observation === observationId && event.type === type,
       )
     ) {
-      throw new ObservationUnitRejectedError(
-        `${type} is already recorded for ${observationUnit.code} at this observation`,
+      throw new UnitRejectedError(
+        `${type} is already recorded for ${unit.code} at this observation`,
       );
     }
-    const hasTerminalEvent = observationUnit.events.some((event) =>
+    const hasTerminalEvent = unit.events.some((event) =>
       cultureEventIsTerminal(event.type),
     );
     if (cultureEventIsTerminal(type) && hasTerminalEvent) {
-      throw new ObservationUnitRejectedError(
-        `${observationUnit.code} has already left the bench`,
-      );
+      throw new UnitRejectedError(`${unit.code} has already left the bench`);
     }
 
     const ordinals = observationOrdinals(observations);
-    if (
-      !observationUnitIsAvailableAt(
-        observationUnit.events,
-        observation,
-        ordinals,
-      )
-    ) {
-      throw new ObservationUnitRejectedError(
-        `Observation unit ${observationUnit.code} was already removed before this observation`,
+    if (!unitIsAvailableAt(unit.events, observation, ordinals)) {
+      throw new UnitRejectedError(
+        `Unit ${unit.code} was already removed before this observation`,
       );
     }
     if (cultureEventIsTerminal(type)) {
@@ -93,10 +82,7 @@ export async function recordCultureEvent(
         .where(
           and(
             eq(experimentObservationImages.experimentId, experimentId),
-            eq(
-              experimentObservationImages.observationUnitId,
-              observationUnitId,
-            ),
+            eq(experimentObservationImages.unitId, unitId),
           ),
         );
       const hasLaterRecord =
@@ -105,14 +91,14 @@ export async function recordCultureEvent(
             observationOrdinal(ordinals, image.observation) >
             observation.ordinal,
         ) ||
-        observationUnit.events.some(
+        unit.events.some(
           (event) =>
             observationOrdinal(ordinals, event.observation) >
             observation.ordinal,
         );
       if (hasLaterRecord) {
-        throw new ObservationUnitRejectedError(
-          `Observation unit ${observationUnit.code} has records after this observation and cannot be removed here`,
+        throw new UnitRejectedError(
+          `Unit ${unit.code} has records after this observation and cannot be removed here`,
         );
       }
     }
@@ -122,15 +108,15 @@ export async function recordCultureEvent(
       .values({
         experimentId,
         id: randomUUID(),
-        observationUnitId,
+        unitId,
         observationId,
         type,
         recordedAt: new Date(),
       })
       .returning();
     if (!row) throw new Error("Culture event was not recorded");
-    const updated = (await listObservationUnits(experimentId, tx)).find(
-      (item) => item.id === observationUnitId,
+    const updated = (await listUnits(experimentId, tx)).find(
+      (item) => item.id === unitId,
     );
     const event = updated?.events.find((item) => item.id === row.id);
     if (!event) throw new Error("Culture event was not read back");

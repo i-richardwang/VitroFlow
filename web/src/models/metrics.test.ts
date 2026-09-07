@@ -73,7 +73,7 @@ describe("metrics", () => {
     ).toBeFalse();
   });
 
-  test("summaries carry the mean, spread, and contributing observation units", () => {
+  test("summaries carry the mean, spread, and contributing units", () => {
     expect(summarizeMetric(seeds, [{ seed: 2 }, {}, { seed: 4 }])).toEqual({
       value: 2,
       deviation: 2,

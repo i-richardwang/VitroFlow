@@ -17,6 +17,7 @@ import {
   type TreatmentFactor,
 } from "../../experiments/schema";
 import {
+  createReplicates,
   createTreatment,
   editTreatment,
   removeTreatment,
@@ -154,7 +155,7 @@ function Editor({
                   {creating ? (
                     <NumberField
                       variant="secondary"
-                      minValue={0}
+                      minValue={1}
                       maxValue={200}
                       isDisabled={busy}
                       value={replicates}
@@ -221,5 +222,103 @@ function Editor({
         </DestructiveActionDialog>
       ) : null}
     </>
+  );
+}
+
+/** Lays out more replicates of a treatment, continuing its code series. */
+export function ReplicatesDialog({
+  experiment,
+  treatment,
+  isOpen,
+  onClose,
+}: {
+  experiment: string;
+  treatment: Treatment;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const { busy, run } = useAsyncAction();
+  const [replicates, setReplicates] = useState(1);
+  const close = () => {
+    setReplicates(1);
+    onClose();
+  };
+  return (
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && close()}>
+      <Modal.Backdrop>
+        <Modal.Container size="sm">
+          <Modal.Dialog>
+            <Modal.CloseTrigger aria-label={m.close()} />
+            <Modal.Header>
+              <Modal.Heading>
+                {m.treatment_add_replicates({ name: treatment.name })}
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <Form
+                id="add-replicates"
+                className="flex w-full min-w-0 flex-col gap-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(
+                    () =>
+                      createReplicates({
+                        data: {
+                          experiment,
+                          treatment: treatment.id,
+                          replicates,
+                        },
+                      }),
+                    m.treatment_replicates_not_added(),
+                  ).then(async (result) => {
+                    if (!result.ok) return;
+                    toast.success(
+                      m.treatment_replicates_added({
+                        count: result.value.length,
+                        name: treatment.name,
+                      }),
+                    );
+                    close();
+                    await router.invalidate();
+                  });
+                }}
+              >
+                <NumberField
+                  variant="secondary"
+                  minValue={1}
+                  maxValue={200}
+                  isDisabled={busy}
+                  value={replicates}
+                  onChange={setReplicates}
+                >
+                  <Label>{m.treatment_replicates_label()}</Label>
+                  <NumberField.Group>
+                    <NumberField.DecrementButton />
+                    <NumberField.Input />
+                    <NumberField.IncrementButton />
+                  </NumberField.Group>
+                </NumberField>
+              </Form>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={close}>
+                {m.cancel()}
+              </Button>
+              <Button
+                type="submit"
+                form="add-replicates"
+                variant="primary"
+                isDisabled={busy}
+              >
+                {busy
+                  ? m.experiment_action_adding()
+                  : m.experiment_action_add()}
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }

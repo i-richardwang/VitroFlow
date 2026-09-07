@@ -3,13 +3,13 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Executor } from "../db/client";
 import {
   experimentCultureEvents,
-  experimentObservationUnits,
+  experimentUnits,
   experimentObservationImages,
   experimentObservations,
   experimentTreatments,
   experiments,
 } from "../db/schema";
-import type { ObservationUnitRecord } from "../experiments/contracts";
+import type { UnitRecord } from "../experiments/contracts";
 import {
   ExperimentNotFoundError,
   ObservationNotFoundError,
@@ -52,10 +52,10 @@ export function toTreatment(
   });
 }
 
-export function toObservationUnit(
-  row: typeof experimentObservationUnits.$inferSelect,
+export function toUnit(
+  row: typeof experimentUnits.$inferSelect,
   events: CultureEvent[] = [],
-): ObservationUnitRecord {
+): UnitRecord {
   return {
     id: row.id,
     code: row.code,
@@ -136,13 +136,10 @@ export function atTreatment(experimentId: string, treatmentId: string) {
   );
 }
 
-export function atObservationUnit(
-  experimentId: string,
-  observationUnitId: string,
-) {
+export function atUnit(experimentId: string, unitId: string) {
   return and(
-    eq(experimentObservationUnits.experimentId, experimentId),
-    eq(experimentObservationUnits.id, observationUnitId),
+    eq(experimentUnits.experimentId, experimentId),
+    eq(experimentUnits.id, unitId),
   );
 }
 
@@ -153,16 +150,16 @@ export function atObservation(experimentId: string, observationId: string) {
   );
 }
 
-export async function listObservationUnits(
+export async function listUnits(
   experimentId: string,
   db: Executor,
-): Promise<ObservationUnitRecord[]> {
+): Promise<UnitRecord[]> {
   const [rows, eventRows] = await Promise.all([
     db
       .select()
-      .from(experimentObservationUnits)
-      .where(eq(experimentObservationUnits.experimentId, experimentId))
-      .orderBy(asc(experimentObservationUnits.code)),
+      .from(experimentUnits)
+      .where(eq(experimentUnits.experimentId, experimentId))
+      .orderBy(asc(experimentUnits.code)),
     db
       .select()
       .from(experimentCultureEvents)
@@ -172,15 +169,13 @@ export async function listObservationUnits(
         asc(experimentCultureEvents.id),
       ),
   ]);
-  const byObservationUnit = new Map<string, CultureEvent[]>();
+  const byUnit = new Map<string, CultureEvent[]>();
   for (const row of eventRows) {
-    const events = byObservationUnit.get(row.observationUnitId) ?? [];
+    const events = byUnit.get(row.unitId) ?? [];
     events.push(toCultureEvent(row));
-    byObservationUnit.set(row.observationUnitId, events);
+    byUnit.set(row.unitId, events);
   }
-  return rows.map((row) =>
-    toObservationUnit(row, byObservationUnit.get(row.id) ?? []),
-  );
+  return rows.map((row) => toUnit(row, byUnit.get(row.id) ?? []));
 }
 
 export async function listObservations(

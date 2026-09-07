@@ -615,7 +615,7 @@ export const annotations = pgTable(
 );
 
 /**
- * Measurements of the same observation units on successive occasions. The version is fixed
+ * Measurements of the same units on successive occasions. The version is fixed
  * when the experiment is created, so every observation comes from the same
  * model: the builtin baseline until a trained version exists, and whichever
  * version the experiment was started with after that.
@@ -628,7 +628,7 @@ export const experiments = pgTable(
     name: text("name").notNull(),
     /** The plant under culture: species, cultivar, or line. */
     plantMaterial: text("plant_material").notNull(),
-    /** The type of tissue used to initiate the observation units. */
+    /** The type of tissue used to initiate the units. */
     explantType: text("explant_type").notNull(),
     /** The base medium every treatment shares. */
     baseMedium: text("base_medium").notNull(),
@@ -733,7 +733,7 @@ export const experimentObservations = pgTable(
     })
       .onDelete("cascade")
       .onUpdate("cascade"),
-    /** An experiment observes its observation units once a day at most. */
+    /** An experiment observes its units once a day at most. */
     unique("experiment_observations_day").on(
       table.experimentId,
       table.observedOn,
@@ -754,24 +754,23 @@ export const experimentObservations = pgTable(
 );
 
 /**
- * The units to which treatments are assigned and on which measurements are
- * made. A unit exists before any image and keeps its identity when its code is
- * corrected.
+ * The experimental units: the vessels a treatment is applied to and
+ * measurements are made on. A unit replicates exactly one treatment, exists
+ * before any image, and keeps its identity when its code is corrected.
  */
-export const experimentObservationUnits = pgTable(
-  "experiment_observation_units",
+export const experimentUnits = pgTable(
+  "experiment_units",
   {
     experimentId: uuid("experiment_id")
       .notNull()
       .references(() => experiments.id, { onDelete: "cascade" }),
     id: uuid("id").notNull(),
     code: text("code").notNull(),
-    /** The treatment this observation unit replicates. */
-    treatmentId: uuid("treatment_id"),
+    treatmentId: uuid("treatment_id").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
-    uniqueIndex("experiment_observation_units_code").on(
+    uniqueIndex("experiment_units_code").on(
       table.experimentId,
       sql`lower(${table.code})`,
     ),
@@ -781,13 +780,13 @@ export const experimentObservationUnits = pgTable(
         experimentTreatments.experimentId,
         experimentTreatments.id,
       ],
-    }),
-    index("experiment_observation_units_treatment_idx").on(
+    }).onDelete("cascade"),
+    index("experiment_units_treatment_idx").on(
       table.experimentId,
       table.treatmentId,
     ),
     check(
-      "experiment_observation_units_code_check",
+      "experiment_units_code_check",
       sql`${table.code} = btrim(${table.code}) and length(${table.code}) between 1 and 60`,
     ),
   ],
@@ -799,7 +798,7 @@ export const experimentCultureEvents = pgTable(
   {
     experimentId: uuid("experiment_id").notNull(),
     id: uuid("id").notNull(),
-    observationUnitId: uuid("observation_unit_id").notNull(),
+    unitId: uuid("unit_id").notNull(),
     observationId: uuid("observation_id").notNull(),
     type: text("type", { enum: CULTURE_EVENT_TYPES }).notNull(),
     recordedAt: instant("recorded_at"),
@@ -807,11 +806,8 @@ export const experimentCultureEvents = pgTable(
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
     foreignKey({
-      columns: [table.experimentId, table.observationUnitId],
-      foreignColumns: [
-        experimentObservationUnits.experimentId,
-        experimentObservationUnits.id,
-      ],
+      columns: [table.experimentId, table.unitId],
+      foreignColumns: [experimentUnits.experimentId, experimentUnits.id],
     }),
     foreignKey({
       columns: [table.experimentId, table.observationId],
@@ -822,12 +818,12 @@ export const experimentCultureEvents = pgTable(
     }),
     uniqueIndex("experiment_culture_events_one_kind").on(
       table.experimentId,
-      table.observationUnitId,
+      table.unitId,
       table.observationId,
       table.type,
     ),
     uniqueIndex("experiment_culture_events_one_terminal")
-      .on(table.experimentId, table.observationUnitId)
+      .on(table.experimentId, table.unitId)
       .where(sql`${table.type} in ('discarded', 'harvested', 'missing')`),
     check(
       "experiment_culture_events_type_check",
@@ -837,7 +833,7 @@ export const experimentCultureEvents = pgTable(
 );
 
 /**
- * One image assigned to an observation unit and an observation. The filename
+ * One image assigned to a unit and an observation. The filename
  * records the image's origin and identifies nothing.
  */
 export const experimentObservationImages = pgTable(
@@ -845,7 +841,7 @@ export const experimentObservationImages = pgTable(
   {
     experimentId: uuid("experiment_id").notNull(),
     id: uuid("id").notNull(),
-    observationUnitId: uuid("observation_unit_id").notNull(),
+    unitId: uuid("unit_id").notNull(),
     observationId: uuid("observation_id").notNull(),
     /** An assigned observation image is a reference root; deletion is refused. */
     imageId: text("image_id")
@@ -856,11 +852,8 @@ export const experimentObservationImages = pgTable(
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
     foreignKey({
-      columns: [table.experimentId, table.observationUnitId],
-      foreignColumns: [
-        experimentObservationUnits.experimentId,
-        experimentObservationUnits.id,
-      ],
+      columns: [table.experimentId, table.unitId],
+      foreignColumns: [experimentUnits.experimentId, experimentUnits.id],
     }).onDelete("cascade"),
     foreignKey({
       columns: [table.experimentId, table.observationId],
@@ -869,10 +862,10 @@ export const experimentObservationImages = pgTable(
         experimentObservations.id,
       ],
     }).onDelete("cascade"),
-    /** One observation unit has one image per observation. */
+    /** One unit has one image per observation. */
     unique("experiment_observation_images_cell").on(
       table.experimentId,
-      table.observationUnitId,
+      table.unitId,
       table.observationId,
     ),
     /** The same image cannot represent two units or two occasions. */

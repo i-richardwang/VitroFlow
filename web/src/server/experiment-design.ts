@@ -7,48 +7,48 @@ import { isUniqueViolation } from "../db/errors";
 import {
   experimentCultureEvents,
   experimentObservationImages,
-  experimentObservationUnits,
   experimentObservations,
   experimentTreatments,
+  experimentUnits,
   experiments,
 } from "../db/schema";
-import type { ObservationUnitRecord } from "../experiments/contracts";
+import type { UnitRecord } from "../experiments/contracts";
 import {
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
   ExperimentRejectedError,
   ModelVersionNotFoundError,
   ObservationRejectedError,
-  ObservationUnitNotFoundError,
-  ObservationUnitRejectedError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
+  UnitNotFoundError,
+  UnitRejectedError,
 } from "../experiments/errors";
 import { replicateCodes, sameName } from "../experiments/naming";
 import {
-  type ObservationUnitAssignment,
-  type ObservationUnitBatch,
-  type ObservationUnitRef,
-  type ObservationUnitUpdate,
   type Experiment,
   type ExperimentRef,
   type ExperimentRequest,
   type ExperimentUpdate,
+  type ReplicateRequest,
   type Treatment,
+  type TreatmentDesign,
   type TreatmentRef,
   type TreatmentRequest,
   type TreatmentUpdate,
+  type UnitRef,
+  type UnitUpdate,
 } from "../experiments/schema";
 import {
-  atObservationUnit,
   atTreatment,
-  listObservationUnits,
+  atUnit,
   listTreatments,
+  listUnits,
   lockExperiment,
   readExperimentRecord,
-  toObservationUnit,
   toExperiment,
   toTreatment,
+  toUnit,
 } from "./experiment-records";
 import { readModelVersion } from "./model-registry";
 
@@ -58,25 +58,29 @@ export async function readExperiment(
   return readExperimentRecord(experimentId, await database());
 }
 
+/** An experiment starts with its design: every treatment laid out in replicates. */
 export async function createExperiment(
   value: ExperimentRequest,
   executor?: Executor,
 ): Promise<Experiment> {
+  const { treatments, ...page } = value;
   return inTransaction(executor, async (tx) => {
-    const { modelVersionId } = value;
-    const version = await readModelVersion(modelVersionId, tx);
+    const version = await readModelVersion(page.modelVersionId, tx);
     if (!version) {
       throw new ModelVersionNotFoundError(
-        `Unknown model version: ${modelVersionId}`,
+        `Unknown model version: ${page.modelVersionId}`,
       );
     }
-    const [row] = await refuseTakenName(value.name, () =>
+    const [row] = await refuseTakenName(page.name, () =>
       tx
         .insert(experiments)
-        .values({ ...value, id: randomUUID(), createdAt: new Date() })
+        .values({ ...page, id: randomUUID(), createdAt: new Date() })
         .returning(),
     );
     if (!row) throw new Error("Experiment was not created");
+    for (const [index, treatment] of treatments.entries()) {
+      await insertTreatment(row.id, treatment, index + 1, [], tx);
+    }
     return toExperiment(row);
   });
 }
@@ -141,7 +145,7 @@ export async function deleteExperiment(
   const { experiment } = value;
   await inTransaction(executor, async (tx) => {
     await lockExperiment(experiment, tx);
-    if (await experimentHasRecords(experiment, tx)) {
+    if (await hasRecords(experiment, null, tx)) {
       throw new ExperimentHasRecordsError(
         "An experiment with images or culture events cannot be deleted",
       );
@@ -156,36 +160,44 @@ export async function deleteExperiment(
   });
 }
 
-async function experimentHasRecords(
-  experimentId: string,
-  tx: Executor,
-): Promise<boolean> {
-  const [image] = await tx
-    .select({ id: experimentObservationImages.id })
-    .from(experimentObservationImages)
-    .where(eq(experimentObservationImages.experimentId, experimentId))
-    .limit(1);
-  if (image) return true;
-  const [event] = await tx
-    .select({ id: experimentCultureEvents.id })
-    .from(experimentCultureEvents)
-    .where(eq(experimentCultureEvents.experimentId, experimentId))
-    .limit(1);
-  return event !== undefined;
-}
+type RecordScope = { treatment: string } | { unit: string } | null;
 
-async function observationUnitHasRecords(
+/**
+ * Whether images or culture events were recorded: on the whole experiment,
+ * on one treatment's units, or on one unit.
+ */
+async function hasRecords(
   experimentId: string,
-  observationUnitId: string,
+  scope: RecordScope,
   tx: Executor,
 ): Promise<boolean> {
+  const inScope = (
+    unitId:
+      | typeof experimentObservationImages.unitId
+      | typeof experimentCultureEvents.unitId,
+  ) => {
+    if (scope === null) return undefined;
+    if ("unit" in scope) return eq(unitId, scope.unit);
+    return inArray(
+      unitId,
+      tx
+        .select({ id: experimentUnits.id })
+        .from(experimentUnits)
+        .where(
+          and(
+            eq(experimentUnits.experimentId, experimentId),
+            eq(experimentUnits.treatmentId, scope.treatment),
+          ),
+        ),
+    );
+  };
   const [image] = await tx
     .select({ id: experimentObservationImages.id })
     .from(experimentObservationImages)
     .where(
       and(
         eq(experimentObservationImages.experimentId, experimentId),
-        eq(experimentObservationImages.observationUnitId, observationUnitId),
+        inScope(experimentObservationImages.unitId),
       ),
     )
     .limit(1);
@@ -196,48 +208,87 @@ async function observationUnitHasRecords(
     .where(
       and(
         eq(experimentCultureEvents.experimentId, experimentId),
-        eq(experimentCultureEvents.observationUnitId, observationUnitId),
+        inScope(experimentCultureEvents.unitId),
       ),
     )
     .limit(1);
   return event !== undefined;
 }
 
+async function insertTreatment(
+  experimentId: string,
+  design: TreatmentDesign,
+  position: number,
+  existing: readonly Treatment[],
+  tx: Executor,
+): Promise<Treatment> {
+  const { replicates, ...fields } = design;
+  if (existing.some((treatment) => sameName(treatment.name, fields.name))) {
+    throw new TreatmentRejectedError(`Treatment ${fields.name} already exists`);
+  }
+  const [row] = await tx
+    .insert(experimentTreatments)
+    .values({ experimentId, id: randomUUID(), ...fields, position })
+    .returning();
+  if (!row) throw new Error("Treatment was not created");
+  const treatment = toTreatment(row);
+  await insertReplicates(experimentId, treatment, replicates, tx);
+  return treatment;
+}
+
+/** Lays out `T1-1` through `T1-n`, continuing any series the experiment has. */
+async function insertReplicates(
+  experimentId: string,
+  treatment: Treatment,
+  replicates: number,
+  tx: Executor,
+): Promise<UnitRecord[]> {
+  const taken = (await listUnits(experimentId, tx)).map((unit) => unit.code);
+  const rows = await tx
+    .insert(experimentUnits)
+    .values(
+      replicateCodes(treatment.name, replicates, taken).map((code) => ({
+        experimentId,
+        id: randomUUID(),
+        code,
+        treatmentId: treatment.id,
+      })),
+    )
+    .returning();
+  return rows.map((row) => toUnit(row));
+}
+
 export async function addTreatment(
   value: TreatmentRequest,
   executor?: Executor,
 ): Promise<Treatment> {
-  const { experiment: experimentId, name, factor, note, replicates } = value;
+  const { experiment: experimentId, ...design } = value;
   return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
     const existing = await listTreatments(experimentId, tx);
-    if (existing.some((treatment) => sameName(treatment.name, name))) {
-      throw new TreatmentRejectedError(`Treatment ${name} already exists`);
-    }
-    const [row] = await tx
-      .insert(experimentTreatments)
-      .values({
-        experimentId,
-        id: randomUUID(),
-        name,
-        factor,
-        note,
-        position: existing.length + 1,
-      })
-      .returning();
-    if (!row) throw new Error("Treatment was not created");
-    if (replicates > 0) {
-      const taken = (await listObservationUnits(experimentId, tx)).map(
-        (observationUnit) => observationUnit.code,
-      );
-      await insertObservationUnits(
-        experimentId,
-        row.id,
-        replicateCodes(name, replicates, taken),
-        tx,
-      );
-    }
-    return toTreatment(row);
+    return insertTreatment(
+      experimentId,
+      design,
+      existing.length + 1,
+      existing,
+      tx,
+    );
+  });
+}
+
+export async function addReplicates(
+  value: ReplicateRequest,
+  executor?: Executor,
+): Promise<UnitRecord[]> {
+  const {
+    experiment: experimentId,
+    treatment: treatmentId,
+    replicates,
+  } = value;
+  return inTransaction(executor, async (tx) => {
+    await lockExperiment(experimentId, tx);
+    const treatment = await requireTreatment(experimentId, treatmentId, tx);
+    return insertReplicates(experimentId, treatment, replicates, tx);
   });
 }
 
@@ -269,6 +320,7 @@ export async function updateTreatment(
   });
 }
 
+/** A treatment leaves with its units, which is why recorded ones stay. */
 export async function deleteTreatment(
   value: TreatmentRef,
   executor?: Executor,
@@ -276,15 +328,11 @@ export async function deleteTreatment(
   const { experiment: experimentId, treatment: treatmentId } = value;
   await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
-    await tx
-      .update(experimentObservationUnits)
-      .set({ treatmentId: null })
-      .where(
-        and(
-          eq(experimentObservationUnits.experimentId, experimentId),
-          eq(experimentObservationUnits.treatmentId, treatmentId),
-        ),
+    if (await hasRecords(experimentId, { treatment: treatmentId }, tx)) {
+      throw new TreatmentRejectedError(
+        "A treatment whose units have images or culture events cannot be deleted",
       );
+    }
     const [row] = await tx
       .delete(experimentTreatments)
       .where(atTreatment(experimentId, treatmentId))
@@ -304,111 +352,47 @@ export async function deleteTreatment(
   });
 }
 
-async function insertObservationUnits(
-  experimentId: string,
-  treatmentId: string | null,
-  codes: readonly string[],
-  tx: Executor,
-): Promise<ObservationUnitRecord[]> {
-  const rows = await tx
-    .insert(experimentObservationUnits)
-    .values(
-      codes.map((code) => ({
-        experimentId,
-        id: randomUUID(),
-        code,
-        treatmentId,
-      })),
-    )
-    .returning();
-  return rows.map((row) => toObservationUnit(row));
-}
-
-export async function addObservationUnits(
-  value: ObservationUnitBatch,
+export async function updateUnit(
+  value: UnitUpdate,
   executor?: Executor,
-): Promise<ObservationUnitRecord[]> {
-  const { experiment: experimentId, treatment: treatmentId, codes } = value;
+): Promise<UnitRecord> {
+  const { experiment: experimentId, unit: unitId, code, treatment } = value;
   return inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
-    if (treatmentId !== null)
-      await requireTreatment(experimentId, treatmentId, tx);
-    const wanted = new Set(codes.map((code) => code.toLowerCase()));
-    if (wanted.size !== codes.length) {
-      throw new ObservationUnitRejectedError(
-        "The same observation unit is listed twice",
-      );
-    }
-    const taken = (await listObservationUnits(experimentId, tx))
-      .map((observationUnit) => observationUnit.code)
-      .filter((code) => wanted.has(code.toLowerCase()));
-    if (taken.length > 0) {
-      throw new ObservationUnitRejectedError(
-        `The experiment already has ${taken.join(", ")}`,
-      );
-    }
-    return insertObservationUnits(experimentId, treatmentId, codes, tx);
-  });
-}
-
-export async function updateObservationUnit(
-  value: ObservationUnitUpdate,
-  executor?: Executor,
-): Promise<ObservationUnitRecord> {
-  const {
-    experiment: experimentId,
-    observationUnit: observationUnitId,
-    code,
-  } = value;
-  return inTransaction(executor, async (tx) => {
-    await lockExperiment(experimentId, tx);
-    const observationUnits = await listObservationUnits(experimentId, tx);
-    const clash = observationUnits.find(
-      (observationUnit) =>
-        sameName(observationUnit.code, code) &&
-        observationUnit.id !== observationUnitId,
+    await requireTreatment(experimentId, treatment, tx);
+    const clash = (await listUnits(experimentId, tx)).find(
+      (unit) => sameName(unit.code, code) && unit.id !== unitId,
     );
     if (clash) {
-      throw new ObservationUnitRejectedError(
-        `The experiment already has ${code}`,
-      );
+      throw new UnitRejectedError(`The experiment already has ${code}`);
     }
     const [row] = await tx
-      .update(experimentObservationUnits)
-      .set({ code })
-      .where(atObservationUnit(experimentId, observationUnitId))
+      .update(experimentUnits)
+      .set({ code, treatmentId: treatment })
+      .where(atUnit(experimentId, unitId))
       .returning();
-    if (!row) {
-      throw new ObservationUnitNotFoundError(
-        `Unknown observation unit: ${observationUnitId}`,
-      );
-    }
-    return toObservationUnit(row);
+    if (!row) throw new UnitNotFoundError(`Unknown unit: ${unitId}`);
+    return toUnit(row);
   });
 }
 
-export async function deleteObservationUnit(
-  value: ObservationUnitRef,
+export async function deleteUnit(
+  value: UnitRef,
   executor?: Executor,
 ): Promise<void> {
-  const { experiment: experimentId, observationUnit: observationUnitId } =
-    value;
+  const { experiment: experimentId, unit: unitId } = value;
   await inTransaction(executor, async (tx) => {
     await lockExperiment(experimentId, tx);
-    if (await observationUnitHasRecords(experimentId, observationUnitId, tx)) {
-      throw new ObservationUnitRejectedError(
-        "An observation unit with images or culture events cannot be deleted",
+    if (await hasRecords(experimentId, { unit: unitId }, tx)) {
+      throw new UnitRejectedError(
+        "A unit with images or culture events cannot be deleted",
       );
     }
     const [row] = await tx
-      .delete(experimentObservationUnits)
-      .where(atObservationUnit(experimentId, observationUnitId))
-      .returning({ id: experimentObservationUnits.id });
-    if (!row) {
-      throw new ObservationUnitNotFoundError(
-        `Unknown observation unit: ${observationUnitId}`,
-      );
-    }
+      .delete(experimentUnits)
+      .where(atUnit(experimentId, unitId))
+      .returning({ id: experimentUnits.id });
+    if (!row) throw new UnitNotFoundError(`Unknown unit: ${unitId}`);
   });
 }
 
@@ -425,39 +409,4 @@ async function requireTreatment(
     throw new TreatmentNotFoundError(`Unknown treatment: ${treatmentId}`);
   }
   return toTreatment(treatment);
-}
-
-export async function assignObservationUnits(
-  value: ObservationUnitAssignment,
-  executor?: Executor,
-): Promise<void> {
-  const {
-    experiment: experimentId,
-    observationUnits,
-    treatment: treatmentId,
-  } = value;
-  await inTransaction(executor, async (tx) => {
-    await lockExperiment(experimentId, tx);
-    if (treatmentId !== null)
-      await requireTreatment(experimentId, treatmentId, tx);
-    const rows = await tx
-      .update(experimentObservationUnits)
-      .set({ treatmentId })
-      .where(
-        and(
-          eq(experimentObservationUnits.experimentId, experimentId),
-          inArray(experimentObservationUnits.id, observationUnits),
-        ),
-      )
-      .returning({ id: experimentObservationUnits.id });
-    const updated = new Set(rows.map((row) => row.id));
-    const missing = observationUnits.filter(
-      (observationUnit) => !updated.has(observationUnit),
-    );
-    if (missing.length > 0) {
-      throw new ObservationUnitNotFoundError(
-        `Unknown observation units: ${missing.join(", ")}`,
-      );
-    }
-  });
 }

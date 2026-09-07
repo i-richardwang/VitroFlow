@@ -7,7 +7,7 @@ import { m } from "../paraglide/messages";
 export const experimentIdSchema = z.uuid();
 export const observationIdSchema = z.uuid();
 export const treatmentIdSchema = z.uuid();
-export const observationUnitIdSchema = z.uuid();
+export const unitIdSchema = z.uuid();
 export const observationImageIdSchema = z.uuid();
 
 /** A calendar day in the notebook, without a clock or a time zone. */
@@ -99,11 +99,11 @@ export function formatFactor(factor: TreatmentFactor | null): string {
   return `${factor.name} ${factor.level}${factor.unit ? ` ${factor.unit}` : ""}`.trim();
 }
 
-export const observationUnitCodeSchema = z
+export const unitCodeSchema = z
   .string()
   .trim()
-  .min(1, "Observation unit code is required")
-  .max(60, "Observation unit code must be at most 60 characters");
+  .min(1, "Unit code is required")
+  .max(60, "Unit code must be at most 60 characters");
 
 export const observationNoteSchema = z
   .string()
@@ -136,6 +136,30 @@ export const experimentSchema = z.strictObject({
 
 export type Experiment = z.infer<typeof experimentSchema>;
 
+/** How many replicates a treatment is laid out with. */
+export const replicateCountSchema = z
+  .number()
+  .int()
+  .min(1, "A treatment needs at least one replicate")
+  .max(200, "A treatment can have at most 200 replicates");
+
+/** A treatment as designed: what it applies and how many units replicate it. */
+export const treatmentDesignSchema = z.strictObject({
+  name: treatmentNameSchema,
+  factor: treatmentFactorSchema.nullable().default(null),
+  note: treatmentNoteSchema.default(""),
+  replicates: replicateCountSchema,
+});
+
+export type TreatmentDesign = z.infer<typeof treatmentDesignSchema>;
+export type TreatmentDesignInput = z.input<typeof treatmentDesignSchema>;
+
+function distinctNames(items: readonly { name: string }[]): boolean {
+  const names = items.map((item) => item.name.toLowerCase());
+  return new Set(names).size === names.length;
+}
+
+/** An experiment is created with its design: at least one treatment. */
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
   plantMaterial: plantMaterialSchema.default(""),
@@ -144,6 +168,11 @@ export const experimentRequestSchema = z.strictObject({
   notes: experimentNotesSchema.default(""),
   inoculatedOn: calendarDaySchema,
   modelVersionId: resourceIdSchema,
+  treatments: z
+    .array(treatmentDesignSchema)
+    .min(1, "An experiment needs at least one treatment")
+    .max(50, "An experiment can have at most 50 treatments")
+    .refine(distinctNames, "Two treatments cannot share a name"),
 });
 
 export type ExperimentRequest = z.infer<typeof experimentRequestSchema>;
@@ -184,15 +213,18 @@ export const treatmentRefSchema = z.strictObject({
 
 export type TreatmentRef = z.infer<typeof treatmentRefSchema>;
 
-export const treatmentRequestSchema = z.strictObject({
+export const treatmentRequestSchema = treatmentDesignSchema.extend({
   experiment: experimentIdSchema,
-  name: treatmentNameSchema,
-  factor: treatmentFactorSchema.nullable().default(null),
-  note: treatmentNoteSchema.default(""),
-  replicates: z.number().int().min(0).max(200),
 });
 
 export type TreatmentRequest = z.infer<typeof treatmentRequestSchema>;
+
+/** More replicates for a treatment already designed. */
+export const replicateRequestSchema = treatmentRefSchema.extend({
+  replicates: replicateCountSchema,
+});
+
+export type ReplicateRequest = z.infer<typeof replicateRequestSchema>;
 
 export const treatmentUpdateSchema = treatmentRefSchema.extend({
   name: treatmentNameSchema,
@@ -202,39 +234,20 @@ export const treatmentUpdateSchema = treatmentRefSchema.extend({
 
 export type TreatmentUpdate = z.infer<typeof treatmentUpdateSchema>;
 
-export const observationUnitRefSchema = z.strictObject({
+export const unitRefSchema = z.strictObject({
   experiment: experimentIdSchema,
-  observationUnit: observationUnitIdSchema,
+  unit: unitIdSchema,
 });
 
-export type ObservationUnitRef = z.infer<typeof observationUnitRefSchema>;
+export type UnitRef = z.infer<typeof unitRefSchema>;
 
-export const observationUnitBatchSchema = z.strictObject({
-  experiment: experimentIdSchema,
-  treatment: treatmentIdSchema.nullable(),
-  codes: z
-    .array(observationUnitCodeSchema)
-    .min(1, "No observation units to add")
-    .max(200),
+/** A unit's code and treatment are corrected together; its records stay. */
+export const unitUpdateSchema = unitRefSchema.extend({
+  code: unitCodeSchema,
+  treatment: treatmentIdSchema,
 });
 
-export type ObservationUnitBatch = z.infer<typeof observationUnitBatchSchema>;
-
-export const observationUnitUpdateSchema = observationUnitRefSchema.extend({
-  code: observationUnitCodeSchema,
-});
-
-export type ObservationUnitUpdate = z.infer<typeof observationUnitUpdateSchema>;
-
-export const observationUnitAssignmentSchema = z.strictObject({
-  experiment: experimentIdSchema,
-  observationUnits: z.array(observationUnitIdSchema).min(1),
-  treatment: treatmentIdSchema.nullable(),
-});
-
-export type ObservationUnitAssignment = z.infer<
-  typeof observationUnitAssignmentSchema
->;
+export type UnitUpdate = z.infer<typeof unitUpdateSchema>;
 
 export const cultureEventIdSchema = z.uuid();
 
@@ -248,7 +261,7 @@ export const cultureEventSchema = z.strictObject({
 
 export type CultureEvent = z.infer<typeof cultureEventSchema>;
 
-export const cultureEventRequestSchema = observationUnitRefSchema.extend({
+export const cultureEventRequestSchema = unitRefSchema.extend({
   type: cultureEventTypeSchema,
   observation: observationIdSchema,
 });
@@ -323,7 +336,7 @@ export const observationImageAssignmentSchema = z.strictObject({
   images: z
     .array(
       z.strictObject({
-        observationUnit: observationUnitIdSchema,
+        unit: unitIdSchema,
         digest: imageDigestSchema,
         filename: imageFilenameSchema,
       }),
@@ -345,13 +358,13 @@ export type ObservationImageAssignmentResult = z.infer<
 >;
 
 export const observationImageMoveSchema = observationImageRefSchema.extend({
-  observationUnit: observationUnitIdSchema,
+  unit: unitIdSchema,
   observation: observationIdSchema,
 });
 
 export type ObservationImageMove = z.infer<typeof observationImageMoveSchema>;
 
-export const observationUnitRequestSchema = observationUnitRefSchema.extend({
+export const unitRequestSchema = unitRefSchema.extend({
   observation: observationIdSchema.optional(),
 });
 

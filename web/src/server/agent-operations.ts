@@ -4,22 +4,20 @@ import type { Executor } from "../db/client";
 import {
   experimentGridSchema,
   experimentSummarySchema,
-  observationUnitRecordSchema,
-  observationUnitSeriesSchema,
+  unitRecordSchema,
+  unitSeriesSchema,
 } from "../experiments/contracts";
 import {
   ExperimentNotFoundError,
-  ObservationUnitNotFoundError,
+  UnitNotFoundError,
 } from "../experiments/errors";
 import {
-  observationUnitAssignmentSchema,
   cultureEventRequestSchema,
   cultureEventSchema,
   cultureEventRefSchema,
-  observationUnitBatchSchema,
-  observationUnitRefSchema,
-  observationUnitRequestSchema,
-  observationUnitUpdateSchema,
+  unitRefSchema,
+  unitRequestSchema,
+  unitUpdateSchema,
   experimentObservationSchema,
   experimentRefSchema,
   experimentRequestSchema,
@@ -32,6 +30,7 @@ import {
   observationRefSchema,
   observationRequestSchema,
   observationUpdateSchema,
+  replicateRequestSchema,
   treatmentRefSchema,
   treatmentRequestSchema,
   treatmentSchema,
@@ -40,14 +39,13 @@ import {
 import { modelSchema, modelVersionSchema } from "../models/schema";
 import { recordCultureEvent, deleteCultureEvent } from "./culture-events";
 import {
-  addObservationUnits,
+  addReplicates,
   addTreatment,
-  assignObservationUnits,
   createExperiment,
-  deleteObservationUnit,
+  deleteUnit,
   deleteExperiment,
   deleteTreatment,
-  updateObservationUnit,
+  updateUnit,
   updateExperiment,
   updateTreatment,
 } from "./experiment-design";
@@ -64,7 +62,7 @@ import {
 } from "./experiment-observations";
 import {
   listExperiments,
-  readObservationUnit,
+  readUnit,
   readExperimentGrid,
 } from "./experiment-queries";
 import { listAllModelVersions, listModels } from "./model-registry";
@@ -169,7 +167,7 @@ const operations: readonly AgentOperation[] = [
   query({
     name: "get-experiment",
     description:
-      "Read one experiment's full grid: treatments, observation units, observations, culture events, and per-unit image state",
+      "Read one experiment's full grid: treatments, units, observations, culture events, and per-unit image state",
     input: experimentRefSchema,
     output: experimentGridSchema,
     handler: async ({ experiment }) => {
@@ -181,16 +179,16 @@ const operations: readonly AgentOperation[] = [
     },
   }),
   query({
-    name: "get-observation-unit",
+    name: "get-unit",
     description:
-      "Read one observation unit's image series, optionally focused on one observation",
-    input: observationUnitRequestSchema,
-    output: observationUnitSeriesSchema,
+      "Read one unit's image series, optionally focused on one observation",
+    input: unitRequestSchema,
+    output: unitSeriesSchema,
     handler: async ({ observation, ...ref }) => {
-      const series = await readObservationUnit(ref, observation);
+      const series = await readUnit(ref, observation);
       if (!series) {
-        throw new ObservationUnitNotFoundError(
-          `Unknown observation unit: ${ref.observationUnit} in experiment ${ref.experiment}`,
+        throw new UnitNotFoundError(
+          `Unknown unit: ${ref.unit} in experiment ${ref.experiment}`,
         );
       }
       return series;
@@ -198,7 +196,8 @@ const operations: readonly AgentOperation[] = [
   }),
   command({
     name: "create-experiment",
-    description: "Create an experiment bound to one immutable model version",
+    description:
+      "Create an experiment with its design, bound to one immutable model version",
     destructive: false,
     input: experimentRequestSchema,
     output: experimentSchema,
@@ -224,11 +223,19 @@ const operations: readonly AgentOperation[] = [
   }),
   command({
     name: "create-treatment",
-    description: "Add a treatment, optionally generating its observation units",
+    description: "Add a treatment and lay out its replicates",
     destructive: false,
     input: treatmentRequestSchema,
     output: treatmentSchema,
     handler: (input, executor) => addTreatment(input, executor),
+  }),
+  command({
+    name: "add-replicates",
+    description: "Lay out more replicates of a treatment",
+    destructive: false,
+    input: replicateRequestSchema,
+    output: z.array(unitRecordSchema),
+    handler: (input, executor) => addReplicates(input, executor),
   }),
   command({
     name: "update-treatment",
@@ -240,51 +247,34 @@ const operations: readonly AgentOperation[] = [
   }),
   command({
     name: "delete-treatment",
-    description: "Delete a treatment; its observation units become unassigned",
+    description:
+      "Delete a treatment and its units, none of which may have records",
     destructive: true,
     input: treatmentRefSchema,
     output: done,
     handler: (input, executor) => deleteTreatment(input, executor),
   }),
   command({
-    name: "create-observation-units",
-    description: "Add observation units by code, optionally under a treatment",
-    destructive: false,
-    input: observationUnitBatchSchema,
-    output: z.array(observationUnitRecordSchema),
-    handler: (input, executor) => addObservationUnits(input, executor),
+    name: "update-unit",
+    description:
+      "Correct a unit's code or treatment, preserving its identity and records",
+    destructive: true,
+    input: unitUpdateSchema,
+    output: unitRecordSchema,
+    handler: (input, executor) => updateUnit(input, executor),
   }),
   command({
-    name: "update-observation-unit",
-    description:
-      "Correct an observation unit's code, preserving its identity and records",
+    name: "delete-unit",
+    description: "Delete a unit that has no images and no culture events",
     destructive: true,
-    input: observationUnitUpdateSchema,
-    output: observationUnitRecordSchema,
-    handler: (input, executor) => updateObservationUnit(input, executor),
-  }),
-  command({
-    name: "delete-observation-unit",
-    description:
-      "Delete an observation unit that has no images and no culture events",
-    destructive: true,
-    input: observationUnitRefSchema,
+    input: unitRefSchema,
     output: done,
-    handler: (input, executor) => deleteObservationUnit(input, executor),
-  }),
-  command({
-    name: "assign-observation-units",
-    description:
-      "Assign observation units to a treatment, or clear their assignment",
-    destructive: true,
-    input: observationUnitAssignmentSchema,
-    output: done,
-    handler: (input, executor) => assignObservationUnits(input, executor),
+    handler: (input, executor) => deleteUnit(input, executor),
   }),
   command({
     name: "record-culture-event",
     description:
-      "Record a culture event on an observation unit: contaminated, discarded, " +
+      "Record a culture event on a unit: contaminated, discarded, " +
       "and missing exclude the unit from analysis from that observation on; " +
       "discarded, harvested, and missing take it off the bench afterwards",
     destructive: false,
@@ -329,7 +319,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "assign-images-to-observation",
     description:
-      "Attach stored images to observation units within one observation; upload bytes first to obtain each digest",
+      "Attach stored images to units within one observation; upload bytes first to obtain each digest",
     destructive: false,
     input: observationImageAssignmentSchema,
     output: observationImageAssignmentResultSchema,
@@ -337,8 +327,7 @@ const operations: readonly AgentOperation[] = [
   }),
   command({
     name: "reassign-observation-image",
-    description:
-      "Move an observation image to another observation unit or observation",
+    description: "Move an observation image to another unit or observation",
     destructive: true,
     input: observationImageMoveSchema,
     output: done,

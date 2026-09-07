@@ -141,6 +141,14 @@ export function MoreIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function EditIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M11.5 2.5l2 2L5 13H3v-2z" />
+    </Icon>
+  );
+}
+
 export function CloseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

@@ -2,7 +2,7 @@
 
 The backend's dependency and concurrency boundaries are documented in [docs/backend-architecture.md](docs/backend-architecture.md).
 
-VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, observation units provide independent replicates, observations follow those units over time, and one immutable model version analyzes every image in an experiment.
+VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, units provide independent replicates, observations follow those units over time, and one immutable model version analyzes every image in an experiment.
 
 The application has two independently deployed parts:
 
@@ -29,7 +29,7 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `models`, `model_versions`                                                                                                                                      | Detector tasks, class definitions, derived metrics, runtime manifests, and immutable artifacts |
 | `images`                                                                                                                                                        | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes                      |
-| `experiments`, `experiment_treatments`, `experiment_observation_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations under one fixed model version                    |
+| `experiments`, `experiment_treatments`, `experiment_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations under one fixed model version                    |
 | `inference_outcomes`                                                                                                                                            | The single success-or-failure outcome for an image and model-version pair                      |
 | `annotations`                                                                                                                                                   | Current reviewer annotations for an image and model                                          |
 | `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
@@ -55,15 +55,15 @@ An Experiment's name is unique across the workbench, compared without regard to 
 
 A Treatment names one condition the experiment compares. It may record that condition as a factor, level, and unit, written as applied; a treatment described in prose alone has no factor. Light, temperature, and other protocol that every treatment shares belong on the experiment. The factor and note can be filled in at any point.
 
-An ObservationUnit is one independent experimental unit and exists before any image does. Its code is unique within the experiment. Creating a treatment may generate `T1-1` through `T1-n`, or name the condition first and add observation units later. Units can also be added from codes already attached to physical dishes, then assigned. Correcting a code preserves the unit identity and every record attached to it. Objects within a unit are measured in each observation image.
+A Unit is one independent experimental unit, the vessel a treatment is applied to, and exists before any image does. Every unit replicates exactly one treatment: an experiment is created with its design, at least one treatment laid out in replicates coded `T1-1` through `T1-n`, and a treatment can gain replicates later. Its code is unique within the experiment. Correcting a code, or moving a unit to the treatment it actually received, preserves the unit identity and every record attached to it. Objects within a unit are measured in each observation image.
 
-Observation dates may be planned before every unit is assigned. Treatments, observation units, assignments, protocol fields, and observation dates stay correctable so a miswritten label can be fixed. An observation unit with images or culture events cannot be deleted, because those records belong to the physical unit. An inoculation date cannot move past an existing observation. An observation with an image or culture event cannot be deleted. An experiment with images or culture events cannot be hard-deleted.
+Observation dates may be planned before any image exists. Treatments, units, protocol fields, and observation dates stay correctable so a miswritten label can be fixed. A unit with images or culture events cannot be deleted, because those records belong to the physical unit; a treatment is deleted with its units, so one whose units have records cannot be deleted either. An inoculation date cannot move past an existing observation. An observation with an image or culture event cannot be deleted. An experiment with images or culture events cannot be hard-deleted.
 
-A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Discarded, harvested, and missing are terminal events: the unit is absent from every later observation and analysis denominator, and a unit has at most one. Whether an event excludes the unit from analysis follows from its type: contaminated, discarded, and missing do, while a nonviable unit is a result rather than a loss and a harvested unit was measured. An event recorded by mistake is removed. Treatment rows show the observation-unit mean, sample standard deviation, and `n` over eligible independent units.
+A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Discarded, harvested, and missing are terminal events: the unit is absent from every later observation and analysis denominator, and a unit has at most one. Whether an event excludes the unit from analysis follows from its type: contaminated, discarded, and missing do, while a nonviable unit is a result rather than a loss and a harvested unit was measured. An event recorded by mistake is removed. Treatment rows show the per-unit mean, sample standard deviation, and `n` over eligible independent units.
 
 An Observation is one occasion, dated by the day it happened and named by the days since inoculation. It cannot precede inoculation. An experiment is observed once a day at most, and observations are ordered by that day.
 
-Observation images are assigned to the units they show, one per observation unit per observation. A source filename is retained for traceability but is not an identifier; it provides an initial code suggestion that the operator confirms. An image assigned to the wrong cell can be reassigned or unassigned without changing the canonical image, its inference outcome, or its annotation.
+Observation images are assigned to the units they show, one per unit per observation. A source filename is retained for traceability but is not an identifier; it provides an initial code suggestion that the operator confirms. An image assigned to the wrong cell can be reassigned or unassigned without changing the canonical image, its inference outcome, or its annotation.
 
 An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. Those bytes determine the image digest, dimensions, browser view, inference input, and training input.
 
@@ -75,7 +75,7 @@ A Dataset travels as a manifest and the canonical images it names. The manifest 
 
 ## Scope
 
-The current workbench covers one stable culture stage per Experiment, one standardized image per observation unit and observation, and derived metrics under one fixed detector version. Derived metrics are per-image class counts or proportions within the same image; rates that require a separately recorded baseline population are outside the current scope. Objects detected within an observation unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
+The current workbench covers one stable culture stage per Experiment, one standardized image per unit and observation, and derived metrics under one fixed detector version. Derived metrics are per-image class counts or proportions within the same image; rates that require a separately recorded baseline population are outside the current scope. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
 ## Source development
 

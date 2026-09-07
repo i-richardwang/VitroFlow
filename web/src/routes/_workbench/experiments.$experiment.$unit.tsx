@@ -1,37 +1,34 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { ObservationUnitWorkbench } from "../../components/experiment/ObservationUnitWorkbench";
-import {
-  observationUnitRefSchema,
-  observationIdSchema,
-} from "../../experiments/schema";
-import { getObservationUnit } from "../../functions/experiments";
+import { UnitWorkbench } from "../../components/experiment/UnitWorkbench";
+import { unitRefSchema, observationIdSchema } from "../../experiments/schema";
+import { getUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
-import type { ObservationUnitSeries } from "../../experiments/contracts";
+import type { UnitSeries } from "../../experiments/contracts";
 
 /**
  * An observation the link cannot name is no observation: the newest shows.
  * `edit` opens the image's review for editing.
  */
-const observationUnitSearchSchema = z.object({
+const unitSearchSchema = z.object({
   observation: observationIdSchema.optional().catch(undefined),
   edit: z.literal(true).optional().catch(undefined),
 });
 
 export const Route = createFileRoute(
-  "/_workbench/experiments/$experiment/$observationUnit",
+  "/_workbench/experiments/$experiment/$unit",
 )({
-  validateSearch: observationUnitSearchSchema,
+  validateSearch: unitSearchSchema,
   loaderDeps: ({ search }) => ({ observation: search.observation }),
   loader: async ({ params, deps }) => {
-    const ref = observationUnitRefSchema.safeParse({
+    const ref = unitRefSchema.safeParse({
       experiment: params.experiment,
-      observationUnit: params.observationUnit,
+      unit: params.unit,
     });
     if (!ref.success) throw notFound();
-    const series = await getObservationUnit({
+    const series = await getUnit({
       data: { ...ref.data, ...deps },
     });
     if (!series) throw notFound();
@@ -39,29 +36,28 @@ export const Route = createFileRoute(
   },
   staticData: {
     crumbs: ({ loaderData }) => {
-      const { experiment, observationUnit } =
-        loaderData as ObservationUnitSeries;
+      const { experiment, unit } = loaderData as UnitSeries;
       return [
         { label: m.experiments_title(), href: "/experiments" },
         { label: experiment.name, href: `/experiments/${experiment.id}` },
-        { label: observationUnit.code, mono: true },
+        { label: unit.code, mono: true },
       ];
     },
   },
   head: ({ loaderData }) => {
-    const { experiment, observationUnit } = loaderData as ObservationUnitSeries;
+    const { experiment, unit } = loaderData as UnitSeries;
     return {
       meta: [
         {
-          title: `${observationUnit.code} · ${experiment.name} · ${m.app_name()}`,
+          title: `${unit.code} · ${experiment.name} · ${m.app_name()}`,
         },
       ],
     };
   },
-  component: ObservationUnitPage,
+  component: UnitPage,
 });
 
-function ObservationUnitPage() {
+function UnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
   const { edit } = Route.useSearch();
   const router = useRouter();
@@ -75,8 +71,8 @@ function ObservationUnitPage() {
   );
 
   return (
-    <ObservationUnitWorkbench
-      key={`${series.experiment.id}/${series.observationUnit.id}`}
+    <UnitWorkbench
+      key={`${series.experiment.id}/${series.unit.id}`}
       series={series}
       datasets={datasets}
       editing={edit === true}

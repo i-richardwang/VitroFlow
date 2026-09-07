@@ -1,57 +1,39 @@
-import { ActionBar } from "@heroui-pro/react/action-bar";
 import { DataGrid, type DataGridColumn } from "@heroui-pro/react/data-grid";
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import {
-  Alert,
-  Button,
-  Chip,
-  Dropdown,
-  Link,
-  ListBox,
-  Select,
-  Separator,
-  Tooltip,
-  type Selection,
-} from "@heroui/react";
+import { Button, Link, ListBox, Select, Tooltip } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useMemo, useState, type ReactElement } from "react";
 import { z } from "zod";
 
-import { AddObservationUnitsDialog } from "../../components/experiment/AddObservationUnitsDialog";
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
 import { NewObservationDialog } from "../../components/experiment/NewObservationDialog";
 import { ObservationMenu } from "../../components/experiment/ObservationMenu";
 import { TreatmentDialog } from "../../components/experiment/TreatmentDialog";
-import {
-  ObservationUnitTreatmentMenu,
-  TreatmentChoices,
-} from "../../components/experiment/TreatmentChoices";
+import { TreatmentDot } from "../../components/experiment/TreatmentDot";
+import { TreatmentMenu } from "../../components/experiment/TreatmentMenu";
+import { UnitDialog } from "../../components/experiment/UnitDialog";
 import { Hint } from "../../components/Hint";
-import { CloseIcon, ExperimentsIcon } from "../../components/icons";
+import { EditIcon, ExperimentsIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
 import type {
   ExperimentGrid,
   ObservationImageCell,
-  ObservationUnit,
+  Unit,
 } from "../../experiments/contracts";
 import {
   observationOrdinals,
   type ObservationOrdinals,
-  observationUnitIsAvailableAt,
-  observationUnitIsIncludedInAnalysis,
+  unitIsAvailableAt,
+  unitIsIncludedInAnalysis,
 } from "../../experiments/culture-events";
-import { designIssues } from "../../experiments/design";
 import {
   experimentIdSchema,
+  formatFactor,
   observationLabel,
   type ExperimentObservation,
   type Treatment,
 } from "../../experiments/schema";
-import {
-  assignObservationUnitsToTreatment,
-  getExperimentGrid,
-} from "../../functions/experiments";
-import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { getExperimentGrid } from "../../functions/experiments";
 import { useRouteRefresh } from "../../hooks/useRouteRefresh";
 import {
   computeMetric,
@@ -93,14 +75,17 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   component: ExperimentPage,
 });
 
-type Dialog = "treatment" | "units" | "observation";
+type Dialog =
+  | { kind: "treatment" }
+  | { kind: "observation" }
+  | { kind: "unit"; unit: Unit };
 
 function ExperimentPage() {
   const {
     experiment,
     model,
     treatments,
-    observationUnits,
+    units,
     observations,
     images,
     datasets,
@@ -110,68 +95,65 @@ function ExperimentPage() {
   const { metric: metricId } = Route.useSearch();
   const metric =
     model.metrics.find((item) => item.id === metricId) ?? primaryMetric(model);
-
   const [open, setOpen] = useState<Dialog | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
+  const close = () => setOpen(null);
 
   const waiting = images.some((image) => image.state === "pending");
   useRouteRefresh(router, 5000, waiting);
 
   const cells = new Map(
-    images.map((image) => [
-      cellKey(image.observationUnit, image.observation),
-      image,
-    ]),
+    images.map((image) => [cellKey(image.unit, image.observation), image]),
   );
   const ordinals = observationOrdinals(observations);
-  const hasObservations = observations.length > 0;
   const hasRecords =
-    images.length > 0 ||
-    observationUnits.some(
-      (observationUnit) => observationUnit.events.length > 0,
-    );
-  const unresolvedDesign = designIssues(treatments, observationUnits);
-  const rows = experimentRows(treatments, observationUnits);
-  const selected = pickedObservationUnits(selectedKeys, rows);
+    images.length > 0 || units.some((unit) => unit.events.length > 0);
+  const rows = experimentRows(treatments, units);
   const columns = useMemo(
     (): DataGridColumn<GridRow>[] => [
       {
-        id: "treatment",
+        id: "design",
         header: m.experiment_column_treatment(),
         isRowHeader: true,
-        cell: (row) => {
-          if (row.kind === "group") {
-            return (
-              <span className="truncate font-medium">
-                {treatmentLabel(row.treatment)}
+        cell: (row) =>
+          row.kind === "treatment" ? (
+            <span className="flex items-center gap-2">
+              <TreatmentDot position={row.treatment.position} />
+              <span className="truncate font-medium">{row.treatment.name}</span>
+              {row.treatment.factor ? (
+                <span className="truncate text-muted">
+                  {formatFactor(row.treatment.factor)}
+                </span>
+              ) : null}
+              <span className="ms-auto">
+                <TreatmentMenu
+                  experiment={experiment.id}
+                  treatment={row.treatment}
+                />
               </span>
-            );
-          }
-          const observationUnit = row.unit;
-          return (
-            <span className="flex items-center gap-2 font-mono font-medium">
-              <ObservationUnitTreatmentMenu
-                experiment={experiment.id}
-                observationUnit={observationUnit}
-                treatments={treatments}
-                onEdit={(treatment) => {
-                  setEditing(treatment);
-                  setOpen("treatment");
-                }}
-                onNew={() => {
-                  setEditing(null);
-                  setOpen("treatment");
-                }}
-              />
-              <Link
-                href={`/experiments/${experiment.id}/${observationUnit.id}`}
-              >
-                {observationUnit.code}
-              </Link>
             </span>
-          );
-        },
+          ) : (
+            <span className="flex items-center gap-2 ps-6 font-mono font-medium">
+              <Link href={`/experiments/${experiment.id}/${row.unit.id}`}>
+                {row.unit.code}
+              </Link>
+              <span className="ms-auto">
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger>
+                    <Button
+                      variant="ghost"
+                      isIconOnly
+                      size="sm"
+                      aria-label={m.unit_edit()}
+                      onPress={() => setOpen({ kind: "unit", unit: row.unit })}
+                    >
+                      <EditIcon />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{m.unit_edit()}</Tooltip.Content>
+                </Tooltip>
+              </span>
+            </span>
+          ),
       },
       ...observations.map((observation): DataGridColumn<GridRow> => ({
         id: observation.id,
@@ -185,37 +167,25 @@ function ExperimentPage() {
             <ObservationMenu
               experiment={experiment.id}
               observation={observation}
-              observationUnits={observationUnits.filter((observationUnit) =>
-                observationUnitIsAvailableAt(
-                  observationUnit.events,
-                  observation,
-                  ordinals,
-                ),
+              units={units.filter((unit) =>
+                unitIsAvailableAt(unit.events, observation, ordinals),
               )}
               assigned={assignedIn(images, observation.id)}
             />
           </span>
         ),
         cell: (row) =>
-          row.kind === "group" ? (
+          row.kind === "treatment" ? (
             <span className="font-medium">
-              {row.treatment
-                ? groupSummary(
-                    metric,
-                    row.children,
-                    observation,
-                    cells,
-                    ordinals,
-                  )
-                : "—"}
+              {groupSummary(metric, row.units, observation, cells, ordinals)}
             </span>
           ) : (
             <Cell
               experiment={experiment.id}
               metric={metric}
-              observationUnit={row.unit}
+              unit={row.unit}
               image={cells.get(cellKey(row.unit.id, observation.id))}
-              counted={observationUnitIsIncludedInAnalysis(
+              counted={unitIsIncludedInAnalysis(
                 row.unit.events,
                 observation,
                 ordinals,
@@ -224,16 +194,7 @@ function ExperimentPage() {
           ),
       })),
     ],
-    [
-      cells,
-      experiment.id,
-      images,
-      metric,
-      observationUnits,
-      observations,
-      ordinals,
-      treatments,
-    ],
+    [cells, experiment.id, images, metric, observations, ordinals, units],
   );
 
   return (
@@ -248,7 +209,7 @@ function ExperimentPage() {
         .join(" · ")}
       actions={
         <>
-          {hasObservations && model.metrics.length > 1 ? (
+          {observations.length > 0 && model.metrics.length > 1 ? (
             <Select
               aria-label={m.experiment_metric_select()}
               className="w-44"
@@ -284,7 +245,11 @@ function ExperimentPage() {
               </Select.Popover>
             </Select>
           ) : null}
-          <Button variant="primary" onPress={() => setOpen("observation")}>
+          <Button
+            variant="primary"
+            isDisabled={units.length === 0}
+            onPress={() => setOpen({ kind: "observation" })}
+          >
             {m.observation_new()}
           </Button>
           <ExperimentMenu
@@ -292,104 +257,61 @@ function ExperimentPage() {
             images={images}
             datasets={datasets}
             hasRecords={hasRecords}
-            onAddUnits={() => setOpen("units")}
+            onNewTreatment={() => setOpen({ kind: "treatment" })}
           />
         </>
       }
     >
-      {observationUnits.length === 0 && observations.length === 0 ? (
+      {treatments.length === 0 ? (
         <EmptyState size="sm">
           <EmptyState.Header>
             <EmptyState.Media variant="icon">
               <ExperimentsIcon />
             </EmptyState.Media>
-            <EmptyState.Title>{m.experiment_empty_units()}</EmptyState.Title>
+            <EmptyState.Title>{m.experiment_empty_design()}</EmptyState.Title>
           </EmptyState.Header>
           <EmptyState.Content>
-            <Button variant="primary" onPress={() => setOpen("units")}>
-              {m.observation_units_add()}
-            </Button>
             <Button
-              variant="tertiary"
-              onPress={() => {
-                setEditing(null);
-                setOpen("treatment");
-              }}
+              variant="primary"
+              onPress={() => setOpen({ kind: "treatment" })}
             >
               {m.treatment_new()}
             </Button>
           </EmptyState.Content>
         </EmptyState>
       ) : (
-        <>
-          {unresolvedDesign.length > 0 ? (
-            <Alert status="warning">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>{unresolvedDesign[0]}</Alert.Title>
-                {unresolvedDesign.length > 1 ? (
-                  <Alert.Description>
-                    {unresolvedDesign.slice(1).join(" ")}
-                  </Alert.Description>
-                ) : null}
-              </Alert.Content>
-            </Alert>
-          ) : null}
-          <DataGrid
-            showSelectionCheckboxes
-            aria-label={m.experiment_grid_label({
-              metric: metricName(metric),
-              experiment: experiment.name,
-            })}
-            columns={columns}
-            data={rows}
-            defaultExpandedKeys={rows.map((row) => row.id)}
-            disabledKeys={rows.map((row) => row.id)}
-            getChildren={(row) =>
-              row.kind === "group" ? row.children : undefined
-            }
-            getRowId={(row) => row.id}
-            selectedKeys={selectedKeys}
-            selectionMode="multiple"
-            treeColumn="treatment"
-            onSelectionChange={setSelectedKeys}
-          />
-          <AssignmentBar
-            experiment={experiment.id}
-            treatments={treatments}
-            selected={selected}
-            onNew={() => {
-              setEditing(null);
-              setOpen("treatment");
-            }}
-            onDone={() => setSelectedKeys(new Set())}
-          />
-        </>
+        <DataGrid
+          aria-label={m.experiment_grid_label({
+            metric: metricName(metric),
+            experiment: experiment.name,
+          })}
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+        />
       )}
 
       <TreatmentDialog
         experiment={experiment.id}
-        treatment={
-          treatments.find((treatment) => treatment.id === editing) ?? null
-        }
-        isOpen={open === "treatment"}
-        onClose={() => {
-          setOpen(null);
-          setEditing(null);
-        }}
-      />
-      <AddObservationUnitsDialog
-        experiment={experiment.id}
-        treatments={treatments}
-        isOpen={open === "units"}
-        onClose={() => setOpen(null)}
+        treatment={null}
+        isOpen={open?.kind === "treatment"}
+        onClose={close}
       />
       <NewObservationDialog
         experiment={experiment.id}
         inoculatedOn={experiment.inoculatedOn}
-        isOpen={open === "observation"}
-        onClose={() => setOpen(null)}
+        isOpen={open?.kind === "observation"}
+        onClose={close}
       />
+      {open?.kind === "unit" ? (
+        <UnitDialog
+          experiment={experiment.id}
+          unit={open.unit}
+          treatments={treatments}
+          isOpen
+          onClose={close}
+        />
+      ) : null}
     </Page>
   );
 }
@@ -401,91 +323,12 @@ function assignedIn(
   return new Set(
     images
       .filter((image) => image.observation === observation)
-      .map((image) => image.observationUnit),
+      .map((image) => image.unit),
   );
 }
 
-function AssignmentBar({
-  experiment,
-  treatments,
-  selected,
-  onNew,
-  onDone,
-}: {
-  experiment: string;
-  treatments: Treatment[];
-  selected: string[];
-  onNew: () => void;
-  onDone: () => void;
-}) {
-  const router = useRouter();
-  const { busy, run } = useAsyncAction();
-  return (
-    <ActionBar
-      isOpen={selected.length > 0}
-      aria-label={m.experiment_selection_label()}
-    >
-      <ActionBar.Prefix>
-        <Chip className="size-5 shrink-0 tabular-nums" size="sm">
-          {selected.length}
-        </Chip>
-      </ActionBar.Prefix>
-      <Separator />
-      <ActionBar.Content>
-        <Dropdown>
-          <Button size="sm" variant="ghost" isDisabled={busy}>
-            {m.experiment_assign_to()}
-          </Button>
-          <TreatmentChoices
-            label={m.experiment_selection_treatment_label({
-              count: selected.length,
-            })}
-            treatments={treatments}
-            onPick={(treatment) => {
-              void run(
-                () =>
-                  assignObservationUnitsToTreatment({
-                    data: {
-                      experiment,
-                      observationUnits: selected,
-                      treatment,
-                    },
-                  }),
-                m.observation_units_not_assigned(),
-              ).then(async (result) => {
-                if (!result.ok) return;
-                onDone();
-                await router.invalidate();
-              });
-            }}
-            onNew={onNew}
-          />
-        </Dropdown>
-      </ActionBar.Content>
-      <Separator />
-      <ActionBar.Suffix>
-        <Tooltip delay={0}>
-          <Tooltip.Trigger>
-            <Button
-              size="sm"
-              variant="ghost"
-              isIconOnly
-              isDisabled={busy}
-              aria-label={m.experiment_clear_selection()}
-              onPress={onDone}
-            >
-              <CloseIcon />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content>{m.experiment_clear()}</Tooltip.Content>
-        </Tooltip>
-      </ActionBar.Suffix>
-    </ActionBar>
-  );
-}
-
-function cellKey(observationUnit: string, observation: string): string {
-  return `${observation}\0${observationUnit}`;
+function cellKey(unit: string, observation: string): string {
+  return `${observation}\0${unit}`;
 }
 
 function cellTally(
@@ -496,72 +339,29 @@ function cellTally(
   return image.annotationTally ?? image.detectionTally;
 }
 
-type UnitRow = {
-  kind: "unit";
-  id: string;
-  unit: ObservationUnit;
-};
+type GridRow =
+  | { kind: "treatment"; id: string; treatment: Treatment; units: Unit[] }
+  | { kind: "unit"; id: string; unit: Unit; treatment: Treatment };
 
-type GroupRow = {
-  kind: "group";
-  id: string;
-  treatment: Treatment | null;
-  children: UnitRow[];
-};
-
-type GridRow = GroupRow | UnitRow;
-
-function treatmentLabel(treatment: Treatment | null): string {
-  return treatment?.name ?? m.treatment_none();
-}
-
-function experimentRows(
-  treatments: Treatment[],
-  observationUnits: ObservationUnit[],
-): GroupRow[] {
-  const rows: GroupRow[] = [];
-  for (const treatment of treatments) {
-    const units = observationUnits.filter(
-      (observationUnit) => observationUnit.treatment === treatment.id,
-    );
-    if (units.length === 0) continue;
-    rows.push(groupRow(treatment, units));
-  }
-  const unassigned = observationUnits.filter(
-    (observationUnit) => observationUnit.treatment === null,
-  );
-  if (unassigned.length > 0) {
-    rows.push(groupRow(null, unassigned));
-  }
-  return rows;
-}
-
-function groupRow(
-  treatment: Treatment | null,
-  units: ObservationUnit[],
-): GroupRow {
-  return {
-    kind: "group",
-    id: treatment?.id ?? "unassigned",
-    treatment,
-    children: units.map((unit) => ({
-      kind: "unit",
-      id: unit.id,
-      unit,
-    })),
-  };
-}
-
-function pickedObservationUnits(keys: Selection, rows: GroupRow[]): string[] {
-  const units = rows.flatMap((row) => row.children.map((child) => child.id));
-  if (keys === "all") return units;
-  const selected = new Set([...keys].map(String));
-  return units.filter((id) => selected.has(id));
+/** The design as rows: each treatment, then the units that replicate it. */
+function experimentRows(treatments: Treatment[], units: Unit[]): GridRow[] {
+  return treatments.flatMap((treatment): GridRow[] => {
+    const replicates = units.filter((unit) => unit.treatment === treatment.id);
+    return [
+      { kind: "treatment", id: treatment.id, treatment, units: replicates },
+      ...replicates.map((unit): GridRow => ({
+        kind: "unit",
+        id: unit.id,
+        unit,
+        treatment,
+      })),
+    ];
+  });
 }
 
 function groupSummary(
   metric: DerivedMetric,
-  units: UnitRow[],
+  units: Unit[],
   observation: ExperimentObservation,
   cells: Map<string, ObservationImageCell>,
   ordinals: ObservationOrdinals,
@@ -570,14 +370,10 @@ function groupSummary(
     metric,
     summarizeMetric(
       metric,
-      units.flatMap((row) => {
+      units.flatMap((unit) => {
         const counts = cellTally(
-          cells.get(cellKey(row.unit.id, observation.id)),
-          observationUnitIsIncludedInAnalysis(
-            row.unit.events,
-            observation,
-            ordinals,
-          ),
+          cells.get(cellKey(unit.id, observation.id)),
+          unitIsIncludedInAnalysis(unit.events, observation, ordinals),
         );
         return counts ? [counts] : [];
       }),
@@ -588,18 +384,18 @@ function groupSummary(
 function Cell({
   experiment,
   metric,
-  observationUnit,
+  unit,
   image,
   counted,
 }: {
   experiment: string;
   metric: DerivedMetric;
-  observationUnit: ObservationUnit;
+  unit: Unit;
   image: ObservationImageCell | undefined;
   counted: boolean;
 }) {
   if (!image) return <span className="text-muted">—</span>;
-  const href = `/experiments/${experiment}/${observationUnit.id}?observation=${image.observation}`;
+  const href = `/experiments/${experiment}/${unit.id}?observation=${image.observation}`;
   const value = (counts: Tally) =>
     formatMetric(metric, computeMetric(metric, counts));
   const dimmed = counted ? "" : "text-muted line-through";

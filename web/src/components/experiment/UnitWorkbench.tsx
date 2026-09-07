@@ -16,8 +16,8 @@ import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import type {
-  ObservationUnitNavigationEntry,
-  ObservationUnitSeries,
+  UnitNavigationEntry,
+  UnitSeries,
 } from "../../experiments/contracts";
 import { AddToDatasetButton } from "../dataset/AddToDatasetDialog";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
@@ -25,38 +25,39 @@ import { Workbench, WorkbenchActions, WorkbenchToolbar } from "../Workbench";
 import { ImageWorkbench } from "../workbench/ImageWorkbench";
 import { StepButton } from "../workbench/StepButton";
 import { Metrics, Section } from "../workbench/inspector";
-import { ObservationUnitMenu } from "./ObservationUnitMenu";
+import { UnitMenu } from "./UnitMenu";
 
-export function ObservationUnitWorkbench({
+export function UnitWorkbench({
   series,
   datasets,
   editing,
   onEditingChange,
 }: {
-  series: ObservationUnitSeries;
+  series: UnitSeries;
   datasets: string[];
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
 }) {
-  const { experiment, model, observationUnit, treatment, navigation, shown } =
-    series;
-  const at = navigation.findIndex((item) => item.id === observationUnit.id);
-  const title = m.observation_unit_title({
-    code: observationUnit.code,
+  const { experiment, model, unit, treatments, navigation, shown } = series;
+  const treatment = treatments.find((item) => item.id === unit.treatment)!;
+  const at = navigation.findIndex((item) => item.id === unit.id);
+  const title = m.unit_title({
+    code: unit.code,
     experiment: experiment.name,
   });
   const latestEvent = latestCultureEvent(
-    observationUnit.events,
+    unit.events,
     observationOrdinals(series.observations.map((item) => item.observation)),
   );
 
   const menu = (
-    <ObservationUnitMenu
+    <UnitMenu
       experiment={experiment.id}
-      observationUnit={observationUnit}
+      unit={unit}
+      treatments={treatments}
       observations={series.observations.map((item) => item.observation)}
       canRemove={
-        observationUnit.events.length === 0 &&
+        unit.events.length === 0 &&
         !series.observations.some((item) => item.image)
       }
       image={shown}
@@ -65,7 +66,7 @@ export function ObservationUnitWorkbench({
   );
   const toolbar = (
     <>
-      <ObservationUnitStepper
+      <UnitStepper
         experiment={experiment.id}
         editing={editing}
         previous={navigation[at - 1] ?? null}
@@ -83,15 +84,13 @@ export function ObservationUnitWorkbench({
     return (
       <Workbench title={title}>
         <WorkbenchActions>{menu}</WorkbenchActions>
-        <WorkbenchToolbar label={m.observation_unit_navigation()}>
+        <WorkbenchToolbar label={m.unit_navigation()}>
           {toolbar}
         </WorkbenchToolbar>
         <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
           <EmptyState>
             <EmptyState.Header>
-              <EmptyState.Title>
-                {m.observation_unit_no_image()}
-              </EmptyState.Title>
+              <EmptyState.Title>{m.unit_no_image()}</EmptyState.Title>
             </EmptyState.Header>
           </EmptyState>
         </div>
@@ -114,27 +113,25 @@ export function ObservationUnitWorkbench({
         menu,
         toolbar,
         details: (
-          <Section title={m.observation_unit_image_section()}>
+          <Section title={m.unit_image_section()}>
             <Metrics
               rows={[
                 {
                   label: m.treatment_label(),
-                  value: treatment?.name ?? (
-                    <span className="text-muted">{m.treatment_none()}</span>
-                  ),
+                  value: treatment.name,
                 },
                 {
-                  label: m.observation_unit_status(),
+                  label: m.unit_status(),
                   value: latestEvent
                     ? cultureEventLabel(latestEvent.type)
                     : m.culture_status_active(),
                 },
                 {
-                  label: m.observation_unit_file(),
+                  label: m.unit_file(),
                   value: shown.review.filename,
                 },
                 {
-                  label: m.observation_unit_observed(),
+                  label: m.unit_observed(),
                   value: shown.observation.observedOn,
                 },
               ]}
@@ -143,9 +140,7 @@ export function ObservationUnitWorkbench({
               <Alert status="danger">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Title>
-                    {m.observation_unit_detection_failed()}
-                  </Alert.Title>
+                  <Alert.Title>{m.unit_detection_failed()}</Alert.Title>
                   <Alert.Description>{shown.failure.error}</Alert.Description>
                 </Alert.Content>
                 <RetryButton image={shown.ref} />
@@ -162,7 +157,7 @@ function ObservationSwitch({
   series,
   shown,
 }: {
-  series: ObservationUnitSeries;
+  series: UnitSeries;
   shown: string | null;
 }) {
   const router = useRouter();
@@ -180,10 +175,10 @@ function ObservationSwitch({
         );
         if (!item?.image) return;
         void router.navigate({
-          to: "/experiments/$experiment/$observationUnit",
+          to: "/experiments/$experiment/$unit",
           params: {
             experiment: series.experiment.id,
-            observationUnit: series.observationUnit.id,
+            unit: series.unit.id,
           },
           search: (previous) => ({ ...previous, observation }),
         });
@@ -202,7 +197,7 @@ function ObservationSwitch({
   );
 }
 
-function ObservationUnitStepper({
+function UnitStepper({
   experiment,
   editing,
   previous,
@@ -211,27 +206,27 @@ function ObservationUnitStepper({
   experiment: string;
   /** Stepping while editing opens the next unit's image for editing too. */
   editing: boolean;
-  previous: ObservationUnitNavigationEntry | null;
-  next: ObservationUnitNavigationEntry | null;
+  previous: UnitNavigationEntry | null;
+  next: UnitNavigationEntry | null;
 }) {
   const router = useRouter();
-  const go = (observationUnit: string) =>
+  const go = (unit: string) =>
     void router.navigate({
-      to: "/experiments/$experiment/$observationUnit",
-      params: { experiment, observationUnit },
+      to: "/experiments/$experiment/$unit",
+      params: { experiment, unit },
       search: editing ? { edit: true } : {},
     });
   return (
     <ButtonGroup variant="tertiary">
       <StepButton
-        label={m.observation_unit_previous()}
+        label={m.unit_previous()}
         neighbour={previous?.code ?? null}
         onPress={() => previous && go(previous.id)}
       >
         <ChevronLeftIcon />
       </StepButton>
       <StepButton
-        label={m.observation_unit_next()}
+        label={m.unit_next()}
         neighbour={next?.code ?? null}
         onPress={() => next && go(next.id)}
       >
@@ -253,12 +248,12 @@ function RetryButton({ image }: { image: ObservationImageRef }) {
       onPress={async () => {
         const result = await action.run(
           () => retryObservationImageAnalysis({ data: image }),
-          m.observation_unit_retry_failed(),
+          m.unit_retry_failed(),
         );
         if (result.ok) await router.invalidate();
       }}
     >
-      {m.observation_unit_retry()}
+      {m.unit_retry()}
     </Button>
   );
 }

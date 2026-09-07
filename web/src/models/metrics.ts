@@ -110,7 +110,7 @@ export function computeMetric(
 
 /**
  * The metric over replicates: the typical observation-unit value and its
- * spread. Observation units without a value are absent. The spread is the
+ * spread. Units without a value are absent. The spread is the
  * sample standard deviation, which a single replicate does not have.
  */
 export interface MetricSummary {
