@@ -8,13 +8,6 @@
   --muted: #6b6b73;
 }
 
-/* Layout geometry. Sidebar tokens are defined here so viewport-fixed
-   chrome in the main column can share them. */
-[data-app-layout] {
-  --sidebar-width: 240px;
-  --sidebar-width-collapsed: 48px;
-}
-
 /* The shell is the viewport. Image screens stretch inside the main
    column, so that column is a flex parent. */
 [data-app-layout].sidebar__provider,
@@ -26,6 +19,12 @@
 [data-app-layout][data-scroll-mode="content"] .app-layout__main {
   display: flex;
   flex-direction: column;
+}
+
+/* ActionBar is viewport-fixed; sit it in the main column, not over the sidebar. */
+[data-app-layout] {
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 48px;
 }
 
 @media (min-width: 769px) {

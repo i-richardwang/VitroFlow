@@ -157,6 +157,15 @@ export function CloseIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function EventIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 5.5V8l2 1.5" />
+    </Icon>
+  );
+}
+
 export function KeyIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

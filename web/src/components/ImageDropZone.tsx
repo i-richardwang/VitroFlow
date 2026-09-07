@@ -9,6 +9,7 @@ import {
   sourceImageFileError,
 } from "../images/canonical";
 import { m } from "../paraglide/messages";
+import { getLocale } from "../paraglide/runtime";
 
 export interface ListedImage {
   id: number;
@@ -143,7 +144,22 @@ function extension(name: string): string {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const locale = getLocale();
+  if (bytes < 1024) {
+    return new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: "byte",
+      unitDisplay: "short",
+    }).format(bytes);
+  }
+  if (bytes < 1024 ** 2) {
+    const amount = new Intl.NumberFormat(locale, {
+      maximumFractionDigits: 0,
+    }).format(bytes / 1024);
+    return `${amount} KiB`;
+  }
+  const amount = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 1,
+  }).format(bytes / 1024 ** 2);
+  return `${amount} MiB`;
 }

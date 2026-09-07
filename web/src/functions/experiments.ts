@@ -18,7 +18,9 @@ import {
   treatmentUpdateSchema,
   unitRefSchema,
   unitRequestSchema,
+  unitsTreatmentUpdateSchema,
   unitUpdateSchema,
+  cultureEventsRequestSchema,
 } from "../experiments/schema";
 import { listDatasetsForModel } from "../server/datasets";
 import {
@@ -28,6 +30,7 @@ import {
   deleteExperiment,
   deleteTreatment,
   deleteUnit,
+  moveUnits,
   updateExperiment,
   updateTreatment,
   updateUnit,
@@ -35,6 +38,7 @@ import {
 import {
   deleteCultureEvent,
   recordCultureEvent,
+  recordCultureEvents,
 } from "../server/culture-events";
 import * as observationImages from "../server/experiment-observation-images";
 import {
@@ -121,6 +125,10 @@ export const editUnit = createServerFn({ method: "POST" })
   .validator(unitUpdateSchema)
   .handler(({ data }) => updateUnit(data));
 
+export const editUnitsTreatment = createServerFn({ method: "POST" })
+  .validator(unitsTreatmentUpdateSchema)
+  .handler(({ data }) => moveUnits(data));
+
 export const removeUnit = createServerFn({ method: "POST" })
   .validator(unitRefSchema)
   .handler(({ data }) => deleteUnit(data));
@@ -128,6 +136,10 @@ export const removeUnit = createServerFn({ method: "POST" })
 export const createCultureEvent = createServerFn({ method: "POST" })
   .validator(cultureEventRequestSchema)
   .handler(({ data }) => recordCultureEvent(data));
+
+export const createCultureEvents = createServerFn({ method: "POST" })
+  .validator(cultureEventsRequestSchema)
+  .handler(({ data }) => recordCultureEvents(data));
 
 export const removeCultureEvent = createServerFn({ method: "POST" })
   .validator(cultureEventRefSchema)

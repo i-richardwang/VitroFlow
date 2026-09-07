@@ -159,6 +159,10 @@ function distinctNames(items: readonly { name: string }[]): boolean {
   return new Set(names).size === names.length;
 }
 
+function distinctIds(ids: readonly string[]): boolean {
+  return new Set(ids).size === ids.length;
+}
+
 /** An experiment is created with its design: at least one treatment. */
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
@@ -256,6 +260,19 @@ export const unitUpdateSchema = unitRefSchema.extend({
 
 export type UnitUpdate = z.infer<typeof unitUpdateSchema>;
 
+/** Several units move to one treatment; each keeps its code. */
+export const unitsTreatmentUpdateSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  units: z
+    .array(unitIdSchema)
+    .min(1)
+    .max(200)
+    .refine(distinctIds, "Units must be distinct"),
+  treatment: treatmentIdSchema,
+});
+
+export type UnitsTreatmentUpdate = z.infer<typeof unitsTreatmentUpdateSchema>;
+
 export const cultureEventIdSchema = z.uuid();
 
 /** Something that happened to a unit, seen at an observation. */
@@ -274,6 +291,20 @@ export const cultureEventRequestSchema = unitRefSchema.extend({
 });
 
 export type CultureEventRequest = z.infer<typeof cultureEventRequestSchema>;
+
+/** The same event, recorded on several units at one observation. */
+export const cultureEventsRequestSchema = z.strictObject({
+  experiment: experimentIdSchema,
+  units: z
+    .array(unitIdSchema)
+    .min(1)
+    .max(200)
+    .refine(distinctIds, "Units must be distinct"),
+  type: cultureEventTypeSchema,
+  observation: observationIdSchema,
+});
+
+export type CultureEventsRequest = z.infer<typeof cultureEventsRequestSchema>;
 
 export const cultureEventRefSchema = z.strictObject({
   experiment: experimentIdSchema,

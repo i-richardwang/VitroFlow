@@ -76,13 +76,8 @@ export function DestructiveActionButton({
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={title}
-        onPress={() => setOpen(true)}
-      >
-        {m.action_in_progress({ action: label })}
+      <Button variant="ghost" size="sm" onPress={() => setOpen(true)}>
+        {label}
       </Button>
       <DestructiveActionDialog
         isOpen={open}

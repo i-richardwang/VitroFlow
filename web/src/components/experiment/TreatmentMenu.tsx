@@ -24,7 +24,7 @@ export function TreatmentMenu({
   return (
     <>
       <Dropdown>
-        <Button variant="ghost" isIconOnly size="sm" aria-label={label}>
+        <Button variant="tertiary" isIconOnly size="sm" aria-label={label}>
           <MoreIcon />
         </Button>
         <Dropdown.Popover placement="bottom end">

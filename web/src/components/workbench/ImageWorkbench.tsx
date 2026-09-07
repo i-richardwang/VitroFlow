@@ -1,5 +1,6 @@
 import { InlineSelect } from "@heroui-pro/react/inline-select";
 import {
+  AlertDialog,
   Button,
   ButtonGroup,
   Kbd,
@@ -356,12 +357,19 @@ function Editor({
   const [activeClass, setActiveClass] = useState(model.classes[0]!);
 
   const dirty = history.canUndo;
-  useBlocker({
-    shouldBlockFn: () =>
-      !closing.current &&
-      (saving || (dirty && !window.confirm(m.workbench_discard_confirm()))),
-    enableBeforeUnload: () => (dirty || saving) && !closing.current,
+  const shouldBlockLeave = useCallback(
+    () => !closing.current && (saving || dirty),
+    [saving, dirty],
+  );
+  const blocker = useBlocker({
+    shouldBlockFn: shouldBlockLeave,
+    enableBeforeUnload: shouldBlockLeave,
+    withResolver: true,
   });
+
+  useEffect(() => {
+    if (blocker.status === "blocked" && saving) blocker.reset();
+  }, [blocker, saving]);
 
   const close = useCallback(() => {
     closing.current = true;
@@ -507,6 +515,9 @@ function Editor({
           onInstancesChange={editInstances}
         />
       )}
+      {blocker.status === "blocked" && !saving ? (
+        <DiscardDraftDialog onStay={blocker.reset} onLeave={blocker.proceed} />
+      ) : null}
     </>
   );
 }
@@ -734,4 +745,41 @@ function useShortcuts({
       window.removeEventListener("keyup", onKeyUp);
     };
   }, [enabled, onPanChange, onToolChange, onEscape, onDelete, onUndo, onRedo]);
+}
+
+function DiscardDraftDialog({
+  onStay,
+  onLeave,
+}: {
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  return (
+    <AlertDialog
+      isOpen
+      onOpenChange={(open) => {
+        if (!open) onStay();
+      }}
+    >
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container size="sm">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>
+                {m.workbench_discard_confirm()}
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Footer>
+              <Button variant="tertiary" slot="close">
+                {m.cancel()}
+              </Button>
+              <Button variant="danger" onPress={onLeave}>
+                {m.workbench_discard()}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
 }

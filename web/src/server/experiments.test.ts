@@ -43,12 +43,17 @@ import {
   deleteUnit,
   deleteExperiment,
   deleteTreatment,
+  moveUnits,
   readExperiment,
   updateUnit,
   updateTreatment,
   updateExperiment,
 } from "./experiment-design";
-import { recordCultureEvent, deleteCultureEvent } from "./culture-events";
+import {
+  recordCultureEvent,
+  recordCultureEvents,
+  deleteCultureEvent,
+} from "./culture-events";
 import {
   assignObservationImages,
   moveObservationImage,
@@ -504,6 +509,50 @@ describe("experiments", () => {
     expect(
       (await readExperimentGrid(experiment.id))?.units.map((unit) => unit.code),
     ).toEqual(["T1-1"]);
+  });
+
+  test("several units can move to another treatment together", async () => {
+    const version = await trainedVersion("exp-move-units");
+    const experiment = await createExperiment({
+      name: "Move units",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+      treatments: [
+        { name: "CK", replicates: 3 },
+        { name: "T1", replicates: 1 },
+      ],
+    });
+    const [control, treated] = (await readExperimentGrid(experiment.id))!
+      .treatments;
+    const units = await unitsOf(experiment.id);
+
+    await expect(
+      moveUnits({
+        experiment: experiment.id,
+        units: [units.get("CK-1")!, units.get("CK-2")!, units.get("CK-3")!],
+        treatment: treated!.id,
+      }),
+    ).rejects.toThrow(UnitRejectedError);
+    expect(
+      (await readExperimentGrid(experiment.id))?.units.filter(
+        (unit) => unit.treatment === control!.id,
+      ),
+    ).toHaveLength(3);
+
+    const moved = await moveUnits({
+      experiment: experiment.id,
+      units: [units.get("CK-1")!, units.get("CK-2")!],
+      treatment: treated!.id,
+    });
+    expect(moved.map((unit) => unit.treatment)).toEqual([
+      treated!.id,
+      treated!.id,
+    ]);
+    expect(
+      (await readExperimentGrid(experiment.id))?.units.filter(
+        (unit) => unit.treatment === control!.id,
+      ),
+    ).toHaveLength(1);
   });
 
   test("a treatment leaves with its units unless they have records", async () => {
@@ -1106,6 +1155,47 @@ describe("experiments", () => {
       .select()
       .from(experimentCultureEvents);
     expect(rows.some((row) => row.id === event.id)).toBeFalse();
+  });
+
+  test("the same culture event can be recorded on several units", async () => {
+    const version = await trainedVersion("exp-bulk-events");
+    const experiment = await createExperiment({
+      name: "Bulk events",
+      inoculatedOn: INOCULATED,
+      modelVersionId: version.id,
+      treatments: [{ name: "A", replicates: 3 }],
+    });
+    const units = await unitsOf(experiment.id);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+    });
+
+    const events = await recordCultureEvents({
+      experiment: experiment.id,
+      units: [units.get("A-1")!, units.get("A-2")!],
+      type: "contaminated",
+      observation: day7.id,
+    });
+    expect(events.map((event) => event.type)).toEqual([
+      "contaminated",
+      "contaminated",
+    ]);
+
+    await expect(
+      recordCultureEvents({
+        experiment: experiment.id,
+        units: [units.get("A-2")!, units.get("A-3")!],
+        type: "contaminated",
+        observation: day7.id,
+      }),
+    ).rejects.toThrow(UnitRejectedError);
+    expect(
+      (await readExperimentGrid(experiment.id))?.units.filter((unit) =>
+        unit.events.some((event) => event.type === "contaminated"),
+      ),
+    ).toHaveLength(2);
   });
 
   test("analyzes images under the experiment version and exposes tallies", async () => {

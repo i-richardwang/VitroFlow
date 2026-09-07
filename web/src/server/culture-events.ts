@@ -23,6 +23,7 @@ import type {
   CultureEvent,
   CultureEventRef,
   CultureEventRequest,
+  CultureEventsRequest,
 } from "../experiments/schema";
 import {
   listObservations,
@@ -121,6 +122,30 @@ export async function recordCultureEvent(
     const event = updated?.events.find((item) => item.id === row.id);
     if (!event) throw new Error("Culture event was not read back");
     return event;
+  });
+}
+
+/** Records the same event on several units in one transaction. */
+export async function recordCultureEvents(
+  value: CultureEventsRequest,
+  executor?: Executor,
+): Promise<CultureEvent[]> {
+  return inTransaction(executor, async (tx) => {
+    const events: CultureEvent[] = [];
+    for (const unit of value.units) {
+      events.push(
+        await recordCultureEvent(
+          {
+            experiment: value.experiment,
+            unit,
+            type: value.type,
+            observation: value.observation,
+          },
+          tx,
+        ),
+      );
+    }
+    return events;
   });
 }
 

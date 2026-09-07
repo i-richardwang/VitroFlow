@@ -2,6 +2,7 @@ import { DataGrid, type DataGridColumn } from "@heroui-pro/react/data-grid";
 import { Button, Link, ListBox, Select, Tooltip } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useState, type ReactElement } from "react";
+import type { Selection } from "react-aria-components/Table";
 import { z } from "zod";
 
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
@@ -10,9 +11,8 @@ import { ObservationMenu } from "../../components/experiment/ObservationMenu";
 import { TreatmentDialog } from "../../components/experiment/TreatmentDialog";
 import { TreatmentDot } from "../../components/experiment/TreatmentDot";
 import { TreatmentMenu } from "../../components/experiment/TreatmentMenu";
-import { UnitDialog } from "../../components/experiment/UnitDialog";
+import { UnitSelectionBar } from "../../components/experiment/UnitSelectionBar";
 import { Hint } from "../../components/Hint";
-import { EditIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
 import type {
   ExperimentGrid,
@@ -74,10 +74,7 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   component: ExperimentPage,
 });
 
-type Dialog =
-  | { kind: "treatment" }
-  | { kind: "observation" }
-  | { kind: "unit"; unit: Unit };
+type Dialog = { kind: "treatment" } | { kind: "observation" };
 
 function ExperimentPage() {
   const {
@@ -95,6 +92,7 @@ function ExperimentPage() {
   const metric =
     model.metrics.find((item) => item.id === metricId) ?? primaryMetric(model);
   const [open, setOpen] = useState<Dialog | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
   const close = () => setOpen(null);
 
   const waiting = images.some((image) => image.state === "pending");
@@ -107,6 +105,7 @@ function ExperimentPage() {
   const hasRecords =
     images.length > 0 || units.some((unit) => unit.events.length > 0);
   const rows = experimentRows(treatments, units);
+  const selected = selectedUnits(rows, selectedKeys);
   const columns: DataGridColumn<GridRow>[] = [
     {
       id: "design",
@@ -122,42 +121,23 @@ function ExperimentPage() {
                 {formatFactor(row.treatment.factor)}
               </span>
             ) : null}
-            <span className="ms-auto">
-              <TreatmentMenu
-                experiment={experiment.id}
-                treatment={row.treatment}
-                deletable={treatments.length > 1}
-              />
-            </span>
           </span>
         ) : (
-          <span className="flex items-center gap-2 ps-6 font-mono font-medium">
-            <Link href={`/experiments/${experiment.id}/${row.unit.id}`}>
-              {row.unit.code}
-            </Link>
-            <span className="ms-auto">
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>
-                  <Button
-                    variant="ghost"
-                    isIconOnly
-                    size="sm"
-                    aria-label={m.unit_edit()}
-                    onPress={() => setOpen({ kind: "unit", unit: row.unit })}
-                  >
-                    <EditIcon />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>{m.unit_edit()}</Tooltip.Content>
-              </Tooltip>
-            </span>
-          </span>
+          <Link
+            href={`/experiments/${experiment.id}/${row.unit.id}`}
+            className="ps-6 font-mono font-medium"
+          >
+            {row.unit.code}
+          </Link>
         ),
+      minWidth: 200,
+      pinned: "start",
     },
     ...observations.map((observation): DataGridColumn<GridRow> => ({
       id: observation.id,
       align: "end",
       cellClassName: "font-mono tabular-nums",
+      minWidth: 140,
       header: (
         <span className="inline-flex w-full items-center justify-end gap-1">
           <Hint text={observation.note || observation.observedOn}>
@@ -192,6 +172,22 @@ function ExperimentPage() {
           />
         ),
     })),
+    {
+      align: "end",
+      allowsResizing: false,
+      cell: (row) =>
+        row.kind === "treatment" ? (
+          <TreatmentMenu
+            experiment={experiment.id}
+            treatment={row.treatment}
+            deletable={treatments.length > 1}
+          />
+        ) : null,
+      header: "",
+      id: "actions",
+      pinned: "end",
+      width: 50,
+    },
   ];
 
   return (
@@ -258,14 +254,30 @@ function ExperimentPage() {
         </>
       }
     >
-      <DataGrid
-        aria-label={m.experiment_grid_label({
-          metric: metricName(metric),
-          experiment: experiment.name,
-        })}
-        columns={columns}
-        data={rows}
-        getRowId={(row) => row.id}
+      <div className="pb-16">
+        <DataGrid
+          aria-label={m.experiment_grid_label({
+            metric: metricName(metric),
+            experiment: experiment.name,
+          })}
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+          selectionMode="multiple"
+          showSelectionCheckboxes
+          selectedKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
+          disabledKeys={rows
+            .filter((row) => row.kind === "treatment")
+            .map((row) => row.id)}
+        />
+      </div>
+      <UnitSelectionBar
+        experiment={experiment.id}
+        units={selected}
+        treatments={treatments}
+        observations={observations}
+        onClear={() => setSelectedKeys(new Set())}
       />
 
       <TreatmentDialog
@@ -280,15 +292,6 @@ function ExperimentPage() {
         isOpen={open?.kind === "observation"}
         onClose={close}
       />
-      {open?.kind === "unit" ? (
-        <UnitDialog
-          experiment={experiment.id}
-          unit={open.unit}
-          treatments={treatments}
-          isOpen
-          onClose={close}
-        />
-      ) : null}
     </Page>
   );
 }
@@ -319,6 +322,12 @@ function cellTally(
 type GridRow =
   | { kind: "treatment"; id: string; treatment: Treatment; units: Unit[] }
   | { kind: "unit"; id: string; unit: Unit };
+
+function selectedUnits(rows: GridRow[], keys: Selection): Unit[] {
+  const units = rows.flatMap((row) => (row.kind === "unit" ? [row.unit] : []));
+  if (keys === "all") return units;
+  return units.filter((unit) => keys.has(unit.id));
+}
 
 /** The design as rows: each treatment, then the units that replicate it. */
 function experimentRows(treatments: Treatment[], units: Unit[]): GridRow[] {

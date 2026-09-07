@@ -45,6 +45,24 @@
   "experiment_action_saving": "保存中…",
   "experiment_metric_select": "指标",
   "experiment_grid_label": "{experiment} 的{metric}",
+  "experiment_selection": "已选试验单元",
+  "experiment_selection_clear": "取消选择",
+  "experiment_move_units": "改处理",
+  "experiment_units_not_moved": "试验单元未移动",
+  "experiment_units_moved": [
+    {
+      "declarations": [
+        "input count",
+        "input treatment",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "已移至{treatment}",
+        "countPlural=other": "已将 {count} 个试验单元移至{treatment}"
+      }
+    }
+  ],
   "experiment_column_treatment": "处理",
   "experiment_cell_analyzed": "检测值 {value}",
   "experiment_cell_excluded": "本次观测不计入分析",
@@ -116,7 +134,20 @@
   "culture_event_record_action": "记录",
   "culture_event_recording": "记录中…",
   "culture_event_not_recorded": "事件未记录",
-  "culture_event_recorded": "已记录{event}",
+  "culture_event_recorded_for": [
+    {
+      "declarations": [
+        "input count",
+        "input event",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "已记录{event}",
+        "countPlural=other": "已为 {count} 个试验单元记录{event}"
+      }
+    }
+  ],
   "culture_event_menu_remove": "移除培养事件…",
   "culture_event_remove": "移除培养事件",
   "culture_event_remove_action": "移除事件",

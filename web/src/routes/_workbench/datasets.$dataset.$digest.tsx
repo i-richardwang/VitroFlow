@@ -131,16 +131,11 @@ function DatasetImagePage() {
             ) : null}
           </>
         ),
-        details: (
+        details: split ? (
           <Section title={m.image_section()}>
-            <Metrics
-              rows={[
-                { label: m.image_file(), value: review.filename },
-                ...(split ? [{ label: m.image_split(), value: split }] : []),
-              ]}
-            />
+            <Metrics rows={[{ label: m.image_split(), value: split }]} />
           </Section>
-        ),
+        ) : undefined,
       }}
     />
   );

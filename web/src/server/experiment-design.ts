@@ -37,6 +37,7 @@ import {
   type TreatmentRequest,
   type TreatmentUpdate,
   type UnitRef,
+  type UnitsTreatmentUpdate,
   type UnitUpdate,
 } from "../experiments/schema";
 import {
@@ -398,6 +399,32 @@ export async function updateUnit(
       .returning();
     if (!row) throw new UnitNotFoundError(`Unknown unit: ${unitId}`);
     return toUnit(row);
+  });
+}
+
+/** Moves several units to one treatment in one transaction; each keeps its code. */
+export async function moveUnits(
+  value: UnitsTreatmentUpdate,
+  executor?: Executor,
+): Promise<Unit[]> {
+  return inTransaction(executor, async (tx) => {
+    const moved: Unit[] = [];
+    for (const unitId of value.units) {
+      const units = await listUnits(value.experiment, tx);
+      const unit = requireUnit(units, unitId);
+      moved.push(
+        await updateUnit(
+          {
+            experiment: value.experiment,
+            unit: unitId,
+            code: unit.code,
+            treatment: value.treatment,
+          },
+          tx,
+        ),
+      );
+    }
+    return moved;
   });
 }
 

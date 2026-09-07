@@ -24,9 +24,11 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
             <Table.Column className="whitespace-nowrap text-right">
               {m.versions_column_trained_on()}
             </Table.Column>
-            <Table.Column className="text-right">mAP50</Table.Column>
+            <Table.Column className="text-right">
+              {m.epoch_series_map50()}
+            </Table.Column>
             <Table.Column className="whitespace-nowrap text-right">
-              mAP50-95
+              {m.epoch_series_map50_95()}
             </Table.Column>
           </Table.Header>
           <Table.Body

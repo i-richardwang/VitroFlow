@@ -45,6 +45,24 @@
   "experiment_action_saving": "Saving…",
   "experiment_metric_select": "Metric",
   "experiment_grid_label": "{metric} in {experiment}",
+  "experiment_selection": "Selected units",
+  "experiment_selection_clear": "Clear selection",
+  "experiment_move_units": "Move to treatment",
+  "experiment_units_not_moved": "Units not moved",
+  "experiment_units_moved": [
+    {
+      "declarations": [
+        "input count",
+        "input treatment",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Moved to {treatment}",
+        "countPlural=other": "{count} units moved to {treatment}"
+      }
+    }
+  ],
   "experiment_column_treatment": "Treatment",
   "experiment_cell_analyzed": "Analyzed {value}",
   "experiment_cell_excluded": "Excluded from analysis at this observation",
@@ -138,7 +156,20 @@
   "culture_event_record_action": "Record",
   "culture_event_recording": "Recording…",
   "culture_event_not_recorded": "Event not recorded",
-  "culture_event_recorded": "{event} recorded",
+  "culture_event_recorded_for": [
+    {
+      "declarations": [
+        "input count",
+        "input event",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{event} recorded",
+        "countPlural=other": "{event} recorded for {count} units"
+      }
+    }
+  ],
   "culture_event_menu_remove": "Remove culture event…",
   "culture_event_remove": "Remove culture event",
   "culture_event_remove_action": "Remove event",

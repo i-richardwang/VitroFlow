@@ -50,7 +50,7 @@ export function ObservationMenu({
     <>
       <Dropdown>
         <Button
-          variant="ghost"
+          variant="tertiary"
           isIconOnly
           size="sm"
           aria-label={m.observation_actions({ observation: name })}
