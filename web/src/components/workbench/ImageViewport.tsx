@@ -15,7 +15,8 @@ import type { Point } from "../../annotation/geometry";
 import type { ImageSize } from "../../annotation/schema";
 import { m } from "../../paraglide/messages";
 import {
-  FIT,
+  FILL,
+  pannedTo,
   resolveView,
   zoomedAbout,
   type Size,
@@ -103,8 +104,8 @@ export function usePanGesture(
 }
 
 /**
- * One image in a frame, fitted until zoomed. Wheel zooms about the cursor,
- * dragging pans, and the frame is re-fitted whenever it changes size.
+ * One image covering a frame until zoomed. Wheel zooms about the cursor,
+ * dragging pans, and the image re-covers the frame whenever it changes size.
  * Children are drawn over the image in image pixels.
  */
 export function ImageViewport({
@@ -118,7 +119,7 @@ export function ImageViewport({
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState<Size | null>(null);
-  const [intent, setIntent] = useState<ViewIntent>(FIT);
+  const [intent, setIntent] = useState<ViewIntent>(FILL);
   const { width, height } = image;
   const size = useMemo(() => ({ width, height }), [width, height]);
   const view = useMemo(
@@ -161,9 +162,9 @@ export function ImageViewport({
   const panTo = useCallback(
     (x: number, y: number) =>
       setIntent((current) =>
-        current.kind === "fit" ? current : { ...current, x, y },
+        frame ? pannedTo(resolveView(current, frame, size), x, y) : current,
       ),
-    [],
+    [frame, size],
   );
   const handle = useMemo<ViewportHandle>(
     () => ({
@@ -224,10 +225,10 @@ export function ImageViewport({
         <Button
           variant="ghost"
           size="sm"
-          isDisabled={view.fitted}
-          onPress={() => setIntent(FIT)}
+          isDisabled={view.filled}
+          onPress={() => setIntent(FILL)}
         >
-          {m.workbench_fit()}
+          {m.workbench_fill()}
         </Button>
       </Toolbar>
     </div>
