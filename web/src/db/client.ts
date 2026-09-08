@@ -62,3 +62,22 @@ export function inTransaction<T>(
 ): Promise<T> {
   return executor ? work(executor) : transaction(work);
 }
+
+/** Run several reads against one snapshot of the application database. */
+export async function snapshot<T>(
+  work: (tx: Executor) => Promise<T>,
+): Promise<T> {
+  const db = await database();
+  return db.transaction((tx) => work(tx), {
+    isolationLevel: "repeatable read",
+    accessMode: "read only",
+  });
+}
+
+/** Read within an existing unit of work or open a snapshot for a standalone read. */
+export function inSnapshot<T>(
+  executor: Executor | undefined,
+  work: (tx: Executor) => Promise<T>,
+): Promise<T> {
+  return executor ? work(executor) : snapshot(work);
+}

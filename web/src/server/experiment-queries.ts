@@ -9,7 +9,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 
-import { database, type Executor } from "../db/client";
+import { inSnapshot, snapshot, type Executor } from "../db/client";
 import {
   annotations,
   experimentObservationImages,
@@ -42,6 +42,7 @@ import {
   listTreatments,
   listUnits,
   readExperimentRecord,
+  requireObservation,
   toExperiment,
 } from "./experiment-records";
 import { toModel } from "./model-registry";
@@ -130,33 +131,41 @@ async function listObservationImageCells(
   return rows.map(toCell);
 }
 
-export async function readExperimentGrid(
+export function readExperimentGrid(
   experimentId: string,
 ): Promise<ExperimentGrid | null> {
-  const db = await database();
-  const experiment = await readExperimentRecord(experimentId, db);
-  if (!experiment) return null;
-  const [treatments, units, observations, observationImages] =
-    await Promise.all([
-      listTreatments(experimentId, db),
-      listUnits(experimentId, db),
-      listObservations(experiment, db),
-      listObservationImageCells(experimentId, db),
-    ]);
-  return {
-    experiment,
-    treatments,
-    units: unitOrder(units, treatments),
-    observations,
-    images: observationImages,
-  };
+  return snapshot(async (db) => {
+    const experiment = await readExperimentRecord(experimentId, db);
+    if (!experiment) return null;
+    const [treatments, units, observations, observationImages] =
+      await Promise.all([
+        listTreatments(experimentId, db),
+        listUnits(experimentId, db),
+        listObservations(experiment, db),
+        listObservationImageCells(experimentId, db),
+      ]);
+    return {
+      experiment,
+      treatments,
+      units: unitOrder(units, treatments),
+      observations,
+      images: observationImages,
+    };
+  });
 }
 
-export async function readUnit(
+export function readUnit(
   ref: UnitRef,
   observationId?: string,
 ): Promise<UnitSeries | null> {
-  const db = await database();
+  return snapshot((db) => readUnitSeries(ref, observationId, db));
+}
+
+async function readUnitSeries(
+  ref: UnitRef,
+  observationId: string | undefined,
+  db: Executor,
+): Promise<UnitSeries | null> {
   const experiment = await readExperimentRecord(ref.experiment, db);
   if (!experiment) return null;
   const [treatments, units, observations, cells] = await Promise.all([
@@ -210,8 +219,13 @@ export async function readUnit(
   };
 }
 
-export async function listExperiments(): Promise<ExperimentSummary[]> {
-  const db = await database();
+export function listExperiments(): Promise<ExperimentSummary[]> {
+  return snapshot(listExperimentSummaries);
+}
+
+async function listExperimentSummaries(
+  db: Executor,
+): Promise<ExperimentSummary[]> {
   const [base, treatmentRows, observationRows, observationImageRows] =
     await Promise.all([
       db
@@ -296,18 +310,23 @@ function atObservationImage(experimentId: string, observationImageId: string) {
   );
 }
 
-export async function readExperimentObservationImage(
+export function readExperimentObservationImage(
   ref: ObservationImageRef,
-  db?: Executor,
+  executor?: Executor,
 ): Promise<ExperimentObservationImage | null> {
-  const executor = db ?? (await database());
-  const [row] = await executor
+  return inSnapshot(executor, (db) => readObservationImage(ref, db));
+}
+
+async function readObservationImage(
+  ref: ObservationImageRef,
+  db: Executor,
+): Promise<ExperimentObservationImage | null> {
+  const [row] = await db
     .select({
       observationImage: experimentObservationImages,
       image: images,
       experiment: experiments,
       unit: experimentUnits,
-      observation: experimentObservations,
       model: models,
       outcome: inferenceOutcomes.document,
       annotation: annotations.document,
@@ -345,13 +364,10 @@ export async function readExperimentObservationImage(
     .where(atObservationImage(ref.experiment, ref.observationImage));
   if (!row) return null;
   const experiment = toExperiment(row.experiment);
-  const observations = await listObservations(experiment, executor);
-  const observation = observations.find(
-    (item) => item.id === row.observation.id,
+  const observation = requireObservation(
+    await listObservations(experiment, db),
+    row.observationImage.observationId,
   );
-  if (!observation) {
-    throw new Error(`Observation was not read back: ${row.observation.id}`);
-  }
   return {
     ref,
     experimentName: experiment.name,

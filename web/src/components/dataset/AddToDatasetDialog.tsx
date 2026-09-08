@@ -51,6 +51,7 @@ export function AddToDatasetButton({
   );
 }
 
+/** Adds images to one of the datasets offered, or to a new one. */
 export function AddToDatasetDialog({
   isOpen,
   images,
@@ -66,7 +67,23 @@ export function AddToDatasetDialog({
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const [choice, setChoice] = useState(datasets[0] ?? NEW_DATASET);
+
+  const submit = (dataset: string) => {
+    void run(
+      () => addToDataset({ data: { dataset, images } }),
+      m.dataset_add_nothing_added(),
+    ).then(async (result) => {
+      if (!result.ok) return;
+      const { added, existing } = result.value;
+      onClose();
+      toast.success(
+        existing > 0
+          ? m.dataset_add_result_existing({ added, dataset, existing })
+          : m.dataset_add_result({ added, dataset }),
+      );
+      await router.invalidate();
+    });
+  };
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
@@ -77,109 +94,107 @@ export function AddToDatasetDialog({
             <Modal.Header>
               <Modal.Heading>{heading}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body>
-              <Form
-                id="add-to-dataset"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  const dataset =
-                    choice === NEW_DATASET
-                      ? String(form.get("name") ?? "")
-                      : choice;
-                  void run(
-                    () => addToDataset({ data: { dataset, images } }),
-                    m.dataset_add_nothing_added(),
-                  ).then(async (result) => {
-                    if (result.ok) {
-                      const { added, existing } = result.value;
-                      onClose();
-                      toast.success(
-                        existing > 0
-                          ? m.dataset_add_result_existing({
-                              added,
-                              dataset,
-                              existing,
-                            })
-                          : m.dataset_add_result({ added, dataset }),
-                      );
-                      await router.invalidate();
-                    }
-                  });
-                }}
-              >
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={choice}
-                  onSelectionChange={(key) => {
-                    if (key != null) setChoice(String(key));
-                  }}
-                >
-                  <Label>{m.dataset_add_dataset_label()}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {datasets.map((dataset) => (
-                        <ListBox.Item
-                          key={dataset}
-                          id={dataset}
-                          textValue={dataset}
-                        >
-                          <span className="font-mono">{dataset}</span>
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                      <ListBox.Item
-                        id={NEW_DATASET}
-                        textValue={m.dataset_add_new()}
-                      >
-                        {m.dataset_add_new()}
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                {choice === NEW_DATASET ? (
-                  <TextField
-                    variant="secondary"
-                    fullWidth
-                    isRequired
-                    isDisabled={busy}
-                    name="name"
-                    pattern={DATASET_NAME_PATTERN}
-                  >
-                    <Label>{m.dataset_add_name_label()}</Label>
-                    <Input
-                      className="w-full"
-                      placeholder={m.dataset_add_name_placeholder()}
-                    />
-                    <FieldError />
-                  </TextField>
-                ) : null}
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="add-to-dataset"
-                variant="primary"
-                isDisabled={busy}
-              >
-                {busy ? m.dataset_add_submitting() : m.dataset_add_submit()}
-              </Button>
-            </Modal.Footer>
+            <DatasetChoice
+              key={isOpen ? "open" : "closed"}
+              busy={busy}
+              datasets={datasets}
+              onSubmit={submit}
+              onClose={onClose}
+            />
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
     </Modal>
+  );
+}
+
+function DatasetChoice({
+  busy,
+  datasets,
+  onSubmit,
+  onClose,
+}: {
+  busy: boolean;
+  datasets: string[];
+  onSubmit: (dataset: string) => void;
+  onClose: () => void;
+}) {
+  const [choice, setChoice] = useState(datasets[0] ?? NEW_DATASET);
+  return (
+    <>
+      <Modal.Body>
+        <Form
+          id="add-to-dataset"
+          className="flex w-full min-w-0 flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            onSubmit(
+              choice === NEW_DATASET ? String(form.get("name") ?? "") : choice,
+            );
+          }}
+        >
+          <Select
+            variant="secondary"
+            fullWidth
+            isDisabled={busy}
+            selectedKey={choice}
+            onSelectionChange={(key) => {
+              if (key != null) setChoice(String(key));
+            }}
+          >
+            <Label>{m.dataset_add_dataset_label()}</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {datasets.map((dataset) => (
+                  <ListBox.Item key={dataset} id={dataset} textValue={dataset}>
+                    <span className="font-mono">{dataset}</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+                <ListBox.Item id={NEW_DATASET} textValue={m.dataset_add_new()}>
+                  {m.dataset_add_new()}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          {choice === NEW_DATASET ? (
+            <TextField
+              variant="secondary"
+              fullWidth
+              isRequired
+              isDisabled={busy}
+              name="name"
+              pattern={DATASET_NAME_PATTERN}
+            >
+              <Label>{m.dataset_add_name_label()}</Label>
+              <Input
+                className="w-full"
+                placeholder={m.dataset_add_name_placeholder()}
+              />
+              <FieldError />
+            </TextField>
+          ) : null}
+        </Form>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+          {m.cancel()}
+        </Button>
+        <Button
+          type="submit"
+          form="add-to-dataset"
+          variant="primary"
+          isDisabled={busy}
+        >
+          {busy ? m.dataset_add_submitting() : m.dataset_add_submit()}
+        </Button>
+      </Modal.Footer>
+    </>
   );
 }

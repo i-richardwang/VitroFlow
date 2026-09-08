@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
+import { instancesFromDetection } from "../annotation/detection";
 import { makeResult } from "../annotation/testing";
 import { database } from "../db/client";
 import {
@@ -34,6 +35,7 @@ import {
   type Experiment,
   type ExperimentRequestInput,
 } from "../experiments/schema";
+import { storeAnnotation } from "./annotations";
 import { blobExists, imageBlobKey } from "./blobs";
 import { collectImages } from "./image-collection";
 import { recordInferenceOutcome } from "./inference-outcomes";
@@ -369,6 +371,121 @@ describe("experiments", () => {
         .where(eq(experimentObservations.id, observation.id));
     })();
     await expect(unknownVersion).rejects.toThrow();
+  });
+
+  test("observations of one experiment read different models and metrics", async () => {
+    const seeds = await trainedVersion("exp-stage-seeds");
+    await registerTestModel({
+      schemaVersion: 1,
+      id: "exp-stage-germination",
+      name: "Germination detector",
+      task: "object_detection",
+      classes: ["seed", "germinated"],
+      metrics: [
+        {
+          id: "germination",
+          name: "Germination",
+          kind: "proportion",
+          of: ["germinated"],
+          among: ["seed", "germinated"],
+        },
+        {
+          id: "seeds",
+          name: "Seeds",
+          kind: "count",
+          classes: ["seed", "germinated"],
+        },
+      ],
+    });
+    const germination = await registerTrainedVersion("exp-stage-germination");
+    const experiment = await createExperiment({
+      name: "Stages",
+      inoculatedOn: INOCULATED,
+    });
+    const units = await unitsOf(experiment.id);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+      ...reading(seeds),
+    });
+    const day14 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
+      modelVersionId: germination.id,
+      metric: "germination",
+    });
+    await assignImages(experiment.id, day7.id, units, { "A-1": "stage-d7" });
+    await assignImages(experiment.id, day14.id, units, { "A-1": "stage-d14" });
+    const digest = await imageDigest("stage-d14");
+    const grid = (await readExperimentGrid(experiment.id))!;
+    expect(
+      grid.observations.map((item) => [
+        item.day,
+        item.modelVersionId,
+        item.metric.id,
+        item.metric.kind,
+      ]),
+    ).toEqual([
+      [7, seeds.id, "seeds", "count"],
+      [14, germination.id, "germination", "proportion"],
+    ]);
+    const ref = {
+      experiment: experiment.id,
+      observationImage: grid.images.find((image) => image.digest === digest)!
+        .id,
+    };
+    const cell = async () =>
+      (await readExperimentGrid(experiment.id))!.images.find(
+        (image) => image.digest === digest,
+      )!;
+    const reread = async (modelVersionId: string, metric: string) =>
+      updateObservation({
+        experiment: experiment.id,
+        observation: day14.id,
+        observedOn: day14.observedOn,
+        note: day14.note,
+        modelVersionId,
+        metric,
+      });
+
+    const found = resultFor(germination, digest, 2);
+    await recordInferenceOutcome(
+      { versionId: germination.id, digest },
+      found,
+      worker,
+    );
+    await storeAnnotation(
+      { digest, modelId: germination.modelId },
+      instancesFromDetection(found),
+      null,
+    );
+    expect((await cell()).state).toBe("analyzed");
+    const before = (await readExperimentObservationImage(ref))!;
+    expect(before.model.id).toBe(germination.modelId);
+    expect(before.review.detection?.instances).toHaveLength(2);
+    expect(before.review.annotation).not.toBeNull();
+
+    await reread(seeds.id, "seeds");
+    expect((await cell()).state).toBe("pending");
+    const switched = (await readExperimentObservationImage(ref))!;
+    expect(switched.observation.metric.id).toBe("seeds");
+    expect(switched.model.id).toBe(seeds.modelId);
+    expect(switched.review.detection).toBeNull();
+    expect(switched.review.annotation).toBeNull();
+
+    await reread(germination.id, "germination");
+    expect((await cell()).state).toBe("analyzed");
+    const restored = (await readExperimentObservationImage(ref))!;
+    expect(restored.review.detection).toEqual(before.review.detection);
+    expect(restored.review.annotation).toEqual(before.review.annotation);
+
+    await reread(germination.id, "seeds");
+    expect((await cell()).state).toBe("analyzed");
+    const counted = (await readExperimentObservationImage(ref))!;
+    expect(counted.observation.metric.kind).toBe("count");
+    expect(counted.review.detection).toEqual(before.review.detection);
   });
 
   test("an observation can be scheduled before any image exists", async () => {
