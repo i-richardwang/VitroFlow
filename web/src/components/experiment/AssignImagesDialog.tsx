@@ -39,7 +39,6 @@ export function AssignImagesDialog({
     {},
   );
   const suggested = useRef(new Set<number>());
-
   const open = units.filter((unit) => !assigned.has(unit.id));
   const openUnits = useRef(open);
   openUnits.current = open;
@@ -100,120 +99,108 @@ export function AssignImagesDialog({
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body>
-              {open.length === 0 ? (
-                <Alert status="warning">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Title>
-                      {m.observation_images_all_assigned()}
-                    </Alert.Title>
-                  </Alert.Content>
-                </Alert>
-              ) : (
-                <Form
-                  id="assign-images"
-                  className="flex w-full min-w-0 flex-col gap-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void run(
-                      () =>
-                        assignImagesToObservation({
-                          data: {
-                            experiment,
-                            observation: observation.id,
-                            images: ready,
-                          },
-                        }),
-                      m.observation_images_not_assigned(),
-                    ).then(async (result) => {
-                      if (!result.ok) return;
-                      uploads.clearStored();
-                      setAssignments({});
-                      const count = result.value.assigned;
-                      toast.success(
-                        m.observation_images_assigned({
-                          count,
-                          observation: observationLabel(observation),
-                        }),
-                      );
-                      await router.invalidate();
-                      if (!uploads.failed) onClose();
-                    });
+              <Form
+                id="assign-images"
+                className="flex w-full min-w-0 flex-col gap-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(
+                    () =>
+                      assignImagesToObservation({
+                        data: {
+                          experiment,
+                          observation: observation.id,
+                          images: ready,
+                        },
+                      }),
+                    m.observation_images_not_assigned(),
+                  ).then(async (result) => {
+                    if (!result.ok) return;
+                    uploads.clearStored();
+                    setAssignments({});
+                    const count = result.value.assigned;
+                    toast.success(
+                      m.observation_images_assigned({
+                        count,
+                        observation: observationLabel(observation),
+                      }),
+                    );
+                    await router.invalidate();
+                    if (!uploads.failed) onClose();
+                  });
+                }}
+              >
+                <ImageDropZone
+                  images={uploads.images}
+                  onAdd={uploads.add}
+                  onRemove={(id) => {
+                    uploads.remove(id);
+                    setAssignments(({ [id]: _removed, ...rest }) => rest);
                   }}
-                >
-                  <ImageDropZone
-                    images={uploads.images}
-                    onAdd={uploads.add}
-                    onRemove={(id) => {
-                      uploads.remove(id);
-                      setAssignments(({ [id]: _removed, ...rest }) => rest);
-                    }}
-                    busy={busy}
-                    annotate={(image) => (
-                      <UnitChoice
-                        image={image}
-                        units={open}
-                        taken={
-                          new Set(
-                            Object.entries(assignments)
-                              .filter(
-                                ([id, unit]) =>
-                                  unit !== null && Number(id) !== image.id,
-                              )
-                              .map(([, unit]) => unit!),
-                          )
-                        }
-                        value={assignments[image.id] ?? null}
-                        busy={busy}
-                        onChange={(unit) =>
-                          setAssignments((current) => ({
-                            ...current,
-                            [image.id]: unit,
-                          }))
-                        }
-                      />
-                    )}
-                  />
-                  {unassigned > 0 ? (
-                    <Alert status="warning">
-                      <Alert.Indicator />
-                      <Alert.Content>
-                        <Alert.Title>
-                          {m.observation_images_remaining({
-                            count: unassigned,
-                          })}
-                        </Alert.Title>
-                      </Alert.Content>
-                    </Alert>
-                  ) : null}
-                </Form>
-              )}
+                  busy={busy}
+                  annotate={(image) => (
+                    <UnitChoice
+                      image={image}
+                      units={units}
+                      unavailable={
+                        new Set([
+                          ...assigned,
+                          ...Object.entries(assignments)
+                            .filter(
+                              ([id, unit]) =>
+                                unit !== null && Number(id) !== image.id,
+                            )
+                            .map(([, unit]) => unit!),
+                        ])
+                      }
+                      value={assignments[image.id] ?? null}
+                      busy={busy}
+                      onChange={(unit) =>
+                        setAssignments((current) => ({
+                          ...current,
+                          [image.id]: unit,
+                        }))
+                      }
+                    />
+                  )}
+                />
+                {unassigned > 0 ? (
+                  <Alert status="warning">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Title>
+                        {m.observation_images_remaining({
+                          count: unassigned,
+                        })}
+                      </Alert.Title>
+                    </Alert.Content>
+                  </Alert>
+                ) : null}
+              </Form>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
                 {m.cancel()}
               </Button>
-              {open.length === 0 ? null : (
-                <Button
-                  type="submit"
-                  form="assign-images"
-                  variant="primary"
-                  isDisabled={
-                    busy ||
-                    uploads.storing ||
-                    ready.length === 0 ||
-                    unassigned > 0
-                  }
-                >
-                  {busy
-                    ? m.observation_images_assigning()
-                    : uploads.storing
-                      ? m.observation_images_uploading()
-                      : m.observation_images_assign_count({
-                          count: ready.length,
-                        })}
-                </Button>
-              )}
+              <Button
+                type="submit"
+                form="assign-images"
+                variant="primary"
+                isDisabled={
+                  busy ||
+                  uploads.storing ||
+                  ready.length === 0 ||
+                  unassigned > 0
+                }
+              >
+                {busy
+                  ? m.observation_images_assigning()
+                  : uploads.storing
+                    ? m.observation_images_uploading()
+                    : m.observation_images_assign_count({
+                        count: ready.length,
+                      })}
+              </Button>
             </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
@@ -225,14 +212,14 @@ export function AssignImagesDialog({
 function UnitChoice({
   image,
   units,
-  taken,
+  unavailable,
   value,
   busy,
   onChange,
 }: {
   image: ListedImage;
   units: Unit[];
-  taken: ReadonlySet<string>;
+  unavailable: ReadonlySet<string>;
   value: string | null;
   busy: boolean;
   onChange: (unit: string | null) => void;
@@ -242,7 +229,7 @@ function UnitChoice({
     <InlineSelect
       aria-label={m.observation_images_unit_label({ file: image.file.name })}
       isDisabled={busy}
-      disabledKeys={[...taken]}
+      disabledKeys={[...unavailable]}
       selectedKey={value ?? UNASSIGNED}
       onSelectionChange={(key) =>
         onChange(key === UNASSIGNED ? null : String(key))

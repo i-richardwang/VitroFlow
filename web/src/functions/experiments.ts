@@ -7,7 +7,6 @@ import {
   experimentRequestSchema,
   experimentUpdateSchema,
   observationImageAssignmentSchema,
-  observationImageMoveSchema,
   observationImageRefSchema,
   observationRefSchema,
   observationRequestSchema,
@@ -174,10 +173,6 @@ export const removeObservation = createServerFn({ method: "POST" })
 export const assignImagesToObservation = createServerFn({ method: "POST" })
   .validator(observationImageAssignmentSchema)
   .handler(({ data }) => observationImages.assignObservationImages(data));
-
-export const reassignObservationImage = createServerFn({ method: "POST" })
-  .validator(observationImageMoveSchema)
-  .handler(({ data }) => observationImages.moveObservationImage(data));
 
 export const unassignObservationImage = createServerFn({ method: "POST" })
   .validator(observationImageRefSchema)

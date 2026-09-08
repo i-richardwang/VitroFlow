@@ -63,7 +63,7 @@ A CultureEvent records contamination, nonviability, discard, harvest, or a missi
 
 An Observation is one occasion, dated by the day it happened and named by the days since inoculation. It cannot precede inoculation. An experiment is observed once a day at most, and observations are ordered by that day.
 
-Observation images are assigned to the units they show, one per unit per observation. A source filename is retained for traceability but is not an identifier; it provides an initial code suggestion that the operator confirms. An image assigned to the wrong cell can be reassigned or unassigned without changing the canonical image, its inference outcome, or its annotation.
+Observation images are assigned to the units they show, one per unit per observation. A source filename is retained for traceability but is not an identifier; it provides an initial code suggestion that the operator confirms. A cell that already has an image can be given a different one. An assignment can be removed without changing the canonical image, its inference outcome, or its annotation.
 
 An uploaded JPEG, PNG, or TIFF is normalized to an oriented, opaque sRGB AVIF. Those bytes determine the image digest, dimensions, browser view, inference input, and training input.
 

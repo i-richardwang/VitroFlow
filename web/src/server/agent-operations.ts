@@ -22,7 +22,6 @@ import {
   experimentUpdateSchema,
   observationImageAssignmentResultSchema,
   observationImageAssignmentSchema,
-  observationImageMoveSchema,
   observationImageRefSchema,
   observationRefSchema,
   observationRequestSchema,
@@ -51,7 +50,6 @@ import {
 } from "./experiment-design";
 import {
   assignObservationImages,
-  moveObservationImage,
   retryObservationImageAnalysis,
   unassignObservationImage,
 } from "./experiment-observation-images";
@@ -320,19 +318,11 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "assign-images-to-observation",
     description:
-      "Attach stored images to units within one observation; upload bytes first to obtain each digest",
+      "Assign stored images to units in one observation; a cell that already has an image is given the new one; upload bytes first to obtain each digest",
     destructive: false,
     input: observationImageAssignmentSchema,
     output: observationImageAssignmentResultSchema,
     handler: (input, executor) => assignObservationImages(input, executor),
-  }),
-  command({
-    name: "reassign-observation-image",
-    description: "Move an observation image to another unit or observation",
-    destructive: true,
-    input: observationImageMoveSchema,
-    output: done,
-    handler: (input, executor) => moveObservationImage(input, executor),
   }),
   command({
     name: "unassign-observation-image",

@@ -43,6 +43,8 @@ export function ObservationMenu({
   const [open, setOpen] = useState<Action | null>(null);
   const close = () => setOpen(null);
   const name = observationLabel(observation);
+  const assigned = new Set(images.map((image) => image.unit));
+  const vacant = units.filter((unit) => !assigned.has(unit.id));
 
   return (
     <>
@@ -55,12 +57,14 @@ export function ObservationMenu({
             aria-label={m.observation_actions({ observation: name })}
             onAction={(key) => setOpen(String(key) as Action)}
           >
-            <Dropdown.Item
-              id="images"
-              textValue={m.observation_assign_images()}
-            >
-              <Label>{m.observation_menu_assign_images()}</Label>
-            </Dropdown.Item>
+            {vacant.length > 0 ? (
+              <Dropdown.Item
+                id="images"
+                textValue={m.observation_assign_images()}
+              >
+                <Label>{m.observation_menu_assign_images()}</Label>
+              </Dropdown.Item>
+            ) : null}
             {images.length > 0 ? (
               <Dropdown.Item
                 id="dataset"
@@ -88,14 +92,16 @@ export function ObservationMenu({
         </Dropdown.Popover>
       </Dropdown>
 
-      <AssignImagesDialog
-        experiment={experiment}
-        observation={observation}
-        units={units}
-        assigned={new Set(images.map((image) => image.unit))}
-        isOpen={open === "images"}
-        onClose={close}
-      />
+      {vacant.length > 0 ? (
+        <AssignImagesDialog
+          experiment={experiment}
+          observation={observation}
+          units={units}
+          assigned={assigned}
+          isOpen={open === "images"}
+          onClose={close}
+        />
+      ) : null}
 
       <AddToDatasetDialog
         isOpen={open === "dataset"}

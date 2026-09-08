@@ -15,7 +15,6 @@ import { useState } from "react";
 import type {
   ExperimentObservationImage,
   Unit,
-  UnitNavigationEntry,
 } from "../../experiments/contracts";
 import { cultureEventLabel } from "../../experiments/culture-events";
 import {
@@ -32,11 +31,11 @@ import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
-import { ReassignObservationImageModal } from "./ReassignObservationImageModal";
+import { ReplaceObservationImageModal } from "./ReplaceObservationImageModal";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 import { UnitDialog } from "./UnitDialog";
 
-type Action = "reassign" | "edit" | "record" | "remove-event" | "delete";
+type Action = "replace" | "edit" | "record" | "remove-event" | "delete";
 
 export function UnitMenu({
   experiment,
@@ -45,7 +44,6 @@ export function UnitMenu({
   observations,
   canRemove,
   image,
-  navigation,
 }: {
   experiment: string;
   unit: Unit;
@@ -53,7 +51,6 @@ export function UnitMenu({
   observations: ExperimentObservation[];
   canRemove: boolean;
   image: ExperimentObservationImage | null;
-  navigation: UnitNavigationEntry[];
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
@@ -93,8 +90,8 @@ export function UnitMenu({
             }}
           >
             {image ? (
-              <Dropdown.Item id="reassign" textValue={m.unit_reassign_image()}>
-                <Label>{m.unit_menu_reassign()}</Label>
+              <Dropdown.Item id="replace" textValue={m.unit_replace_image()}>
+                <Label>{m.unit_menu_replace()}</Label>
               </Dropdown.Item>
             ) : null}
             <Dropdown.Item id="edit" textValue={m.unit_edit()}>
@@ -162,11 +159,9 @@ export function UnitMenu({
       />
 
       {image ? (
-        <ReassignObservationImageModal
+        <ReplaceObservationImageModal
           image={image}
-          navigation={navigation}
-          observations={observations}
-          isOpen={open === "reassign"}
+          isOpen={open === "replace"}
           onClose={() => setOpen(null)}
         />
       ) : null}

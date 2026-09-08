@@ -62,7 +62,6 @@ describe("agent operations", () => {
       "remove-culture-event",
       "update-observation",
       "delete-observation",
-      "reassign-observation-image",
       "unassign-observation-image",
       "retry-observation-image-analysis",
     ]);

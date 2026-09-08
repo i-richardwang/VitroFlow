@@ -32,12 +32,14 @@ export function ImageDropZone({
   onRemove,
   busy,
   annotate,
+  multiple = true,
 }: {
   images: ListedImage[];
   onAdd: (files: File[]) => void;
   onRemove: (id: number) => void;
   busy: boolean;
   annotate?: (image: ListedImage) => ReactNode;
+  multiple?: boolean;
 }) {
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -46,9 +48,16 @@ export function ImageDropZone({
         if (error) toast.danger(file.name, { description: error });
         return error === null;
       });
-      if (accepted.length > 0) onAdd(accepted);
+      if (accepted.length === 0) return;
+      if (multiple) {
+        onAdd(accepted);
+        return;
+      }
+      for (const image of images) onRemove(image.id);
+      const [file] = accepted;
+      if (file) onAdd([file]);
     },
-    [onAdd],
+    [images, multiple, onAdd, onRemove],
   );
 
   return (
@@ -81,7 +90,7 @@ export function ImageDropZone({
         aria-label={m.dropzone_select()}
         accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
         disabled={busy}
-        multiple
+        multiple={multiple}
         onSelect={(list) => addFiles(Array.from(list))}
       />
       {images.length > 0 && (

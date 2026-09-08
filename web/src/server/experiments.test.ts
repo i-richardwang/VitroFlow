@@ -59,7 +59,6 @@ import {
 } from "./culture-events";
 import {
   assignObservationImages,
-  moveObservationImage,
   retryObservationImageAnalysis,
   unassignObservationImage,
 } from "./experiment-observation-images";
@@ -966,7 +965,7 @@ describe("experiments", () => {
     ).toEqual(["A-2", "T1-1"]);
   });
 
-  test("image assignment rejects duplicate units, filled cells, and reused images", async () => {
+  test("image assignment rejects duplicate units and reused images", async () => {
     const version = await trainedVersion("exp-assignment");
     const experiment = await createExperiment({
       name: "Image assignment",
@@ -1051,20 +1050,6 @@ describe("experiments", () => {
     });
     expect([assigned.assigned, assigned.observation.day]).toEqual([1, 7]);
 
-    await expect(
-      assignObservationImages({
-        experiment: experiment.id,
-        observation: day7.id,
-        images: [
-          {
-            unit: units.get("A-1")!,
-            digest: other!,
-            filename: "again.jpg",
-          },
-        ],
-      }),
-    ).rejects.toThrow(ObservationImageRejectedError);
-
     try {
       await assignObservationImages({
         experiment: experiment.id,
@@ -1094,8 +1079,97 @@ describe("experiments", () => {
     expect((await readExperimentGrid(experiment.id))?.images).toHaveLength(1);
   });
 
-  test("an image assigned to the wrong cell can be reassigned or unassigned", async () => {
-    const version = await trainedVersion("exp-reassign");
+  test("a filled cell can be given a different image", async () => {
+    const version = await trainedVersion("exp-replace");
+    const experiment = await createExperiment({
+      name: "Replace image",
+      inoculatedOn: INOCULATED,
+      treatments: [{ name: "A", replicates: 2 }],
+    });
+    const units = await unitsOf(experiment.id);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+      ...reading(version),
+    });
+    const [first, other, third] = await storeTexts(["r-a1", "r-a2", "r-a3"]);
+
+    await assignObservationImages({
+      experiment: experiment.id,
+      observation: day7.id,
+      images: [
+        {
+          unit: units.get("A-1")!,
+          digest: first!,
+          filename: "first.jpg",
+        },
+        {
+          unit: units.get("A-2")!,
+          digest: other!,
+          filename: "other.jpg",
+        },
+      ],
+    });
+
+    await expect(
+      assignObservationImages({
+        experiment: experiment.id,
+        observation: day7.id,
+        images: [
+          {
+            unit: units.get("A-1")!,
+            digest: other!,
+            filename: "stolen.jpg",
+          },
+        ],
+      }),
+    ).rejects.toThrow(ExperimentObservationImageAlreadyUsedError);
+
+    expect(
+      (
+        await assignObservationImages({
+          experiment: experiment.id,
+          observation: day7.id,
+          images: [
+            {
+              unit: units.get("A-1")!,
+              digest: third!,
+              filename: "third.jpg",
+            },
+          ],
+        })
+      ).assigned,
+    ).toBe(1);
+
+    const grid = await readExperimentGrid(experiment.id);
+    const byUnit = new Map(grid!.images.map((image) => [image.unit, image]));
+    expect(byUnit.get(units.get("A-1")!)?.digest).toBe(third);
+    expect(byUnit.get(units.get("A-1")!)?.filename).toBe("third.jpg");
+    expect(byUnit.get(units.get("A-2")!)?.digest).toBe(other);
+    expect(await blobExists(imageBlobKey(first!))).toBeTrue();
+
+    await assignObservationImages({
+      experiment: experiment.id,
+      observation: day7.id,
+      images: [
+        {
+          unit: units.get("A-2")!,
+          digest: first!,
+          filename: "moved.jpg",
+        },
+      ],
+    });
+    const after = await readExperimentGrid(experiment.id);
+    const afterByUnit = new Map(
+      after!.images.map((image) => [image.unit, image]),
+    );
+    expect(afterByUnit.get(units.get("A-1")!)?.digest).toBe(third);
+    expect(afterByUnit.get(units.get("A-2")!)?.digest).toBe(first);
+  });
+
+  test("an assignment can be unassigned and the image given to another unit", async () => {
+    const version = await trainedVersion("exp-unassign");
     const experiment = await createExperiment({
       name: "Refile",
       inoculatedOn: INOCULATED,
@@ -1108,30 +1182,57 @@ describe("experiments", () => {
       note: "",
       ...reading(version),
     });
-    await assignImages(experiment.id, day7.id, units, {
-      "A-1": "w-a1",
-      "A-2": "w-a2",
+    const [first, other] = await storeTexts(["w-a1", "w-a2"]);
+    await assignObservationImages({
+      experiment: experiment.id,
+      observation: day7.id,
+      images: [
+        {
+          unit: units.get("A-1")!,
+          digest: first!,
+          filename: "A-1.jpg",
+        },
+        {
+          unit: units.get("A-2")!,
+          digest: other!,
+          filename: "A-2.jpg",
+        },
+      ],
     });
     const images = await imagesByUnit(experiment.id);
 
     await expect(
-      moveObservationImage({
+      assignObservationImages({
         experiment: experiment.id,
-        observationImage: images.get("A-1")!,
-        unit: units.get("A-2")!,
         observation: day7.id,
+        images: [
+          {
+            unit: units.get("A-2")!,
+            digest: first!,
+            filename: "A-1.jpg",
+          },
+        ],
       }),
-    ).rejects.toThrow(ObservationImageRejectedError);
+    ).rejects.toThrow(ExperimentObservationImageAlreadyUsedError);
 
     await unassignObservationImage({
       experiment: experiment.id,
       observationImage: images.get("A-2")!,
     });
-    await moveObservationImage({
+    await unassignObservationImage({
       experiment: experiment.id,
       observationImage: images.get("A-1")!,
-      unit: units.get("A-2")!,
+    });
+    await assignObservationImages({
+      experiment: experiment.id,
       observation: day7.id,
+      images: [
+        {
+          unit: units.get("A-2")!,
+          digest: first!,
+          filename: "A-1.jpg",
+        },
+      ],
     });
 
     const grid = await readExperimentGrid(experiment.id);

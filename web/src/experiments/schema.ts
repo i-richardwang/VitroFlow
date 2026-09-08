@@ -405,13 +405,6 @@ export type ObservationImageAssignmentResult = z.infer<
   typeof observationImageAssignmentResultSchema
 >;
 
-export const observationImageMoveSchema = observationImageRefSchema.extend({
-  unit: unitIdSchema,
-  observation: observationIdSchema,
-});
-
-export type ObservationImageMove = z.infer<typeof observationImageMoveSchema>;
-
 export const IMAGE_ANALYSIS_STATES = ["pending", "failed", "analyzed"] as const;
 
 export const imageAnalysisStateSchema = z.enum(IMAGE_ANALYSIS_STATES);

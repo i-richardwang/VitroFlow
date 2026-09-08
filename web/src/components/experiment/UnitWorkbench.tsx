@@ -64,7 +64,6 @@ export function UnitWorkbench({
         )
       }
       image={shown}
-      navigation={navigation}
     />
   );
   const toolbar = (

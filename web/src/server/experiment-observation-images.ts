@@ -24,7 +24,6 @@ import {
   daysBetween,
   type ObservationImageAssignment,
   type ObservationImageAssignmentResult,
-  type ObservationImageMove,
   type ObservationImageRef,
 } from "../experiments/schema";
 import {
@@ -92,6 +91,30 @@ export async function assignObservationImages(
       );
     }
 
+    const filled = await tx
+      .select({
+        id: experimentObservationImages.id,
+      })
+      .from(experimentObservationImages)
+      .where(
+        and(
+          eq(experimentObservationImages.experimentId, experimentId),
+          eq(experimentObservationImages.observationId, observationId),
+          inArray(experimentObservationImages.unitId, unitIds),
+        ),
+      );
+    if (filled.length > 0) {
+      await tx.delete(experimentObservationImages).where(
+        and(
+          eq(experimentObservationImages.experimentId, experimentId),
+          inArray(
+            experimentObservationImages.id,
+            filled.map((row) => row.id),
+          ),
+        ),
+      );
+    }
+
     const used = await tx
       .select({
         digest: experimentObservationImages.imageId,
@@ -140,24 +163,6 @@ export async function assignObservationImages(
       );
     }
 
-    const filled = await tx
-      .select({
-        unit: experimentObservationImages.unitId,
-      })
-      .from(experimentObservationImages)
-      .where(
-        and(
-          eq(experimentObservationImages.experimentId, experimentId),
-          eq(experimentObservationImages.observationId, observationId),
-          inArray(experimentObservationImages.unitId, unitIds),
-        ),
-      );
-    if (filled.length > 0) {
-      throw new ObservationImageRejectedError(
-        `Some units already have images on day ${observation.day}`,
-      );
-    }
-
     await tx.insert(experimentObservationImages).values(
       assignments.map((assignment) => ({
         experimentId,
@@ -169,59 +174,6 @@ export async function assignObservationImages(
       })),
     );
     return { observation, assigned: assignments.length };
-  });
-}
-
-export async function moveObservationImage(
-  value: ObservationImageMove,
-  executor?: Executor,
-): Promise<void> {
-  const {
-    experiment: experimentId,
-    observationImage: observationImageId,
-    unit,
-    observation: observationId,
-  } = value;
-  await inTransaction(executor, async (tx) => {
-    const experiment = await lockExperiment(experimentId, tx);
-    const observations = await listObservations(experiment, tx);
-    const observation = requireObservation(observations, observationId);
-    const units = await listUnits(experimentId, tx);
-    const target = units.find((item) => item.id === unit);
-    if (!target) {
-      throw new UnitNotFoundError(`Unknown unit: ${unit}`);
-    }
-    const ordinals = observationOrdinals(observations);
-    if (!unitIsAvailableAt(target.events, observation, ordinals)) {
-      throw new ObservationImageRejectedError(
-        `${target.code} was removed before this observation`,
-      );
-    }
-    const [taken] = await tx
-      .select({ id: experimentObservationImages.id })
-      .from(experimentObservationImages)
-      .where(
-        and(
-          eq(experimentObservationImages.experimentId, experimentId),
-          eq(experimentObservationImages.unitId, unit),
-          eq(experimentObservationImages.observationId, observationId),
-        ),
-      );
-    if (taken && taken.id !== observationImageId) {
-      throw new ObservationImageRejectedError(
-        "That unit already has an image for this observation",
-      );
-    }
-    const [row] = await tx
-      .update(experimentObservationImages)
-      .set({ unitId: unit, observationId })
-      .where(atObservationImage(experimentId, observationImageId))
-      .returning({ id: experimentObservationImages.id });
-    if (!row) {
-      throw new ExperimentObservationImageNotFoundError(
-        `Unknown observation image: ${observationImageId}`,
-      );
-    }
   });
 }
 
