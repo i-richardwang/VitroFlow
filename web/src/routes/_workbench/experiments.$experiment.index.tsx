@@ -7,12 +7,10 @@ import type { Selection } from "react-aria-components/Table";
 import { ExperimentMenu } from "../../components/experiment/ExperimentMenu";
 import { ObservationDialog } from "../../components/experiment/ObservationDialog";
 import { ObservationMenu } from "../../components/experiment/ObservationMenu";
-import type { ReadableVersion } from "../../components/experiment/ReadingFields";
 import { TreatmentDialog } from "../../components/experiment/TreatmentDialog";
 import { TreatmentDot } from "../../components/experiment/TreatmentDot";
 import { TreatmentMenu } from "../../components/experiment/TreatmentMenu";
 import { UnitSelectionBar } from "../../components/experiment/UnitSelectionBar";
-import { Hint } from "../../components/Hint";
 import { Page } from "../../components/Page";
 import type {
   ExperimentGrid,
@@ -42,7 +40,7 @@ import {
   type DerivedMetric,
   type Tally,
 } from "../../models/metrics";
-import { metricName, modelVersionName } from "../../models/names";
+import { metricName } from "../../models/names";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
@@ -129,46 +127,31 @@ function ExperimentPage() {
     },
     ...observations.map((observation): DataGridColumn<GridRow> => {
       const { metric } = observation;
-      const read = readableVersion(versions, observation);
+      const reading = versions.find(
+        (item) => item.version.id === observation.modelVersionId,
+      );
       return {
         id: observation.id,
         align: "end",
         cellClassName: "font-mono tabular-nums",
         minWidth: 160,
         header: (
-          <span className="inline-flex w-full items-center justify-end gap-1">
-            <Hint
-              text={[
-                observation.observedOn,
-                modelVersionName(read.version),
-                observation.note,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            >
-              <span className="flex flex-col items-end leading-tight">
-                <span>{observationLabel(observation)}</span>
-                <span className="font-normal text-muted">
-                  {metricName(metric)}
-                </span>
-              </span>
-            </Hint>
-            <ObservationMenu
-              experiment={experiment.id}
-              inoculatedOn={experiment.inoculatedOn}
-              observation={observation}
-              units={units.filter((unit) =>
-                unitIsAvailableAt(unit.events, observation, ordinals),
-              )}
-              images={images.filter(
-                (image) => image.observation === observation.id,
-              )}
-              versions={versions}
-              datasets={datasets
-                .filter((dataset) => dataset.modelId === read.model.id)
-                .map((dataset) => dataset.id)}
-            />
-          </span>
+          <ObservationMenu
+            experiment={experiment.id}
+            inoculatedOn={experiment.inoculatedOn}
+            observation={observation}
+            label={observationHeading(observation, observations)}
+            units={units.filter((unit) =>
+              unitIsAvailableAt(unit.events, observation, ordinals),
+            )}
+            images={images.filter(
+              (image) => image.observation === observation.id,
+            )}
+            versions={versions}
+            datasets={datasets
+              .filter((dataset) => dataset.modelId === reading?.model.id)
+              .map((dataset) => dataset.id)}
+          />
         ),
         cell: (row) =>
           row.kind === "treatment" ? (
@@ -275,14 +258,16 @@ function ExperimentPage() {
   );
 }
 
-/** The version an observation reads with; the server keeps it registered. */
-function readableVersion(
-  versions: readonly ReadableVersion[],
+function observationHeading(
   observation: ExperimentObservation,
-): ReadableVersion {
-  return versions.find(
-    (item) => item.version.id === observation.modelVersionId,
-  )!;
+  observations: readonly ExperimentObservation[],
+): string {
+  const day = observationLabel(observation);
+  const metric = observations[0]?.metric.id;
+  if (metric && observations.every((item) => item.metric.id === metric)) {
+    return day;
+  }
+  return `${day} · ${metricName(observation.metric)}`;
 }
 
 function cellKey(unit: string, observation: string): string {

@@ -14,7 +14,6 @@ import {
 } from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { metricName } from "../../models/names";
 import { m } from "../../paraglide/messages";
 import type {
   UnitNavigationEntry,
@@ -137,10 +136,6 @@ export function UnitWorkbench({
                 {
                   label: m.unit_observed(),
                   value: shown.observation.observedOn,
-                },
-                {
-                  label: m.observation_metric_label(),
-                  value: metricName(shown.observation.metric),
                 },
               ]}
             />

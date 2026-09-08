@@ -47,6 +47,7 @@ export function ReadingFields({
   const chosen = versions.find(
     (item) => item.version.id === value.modelVersionId,
   );
+  const metrics = chosen?.model.metrics ?? [];
   return (
     <>
       <Select
@@ -87,37 +88,39 @@ export function ReadingFields({
         </Select.Popover>
         <FieldError />
       </Select>
-      <Select
-        variant="secondary"
-        fullWidth
-        isRequired
-        isDisabled={busy || !chosen}
-        selectedKey={value.metric}
-        onSelectionChange={(key) => {
-          if (key !== null) onChange({ ...value, metric: String(key) });
-        }}
-      >
-        <Label>{m.observation_metric_label()}</Label>
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator />
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox>
-            {(chosen?.model.metrics ?? []).map((metric) => (
-              <ListBox.Item
-                key={metric.id}
-                id={metric.id}
-                textValue={metricName(metric)}
-              >
-                {metricName(metric)}
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </Select.Popover>
-        <FieldError />
-      </Select>
+      {metrics.length > 1 ? (
+        <Select
+          variant="secondary"
+          fullWidth
+          isRequired
+          isDisabled={busy}
+          selectedKey={value.metric}
+          onSelectionChange={(key) => {
+            if (key !== null) onChange({ ...value, metric: String(key) });
+          }}
+        >
+          <Label>{m.observation_metric_label()}</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {metrics.map((metric) => (
+                <ListBox.Item
+                  key={metric.id}
+                  id={metric.id}
+                  textValue={metricName(metric)}
+                >
+                  {metricName(metric)}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+          <FieldError />
+        </Select>
+      ) : null}
     </>
   );
 }

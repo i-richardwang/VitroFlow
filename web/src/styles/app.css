@@ -21,21 +21,16 @@
   flex-direction: column;
 }
 
-/* ActionBar is viewport-fixed; sit it in the main column, not over the sidebar. */
-[data-app-layout] {
-  --sidebar-width: 240px;
-  --sidebar-width-collapsed: 48px;
-}
-
+/* ActionBar is viewport-fixed; inset it to the main column. */
 @media (min-width: 769px) {
   [data-app-layout] .action-bar {
-    inset-inline-start: var(--sidebar-width);
+    inset-inline-start: var(--sidebar-width, 240px);
   }
 
   [data-app-layout]:has(
       .sidebar[data-state="collapsed"]:not([data-collapsible="offcanvas"])
     )
     .action-bar {
-    inset-inline-start: var(--sidebar-width-collapsed);
+    inset-inline-start: var(--sidebar-width-collapsed, 48px);
   }
 }

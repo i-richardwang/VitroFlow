@@ -11,7 +11,6 @@ import { removeObservation } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
-import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
 import { ObservationDialog } from "./ObservationDialog";
 import type { ReadableVersion } from "./ReadingFields";
@@ -22,6 +21,7 @@ export function ObservationMenu({
   experiment,
   inoculatedOn,
   observation,
+  label,
   units,
   images,
   versions,
@@ -30,6 +30,7 @@ export function ObservationMenu({
   experiment: string;
   inoculatedOn: string;
   observation: ExperimentObservation;
+  label: string;
   /** The units that can still be photographed at this observation. */
   units: Unit[];
   /** The images taken at this observation. */
@@ -46,17 +47,12 @@ export function ObservationMenu({
   return (
     <>
       <Dropdown>
-        <Button
-          variant="tertiary"
-          isIconOnly
-          size="sm"
-          aria-label={m.observation_actions({ observation: name })}
-        >
-          <MoreIcon />
+        <Button variant="ghost" size="sm">
+          {label}
         </Button>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu
-            aria-label={name}
+            aria-label={m.observation_actions({ observation: name })}
             onAction={(key) => setOpen(String(key) as Action)}
           >
             <Dropdown.Item
