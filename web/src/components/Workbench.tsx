@@ -7,10 +7,9 @@ import { ShellActions, ShellAside } from "./shell";
 const ToolbarSlot = createContext<HTMLElement | null>(null);
 
 /**
- * A page built around one framed subject. What surrounds the frame is
- * filled from inside it: actions in the navbar, the inspector aside, and
- * the toolbar floating over the frame. A subtree that fills a slot takes
- * its contents with it when it goes.
+ * A page built around one framed subject. Actions belong in the navbar,
+ * facts in the inspector aside, and controls for the frame in the toolbar
+ * over it. The workbench fills those slots for as long as it is shown.
  */
 export function Workbench({
   title,
@@ -43,14 +42,16 @@ export { ShellActions as WorkbenchActions, ShellAside as WorkbenchInspector };
 export function WorkbenchToolbar({
   label,
   children,
+  inert,
 }: {
   label: string;
   children: ReactNode;
+  inert?: boolean;
 }) {
   const slot = use(ToolbarSlot);
   if (!slot) return null;
   return createPortal(
-    <Toolbar isAttached aria-label={label}>
+    <Toolbar isAttached aria-label={label} inert={inert || undefined}>
       {children}
     </Toolbar>,
     slot,

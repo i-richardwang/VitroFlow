@@ -16,8 +16,8 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
-  useRef,
   useReducer,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -36,6 +36,7 @@ import {
   openDraft,
   reduceDraft,
   type AnnotationDraft,
+  type DraftAction,
 } from "../../annotation/draft";
 import { tally } from "../../models/metrics";
 import { versionSlug, type Model } from "../../models/schema";
@@ -69,26 +70,25 @@ const DEFAULT_LAYERS: LayerKey[] = ["boxes"];
 
 /** What a page adds around the image: its own controls, navigation, and facts. */
 export interface ImageWorkbenchContext {
-  /** Controls beside the Edit button, put away while editing. */
+  /** Beside Edit. Hidden while a session is open. */
   actions?: ReactNode;
-  /** The page's own menu, last in the action area in both modes. */
+  /** Last in the navbar. */
   menu?: ReactNode;
-  /** Toolbar items before the editing tools. */
+  /** Before the editing tools. */
   toolbar?: ReactNode;
-  /** Inspector sections between the metrics and the layers. */
+  /** Between the metrics and the layers. */
   details?: ReactNode;
 }
 
 /**
  * One image reviewed for one model, wherever the page shows it.
  *
- * The image sits in one viewport for both modes, so opening or closing the
- * editor changes what is drawn over it and what surrounds it, never where
- * it is. Viewing shows what is stored: the review, or the detection until
- * there is one. Editing opens a draft of the boxes; the page keeps that
- * flag in its address so a link can open straight into editing. Done stores
- * the draft as the review and the page reloads what it shows; Cancel
- * discards the draft.
+ * The workbench owns the frame and the slots around it. A session is a
+ * draft of the boxes: Cancel and Done in the navbar, drawing tools on
+ * the toolbar, and an editable layer over the image. The page keeps that
+ * session in its address. The draft opens from the boxes already shown;
+ * the stored annotation is read as the save base and is not replaced by
+ * later route data. Done stores the draft; Cancel discards it.
  */
 export function ImageWorkbench({
   title,
@@ -114,9 +114,85 @@ export function ImageWorkbench({
   );
   const display = { layers, onLayersChange: setLayers };
   const opening = reviewInstances(review);
+  const session = useAnnotationSession({
+    editing,
+    opening,
+    review,
+    model,
+    onClose: () => onEditingChange(false),
+  });
+  const saving = session?.saving ?? false;
 
   return (
     <Workbench title={title}>
+      <WorkbenchActions>
+        {session ? (
+          <Button
+            key="cancel"
+            variant="tertiary"
+            isDisabled={saving}
+            onPress={session.close}
+          >
+            {m.cancel()}
+          </Button>
+        ) : null}
+        <Button
+          key="primary"
+          variant="primary"
+          isDisabled={!session && !opening}
+          isPending={Boolean(session && (!session.ready || saving))}
+          onPress={session ? session.done : () => onEditingChange(true)}
+        >
+          {session
+            ? saving
+              ? m.workbench_saving()
+              : m.workbench_done()
+            : m.workbench_edit()}
+        </Button>
+        {!session && context.actions}
+        <div inert={saving || undefined} className="contents">
+          {context.menu}
+        </div>
+      </WorkbenchActions>
+      {context.toolbar || session ? (
+        <WorkbenchToolbar
+          label={
+            session
+              ? m.workbench_navigation_and_tools()
+              : m.workbench_navigation()
+          }
+          inert={saving || undefined}
+        >
+          {context.toolbar}
+          {session ? (
+            <>
+              {context.toolbar ? <Separator /> : null}
+              <EditingTools
+                tool={session.tool}
+                history={session.history}
+                canDelete={session.selectedId !== null}
+                onToolChange={session.setTool}
+                onUndo={session.undo}
+                onRedo={session.redo}
+                onDelete={session.deleteSelected}
+                onRestart={session.restartFromDetection}
+                classes={model.classes}
+                className={session.className}
+                onClassChange={session.changeClass}
+              />
+            </>
+          ) : null}
+        </WorkbenchToolbar>
+      ) : null}
+      <WorkbenchInspector>
+        <ReviewInspector
+          model={model}
+          instances={session?.instances ?? review.annotation?.instances ?? null}
+          detection={review.detection}
+          display={display}
+          details={context.details}
+        />
+      </WorkbenchInspector>
       <ImageViewport
         image={{
           digest: review.ref.digest,
@@ -125,27 +201,32 @@ export function ImageWorkbench({
         }}
         filename={review.filename}
       >
-        {editing && opening ? (
-          <Editing
-            key={`${review.ref.modelId}:${review.ref.digest}`}
-            model={model}
-            review={review}
-            opening={opening}
-            display={display}
-            onClose={() => onEditingChange(false)}
-            context={context}
+        {session && !saving ? (
+          <EditableBoxLayer
+            image={review}
+            instances={session.instances}
+            layers={display.layers}
+            tool={session.tool}
+            panning={session.panning}
+            className={session.activeClass}
+            selectedId={session.selectedId}
+            onSelect={session.setSelectedId}
+            onInstancesChange={session.editInstances}
           />
         ) : (
-          <Viewing
-            model={model}
-            review={review}
-            version={version}
-            display={display}
-            onEdit={opening ? () => onEditingChange(true) : undefined}
-            context={context}
+          <BoxLayer
+            image={review}
+            instances={session?.instances ?? shownInstances(review, version)}
+            layers={display.layers}
           />
         )}
       </ImageViewport>
+      {session?.discard ? (
+        <DiscardDraftDialog
+          onStay={session.discard.onStay}
+          onLeave={session.discard.onLeave}
+        />
+      ) : null}
     </Workbench>
   );
 }
@@ -153,54 +234,6 @@ export function ImageWorkbench({
 interface Display {
   layers: ReadonlySet<LayerKey>;
   onLayersChange: (layers: Set<LayerKey>) => void;
-}
-
-function Viewing({
-  model,
-  review,
-  version,
-  display,
-  onEdit,
-  context,
-}: {
-  model: Model;
-  review: Review;
-  version: ReviewVersion;
-  display: Display;
-  /** Present once there is something to review. */
-  onEdit?: () => void;
-  context: ImageWorkbenchContext;
-}) {
-  return (
-    <>
-      <WorkbenchActions>
-        <Button variant="primary" isDisabled={!onEdit} onPress={onEdit}>
-          {m.workbench_edit()}
-        </Button>
-        {context.actions}
-        {context.menu}
-      </WorkbenchActions>
-      {context.toolbar ? (
-        <WorkbenchToolbar label={m.workbench_navigation()}>
-          {context.toolbar}
-        </WorkbenchToolbar>
-      ) : null}
-      <WorkbenchInspector>
-        <ReviewInspector
-          model={model}
-          instances={review.annotation?.instances ?? null}
-          detection={review.detection}
-          display={display}
-          details={context.details}
-        />
-      </WorkbenchInspector>
-      <BoxLayer
-        image={review}
-        instances={shownInstances(review, version)}
-        layers={display.layers}
-      />
-    </>
-  );
 }
 
 function ReviewInspector({
@@ -267,96 +300,121 @@ function detectionMetrics(modelId: string, result: DetectionResult): Metric[] {
   return rows;
 }
 
-interface EditingProps {
-  model: Model;
-  review: Review;
-  opening: AnnotationInstance[];
-  display: Display;
-  onClose: () => void;
-  context: ImageWorkbenchContext;
+interface Session {
+  draft: AnnotationDraft;
+  tool: Tool;
+  panning: boolean;
+  selectedId: string | null;
+  activeClass: string;
 }
 
-/** Each editor reads its own base; route refreshes never replace an open draft. */
-function Editing(props: EditingProps) {
-  const [initial, setInitial] = useState<AnnotationDraft | null>(null);
-  const { digest, modelId } = props.review.ref;
+type SessionAction =
+  | {
+      type: "start";
+      opening: AnnotationInstance[];
+      activeClass: string;
+    }
+  | { type: "stop" }
+  | { type: "tool"; tool: Tool }
+  | { type: "panning"; panning: boolean }
+  | { type: "selectedId"; selectedId: string | null }
+  | { type: "activeClass"; activeClass: string }
+  | DraftAction;
+
+function reduceSession(
+  state: Session | null,
+  action: SessionAction,
+): Session | null {
+  switch (action.type) {
+    case "start":
+      return {
+        draft: openDraft(action.opening),
+        tool: "select",
+        panning: false,
+        selectedId: null,
+        activeClass: action.activeClass,
+      };
+    case "stop":
+      return null;
+    case "tool":
+      return state ? { ...state, tool: action.tool } : null;
+    case "panning":
+      return state ? { ...state, panning: action.panning } : null;
+    case "selectedId":
+      return state ? { ...state, selectedId: action.selectedId } : null;
+    case "activeClass":
+      return state ? { ...state, activeClass: action.activeClass } : null;
+    default:
+      return state
+        ? { ...state, draft: reduceDraft(state.draft, action) }
+        : null;
+  }
+}
+
+function useAnnotationSession({
+  editing,
+  opening,
+  review,
+  model,
+  onClose,
+}: {
+  editing: boolean;
+  opening: AnnotationInstance[] | null;
+  review: Review;
+  model: Model;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const closing = useRef(false);
+  const live = editing && opening !== null;
+  const [session, dispatch] = useReducer(reduceSession, null);
+
+  if (live && !session && opening) {
+    closing.current = false;
+    dispatch({
+      type: "start",
+      opening,
+      activeClass: model.classes[0]!,
+    });
+  } else if (!live && session) {
+    dispatch({ type: "stop" });
+  }
+
   const failed = useEffectEvent((cause: unknown) => {
     toast.danger(m.workbench_open_failed(), {
       description: cause instanceof Error ? cause.message : String(cause),
     });
-    props.onClose();
+    onClose();
   });
-  const opened = useEffectEvent((base: AnnotationInstance[] | null) =>
-    setInitial(openDraft(base, base ?? props.opening)),
-  );
+
+  const { digest, modelId } = review.ref;
   useEffect(() => {
-    let active = true;
+    if (!live) return;
+    let cancelled = false;
     getAnnotation({ data: { digest, modelId } }).then(
       (annotation) => {
-        if (active) opened(annotation?.instances ?? null);
+        if (!cancelled) {
+          dispatch({ type: "base", base: annotation?.instances ?? null });
+        }
       },
       (cause: unknown) => {
-        if (active) failed(cause);
+        if (!cancelled) failed(cause);
       },
     );
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [digest, modelId]);
+  }, [live, digest, modelId]);
 
-  return initial ? (
-    <Editor {...props} initial={initial} />
-  ) : (
-    <>
-      <WorkbenchActions>
-        <Button variant="tertiary" onPress={props.onClose}>
-          {m.cancel()}
-        </Button>
-        <Button variant="primary" isDisabled>
-          {m.workbench_opening()}
-        </Button>
-      </WorkbenchActions>
-      <WorkbenchInspector>
-        <ReviewInspector
-          model={props.model}
-          instances={props.review.annotation?.instances ?? null}
-          detection={props.review.detection}
-          display={props.display}
-          details={props.context.details}
-        />
-      </WorkbenchInspector>
-      <BoxLayer
-        image={props.review}
-        instances={props.opening}
-        layers={props.display.layers}
-      />
-    </>
-  );
-}
+  const close = useCallback(() => {
+    closing.current = true;
+    onClose();
+  }, [onClose]);
 
-/** A locally edited draft is immutable while its single submission is pending. */
-function Editor({
-  model,
-  review,
-  initial,
-  display,
-  onClose,
-  context,
-}: Omit<EditingProps, "opening"> & { initial: AnnotationDraft }) {
-  const router = useRouter();
-  const [draft, dispatch] = useReducer(reduceDraft, initial);
-  const { instances, saving } = draft;
-  const history = {
-    canUndo: draft.past.length > 0,
-    canRedo: draft.future.length > 0,
-  };
-  const closing = useRef(false);
-  const [tool, setTool] = useState<Tool>("select");
-  const [panning, setPanning] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeClass, setActiveClass] = useState(model.classes[0]!);
-
-  const dirty = history.canUndo;
+  const draft = session?.draft ?? null;
+  const instances = draft?.instances ?? [];
+  const saving = draft?.saving ?? false;
+  const dirty = (draft?.past.length ?? 0) > 0;
   const shouldBlockLeave = useCallback(
     () => !closing.current && (saving || dirty),
     [saving, dirty],
@@ -371,17 +429,68 @@ function Editor({
     if (blocker.status === "blocked" && saving) blocker.reset();
   }, [blocker, saving]);
 
-  const close = useCallback(() => {
-    closing.current = true;
-    onClose();
-  }, [onClose]);
+  const selected =
+    instances.find((instance) => instance.id === session?.selectedId) ?? null;
+
+  const editInstances = useCallback(
+    (next: AnnotationInstance[]) => dispatch({ type: "edit", instances: next }),
+    [],
+  );
+  const undo = useCallback(() => dispatch({ type: "undo" }), []);
+  const redo = useCallback(() => dispatch({ type: "redo" }), []);
+  const setTool = useCallback(
+    (tool: Tool) => dispatch({ type: "tool", tool }),
+    [],
+  );
+  const setPanning = useCallback(
+    (panning: boolean) => dispatch({ type: "panning", panning }),
+    [],
+  );
+  const setSelectedId = useCallback(
+    (selectedId: string | null) => dispatch({ type: "selectedId", selectedId }),
+    [],
+  );
+
+  const deleteSelected = useCallback(() => {
+    const selectedId = session?.selectedId;
+    if (!selectedId) return;
+    editInstances(instances.filter((instance) => instance.id !== selectedId));
+    dispatch({ type: "selectedId", selectedId: null });
+  }, [instances, session?.selectedId, editInstances]);
+
+  const changeClass = useCallback(
+    (className: string) => {
+      dispatch({ type: "activeClass", activeClass: className });
+      if (!selected || selected.class === className) return;
+      editInstances(
+        instances.map((instance) =>
+          instance.id === selected.id
+            ? { ...instance, class: className }
+            : instance,
+        ),
+      );
+    },
+    [instances, editInstances, selected],
+  );
+
+  const { detection } = review;
+  const restartFromDetection = useCallback(() => {
+    if (!detection) return;
+    editInstances(instancesFromDetection(detection));
+    dispatch({ type: "selectedId", selectedId: null });
+  }, [detection, editInstances]);
+
+  const clearSelection = useCallback(() => {
+    dispatch({ type: "selectedId", selectedId: null });
+    dispatch({ type: "tool", tool: "select" });
+  }, []);
 
   const done = useCallback(async () => {
-    if (saving) return;
+    if (!draft?.ready || draft.saving) return;
     dispatch({ type: "submit" });
     try {
       const result = await saveAnnotation({
-        data: { ref: review.ref, base: draft.base, instances },
+        data: { ref: review.ref, base: draft.base, instances: draft.instances },
       });
       if (result.status === "conflict") {
         toast.danger(m.workbench_save_conflict());
@@ -400,53 +509,10 @@ function Editor({
       });
       dispatch({ type: "failed" });
     }
-  }, [review.ref, draft.base, instances, saving, router, close]);
-
-  const selected =
-    instances.find((instance) => instance.id === selectedId) ?? null;
-
-  const editInstances = useCallback(
-    (instances: AnnotationInstance[]) => dispatch({ type: "edit", instances }),
-    [],
-  );
-  const undo = useCallback(() => dispatch({ type: "undo" }), []);
-  const redo = useCallback(() => dispatch({ type: "redo" }), []);
-
-  const deleteSelected = useCallback(() => {
-    if (!selectedId) return;
-    editInstances(instances.filter((instance) => instance.id !== selectedId));
-    setSelectedId(null);
-  }, [instances, selectedId, editInstances]);
-
-  const changeClass = useCallback(
-    (className: string) => {
-      setActiveClass(className);
-      if (!selected || selected.class === className) return;
-      editInstances(
-        instances.map((instance) =>
-          instance.id === selected.id
-            ? { ...instance, class: className }
-            : instance,
-        ),
-      );
-    },
-    [instances, editInstances, selected],
-  );
-
-  const { detection } = review;
-  const restartFromDetection = useCallback(() => {
-    if (!detection) return;
-    editInstances(instancesFromDetection(detection));
-    setSelectedId(null);
-  }, [detection, editInstances]);
-
-  const clearSelection = useCallback(() => {
-    setSelectedId(null);
-    setTool("select");
-  }, []);
+  }, [draft, review.ref, router, close]);
 
   useShortcuts({
-    enabled: !saving,
+    enabled: session !== null && !saving,
     onPanChange: setPanning,
     onToolChange: setTool,
     onEscape: clearSelection,
@@ -455,71 +521,36 @@ function Editor({
     onRedo: redo,
   });
 
-  return (
-    <>
-      <WorkbenchActions>
-        <Button variant="tertiary" isDisabled={saving} onPress={close}>
-          {m.cancel()}
-        </Button>
-        <Button variant="primary" isDisabled={saving} onPress={done}>
-          {saving ? m.workbench_saving() : m.workbench_done()}
-        </Button>
-        <div inert={saving} className="contents">
-          {context.menu}
-        </div>
-      </WorkbenchActions>
-      <WorkbenchToolbar label={m.workbench_navigation_and_tools()}>
-        <div inert={saving} className="contents">
-          {context.toolbar}
-          {context.toolbar ? <Separator /> : null}
-          <EditingTools
-            tool={tool}
-            history={history}
-            canDelete={selectedId !== null}
-            onToolChange={setTool}
-            onUndo={undo}
-            onRedo={redo}
-            onDelete={deleteSelected}
-            onRestart={detection ? restartFromDetection : undefined}
-            classes={model.classes}
-            className={selected?.class ?? activeClass}
-            onClassChange={changeClass}
-          />
-        </div>
-      </WorkbenchToolbar>
-      <WorkbenchInspector>
-        <ReviewInspector
-          model={model}
-          instances={instances}
-          detection={detection}
-          display={display}
-          details={context.details}
-        />
-      </WorkbenchInspector>
-      {saving ? (
-        <BoxLayer
-          image={review}
-          instances={instances}
-          layers={display.layers}
-        />
-      ) : (
-        <EditableBoxLayer
-          image={review}
-          instances={instances}
-          layers={display.layers}
-          tool={tool}
-          panning={panning}
-          className={activeClass}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onInstancesChange={editInstances}
-        />
-      )}
-      {blocker.status === "blocked" && !saving ? (
-        <DiscardDraftDialog onStay={blocker.reset} onLeave={blocker.proceed} />
-      ) : null}
-    </>
-  );
+  if (!session) return null;
+
+  return {
+    ready: session.draft.ready,
+    saving,
+    instances,
+    close,
+    done,
+    tool: session.tool,
+    panning: session.panning,
+    selectedId: session.selectedId,
+    setSelectedId,
+    editInstances,
+    setTool,
+    history: {
+      canUndo: session.draft.past.length > 0,
+      canRedo: session.draft.future.length > 0,
+    },
+    undo,
+    redo,
+    deleteSelected,
+    restartFromDetection: detection ? restartFromDetection : undefined,
+    className: selected?.class ?? session.activeClass,
+    changeClass,
+    activeClass: session.activeClass,
+    discard:
+      blocker.status === "blocked" && !saving
+        ? { onStay: blocker.reset, onLeave: blocker.proceed }
+        : null,
+  };
 }
 
 function EditingTools({
