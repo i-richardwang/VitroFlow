@@ -35,7 +35,7 @@ export const datasetSchema = z.strictObject({
 
 export type Dataset = z.infer<typeof datasetSchema>;
 
-/** Experiment images joining a dataset that trains their analysis model. */
+/** Experiment images joining a dataset that trains their observation's model. */
 export const datasetImageAdditionSchema = z.strictObject({
   dataset: datasetIdSchema,
   images: z.array(observationImageRefSchema).min(1, "No images to add"),

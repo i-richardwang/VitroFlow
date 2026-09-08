@@ -4,7 +4,7 @@ import { McpClientNotFoundError } from "../auth/errors";
 import { guardMcpRequest, mcpHandler, serveMcp } from "./agent-mcp";
 import { agentOperations } from "./agent-operations";
 import { disconnectMcpClient, listMcpClients } from "./mcp-clients";
-import { authorizeMcpClient, baselineVersion, signInAs } from "./testing";
+import { authorizeMcpClient, signInAs } from "./testing";
 import { banUser, revokeUserSessions } from "./users";
 
 const meta = {
@@ -96,13 +96,11 @@ describe("agent MCP surface", () => {
   });
 
   test("an operation with no result answers null structured content", async () => {
-    const version = await baselineVersion();
     const created = (await rpc("tools/call", {
       name: "create-experiment",
       arguments: {
         name: `Transient ${crypto.randomUUID()}`,
         inoculatedOn: "2026-09-02",
-        modelVersionId: version.id,
         treatments: [{ name: "T1", replicates: 1 }],
       },
     })) as { structuredContent: { id: string } };
@@ -127,14 +125,12 @@ describe("agent MCP surface", () => {
   });
 
   test("a repeated create is refused by the record it would duplicate", async () => {
-    const version = await baselineVersion();
     const name = `MCP ${crypto.randomUUID()}`;
     const params = {
       name: "create-experiment",
       arguments: {
         name,
         inoculatedOn: "2026-09-02",
-        modelVersionId: version.id,
         treatments: [{ name: "T1", replicates: 1 }],
       },
     };

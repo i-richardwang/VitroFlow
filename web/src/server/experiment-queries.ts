@@ -20,6 +20,7 @@ import {
   images,
   inferenceOutcomes,
   modelVersions,
+  models,
 } from "../db/schema";
 import type {
   ExperimentGrid,
@@ -31,13 +32,11 @@ import type {
 import { unitOrder } from "../experiments/naming";
 import {
   daysBetween,
-  type Experiment,
   type ImageAnalysisState,
   type ObservationImageRef,
   type UnitRef,
 } from "../experiments/schema";
 import type { Tally } from "../models/metrics";
-import type { Model, ModelVersion } from "../models/schema";
 import {
   listObservations,
   listTreatments,
@@ -45,7 +44,7 @@ import {
   readExperimentRecord,
   toExperiment,
 } from "./experiment-records";
-import { readModel, readModelVersion } from "./model-registry";
+import { toModel } from "./model-registry";
 
 function tallyOf(document: SQL | AnyColumn) {
   return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
@@ -62,11 +61,11 @@ function observationImageGridQuery(db: Executor) {
       error: sql<string | null>`${inferenceOutcomes.document}->>'error'`,
     })
     .from(experimentObservationImages)
+    .innerJoin(experimentObservations, atImageObservation())
     .innerJoin(
-      experiments,
-      eq(experiments.id, experimentObservationImages.experimentId),
+      modelVersions,
+      eq(modelVersions.id, experimentObservations.modelVersionId),
     )
-    .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
     .leftJoin(
       annotations,
       and(
@@ -74,13 +73,26 @@ function observationImageGridQuery(db: Executor) {
         eq(annotations.modelId, modelVersions.modelId),
       ),
     )
-    .leftJoin(
-      inferenceOutcomes,
-      and(
-        eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
-      ),
-    );
+    .leftJoin(inferenceOutcomes, atImageOutcome());
+}
+
+/** The observation an image was taken at. */
+function atImageObservation() {
+  return and(
+    eq(
+      experimentObservations.experimentId,
+      experimentObservationImages.experimentId,
+    ),
+    eq(experimentObservations.id, experimentObservationImages.observationId),
+  );
+}
+
+/** The image's outcome under its observation's version. */
+function atImageOutcome() {
+  return and(
+    eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
+    eq(inferenceOutcomes.modelVersionId, experimentObservations.modelVersionId),
+  );
 }
 
 type ObservationImageGridRow = Awaited<
@@ -124,7 +136,6 @@ export async function readExperimentGrid(
   const db = await database();
   const experiment = await readExperimentRecord(experimentId, db);
   if (!experiment) return null;
-  const { model, version } = await readTask(experiment, db);
   const [treatments, units, observations, observationImages] =
     await Promise.all([
       listTreatments(experimentId, db),
@@ -134,26 +145,11 @@ export async function readExperimentGrid(
     ]);
   return {
     experiment,
-    model,
-    version,
     treatments,
     units: unitOrder(units, treatments),
     observations,
     images: observationImages,
   };
-}
-
-async function readTask(
-  experiment: Experiment,
-  db: Executor,
-): Promise<{ model: Model; version: ModelVersion }> {
-  const version = await readModelVersion(experiment.modelVersionId, db);
-  if (!version) {
-    throw new Error(`Unknown model version: ${experiment.modelVersionId}`);
-  }
-  const model = await readModel(version.modelId, db);
-  if (!model) throw new Error(`Unknown model: ${version.modelId}`);
-  return { model, version };
 }
 
 export async function readUnit(
@@ -163,21 +159,19 @@ export async function readUnit(
   const db = await database();
   const experiment = await readExperimentRecord(ref.experiment, db);
   if (!experiment) return null;
-  const [{ model, version }, treatments, units, observations, cells] =
-    await Promise.all([
-      readTask(experiment, db),
-      listTreatments(ref.experiment, db),
-      listUnits(ref.experiment, db),
-      listObservations(experiment, db),
-      observationImageGridQuery(db)
-        .where(
-          and(
-            eq(experimentObservationImages.experimentId, ref.experiment),
-            eq(experimentObservationImages.unitId, ref.unit),
-          ),
-        )
-        .then((rows) => rows.map(toCell)),
-    ]);
+  const [treatments, units, observations, cells] = await Promise.all([
+    listTreatments(ref.experiment, db),
+    listUnits(ref.experiment, db),
+    listObservations(experiment, db),
+    observationImageGridQuery(db)
+      .where(
+        and(
+          eq(experimentObservationImages.experimentId, ref.experiment),
+          eq(experimentObservationImages.unitId, ref.unit),
+        ),
+      )
+      .then((rows) => rows.map(toCell)),
+  ]);
   const ordered = unitOrder(units, treatments);
   const unit = ordered.find((item) => item.id === ref.unit);
   if (!unit) return null;
@@ -204,8 +198,6 @@ export async function readUnit(
     : null;
   return {
     experiment,
-    model,
-    version,
     unit,
     treatments,
     navigation: ordered.map(({ id, code, treatment }) => ({
@@ -253,17 +245,8 @@ export async function listExperiments(): Promise<ExperimentSummary[]> {
           analyzed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'succeeded')`,
         })
         .from(experimentObservationImages)
-        .innerJoin(
-          experiments,
-          eq(experiments.id, experimentObservationImages.experimentId),
-        )
-        .leftJoin(
-          inferenceOutcomes,
-          and(
-            eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-            eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
-          ),
-        )
+        .innerJoin(experimentObservations, atImageObservation())
+        .leftJoin(inferenceOutcomes, atImageOutcome())
         .groupBy(experimentObservationImages.experimentId),
     ]);
   const names = new Map<string, string[]>();
@@ -324,8 +307,8 @@ export async function readExperimentObservationImage(
       image: images,
       experiment: experiments,
       unit: experimentUnits,
-      modelId: modelVersions.modelId,
       observation: experimentObservations,
+      model: models,
       outcome: inferenceOutcomes.document,
       annotation: annotations.document,
     })
@@ -334,7 +317,12 @@ export async function readExperimentObservationImage(
       experiments,
       eq(experiments.id, experimentObservationImages.experimentId),
     )
-    .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
+    .innerJoin(experimentObservations, atImageObservation())
+    .innerJoin(
+      modelVersions,
+      eq(modelVersions.id, experimentObservations.modelVersionId),
+    )
+    .innerJoin(models, eq(models.id, modelVersions.modelId))
     .innerJoin(images, eq(images.id, experimentObservationImages.imageId))
     .innerJoin(
       experimentUnits,
@@ -346,19 +334,6 @@ export async function readExperimentObservationImage(
         eq(experimentUnits.id, experimentObservationImages.unitId),
       ),
     )
-    .innerJoin(
-      experimentObservations,
-      and(
-        eq(
-          experimentObservations.experimentId,
-          experimentObservationImages.experimentId,
-        ),
-        eq(
-          experimentObservations.id,
-          experimentObservationImages.observationId,
-        ),
-      ),
-    )
     .leftJoin(
       annotations,
       and(
@@ -366,13 +341,7 @@ export async function readExperimentObservationImage(
         eq(annotations.modelId, modelVersions.modelId),
       ),
     )
-    .leftJoin(
-      inferenceOutcomes,
-      and(
-        eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
-      ),
-    )
+    .leftJoin(inferenceOutcomes, atImageOutcome())
     .where(atObservationImage(ref.experiment, ref.observationImage));
   if (!row) return null;
   const experiment = toExperiment(row.experiment);
@@ -392,8 +361,9 @@ export async function readExperimentObservationImage(
       treatment: row.unit.treatmentId,
     },
     observation,
+    model: toModel(row.model),
     review: {
-      ref: { digest: row.image.id, modelId: row.modelId },
+      ref: { digest: row.image.id, modelId: row.model.id },
       filename: row.observationImage.filename,
       width: row.image.width,
       height: row.image.height,

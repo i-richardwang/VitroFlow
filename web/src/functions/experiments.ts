@@ -22,7 +22,8 @@ import {
   unitUpdateSchema,
   cultureEventsRequestSchema,
 } from "../experiments/schema";
-import { listDatasetsForModel } from "../server/datasets";
+import type { Model, ModelVersion } from "../models/schema";
+import { listDatasets, listDatasetsForModel } from "../server/datasets";
 import {
   addReplicates,
   addTreatment,
@@ -61,28 +62,36 @@ export const getExperiments = createServerFn({ method: "GET" }).handler(() =>
   listExperiments(),
 );
 
-/** The versions an experiment may read with, newest first; never empty. */
-export const getExperimentVersions = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const [models, versions] = await Promise.all([
-      listModels(),
-      listAllModelVersions(),
-    ]);
-    const byId = new Map(models.map((model) => [model.id, model]));
-    return versions.map((version) => {
-      const model = byId.get(version.modelId);
-      if (!model) throw new Error(`Unknown model: ${version.modelId}`);
-      return { model, version };
-    });
-  },
-);
+/** The versions an observation may read with, newest first; never empty. */
+async function readableVersions(): Promise<
+  Array<{ model: Model; version: ModelVersion }>
+> {
+  const [models, versions] = await Promise.all([
+    listModels(),
+    listAllModelVersions(),
+  ]);
+  const byId = new Map(models.map((model) => [model.id, model]));
+  return versions.map((version) => {
+    const model = byId.get(version.modelId);
+    if (!model) throw new Error(`Unknown model: ${version.modelId}`);
+    return { model, version };
+  });
+}
 
+/**
+ * The grid with what its page edits it against: the versions an observation
+ * may read with and the datasets its images may join.
+ */
 export const getExperimentGrid = createServerFn({ method: "GET" })
   .validator(experimentRefSchema)
   .handler(async ({ data }) => {
     const grid = await readExperimentGrid(data.experiment);
     if (!grid) return null;
-    return { ...grid, datasets: await datasetsTraining(grid.model.id) };
+    const [versions, datasets] = await Promise.all([
+      readableVersions(),
+      listDatasets(),
+    ]);
+    return { ...grid, versions, datasets };
   });
 
 export const startExperiment = createServerFn({ method: "POST" })
@@ -118,7 +127,12 @@ export const getUnit = createServerFn({ method: "GET" })
   .handler(async ({ data: { observation, ...ref } }) => {
     const series = await readUnit(ref, observation);
     if (!series) return null;
-    return { ...series, datasets: await datasetsTraining(series.model.id) };
+    return {
+      ...series,
+      datasets: series.shown
+        ? await datasetsTraining(series.shown.model.id)
+        : [],
+    };
   });
 
 export const editUnit = createServerFn({ method: "POST" })

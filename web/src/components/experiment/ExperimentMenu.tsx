@@ -12,29 +12,23 @@ import { useState } from "react";
 
 import type { DateValue } from "@internationalized/date";
 
-import type { ObservationImageCell } from "../../experiments/contracts";
 import type { Experiment } from "../../experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
 import { fromDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
-type Action = "dataset" | "edit" | "delete";
+type Action = "edit" | "delete";
 
 export function ExperimentMenu({
   experiment,
-  images,
-  datasets,
   hasRecords,
   onNewTreatment,
 }: {
   experiment: Experiment;
-  images: ObservationImageCell[];
-  datasets: string[];
   hasRecords: boolean;
   onNewTreatment: () => void;
 }) {
@@ -63,14 +57,6 @@ export function ExperimentMenu({
             <Dropdown.Item id="treatment" textValue={m.treatment_new()}>
               <Label>{m.treatment_menu_new()}</Label>
             </Dropdown.Item>
-            {images.length > 0 ? (
-              <Dropdown.Item
-                id="dataset"
-                textValue={m.experiment_add_all_to_dataset()}
-              >
-                <Label>{m.experiment_menu_add_to_dataset()}</Label>
-              </Dropdown.Item>
-            ) : null}
             <Separator orientation="horizontal" />
             <Dropdown.Item id="edit" textValue={m.experiment_edit_details()}>
               <Label>{m.experiment_menu_edit()}</Label>
@@ -87,17 +73,6 @@ export function ExperimentMenu({
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
-
-      <AddToDatasetDialog
-        isOpen={open === "dataset"}
-        images={images.map((image) => ({
-          experiment: experiment.id,
-          observationImage: image.id,
-        }))}
-        datasets={datasets}
-        heading={m.experiment_add_all_to_dataset()}
-        onClose={close}
-      />
 
       <EditExperimentDialog
         experiment={experiment}

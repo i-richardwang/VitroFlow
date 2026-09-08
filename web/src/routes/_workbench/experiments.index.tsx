@@ -9,20 +9,11 @@ import {
 import { NewExperimentDialog } from "../../components/experiment/NewExperimentDialog";
 import { ExperimentsIcon } from "../../components/icons";
 import { Page } from "../../components/Page";
-import {
-  getExperiments,
-  getExperimentVersions,
-} from "../../functions/experiments";
+import { getExperiments } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
-  loader: async () => {
-    const [experiments, versions] = await Promise.all([
-      getExperiments(),
-      getExperimentVersions(),
-    ]);
-    return { experiments, versions };
-  },
+  loader: () => getExperiments(),
   staticData: { crumbs: () => [{ label: m.experiments_title() }] },
   head: () => ({
     meta: [{ title: `${m.experiments_title()} · ${m.app_name()}` }],
@@ -31,13 +22,10 @@ export const Route = createFileRoute("/_workbench/experiments/")({
 });
 
 function ExperimentsPage() {
-  const { experiments, versions } = Route.useLoaderData();
+  const experiments = Route.useLoaderData();
 
   return (
-    <Page
-      title={m.experiments_title()}
-      actions={<NewExperimentDialog versions={versions} />}
-    >
+    <Page title={m.experiments_title()} actions={<NewExperimentDialog />}>
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label={m.experiments_title()}>

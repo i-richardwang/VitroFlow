@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
+import { derivedMetricSchema, metricIdSchema } from "../models/metrics";
 import { m } from "../paraglide/messages";
 
 export const experimentIdSchema = z.uuid();
@@ -130,7 +131,6 @@ export const experimentSchema = z.strictObject({
   baseMedium: baseMediumSchema,
   notes: experimentNotesSchema,
   inoculatedOn: calendarDaySchema,
-  modelVersionId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -171,7 +171,6 @@ export const experimentRequestSchema = z.strictObject({
   baseMedium: baseMediumSchema.default(""),
   notes: experimentNotesSchema.default(""),
   inoculatedOn: calendarDaySchema,
-  modelVersionId: resourceIdSchema,
   treatments: z
     .array(treatmentDesignSchema)
     .min(1, "An experiment needs at least one treatment")
@@ -313,12 +312,19 @@ export const cultureEventRefSchema = z.strictObject({
 
 export type CultureEventRef = z.infer<typeof cultureEventRefSchema>;
 
+/**
+ * An observation reads one metric off every unit's image with one model
+ * version: seeds on the day of sowing, germination once shoots can show.
+ * The metric is one the version's model declares.
+ */
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,
   ordinal: z.number().int().min(1),
   observedOn: calendarDaySchema,
   day: z.number().int(),
   note: observationNoteSchema,
+  modelVersionId: resourceIdSchema,
+  metric: derivedMetricSchema,
   hasRecords: z.boolean(),
 });
 
@@ -339,6 +345,8 @@ export const observationRequestSchema = z.strictObject({
   experiment: experimentIdSchema,
   observedOn: calendarDaySchema,
   note: observationNoteSchema.default(""),
+  modelVersionId: resourceIdSchema,
+  metric: metricIdSchema,
 });
 
 export type ObservationRequest = z.infer<typeof observationRequestSchema>;
@@ -346,6 +354,8 @@ export type ObservationRequest = z.infer<typeof observationRequestSchema>;
 export const observationUpdateSchema = observationRefSchema.extend({
   observedOn: calendarDaySchema,
   note: observationNoteSchema,
+  modelVersionId: resourceIdSchema,
+  metric: metricIdSchema,
 });
 
 export type ObservationUpdate = z.infer<typeof observationUpdateSchema>;

@@ -1,49 +1,46 @@
-import type { DateValue } from "@internationalized/date";
-import {
-  Button,
-  Dropdown,
-  Form,
-  Input,
-  Label,
-  Modal,
-  Separator,
-  TextField,
-  toast,
-} from "@heroui/react";
+import { Button, Dropdown, Label, Separator, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { Unit } from "../../experiments/contracts";
+import type { ObservationImageCell, Unit } from "../../experiments/contracts";
 import {
   observationLabel,
   type ExperimentObservation,
 } from "../../experiments/schema";
-import {
-  editObservation,
-  removeObservation,
-} from "../../functions/experiments";
-import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { removeObservation } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
+import { AddToDatasetDialog } from "../dataset/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../DestructiveActionDialog";
 import { MoreIcon } from "../icons";
 import { AssignImagesDialog } from "./AssignImagesDialog";
-import { DayField, fromDay, toDay } from "./DayField";
+import { ObservationDialog } from "./ObservationDialog";
+import type { ReadableVersion } from "./ReadingFields";
 
-type Action = "images" | "edit" | "delete";
+type Action = "images" | "dataset" | "edit" | "delete";
 
 export function ObservationMenu({
   experiment,
+  inoculatedOn,
   observation,
   units,
-  assigned,
+  images,
+  versions,
+  datasets,
 }: {
   experiment: string;
+  inoculatedOn: string;
   observation: ExperimentObservation;
+  /** The units that can still be photographed at this observation. */
   units: Unit[];
-  assigned: ReadonlySet<string>;
+  /** The images taken at this observation. */
+  images: ObservationImageCell[];
+  versions: readonly ReadableVersion[];
+  /** The datasets training the observation's model. */
+  datasets: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
+  const close = () => setOpen(null);
   const name = observationLabel(observation);
 
   return (
@@ -68,6 +65,14 @@ export function ObservationMenu({
             >
               <Label>{m.observation_menu_assign_images()}</Label>
             </Dropdown.Item>
+            {images.length > 0 ? (
+              <Dropdown.Item
+                id="dataset"
+                textValue={m.observation_add_to_dataset()}
+              >
+                <Label>{m.observation_menu_add_to_dataset()}</Label>
+              </Dropdown.Item>
+            ) : null}
             <Dropdown.Item id="edit" textValue={m.observation_edit()}>
               <Label>{m.observation_menu_edit()}</Label>
             </Dropdown.Item>
@@ -91,16 +96,29 @@ export function ObservationMenu({
         experiment={experiment}
         observation={observation}
         units={units}
-        assigned={assigned}
+        assigned={new Set(images.map((image) => image.unit))}
         isOpen={open === "images"}
-        onClose={() => setOpen(null)}
+        onClose={close}
       />
 
-      <EditObservationModal
+      <AddToDatasetDialog
+        isOpen={open === "dataset"}
+        images={images.map((image) => ({
+          experiment,
+          observationImage: image.id,
+        }))}
+        datasets={datasets}
+        heading={m.observation_add_to_dataset()}
+        onClose={close}
+      />
+
+      <ObservationDialog
         experiment={experiment}
+        inoculatedOn={inoculatedOn}
+        versions={versions}
         observation={observation}
         isOpen={open === "edit"}
-        onClose={() => setOpen(null)}
+        onClose={close}
       />
 
       <DestructiveActionDialog
@@ -117,98 +135,5 @@ export function ObservationMenu({
         }}
       />
     </>
-  );
-}
-
-function EditObservationModal({
-  experiment,
-  observation,
-  isOpen,
-  onClose,
-}: {
-  experiment: string;
-  observation: ExperimentObservation;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const { busy, run } = useAsyncAction();
-  const [observedOn, setObservedOn] = useState<DateValue | null>(() =>
-    fromDay(observation.observedOn),
-  );
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.observation_edit()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body key={isOpen ? "open" : "closed"}>
-              <Form
-                id="edit-observation"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (observedOn === null) return;
-                  const form = new FormData(event.currentTarget);
-                  void run(
-                    () =>
-                      editObservation({
-                        data: {
-                          experiment,
-                          observation: observation.id,
-                          observedOn: toDay(observedOn),
-                          note: String(form.get("note") ?? ""),
-                        },
-                      }),
-                    m.observation_not_saved(),
-                  ).then(async (result) => {
-                    if (result.ok) {
-                      onClose();
-                      await router.invalidate();
-                    }
-                  });
-                }}
-              >
-                <DayField
-                  label={m.observation_date_label()}
-                  busy={busy}
-                  value={observedOn}
-                  onChange={setObservedOn}
-                />
-                <TextField
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  name="note"
-                  defaultValue={observation.note}
-                >
-                  <Label>{m.observation_note_label()}</Label>
-                  <Input className="w-full" />
-                </TextField>
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="edit-observation"
-                variant="primary"
-                isDisabled={busy}
-              >
-                {busy
-                  ? m.experiment_action_saving()
-                  : m.experiment_action_save()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
   );
 }

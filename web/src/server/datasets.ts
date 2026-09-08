@@ -5,7 +5,7 @@ import {
   datasetImages,
   datasets,
   experimentObservationImages,
-  experiments,
+  experimentObservations,
   images as imageAssets,
   modelVersions,
 } from "../db/schema";
@@ -169,7 +169,7 @@ function atObservationImage({
   );
 }
 
-/** Adds experiment images atomically to a dataset for their analysis model. */
+/** Adds experiment images atomically to a dataset for their observation's model. */
 export async function addExperimentObservationImages(
   value: DatasetImageAddition,
 ): Promise<DatasetImageAdditionResult> {
@@ -186,12 +186,21 @@ export async function addExperimentObservationImages(
       })
       .from(experimentObservationImages)
       .innerJoin(
-        experiments,
-        eq(experiments.id, experimentObservationImages.experimentId),
+        experimentObservations,
+        and(
+          eq(
+            experimentObservations.experimentId,
+            experimentObservationImages.experimentId,
+          ),
+          eq(
+            experimentObservations.id,
+            experimentObservationImages.observationId,
+          ),
+        ),
       )
       .innerJoin(
         modelVersions,
-        eq(modelVersions.id, experiments.modelVersionId),
+        eq(modelVersions.id, experimentObservations.modelVersionId),
       )
       .where(or(...images.map(atObservationImage)));
     const byRef = new Map(

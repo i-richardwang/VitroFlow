@@ -1,5 +1,5 @@
 {
-  "id": "ff7e3cc9-7ac6-49fd-91de-0031229b37da",
+  "id": "5cb32a2b-9461-4484-8f5e-1aae8c1c9a8e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1076,6 +1076,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "model_version_id": {
+          "name": "model_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metric": {
+          "name": "metric",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1084,6 +1096,21 @@
         }
       },
       "indexes": {
+        "experiment_observations_version_idx": {
+          "name": "experiment_observations_version_idx",
+          "columns": [
+            {
+              "expression": "model_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "experiment_observations_observed_idx": {
           "name": "experiment_observations_observed_idx",
           "columns": [
@@ -1107,6 +1134,19 @@
         }
       },
       "foreignKeys": {
+        "experiment_observations_model_version_id_model_versions_id_fk": {
+          "name": "experiment_observations_model_version_id_model_versions_id_fk",
+          "tableFrom": "experiment_observations",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "model_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "experiment_observations_experiment_id_inoculated_on_experiments_id_inoculated_on_fk": {
           "name": "experiment_observations_experiment_id_inoculated_on_experiments_id_inoculated_on_fk",
           "tableFrom": "experiment_observations",
@@ -1151,6 +1191,10 @@
         "experiment_observations_date_check": {
           "name": "experiment_observations_date_check",
           "value": "\"experiment_observations\".\"observed_on\" >= \"experiment_observations\".\"inoculated_on\""
+        },
+        "experiment_observations_metric_check": {
+          "name": "experiment_observations_metric_check",
+          "value": "\"experiment_observations\".\"metric\" ~ '^[a-z][a-z0-9]*(_[a-z0-9]+)*$'"
         }
       },
       "isRLSEnabled": false
@@ -1442,12 +1486,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "model_version_id": {
-          "name": "model_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1456,21 +1494,6 @@
         }
       },
       "indexes": {
-        "experiments_version_idx": {
-          "name": "experiments_version_idx",
-          "columns": [
-            {
-              "expression": "model_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "experiments_name": {
           "name": "experiments_name",
           "columns": [
@@ -1487,21 +1510,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "experiments_model_version_id_model_versions_id_fk": {
-          "name": "experiments_model_version_id_model_versions_id_fk",
-          "tableFrom": "experiments",
-          "tableTo": "model_versions",
-          "columnsFrom": [
-            "model_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "experiments_id_inoculated": {

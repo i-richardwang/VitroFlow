@@ -17,7 +17,6 @@ import {
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
   ExperimentRejectedError,
-  ModelVersionNotFoundError,
   ObservationRejectedError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
@@ -51,7 +50,6 @@ import {
   toTreatment,
   toUnit,
 } from "./experiment-records";
-import { readModelVersion } from "./model-registry";
 
 export async function readExperiment(
   experimentId: string,
@@ -66,12 +64,6 @@ export async function createExperiment(
 ): Promise<Experiment> {
   const { treatments, ...page } = value;
   return inTransaction(executor, async (tx) => {
-    const version = await readModelVersion(page.modelVersionId, tx);
-    if (!version) {
-      throw new ModelVersionNotFoundError(
-        `Unknown model version: ${page.modelVersionId}`,
-      );
-    }
     const [row] = await refuseTakenName(page.name, () =>
       tx
         .insert(experiments)

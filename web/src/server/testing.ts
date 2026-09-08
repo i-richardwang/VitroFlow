@@ -13,7 +13,7 @@ import type { Dataset } from "../datasets/schema";
 import type { DetectionResult } from "../detection/schema";
 import type { Experiment, ObservationImageRef } from "../experiments/schema";
 import type { RuntimeDescriptor } from "../inference/schema";
-import type { Model, ModelVersion } from "../models/schema";
+import { primaryMetric, type Model, type ModelVersion } from "../models/schema";
 import type { WorkerHeartbeat } from "../workers/schema";
 import { canonicalize } from "./image-ingest";
 import { addExperimentObservationImages } from "./datasets";
@@ -26,7 +26,11 @@ import { storeImage } from "./image-store";
 import { readAnnotation, storeAnnotation } from "./annotations";
 import { recordInferenceOutcome } from "./inference-outcomes";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../models/builtins";
-import { readModelVersion, registerModelVersion } from "./model-registry";
+import {
+  readModel,
+  readModelVersion,
+  registerModelVersion,
+} from "./model-registry";
 import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
 import { database, transaction } from "../db/client";
 import { registerModel as registerDatabaseModel } from "../db/registry";
@@ -210,6 +214,8 @@ export async function observeImages(
   version?: ModelVersion,
 ): Promise<ObservedImages> {
   const selectedVersion = version ?? (await baselineVersion());
+  const model = await readModel(selectedVersion.modelId);
+  if (!model) throw new Error(`Unknown model: ${selectedVersion.modelId}`);
   const experiment = await createExperiment({
     name: experimentName,
     plantMaterial: "",
@@ -217,7 +223,6 @@ export async function observeImages(
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
-    modelVersionId: selectedVersion.id,
     treatments: [
       { name: "Test", factor: null, note: "", replicates: contents.length },
     ],
@@ -234,6 +239,8 @@ export async function observeImages(
     experiment: experiment.id,
     observedOn: "2026-08-08",
     note: "",
+    modelVersionId: selectedVersion.id,
+    metric: primaryMetric(model).id,
   });
   await assignObservationImages({
     experiment: experiment.id,

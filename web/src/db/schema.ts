@@ -614,12 +614,7 @@ export const annotations = pgTable(
   ],
 );
 
-/**
- * Measurements of the same units on successive occasions. The version is fixed
- * when the experiment is created, so every observation comes from the same
- * model: the builtin baseline until a trained version exists, and whichever
- * version the experiment was started with after that.
- */
+/** Measurements of the same units on successive occasions. */
 export const experiments = pgTable(
   "experiments",
   {
@@ -636,13 +631,9 @@ export const experiments = pgTable(
     notes: text("notes").notNull(),
     /** Day zero: when the explants entered culture. */
     inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
-    modelVersionId: text("model_version_id")
-      .notNull()
-      .references(() => modelVersions.id),
     createdAt: instant("created_at"),
   },
   (table) => [
-    index("experiments_version_idx").on(table.modelVersionId),
     unique("experiments_id_inoculated").on(table.id, table.inoculatedOn),
     uniqueIndex("experiments_name").on(sql`lower(${table.name})`),
     check(
@@ -713,7 +704,9 @@ export const experimentTreatments = pgTable(
 
 /**
  * One occasion on which the experiment was observed. The day it happened
- * places it in the series and, against the inoculation date, names it.
+ * places it in the series and, against the inoculation date, names it. The
+ * observation reads one metric off its images with one model version; the
+ * metric is one that version's model declares, which the server checks.
  */
 export const experimentObservations = pgTable(
   "experiment_observations",
@@ -723,10 +716,15 @@ export const experimentObservations = pgTable(
     inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
     observedOn: date("observed_on", { mode: "string" }).notNull(),
     note: text("note").notNull(),
+    modelVersionId: text("model_version_id")
+      .notNull()
+      .references(() => modelVersions.id),
+    metric: text("metric").notNull(),
     createdAt: instant("created_at"),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
+    index("experiment_observations_version_idx").on(table.modelVersionId),
     foreignKey({
       columns: [table.experimentId, table.inoculatedOn],
       foreignColumns: [experiments.id, experiments.inoculatedOn],
@@ -749,6 +747,10 @@ export const experimentObservations = pgTable(
     check(
       "experiment_observations_date_check",
       sql`${table.observedOn} >= ${table.inoculatedOn}`,
+    ),
+    check(
+      "experiment_observations_metric_check",
+      sql`${table.metric} ~ '^[a-z][a-z0-9]*(_[a-z0-9]+)*$'`,
     ),
   ],
 );

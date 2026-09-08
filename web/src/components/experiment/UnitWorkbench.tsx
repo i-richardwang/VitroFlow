@@ -14,6 +14,7 @@ import {
 } from "../../experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { metricName } from "../../models/names";
 import { m } from "../../paraglide/messages";
 import type {
   UnitNavigationEntry,
@@ -38,7 +39,7 @@ export function UnitWorkbench({
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
 }) {
-  const { experiment, model, unit, treatments, navigation, shown } = series;
+  const { experiment, unit, treatments, navigation, shown } = series;
   const treatment = treatments.find((item) => item.id === unit.treatment)!;
   const at = navigation.findIndex((item) => item.id === unit.id);
   const title = m.unit_title({
@@ -103,9 +104,9 @@ export function UnitWorkbench({
 
   return (
     <ImageWorkbench
-      key={shown.review.ref.digest}
+      key={`${shown.model.id}:${shown.review.ref.digest}`}
       title={title}
-      model={model}
+      model={shown.model}
       review={shown.review}
       editing={editing}
       onEditingChange={onEditingChange}
@@ -136,6 +137,10 @@ export function UnitWorkbench({
                 {
                   label: m.unit_observed(),
                   value: shown.observation.observedOn,
+                },
+                {
+                  label: m.observation_metric_label(),
+                  value: metricName(shown.observation.metric),
                 },
               ]}
             />

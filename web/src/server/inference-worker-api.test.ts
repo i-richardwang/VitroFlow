@@ -61,7 +61,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
-    modelVersionId: version.id,
     treatments: [{ name: "Test", factor: null, note: "", replicates: 1 }],
   });
   const [unit] = await listUnits(experiment.id, await database());
@@ -69,6 +68,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     experiment: experiment.id,
     observedOn: "2026-08-08",
     note: "",
+    modelVersionId: version.id,
+    metric: "seeds",
   });
   await assignObservationImages({
     experiment: experiment.id,

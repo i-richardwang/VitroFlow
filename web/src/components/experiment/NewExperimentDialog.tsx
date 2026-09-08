@@ -1,21 +1,11 @@
-import {
-  Button,
-  FieldError,
-  Form,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-} from "@heroui/react";
+import { Button, Form, Modal } from "@heroui/react";
 import type { DateValue } from "@internationalized/date";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { startExperiment } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { modelVersionName } from "../../models/names";
 import { m } from "../../paraglide/messages";
-import type { Model, ModelVersion } from "../../models/schema";
 import { currentDay, toDay } from "./DayField";
 import {
   DesignField,
@@ -25,11 +15,7 @@ import {
 } from "./DesignField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
-export function NewExperimentDialog({
-  versions,
-}: {
-  versions: Array<{ model: Model; version: ModelVersion }>;
-}) {
+export function NewExperimentDialog() {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   const [open, setOpen] = useState(false);
@@ -76,7 +62,6 @@ export function NewExperimentDialog({
                           data: {
                             ...readExperimentFields(form),
                             inoculatedOn: toDay(inoculatedOn),
-                            modelVersionId: String(form.get("version") ?? ""),
                             treatments,
                           },
                         }),
@@ -97,35 +82,6 @@ export function NewExperimentDialog({
                     inoculatedOn={inoculatedOn}
                     onInoculatedOnChange={setInoculatedOn}
                   />
-                  <Select
-                    variant="secondary"
-                    fullWidth
-                    isRequired
-                    isDisabled={busy}
-                    name="version"
-                    defaultSelectedKey={versions[0]?.version.id}
-                  >
-                    <Label>{m.experiment_version_label()}</Label>
-                    <Select.Trigger>
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {versions.map(({ version }) => (
-                          <ListBox.Item
-                            key={version.id}
-                            id={version.id}
-                            textValue={modelVersionName(version)}
-                          >
-                            {modelVersionName(version)}
-                            <ListBox.ItemIndicator />
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                    <FieldError />
-                  </Select>
                   <DesignField busy={busy} rows={design} onChange={setDesign} />
                 </Form>
               </Modal.Body>

@@ -27,7 +27,6 @@ test("the database rejects a second terminal event", async () => {
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
-    modelVersionId: version.id,
     treatments: [{ name: "Control", factor: null, note: "", replicates: 1 }],
   });
   const [unit] = await listUnits(experiment.id, await database());
@@ -35,11 +34,15 @@ test("the database rejects a second terminal event", async () => {
     experiment: experiment.id,
     observedOn: "2026-08-08",
     note: "",
+    modelVersionId: version.id,
+    metric: "seeds",
   });
   const day14 = await addObservation({
     experiment: experiment.id,
     observedOn: "2026-08-15",
     note: "",
+    modelVersionId: version.id,
+    metric: "seeds",
   });
   await recordCultureEvent({
     experiment: experiment.id,
@@ -104,7 +107,6 @@ test("the database rejects a trained version without its provenance", async () =
 
 test("the database compares experiment, treatment and unit names without case", async () => {
   const suffix = randomUUID();
-  const version = await baselineVersion();
   const experiment = await createExperiment({
     name: `Case invariant ${suffix}`,
     plantMaterial: "",
@@ -112,7 +114,6 @@ test("the database compares experiment, treatment and unit names without case", 
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
-    modelVersionId: version.id,
     treatments: [{ name: "Control", factor: null, note: "", replicates: 1 }],
   });
   const db = await database();
@@ -140,7 +141,6 @@ test("the database compares experiment, treatment and unit names without case", 
             baseMedium: "",
             notes: "",
             inoculatedOn: experiment.inoculatedOn,
-            modelVersionId: version.id,
             createdAt: new Date(),
           })
           .execute(),

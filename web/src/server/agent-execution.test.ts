@@ -8,7 +8,6 @@ import { models } from "../db/schema";
 import { ExperimentNotFoundError } from "../experiments/errors";
 import { type AgentCallResult, executeAgentOperation } from "./agent-execution";
 import { type AgentOperation, command } from "./agent-operations";
-import { baselineVersion } from "./testing";
 
 function failure(result: AgentCallResult): { code: string; message: string } {
   if (result.ok) throw new Error("Operation unexpectedly succeeded");
@@ -54,14 +53,20 @@ describe("agent execution", () => {
       message: `Unknown experiment: ${absent}`,
     });
 
-    const create = await executeAgentOperation("create-experiment", {
-      name: "Orphan",
+    const created = await executeAgentOperation("create-experiment", {
+      name: `Orphan ${crypto.randomUUID()}`,
       inoculatedOn: "2026-08-01",
-      modelVersionId: "seed-detector",
       treatments: [{ name: "T1", replicates: 1 }],
     });
-    expect(failure(create).code).toBe("not_found");
-    expect(failure(create).message).toContain("Unknown model version");
+    if (!created.ok) throw new Error(created.message);
+    const observe = await executeAgentOperation("create-observation", {
+      experiment: (created.output as { id: string }).id,
+      observedOn: "2026-08-01",
+      modelVersionId: "seed-detector",
+      metric: "seeds",
+    });
+    expect(failure(observe).code).toBe("not_found");
+    expect(failure(observe).message).toContain("Unknown model version");
   });
 
   test("defects are logged and sanitized, wherever they arose", async () => {
@@ -175,11 +180,9 @@ describe("agent execution", () => {
   });
 
   test("a repeated command is refused by the record it would duplicate", async () => {
-    const version = await baselineVersion();
     const input = {
       name: `Twice ${crypto.randomUUID()}`,
       inoculatedOn: "2026-09-01",
-      modelVersionId: version.id,
       treatments: [{ name: "T1", replicates: 1 }],
     };
     expect((await executeAgentOperation("create-experiment", input)).ok).toBe(

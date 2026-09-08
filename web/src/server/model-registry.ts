@@ -5,7 +5,7 @@ import * as registry from "../db/registry";
 import { modelVersions, models } from "../db/schema";
 import type { Model, ModelVersion } from "../models/schema";
 
-export { toModelVersion } from "../db/registry";
+export { toModel, toModelVersion } from "../db/registry";
 
 export async function readModel(
   modelId: string,

@@ -7,8 +7,11 @@ const identifierSchema = z
 /** The category a model assigns to each instance it finds. */
 export const classNameSchema = identifierSchema;
 
+/** Names one metric among those a model declares. */
+export const metricIdSchema = identifierSchema;
+
 const metricIdentity = {
-  id: identifierSchema,
+  id: metricIdSchema,
   name: z.string().min(1),
 };
 

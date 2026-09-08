@@ -88,7 +88,6 @@ describe("agent operations", () => {
       await executeAgentOperation("create-experiment", {
         name: "Agent entry",
         inoculatedOn: "2026-08-01",
-        modelVersionId: version.id,
         treatments: [{ name: "T1", replicates: 2 }],
       }),
     ) as Experiment;
@@ -104,6 +103,8 @@ describe("agent operations", () => {
       await executeAgentOperation("create-observation", {
         experiment: experiment.id,
         observedOn: "2026-08-15",
+        modelVersionId: version.id,
+        metric: "seeds",
       }),
     ) as ExperimentObservation;
     expect(observation.observedOn).toBe("2026-08-15");
@@ -130,7 +131,6 @@ describe("agent operations", () => {
       await executeAgentOperation("create-experiment", {
         name: "Culture events",
         inoculatedOn: "2026-08-01",
-        modelVersionId: version.id,
         treatments: [{ name: "T1", replicates: 2 }],
       }),
     ) as Experiment;
@@ -138,6 +138,8 @@ describe("agent operations", () => {
       await executeAgentOperation("create-observation", {
         experiment: experiment.id,
         observedOn: "2026-08-10",
+        modelVersionId: version.id,
+        metric: "seeds",
       }),
     ) as ExperimentObservation;
     const grid = output(

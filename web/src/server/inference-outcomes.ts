@@ -3,7 +3,7 @@ import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { database, transaction, type Executor } from "../db/client";
 import {
   experimentObservationImages,
-  experiments,
+  experimentObservations,
   images,
   inferenceJobs,
   inferenceOutcomes,
@@ -315,26 +315,41 @@ function claimableExperimentDemand(
   return db
     .selectDistinct({
       digest: experimentObservationImages.imageId,
-      versionId: experiments.modelVersionId,
+      versionId: experimentObservations.modelVersionId,
     })
     .from(experimentObservationImages)
     .innerJoin(
-      experiments,
-      eq(experiments.id, experimentObservationImages.experimentId),
+      experimentObservations,
+      and(
+        eq(
+          experimentObservations.experimentId,
+          experimentObservationImages.experimentId,
+        ),
+        eq(
+          experimentObservations.id,
+          experimentObservationImages.observationId,
+        ),
+      ),
     )
-    .innerJoin(modelVersions, eq(modelVersions.id, experiments.modelVersionId))
+    .innerJoin(
+      modelVersions,
+      eq(modelVersions.id, experimentObservations.modelVersionId),
+    )
     .leftJoin(
       inferenceOutcomes,
       and(
         eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-        eq(inferenceOutcomes.modelVersionId, experiments.modelVersionId),
+        eq(
+          inferenceOutcomes.modelVersionId,
+          experimentObservations.modelVersionId,
+        ),
       ),
     )
     .leftJoin(
       inferenceJobs,
       and(
         eq(inferenceJobs.imageId, experimentObservationImages.imageId),
-        eq(inferenceJobs.modelVersionId, experiments.modelVersionId),
+        eq(inferenceJobs.modelVersionId, experimentObservations.modelVersionId),
       ),
     )
     .where(
@@ -348,7 +363,7 @@ function claimableExperimentDemand(
       ),
     )
     .orderBy(
-      asc(experiments.modelVersionId),
+      asc(experimentObservations.modelVersionId),
       asc(experimentObservationImages.imageId),
     )
     .limit(CLAIM_CANDIDATE_LIMIT);

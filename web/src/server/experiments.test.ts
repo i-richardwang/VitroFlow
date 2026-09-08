@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 
 import { makeResult } from "../annotation/testing";
 import { database } from "../db/client";
@@ -8,12 +9,12 @@ import {
   experimentCultureEvents,
   experimentUnits,
   experimentObservations,
-  experiments,
   inferenceOutcomes,
 } from "../db/schema";
 import type { Worker } from "../workers/schema";
 import type { ModelVersion } from "../models/schema";
 import {
+  ModelVersionNotFoundError,
   UnitNotFoundError,
   UnitRejectedError,
   ExperimentHasRecordsError,
@@ -117,6 +118,11 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
   return registerTrainedVersion(modelId);
 }
 
+/** An observation reading seeds with the version. */
+function reading(version: ModelVersion) {
+  return { modelVersionId: version.id, metric: "seeds" };
+}
+
 function resultFor(version: ModelVersion, digest: string, seeds: number) {
   return {
     ...makeResult(
@@ -192,24 +198,28 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Day one",
       inoculatedOn: INOCULATED,
-      modelVersionId: SEED_DETECTOR_BASELINE_VERSION_ID,
     });
-    expect(experiment.modelVersionId).toBe(SEED_DETECTOR_BASELINE_VERSION_ID);
     expect(experiment.inoculatedOn).toBe(INOCULATED);
+    const observation = await addObservation({
+      experiment: experiment.id,
+      observedOn: INOCULATED,
+      note: "",
+      modelVersionId: SEED_DETECTOR_BASELINE_VERSION_ID,
+      metric: "seeds",
+    });
+    expect(observation.modelVersionId).toBe(SEED_DETECTOR_BASELINE_VERSION_ID);
+    expect(observation.metric).toMatchObject({ id: "seeds", kind: "count" });
   });
 
-  test("have server-owned identities, one name each, and one fixed version", async () => {
-    const version = await trainedVersion("exp-kind");
+  test("have server-owned identities and one name each", async () => {
     const first = await createExperiment({
       name: "  Germination A  ",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
     });
     await expect(
       createExperiment({
         name: "germination a",
         inoculatedOn: INOCULATED,
-        modelVersionId: version.id,
       }),
     ).rejects.toThrow(ExperimentRejectedError);
 
@@ -217,30 +227,6 @@ describe("experiments", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(first.name).toBe("Germination A");
-    expect(first.modelVersionId).toBe(version.id);
-
-    const traditional = await baselineVersion();
-    const baseline = await createExperiment({
-      name: "Baseline",
-      inoculatedOn: INOCULATED,
-      modelVersionId: traditional.id,
-    });
-    expect(baseline.modelVersionId).toBe(traditional.id);
-
-    const unknownVersion = (async () => {
-      await (await database()).insert(experiments).values({
-        id: randomUUID(),
-        name: "Bypass",
-        plantMaterial: "",
-        explantType: "",
-        baseMedium: "",
-        notes: "",
-        inoculatedOn: INOCULATED,
-        modelVersionId: "nobody.v9",
-        createdAt: new Date(),
-      });
-    })();
-    await expect(unknownVersion).rejects.toThrow();
 
     const invalidUnit = (async () => {
       const [treatment] = (await readExperimentGrid(first.id))!.treatments;
@@ -255,14 +241,12 @@ describe("experiments", () => {
   });
 
   test("the design lays out units before any image exists", async () => {
-    const version = await trainedVersion("exp-design");
     const experiment = await createExperiment({
       name: "Hormones",
       plantMaterial: "  Arabidopsis Col-0  ",
       explantType: "Seeds",
       baseMedium: "MS",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [
         { name: "CK", note: "Hormone-free MS", replicates: 2 },
         {
@@ -307,12 +291,10 @@ describe("experiments", () => {
   });
 
   test("an experiment cannot be created without a design", async () => {
-    const version = await trainedVersion("exp-no-design");
     expect(
       experimentRequestSchema.safeParse({
         name: "Undesigned",
         inoculatedOn: INOCULATED,
-        modelVersionId: version.id,
         treatments: [],
       }).success,
     ).toBeFalse();
@@ -320,7 +302,6 @@ describe("experiments", () => {
       experimentRequestSchema.safeParse({
         name: "Undesigned",
         inoculatedOn: INOCULATED,
-        modelVersionId: version.id,
         treatments: [
           { name: "CK", replicates: 1 },
           { name: "ck", replicates: 1 },
@@ -336,18 +317,72 @@ describe("experiments", () => {
     ).toBeFalse();
   });
 
-  test("an observation can be scheduled before any image exists", async () => {
-    const version = await trainedVersion("exp-planned-observation");
+  test("an observation reads one metric of one version's model", async () => {
+    const version = await trainedVersion("exp-reading");
     const experiment = await createExperiment({
-      name: "Planned observation",
+      name: "Reading",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
     });
     await expect(
       addObservation({
         experiment: experiment.id,
         observedOn: "2026-08-08",
         note: "",
+        modelVersionId: "nobody.v9",
+        metric: "seeds",
+      }),
+    ).rejects.toThrow(ModelVersionNotFoundError);
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-08",
+        note: "",
+        modelVersionId: version.id,
+        metric: "germination",
+      }),
+    ).rejects.toThrow(ObservationRejectedError);
+    const observation = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+      ...reading(version),
+    });
+    expect(observation.metric).toMatchObject({ id: "seeds", kind: "count" });
+
+    const traditional = await baselineVersion();
+    const reread = await updateObservation({
+      experiment: experiment.id,
+      observation: observation.id,
+      observedOn: observation.observedOn,
+      note: observation.note,
+      modelVersionId: traditional.id,
+      metric: "seeds",
+    });
+    expect(reread.modelVersionId).toBe(traditional.id);
+
+    const unknownVersion = (async () => {
+      await (
+        await database()
+      )
+        .update(experimentObservations)
+        .set({ modelVersionId: "nobody.v9" })
+        .where(eq(experimentObservations.id, observation.id));
+    })();
+    await expect(unknownVersion).rejects.toThrow();
+  });
+
+  test("an observation can be scheduled before any image exists", async () => {
+    const version = await trainedVersion("exp-planned-observation");
+    const experiment = await createExperiment({
+      name: "Planned observation",
+      inoculatedOn: INOCULATED,
+    });
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-08",
+        note: "",
+        ...reading(version),
       }),
     ).resolves.toMatchObject({ day: 7 });
     await expect(
@@ -355,6 +390,7 @@ describe("experiments", () => {
         experiment: experiment.id,
         observedOn: "2026-08-15",
         note: "",
+        ...reading(version),
       }),
     ).resolves.toMatchObject({ day: 14 });
 
@@ -363,11 +399,9 @@ describe("experiments", () => {
   });
 
   test("a treatment can gain replicates after it is designed", async () => {
-    const version = await trainedVersion("exp-more-units");
     const experiment = await createExperiment({
       name: "More units",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "T1", replicates: 1 }],
     });
     const [treatment] = (await readExperimentGrid(experiment.id))!.treatments;
@@ -393,11 +427,9 @@ describe("experiments", () => {
   });
 
   test("treatment names and unit codes are unique", async () => {
-    const version = await trainedVersion("exp-unique");
     const experiment = await createExperiment({
       name: "Unique",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [
         { name: "CK", replicates: 2 },
         { name: "T1", replicates: 1 },
@@ -472,11 +504,9 @@ describe("experiments", () => {
   });
 
   test("an experiment keeps a treatment, and a treatment keeps a replicate", async () => {
-    const version = await trainedVersion("exp-floor");
     const experiment = await createExperiment({
       name: "Floor",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [
         { name: "CK", replicates: 1 },
         { name: "T1", replicates: 2 },
@@ -512,11 +542,9 @@ describe("experiments", () => {
   });
 
   test("several units can move to another treatment together", async () => {
-    const version = await trainedVersion("exp-move-units");
     const experiment = await createExperiment({
       name: "Move units",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [
         { name: "CK", replicates: 3 },
         { name: "T1", replicates: 1 },
@@ -560,7 +588,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Delete treatment",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [
         { name: "CK", replicates: 2 },
         { name: "T1", replicates: 1 },
@@ -572,6 +599,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     await assignImages(
       experiment.id,
@@ -600,7 +628,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Typo",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -608,6 +635,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     await assignImages(experiment.id, observation.id, units, {
       "A-1": "r-a1",
@@ -641,7 +669,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Series",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [
         { name: "A", replicates: 10 },
         { name: "B", replicates: 1 },
@@ -653,6 +680,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "First look",
+      ...reading(version),
     });
     expect([day7.ordinal, day7.day, day7.note]).toEqual([1, 7, "First look"]);
 
@@ -660,17 +688,20 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-22",
       note: "",
+      ...reading(version),
     });
     const day14 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
+      ...reading(version),
     });
     await expect(
       addObservation({
         experiment: experiment.id,
         observedOn: "2026-08-15",
         note: "",
+        ...reading(version),
       }),
     ).rejects.toThrow(ObservationRejectedError);
 
@@ -707,13 +738,13 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Dates",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
     });
     await expect(
       addObservation({
         experiment: experiment.id,
         observedOn: "2026-07-31",
         note: "",
+        ...reading(version),
       }),
     ).rejects.toThrow(ObservationRejectedError);
     await expect(
@@ -723,6 +754,7 @@ describe("experiments", () => {
           id: randomUUID(),
           inoculatedOn: INOCULATED,
           observedOn: "2026-07-31",
+          ...reading(version),
           note: "",
           createdAt: new Date(),
         });
@@ -738,7 +770,6 @@ describe("experiments", () => {
       explantType: "Leaf discs",
       baseMedium: "MS",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -746,6 +777,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
 
     const added = await addTreatment({
@@ -822,7 +854,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Image assignment",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -830,11 +861,13 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     const day14 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
+      ...reading(version),
     });
     const [first, other] = await storeTexts(["f-a1", "f-a2"]);
 
@@ -949,7 +982,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Refile",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -957,6 +989,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     await assignImages(experiment.id, day7.id, units, {
       "A-1": "w-a1",
@@ -998,7 +1031,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Terminal events",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 1 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1006,6 +1038,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
 
     const results = await Promise.allSettled([
@@ -1047,7 +1080,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Contamination",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1055,6 +1087,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
 
     const event = await recordCultureEvent({
@@ -1079,6 +1112,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
+      ...reading(version),
     });
     const terminalEvent = await recordCultureEvent({
       experiment: experiment.id,
@@ -1162,7 +1196,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Bulk events",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 3 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1170,6 +1203,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
 
     const events = await recordCultureEvents({
@@ -1198,12 +1232,11 @@ describe("experiments", () => {
     ).toHaveLength(2);
   });
 
-  test("analyzes images under the experiment version and exposes tallies", async () => {
+  test("analyzes images under the observation version and exposes tallies", async () => {
     const version = await trainedVersion("exp-metrics");
     const experiment = await createExperiment({
       name: "Metrics",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "D", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1211,6 +1244,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     await assignImages(experiment.id, day7.id, units, {
       "D-1": "c-d1",
@@ -1283,7 +1317,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Unit series",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "S", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1291,11 +1324,13 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     const day14 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
+      ...reading(version),
     });
     await assignImages(experiment.id, day7.id, units, {
       "S-1": "s-d1-s1",
@@ -1310,7 +1345,7 @@ describe("experiments", () => {
     };
 
     const newest = await readUnit(ref);
-    expect(newest?.model.metrics[0]?.id).toBe("seeds");
+    expect(newest?.shown?.model.metrics[0]?.id).toBe("seeds");
     expect(newest?.shown?.observation.id).toBe(day14.id);
     expect(
       newest?.observations.map((item) => item.image?.state ?? null),
@@ -1344,7 +1379,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "Draft",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "A", replicates: 2 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1361,17 +1395,18 @@ describe("experiments", () => {
       "Final",
       "2026-08-02",
     ]);
-    expect(revised.modelVersionId).toBe(version.id);
 
     const day7 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     const day14 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
+      ...reading(version),
     });
     await assignImages(experiment.id, day7.id, units, {
       "A-1": "m-a1-1",
@@ -1387,6 +1422,7 @@ describe("experiments", () => {
         observation: day14.id,
         observedOn: "2026-08-08",
         note: "",
+        ...reading(version),
       }),
     ).rejects.toThrow(ObservationRejectedError);
     const redatedEmpty = await updateObservation({
@@ -1394,6 +1430,7 @@ describe("experiments", () => {
       observation: day14.id,
       observedOn: "2026-08-29",
       note: "Final count",
+      ...reading(version),
     });
     expect([
       redatedEmpty.observedOn,
@@ -1405,6 +1442,7 @@ describe("experiments", () => {
       observation: day7.id,
       observedOn: "2026-08-09",
       note: "Images checked",
+      ...reading(version),
     });
     expect([
       redatedRecorded.observedOn,
@@ -1440,7 +1478,6 @@ describe("experiments", () => {
     const disposable = await createExperiment({
       name: "Disposable draft",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
     });
     await deleteExperiment({ experiment: disposable.id });
     expect(await readExperiment(disposable.id)).toBeNull();
@@ -1458,7 +1495,6 @@ describe("experiments", () => {
       const experiment = await createExperiment({
         name,
         inoculatedOn: INOCULATED,
-        modelVersionId: version.id,
         treatments: [{ name: "S", replicates: 1 }],
       });
       const units = await unitsOf(experiment.id);
@@ -1466,6 +1502,7 @@ describe("experiments", () => {
         experiment: experiment.id,
         observedOn: "2026-08-08",
         note: "",
+        ...reading(version),
       });
       await assignObservationImages({
         experiment: experiment.id,
@@ -1524,7 +1561,6 @@ describe("experiments", () => {
     const experiment = await createExperiment({
       name: "GC",
       inoculatedOn: INOCULATED,
-      modelVersionId: version.id,
       treatments: [{ name: "E", replicates: 1 }],
     });
     const units = await unitsOf(experiment.id);
@@ -1532,6 +1568,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
+      ...reading(version),
     });
     await assignImages(experiment.id, observation.id, units, {
       "E-1": "gc-e1",
