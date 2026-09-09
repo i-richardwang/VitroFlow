@@ -1,4 +1,4 @@
-import { Button, Tooltip } from "@heroui/react";
+import { Button } from "@heroui/react";
 import type { ReactNode } from "react";
 
 /** Moves to the neighbouring record; disabled at either end of the series. */
@@ -13,7 +13,7 @@ export function StepButton({
   onPress: () => void;
   children: ReactNode;
 }) {
-  const button = (
+  return (
     <Button
       variant="tertiary"
       isIconOnly
@@ -23,12 +23,5 @@ export function StepButton({
     >
       {children}
     </Button>
-  );
-  if (neighbour === null) return button;
-  return (
-    <Tooltip delay={0}>
-      {button}
-      <Tooltip.Content className="font-mono">{neighbour}</Tooltip.Content>
-    </Tooltip>
   );
 }

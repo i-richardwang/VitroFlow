@@ -11,7 +11,7 @@
   "worker_presence_stale": "Stale",
   "worker_presence_offline": "Offline",
   "worker_activity_idle": "Idle",
-  "worker_activity_inference": "Analyzing {image}",
+  "worker_activity_inference": "Detecting {image}",
   "worker_activity_training": "Training {dataset}",
   "worker_age_seconds": "{count}s ago",
   "worker_age_minutes": "{count}m ago",

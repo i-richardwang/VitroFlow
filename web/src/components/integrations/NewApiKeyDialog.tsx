@@ -87,7 +87,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                 </Modal.Body>
                 <Modal.Footer>
                   <Button variant="primary" onPress={close}>
-                    {m.api_key_dialog_done()}
+                    {m.close()}
                   </Button>
                 </Modal.Footer>
               </>

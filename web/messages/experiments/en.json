@@ -7,7 +7,7 @@
   "experiments_column_treatments": "Treatments",
   "experiments_column_inoculated": "Inoculated",
   "experiments_column_latest": "Latest",
-  "experiments_column_analysis": "Analysis",
+  "experiments_column_analysis": "Detection",
   "experiment_new": "New experiment",
   "experiment_not_started": "Experiment not started",
   "experiment_start": "Start",
@@ -32,7 +32,6 @@
   "experiment_menu_delete": "Delete experiment…",
   "experiment_delete": "Delete experiment",
   "experiment_delete_title": "Delete {name}?",
-  "experiment_delete_note": "Images stay stored.",
   "experiment_deleted": "{name} deleted",
   "experiment_edit_heading": "Edit experiment",
   "experiment_not_saved": "Experiment not saved",
@@ -43,8 +42,8 @@
   "experiment_grid_label": "Observations of {experiment}",
   "experiment_selection": "Selected units",
   "experiment_selection_clear": "Clear selection",
-  "experiment_move_units": "Move to treatment",
-  "experiment_units_not_moved": "Units not moved",
+  "experiment_move_units": "Change treatment",
+  "experiment_units_not_moved": "Could not switch",
   "experiment_units_moved": [
     {
       "declarations": [
@@ -54,16 +53,16 @@
       ],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "Moved to {treatment}",
-        "countPlural=other": "{count} units moved to {treatment}"
+        "countPlural=one": "Switched to {treatment}",
+        "countPlural=other": "{count} units switched to {treatment}"
       }
     }
   ],
   "experiment_column_treatment": "Treatment",
-  "experiment_cell_analyzed": "Analyzed {value}",
+  "experiment_cell_analyzed": "Detected {value}",
   "experiment_cell_excluded": "Excluded from analysis at this observation",
-  "image_analysis_pending": "Pending",
-  "image_analysis_analyzed": "Analyzed",
+  "image_analysis_pending": "Pending detection",
+  "image_analysis_analyzed": "Detected",
   "image_analysis_failed": "Failed",
   "observation_day_label": "Day {day}",
   "observation_label": "Observation",
@@ -76,8 +75,8 @@
   "observation_version_label": "Model version",
   "observation_metric_label": "Metric",
   "observation_actions": "{observation} actions",
-  "observation_menu_assign_images": "Assign images…",
-  "observation_assign_images": "Assign images",
+  "observation_menu_assign_images": "Match to units…",
+  "observation_assign_images": "Match to units",
   "observation_menu_add_to_dataset": "Add images to dataset…",
   "observation_add_to_dataset": "Add images to dataset",
   "observation_menu_edit": "Edit observation…",
@@ -88,7 +87,7 @@
   "observation_deleted": "{observation} deleted",
   "observation_not_saved": "Observation not saved",
   "observation_images_heading": "Images for {observation}",
-  "observation_images_not_assigned": "No images were assigned",
+  "observation_images_not_assigned": "No images were matched",
   "observation_images_assigned": [
     {
       "declarations": [
@@ -98,8 +97,8 @@
       ],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "{count} image assigned to {observation}",
-        "countPlural=other": "{count} images assigned to {observation}"
+        "countPlural=one": "{count} image matched to {observation}",
+        "countPlural=other": "{count} images matched to {observation}"
       }
     }
   ],
@@ -108,27 +107,27 @@
       "declarations": ["input count", "local countPlural = count: plural"],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "Assign the remaining image",
-        "countPlural=other": "Assign the remaining {count} images"
+        "countPlural=one": "Match the remaining image",
+        "countPlural=other": "Match the remaining {count} images"
       }
     }
   ],
-  "observation_images_assigning": "Assigning…",
+  "observation_images_assigning": "Matching…",
   "observation_images_uploading": "Uploading…",
-  "observation_images_assign_count": "Assign {count}",
+  "observation_images_assign_count": "Match {count}",
   "observation_images_unit_label": "Unit shown by {file}",
-  "observation_images_unassigned": "Unassigned",
+  "observation_images_unassigned": "Unmatched",
   "unit_label": "Unit",
   "unit_title": "Unit {code} of {experiment}",
   "unit_navigation": "Navigation",
   "unit_no_image": "No image yet",
   "unit_image_section": "Image",
   "unit_status": "Status",
-  "unit_file": "File",
+  "unit_file": "Filename",
   "unit_observed": "Observed",
   "unit_detection_failed": "Detection failed",
-  "unit_retry": "Try again",
-  "unit_retry_failed": "Could not retry image analysis",
+  "unit_retry": "Detect again",
+  "unit_retry_failed": "Could not detect again",
   "unit_previous": "Previous unit",
   "unit_next": "Next unit",
   "unit_actions": "{code} actions",
@@ -141,21 +140,21 @@
   "unit_image_not_replaced": "Image not replaced",
   "unit_menu_edit": "Edit unit…",
   "unit_edit": "Edit unit",
-  "unit_unassign_image": "Unassign image",
-  "unit_image_unassigned": "Image unassigned",
-  "unit_image_not_unassigned": "Image not unassigned",
+  "unit_unassign_image": "Remove image",
+  "unit_image_unassigned": "Image removed",
+  "unit_image_not_unassigned": "Image not removed",
   "unit_menu_delete": "Delete unit…",
   "unit_delete": "Delete unit",
   "unit_delete_title": "Delete {code}?",
   "unit_deleted": "{code} deleted",
   "unit_not_saved": "Unit not saved",
   "unit_code_label": "Code",
-  "culture_event_label": "Event",
-  "culture_event_menu_record": "Record culture event…",
-  "culture_event_record": "Record culture event",
+  "culture_event_label": "Status",
+  "culture_event_menu_record": "Record culture status…",
+  "culture_event_record": "Record culture status",
   "culture_event_record_action": "Record",
   "culture_event_recording": "Recording…",
-  "culture_event_not_recorded": "Event not recorded",
+  "culture_event_not_recorded": "Status not recorded",
   "culture_event_recorded_for": [
     {
       "declarations": [
@@ -170,11 +169,11 @@
       }
     }
   ],
-  "culture_event_menu_remove": "Remove culture event…",
-  "culture_event_remove": "Remove culture event",
-  "culture_event_remove_action": "Remove event",
+  "culture_event_menu_remove": "Remove culture status…",
+  "culture_event_remove": "Remove culture status",
+  "culture_event_remove_action": "Remove",
   "culture_event_removing": "Removing…",
-  "culture_event_not_removed": "Event not removed",
+  "culture_event_not_removed": "Status not removed",
   "culture_event_contaminated": "Contaminated",
   "culture_event_nonviable": "Nonviable",
   "culture_event_discarded": "Discarded",

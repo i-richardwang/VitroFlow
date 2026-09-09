@@ -21,7 +21,6 @@
   "api_key_dialog_title": "新建 API 密钥",
   "api_key_dialog_shown_once": "仅显示一次。",
   "api_key_dialog_secret_label": "API 密钥",
-  "api_key_dialog_done": "完成",
   "api_key_dialog_name_label": "名称",
   "api_key_dialog_name_placeholder": "实验室笔记本上的 Claude",
   "api_key_dialog_scopes_label": "权限范围",

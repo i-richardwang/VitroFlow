@@ -22,7 +22,7 @@
   "cancel": "取消",
   "action_failed": "{action}失败",
   "action_in_progress": "{action}…",
-  "dropzone_label": "将图片拖到此处，或浏览选择",
+  "dropzone_label": "将图片拖到此处，或从文件夹选择",
   "dropzone_limits": "JPEG、PNG 或 TIFF · {megabytes} MiB · {megapixels} MP",
   "dropzone_select": "选择图片",
   "dropzone_ready": "就绪",

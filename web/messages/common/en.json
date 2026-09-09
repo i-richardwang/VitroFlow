@@ -22,7 +22,7 @@
   "cancel": "Cancel",
   "action_failed": "{action} failed",
   "action_in_progress": "{action}…",
-  "dropzone_label": "Drop images here or browse",
+  "dropzone_label": "Drop images here or choose from a folder",
   "dropzone_limits": "JPEG, PNG, or TIFF · {megabytes} MiB · {megapixels} MP",
   "dropzone_select": "Select images",
   "dropzone_ready": "ready",

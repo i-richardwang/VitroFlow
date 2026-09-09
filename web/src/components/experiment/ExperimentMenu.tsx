@@ -90,9 +90,7 @@ export function ExperimentMenu({
           toast.success(m.experiment_deleted({ name: experiment.name }));
           await router.navigate({ to: "/experiments" });
         }}
-      >
-        {m.experiment_delete_note()}
-      </DestructiveActionDialog>
+      />
     </>
   );
 }

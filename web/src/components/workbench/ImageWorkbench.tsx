@@ -70,7 +70,7 @@ const DEFAULT_LAYERS: LayerKey[] = ["boxes"];
 
 /** What a page adds around the image: its own controls, navigation, and facts. */
 export interface ImageWorkbenchContext {
-  /** Beside Edit. Hidden while a session is open. */
+  /** Beside Calibrate. Hidden while a session is open. */
   actions?: ReactNode;
   /** Last in the navbar. */
   menu?: ReactNode;
@@ -84,11 +84,11 @@ export interface ImageWorkbenchContext {
  * One image reviewed for one model, wherever the page shows it.
  *
  * The workbench owns the frame and the slots around it. A session is a
- * draft of the boxes: Cancel and Done in the navbar, drawing tools on
+ * draft of the boxes: Cancel and Save in the navbar, drawing tools on
  * the toolbar, and an editable layer over the image. The page keeps that
  * session in its address. The draft opens from the boxes already shown;
  * the stored annotation is read as the save base and is not replaced by
- * later route data. Done stores the draft; Cancel discards it.
+ * later route data. Save stores the draft; Cancel discards it.
  */
 export function ImageWorkbench({
   title,
@@ -146,8 +146,8 @@ export function ImageWorkbench({
           {session
             ? saving
               ? m.workbench_saving()
-              : m.workbench_done()
-            : m.workbench_edit()}
+              : m.workbench_save()
+            : m.workbench_calibrate()}
         </Button>
         {!session && context.actions}
         <div inert={saving || undefined} className="contents">

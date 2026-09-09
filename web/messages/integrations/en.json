@@ -21,7 +21,6 @@
   "api_key_dialog_title": "New API key",
   "api_key_dialog_shown_once": "Shown only once.",
   "api_key_dialog_secret_label": "API key",
-  "api_key_dialog_done": "Done",
   "api_key_dialog_name_label": "Name",
   "api_key_dialog_name_placeholder": "Claude on the lab laptop",
   "api_key_dialog_scopes_label": "Scopes",
