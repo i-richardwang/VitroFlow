@@ -31,7 +31,7 @@ export const saveAnnotation = createServerFn({ method: "POST" })
     }
   });
 
-/** Opening an editor reads its own baseline, independently of the page cache. */
+/** Reads the stored annotation as a save baseline, independently of the page cache. */
 export const getAnnotation = createServerFn({ method: "GET" })
   .validator(annotationRefSchema)
   .handler(({ data }) => readAnnotation(data));

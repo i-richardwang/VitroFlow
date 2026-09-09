@@ -43,13 +43,13 @@ test("experiment routes reject malformed resource identities as not found", asyn
 test("an observation the link cannot name falls back to the newest", () => {
   const search = UnitRoute.options.validateSearch as z.ZodType<{
     observation?: string;
-    edit?: true;
+    calibrate?: true;
   }>;
   expect(search.parse({ observation: "not-a-uuid" })).toEqual({
     observation: undefined,
-    edit: undefined,
+    calibrate: undefined,
   });
   expect(
-    search.parse({ observation: OBSERVATION_UNIT_ID, edit: true }),
-  ).toEqual({ observation: OBSERVATION_UNIT_ID, edit: true });
+    search.parse({ observation: OBSERVATION_UNIT_ID, calibrate: true }),
+  ).toEqual({ observation: OBSERVATION_UNIT_ID, calibrate: true });
 });

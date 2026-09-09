@@ -9,20 +9,20 @@ type Loader = (context: {
   deps: Record<string, unknown>;
 }) => unknown | Promise<unknown>;
 
-test("an image link names the boxes to show and whether to edit", () => {
+test("an image link names which instances to show and whether to calibrate", () => {
   const search = DatasetImageRoute.options.validateSearch as z.ZodType<{
     show?: "review" | "detection";
-    edit?: true;
+    calibrate?: true;
   }>;
-  expect(search.parse({ show: "detection", edit: true })).toEqual({
+  expect(search.parse({ show: "detection", calibrate: true })).toEqual({
     show: "detection",
-    edit: true,
+    calibrate: true,
   });
-  expect(search.parse({ show: "boxes", edit: "yes" })).toEqual({
+  expect(search.parse({ show: "original", calibrate: "yes" })).toEqual({
     show: undefined,
-    edit: undefined,
+    calibrate: undefined,
   });
-  expect(search.parse({})).toEqual({ show: undefined, edit: undefined });
+  expect(search.parse({})).toEqual({ show: undefined, calibrate: undefined });
 });
 
 test("the dataset image page rejects a malformed digest as not found", async () => {

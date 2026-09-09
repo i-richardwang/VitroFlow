@@ -1,7 +1,7 @@
 import { canonicalJson } from "../json/canonical";
 import type { AnnotationInstance } from "./schema";
 
-/** One editing session of the boxes on an image. */
+/** The unsaved calibration of an image's annotation. */
 export interface AnnotationDraft {
   /** False until this session has read the stored annotation. */
   ready: boolean;
@@ -14,13 +14,13 @@ export interface AnnotationDraft {
 
 export type DraftAction =
   | { type: "base"; base: AnnotationInstance[] | null }
-  | { type: "edit"; instances: AnnotationInstance[] }
+  | { type: "replace"; instances: AnnotationInstance[] }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "submit" }
   | { type: "failed" };
 
-/** Opens from the boxes on screen. Load the stored annotation next. */
+/** Opens from the instances on screen. Load the stored annotation next. */
 export function openDraft(opening: AnnotationInstance[]): AnnotationDraft {
   return {
     ready: false,
@@ -32,7 +32,7 @@ export function openDraft(opening: AnnotationInstance[]): AnnotationDraft {
   };
 }
 
-/** Submission freezes the draft, including edits already queued by gestures. */
+/** Submission freezes the draft, including replacements already queued by gestures. */
 export function reduceDraft(
   state: AnnotationDraft,
   action: DraftAction,
@@ -59,7 +59,7 @@ export function reduceDraft(
     case "submit":
       if (!state.ready) return state;
       return { ...state, saving: true };
-    case "edit":
+    case "replace":
       if (canonicalJson(action.instances) === canonicalJson(state.instances))
         return state;
       return {

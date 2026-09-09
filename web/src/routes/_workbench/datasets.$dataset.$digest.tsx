@@ -15,12 +15,11 @@ import { m } from "../../paraglide/messages";
 import type { DatasetImageStep, DatasetImageView } from "../../datasets/image";
 
 /**
- * `show` picks the boxes to look at: what the model found, or the review;
- * `edit` opens the review for editing.
+ * `show` is detection or review. `calibrate` opens the draft.
  */
 const datasetImageSearchSchema = z.object({
   show: z.enum(REVIEW_VERSIONS).optional().catch(undefined),
-  edit: z.literal(true).optional().catch(undefined),
+  calibrate: z.literal(true).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
@@ -53,7 +52,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
 function DatasetImagePage() {
   const { dataset, model, review, split, previous, next } =
     Route.useLoaderData();
-  const { show, edit } = Route.useSearch();
+  const { show, calibrate } = Route.useSearch();
   const router = useRouter();
   const navigate = Route.useNavigate();
   const { detection } = review;
@@ -76,13 +75,13 @@ function DatasetImagePage() {
       title={m.image_title({ file: review.filename, dataset: dataset.id })}
       model={model}
       review={review}
-      editing={edit === true}
+      calibrating={calibrate === true}
       version={show}
-      onEditingChange={(editing) =>
+      onCalibratingChange={(calibrating) =>
         void navigate({
           search: (previous) => ({
             ...previous,
-            edit: editing ? true : undefined,
+            calibrate: calibrating ? true : undefined,
           }),
         })
       }
@@ -106,7 +105,7 @@ function DatasetImagePage() {
                 <ChevronRightIcon />
               </StepButton>
             </ButtonGroup>
-            {!edit && detection && review.annotation ? (
+            {!calibrate && detection && review.annotation ? (
               <>
                 <Separator />
                 <Segment

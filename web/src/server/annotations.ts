@@ -36,10 +36,10 @@ export async function readAnnotation(
 }
 
 /**
- * Stores the boxes a reviewer decided on as the image's review for the model.
+ * Stores the instances a reviewer decided on as the image's review for the model.
  * The document is composed here, on the stored image, so a review can only
- * ever describe the image it is addressed to. The base is the stored boxes
- * the editor read, or null for a first review. Only that base can be replaced.
+ * ever describe the image it is addressed to. The base is those stored
+ * instances at open, or null for a first review. Only that base can be replaced.
  */
 export async function storeAnnotation(
   ref: AnnotationRef,

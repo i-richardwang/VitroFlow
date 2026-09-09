@@ -10,11 +10,11 @@ import type { UnitSeries } from "../../experiments/contracts";
 
 /**
  * An observation the link cannot name is no observation: the newest shows.
- * `edit` opens the image's review for editing.
+ * `calibrate` opens the draft.
  */
 const unitSearchSchema = z.object({
   observation: observationIdSchema.optional().catch(undefined),
-  edit: z.literal(true).optional().catch(undefined),
+  calibrate: z.literal(true).optional().catch(undefined),
 });
 
 export const Route = createFileRoute(
@@ -59,7 +59,7 @@ export const Route = createFileRoute(
 
 function UnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
-  const { edit } = Route.useSearch();
+  const { calibrate } = Route.useSearch();
   const router = useRouter();
   const navigate = Route.useNavigate();
   const { shown } = series;
@@ -75,12 +75,12 @@ function UnitPage() {
       key={`${series.experiment.id}/${series.unit.id}`}
       series={series}
       datasets={datasets}
-      editing={edit === true}
-      onEditingChange={(editing) =>
+      calibrating={calibrate === true}
+      onCalibratingChange={(calibrating) =>
         void navigate({
           search: (previous) => ({
             ...previous,
-            edit: editing ? true : undefined,
+            calibrate: calibrating ? true : undefined,
           }),
         })
       }

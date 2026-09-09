@@ -74,7 +74,7 @@ export interface ImageWorkbenchContext {
   actions?: ReactNode;
   /** Last in the navbar. */
   menu?: ReactNode;
-  /** Before the editing tools. */
+  /** Before the calibration tools. */
   toolbar?: ReactNode;
   /** Between the metrics and the layers. */
   details?: ReactNode;
@@ -83,30 +83,30 @@ export interface ImageWorkbenchContext {
 /**
  * One image reviewed for one model, wherever the page shows it.
  *
- * The workbench owns the frame and the slots around it. A session is a
- * draft of the boxes: Cancel and Save in the navbar, drawing tools on
- * the toolbar, and an editable layer over the image. The page keeps that
- * session in its address. The draft opens from the boxes already shown;
- * the stored annotation is read as the save base and is not replaced by
- * later route data. Save stores the draft; Cancel discards it.
+ * The workbench owns the frame and the slots around it. A calibration is a
+ * draft: Cancel and Save in the navbar, tools on the toolbar, and a writable
+ * layer over the image. The page keeps that session in its address. The draft
+ * opens from the instances already shown; the stored annotation is read as
+ * the save base and is not replaced by later route data. Save stores the
+ * draft; Cancel discards it.
  */
 export function ImageWorkbench({
   title,
   model,
   review,
-  editing,
+  calibrating,
   version = "review",
-  onEditingChange,
+  onCalibratingChange,
   context = {},
 }: {
   title: string;
   model: Model;
   review: Review;
   /** Opens the draft, once there is something to review. */
-  editing: boolean;
-  /** The boxes shown while not editing. */
+  calibrating: boolean;
+  /** The instances shown while not calibrating. */
   version?: ReviewVersion;
-  onEditingChange: (editing: boolean) => void;
+  onCalibratingChange: (calibrating: boolean) => void;
   context?: ImageWorkbenchContext;
 }) {
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
@@ -115,11 +115,11 @@ export function ImageWorkbench({
   const display = { layers, onLayersChange: setLayers };
   const opening = reviewInstances(review);
   const session = useAnnotationSession({
-    editing,
+    calibrating,
     opening,
     review,
     model,
-    onClose: () => onEditingChange(false),
+    onClose: () => onCalibratingChange(false),
   });
   const saving = session?.saving ?? false;
 
@@ -141,7 +141,7 @@ export function ImageWorkbench({
           variant="primary"
           isDisabled={!session && !opening}
           isPending={Boolean(session && (!session.ready || saving))}
-          onPress={session ? session.done : () => onEditingChange(true)}
+          onPress={session ? session.save : () => onCalibratingChange(true)}
         >
           {session
             ? saving
@@ -167,7 +167,7 @@ export function ImageWorkbench({
           {session ? (
             <>
               {context.toolbar ? <Separator /> : null}
-              <EditingTools
+              <CalibrationTools
                 tool={session.tool}
                 history={session.history}
                 canDelete={session.selectedId !== null}
@@ -211,7 +211,7 @@ export function ImageWorkbench({
             className={session.activeClass}
             selectedId={session.selectedId}
             onSelect={session.setSelectedId}
-            onInstancesChange={session.editInstances}
+            onInstancesChange={session.replaceInstances}
           />
         ) : (
           <BoxLayer
@@ -244,7 +244,7 @@ function ReviewInspector({
   details,
 }: {
   model: Model;
-  /** The boxes of the review, or of the draft while editing. */
+  /** The instances of the review, or of the draft while calibrating. */
   instances: AnnotationInstance[] | null;
   detection: DetectionResult | null;
   display: Display;
@@ -352,13 +352,13 @@ function reduceSession(
 }
 
 function useAnnotationSession({
-  editing,
+  calibrating,
   opening,
   review,
   model,
   onClose,
 }: {
-  editing: boolean;
+  calibrating: boolean;
   opening: AnnotationInstance[] | null;
   review: Review;
   model: Model;
@@ -366,7 +366,7 @@ function useAnnotationSession({
 }) {
   const router = useRouter();
   const closing = useRef(false);
-  const live = editing && opening !== null;
+  const live = calibrating && opening !== null;
   const [session, dispatch] = useReducer(reduceSession, null);
 
   if (live && !session && opening) {
@@ -432,8 +432,9 @@ function useAnnotationSession({
   const selected =
     instances.find((instance) => instance.id === session?.selectedId) ?? null;
 
-  const editInstances = useCallback(
-    (next: AnnotationInstance[]) => dispatch({ type: "edit", instances: next }),
+  const replaceInstances = useCallback(
+    (next: AnnotationInstance[]) =>
+      dispatch({ type: "replace", instances: next }),
     [],
   );
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
@@ -454,15 +455,15 @@ function useAnnotationSession({
   const deleteSelected = useCallback(() => {
     const selectedId = session?.selectedId;
     if (!selectedId) return;
-    editInstances(instances.filter((instance) => instance.id !== selectedId));
+    replaceInstances(instances.filter((instance) => instance.id !== selectedId));
     dispatch({ type: "selectedId", selectedId: null });
-  }, [instances, session?.selectedId, editInstances]);
+  }, [instances, session?.selectedId, replaceInstances]);
 
   const changeClass = useCallback(
     (className: string) => {
       dispatch({ type: "activeClass", activeClass: className });
       if (!selected || selected.class === className) return;
-      editInstances(
+      replaceInstances(
         instances.map((instance) =>
           instance.id === selected.id
             ? { ...instance, class: className }
@@ -470,22 +471,22 @@ function useAnnotationSession({
         ),
       );
     },
-    [instances, editInstances, selected],
+    [instances, replaceInstances, selected],
   );
 
   const { detection } = review;
   const restartFromDetection = useCallback(() => {
     if (!detection) return;
-    editInstances(instancesFromDetection(detection));
+    replaceInstances(instancesFromDetection(detection));
     dispatch({ type: "selectedId", selectedId: null });
-  }, [detection, editInstances]);
+  }, [detection, replaceInstances]);
 
   const clearSelection = useCallback(() => {
     dispatch({ type: "selectedId", selectedId: null });
     dispatch({ type: "tool", tool: "select" });
   }, []);
 
-  const done = useCallback(async () => {
+  const save = useCallback(async () => {
     if (!draft?.ready || draft.saving) return;
     dispatch({ type: "submit" });
     try {
@@ -528,12 +529,12 @@ function useAnnotationSession({
     saving,
     instances,
     close,
-    done,
+    save,
     tool: session.tool,
     panning: session.panning,
     selectedId: session.selectedId,
     setSelectedId,
-    editInstances,
+    replaceInstances,
     setTool,
     history: {
       canUndo: session.draft.past.length > 0,
@@ -553,7 +554,7 @@ function useAnnotationSession({
   };
 }
 
-function EditingTools({
+function CalibrationTools({
   tool,
   history,
   canDelete,
@@ -573,7 +574,7 @@ function EditingTools({
   onUndo: () => void;
   onRedo: () => void;
   onDelete: () => void;
-  /** Replaces every box with what the detection found; present when there is one. */
+  /** Replaces every instance with what the detection found; present when there is one. */
   onRestart?: () => void;
   classes: string[];
   className: string;

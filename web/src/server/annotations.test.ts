@@ -77,7 +77,7 @@ describe("annotations", () => {
   });
 });
 
-test("only one editor can replace a shared base, including an unreviewed image", async () => {
+test("only one save can replace a shared base, including an unreviewed image", async () => {
   const { ref } = await detected("shared-draft", "shared-draft-worker");
   const contenders = await Promise.allSettled([
     storeAnnotation(ref, [box], null),

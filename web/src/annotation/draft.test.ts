@@ -21,12 +21,12 @@ function opened(
   return reduceDraft(openDraft(opening), { type: "base", base });
 }
 
-test("submission preserves one snapshot across queued edits, undo and redo", () => {
+test("submission preserves one snapshot across queued replacements, undo and redo", () => {
   const initial = opened([], null);
-  const edited = reduceDraft(initial, { type: "edit", instances: [box] });
-  const saving = reduceDraft(edited, { type: "submit" });
+  const replaced = reduceDraft(initial, { type: "replace", instances: [box] });
+  const saving = reduceDraft(replaced, { type: "submit" });
   for (const action of [
-    { type: "edit", instances: [] },
+    { type: "replace", instances: [] },
     { type: "undo" },
     { type: "redo" },
     { type: "submit" },
@@ -40,35 +40,35 @@ test("submission preserves one snapshot across queued edits, undo and redo", () 
   expect(reduceDraft(retry, { type: "undo" }).instances).toEqual([]);
 });
 
-test("undo and redo change the draft without changing its editing base", () => {
+test("undo and redo change the draft without changing its save base", () => {
   const initial = opened([box], [box]);
-  const edited = reduceDraft(initial, { type: "edit", instances: [] });
-  const undone = reduceDraft(edited, { type: "undo" });
+  const replaced = reduceDraft(initial, { type: "replace", instances: [] });
+  const undone = reduceDraft(replaced, { type: "undo" });
   expect(undone.instances).toEqual([box]);
   expect(undone.past).toEqual([]);
   expect(reduceDraft(undone, { type: "redo" }).instances).toEqual([]);
-  expect(edited.base).toEqual([box]);
-  expect(reduceDraft(initial, { type: "edit", instances: [{ ...box }] })).toBe(
-    initial,
-  );
+  expect(replaced.base).toEqual([box]);
+  expect(
+    reduceDraft(initial, { type: "replace", instances: [{ ...box }] }),
+  ).toBe(initial);
 });
 
-test("an unedited session takes the stored boxes once they are read", () => {
+test("an untouched draft takes the stored instances once they are read", () => {
   const draft = reduceDraft(openDraft([box]), { type: "base", base: [other] });
   expect(draft.ready).toBe(true);
   expect(draft.base).toEqual([other]);
   expect(draft.instances).toEqual([other]);
 });
 
-test("edits made before the stored boxes arrive are kept", () => {
+test("replacements made before the stored instances arrive are kept", () => {
   const started = openDraft([box]);
-  const edited = reduceDraft(started, { type: "edit", instances: [] });
-  const draft = reduceDraft(edited, { type: "base", base: [other] });
+  const replaced = reduceDraft(started, { type: "replace", instances: [] });
+  const draft = reduceDraft(replaced, { type: "base", base: [other] });
   expect(draft.base).toEqual([other]);
   expect(draft.instances).toEqual([]);
 });
 
-test("reading the same boxes keeps the opening instances", () => {
+test("reading the same instances keeps the opening array", () => {
   const opening = [box];
   const draft = reduceDraft(openDraft(opening), { type: "base", base: [box] });
   expect(draft.instances).toBe(opening);

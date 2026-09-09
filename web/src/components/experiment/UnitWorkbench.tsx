@@ -30,13 +30,13 @@ import { UnitMenu } from "./UnitMenu";
 export function UnitWorkbench({
   series,
   datasets,
-  editing,
-  onEditingChange,
+  calibrating,
+  onCalibratingChange,
 }: {
   series: UnitSeries;
   datasets: string[];
-  editing: boolean;
-  onEditingChange: (editing: boolean) => void;
+  calibrating: boolean;
+  onCalibratingChange: (calibrating: boolean) => void;
 }) {
   const { experiment, unit, treatments, navigation, shown } = series;
   const treatment = treatments.find((item) => item.id === unit.treatment)!;
@@ -70,7 +70,7 @@ export function UnitWorkbench({
     <>
       <UnitStepper
         experiment={experiment.id}
-        editing={editing}
+        calibrating={calibrating}
         previous={navigation[at - 1] ?? null}
         next={navigation[at + 1] ?? null}
       />
@@ -106,8 +106,8 @@ export function UnitWorkbench({
       title={title}
       model={shown.model}
       review={shown.review}
-      editing={editing}
-      onEditingChange={onEditingChange}
+      calibrating={calibrating}
+      onCalibratingChange={onCalibratingChange}
       context={{
         actions: (
           <AddToDatasetButton images={[shown.ref]} datasets={datasets} />
@@ -201,13 +201,13 @@ function ObservationSwitch({
 
 function UnitStepper({
   experiment,
-  editing,
+  calibrating,
   previous,
   next,
 }: {
   experiment: string;
-  /** Stepping while editing opens the next unit's image for editing too. */
-  editing: boolean;
+  /** Stepping during calibration opens the next unit's image for calibration too. */
+  calibrating: boolean;
   previous: UnitNavigationEntry | null;
   next: UnitNavigationEntry | null;
 }) {
@@ -216,7 +216,7 @@ function UnitStepper({
     void router.navigate({
       to: "/experiments/$experiment/$unit",
       params: { experiment, unit },
-      search: editing ? { edit: true } : {},
+      search: calibrating ? { calibrate: true } : {},
     });
   return (
     <ButtonGroup variant="tertiary">

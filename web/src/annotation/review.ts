@@ -31,7 +31,7 @@ export const reviewSchema = z.strictObject({
 export type Review = z.infer<typeof reviewSchema>;
 
 /**
- * The boxes of the review: the stored ones, else the detection's, which a
+ * The instances of the review: the stored ones, else the detection's, which a
  * review begins from. Null while there is nothing yet to review.
  */
 export function reviewInstances(review: Review): AnnotationInstance[] | null {
@@ -39,7 +39,7 @@ export function reviewInstances(review: Review): AnnotationInstance[] | null {
   return review.detection ? instancesFromDetection(review.detection) : null;
 }
 
-/** Which boxes a page shows: the review, or what the model found. */
+/** Which instances a page shows: the review, or what the model found. */
 export const REVIEW_VERSIONS = ["review", "detection"] as const;
 
 export type ReviewVersion = (typeof REVIEW_VERSIONS)[number];
