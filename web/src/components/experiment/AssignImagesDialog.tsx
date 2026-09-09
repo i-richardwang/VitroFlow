@@ -4,7 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 import type { Unit } from "../../experiments/contracts";
-import { suggestUnit } from "../../experiments/naming";
+import { pairInOrder, suggestUnit } from "../../experiments/naming";
 import {
   observationLabel,
   type ExperimentObservation,
@@ -12,6 +12,7 @@ import {
 import { assignImagesToObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
+import { Hint } from "../Hint";
 import { ImageDropZone, type ListedImage } from "../ImageDropZone";
 import { useUploads } from "./uploads";
 
@@ -84,6 +85,25 @@ export function AssignImagesDialog({
     (image) => image.state.status === "stored",
   );
   const unassigned = stored.length - ready.length;
+
+  /** Camera names say nothing about dishes; shooting order does. */
+  const fillInOrder = () =>
+    setAssignments((current) => {
+      const claimed = new Set(
+        Object.values(current).filter((unit): unit is string => unit !== null),
+      );
+      const waiting = stored
+        .filter((image) => !current[image.id])
+        .map((image) => ({ id: image.id, filename: image.file.name }));
+      const vacant = open
+        .filter((unit) => !claimed.has(unit.id))
+        .map((unit) => unit.id);
+      return {
+        ...current,
+        ...Object.fromEntries(pairInOrder(waiting, vacant)),
+      };
+    });
+  const vacantLeft = open.length - ready.length;
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
@@ -164,6 +184,18 @@ export function AssignImagesDialog({
                     />
                   )}
                 />
+                {unassigned > 0 ? (
+                  <Hint text={m.observation_images_fill_in_order_hint()}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isDisabled={busy || vacantLeft <= 0}
+                      onPress={fillInOrder}
+                    >
+                      {m.observation_images_fill_in_order()}
+                    </Button>
+                  </Hint>
+                ) : null}
                 {unassigned > 0 ? (
                   <Alert status="warning">
                     <Alert.Indicator />

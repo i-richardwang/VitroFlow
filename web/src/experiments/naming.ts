@@ -76,3 +76,30 @@ export function suggestUnit(
   if (suffixed.length !== 1) return null;
   return suffixed[0]!;
 }
+
+/** Camera filenames count up as the shutter fires, so `IMG_0002` precedes `IMG_0010`. */
+export function compareFilenames(left: string, right: string): number {
+  return filenameStem(left).localeCompare(filenameStem(right), "en", {
+    numeric: true,
+  });
+}
+
+/**
+ * The units a run of photographs shows when the dishes were shot in design
+ * order: the earliest file takes the first open unit, and so on until either
+ * runs out.
+ */
+export function pairInOrder<Id>(
+  images: readonly { id: Id; filename: string }[],
+  units: readonly string[],
+): Map<Id, string> {
+  const shot = [...images].sort((left, right) =>
+    compareFilenames(left.filename, right.filename),
+  );
+  const pairs = new Map<Id, string>();
+  shot.forEach((image, index) => {
+    const unit = units[index];
+    if (unit !== undefined) pairs.set(image.id, unit);
+  });
+  return pairs;
+}
