@@ -1,4 +1,7 @@
-import { collectUnreferencedBlobs } from "../src/server/blob-collection";
+import { bootstrap } from "../src/server/bootstrap";
+import { collectUnreferencedBlobs } from "../src/server/maintenance/collection";
+
+bootstrap();
 
 const COLLECTION_INTERVAL_MS = 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 60 * 1000;

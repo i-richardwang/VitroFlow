@@ -5,9 +5,9 @@ import {
 } from "@tanstack/react-start";
 
 import { loginPath, requestedPath } from "./auth/navigation";
-import { apiRequestAuthorization } from "./server/api-credentials";
-import { withRequestLocale } from "./server/locale";
-import { readSession, redirect } from "./server/session";
+import { apiRequestAuthorization } from "./server/transport/http/authorization";
+import { withRequestLocale } from "./server/transport/http/locale";
+import { readSession, redirect } from "./server/transport/http/session";
 
 /**
  * Paths that answer without a browser session: readiness, sign-in, the auth

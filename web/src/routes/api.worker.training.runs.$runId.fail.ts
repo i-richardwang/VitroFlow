@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { failTrainingRun } from "../server/training-runs";
-import { parseWorkerJson, workerErrorResponse } from "../server/worker-http";
+import { failTrainingRun } from "../server/training/public";
+import {
+  parseWorkerJson,
+  workerErrorResponse,
+} from "../server/transport/http/worker";
 import { workerIdentitySchema } from "../workers/schema";
 
 const bodySchema = workerIdentitySchema.extend({

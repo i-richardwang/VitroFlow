@@ -12,6 +12,7 @@ check-python:
 # that the type check and the tests import.
 check-web:
 	cd web && bun run build
+	cd web && bun run architecture:check
 	cd web && bun run contracts:check
 	cd web && bun run format:check
 	cd web && bunx tsc --noEmit
@@ -27,9 +28,9 @@ check-reference:
 
 check-postgres:
 	@test -n "$(VITROFLOW_TEST_DATABASE_URL)" || (echo "Set VITROFLOW_TEST_DATABASE_URL" >&2; exit 2)
-	cd web && bun test src/server/database-invariants.test.ts
+	cd web && bun test src/server/infra/db/invariants.test.ts
 
 check-s3:
 	@test -n "$(VITROFLOW_TEST_S3_ENDPOINT)" || (echo "Set VITROFLOW_TEST_S3_ENDPOINT" >&2; exit 2)
 	@test -n "$(VITROFLOW_TEST_S3_BUCKET)" || (echo "Set VITROFLOW_TEST_S3_BUCKET" >&2; exit 2)
-	cd web && VITROFLOW_REQUIRE_S3_CONTRACT=1 bun test src/server/blobs.test.ts
+	cd web && VITROFLOW_REQUIRE_S3_CONTRACT=1 bun test src/server/infra/blobs/store.test.ts

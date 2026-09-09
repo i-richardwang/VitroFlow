@@ -455,7 +455,9 @@ function useAnnotationSession({
   const deleteSelected = useCallback(() => {
     const selectedId = session?.selectedId;
     if (!selectedId) return;
-    replaceInstances(instances.filter((instance) => instance.id !== selectedId));
+    replaceInstances(
+      instances.filter((instance) => instance.id !== selectedId),
+    );
     dispatch({ type: "selectedId", selectedId: null });
   }, [instances, session?.selectedId, replaceInstances]);
 

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { refuseWithoutAgentKey } from "../server/agent-http";
-import { handleImageUpload } from "../server/image-upload";
+import { refuseWithoutAgentKey } from "../server/transport/http/agent";
+import { handleImageUpload } from "../server/transport/http/image-upload";
 
 export const Route = createFileRoute("/api/agent/images")({
   server: {

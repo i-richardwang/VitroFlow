@@ -2,7 +2,7 @@
 
 The agent interface lets an AI agent maintain experiment records: design, observation dates, culture events, and image entry. It exposes the workbench domain layer directly, so every request is validated by the same schemas and rejected by the same invariants as the workbench UI.
 
-One operation registry (`web/src/server/agent-operations.ts`) defines the interface. The HTTP surface and the MCP tool list are both projections of it; an operation name is part of the public contract.
+One operation registry (`web/src/server/agent/operations.ts`) defines the interface. The HTTP surface and the MCP tool list are both projections of it; an operation name is part of the public contract.
 
 ## Authentication
 

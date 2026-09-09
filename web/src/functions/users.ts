@@ -7,7 +7,7 @@ import {
   userRefSchema,
   userRoleUpdateSchema,
 } from "../auth/schema";
-import * as directory from "../server/users";
+import * as directory from "../server/auth/public";
 
 export const getUsers = createServerFn({ method: "GET" }).handler(() =>
   directory.listUsers(getRequestHeaders()),

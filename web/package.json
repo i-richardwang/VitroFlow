@@ -17,7 +17,8 @@
     "blobs:collect": "bun scripts/collect-blobs.ts",
     "maintenance": "bun scripts/maintenance.ts",
     "format": "prettier --write \"**/*.{ts,tsx}\" \"messages/**/*.json\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx}\" \"messages/**/*.json\""
+    "format:check": "prettier --check \"**/*.{ts,tsx}\" \"messages/**/*.json\"",
+    "architecture:check": "bun scripts/check-architecture.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
@@ -51,6 +52,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.8",
     "@electric-sql/pglite": "^0.5.8",
     "@inlang/paraglide-js": "^2.25.0",
     "@tailwindcss/vite": "^4.3.3",

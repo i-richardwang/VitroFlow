@@ -36,6 +36,7 @@
         "zod": "^4.4.3",
       },
       "devDependencies": {
+        "@babel/parser": "^7.29.8",
         "@electric-sql/pglite": "^0.5.8",
         "@inlang/paraglide-js": "^2.25.0",
         "@tailwindcss/vite": "^4.3.3",

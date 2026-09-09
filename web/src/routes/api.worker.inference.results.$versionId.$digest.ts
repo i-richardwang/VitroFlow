@@ -2,14 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { inferenceOutcomeSchema } from "../detection/schema";
 import { inferenceTargetSchema } from "../inference/assignments";
-import { completeInferenceClaim } from "../server/inference-outcomes";
+import { completeInferenceClaim } from "../server/inference/public";
 import {
   parseWorkerIdentity,
   parseWorkerJson,
   parseWorkerValue,
   workerErrorResponse,
-} from "../server/worker-http";
-import { currentWorkerSession } from "../server/workers";
+} from "../server/transport/http/worker";
+import { currentWorkerSession } from "../server/workers/public";
 
 /**
  * One entry for everything a worker reports: a detection or the failure

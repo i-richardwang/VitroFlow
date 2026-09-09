@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { serveAgentOperationCall } from "../server/agent-http";
+import { serveAgentOperationCall } from "../server/transport/http/agent";
 
 export const Route = createFileRoute("/api/agent/$operation")({
   server: {

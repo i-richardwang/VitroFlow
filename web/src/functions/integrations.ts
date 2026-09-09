@@ -9,11 +9,18 @@ import {
   apiKeyRefSchema,
   mcpClientRefSchema,
 } from "../auth/integrations";
-import { issueApiKey, listApiKeys, revokeApiKey } from "../server/api-keys";
-import { auth } from "../server/auth";
-import { deploymentEndpoint } from "../server/deployment";
-import { disconnectMcpClient, listMcpClients } from "../server/mcp-clients";
-import { readSession } from "../server/session";
+import {
+  issueApiKey,
+  listApiKeys,
+  revokeApiKey,
+  auth,
+  disconnectMcpClient,
+  listMcpClients,
+} from "../server/auth/public";
+
+import { deploymentEndpoint } from "../server/infra/deployment";
+
+import { readSession } from "../server/transport/http/session";
 
 async function actor(): Promise<string> {
   const user = await readSession(getRequestHeaders());

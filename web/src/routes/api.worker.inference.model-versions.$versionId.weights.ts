@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { readModelVersion } from "../server/model-registry";
-import { modelWeightsBlobKey, openBlob } from "../server/blobs";
-import { WorkerRequestError, workerErrorResponse } from "../server/worker-http";
+import { readModelVersion } from "../server/models/public";
+import { modelWeightsBlobKey } from "../server/training/public";
+import { openBlob } from "../server/infra/blobs/store";
+import {
+  WorkerRequestError,
+  workerErrorResponse,
+} from "../server/transport/http/worker";
 
 export const Route = createFileRoute(
   "/api/worker/inference/model-versions/$versionId/weights",

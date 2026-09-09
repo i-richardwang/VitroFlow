@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { snapshotForRun } from "../server/training-runs";
+import { snapshotForRun } from "../server/training/public";
 import {
   parseWorkerIdentity,
   workerErrorResponse,
-} from "../server/worker-http";
+} from "../server/transport/http/worker";
 
 export const Route = createFileRoute(
   "/api/worker/training/runs/$runId/snapshot",

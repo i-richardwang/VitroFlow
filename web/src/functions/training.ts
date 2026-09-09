@@ -8,8 +8,8 @@ import {
   trainingConsole,
   trainingOverview,
   trainingRunDetail,
-} from "../server/training-console";
-import { createTrainingRun } from "../server/training-runs";
+} from "../server/queries/public";
+import { createTrainingRun } from "../server/training/public";
 
 export const getTrainingConsole = createServerFn({ method: "GET" })
   .validator(datasetRefSchema)

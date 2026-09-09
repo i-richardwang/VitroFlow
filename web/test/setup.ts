@@ -1,4 +1,5 @@
-import { auth } from "../src/server/auth";
+import { bootstrap } from "../src/server/bootstrap";
+import { auth } from "../src/server/auth/public";
 
 process.env.DATABASE_URL =
   process.env.VITROFLOW_TEST_DATABASE_URL ?? "pglite://";
@@ -11,6 +12,8 @@ for (const credential of [
 ]) {
   delete process.env[credential];
 }
+
+bootstrap();
 
 /**
  * The auth API listens on a loopback port for the whole run: the MCP endpoint

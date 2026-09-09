@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { auth } from "../server/auth";
+import { auth } from "../server/auth/public";
 
 /**
  * OAuth discovery lives at the site root: RFC 8414 authorization server

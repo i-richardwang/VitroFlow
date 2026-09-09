@@ -10,7 +10,7 @@ import {
   DatasetImportError,
   importDataset,
   readDatasetManifest,
-} from "../server/dataset-transfer";
+} from "../server/datasets/public";
 
 function failed(message: string, status: number): Response {
   return Response.json({ error: message }, { status });

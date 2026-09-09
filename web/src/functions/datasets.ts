@@ -9,10 +9,9 @@ import {
   addExperimentObservationImages,
   listDatasets,
   removeDatasetImage,
-} from "../server/datasets";
-import { readDatasetImage } from "../server/dataset-image";
-import { datasetOverview } from "../server/dataset-overview";
-import { summarizeDataset } from "../server/summaries";
+  summarizeDataset,
+} from "../server/datasets/public";
+import { readDatasetImage, datasetOverview } from "../server/queries/public";
 
 export const getDatasetOverview = createServerFn({ method: "GET" })
   .validator(datasetRefSchema)

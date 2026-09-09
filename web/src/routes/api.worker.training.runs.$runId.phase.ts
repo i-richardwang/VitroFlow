@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { enterTrainingPhase } from "../server/training-runs";
-import { parseWorkerJson, workerErrorResponse } from "../server/worker-http";
+import { enterTrainingPhase } from "../server/training/public";
+import {
+  parseWorkerJson,
+  workerErrorResponse,
+} from "../server/transport/http/worker";
 import { TRAINING_PHASES } from "../training/schema";
 import { workerIdentitySchema } from "../workers/schema";
 

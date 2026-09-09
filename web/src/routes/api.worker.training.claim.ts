@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { claimTrainingRun } from "../server/training-runs";
-import { parseWorkerJson, workerErrorResponse } from "../server/worker-http";
+import { claimTrainingRun } from "../server/training/public";
+import {
+  parseWorkerJson,
+  workerErrorResponse,
+} from "../server/transport/http/worker";
 import { workerIdentitySchema } from "../workers/schema";
 
 export const Route = createFileRoute("/api/worker/training/claim")({

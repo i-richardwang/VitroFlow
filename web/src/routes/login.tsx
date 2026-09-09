@@ -20,7 +20,7 @@ import { carriesAuthorizationRequest, returnPath } from "../auth/navigation";
 import { BrandLogo } from "../components/BrandLogo";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { m } from "../paraglide/messages";
-import { readSession, redirect } from "../server/session";
+import { readSession, redirect } from "../server/transport/http/session";
 
 /**
  * A signed-in visitor is sent on to their destination, unless the visit is

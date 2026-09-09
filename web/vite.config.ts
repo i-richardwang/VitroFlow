@@ -15,7 +15,7 @@ export default defineConfig({
     tanstackStart({
       importProtection: {
         behavior: "error",
-        client: { files: ["**/src/server/**", "**/src/db/**"] },
+        client: { files: ["**/src/server/**", "**/src/server.ts"] },
       },
     }),
     viteReact(),

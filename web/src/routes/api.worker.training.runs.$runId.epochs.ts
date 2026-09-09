@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { recordTrainingEpoch } from "../server/training-runs";
-import { parseWorkerJson, workerErrorResponse } from "../server/worker-http";
+import { recordTrainingEpoch } from "../server/training/public";
+import {
+  parseWorkerJson,
+  workerErrorResponse,
+} from "../server/transport/http/worker";
 import { trainingEpochReportSchema } from "../training/schema";
 import { workerIdentitySchema } from "../workers/schema";
 

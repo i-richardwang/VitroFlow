@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { imageResponse } from "../server/image-files";
-import { snapshotForRun } from "../server/training-runs";
+import { imageResponse } from "../server/transport/http/image-files";
+import { snapshotForRun } from "../server/training/public";
 import {
   parseWorkerIdentity,
   workerErrorResponse,
-} from "../server/worker-http";
+} from "../server/transport/http/worker";
 
 export const Route = createFileRoute(
   "/api/worker/training/runs/$runId/images/$digest",

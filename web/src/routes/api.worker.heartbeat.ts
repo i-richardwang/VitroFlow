@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { parseWorkerJson, workerErrorResponse } from "../server/worker-http";
-import { recordWorkerHeartbeat } from "../server/workers";
+import {
+  parseWorkerJson,
+  workerErrorResponse,
+} from "../server/transport/http/worker";
+import { recordWorkerHeartbeat } from "../server/workers/public";
 import { workerHeartbeatSchema } from "../workers/schema";
 
 export const Route = createFileRoute("/api/worker/heartbeat")({

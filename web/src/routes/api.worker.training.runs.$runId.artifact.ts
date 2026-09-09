@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { resourceIdSchema } from "../identifiers/schema";
-import { publishTrainingArtifact } from "../server/training-runs";
+import { publishTrainingArtifact } from "../server/training/public";
 import {
   parseWorkerForm,
   parseWorkerJsonText,
   parseWorkerValue,
   workerErrorResponse,
-} from "../server/worker-http";
+} from "../server/transport/http/worker";
 import {
   MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
   MAX_TRAINING_MANIFEST_BYTES,

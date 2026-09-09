@@ -9,7 +9,7 @@ import {
   AnnotationConflictError,
   readAnnotation,
   storeAnnotation,
-} from "../server/annotations";
+} from "../server/annotations/public";
 
 export const saveAnnotation = createServerFn({ method: "POST" })
   .validator(

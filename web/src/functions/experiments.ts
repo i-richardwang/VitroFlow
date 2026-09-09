@@ -22,7 +22,7 @@ import {
   cultureEventsRequestSchema,
 } from "../experiments/schema";
 import type { Model, ModelVersion } from "../models/schema";
-import { listDatasets, listDatasetsForModel } from "../server/datasets";
+import { listDatasets, listDatasetsForModel } from "../server/datasets/public";
 import {
   addReplicates,
   addTreatment,
@@ -34,24 +34,20 @@ import {
   updateExperiment,
   updateTreatment,
   updateUnit,
-} from "../server/experiment-design";
-import {
   deleteCultureEvent,
   recordCultureEvent,
   recordCultureEvents,
-} from "../server/culture-events";
-import * as observationImages from "../server/experiment-observation-images";
-import {
   addObservation,
   deleteObservation,
   updateObservation,
-} from "../server/experiment-observations";
-import {
   listExperiments,
   readExperimentGrid,
   readUnit,
-} from "../server/experiment-queries";
-import { listAllModelVersions, listModels } from "../server/model-registry";
+} from "../server/experiments/public";
+
+import * as observationImages from "../server/experiments/public";
+
+import { listAllModelVersions, listModels } from "../server/models/public";
 
 async function datasetsTraining(modelId: string): Promise<string[]> {
   return (await listDatasetsForModel(modelId)).map((dataset) => dataset.id);

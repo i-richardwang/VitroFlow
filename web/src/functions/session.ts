@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
-import { readSession } from "../server/session";
+import { readSession } from "../server/transport/http/session";
 
 /** The signed-in account. The request middleware admits no session-less call. */
 export const getSession = createServerFn({ method: "GET" }).handler(
