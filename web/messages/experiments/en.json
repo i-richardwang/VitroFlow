@@ -73,7 +73,6 @@
   "observation_date_label": "Observation date",
   "observation_note_label": "Note",
   "observation_version_label": "Model version",
-  "observation_metric_label": "Metric",
   "observation_actions": "{observation} actions",
   "observation_menu_assign_images": "Match to units…",
   "observation_assign_images": "Match to units",

@@ -1,5 +1,5 @@
 {
-  "id": "5cb32a2b-9461-4484-8f5e-1aae8c1c9a8e",
+  "id": "099bd150-d8a7-470e-a316-873e4706abb1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1082,12 +1082,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "metric": {
-          "name": "metric",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1191,10 +1185,6 @@
         "experiment_observations_date_check": {
           "name": "experiment_observations_date_check",
           "value": "\"experiment_observations\".\"observed_on\" >= \"experiment_observations\".\"inoculated_on\""
-        },
-        "experiment_observations_metric_check": {
-          "name": "experiment_observations_metric_check",
-          "value": "\"experiment_observations\".\"metric\" ~ '^[a-z][a-z0-9]*(_[a-z0-9]+)*$'"
         }
       },
       "isRLSEnabled": false
@@ -2205,12 +2195,6 @@
         },
         "classes": {
           "name": "classes",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "metrics": {
-          "name": "metrics",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true

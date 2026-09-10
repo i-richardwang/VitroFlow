@@ -9,7 +9,7 @@ import {
 import { database, transaction } from "../infra/db/client";
 import { annotations, images } from "../infra/db/schema";
 import { canonicalJson } from "../../lib/json/canonical";
-import { assertInstanceClasses } from "../../domain/models/metrics";
+import { assertInstanceClasses } from "../../domain/models/readings";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
 

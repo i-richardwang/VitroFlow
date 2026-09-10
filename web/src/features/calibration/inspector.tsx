@@ -1,14 +1,9 @@
 import { Switch, SwitchGroup } from "@heroui/react";
 import type { ReactNode } from "react";
 
-import {
-  formatMetric,
-  computeMetric,
-  type DerivedMetric,
-  type Tally,
-} from "../../domain/models/metrics";
+import { count, formatCount, type Tally } from "../../domain/models/readings";
 import { LAYERS, type LayerKey } from "./controls";
-import { metricName } from "../../ui/model-names";
+import { className } from "../../ui/model-names";
 import { m } from "../../paraglide/messages";
 
 export function Section({
@@ -49,41 +44,55 @@ export function Metrics({ rows }: { rows: Metric[] }) {
   );
 }
 
-export interface DerivedMetricSource {
+/** One reading of the same image, named by where its instances came from. */
+export interface CountSource {
   label: string;
   tally: Tally;
 }
 
-export function MetricsSection({
-  metrics,
+/**
+ * What each reading of this image found, per class the model recognizes, with
+ * the total when it recognizes more than one.
+ */
+export function CountsSection({
+  classes,
   sources,
 }: {
-  metrics: DerivedMetric[];
-  sources: DerivedMetricSource[];
+  classes: string[];
+  sources: CountSource[];
 }) {
   const primary = sources[0];
   if (!primary) return null;
+  const rows: { label: string; of: (counts: Tally) => number }[] = [
+    ...classes.map((name) => ({
+      label: className(name),
+      of: (counts: Tally) => counts[name] ?? 0,
+    })),
+    ...(classes.length > 1
+      ? [{ label: m.workbench_count_total(), of: count }]
+      : []),
+  ];
 
   return (
     <Section title={m.workbench_section_metrics()}>
       <Metrics
-        rows={metrics.map((metric) => ({
-          label: metricName(metric),
-          value: comparedValue(metric, primary, sources[1]),
+        rows={rows.map((row) => ({
+          label: row.label,
+          value: comparedCount(row.of, primary, sources[1]),
         }))}
       />
     </Section>
   );
 }
 
-function comparedValue(
-  metric: DerivedMetric,
-  primary: DerivedMetricSource,
-  comparison: DerivedMetricSource | undefined,
+function comparedCount(
+  of: (counts: Tally) => number,
+  primary: CountSource,
+  comparison: CountSource | undefined,
 ): ReactNode {
-  const formatted = formatMetric(metric, computeMetric(metric, primary.tally));
+  const formatted = formatCount(of(primary.tally));
   if (!comparison) return formatted;
-  const other = formatMetric(metric, computeMetric(metric, comparison.tally));
+  const other = formatCount(of(comparison.tally));
   if (other === formatted) return formatted;
   return (
     <>

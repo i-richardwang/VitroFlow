@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 
-import type { DerivedMetric } from "../models/metrics";
 import {
   CULTURE_EVENT_TYPES,
   type CultureEvent,
@@ -14,13 +13,6 @@ import {
   unitIsIncludedInAnalysis,
 } from "./culture-events";
 
-const SEEDS: DerivedMetric = {
-  id: "seeds",
-  name: "Seeds",
-  kind: "count",
-  classes: ["seed"],
-};
-
 const observations: ExperimentObservation[] = [
   {
     id: "5c5065a2-194d-4473-a48e-5ecbc9e8827d",
@@ -29,7 +21,6 @@ const observations: ExperimentObservation[] = [
     day: 7,
     note: "",
     modelVersionId: "seed-detector.traditional-v1",
-    metric: SEEDS,
     hasRecords: true,
   },
   {
@@ -39,7 +30,6 @@ const observations: ExperimentObservation[] = [
     day: 14,
     note: "",
     modelVersionId: "seed-detector.traditional-v1",
-    metric: SEEDS,
     hasRecords: false,
   },
 ];

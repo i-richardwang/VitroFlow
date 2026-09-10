@@ -6,55 +6,19 @@ import {
   detectionValidationSchema,
   trainingRecipeSchema,
 } from "../training/schema";
-import {
-  classListSchema,
-  metricClasses,
-  derivedMetricSchema,
-  type DerivedMetric,
-} from "./metrics";
+import { classListSchema } from "./readings";
 
 /**
- * A model is a task: what it looks for in an image and what an experiment
- * reads off the result. Every version of the model finds the same classes and
- * supports the same metrics; versions differ only in how well they find them.
+ * A model is a task: what it looks for in an image. Every version of the model
+ * finds the same classes; versions differ only in how well they find them.
  */
-export const modelSchema = z
-  .strictObject({
-    schemaVersion: z.literal(1),
-    id: resourceIdSchema,
-    name: z.string().min(1),
-    task: z.literal("object_detection"),
-    classes: classListSchema,
-    metrics: z.array(derivedMetricSchema).min(1),
-  })
-  .superRefine((model, context) => {
-    const ids = new Set<string>();
-    const known = new Set(model.classes);
-    model.metrics.forEach((metric, index) => {
-      if (ids.has(metric.id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["metrics", index, "id"],
-          message: `Duplicate metric id: ${metric.id}`,
-        });
-      }
-      ids.add(metric.id);
-      for (const name of metricClasses(metric)) {
-        if (!known.has(name)) {
-          context.addIssue({
-            code: "custom",
-            path: ["metrics", index],
-            message: `Metric ${metric.id} uses unknown class ${name}`,
-          });
-        }
-      }
-    });
-  });
-
-/** The metric an experiment grid shows by default. */
-export function primaryMetric(model: Pick<Model, "metrics">): DerivedMetric {
-  return model.metrics[0]!;
-}
+export const modelSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  id: resourceIdSchema,
+  name: z.string().min(1),
+  task: z.literal("object_detection"),
+  classes: classListSchema,
+});
 
 const inferenceSettingsSchema = z.strictObject({
   confidence: z.number().finite().min(0).max(1),

@@ -2,5 +2,5 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "builtin_model_seed_detector": "种子检测",
   "builtin_version_traditional_v1": "传统视觉基线",
-  "builtin_metric_seeds": "种子数"
+  "builtin_class_seed": "种子"
 }

@@ -22,7 +22,7 @@ import {
   lockExperiment,
   requireObservation,
 } from "./records";
-import { readModel, readModelVersion } from "../models/public";
+import { readModelVersion } from "../models/public";
 
 function rejectBeforeInoculation(
   experiment: Experiment,
@@ -57,10 +57,9 @@ async function rejectSameDay(
   }
 }
 
-/** The version must exist and its model must declare the metric. */
-async function rejectUnknownReading(
+/** An observation reads with a version the registry holds. */
+async function rejectUnknownVersion(
   modelVersionId: string,
-  metric: string,
   tx: Executor,
 ): Promise<void> {
   const version = await readModelVersion(modelVersionId, tx);
@@ -69,31 +68,18 @@ async function rejectUnknownReading(
       `Unknown model version: ${modelVersionId}`,
     );
   }
-  const model = await readModel(version.modelId, tx);
-  if (!model) throw new Error(`Unknown model: ${version.modelId}`);
-  if (!model.metrics.some((item) => item.id === metric)) {
-    throw new ObservationRejectedError(
-      `Model ${model.id} declares no metric ${metric}`,
-    );
-  }
 }
 
 export async function addObservation(
   value: ObservationRequest,
   executor?: Executor,
 ): Promise<ExperimentObservation> {
-  const {
-    experiment: experimentId,
-    observedOn,
-    note,
-    modelVersionId,
-    metric,
-  } = value;
+  const { experiment: experimentId, observedOn, note, modelVersionId } = value;
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, null, tx);
-    await rejectUnknownReading(modelVersionId, metric, tx);
+    await rejectUnknownVersion(modelVersionId, tx);
     const [row] = await tx
       .insert(experimentObservations)
       .values({
@@ -103,7 +89,6 @@ export async function addObservation(
         observedOn,
         note,
         modelVersionId,
-        metric,
         createdAt: new Date(),
       })
       .returning();
@@ -122,16 +107,15 @@ export async function updateObservation(
     observedOn,
     note,
     modelVersionId,
-    metric,
   } = value;
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, observationId, tx);
-    await rejectUnknownReading(modelVersionId, metric, tx);
+    await rejectUnknownVersion(modelVersionId, tx);
     const [row] = await tx
       .update(experimentObservations)
-      .set({ observedOn, note, modelVersionId, metric })
+      .set({ observedOn, note, modelVersionId })
       .where(atObservation(experimentId, observationId))
       .returning();
     if (!row) {

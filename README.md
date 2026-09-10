@@ -2,7 +2,7 @@
 
 The source layout and dependency boundaries are documented in [docs/architecture.md](docs/architecture.md); server transaction and concurrency rules are in [docs/backend-architecture.md](docs/backend-architecture.md).
 
-VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, units provide independent replicates, observations follow those units over time, and each observation reads one metric off its images with one immutable model version.
+VitroFlow turns repeated culture images into comparable readings and reviewed detector training data. Treatments define the conditions being compared, units provide independent replicates, observations follow those units over time, and each observation reads its images with one immutable model version. How an image becomes a count and a rate is defined in [docs/readings.md](docs/readings.md).
 
 The application has two independently deployed parts:
 
@@ -25,17 +25,17 @@ Experimental design
 
 Postgres is the source of truth for records. One S3-compatible bucket stores immutable image and model-weight bytes referenced by those records.
 
-| Records                                                                                                                                                         | Purpose                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `models`, `model_versions`                                                                                                                                      | Detector tasks, class definitions, derived metrics, runtime manifests, and immutable artifacts |
-| `images`                                                                                                                                                        | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes                      |
-| `experiments`, `experiment_treatments`, `experiment_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations, each read with one fixed model version          |
-| `inference_outcomes`                                                                                                                                            | The single success-or-failure outcome for an image and model-version pair                      |
-| `annotations`                                                                                                                                                   | Current reviewer annotations for an image and model                                          |
-| `datasets`, `dataset_images`                                                                                                                                    | Reviewed training collections with stable train/validation assignments                         |
-| `dataset_snapshots`, `dataset_snapshot_images`                                                                                                                  | Immutable training inputs                                                                      |
-| `training_runs`, `training_epochs`                                                                                                                              | Leased training state and per-attempt epoch metrics                                            |
-| `workers`, `inference_jobs`                                                                                                                                     | Worker sessions with their capabilities and presence, and leased inference jobs                |
+| Records                                                                                                                                             | Purpose                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `models`, `model_versions`                                                                                                                          | Detector tasks, class definitions, runtime manifests, and immutable artifacts         |
+| `images`                                                                                                                                            | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes             |
+| `experiments`, `experiment_treatments`, `experiment_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations, each read with one fixed model version |
+| `inference_outcomes`                                                                                                                                | The single success-or-failure outcome for an image and model-version pair             |
+| `annotations`                                                                                                                                       | Current reviewer annotations for an image and model                                   |
+| `datasets`, `dataset_images`                                                                                                                        | Reviewed training collections with stable train/validation assignments                |
+| `dataset_snapshots`, `dataset_snapshot_images`                                                                                                      | Immutable training inputs                                                             |
+| `training_runs`, `training_epochs`                                                                                                                  | Leased training state and per-attempt epoch metrics                                   |
+| `workers`, `inference_jobs`                                                                                                                         | Worker sessions with their capabilities and presence, and leased inference jobs       |
 
 The object layout is:
 
@@ -49,7 +49,7 @@ Object creation is conditional. Identical writes are idempotent; content at an e
 
 ## Domain rules
 
-A Model defines the classes detected in an image and the derived metrics computed from them. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
+A Model defines the classes detected in an image, and nothing more; what an experiment computes from them belongs to the experiment. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
 
 An Experiment's name is unique across the workbench, compared without regard to case. It records the plant material, explant type, shared base medium, notebook notes, and inoculation date.
 
@@ -57,7 +57,7 @@ A Treatment names one condition the experiment compares. It may record that cond
 
 A Unit is one independent experimental unit, the vessel a treatment is applied to, and exists before any image does. Every unit replicates exactly one treatment: an experiment is created with its design, at least one treatment laid out in replicates coded `T1-1` through `T1-n`, and a treatment can gain replicates later. Its code is unique within the experiment. Correcting a code, or moving a unit to the treatment it actually received, preserves the unit identity and every record attached to it. Objects within a unit are measured in each observation image.
 
-An Observation is one day the units were photographed, and it reads one metric off those images with one ModelVersion: seeds on the day of sowing, germination once shoots can show. The metric is one the version's model declares, and the grid names it in the column header, so values in one column are comparable while columns may read different things. A new observation starts from what the previous one read. Changing an observation's version or metric loses nothing: detections are kept per image and version, so images already taken are read again under the new version, and reviews are kept per image and model. Observation dates may be planned before any image exists. Treatments, units, protocol fields, and observation dates stay correctable so a miswritten label can be fixed. A unit with images or culture events cannot be deleted, because those records belong to the physical unit; a treatment is deleted with its units, so one whose units have records cannot be deleted either. The design never empties: an experiment keeps at least one treatment, and a treatment keeps at least one replicate, so the last of either can be neither deleted nor moved away. An inoculation date cannot move past an existing observation. An observation with an image or culture event cannot be deleted. An experiment with images or culture events cannot be hard-deleted.
+An Observation is one day the units were photographed, and it reads those images with one ModelVersion: seeds on the day of sowing, germination once shoots can show. The grid names the model in the column header when the days do not all read with the same one, so values in one column are comparable while columns may read different things. A new observation starts from what the previous one read. Changing an observation's version loses nothing: detections are kept per image and version, so images already taken are read again under the new version, and reviews are kept per image and model. Observation dates may be planned before any image exists. Treatments, units, protocol fields, and observation dates stay correctable so a miswritten label can be fixed. A unit with images or culture events cannot be deleted, because those records belong to the physical unit; a treatment is deleted with its units, so one whose units have records cannot be deleted either. The design never empties: an experiment keeps at least one treatment, and a treatment keeps at least one replicate, so the last of either can be neither deleted nor moved away. An inoculation date cannot move past an existing observation. An observation with an image or culture event cannot be deleted. An experiment with images or culture events cannot be hard-deleted.
 
 A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Discarded, harvested, and missing are terminal events: the unit is absent from every later observation and analysis denominator, and a unit has at most one. Whether an event excludes the unit from analysis follows from its type: contaminated, discarded, and missing do, while a nonviable unit is a result rather than a loss and a harvested unit was measured. An event recorded by mistake is removed. Treatment rows show the per-unit mean, sample standard deviation, and `n` over eligible independent units.
 
@@ -75,7 +75,7 @@ A Dataset travels as a manifest and the canonical images it names. The manifest 
 
 ## Scope
 
-The current workbench covers one standardized image per unit and observation, and one derived metric per observation under one fixed detector version. Derived metrics are per-image class counts or proportions within the same image; rates that require a separately recorded baseline population are outside the current scope. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
+The current workbench covers one standardized image per unit and observation, read under one fixed detector version. A reading counts every instance found, whatever class it carries, so a rate separating a response from its population is read as two counts under two versions rather than from one image. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
 ## Source development
 

@@ -115,13 +115,11 @@ CREATE TABLE "experiment_observations" (
 	"observed_on" date NOT NULL,
 	"note" text NOT NULL,
 	"model_version_id" text NOT NULL,
-	"metric" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "experiment_observations_experiment_id_id_pk" PRIMARY KEY("experiment_id","id"),
 	CONSTRAINT "experiment_observations_day" UNIQUE("experiment_id","observed_on"),
 	CONSTRAINT "experiment_observations_note_check" CHECK ("experiment_observations"."note" = btrim("experiment_observations"."note") and length("experiment_observations"."note") <= 500),
-	CONSTRAINT "experiment_observations_date_check" CHECK ("experiment_observations"."observed_on" >= "experiment_observations"."inoculated_on"),
-	CONSTRAINT "experiment_observations_metric_check" CHECK ("experiment_observations"."metric" ~ '^[a-z][a-z0-9]*(_[a-z0-9]+)*$')
+	CONSTRAINT "experiment_observations_date_check" CHECK ("experiment_observations"."observed_on" >= "experiment_observations"."inoculated_on")
 );
 --> statement-breakpoint
 CREATE TABLE "experiment_treatments" (
@@ -248,8 +246,7 @@ CREATE TABLE "models" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"task" text NOT NULL,
-	"classes" jsonb NOT NULL,
-	"metrics" jsonb NOT NULL
+	"classes" jsonb NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_access_tokens" (

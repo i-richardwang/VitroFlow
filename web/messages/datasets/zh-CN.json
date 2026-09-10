@@ -106,5 +106,6 @@
   "workbench_fill": "铺满画面",
   "workbench_save_conflict": "这份复核已在其他页面修改。当前校准仍保留；请取消后再次校准，读取最新复核。",
   "workbench_saved_refresh_failed": "复核已保存，但页面刷新失败。请重新加载页面查看。",
-  "workbench_open_failed": "无法开始校准"
+  "workbench_open_failed": "无法开始校准",
+  "workbench_count_total": "合计"
 }

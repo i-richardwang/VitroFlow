@@ -18,7 +18,7 @@ import type {
   ObservationImageRef,
 } from "../../domain/experiments/schema";
 import type { RuntimeDescriptor } from "../../domain/inference/schema";
-import { primaryMetric, type ModelVersion } from "../../domain/models/schema";
+import type { ModelVersion } from "../../domain/models/schema";
 import type { WorkerHeartbeat } from "../../domain/workers/schema";
 import { canonicalize } from "../images/ingest";
 import { addExperimentObservationImages } from "../datasets/memberships";
@@ -240,7 +240,6 @@ export async function observeImages(
     observedOn: "2026-08-08",
     note: "",
     modelVersionId: selectedVersion.id,
-    metric: primaryMetric(model).id,
   });
   await assignObservationImages({
     experiment: experiment.id,

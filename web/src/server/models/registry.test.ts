@@ -21,7 +21,6 @@ test("a version is registered once and its contents may not change", async () =>
     name: "Registry detector",
     task: "object_detection",
     classes: ["seed"],
-    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   const candidate = {
     schemaVersion: 1 as const,
@@ -78,7 +77,6 @@ test("every registered version is listed newest first", async () => {
     name: "Listing detector",
     task: "object_detection",
     classes: ["seed"],
-    metrics: [{ id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] }],
   });
   const version = (createdAt: string, suffix: string) => ({
     schemaVersion: 1 as const,

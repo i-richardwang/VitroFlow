@@ -63,7 +63,6 @@ describe("agent execution", () => {
       experiment: (created.output as { id: string }).id,
       observedOn: "2026-08-01",
       modelVersionId: "seed-detector",
-      metric: "seeds",
     });
     expect(failure(observe).code).toBe("not_found");
     expect(failure(observe).message).toContain("Unknown model version");
@@ -122,7 +121,6 @@ describe("agent execution", () => {
             name: id,
             task: "detect",
             classes: [],
-            metrics: [],
           });
           throw new ExperimentNotFoundError(`Unknown experiment: ${id}`);
         },
@@ -156,7 +154,7 @@ describe("agent execution", () => {
         handler: async (_input, tx) => {
           await tx!
             .insert(models)
-            .values({ id, name: id, task: "detect", classes: [], metrics: [] });
+            .values({ id, name: id, task: "detect", classes: [] });
           return "wrong" as unknown as null;
         },
       }),

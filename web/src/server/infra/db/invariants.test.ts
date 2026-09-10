@@ -38,14 +38,12 @@ test("the database rejects a second terminal event", async () => {
     observedOn: "2026-08-08",
     note: "",
     modelVersionId: version.id,
-    metric: "seeds",
   });
   const day14 = await addObservation({
     experiment: experiment.id,
     observedOn: "2026-08-15",
     note: "",
     modelVersionId: version.id,
-    metric: "seeds",
   });
   await recordCultureEvent({
     experiment: experiment.id,

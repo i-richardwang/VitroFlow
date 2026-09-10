@@ -69,7 +69,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     observedOn: "2026-08-08",
     note: "",
     modelVersionId: version.id,
-    metric: "seeds",
   });
   await assignObservationImages({
     experiment: experiment.id,

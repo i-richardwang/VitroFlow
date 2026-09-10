@@ -2,14 +2,14 @@ import type { ReactNode } from "react";
 
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
-import { tally } from "../../domain/models/metrics";
+import { tally } from "../../domain/models/readings";
 import { versionSlug, type Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../../ui/DetectionQuality";
 import {
+  CountsSection,
   LayersSection,
   Metrics,
-  MetricsSection,
   Section,
   type Metric,
 } from "./inspector";
@@ -31,8 +31,8 @@ export function ReviewInspector({
 }) {
   return (
     <>
-      <MetricsSection
-        metrics={model.metrics}
+      <CountsSection
+        classes={model.classes}
         sources={[
           ...(instances
             ? [{ label: m.workbench_source_review(), tally: tally(instances) }]

@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { derivedMetricSchema, metricIdSchema } from "../models/metrics";
 
 export const experimentIdSchema = z.uuid();
 export const observationIdSchema = z.uuid();
@@ -312,9 +311,9 @@ export const cultureEventRefSchema = z.strictObject({
 export type CultureEventRef = z.infer<typeof cultureEventRefSchema>;
 
 /**
- * An observation reads one metric off every unit's image with one model
- * version: seeds on the day of sowing, germination once shoots can show.
- * The metric is one the version's model declares.
+ * An observation is one day the units were photographed, read by one model
+ * version: a seed detector on the day of sowing, a germination model once
+ * shoots can show.
  */
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,
@@ -323,7 +322,6 @@ export const experimentObservationSchema = z.strictObject({
   day: z.number().int(),
   note: observationNoteSchema,
   modelVersionId: resourceIdSchema,
-  metric: derivedMetricSchema,
   hasRecords: z.boolean(),
 });
 
@@ -341,7 +339,6 @@ export const observationRequestSchema = z.strictObject({
   observedOn: calendarDaySchema,
   note: observationNoteSchema.default(""),
   modelVersionId: resourceIdSchema,
-  metric: metricIdSchema,
 });
 
 export type ObservationRequest = z.infer<typeof observationRequestSchema>;
@@ -350,7 +347,6 @@ export const observationUpdateSchema = observationRefSchema.extend({
   observedOn: calendarDaySchema,
   note: observationNoteSchema,
   modelVersionId: resourceIdSchema,
-  metric: metricIdSchema,
 });
 
 export type ObservationUpdate = z.infer<typeof observationUpdateSchema>;

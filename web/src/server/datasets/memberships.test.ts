@@ -138,9 +138,6 @@ describe("datasets", () => {
       name: "Other task",
       task: "object_detection",
       classes: ["seed"],
-      metrics: [
-        { id: "seeds", name: "Seeds", kind: "count", classes: ["seed"] },
-      ],
     });
     const otherVersion = await registerTrainedVersion("other-task");
     const other = await observeImages(

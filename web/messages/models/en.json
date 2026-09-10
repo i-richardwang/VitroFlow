@@ -2,5 +2,5 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "builtin_model_seed_detector": "Seed detector",
   "builtin_version_traditional_v1": "Traditional vision baseline",
-  "builtin_metric_seeds": "Seeds"
+  "builtin_class_seed": "Seeds"
 }

@@ -106,5 +106,6 @@
   "workbench_fill": "Fill frame",
   "workbench_save_conflict": "This review changed in another page. Your calibration is kept. Cancel and calibrate again to read the latest review.",
   "workbench_saved_refresh_failed": "Your review was saved, but the page could not refresh. Reload the page to see it.",
-  "workbench_open_failed": "Could not start calibration"
+  "workbench_open_failed": "Could not start calibration",
+  "workbench_count_total": "Total"
 }

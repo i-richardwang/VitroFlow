@@ -3,7 +3,7 @@ import { z } from "zod";
 import { reviewSchema } from "../annotation/review";
 import { detectionFailureSchema } from "../detection/schema";
 import { imageDigestSchema } from "../images/schema";
-import { tallySchema } from "../models/metrics";
+import { tallySchema } from "../models/readings";
 import { modelSchema } from "../models/schema";
 import {
   cultureEventSchema,

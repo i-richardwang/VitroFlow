@@ -73,7 +73,6 @@
   "observation_date_label": "观测日期",
   "observation_note_label": "备注",
   "observation_version_label": "模型版本",
-  "observation_metric_label": "指标",
   "observation_actions": "{observation}操作",
   "observation_menu_assign_images": "对应到试验单元…",
   "observation_assign_images": "对应到试验单元",

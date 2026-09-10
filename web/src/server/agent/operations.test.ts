@@ -103,7 +103,6 @@ describe("agent operations", () => {
         experiment: experiment.id,
         observedOn: "2026-08-15",
         modelVersionId: version.id,
-        metric: "seeds",
       }),
     ) as ExperimentObservation;
     expect(observation.observedOn).toBe("2026-08-15");
@@ -138,7 +137,6 @@ describe("agent operations", () => {
         experiment: experiment.id,
         observedOn: "2026-08-10",
         modelVersionId: version.id,
-        metric: "seeds",
       }),
     ) as ExperimentObservation;
     const grid = output(

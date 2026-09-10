@@ -59,20 +59,14 @@ export function ObservationDialog(props: ObservationDialogProps) {
     ? {
         observedOn: fromDay(props.observation.observedOn),
         note: props.observation.note,
-        reading: {
-          modelVersionId: props.observation.modelVersionId,
-          metric: props.observation.metric.id,
-        },
+        reading: { modelVersionId: props.observation.modelVersionId },
       }
     : {
         observedOn: currentDay(),
         note: "",
         reading: defaultReading(
           versions,
-          props.previous && {
-            modelVersionId: props.previous.modelVersionId,
-            metric: props.previous.metric.id,
-          },
+          props.previous && { modelVersionId: props.previous.modelVersionId },
         ),
       };
 

@@ -36,7 +36,7 @@ import {
   type ObservationImageRef,
   type UnitRef,
 } from "../../domain/experiments/schema";
-import type { Tally } from "../../domain/models/metrics";
+import type { Tally } from "../../domain/models/readings";
 import {
   listObservations,
   listTreatments,

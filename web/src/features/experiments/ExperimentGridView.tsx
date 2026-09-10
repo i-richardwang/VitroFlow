@@ -28,17 +28,23 @@ import {
   type Treatment,
 } from "../../domain/experiments/schema";
 import { observationLabel } from "./labels";
+import type { ReadableVersion } from "./ReadingFields";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import {
-  computeMetric,
-  formatMetric,
-  formatMetricSummary,
-  summarizeMetric,
-  type DerivedMetric,
-  type Tally,
-} from "../../domain/models/metrics";
-import { metricName } from "../../ui/model-names";
+  count,
+  formatCount,
+  formatCountSummary,
+  formatRate,
+  formatRateSummary,
+  summarize,
+} from "../../domain/models/readings";
+import {
+  cellKey,
+  experimentReadings,
+  type ExperimentReadings,
+} from "../../domain/experiments/readings";
+import { modelName } from "../../ui/model-names";
 import { m } from "../../paraglide/messages";
 
 type Dialog = { kind: "treatment" } | { kind: "observation" };
@@ -69,6 +75,7 @@ export function ExperimentGridView({
     images.map((image) => [cellKey(image.unit, image.observation), image]),
   );
   const ordinals = observationOrdinals(observations);
+  const readings = experimentReadings(observations, cells);
   const hasRecords =
     images.length > 0 || units.some((unit) => unit.events.length > 0);
   const rows = experimentRows(treatments, units);
@@ -101,7 +108,6 @@ export function ExperimentGridView({
       pinned: "start",
     },
     ...observations.map((observation): DataGridColumn<GridRow> => {
-      const { metric } = observation;
       const reading = versions.find(
         (item) => item.version.id === observation.modelVersionId,
       );
@@ -115,7 +121,7 @@ export function ExperimentGridView({
             experiment={experiment.id}
             inoculatedOn={experiment.inoculatedOn}
             observation={observation}
-            label={observationHeading(observation, observations)}
+            label={observationHeading(observation, observations, versions)}
             units={units.filter((unit) =>
               unitIsAvailableAt(unit.events, observation, ordinals),
             )}
@@ -131,12 +137,13 @@ export function ExperimentGridView({
         cell: (row) =>
           row.kind === "treatment" ? (
             <span className="font-medium">
-              {groupSummary(metric, row.units, observation, cells, ordinals)}
+              {groupSummary(readings, row.units, observation, ordinals)}
             </span>
           ) : (
             <Cell
               experiment={experiment.id}
-              metric={metric}
+              readings={readings}
+              observation={observation}
               unit={row.unit}
               image={cells.get(cellKey(row.unit.id, observation.id))}
               counted={unitIsIncludedInAnalysis(
@@ -233,28 +240,24 @@ export function ExperimentGridView({
   );
 }
 
+/**
+ * The column is the day, and the model only when days do not all read with the
+ * same one. The version is how the day is read, not what the grid names.
+ */
 function observationHeading(
   observation: ExperimentObservation,
   observations: readonly ExperimentObservation[],
+  versions: readonly ReadableVersion[],
 ): string {
   const day = observationLabel(observation);
-  const metric = observations[0]?.metric.id;
-  if (metric && observations.every((item) => item.metric.id === metric)) {
+  const modelOf = (item: ExperimentObservation) =>
+    versions.find((entry) => entry.version.id === item.modelVersionId)?.model;
+  const model = modelOf(observation);
+  const first = modelOf(observations[0]!);
+  if (!model || observations.every((item) => modelOf(item)?.id === first?.id)) {
     return day;
   }
-  return `${day} · ${metricName(observation.metric)}`;
-}
-
-function cellKey(unit: string, observation: string): string {
-  return `${observation}\0${unit}`;
-}
-
-function cellTally(
-  image: ObservationImageCell | undefined,
-  counted: boolean,
-): Tally | null {
-  if (!counted || !image) return null;
-  return image.annotationTally ?? image.detectionTally;
+  return `${day} · ${modelName(model)}`;
 }
 
 type GridRow =
@@ -316,66 +319,72 @@ function experimentRows(treatments: Treatment[], units: Unit[]): GridRow[] {
   });
 }
 
+/**
+ * The replicates of one treatment on one day. Shares are what treatments are
+ * compared by, so a day that reads them summarizes them; a day without them,
+ * the baseline among others, summarizes its counts.
+ */
 function groupSummary(
-  metric: DerivedMetric,
+  readings: ExperimentReadings,
   units: Unit[],
   observation: ExperimentObservation,
-  cells: Map<string, ObservationImageCell>,
   ordinals: ObservationOrdinals,
 ): string {
-  return formatMetricSummary(
-    metric,
-    summarizeMetric(
-      metric,
-      units.flatMap((unit) => {
-        const counts = cellTally(
-          cells.get(cellKey(unit.id, observation.id)),
-          unitIsIncludedInAnalysis(unit.events, observation, ordinals),
-        );
-        return counts ? [counts] : [];
-      }),
-    ),
-  );
+  const counted = units.flatMap((unit) => {
+    if (!unitIsIncludedInAnalysis(unit.events, observation, ordinals))
+      return [];
+    const reading = readings.read(unit.id, observation);
+    return reading ? [reading] : [];
+  });
+  if (counted.length > 0 && counted.every((reading) => reading.rate !== null)) {
+    return formatRateSummary(summarize(counted.map((item) => item.rate!)));
+  }
+  return formatCountSummary(summarize(counted.map((item) => item.count)));
 }
 
 function Cell({
   experiment,
-  metric,
+  readings,
+  observation,
   unit,
   image,
   counted,
 }: {
   experiment: string;
-  metric: DerivedMetric;
+  readings: ExperimentReadings;
+  observation: ExperimentObservation;
   unit: Unit;
   image: ObservationImageCell | undefined;
   counted: boolean;
 }) {
   if (!image) return <span className="text-muted">—</span>;
   const href = `/experiments/${experiment}/${unit.id}?observation=${image.observation}`;
-  const value = (counts: Tally) =>
-    formatMetric(metric, computeMetric(metric, counts));
   const dimmed = counted ? "" : "text-muted line-through";
-  if (image.annotationTally) {
+  const reading = readings.read(unit.id, observation);
+  if (reading) {
+    const calibrated = image.annotationTally !== null;
     return explain(
       [
-        image.detectionTally
-          ? m.experiment_cell_analyzed({ value: value(image.detectionTally) })
+        calibrated && image.detectionTally
+          ? m.experiment_cell_analyzed({
+              value: formatCount(count(image.detectionTally)),
+            })
           : null,
         counted ? null : m.experiment_cell_excluded(),
       ]
         .filter(Boolean)
         .join(" · "),
-      <Link href={href} className={`font-semibold ${dimmed}`}>
-        {value(image.annotationTally)}
-      </Link>,
-    );
-  }
-  if (image.detectionTally) {
-    return explain(
-      counted ? null : m.experiment_cell_excluded(),
-      <Link href={href} className={dimmed}>
-        {value(image.detectionTally)}
+      <Link
+        href={href}
+        className={`${calibrated ? "font-semibold" : ""} ${dimmed}`}
+      >
+        {formatCount(reading.count)}
+        {reading.rate === null ? null : (
+          <span className="font-normal text-muted">
+            {" · "}
+            {formatRate(reading.rate)}
+          </span>
+        )}
       </Link>,
     );
   }

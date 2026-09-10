@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { classListSchema } from "../models/metrics";
+import { classListSchema } from "../models/readings";
 import {
   modelArtifactSchema,
   type Model,

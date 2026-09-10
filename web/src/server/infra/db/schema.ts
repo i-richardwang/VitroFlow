@@ -28,7 +28,6 @@ import {
 } from "../../../domain/experiments/schema";
 import type { InferenceOutcome } from "../../../domain/detection/schema";
 import type { RuntimeDescriptor } from "../../../domain/inference/schema";
-import type { DerivedMetric } from "../../../domain/models/metrics";
 import type {
   ModelArtifact,
   ModelVersion,
@@ -398,7 +397,6 @@ export const models = pgTable("models", {
   name: text("name").notNull(),
   task: text("task").notNull(),
   classes: jsonb("classes").$type<string[]>().notNull(),
-  metrics: jsonb("metrics").$type<DerivedMetric[]>().notNull(),
 });
 
 export const modelVersions = pgTable(
@@ -708,8 +706,7 @@ export const experimentTreatments = pgTable(
 /**
  * One occasion on which the experiment was observed. The day it happened
  * places it in the series and, against the inoculation date, names it. The
- * observation reads one metric off its images with one model version; the
- * metric is one that version's model declares, which the server checks.
+ * observation reads its images with one model version.
  */
 export const experimentObservations = pgTable(
   "experiment_observations",
@@ -722,7 +719,6 @@ export const experimentObservations = pgTable(
     modelVersionId: text("model_version_id")
       .notNull()
       .references(() => modelVersions.id),
-    metric: text("metric").notNull(),
     createdAt: instant("created_at"),
   },
   (table) => [
@@ -750,10 +746,6 @@ export const experimentObservations = pgTable(
     check(
       "experiment_observations_date_check",
       sql`${table.observedOn} >= ${table.inoculatedOn}`,
-    ),
-    check(
-      "experiment_observations_metric_check",
-      sql`${table.metric} ~ '^[a-z][a-z0-9]*(_[a-z0-9]+)*$'`,
     ),
   ],
 );

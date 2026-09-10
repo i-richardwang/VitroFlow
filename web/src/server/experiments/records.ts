@@ -8,8 +8,6 @@ import {
   experimentTreatments,
   experimentUnits,
   experiments,
-  modelVersions,
-  models,
 } from "../infra/db/schema";
 import type { Unit } from "../../domain/experiments/contracts";
 import {
@@ -27,8 +25,6 @@ import {
   type ExperimentObservation,
   type Treatment,
 } from "../../domain/experiments/schema";
-import type { Model } from "../../domain/models/schema";
-import { toModel } from "../models/public";
 
 export function toExperiment(row: typeof experiments.$inferSelect): Experiment {
   return experimentSchema.parse({
@@ -80,15 +76,10 @@ function toCultureEvent(
 
 function toObservation(
   row: typeof experimentObservations.$inferSelect,
-  model: Model,
   experiment: Experiment,
   ordinal: number,
   hasRecords: boolean,
 ): ExperimentObservation {
-  const metric = model.metrics.find((item) => item.id === row.metric);
-  if (!metric) {
-    throw new Error(`Model ${model.id} declares no metric ${row.metric}`);
-  }
   return experimentObservationSchema.parse({
     id: row.id,
     ordinal,
@@ -96,7 +87,6 @@ function toObservation(
     day: daysBetween(experiment.inoculatedOn, row.observedOn),
     note: row.note,
     modelVersionId: row.modelVersionId,
-    metric,
     hasRecords,
   });
 }
@@ -194,13 +184,8 @@ export async function listObservations(
 ): Promise<ExperimentObservation[]> {
   const [rows, observationImageRefs, eventRefs] = await Promise.all([
     db
-      .select({ observation: experimentObservations, model: models })
+      .select()
       .from(experimentObservations)
-      .innerJoin(
-        modelVersions,
-        eq(modelVersions.id, experimentObservations.modelVersionId),
-      )
-      .innerJoin(models, eq(models.id, modelVersions.modelId))
       .where(eq(experimentObservations.experimentId, experiment.id))
       .orderBy(asc(experimentObservations.observedOn)),
     db
@@ -216,10 +201,9 @@ export async function listObservations(
     ...observationImageRefs.map((row) => row.observation),
     ...eventRefs.map((row) => row.observation),
   ]);
-  return rows.map(({ observation, model }, index) =>
+  return rows.map((observation, index) =>
     toObservation(
       observation,
-      toModel(model),
       experiment,
       index + 1,
       recorded.has(observation.id),
