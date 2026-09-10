@@ -12,4 +12,4 @@ export {
   ProducerMismatchError,
   clearDetectionFailure,
 } from "./outcomes";
-export { newestDetectingVersion } from "./queries";
+export { newestDetectingVersion, newestVersion } from "./queries";

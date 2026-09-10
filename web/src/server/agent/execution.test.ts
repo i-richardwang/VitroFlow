@@ -62,10 +62,10 @@ describe("agent execution", () => {
     const observe = await executeAgentOperation("create-observation", {
       experiment: (created.output as { id: string }).id,
       observedOn: "2026-08-01",
-      modelVersionId: "seed-detector",
+      modelId: "nobody",
     });
     expect(failure(observe).code).toBe("not_found");
-    expect(failure(observe).message).toContain("Unknown model version");
+    expect(failure(observe).message).toContain("Unknown model");
   });
 
   test("defects are logged and sanitized, wherever they arose", async () => {

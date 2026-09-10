@@ -7,6 +7,7 @@
   "nav_group_settings": "设置",
   "nav_group_workbench": "工作台",
   "nav_experiments": "实验",
+  "nav_models": "模型",
   "nav_datasets": "数据集",
   "nav_training": "训练",
   "nav_status": "状态",
@@ -40,5 +41,7 @@
   "error_dataset_model": "图像和数据集必须使用同一个模型。",
   "error_image_already_used": "有图像已分配到此实验中。",
   "error_experiment_has_records": "此实验已有记录，无法进行此修改。",
-  "error_user_rejected": "此修改会影响你自己的访问权限，或导致没有可用的管理员。"
+  "error_user_rejected": "此修改会影响你自己的访问权限，或导致没有可用的管理员。",
+  "error_model_name_taken": "已有同标识的模型。",
+  "error_model_in_use": "该模型已有版本或记录，无法删除。"
 }

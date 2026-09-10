@@ -5,14 +5,21 @@ import {
   sameModelVersion,
 } from "../../domain/models/schema";
 
+import { SEED_DETECTOR_MODEL_ID } from "../../domain/models/builtins";
 import {
+  ModelInUseError,
+  ModelNameTakenError,
+  ModelNotFoundError,
+} from "../../domain/models/errors";
+import {
+  createModel,
+  deleteModel,
   listAllModelVersions,
   listModels,
   readModelVersion,
+  registerModel,
   registerModelVersion,
 } from "./registry";
-
-import { registerModel } from "./registry";
 
 test("a version is registered once and its contents may not change", async () => {
   const model = await registerModel({
@@ -97,4 +104,54 @@ test("every registered version is listed newest first", async () => {
   const listed = (await listAllModelVersions()).map(({ id }) => id);
   expect(listed).toContain(older.id);
   expect(listed.indexOf(newer.id)).toBeLessThan(listed.indexOf(older.id));
+});
+
+test("a task exists as soon as it is named, before anything can answer it", async () => {
+  const model = await createModel({
+    id: "germination-detector",
+    name: "Germination detector",
+    classes: ["germinated"],
+  });
+  expect(model).toEqual({
+    schemaVersion: 1,
+    id: "germination-detector",
+    name: "Germination detector",
+    task: "object_detection",
+    classes: ["germinated"],
+  });
+  expect((await listModels()).map(({ id }) => id)).toContain(
+    "germination-detector",
+  );
+  expect(
+    (await listAllModelVersions()).filter(
+      ({ modelId }) => modelId === "germination-detector",
+    ),
+  ).toEqual([]);
+
+  await expect(
+    createModel({
+      id: "germination-detector",
+      name: "Something else",
+      classes: ["seed"],
+    }),
+  ).rejects.toBeInstanceOf(ModelNameTakenError);
+});
+
+test("a task nothing records against can be withdrawn", async () => {
+  await createModel({
+    id: "withdrawn-detector",
+    name: "Withdrawn detector",
+    classes: ["seed"],
+  });
+  await deleteModel({ model: "withdrawn-detector" });
+  expect((await listModels()).map(({ id }) => id)).not.toContain(
+    "withdrawn-detector",
+  );
+
+  await expect(
+    deleteModel({ model: "withdrawn-detector" }),
+  ).rejects.toBeInstanceOf(ModelNotFoundError);
+  await expect(
+    deleteModel({ model: SEED_DETECTOR_MODEL_ID }),
+  ).rejects.toBeInstanceOf(ModelInUseError);
 });

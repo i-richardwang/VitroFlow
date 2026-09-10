@@ -15,7 +15,6 @@ import {
 import type { Worker } from "../../domain/workers/schema";
 import type { ModelVersion } from "../../domain/models/schema";
 import {
-  ModelVersionNotFoundError,
   UnitNotFoundError,
   UnitRejectedError,
   ExperimentHasRecordsError,
@@ -74,7 +73,11 @@ import {
   readExperimentGrid,
   readExperimentObservationImage,
 } from "./queries";
-import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../domain/models/builtins";
+import {
+  SEED_DETECTOR_BASELINE_VERSION_ID,
+  SEED_DETECTOR_MODEL_ID,
+} from "../../domain/models/builtins";
+import { ModelNotFoundError } from "../../domain/models/errors";
 import { listAllModelVersions } from "../models/registry";
 import {
   FIXTURE_EDGE,
@@ -85,7 +88,7 @@ import {
   storeTexts,
   testHeartbeat,
 } from "../testing/fixtures";
-import { registerModel } from "../models/registry";
+import { createModel, registerModel } from "../models/registry";
 
 const INOCULATED = "2026-08-01";
 
@@ -119,9 +122,9 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
   return registerTrainedVersion(modelId);
 }
 
-/** An observation read with the version. */
+/** An observation read for the version's model. */
 function reading(version: ModelVersion) {
-  return { modelVersionId: version.id };
+  return { modelId: version.modelId };
 }
 
 function resultFor(version: ModelVersion, digest: string, seeds: number) {
@@ -205,9 +208,9 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: INOCULATED,
       note: "",
-      modelVersionId: SEED_DETECTOR_BASELINE_VERSION_ID,
+      modelId: SEED_DETECTOR_MODEL_ID,
     });
-    expect(observation.modelVersionId).toBe(SEED_DETECTOR_BASELINE_VERSION_ID);
+    expect(observation.modelId).toBe(SEED_DETECTOR_MODEL_ID);
   });
 
   test("have server-owned identities and one name each", async () => {
@@ -327,16 +330,16 @@ describe("experiments", () => {
         experiment: experiment.id,
         observedOn: "2026-08-08",
         note: "",
-        modelVersionId: "nobody.v9",
+        modelId: "nobody",
       }),
-    ).rejects.toThrow(ModelVersionNotFoundError);
+    ).rejects.toThrow(ModelNotFoundError);
     const observation = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
       ...reading(version),
     });
-    expect(observation.modelVersionId).toBe(version.id);
+    expect(observation.modelId).toBe(version.modelId);
 
     const traditional = await baselineVersion();
     const reread = await updateObservation({
@@ -344,19 +347,74 @@ describe("experiments", () => {
       observation: observation.id,
       observedOn: observation.observedOn,
       note: observation.note,
-      modelVersionId: traditional.id,
+      modelId: traditional.modelId,
     });
-    expect(reread.modelVersionId).toBe(traditional.id);
+    expect(reread.modelId).toBe(traditional.modelId);
 
-    const unknownVersion = (async () => {
+    const unknownModel = (async () => {
       await (
         await database()
       )
         .update(experimentObservations)
-        .set({ modelVersionId: "nobody.v9" })
+        .set({ modelId: "nobody" })
         .where(eq(experimentObservations.id, observation.id));
     })();
-    await expect(unknownVersion).rejects.toThrow();
+    await expect(unknownModel).rejects.toThrow();
+  });
+
+  test("an untrained model is observed and read by a reviewer alone", async () => {
+    const model = await createModel({
+      id: "exp-untrained",
+      name: "Untrained detector",
+      classes: ["germinated"],
+    });
+    const experiment = await createExperiment({
+      name: "Untrained",
+      inoculatedOn: INOCULATED,
+    });
+    const units = await unitsOf(experiment.id);
+    const observation = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-15",
+      note: "",
+      modelId: model.id,
+    });
+    await assignImages(experiment.id, observation.id, units, {
+      "A-1": "untrained-d14",
+    });
+    const digest = await imageDigest("untrained-d14");
+    const cell = async () =>
+      (await readExperimentGrid(experiment.id))!.images.find(
+        (image) => image.digest === digest,
+      )!;
+
+    expect((await cell()).state).toBe("unread");
+    expect((await cell()).detectionTally).toBeNull();
+
+    const image = (await readExperimentObservationImage({
+      experiment: experiment.id,
+      observationImage: (await cell()).id,
+    }))!;
+    expect(image.model.id).toBe(model.id);
+    expect(image.review.detection).toBeNull();
+
+    await storeAnnotation(
+      { digest, modelId: model.id },
+      [
+        {
+          id: "a",
+          class: "germinated",
+          bbox: { x: 2, y: 3, width: 4, height: 5 },
+        },
+        {
+          id: "b",
+          class: "germinated",
+          bbox: { x: 9, y: 3, width: 4, height: 5 },
+        },
+      ],
+      null,
+    );
+    expect((await cell()).annotationTally).toEqual({ germinated: 2 });
   });
 
   test("observations of one experiment read with different models", async () => {
@@ -384,17 +442,15 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
-      modelVersionId: germination.id,
+      ...reading(germination),
     });
     await assignImages(experiment.id, day7.id, units, { "A-1": "stage-d7" });
     await assignImages(experiment.id, day14.id, units, { "A-1": "stage-d14" });
     const digest = await imageDigest("stage-d14");
     const grid = (await readExperimentGrid(experiment.id))!;
-    expect(
-      grid.observations.map((item) => [item.day, item.modelVersionId]),
-    ).toEqual([
-      [7, seeds.id],
-      [14, germination.id],
+    expect(grid.observations.map((item) => [item.day, item.modelId])).toEqual([
+      [7, seeds.modelId],
+      [14, germination.modelId],
     ]);
     const ref = {
       experiment: experiment.id,
@@ -405,13 +461,13 @@ describe("experiments", () => {
       (await readExperimentGrid(experiment.id))!.images.find(
         (image) => image.digest === digest,
       )!;
-    const reread = async (modelVersionId: string) =>
+    const reread = async (modelId: string) =>
       updateObservation({
         experiment: experiment.id,
         observation: day14.id,
         observedOn: day14.observedOn,
         note: day14.note,
-        modelVersionId,
+        modelId,
       });
 
     const found = resultFor(germination, digest, 2);
@@ -431,14 +487,14 @@ describe("experiments", () => {
     expect(before.review.detection?.instances).toHaveLength(2);
     expect(before.review.annotation).not.toBeNull();
 
-    await reread(seeds.id);
+    await reread(seeds.modelId);
     expect((await cell()).state).toBe("pending");
     const switched = (await readExperimentObservationImage(ref))!;
     expect(switched.model.id).toBe(seeds.modelId);
     expect(switched.review.detection).toBeNull();
     expect(switched.review.annotation).toBeNull();
 
-    await reread(germination.id);
+    await reread(germination.modelId);
     expect((await cell()).state).toBe("analyzed");
     const restored = (await readExperimentObservationImage(ref))!;
     expect(restored.review.detection).toEqual(before.review.detection);
@@ -804,7 +860,12 @@ describe("experiments", () => {
       ({ experiment: item }) => item.id === experiment.id,
     );
     expect(summary?.latestDay).toBe(21);
-    expect(summary?.counts).toEqual({ pending: 4, failed: 0, analyzed: 0 });
+    expect(summary?.counts).toEqual({
+      unread: 0,
+      pending: 4,
+      failed: 0,
+      analyzed: 0,
+    });
   });
 
   test("observations cannot precede inoculation at either boundary", async () => {

@@ -18,6 +18,7 @@ import { listTreatments, listUnits } from "../../experiments/records";
 import {
   baselineVersion,
   registerTrainedVersion,
+  traditionalVersion,
 } from "../../testing/fixtures";
 
 test("the database rejects a second terminal event", async () => {
@@ -37,13 +38,13 @@ test("the database rejects a second terminal event", async () => {
     experiment: experiment.id,
     observedOn: "2026-08-08",
     note: "",
-    modelVersionId: version.id,
+    modelId: version.modelId,
   });
   const day14 = await addObservation({
     experiment: experiment.id,
     observedOn: "2026-08-15",
     note: "",
-    modelVersionId: version.id,
+    modelId: version.modelId,
   });
   await recordCultureEvent({
     experiment: experiment.id,
@@ -80,8 +81,9 @@ test("the database rejects a second terminal event", async () => {
 
 test("the database rejects a trained version without its provenance", async () => {
   const suffix = randomUUID();
+  await traditionalVersion("provenance-detector", `baseline-${suffix}`);
   const valid = await registerTrainedVersion(
-    "seed-detector",
+    "provenance-detector",
     `provenance-${suffix}`,
   );
   if (valid.source.kind !== "training_run") {
@@ -92,7 +94,7 @@ test("the database rejects a trained version without its provenance", async () =
     (await database())
       .insert(modelVersions)
       .values({
-        id: `seed-detector.orphan-${suffix}`,
+        id: `provenance-detector.orphan-${suffix}`,
         modelId: valid.modelId,
         name: "Orphan provenance",
         createdAt: new Date(valid.createdAt),

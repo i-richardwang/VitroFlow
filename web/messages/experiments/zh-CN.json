@@ -72,7 +72,6 @@
   "observation_added": "已添加{observation}",
   "observation_date_label": "观测日期",
   "observation_note_label": "备注",
-  "observation_version_label": "模型版本",
   "observation_actions": "{observation}操作",
   "observation_menu_assign_images": "对应到试验单元…",
   "observation_assign_images": "对应到试验单元",
@@ -184,5 +183,7 @@
   "treatment_level_label": "水平",
   "treatment_level_placeholder": "1.0",
   "treatment_unit_label": "单位",
-  "treatment_unit_placeholder": "mg/L"
+  "treatment_unit_placeholder": "mg/L",
+  "observation_model_label": "识别目标",
+  "image_analysis_unread": "待标注"
 }

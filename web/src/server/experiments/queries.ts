@@ -46,6 +46,7 @@ import {
   toExperiment,
 } from "./records";
 import { toModel } from "../models/public";
+import { newestVersion } from "../inference/public";
 
 function tallyOf(document: SQL | AnyColumn) {
   return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
@@ -59,19 +60,20 @@ function observationImageGridQuery(db: Executor) {
       detectionTally: tallyOf(inferenceOutcomes.document),
       annotationTally: tallyOf(annotations.document),
       reviewed: sql<boolean>`${annotations.imageId} is not null`,
+      reader: modelVersions.id,
       error: sql<string | null>`${inferenceOutcomes.document}->>'error'`,
     })
     .from(experimentObservationImages)
     .innerJoin(experimentObservations, atImageObservation())
-    .innerJoin(
+    .leftJoin(
       modelVersions,
-      eq(modelVersions.id, experimentObservations.modelVersionId),
+      eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
     )
     .leftJoin(
       annotations,
       and(
         eq(annotations.imageId, experimentObservationImages.imageId),
-        eq(annotations.modelId, modelVersions.modelId),
+        eq(annotations.modelId, experimentObservations.modelId),
       ),
     )
     .leftJoin(inferenceOutcomes, atImageOutcome());
@@ -88,11 +90,11 @@ function atImageObservation() {
   );
 }
 
-/** The image's outcome under its observation's version. */
+/** The image's outcome under the version that currently reads for its model. */
 function atImageOutcome() {
   return and(
     eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-    eq(inferenceOutcomes.modelVersionId, experimentObservations.modelVersionId),
+    eq(inferenceOutcomes.modelVersionId, modelVersions.id),
   );
 }
 
@@ -102,11 +104,13 @@ type ObservationImageGridRow = Awaited<
 
 function toCell(row: ObservationImageGridRow): ObservationImageCell {
   const state: ImageAnalysisState =
-    row.outcomeStatus === "succeeded"
-      ? "analyzed"
-      : row.outcomeStatus === "failed"
-        ? "failed"
-        : "pending";
+    row.reader === null
+      ? "unread"
+      : row.outcomeStatus === "succeeded"
+        ? "analyzed"
+        : row.outcomeStatus === "failed"
+          ? "failed"
+          : "pending";
   return {
     id: row.observationImage.id,
     unit: row.observationImage.unitId,
@@ -254,12 +258,17 @@ async function listExperimentSummaries(
       db
         .select({
           experimentId: experimentObservationImages.experimentId,
-          pending: sql<number>`count(*) filter (where ${inferenceOutcomes.imageId} is null)`,
+          unread: sql<number>`count(*) filter (where ${modelVersions.id} is null)`,
+          pending: sql<number>`count(*) filter (where ${modelVersions.id} is not null and ${inferenceOutcomes.imageId} is null)`,
           failed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'failed')`,
           analyzed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'succeeded')`,
         })
         .from(experimentObservationImages)
         .innerJoin(experimentObservations, atImageObservation())
+        .leftJoin(
+          modelVersions,
+          eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
+        )
         .leftJoin(inferenceOutcomes, atImageOutcome())
         .groupBy(experimentObservationImages.experimentId),
     ]);
@@ -278,6 +287,7 @@ async function listExperimentSummaries(
     observationImageRows.map((row) => [
       row.experimentId,
       {
+        unread: Number(row.unread),
         pending: Number(row.pending),
         failed: Number(row.failed),
         analyzed: Number(row.analyzed),
@@ -295,6 +305,7 @@ async function listExperimentSummaries(
           ? null
           : daysBetween(experiment.inoculatedOn, observedOn),
       counts: counts.get(experiment.id) ?? {
+        unread: 0,
         pending: 0,
         failed: 0,
         analyzed: 0,
@@ -337,11 +348,11 @@ async function readObservationImage(
       eq(experiments.id, experimentObservationImages.experimentId),
     )
     .innerJoin(experimentObservations, atImageObservation())
-    .innerJoin(
+    .innerJoin(models, eq(models.id, experimentObservations.modelId))
+    .leftJoin(
       modelVersions,
-      eq(modelVersions.id, experimentObservations.modelVersionId),
+      eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
     )
-    .innerJoin(models, eq(models.id, modelVersions.modelId))
     .innerJoin(images, eq(images.id, experimentObservationImages.imageId))
     .innerJoin(
       experimentUnits,
@@ -357,7 +368,7 @@ async function readObservationImage(
       annotations,
       and(
         eq(annotations.imageId, experimentObservationImages.imageId),
-        eq(annotations.modelId, modelVersions.modelId),
+        eq(annotations.modelId, experimentObservations.modelId),
       ),
     )
     .leftJoin(inferenceOutcomes, atImageOutcome())

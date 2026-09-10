@@ -32,11 +32,12 @@ export type Review = z.infer<typeof reviewSchema>;
 
 /**
  * The instances of the review: the stored ones, else the detection's, which a
- * review begins from. Null while there is nothing yet to review.
+ * review begins from. An image no model has read begins from none, which is
+ * how a reviewer counts for a model that has never been trained.
  */
-export function reviewInstances(review: Review): AnnotationInstance[] | null {
+export function reviewInstances(review: Review): AnnotationInstance[] {
   if (review.annotation) return review.annotation.instances;
-  return review.detection ? instancesFromDetection(review.detection) : null;
+  return review.detection ? instancesFromDetection(review.detection) : [];
 }
 
 /** Which instances a page shows: the review, or what the model found. */
@@ -51,5 +52,5 @@ export function shownInstances(
   if (version === "detection") {
     return review.detection ? instancesFromDetection(review.detection) : [];
   }
-  return reviewInstances(review) ?? [];
+  return reviewInstances(review);
 }

@@ -1,7 +1,6 @@
 import { Button } from "@heroui/react";
 
 import {
-  reviewInstances,
   shownInstances,
   type ReviewVersion,
 } from "../../domain/annotation/review";
@@ -26,11 +25,7 @@ export function Viewing({
   return (
     <>
       <WorkbenchActions>
-        <Button
-          variant="primary"
-          isDisabled={!reviewInstances(review)}
-          onPress={onEdit}
-        >
+        <Button variant="primary" onPress={onEdit}>
           {m.workbench_calibrate()}
         </Button>
         {context.actions}

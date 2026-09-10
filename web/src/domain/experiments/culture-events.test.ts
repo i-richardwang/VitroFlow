@@ -20,7 +20,7 @@ const observations: ExperimentObservation[] = [
     observedOn: "2026-08-08",
     day: 7,
     note: "",
-    modelVersionId: "seed-detector.traditional-v1",
+    modelId: "seed-detector",
     hasRecords: true,
   },
   {
@@ -29,7 +29,7 @@ const observations: ExperimentObservation[] = [
     observedOn: "2026-08-15",
     day: 14,
     note: "",
-    modelVersionId: "seed-detector.traditional-v1",
+    modelId: "seed-detector",
     hasRecords: false,
   },
 ];

@@ -11,7 +11,6 @@ import {
   experimentObservationImages,
   experimentObservations,
   images as imageAssets,
-  modelVersions,
 } from "../infra/db/schema";
 import {
   datasetSchema,
@@ -176,7 +175,7 @@ export async function addExperimentObservationImages(
         observationImageId: experimentObservationImages.id,
         digest: experimentObservationImages.imageId,
         filename: experimentObservationImages.filename,
-        modelId: modelVersions.modelId,
+        modelId: experimentObservations.modelId,
       })
       .from(experimentObservationImages)
       .innerJoin(
@@ -191,10 +190,6 @@ export async function addExperimentObservationImages(
             experimentObservationImages.observationId,
           ),
         ),
-      )
-      .innerJoin(
-        modelVersions,
-        eq(modelVersions.id, experimentObservations.modelVersionId),
       )
       .where(or(...images.map(atObservationImage)));
     const byRef = new Map(
@@ -220,7 +215,7 @@ export async function addExperimentObservationImages(
     const modelIds = [...new Set(resolved.map((row) => row.modelId))];
     if (modelIds.length > 1) {
       throw new DatasetModelError(
-        `The images were analyzed with different models: ${modelIds.join(", ")}`,
+        `The images were observed for different models: ${modelIds.join(", ")}`,
       );
     }
     const joining = new Map<string, string>();

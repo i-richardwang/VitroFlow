@@ -3,9 +3,6 @@ import { ConflictError, NotFoundError } from "../errors";
 export class ExperimentNotFoundError extends NotFoundError {
   readonly code = "experiment_not_found";
 }
-export class ModelVersionNotFoundError extends NotFoundError {
-  readonly code = "model_version_not_found";
-}
 export class ExperimentObservationImageNotFoundError extends NotFoundError {
   readonly code = "experiment_observation_image_not_found";
 }

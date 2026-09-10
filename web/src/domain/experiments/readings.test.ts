@@ -36,7 +36,7 @@ function observation(ordinal: number): ExperimentObservation {
     observedOn: "2026-09-01",
     day: ordinal - 1,
     note: "",
-    modelVersionId: "seed-detector.traditional-v1",
+    modelId: "seed-detector",
     hasRecords: false,
   };
 }

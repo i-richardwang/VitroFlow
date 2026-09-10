@@ -9,8 +9,11 @@ import {
 import { classListSchema } from "./classes";
 
 /**
- * A model is a task: what it looks for in an image. Every version of the model
- * finds the same classes; versions differ only in how well they find them.
+ * A model is a task: what it looks for in an image. It exists as soon as
+ * someone asks the question, with or without a version that can answer it;
+ * until one is trained, the answers are a reviewer's. Every version of the
+ * model finds the same classes; versions differ only in how well they find
+ * them.
  */
 export const modelSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -19,6 +22,15 @@ export const modelSchema = z.strictObject({
   task: z.literal("object_detection"),
   classes: classListSchema,
 });
+
+/** What naming a new task asks for: what to call it, and what it finds. */
+export const modelRequestSchema = z.strictObject({
+  id: resourceIdSchema,
+  name: z.string().min(1),
+  classes: classListSchema,
+});
+
+export const modelRefSchema = z.strictObject({ model: resourceIdSchema });
 
 const inferenceSettingsSchema = z.strictObject({
   confidence: z.number().finite().min(0).max(1),
@@ -79,6 +91,8 @@ export const modelVersionSchema = z.union([
 ]);
 
 export type Model = z.infer<typeof modelSchema>;
+export type ModelRequest = z.infer<typeof modelRequestSchema>;
+export type ModelRef = z.infer<typeof modelRefSchema>;
 export type ModelVersion = z.infer<typeof modelVersionSchema>;
 export type ModelArtifact = z.infer<typeof modelArtifactSchema>;
 

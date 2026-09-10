@@ -68,7 +68,7 @@ Entering one round of observation photos:
 4. `assign-images-to-observation` attaches the digests to units in that observation, keeping each source filename for traceability. A cell that already has an image is given the new one. Filenames may suggest unit codes, but the unit id in the assignment is authoritative.
 5. `record-culture-event` records contamination or loss observed while photographing. Contaminated, discarded, and missing exclude the unit from analysis from that observation on; nonviable and harvested keep it included. `remove-culture-event` erases an event recorded by mistake.
 
-Analysis needs no request: assigned images are queued for their observation's model version automatically, and `retry-observation-image-analysis` requeues one that failed.
+Analysis needs no request: assigned images are queued for the newest version of their observation's model automatically, and `retry-observation-image-analysis` requeues one that failed. A model with no version queues nothing; its images wait for a reviewer, and `create-model` names such a model in the first place.
 
 ## Transactions
 

@@ -27,6 +27,7 @@ import {
   DatasetsIcon,
   ExperimentsIcon,
   KeyIcon,
+  ModelsIcon,
   StatusIcon,
   TrainingIcon,
   UsersIcon,
@@ -47,6 +48,12 @@ const NAV = [
   {
     label: m.nav_group_model,
     items: [
+      {
+        href: "/models",
+        label: m.nav_models,
+        icon: ModelsIcon,
+        match: "models",
+      },
       {
         href: "/datasets",
         label: m.nav_datasets,

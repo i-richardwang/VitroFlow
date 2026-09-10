@@ -5,10 +5,10 @@ import { and, eq } from "drizzle-orm";
 import { inTransaction, type Executor } from "../infra/db/client";
 import { experimentObservations } from "../infra/db/schema";
 import {
-  ModelVersionNotFoundError,
   ObservationNotFoundError,
   ObservationRejectedError,
 } from "../../domain/experiments/errors";
+import { ModelNotFoundError } from "../../domain/models/errors";
 import {
   type Experiment,
   type ExperimentObservation,
@@ -22,7 +22,7 @@ import {
   lockExperiment,
   requireObservation,
 } from "./records";
-import { readModelVersion } from "../models/public";
+import { readModel } from "../models/public";
 
 function rejectBeforeInoculation(
   experiment: Experiment,
@@ -57,16 +57,13 @@ async function rejectSameDay(
   }
 }
 
-/** An observation reads with a version the registry holds. */
-async function rejectUnknownVersion(
-  modelVersionId: string,
+/** An observation asks a question the registry holds a model for. */
+async function rejectUnknownModel(
+  modelId: string,
   tx: Executor,
 ): Promise<void> {
-  const version = await readModelVersion(modelVersionId, tx);
-  if (!version) {
-    throw new ModelVersionNotFoundError(
-      `Unknown model version: ${modelVersionId}`,
-    );
+  if (!(await readModel(modelId, tx))) {
+    throw new ModelNotFoundError(`Unknown model: ${modelId}`);
   }
 }
 
@@ -74,12 +71,12 @@ export async function addObservation(
   value: ObservationRequest,
   executor?: Executor,
 ): Promise<ExperimentObservation> {
-  const { experiment: experimentId, observedOn, note, modelVersionId } = value;
+  const { experiment: experimentId, observedOn, note, modelId } = value;
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, null, tx);
-    await rejectUnknownVersion(modelVersionId, tx);
+    await rejectUnknownModel(modelId, tx);
     const [row] = await tx
       .insert(experimentObservations)
       .values({
@@ -88,7 +85,7 @@ export async function addObservation(
         inoculatedOn: experiment.inoculatedOn,
         observedOn,
         note,
-        modelVersionId,
+        modelId,
         createdAt: new Date(),
       })
       .returning();
@@ -106,16 +103,16 @@ export async function updateObservation(
     observation: observationId,
     observedOn,
     note,
-    modelVersionId,
+    modelId,
   } = value;
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, observationId, tx);
-    await rejectUnknownVersion(modelVersionId, tx);
+    await rejectUnknownModel(modelId, tx);
     const [row] = await tx
       .update(experimentObservations)
-      .set({ observedOn, note, modelVersionId })
+      .set({ observedOn, note, modelId })
       .where(atObservation(experimentId, observationId))
       .returning();
     if (!row) {

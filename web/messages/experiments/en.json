@@ -72,7 +72,6 @@
   "observation_added": "{observation} added",
   "observation_date_label": "Observation date",
   "observation_note_label": "Note",
-  "observation_version_label": "Model version",
   "observation_actions": "{observation} actions",
   "observation_menu_assign_images": "Match to units…",
   "observation_assign_images": "Match to units",
@@ -219,5 +218,7 @@
   "treatment_level_label": "Level",
   "treatment_level_placeholder": "1.0",
   "treatment_unit_label": "Unit",
-  "treatment_unit_placeholder": "mg/L"
+  "treatment_unit_placeholder": "mg/L",
+  "observation_model_label": "Recognition target",
+  "image_analysis_unread": "Awaiting review"
 }

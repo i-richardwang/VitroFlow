@@ -35,7 +35,11 @@ import {
   unitRequestSchema,
   unitUpdateSchema,
 } from "../../domain/experiments/schema";
-import { modelSchema, modelVersionSchema } from "../../domain/models/schema";
+import {
+  modelRefSchema,
+  modelRequestSchema,
+  modelSchema,
+} from "../../domain/models/schema";
 import {
   recordCultureEvent,
   deleteCultureEvent,
@@ -59,7 +63,7 @@ import {
   readUnit,
 } from "../experiments/public";
 
-import { listAllModelVersions, listModels } from "../models/public";
+import { createModel, deleteModel, listModels } from "../models/public";
 
 /**
  * One protocol-neutral application operation. HTTP status codes and MCP tool
@@ -133,29 +137,31 @@ const operations: readonly AgentOperation[] = [
     handler: () => listExperiments(),
   }),
   query({
-    name: "list-model-versions",
+    name: "list-models",
     description:
-      "List the model versions an experiment may be created with, newest first",
+      "List the recognition tasks an observation may be read for, and the classes each one finds",
     input: nothing,
-    output: z.array(
-      z.strictObject({
-        model: modelSchema,
-        version: modelVersionSchema,
-      }),
-    ),
-    handler: async () => {
-      const [models, versions] = await Promise.all([
-        listModels(),
-        listAllModelVersions(),
-      ]);
-      const byId = new Map(models.map((model) => [model.id, model]));
-      return versions.map((version) => {
-        const model = byId.get(version.modelId);
-        if (!model) {
-          throw new Error(`Version ${version.id} refers to no model`);
-        }
-        return { model, version };
-      });
+    output: z.array(modelSchema),
+    handler: () => listModels(),
+  }),
+  command({
+    name: "create-model",
+    description:
+      "Name a recognition task the workbench does not have yet, with the classes a reviewer will draw. It can be observed and annotated straight away; a version to detect it comes later, from training",
+    destructive: false,
+    input: modelRequestSchema,
+    output: modelSchema,
+    handler: (input) => createModel(input),
+  }),
+  command({
+    name: "delete-model",
+    description: "Forget a recognition task nothing has recorded against yet",
+    destructive: true,
+    input: modelRefSchema,
+    output: done,
+    handler: async (input) => {
+      await deleteModel(input);
+      return null;
     },
   }),
   query({
@@ -287,7 +293,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "create-observation",
     description:
-      "Add an observation to an experiment: the date and the model version that reads its images; it may be planned before images exist",
+      "Add an observation to an experiment: the date and the recognition task its images are read for; it may be planned before images exist",
     destructive: false,
     input: observationRequestSchema,
     output: experimentObservationSchema,
@@ -296,7 +302,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "update-observation",
     description:
-      "Correct an observation's date, note, or model version; images already taken are read again under the new version",
+      "Correct an observation's date, note, or recognition task; images already taken are read again for the new one",
     destructive: true,
     input: observationUpdateSchema,
     output: experimentObservationSchema,

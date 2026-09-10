@@ -20,7 +20,6 @@ import {
   unitUpdateSchema,
   cultureEventsRequestSchema,
 } from "../domain/experiments/schema";
-import type { Model, ModelVersion } from "../domain/models/schema";
 import { listDatasets, listDatasetsForModel } from "../server/datasets/public";
 import {
   addReplicates,
@@ -45,7 +44,7 @@ import {
 
 import * as observationImages from "../server/experiments/public";
 
-import { listAllModelVersions, listModels } from "../server/models/public";
+import { listModels } from "../server/models/public";
 
 async function datasetsTraining(modelId: string): Promise<string[]> {
   return (await listDatasetsForModel(modelId)).map((dataset) => dataset.id);
@@ -55,36 +54,20 @@ export const getExperiments = createServerFn({ method: "GET" }).handler(() =>
   listExperiments(),
 );
 
-/** The versions an observation may read with, newest first; never empty. */
-async function readableVersions(): Promise<
-  Array<{ model: Model; version: ModelVersion }>
-> {
-  const [models, versions] = await Promise.all([
-    listModels(),
-    listAllModelVersions(),
-  ]);
-  const byId = new Map(models.map((model) => [model.id, model]));
-  return versions.map((version) => {
-    const model = byId.get(version.modelId);
-    if (!model) throw new Error(`Unknown model: ${version.modelId}`);
-    return { model, version };
-  });
-}
-
 /**
- * The grid with what its page edits it against: the versions an observation
- * may read with and the datasets its images may join.
+ * The grid with what its page edits it against: the models an observation may
+ * be read for and the datasets its images may join.
  */
 export const getExperimentGrid = createServerFn({ method: "GET" })
   .validator(experimentRefSchema)
   .handler(async ({ data }) => {
     const grid = await readExperimentGrid(data.experiment);
     if (!grid) return null;
-    const [versions, datasets] = await Promise.all([
-      readableVersions(),
+    const [models, datasets] = await Promise.all([
+      listModels(),
       listDatasets(),
     ]);
-    return { ...grid, versions, datasets };
+    return { ...grid, models, datasets };
   });
 
 export const startExperiment = createServerFn({ method: "POST" })

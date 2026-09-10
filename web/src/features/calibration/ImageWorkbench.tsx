@@ -35,7 +35,6 @@ export function ImageWorkbench({
     () => new Set(["boxes"]),
   );
   const display = { layers, onLayersChange: setLayers };
-  const opening = reviewInstances(review);
   const props = { model, review, display, context };
   return (
     <Workbench title={title}>
@@ -47,10 +46,10 @@ export function ImageWorkbench({
         }}
         filename={review.filename}
       >
-        {calibrating && opening ? (
+        {calibrating ? (
           <Editing
             {...props}
-            opening={opening}
+            opening={reviewInstances(review)}
             onClose={() => onCalibratingChange(false)}
           />
         ) : (

@@ -311,9 +311,10 @@ export const cultureEventRefSchema = z.strictObject({
 export type CultureEventRef = z.infer<typeof cultureEventRefSchema>;
 
 /**
- * An observation is one day the units were photographed, read by one model
- * version: a seed detector on the day of sowing, a germination model once
- * shoots can show.
+ * An observation is one day the units were photographed, and the question
+ * asked of them: a seed detector on the day of sowing, a germination model
+ * once shoots can show. Which version answers is the workbench's business,
+ * and until one is trained the answer is a reviewer's own.
  */
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,
@@ -321,7 +322,7 @@ export const experimentObservationSchema = z.strictObject({
   observedOn: calendarDaySchema,
   day: z.number().int(),
   note: observationNoteSchema,
-  modelVersionId: resourceIdSchema,
+  modelId: resourceIdSchema,
   hasRecords: z.boolean(),
 });
 
@@ -338,7 +339,7 @@ export const observationRequestSchema = z.strictObject({
   experiment: experimentIdSchema,
   observedOn: calendarDaySchema,
   note: observationNoteSchema.default(""),
-  modelVersionId: resourceIdSchema,
+  modelId: resourceIdSchema,
 });
 
 export type ObservationRequest = z.infer<typeof observationRequestSchema>;
@@ -346,7 +347,7 @@ export type ObservationRequest = z.infer<typeof observationRequestSchema>;
 export const observationUpdateSchema = observationRefSchema.extend({
   observedOn: calendarDaySchema,
   note: observationNoteSchema,
-  modelVersionId: resourceIdSchema,
+  modelId: resourceIdSchema,
 });
 
 export type ObservationUpdate = z.infer<typeof observationUpdateSchema>;
@@ -396,7 +397,17 @@ export type ObservationImageAssignmentResult = z.infer<
   typeof observationImageAssignmentResultSchema
 >;
 
-export const IMAGE_ANALYSIS_STATES = ["pending", "failed", "analyzed"] as const;
+/**
+ * How far the workbench itself has got with an observation image. A model with
+ * no version yet leaves its images unread: nothing is queued, nothing failed,
+ * and the count is whatever a reviewer draws.
+ */
+export const IMAGE_ANALYSIS_STATES = [
+  "unread",
+  "pending",
+  "failed",
+  "analyzed",
+] as const;
 
 export const imageAnalysisStateSchema = z.enum(IMAGE_ANALYSIS_STATES);
 

@@ -20,19 +20,20 @@ import {
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import { currentDay, DayField, fromDay, toDay } from "./DayField";
-import { VersionSelect, type ReadableVersion } from "./VersionSelect";
+import { ModelSelect } from "./ModelSelect";
+import type { Model } from "../../domain/models/schema";
 
 /** What the form collects: when the experiment was observed and how it is read. */
 interface ObservationDraft {
   observedOn: DateValue | null;
   note: string;
-  modelVersionId: string;
+  modelId: string;
 }
 
 type ObservationDialogProps = {
   experiment: string;
   inoculatedOn: string;
-  versions: readonly ReadableVersion[];
+  models: readonly Model[];
   isOpen: boolean;
   onClose: () => void;
 } & (
@@ -46,7 +47,7 @@ type ObservationDialogProps = {
 
 /** Creates an observation, or edits one: the same page of the notebook. */
 export function ObservationDialog(props: ObservationDialogProps) {
-  const { experiment, inoculatedOn, versions, isOpen, onClose } = props;
+  const { experiment, inoculatedOn, models, isOpen, onClose } = props;
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   const editing = props.observation !== null;
@@ -54,13 +55,12 @@ export function ObservationDialog(props: ObservationDialogProps) {
     ? {
         observedOn: fromDay(props.observation.observedOn),
         note: props.observation.note,
-        modelVersionId: props.observation.modelVersionId,
+        modelId: props.observation.modelId,
       }
     : {
         observedOn: currentDay(),
         note: "",
-        modelVersionId:
-          props.previous?.modelVersionId ?? versions[0]!.version.id,
+        modelId: props.previous?.modelId ?? models[0]!.id,
       };
 
   const submit = (draft: ObservationDraft) => {
@@ -69,7 +69,7 @@ export function ObservationDialog(props: ObservationDialogProps) {
       experiment,
       observedOn: toDay(draft.observedOn),
       note: draft.note,
-      modelVersionId: draft.modelVersionId,
+      modelId: draft.modelId,
     };
     void run(
       () =>
@@ -107,7 +107,7 @@ export function ObservationDialog(props: ObservationDialogProps) {
             <ObservationEditor
               key={isOpen ? "open" : "closed"}
               busy={busy}
-              versions={versions}
+              models={models}
               initial={initial}
               minDate={fromDay(inoculatedOn)}
               submitLabel={
@@ -131,7 +131,7 @@ export function ObservationDialog(props: ObservationDialogProps) {
 
 function ObservationEditor({
   busy,
-  versions,
+  models,
   initial,
   minDate,
   submitLabel,
@@ -139,7 +139,7 @@ function ObservationEditor({
   onClose,
 }: {
   busy: boolean;
-  versions: readonly ReadableVersion[];
+  models: readonly Model[];
   initial: ObservationDraft;
   minDate: DateValue;
   submitLabel: string;
@@ -165,13 +165,11 @@ function ObservationEditor({
             minValue={minDate}
             onChange={(observedOn) => setDraft({ ...draft, observedOn })}
           />
-          <VersionSelect
+          <ModelSelect
             busy={busy}
-            versions={versions}
-            value={draft.modelVersionId}
-            onChange={(modelVersionId) =>
-              setDraft({ ...draft, modelVersionId })
-            }
+            models={models}
+            value={draft.modelId}
+            onChange={(modelId) => setDraft({ ...draft, modelId })}
           />
           <TextField
             variant="secondary"

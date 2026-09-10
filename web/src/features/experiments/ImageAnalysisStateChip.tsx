@@ -7,6 +7,7 @@ const DISPLAY: Record<
   ImageAnalysisState,
   { label: () => string; tone: "default" | "success" | "danger" }
 > = {
+  unread: { label: m.image_analysis_unread, tone: "default" },
   pending: { label: m.image_analysis_pending, tone: "default" },
   analyzed: { label: m.image_analysis_analyzed, tone: "success" },
   failed: { label: m.image_analysis_failed, tone: "danger" },
@@ -30,6 +31,7 @@ export function summarizedImageAnalysis(
 ): ImageAnalysisState | null {
   if (counts.failed > 0) return "failed";
   if (counts.pending > 0) return "pending";
+  if (counts.unread > 0) return "unread";
   if (counts.analyzed > 0) return "analyzed";
   return null;
 }

@@ -14,7 +14,7 @@ import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
 import { AssignImagesDialog } from "./AssignImagesDialog";
 import { ObservationDialog } from "./ObservationDialog";
-import type { ReadableVersion } from "./VersionSelect";
+import type { Model } from "../../domain/models/schema";
 
 type Action = "images" | "dataset" | "edit" | "delete";
 
@@ -25,7 +25,7 @@ export function ObservationMenu({
   label,
   units,
   images,
-  versions,
+  models,
   datasets,
 }: {
   experiment: string;
@@ -36,7 +36,7 @@ export function ObservationMenu({
   units: Unit[];
   /** The images taken at this observation. */
   images: ObservationImageCell[];
-  versions: readonly ReadableVersion[];
+  models: readonly Model[];
   /** The datasets training the observation's model. */
   datasets: string[];
 }) {
@@ -118,7 +118,7 @@ export function ObservationMenu({
       <ObservationDialog
         experiment={experiment}
         inoculatedOn={inoculatedOn}
-        versions={versions}
+        models={models}
         observation={observation}
         isOpen={open === "edit"}
         onClose={close}

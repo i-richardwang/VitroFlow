@@ -5,15 +5,27 @@ import {
   SEED_DETECTOR_BASELINE,
 } from "../../domain/models/builtins";
 import {
+  modelRequestSchema,
   modelSchema,
   modelVersionSchema,
   sameModel,
   sameModelVersion,
   type Model,
+  type ModelRef,
+  type ModelRequest,
   type ModelVersion,
 } from "../../domain/models/schema";
-import { database, type Executor } from "../infra/db/client";
-import { modelVersions, models } from "../infra/db/schema";
+import {
+  ModelInUseError,
+  ModelNameTakenError,
+  ModelNotFoundError,
+} from "../../domain/models/errors";
+import { database, transaction, type Executor } from "../infra/db/client";
+import {
+  experimentObservations,
+  modelVersions,
+  models,
+} from "../infra/db/schema";
 
 /**
  * Model and version rows. Registration is write-once: the same contents again
@@ -90,6 +102,56 @@ export async function registerModel(
     );
   }
   return existing;
+}
+
+/**
+ * Names a task the workbench did not have. Classes are fixed here because
+ * every review already stored for the model was drawn from them; a task whose
+ * vocabulary changed would be a different task under the same name.
+ */
+export async function createModel(value: ModelRequest): Promise<Model> {
+  const request = modelRequestSchema.parse(value);
+  const model = modelSchema.parse({
+    schemaVersion: 1,
+    task: "object_detection",
+    ...request,
+  });
+  return transaction(async (tx) => {
+    if (await readModel(model.id, tx)) {
+      throw new ModelNameTakenError(`Model ${model.id} already exists`);
+    }
+    return registerModel(model, tx);
+  });
+}
+
+/** Forgets a task nothing has recorded against yet. */
+export async function deleteModel(ref: ModelRef): Promise<void> {
+  await transaction(async (tx) => {
+    if (!(await readModel(ref.model, tx))) {
+      throw new ModelNotFoundError(`Unknown model: ${ref.model}`);
+    }
+    const [version] = await tx
+      .select({ id: modelVersions.id })
+      .from(modelVersions)
+      .where(eq(modelVersions.modelId, ref.model))
+      .limit(1);
+    if (version) {
+      throw new ModelInUseError(
+        `Model ${ref.model} has trained versions and cannot be deleted`,
+      );
+    }
+    const [observation] = await tx
+      .select({ id: experimentObservations.id })
+      .from(experimentObservations)
+      .where(eq(experimentObservations.modelId, ref.model))
+      .limit(1);
+    if (observation) {
+      throw new ModelInUseError(
+        `Model ${ref.model} is observed by an experiment and cannot be deleted`,
+      );
+    }
+    await tx.delete(models).where(eq(models.id, ref.model));
+  });
 }
 
 export async function registerModelVersion(

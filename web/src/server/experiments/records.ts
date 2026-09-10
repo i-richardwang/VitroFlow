@@ -86,7 +86,7 @@ function toObservation(
     observedOn: row.observedOn,
     day: daysBetween(experiment.inoculatedOn, row.observedOn),
     note: row.note,
-    modelVersionId: row.modelVersionId,
+    modelId: row.modelId,
     hasRecords,
   });
 }

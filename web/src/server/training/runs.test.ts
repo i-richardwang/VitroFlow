@@ -29,6 +29,7 @@ import {
   ULTRALYTICS_RUNTIME,
   imageDigest,
   reviewedDataset as reviewed,
+  traditionalVersion,
 } from "../testing/fixtures";
 import { recordWorkerHeartbeat } from "../workers/sessions";
 import type {
@@ -38,8 +39,13 @@ import type {
 
 const CONTENTS = ["first-image", "second-image"];
 
+/** Publishing trains new versions, so these runs keep a model of their own. */
 async function reviewedDataset(datasetId: string) {
-  const { dataset } = await reviewed(datasetId, CONTENTS);
+  const { dataset } = await reviewed(
+    datasetId,
+    CONTENTS,
+    await traditionalVersion("training-detector", "training-v1"),
+  );
   return dataset;
 }
 

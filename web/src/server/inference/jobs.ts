@@ -21,6 +21,7 @@ import type { Worker, WorkerIdentity } from "../../domain/workers/schema";
 import { readModel, toModelVersion } from "../models/public";
 import { lockWorkerSession, sessionIsCurrent } from "../workers/public";
 import { storeInferenceOutcome, type DetectionTarget } from "./outcomes";
+import { newestVersion } from "./queries";
 
 export class InferenceClaimRejectedError extends Error {}
 
@@ -105,7 +106,7 @@ function claimableExperimentDemand(
   return db
     .selectDistinct({
       digest: experimentObservationImages.imageId,
-      versionId: experimentObservations.modelVersionId,
+      versionId: modelVersions.id,
     })
     .from(experimentObservationImages)
     .innerJoin(
@@ -123,23 +124,20 @@ function claimableExperimentDemand(
     )
     .innerJoin(
       modelVersions,
-      eq(modelVersions.id, experimentObservations.modelVersionId),
+      eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
     )
     .leftJoin(
       inferenceOutcomes,
       and(
         eq(inferenceOutcomes.imageId, experimentObservationImages.imageId),
-        eq(
-          inferenceOutcomes.modelVersionId,
-          experimentObservations.modelVersionId,
-        ),
+        eq(inferenceOutcomes.modelVersionId, modelVersions.id),
       ),
     )
     .leftJoin(
       inferenceJobs,
       and(
         eq(inferenceJobs.imageId, experimentObservationImages.imageId),
-        eq(inferenceJobs.modelVersionId, experimentObservations.modelVersionId),
+        eq(inferenceJobs.modelVersionId, modelVersions.id),
       ),
     )
     .where(
@@ -152,10 +150,7 @@ function claimableExperimentDemand(
         ),
       ),
     )
-    .orderBy(
-      asc(experimentObservations.modelVersionId),
-      asc(experimentObservationImages.imageId),
-    )
+    .orderBy(asc(modelVersions.id), asc(experimentObservationImages.imageId))
     .limit(CLAIM_CANDIDATE_LIMIT);
 }
 

@@ -40,7 +40,7 @@ describe("agent operations", () => {
   test("behavior hints classify every operation explicitly", () => {
     const readOnly = new Set([
       "list-experiments",
-      "list-model-versions",
+      "list-models",
       "get-experiment",
       "get-unit",
     ]);
@@ -50,6 +50,7 @@ describe("agent operations", () => {
       "add-replicates",
       "record-culture-event",
       "create-observation",
+      "create-model",
       "assign-images-to-observation",
     ]);
     const destructive = new Set([
@@ -64,6 +65,7 @@ describe("agent operations", () => {
       "delete-observation",
       "unassign-observation-image",
       "retry-observation-image-analysis",
+      "delete-model",
     ]);
     expect([...readOnly, ...additive, ...destructive].sort()).toEqual(
       [...agentOperations.keys()].sort(),
@@ -102,7 +104,7 @@ describe("agent operations", () => {
       await executeAgentOperation("create-observation", {
         experiment: experiment.id,
         observedOn: "2026-08-15",
-        modelVersionId: version.id,
+        modelId: version.modelId,
       }),
     ) as ExperimentObservation;
     expect(observation.observedOn).toBe("2026-08-15");
@@ -136,7 +138,7 @@ describe("agent operations", () => {
       await executeAgentOperation("create-observation", {
         experiment: experiment.id,
         observedOn: "2026-08-10",
-        modelVersionId: version.id,
+        modelId: version.modelId,
       }),
     ) as ExperimentObservation;
     const grid = output(

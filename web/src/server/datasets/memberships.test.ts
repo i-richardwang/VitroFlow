@@ -30,11 +30,12 @@ import {
   imageBytes,
   imageDigest,
   observeImages,
+  observeImagesForModel,
   registerTrainedVersion,
   resultFor,
   uploadTexts,
 } from "../testing/fixtures";
-import { registerModel } from "../models/registry";
+import { createModel, registerModel } from "../models/registry";
 
 const worker: Worker = {
   ...testHeartbeat("worker"),
@@ -126,7 +127,28 @@ describe("datasets", () => {
     ).toMatchObject({ added: 0, existing: 1 });
   });
 
-  test("a dataset trains the model that analyzed its experiment images", async () => {
+  test("an untrained model's reviewed images become the set it trains on", async () => {
+    const model = await createModel({
+      id: "bootstrap-task",
+      name: "Bootstrap task",
+      classes: ["germinated"],
+    });
+    const observed = await observeImagesForModel(
+      "bootstrap images",
+      ["bootstrapped"],
+      model.id,
+    );
+    const { dataset } = await addExperimentObservationImages({
+      dataset: "bootstrap",
+      images: observed.images,
+    });
+    expect(dataset).toEqual({ id: "bootstrap", modelId: model.id });
+    expect((await listDatasetsForModel(model.id)).map(({ id }) => id)).toEqual([
+      "bootstrap",
+    ]);
+  });
+
+  test("a dataset trains the model its experiment images were observed for", async () => {
     const seed = await observeImages("model images", ["modelled"]);
     await addExperimentObservationImages({
       dataset: "one-model",

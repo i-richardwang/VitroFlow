@@ -11,8 +11,10 @@ import { recordWorkerHeartbeat } from "../workers/sessions";
 import {
   ULTRALYTICS_RUNTIME,
   observeImages,
+  observeImagesForModel,
   testHeartbeat,
 } from "../testing/fixtures";
+import { createModel } from "../models/public";
 
 function targetOf(
   assignment: NonNullable<Awaited<ReturnType<typeof claimInferenceAssignment>>>,
@@ -99,4 +101,30 @@ test("only a live owner can renew an inference claim", async () => {
       new Date(renewedAt.getTime() + INFERENCE_LEASE_SECONDS * 1000 + 1),
     ),
   ).rejects.toBeInstanceOf(InferenceClaimRejectedError);
+});
+
+test("a model with no version demands no work of any worker", async () => {
+  const model = await createModel({
+    id: "unclaimable-detector",
+    name: "Unclaimable detector",
+    classes: ["germinated"],
+  });
+  const { digests } = await observeImagesForModel(
+    "unclaimable",
+    ["unclaimable"],
+    model.id,
+  );
+  const worker = await recordWorkerHeartbeat({
+    ...testHeartbeat("unclaimable-worker"),
+    runtimes: [
+      ...testHeartbeat("unclaimable-worker").runtimes,
+      ULTRALYTICS_RUNTIME,
+    ],
+  });
+  const at = new Date("2026-09-04T12:00:00.000Z");
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const candidate = await claimInferenceAssignment(worker, at);
+    if (!candidate) break;
+    expect(candidate.image).not.toBe(digests[0]);
+  }
 });

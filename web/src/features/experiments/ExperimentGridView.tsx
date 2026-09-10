@@ -28,7 +28,7 @@ import {
   type Treatment,
 } from "../../domain/experiments/schema";
 import { observationLabel } from "./labels";
-import type { ReadableVersion } from "./VersionSelect";
+import type { Model } from "../../domain/models/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import {
@@ -59,7 +59,7 @@ export function ExperimentGridView({
     units,
     observations,
     images,
-    versions,
+    models,
     datasets,
   } = data;
   const router = useRouter();
@@ -107,9 +107,6 @@ export function ExperimentGridView({
       pinned: "start",
     },
     ...observations.map((observation): DataGridColumn<GridRow> => {
-      const reading = versions.find(
-        (item) => item.version.id === observation.modelVersionId,
-      );
       return {
         id: observation.id,
         align: "end",
@@ -120,16 +117,16 @@ export function ExperimentGridView({
             experiment={experiment.id}
             inoculatedOn={experiment.inoculatedOn}
             observation={observation}
-            label={observationHeading(observation, observations, versions)}
+            label={observationHeading(observation, observations, models)}
             units={units.filter((unit) =>
               unitIsAvailableAt(unit.events, observation, ordinals),
             )}
             images={images.filter(
               (image) => image.observation === observation.id,
             )}
-            versions={versions}
+            models={models}
             datasets={datasets
-              .filter((dataset) => dataset.modelId === reading?.model.id)
+              .filter((dataset) => dataset.modelId === observation.modelId)
               .map((dataset) => dataset.id)}
           />
         ),
@@ -229,7 +226,7 @@ export function ExperimentGridView({
       <ObservationDialog
         experiment={experiment.id}
         inoculatedOn={experiment.inoculatedOn}
-        versions={versions}
+        models={models}
         observation={null}
         previous={observations.at(-1)}
         isOpen={open?.kind === "observation"}
@@ -246,11 +243,11 @@ export function ExperimentGridView({
 function observationHeading(
   observation: ExperimentObservation,
   observations: readonly ExperimentObservation[],
-  versions: readonly ReadableVersion[],
+  models: readonly Model[],
 ): string {
   const day = observationLabel(observation);
   const modelOf = (item: ExperimentObservation) =>
-    versions.find((entry) => entry.version.id === item.modelVersionId)?.model;
+    models.find((model) => model.id === item.modelId);
   const model = modelOf(observation);
   const first = modelOf(observations[0]!);
   if (!model || observations.every((item) => modelOf(item)?.id === first?.id)) {
@@ -397,7 +394,9 @@ function Cell({
   }
   return (
     <Link href={href} className="text-muted">
-      {m.image_analysis_pending()}
+      {image.state === "unread"
+        ? m.image_analysis_unread()
+        : m.image_analysis_pending()}
     </Link>
   );
 }

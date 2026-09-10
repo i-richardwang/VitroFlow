@@ -706,7 +706,8 @@ export const experimentTreatments = pgTable(
 /**
  * One occasion on which the experiment was observed. The day it happened
  * places it in the series and, against the inoculation date, names it. The
- * observation reads its images with one model version.
+ * observation names the model its images are read for; which of that model's
+ * versions has read them, if any, is recorded per image.
  */
 export const experimentObservations = pgTable(
   "experiment_observations",
@@ -716,14 +717,14 @@ export const experimentObservations = pgTable(
     inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
     observedOn: date("observed_on", { mode: "string" }).notNull(),
     note: text("note").notNull(),
-    modelVersionId: text("model_version_id")
+    modelId: text("model_id")
       .notNull()
-      .references(() => modelVersions.id),
+      .references(() => models.id),
     createdAt: instant("created_at"),
   },
   (table) => [
     primaryKey({ columns: [table.experimentId, table.id] }),
-    index("experiment_observations_version_idx").on(table.modelVersionId),
+    index("experiment_observations_model_idx").on(table.modelId),
     foreignKey({
       columns: [table.experimentId, table.inoculatedOn],
       foreignColumns: [experiments.id, experiments.inoculatedOn],

@@ -51,6 +51,18 @@ export function RedoIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function ModelsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="2" />
+      <circle cx="3.5" cy="4" r="1.5" />
+      <circle cx="3.5" cy="12" r="1.5" />
+      <circle cx="12.5" cy="8" r="1.5" />
+      <path d="M4.8 4.9L6.4 6.7M4.8 11.1L6.4 9.3M10 8h1" />
+    </Icon>
+  );
+}
+
 export function DatasetsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

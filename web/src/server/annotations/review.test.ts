@@ -10,6 +10,7 @@ import {
   ULTRALYTICS_RUNTIME,
   observeImages,
   registerTrainedVersion,
+  traditionalVersion,
   resultFor,
   testHeartbeat,
 } from "../testing/fixtures";
@@ -20,7 +21,8 @@ test("a review shows the newest detection and the stored annotation", async () =
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
   });
-  const first = await observeImages("review v1", ["rv"]);
+  const baseline = await traditionalVersion("review-detector", "review-v1");
+  const first = await observeImages("review v1", ["rv"], baseline);
   const next = await registerTrainedVersion(first.version.modelId, "review-v2");
   await observeImages("review v2", ["rv"], next);
   const digest = first.digests[0]!;

@@ -12,7 +12,6 @@ import { addExperimentObservationImages } from "../datasets/memberships";
 import { retryObservationImageAnalysis } from "../experiments/observation-images";
 
 import { storeAnnotation } from "../annotations/documents";
-import { registerModelVersion } from "../models/registry";
 import {
   DetectionConflictError,
   InvalidDetectionOutcomeError,
@@ -23,9 +22,9 @@ import { listImageRecords } from "../datasets/records";
 
 import {
   testHeartbeat,
-  baselineVersion,
   observeImages,
   resultFor,
+  traditionalVersion,
   uploadTexts,
 } from "../testing/fixtures";
 
@@ -58,18 +57,9 @@ async function storedDetection(target: { versionId: string; digest: string }) {
   return row?.document ?? null;
 }
 
-/** A later traditional version of the seed detector. */
-function nextTraditionalVersion(slug: string) {
-  return registerModelVersion({
-    schemaVersion: 1,
-    id: `seed-detector.${slug}`,
-    modelId: "seed-detector",
-    name: `Traditional vision ${slug}`,
-    createdAt: "2026-08-27T01:00:00.000Z",
-    source: { kind: "builtin", definition: slug },
-    artifact: { kind: "traditional", digest: "c".repeat(64) },
-  });
-}
+/** This file registers several versions, so it keeps a model of its own. */
+const outcomeVersion = (slug: string, createdAt?: string) =>
+  traditionalVersion("outcome-detector", slug, createdAt);
 
 async function isReviewed(ref: { dataset: string; digest: string }) {
   const record = await readImageRecord(ref);
@@ -94,8 +84,8 @@ describe("detections", () => {
     return digests.filter((digest) => !recorded.has(digest));
   }
 
-  test("an experiment needs detections from its version only", async () => {
-    const next = await nextTraditionalVersion("pending-v2");
+  test("an experiment needs detections from the version that reads for it", async () => {
+    const next = await outcomeVersion("pending-v2");
     const { experiment, version, digests } = await observeImages(
       "pending",
       ["pend-a", "pend-b"],
@@ -200,7 +190,7 @@ describe("detections", () => {
       seedInferenceOutcome(
         {
           ...target,
-          versionId: (await nextTraditionalVersion("mismatch-v2")).id,
+          versionId: (await outcomeVersion("mismatch-v2")).id,
         },
         result,
         worker,
@@ -236,11 +226,14 @@ describe("detections", () => {
   });
 
   test("a dataset shows the newest detection whether or not a review exists", async () => {
-    const baseline = await baselineVersion();
+    const baseline = await outcomeVersion(
+      "shown-v1",
+      "2026-08-26T01:00:00.000Z",
+    );
     const { version: next, digests } = await uploadTexts(
       "shown",
       ["shown"],
-      await nextTraditionalVersion("shown-v2"),
+      await outcomeVersion("shown-v2", "2026-08-27T02:00:00.000Z"),
     );
     const digest = digests[0]!;
     const ref = { dataset: "shown", digest };
@@ -259,7 +252,10 @@ describe("detections", () => {
     await seedInferenceOutcome({ versionId: next.id, digest }, newer, worker);
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
-    const failedVersion = await nextTraditionalVersion("shown-v3");
+    const failedVersion = await outcomeVersion(
+      "shown-v3",
+      "2026-08-27T03:00:00.000Z",
+    );
     const failedShape = await resultFor(failedVersion, "shown");
     await seedInferenceOutcome(
       { versionId: failedVersion.id, digest },

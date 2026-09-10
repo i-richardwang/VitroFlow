@@ -34,6 +34,7 @@ import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../domain/models/builtins"
 import {
   readModel,
   readModelVersion,
+  registerModel,
   registerModelVersion,
 } from "../models/registry";
 import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
@@ -60,6 +61,35 @@ export async function baselineVersion(): Promise<ModelVersion> {
   const version = await readModelVersion(SEED_DETECTOR_BASELINE_VERSION_ID);
   if (!version) throw new Error("builtin models are not registered");
   return version;
+}
+
+/**
+ * A model of a test's own, with a traditional version the way a builtin ships.
+ * An observation reads with its model's newest version, so a test that needs
+ * several versions registers them here rather than against the seed detector
+ * every other test observes with.
+ */
+export async function traditionalVersion(
+  modelId: string,
+  slug: string,
+  createdAt = "2026-08-26T01:00:00.000Z",
+): Promise<ModelVersion> {
+  await registerModel({
+    schemaVersion: 1,
+    id: modelId,
+    name: `${modelId} detector`,
+    task: "object_detection",
+    classes: ["seed"],
+  });
+  return registerModelVersion({
+    schemaVersion: 1,
+    id: `${modelId}.${slug}`,
+    modelId,
+    name: `Traditional vision ${slug}`,
+    createdAt,
+    source: { kind: "builtin", definition: slug },
+    artifact: { kind: "traditional", digest: "c".repeat(64) },
+  });
 }
 
 /** Registers a trained version of `modelId`, as a training run would publish it. */
@@ -195,27 +225,30 @@ export async function storeTexts(contents: string[]): Promise<string[]> {
   return digests;
 }
 
-export interface ObservedImages {
+export interface ObservedExperiment {
   experiment: Experiment;
-  version: ModelVersion;
   /** In the order of `contents`. */
   digests: string[];
   /** In the order of `contents`. */
   images: ObservationImageRef[];
 }
 
+export interface ObservedImages extends ObservedExperiment {
+  version: ModelVersion;
+}
+
 /**
  * Lays out one replicate per text and assigns an image to each in the
  * experiment's first observation; the replicate `Test-n` shows `contents[n-1]`.
+ * The model needs no version: an observation may be read by a reviewer alone.
  */
-export async function observeImages(
+export async function observeImagesForModel(
   experimentName: string,
   contents: string[],
-  version?: ModelVersion,
-): Promise<ObservedImages> {
-  const selectedVersion = version ?? (await baselineVersion());
-  const model = await readModel(selectedVersion.modelId);
-  if (!model) throw new Error(`Unknown model: ${selectedVersion.modelId}`);
+  modelId: string,
+): Promise<ObservedExperiment> {
+  const model = await readModel(modelId);
+  if (!model) throw new Error(`Unknown model: ${modelId}`);
   const experiment = await createExperiment({
     name: experimentName,
     plantMaterial: "",
@@ -239,7 +272,7 @@ export async function observeImages(
     experiment: experiment.id,
     observedOn: "2026-08-08",
     note: "",
-    modelVersionId: selectedVersion.id,
+    modelId,
   });
   await assignObservationImages({
     experiment: experiment.id,
@@ -253,13 +286,27 @@ export async function observeImages(
   const cells = await listExperimentObservationImages(experiment.id);
   return {
     experiment,
-    version: selectedVersion,
     digests,
     images: contents.map((content) => ({
       experiment: experiment.id,
       observationImage: cells.get(byCode.get(content)!)!,
     })),
   };
+}
+
+/** The same, read for the version's model, which the caller then detects with. */
+export async function observeImages(
+  experimentName: string,
+  contents: string[],
+  version?: ModelVersion,
+): Promise<ObservedImages> {
+  const selectedVersion = version ?? (await baselineVersion());
+  const observed = await observeImagesForModel(
+    experimentName,
+    contents,
+    selectedVersion.modelId,
+  );
+  return { ...observed, version: selectedVersion };
 }
 
 /** Observation-image identifiers indexed by unit. */
@@ -329,8 +376,9 @@ export async function resultFor(
 export async function reviewedDataset(
   datasetId: string,
   contents: string[],
+  version?: ModelVersion,
 ): Promise<SeededDataset> {
-  const seeded = await uploadTexts(datasetId, contents);
+  const seeded = await uploadTexts(datasetId, contents, version);
   for (const content of contents) {
     const ref = {
       digest: await imageDigest(content),
