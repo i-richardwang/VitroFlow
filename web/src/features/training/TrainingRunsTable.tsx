@@ -1,7 +1,6 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Link, Table } from "@heroui/react";
 
-import { versionSlug } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import type { TrainingRunSummary } from "../../domain/training/read-model";
 import { trainingRunLabel } from "../../domain/training/schema";
@@ -89,10 +88,7 @@ export function TrainingRunsTable({
                 </Table.Cell>
                 <Table.Cell className="font-mono text-xs text-muted">
                   {run.state.status === "succeeded"
-                    ? versionSlug({
-                        id: run.state.modelVersionId,
-                        modelId: run.modelId,
-                      })
+                    ? run.state.modelVersionId
                     : "—"}
                 </Table.Cell>
               </Table.Row>

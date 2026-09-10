@@ -72,7 +72,7 @@ Worker execution can use algorithms and data documents. Algorithm families do no
 
 Traditional execution identity lives in `detectors/traditional/identity.py`. Its source fingerprint includes the pipeline's behavior dependencies, including image decoding in `io/image_io.py`. The detector runtime fingerprint also includes its adapter and common contract. Source paths are explicit and resolved relative to their owning implementation; moving a dependency does not justify dropping it from coverage.
 
-A runtime fingerprint identifies execution code. A traditional artifact digest identifies the candidate model and configuration. The built-in model version ID is `seed-detector.traditional-v1`. These identities have different purposes: a source change can change runtime identity without changing the artifact or inventing another model version. A regression test checks this distinction by varying image-decoder source bytes.
+A runtime fingerprint identifies execution code. A traditional artifact digest identifies the candidate model and configuration. The built-in model version ID is `traditional-v1`, and a trained one is the ID of the run that produced it. These identities have different purposes: a source change can change runtime identity without changing the artifact or inventing another model version. A regression test checks this distinction by varying image-decoder source bytes.
 
 ## Verification
 

@@ -29,11 +29,6 @@ import {
   transitionTrainingRun,
 } from "./runs";
 
-/** The version a run publishes; fixed by the run identity before training starts. */
-function trainedVersionId(run: Pick<TrainingRun, "modelId" | "id">): string {
-  return `${run.modelId}.${run.id}`;
-}
-
 function artifactDigest(
   weights: Uint8Array,
   publication: InferencePublication,
@@ -52,16 +47,19 @@ function artifactDigest(
   return hash.digest("hex");
 }
 
+/**
+ * A trained version is the run that produced it, so an attempt that publishes
+ * twice publishes the same version both times.
+ */
 function trainedModelVersion(
   run: TrainingRun,
   weights: Uint8Array,
   publication: InferencePublication,
 ): ModelVersion {
-  const versionId = trainedVersionId(run);
   const weightsDigest = contentDigest(weights);
   return {
     schemaVersion: 1,
-    id: versionId,
+    id: run.id,
     modelId: run.modelId,
     createdAt: run.createdAt,
     source: {

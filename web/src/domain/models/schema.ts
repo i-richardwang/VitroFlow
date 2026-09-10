@@ -122,16 +122,6 @@ export function supportsRuntime(
   );
 }
 
-/** The part of a version id that distinguishes it within its model. */
-export function versionSlug(
-  version: Pick<ModelVersion, "id" | "modelId">,
-): string {
-  const prefix = `${version.modelId}.`;
-  return version.id.startsWith(prefix)
-    ? version.id.slice(prefix.length)
-    : version.id;
-}
-
 export function validationMetric(
   artifact: ModelArtifact,
   name: "map50" | "map50To95",

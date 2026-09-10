@@ -21,7 +21,7 @@ export const TRADITIONAL_MODEL_MANIFEST =
  * trained version joins the same model and replaces nothing.
  */
 export const SEED_DETECTOR_MODEL_ID = "seed-detector";
-export const SEED_DETECTOR_BASELINE_VERSION_ID = `${SEED_DETECTOR_MODEL_ID}.traditional-v1`;
+export const SEED_DETECTOR_BASELINE_VERSION_ID = "traditional-v1";
 
 export const SEED_DETECTOR = modelSchema.parse({
   schemaVersion: 1,

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { tally } from "../../domain/models/classes";
-import { versionSlug, type Model } from "../../domain/models/schema";
+import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../../ui/DetectionQuality";
 import {
@@ -54,7 +54,7 @@ export function ReviewInspector({
       />
       {detection ? (
         <Section title={m.workbench_section_detection()}>
-          <Metrics rows={detectionMetrics(model.id, detection)} />
+          <Metrics rows={detectionMetrics(detection)} />
           <QualityAlert quality={detection.quality} />
         </Section>
       ) : null}
@@ -62,12 +62,12 @@ export function ReviewInspector({
   );
 }
 
-function detectionMetrics(modelId: string, result: DetectionResult): Metric[] {
+function detectionMetrics(result: DetectionResult): Metric[] {
   const metrics = result.diagnostics?.metrics;
   const rows: Metric[] = [
     {
       label: m.workbench_detection_version(),
-      value: versionSlug({ id: result.producer.modelVersionId, modelId }),
+      value: result.producer.modelVersionId,
     },
   ];
   if (metrics?.confidence_threshold !== undefined) {

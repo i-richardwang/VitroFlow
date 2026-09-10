@@ -10,7 +10,6 @@ import { Timestamp } from "../../ui/Timestamp";
 import { EpochCharts } from "../../features/training/EpochCharts";
 import { ParametersList } from "../../features/training/ParametersList";
 import { TrainingRunState } from "../../features/training/TrainingRunState";
-import { versionSlug } from "../../domain/models/schema";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
@@ -118,7 +117,7 @@ function TrainingRunPage() {
           {version && version.artifact.kind === "ultralytics" ? (
             <KPI.Footer>
               <Link href={`/datasets/${dataset}`} className="text-sm">
-                {m.training_kpi_published({ version: versionSlug(version) })}
+                {m.training_kpi_published({ version: version.id })}
               </Link>
             </KPI.Footer>
           ) : best ? (

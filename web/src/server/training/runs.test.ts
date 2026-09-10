@@ -243,6 +243,7 @@ test("the server publishes a candidate version idempotently without selecting it
   if (completed.state.status !== "succeeded") throw new Error("not succeeded");
 
   const version = await readModelVersion(completed.state.modelVersionId);
+  expect(version?.id).toBe(run.id);
   expect(version?.source).toEqual({
     kind: "training_run",
     trainingRunId: run.id,

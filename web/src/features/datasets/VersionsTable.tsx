@@ -1,7 +1,7 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Table } from "@heroui/react";
 
-import { validationMetric, versionSlug } from "../../domain/models/schema";
+import { validationMetric } from "../../domain/models/schema";
 import type { VersionOverview } from "../../domain/training/read-model";
 import { m } from "../../paraglide/messages";
 import { Count } from "../../ui/Count";
@@ -43,7 +43,7 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
             {versions.map(({ version, trainingImages }) => (
               <Table.Row key={version.id}>
                 <Table.Cell className="font-mono font-medium">
-                  {versionSlug(version)}
+                  {version.id}
                 </Table.Cell>
                 <Table.Cell className="font-mono text-muted">
                   {version.modelId}
