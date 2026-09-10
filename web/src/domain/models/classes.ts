@@ -16,15 +16,24 @@ export const classListSchema = z
     }
   });
 
-/** Instances per class in one observation image. */
+/**
+ * Instances per class in one observation image, keyed by whatever a model calls
+ * its classes. A tally holds nothing but the classes counted, and a class
+ * absent from it was counted zero times, whatever that class is named.
+ */
 export const tallySchema = z.record(z.string(), z.number().int().min(0));
 
 export type Tally = z.infer<typeof tallySchema>;
 
+/** How many instances of one class a reading found. */
+export function classCount(counts: Tally, name: string): number {
+  return Object.hasOwn(counts, name) ? counts[name] : 0;
+}
+
 export function tally(instances: readonly { class: string }[]): Tally {
-  const counts: Tally = {};
+  const counts: Tally = Object.create(null);
   for (const instance of instances) {
-    counts[instance.class] = (counts[instance.class] ?? 0) + 1;
+    counts[instance.class] = classCount(counts, instance.class) + 1;
   }
   return counts;
 }

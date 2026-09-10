@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { assertInstanceClasses, count, tally } from "./classes";
+import {
+  assertInstanceClasses,
+  classCount,
+  count,
+  tally,
+  tallySchema,
+} from "./classes";
 
 describe("tallies", () => {
   test("counts the instances of each class", () => {
@@ -15,6 +21,18 @@ describe("tallies", () => {
 
   test("counts nothing as nothing", () => {
     expect(count({})).toBe(0);
+  });
+
+  test("counts a class named for something every object carries", () => {
+    const counts = tally([{ class: "constructor" }, { class: "constructor" }]);
+    expect(counts).toEqual({ constructor: 2 });
+    expect(classCount(counts, "constructor")).toBe(2);
+    expect(count(counts)).toBe(2);
+  });
+
+  test("a class absent from a tally was counted zero times", () => {
+    expect(classCount(tallySchema.parse({ seed: 3 }), "constructor")).toBe(0);
+    expect(classCount(tallySchema.parse({ seed: 3 }), "germinated")).toBe(0);
   });
 
   test("rejects instances outside the model's task", () => {

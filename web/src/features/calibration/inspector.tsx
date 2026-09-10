@@ -1,7 +1,7 @@
 import { Switch, SwitchGroup } from "@heroui/react";
 import type { ReactNode } from "react";
 
-import { count, type Tally } from "../../domain/models/classes";
+import { classCount, count, type Tally } from "../../domain/models/classes";
 import { LAYERS, type LayerKey } from "./controls";
 import { className } from "../../ui/model-names";
 import { formatCount } from "../../ui/readings";
@@ -67,7 +67,7 @@ export function CountsSection({
   const rows: { label: string; of: (counts: Tally) => number }[] = [
     ...classes.map((name) => ({
       label: className(name),
-      of: (counts: Tally) => counts[name] ?? 0,
+      of: (counts: Tally) => classCount(counts, name),
     })),
     ...(classes.length > 1
       ? [{ label: m.workbench_count_total(), of: count }]
