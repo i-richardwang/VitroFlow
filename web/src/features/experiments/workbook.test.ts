@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
 
-/** The day, its date, and the quantities under it. */
-const HEADING_ROWS = 3;
-
 import type {
   ObservationImageCell,
   Unit,
@@ -19,6 +16,9 @@ import {
   experimentWorkbookFilename,
   type ExperimentWorkbookSource,
 } from "./workbook";
+
+/** The day, its date, and the quantities under it. */
+const HEADING_ROWS = 3;
 
 const SEEDS: Model = {
   schemaVersion: 1,
@@ -74,6 +74,15 @@ const TREATMENT: Treatment = {
   note: "",
   position: 1,
 };
+
+const CONTAMINATED: Unit["events"] = [
+  {
+    id: "event",
+    type: "contaminated",
+    observation: GERMINATED.id,
+    recordedAt: "2026-09-15T00:00:00.000Z",
+  },
+];
 
 function unit(code: string, events: Unit["events"] = []): Unit {
   return { id: code, code, treatment: TREATMENT.id, events };
@@ -150,108 +159,117 @@ describe("the experiment workbook", () => {
       ],
       [
         { kind: "text", text: "Inoculated", strong: true },
-        { kind: "text", text: "2026-09-01" },
+        { kind: "date", date: new Date(Date.UTC(2026, 8, 1)) },
       ],
       [
         { kind: "text", text: "Exported", strong: true },
-        { kind: "text", text: "2026-09-20" },
+        { kind: "date", date: new Date(Date.UTC(2026, 8, 20)) },
       ],
       [],
     ]);
   });
 
-  test("names the model of every day, and its date under it", () => {
+  test("names the model of every day, and dates it underneath", () => {
     const [names, dates, quantities] = heading(trial());
     expect(names?.slice(3)).toEqual([
-      { kind: "text", text: "Day 0 · Seed detector", strong: true, columns: 1 },
-      {
-        kind: "text",
-        text: "Day 14 · Germination",
-        strong: true,
-        columns: 2,
-      },
+      { kind: "text", text: "Day 0 · Seed detector", strong: true, columns: 2 },
+      { kind: "blank" },
+      { kind: "text", text: "Day 14 · Germination", strong: true, columns: 3 },
+      { kind: "blank" },
+      { kind: "blank" },
+    ]);
+    expect(dates?.slice(3)).toEqual([
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 1)), columns: 2 },
+      { kind: "blank" },
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)), columns: 3 },
+      { kind: "blank" },
       { kind: "blank" },
     ]);
     expect(
-      dates?.slice(3).map((cell) => cell.kind === "text" && cell.text),
-    ).toEqual(["2026-09-01", "2026-09-15", false]);
-    expect(
       quantities?.slice(3).map((cell) => cell.kind === "text" && cell.text),
-    ).toEqual(["Count", "Count", "Rate"]);
+    ).toEqual(["Count", "Replicates", "Count", "Rate", "Replicates"]);
   });
 
   test("the day that establishes the population reads counts alone", () => {
     const workbook = trial();
-    expect(workbook.columns).toHaveLength(6);
+    expect(workbook.columns).toHaveLength(8);
     expect(workbook.stickyColumns).toBe(3);
   });
 
-  test("a share is stored as the fraction it is", () => {
+  test("a unit reads its own tallies, and a share as the fraction it is", () => {
     const [, first] = readings(trial());
     expect(first).toEqual([
       { kind: "text", text: "CK" },
       { kind: "text", text: "BA 0 mg/L" },
       { kind: "text", text: "A1" },
       { kind: "count", count: 20 },
+      { kind: "blank" },
       { kind: "count", count: 15 },
       { kind: "rate", rate: 0.75 },
+      { kind: "blank" },
     ]);
   });
 
-  test("the treatment row means its replicates", () => {
+  test("the treatment means its replicates, and states how many", () => {
     const [summary] = readings(trial());
     expect(summary?.slice(2)).toEqual([
       { kind: "text", text: "Mean", strong: true },
       { kind: "count", count: 20 },
+      { kind: "count", count: 2 },
       { kind: "count", count: 12.5 },
       { kind: "rate", rate: 0.625 },
+      { kind: "count", count: 2 },
     ]);
   });
 
   test("an excluded unit is named by the event, and left out of the mean", () => {
     const workbook = trial({
-      units: [
-        unit("A1"),
-        unit("A2", [
-          {
-            id: "event",
-            type: "contaminated",
-            observation: GERMINATED.id,
-            recordedAt: "2026-09-15T00:00:00.000Z",
-          },
-        ]),
-      ],
+      units: [unit("A1"), unit("A2", CONTAMINATED)],
     });
     const [summary, , second] = readings(workbook);
-    expect(second?.slice(4)).toEqual([
+    expect(second?.slice(5)).toEqual([
       { kind: "text", text: "Contaminated" },
       { kind: "blank" },
+      { kind: "blank" },
     ]);
-    expect(summary?.slice(4)).toEqual([
+    expect(summary?.slice(5)).toEqual([
       { kind: "count", count: 15 },
       { kind: "rate", rate: 0.75 },
+      { kind: "count", count: 1 },
     ]);
   });
 
-  test("a reading still to come leaves its cell empty", () => {
+  test("a reading still to come leaves its cell empty, and its mean over none", () => {
     const workbook = trial({
       images: [
         image("A1", SOWN.id, { seed: 20 }),
         image("A2", SOWN.id, { seed: 20 }),
       ],
     });
-    const [, first] = readings(workbook);
-    expect(first?.slice(4)).toEqual([{ kind: "blank" }, { kind: "blank" }]);
+    const [summary, first] = readings(workbook);
+    expect(first?.slice(5)).toEqual([
+      { kind: "blank" },
+      { kind: "blank" },
+      { kind: "blank" },
+    ]);
+    expect(summary?.slice(5)).toEqual([
+      { kind: "blank" },
+      { kind: "blank" },
+      { kind: "count", count: 0 },
+    ]);
   });
 });
 
 describe("what the file is called", () => {
-  test("a name a file system will take", () => {
+  test("is named for the experiment", () => {
     expect(experimentWorkbookFilename(EXPERIMENT)).toBe(
       "Germination trial.xlsx",
     );
-    expect(
-      experimentWorkbookFilename({ ...EXPERIMENT, name: "MS/B5 2026" }),
-    ).toBe("MS B5 2026.xlsx");
+  });
+
+  test("falls back to what the page is called", () => {
+    expect(experimentWorkbookFilename({ ...EXPERIMENT, name: "//" })).toBe(
+      "Experiments.xlsx",
+    );
   });
 });

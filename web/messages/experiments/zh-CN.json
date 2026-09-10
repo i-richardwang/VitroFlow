@@ -66,6 +66,7 @@
   "workbook_column_unit": "试验单元",
   "workbook_quantity_count": "计数",
   "workbook_quantity_rate": "率",
+  "workbook_quantity_replicates": "重复数",
   "workbook_row_mean": "均值",
   "workbook_exported": "导出日期",
   "image_analysis_pending": "待检测",

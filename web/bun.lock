@@ -49,6 +49,7 @@
         "@types/react-dom": "^19.2.5",
         "@vitejs/plugin-react": "^6.1.0",
         "drizzle-kit": "^0.31.10",
+        "fflate": "^0.8.3",
         "happy-dom": "^20.14.0",
         "hpsetup": "4.7.1",
         "prettier": "^3.9.0",

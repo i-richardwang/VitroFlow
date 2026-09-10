@@ -158,10 +158,11 @@ claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 **Export spreadsheet** on the experiment page downloads the grid as one `.xlsx`
 sheet, headed by the experiment, its protocol fields, the inoculation date and
 the date of the export. The design repeats down every row, each observation
-heads the columns it reads, and quantities stay quantities: a count is a number
-and a rate is the fraction it is, carrying a percentage format. Readings still
-to come leave their cells empty, and a unit excluded from the analysis carries
-the culture event that excluded it.
+heads the columns it reads, and a treatment's mean states the replicates it is
+over. Quantities stay quantities and days stay days: a count is a number, a rate
+is the fraction it is carrying a percentage format, and a date is a date.
+Readings still to come leave their cells empty, and a unit excluded from the
+analysis carries the culture event that excluded it.
 
 ## Dataset transfer
 

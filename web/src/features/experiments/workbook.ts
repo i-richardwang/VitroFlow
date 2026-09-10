@@ -1,6 +1,9 @@
+import { parseDate } from "@internationalized/date";
+
 import {
   blankCell,
   countCell,
+  dateCell,
   rateCell,
   sheetName,
   textCell,
@@ -38,16 +41,43 @@ export type ExperimentWorkbookSource = ExperimentGrid & {
   models: readonly Model[];
 };
 
+/** A quantity a day is read for, and which occupies a column under it. */
+type Quantity = "count" | "rate" | "replicates";
+
+/**
+ * Every day is read for a tally, and for the replicates a mean of it is over.
+ * A day is read for a share as well once an earlier day has established the
+ * population that share is of.
+ */
+const QUANTITIES: readonly Quantity[] = ["count", "rate", "replicates"];
+const BASELINE_QUANTITIES: readonly Quantity[] = ["count", "replicates"];
+
+const QUANTITY_WIDTH: Record<Quantity, number> = {
+  count: 10,
+  rate: 10,
+  replicates: 8,
+};
+
+function quantityLabel(quantity: Quantity): string {
+  switch (quantity) {
+    case "count":
+      return m.workbook_quantity_count();
+    case "rate":
+      return m.workbook_quantity_rate();
+    case "replicates":
+      return m.workbook_quantity_replicates();
+  }
+}
+
 /** A day across the top, and the columns it occupies underneath. */
 interface Day {
   observation: ExperimentObservation;
   model: Model | null;
-  readsShare: boolean;
+  quantities: readonly Quantity[];
 }
 
 /** The design names every row, so the table sorts and pivots on it. */
 const DESIGN_COLUMNS = [{ width: 22 }, { width: 16 }, { width: 14 }];
-const QUANTITY_WIDTH = 10;
 const HEADING_ROWS = 3;
 
 export function experimentWorkbookFilename(experiment: Experiment): string {
@@ -64,6 +94,10 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
  * event took out of the analysis is named by that event, in place of a number
  * nobody should average.
+ *
+ * A treatment states the replicates its mean is over, which exclusions move
+ * day by day. One dish is not a sample, so a unit leaves that column to the
+ * treatment above it.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,
@@ -79,7 +113,10 @@ export function experimentWorkbook(
   const days = observations.map((observation): Day => ({
     observation,
     model: models.find((model) => model.id === observation.modelId) ?? null,
-    readsShare: observation.id !== readings.baseline?.id,
+    quantities:
+      observation.id === readings.baseline?.id
+        ? BASELINE_QUANTITIES
+        : QUANTITIES,
   }));
 
   const rows: WorkbookCell[][] = [
@@ -101,10 +138,9 @@ export function experimentWorkbook(
     sheet: sheetName(experiment.name, m.experiments_title()),
     columns: [
       ...DESIGN_COLUMNS,
-      ...days.flatMap((day) => {
-        const quantity = { width: QUANTITY_WIDTH };
-        return day.readsShare ? [quantity, quantity] : [quantity];
-      }),
+      ...days.flatMap((day) =>
+        day.quantities.map((quantity) => ({ width: QUANTITY_WIDTH[quantity] })),
+      ),
     ],
     rows,
     stickyRows,
@@ -112,24 +148,31 @@ export function experimentWorkbook(
   };
 }
 
+/** A calendar day, as the day a spreadsheet counts rather than the text of it. */
+function calendarCell(day: CalendarDay, style: CellStyle = {}): WorkbookCell {
+  return dateCell(parseDate(day), style);
+}
+
+/** A field left unfilled has nothing to say. */
+function fieldCell(value: string): WorkbookCell {
+  return value.length > 0 ? textCell(value) : blankCell;
+}
+
 /** Which experiment this is, and when the numbers were taken from it. */
 function provenance(
   experiment: Experiment,
   exportedOn: CalendarDay,
 ): WorkbookCell[][] {
-  const fields: [label: string, value: string][] = [
-    [m.experiment_field_plant_material(), experiment.plantMaterial],
-    [m.experiment_field_explant_type(), experiment.explantType],
-    [m.experiment_field_base_medium(), experiment.baseMedium],
-    [m.experiment_field_inoculated(), experiment.inoculatedOn],
-    [m.workbook_exported(), exportedOn],
+  const fields: [label: string, value: WorkbookCell][] = [
+    [m.experiment_field_plant_material(), fieldCell(experiment.plantMaterial)],
+    [m.experiment_field_explant_type(), fieldCell(experiment.explantType)],
+    [m.experiment_field_base_medium(), fieldCell(experiment.baseMedium)],
+    [m.experiment_field_inoculated(), calendarCell(experiment.inoculatedOn)],
+    [m.workbook_exported(), calendarCell(exportedOn)],
   ];
   return fields
-    .filter(([, value]) => value.length > 0)
-    .map(([label, value]) => [
-      textCell(label, { strong: true }),
-      textCell(value),
-    ]);
+    .filter(([, value]) => value.kind !== "blank")
+    .map(([label, value]) => [textCell(label, { strong: true }), value]);
 }
 
 /** The day, the date it was made, and the quantities read under it. */
@@ -143,15 +186,21 @@ function heading(days: readonly Day[]): WorkbookCell[][] {
   const dates: WorkbookCell[] = DESIGN_COLUMNS.map(() => blankCell);
   const quantities: WorkbookCell[] = DESIGN_COLUMNS.map(() => blankCell);
   for (const day of days) {
-    const columns = day.readsShare ? 2 : 1;
-    names.push(textCell(dayHeading(day), { strong: true, columns }));
-    dates.push(textCell(day.observation.observedOn, { columns }));
-    quantities.push(textCell(m.workbook_quantity_count(), { strong: true }));
-    if (day.readsShare) {
-      names.push(blankCell);
-      dates.push(blankCell);
-      quantities.push(textCell(m.workbook_quantity_rate(), { strong: true }));
-    }
+    const columns = day.quantities.length;
+    const covered = day.quantities.slice(1).map(() => blankCell);
+    names.push(
+      textCell(dayHeading(day), { strong: true, columns }),
+      ...covered,
+    );
+    dates.push(
+      calendarCell(day.observation.observedOn, { columns }),
+      ...covered,
+    );
+    quantities.push(
+      ...day.quantities.map((quantity) =>
+        textCell(quantityLabel(quantity), { strong: true }),
+      ),
+    );
   }
   return [names, dates, quantities];
 }
@@ -169,6 +218,14 @@ function factorCell(treatment: Treatment, style: CellStyle = {}): WorkbookCell {
     : blankCell;
 }
 
+/** The cells a day holds, taken in the order the day is read for them. */
+function dayCells(
+  day: Day,
+  read: Record<Quantity, WorkbookCell>,
+): WorkbookCell[] {
+  return day.quantities.map((quantity) => read[quantity]);
+}
+
 function unitRow(
   treatment: Treatment,
   unit: Unit,
@@ -184,15 +241,6 @@ function unitRow(
   ];
 }
 
-/** The columns a day occupies: its tally, and its share where it reads one. */
-function dayCells(
-  day: Day,
-  tally: WorkbookCell,
-  share: WorkbookCell,
-): WorkbookCell[] {
-  return day.readsShare ? [tally, share] : [tally];
-}
-
 function unitCells(
   unit: Unit,
   day: Day,
@@ -201,15 +249,25 @@ function unitCells(
 ): WorkbookCell[] {
   const excluded = exclusionAt(unit.events, day.observation, ordinals);
   if (excluded) {
-    return dayCells(day, textCell(cultureEventLabel(excluded.type)), blankCell);
+    return dayCells(day, {
+      count: textCell(cultureEventLabel(excluded.type)),
+      rate: blankCell,
+      replicates: blankCell,
+    });
   }
   const reading = readings.read(unit.id, day.observation);
-  if (!reading) return dayCells(day, blankCell, blankCell);
-  return dayCells(
-    day,
-    countCell(reading.count),
-    reading.rate === null ? blankCell : rateCell(reading.rate),
-  );
+  if (!reading) {
+    return dayCells(day, {
+      count: blankCell,
+      rate: blankCell,
+      replicates: blankCell,
+    });
+  }
+  return dayCells(day, {
+    count: countCell(reading.count),
+    rate: reading.rate === null ? blankCell : rateCell(reading.rate),
+    replicates: blankCell,
+  });
 }
 
 function meanRow(
@@ -244,15 +302,15 @@ function meanCells(
     const reading = readings.read(unit.id, day.observation);
     return reading ? [reading] : [];
   });
-  const count = summarize(counted.map((reading) => reading.count)).value;
+  const tally = summarize(counted.map((reading) => reading.count));
   const shares = counted.flatMap((reading) =>
     reading.rate === null ? [] : [reading.rate],
   );
-  const rate =
+  const share =
     shares.length === counted.length ? summarize(shares).value : null;
-  return dayCells(
-    day,
-    count === null ? blankCell : countCell(count),
-    rate === null ? blankCell : rateCell(rate),
-  );
+  return dayCells(day, {
+    count: tally.value === null ? blankCell : countCell(tally.value),
+    rate: share === null ? blankCell : rateCell(share),
+    replicates: countCell(tally.sampleSize),
+  });
 }

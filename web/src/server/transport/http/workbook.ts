@@ -8,6 +8,8 @@ const CONTENT_TYPE =
 /** A tally is whole unless a mean falls between two; a share reads per hundred. */
 const COUNT_FORMAT = "0.#";
 const RATE_FORMAT = "0.0%";
+/** A day reads largest unit first, the order that sorts as it reads. */
+const DATE_FORMAT = "yyyy-mm-dd";
 
 /** A cell a heading covers is written by that heading, and left empty here. */
 function encode(cell: WorkbookCell): Cell {
@@ -21,6 +23,8 @@ function encode(cell: WorkbookCell): Cell {
       return null;
     case "text":
       return { ...style, value: cell.text, type: String };
+    case "date":
+      return { ...style, value: cell.date, type: Date, format: DATE_FORMAT };
     case "count":
       return {
         ...style,

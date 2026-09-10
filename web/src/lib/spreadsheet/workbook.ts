@@ -1,21 +1,30 @@
 /**
  * A spreadsheet as data: what each cell holds and the weight it carries, with
  * no opinion about the file format that writes it out. Quantities stay
- * quantities here, so whatever reads the file can chart and compute on them.
+ * quantities and days stay days, so whatever reads the file can sort, chart
+ * and compute on them.
  */
 
-/** A cell holds a word, a tally, a share of one, or nothing. */
+/** A day on the civil calendar, its month and day numbered from one. */
+export interface CalendarDate {
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+}
+
+/** A cell holds a word, a day, a tally, a share of one, or nothing. */
 export type CellValue =
-  | { kind: "blank" }
-  | { kind: "text"; text: string }
-  | { kind: "count"; count: number }
-  | { kind: "rate"; rate: number };
+  | { readonly kind: "blank" }
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "date"; readonly date: Date }
+  | { readonly kind: "count"; readonly count: number }
+  | { readonly kind: "rate"; readonly rate: number };
 
 /** How a cell is set: headings carry weight, and may cover their group. */
 export interface CellStyle {
-  strong?: boolean;
-  columns?: number;
-  rows?: number;
+  readonly strong?: boolean;
+  readonly columns?: number;
+  readonly rows?: number;
 }
 
 export type WorkbookCell = CellValue & CellStyle;
@@ -24,6 +33,22 @@ export const blankCell: WorkbookCell = { kind: "blank" };
 
 export function textCell(text: string, style: CellStyle = {}): WorkbookCell {
   return { kind: "text", text, ...style };
+}
+
+/**
+ * A day, held as the day itself rather than the text of it. A spreadsheet
+ * counts days from an epoch and keeps no hour to lose one to, so midnight UTC
+ * names the same day wherever the file is opened.
+ */
+export function dateCell(
+  { year, month, day }: CalendarDate,
+  style: CellStyle = {},
+): WorkbookCell {
+  return {
+    kind: "date",
+    date: new Date(Date.UTC(year, month - 1, day)),
+    ...style,
+  };
 }
 
 export function countCell(count: number, style: CellStyle = {}): WorkbookCell {
@@ -36,7 +61,7 @@ export function rateCell(rate: number, style: CellStyle = {}): WorkbookCell {
 
 export interface WorkbookColumn {
   /** Width in characters, the unit a spreadsheet sizes columns by. */
-  width: number;
+  readonly width: number;
 }
 
 /** A sheet of cells, its columns sized, its heading rows and keys held in view. */
@@ -48,19 +73,31 @@ export interface Workbook {
   stickyColumns: number;
 }
 
+/** One space between words, and none at either end. */
+function tidy(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
 const RESERVED = /[\\/?*[\]:]/g;
+const QUOTED_ENDS = /^'+|'+$/g;
 const MAX_SHEET_NAME = 31;
 
-/** A sheet is named in at most 31 characters, and not with a path or a range. */
+/**
+ * A sheet is named in at most 31 characters, without the punctuation a range
+ * reference is written with, and not opening or closing on the quote that
+ * would make the name one.
+ */
 export function sheetName(name: string, fallback: string): string {
-  const written = name.replace(RESERVED, " ").trim().slice(0, MAX_SHEET_NAME);
+  const spelled = tidy(name.replace(RESERVED, " ")).slice(0, MAX_SHEET_NAME);
+  const written = tidy(spelled.replace(QUOTED_ENDS, ""));
   return written.length > 0 ? written : fallback;
 }
 
 const UNWRITABLE = /[\\/:*?"<>|\p{Cc}]/gu;
+const EXTENSION = ".xlsx";
 
 /** A name a file system will take and a browser will not read as a path. */
 export function workbookFilename(name: string, fallback: string): string {
-  const written = name.replace(UNWRITABLE, " ").replace(/\s+/g, " ").trim();
-  return `${written.length > 0 ? written : fallback}.xlsx`;
+  const written = tidy(name.replace(UNWRITABLE, " "));
+  return `${written.length > 0 ? written : fallback}${EXTENSION}`;
 }

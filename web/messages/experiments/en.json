@@ -66,6 +66,7 @@
   "workbook_column_unit": "Unit",
   "workbook_quantity_count": "Count",
   "workbook_quantity_rate": "Rate",
+  "workbook_quantity_replicates": "Replicates",
   "workbook_row_mean": "Mean",
   "workbook_exported": "Exported",
   "image_analysis_pending": "Pending detection",
