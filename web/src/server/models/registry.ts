@@ -25,9 +25,11 @@ import { modelVersions, models } from "../infra/db/schema";
 import { heldBy, modelRecordCounts, toModelRecords } from "./records";
 
 /**
- * Model and version rows. Registration is write-once: the same contents again
- * are accepted, different contents under a registered id are refused. Builtin models
- * use the same registration operations during application initialization.
+ * Model and version rows, written under two rules. Registration is write-once:
+ * the same contents again are accepted, different contents under a registered
+ * id are refused, so a deployment can install what it always has on every
+ * start. Naming a task is a claim instead: the insert either takes the id or
+ * finds it taken.
  */
 
 export function toModel(row: typeof models.$inferSelect): Model {
@@ -74,12 +76,8 @@ export async function readModelVersion(
   return row ? toModelVersion(row) : null;
 }
 
-export async function registerModel(
-  value: Model,
-  executor?: Executor,
-): Promise<Model> {
-  const db = executor ?? (await database());
-  const model = modelSchema.parse(value);
+/** Claims the id for this model, or nothing when the id is already claimed. */
+async function insertModel(model: Model, db: Executor): Promise<Model | null> {
   const [inserted] = await db
     .insert(models)
     .values({
@@ -90,7 +88,18 @@ export async function registerModel(
     })
     .onConflictDoNothing()
     .returning();
-  if (inserted) return toModel(inserted);
+  return inserted ? toModel(inserted) : null;
+}
+
+/** Declares a model the deployment always has: the same one again is welcome. */
+export async function registerModel(
+  value: Model,
+  executor?: Executor,
+): Promise<Model> {
+  const db = executor ?? (await database());
+  const model = modelSchema.parse(value);
+  const inserted = await insertModel(model, db);
+  if (inserted) return inserted;
   const existing = await readModel(model.id, db);
   if (!existing || !sameModel(existing, model)) {
     throw new Error(
@@ -104,6 +113,9 @@ export async function registerModel(
  * Names a task the workbench did not have. Classes are fixed here because
  * every review already stored for the model was drawn from them; a task whose
  * vocabulary changed would be a different task under the same name.
+ *
+ * The insert is what claims the name, so two people naming the same task at
+ * once get one model and one refusal.
  */
 export async function createModel(value: ModelRequest): Promise<Model> {
   const request = modelRequestSchema.parse(value);
@@ -112,21 +124,25 @@ export async function createModel(value: ModelRequest): Promise<Model> {
     task: "object_detection",
     ...request,
   });
-  return transaction(async (tx) => {
-    if (await readModel(model.id, tx)) {
-      throw new ModelIdTakenError(`Model ${model.id} already exists`);
-    }
-    return registerModel(model, tx);
-  });
+  const created = await insertModel(model, await database());
+  if (!created) {
+    throw new ModelIdTakenError(`Model ${model.id} already exists`);
+  }
+  return created;
 }
 
-/** Forgets a task nothing has recorded against yet. */
+/**
+ * Forgets a task nothing has recorded against yet. Locking the model row first
+ * settles the order against anything recording one: a record that gets there
+ * first is counted here, and one that arrives after finds the task gone.
+ */
 export async function deleteModel(ref: ModelRef): Promise<void> {
   await transaction(async (tx) => {
     const [row] = await tx
       .select({ id: models.id, ...modelRecordCounts(tx, models.id) })
       .from(models)
-      .where(eq(models.id, ref.model));
+      .where(eq(models.id, ref.model))
+      .for("update");
     if (!row) throw new ModelNotFoundError(`Unknown model: ${ref.model}`);
     const held = heldBy(toModelRecords(row));
     if (held.length > 0) {
