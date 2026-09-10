@@ -8,6 +8,7 @@ import {
 import {
   cultureEventExcludesFromAnalysis,
   cultureEventIsTerminal,
+  exclusionAt,
   latestCultureEvent,
   unitIsAvailableAt,
   unitIsIncludedInAnalysis,
@@ -94,6 +95,20 @@ describe("unit event effects", () => {
     expect(
       unitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
+  });
+
+  test("the earliest event to exclude a unit is the one that decided it", () => {
+    const contaminated = event({ type: "contaminated" });
+    const discarded = event({
+      id: "c5c4c280-6592-4de0-9193-f2677e7a3e31",
+      observation: observations[1]!.id,
+      type: "discarded",
+    });
+
+    expect(
+      exclusionAt([discarded, contaminated], observations[1]!, ordinals),
+    ).toBe(contaminated);
+    expect(exclusionAt([discarded], observations[0]!, ordinals)).toBeNull();
   });
 
   test("current state follows observation time rather than entry time", () => {

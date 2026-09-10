@@ -90,6 +90,23 @@ when every replicate counted has one, and by their counts otherwise, in both
 cases as the mean, the sample standard deviation, and the number of replicates
 behind it.
 
+## What the spreadsheet carries
+
+An experiment exports as one sheet. The block at the top names the experiment,
+its plant material, explant type and base medium, the day it was inoculated and
+the day the file was taken. Below that the design repeats down every row —
+treatment, factor, unit — so the table sorts, filters and pivots on it, and each
+observation heads the columns it reads: a count, and a share as well once a
+population is established. A treatment's mean stands above its replicates, over
+the replicates the analysis still counts.
+
+Quantities stay quantities. A count is a number and a share is the fraction it
+is, shown per hundred by the cell's format, so whatever opens the file can chart
+and compute on it. The sheet records what the dish did rather than what the
+workbench is doing: a reading still to come leaves its cell empty, and a unit an
+event took out of the analysis carries the name of that event where its number
+would be.
+
 ## Culture events
 
 A culture event decides whether a unit's reading enters an analysis:

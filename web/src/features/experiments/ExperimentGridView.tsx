@@ -1,5 +1,6 @@
 import { DataGrid, type DataGridColumn } from "@heroui-pro/react/data-grid";
 import { Button, Link, Tooltip } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactElement } from "react";
 import type { Selection } from "react-aria-components/Table";
@@ -11,6 +12,7 @@ import { TreatmentDialog } from "./TreatmentDialog";
 import { TreatmentDot } from "./TreatmentDot";
 import { TreatmentMenu } from "./TreatmentMenu";
 import { UnitSelectionBar } from "./UnitSelectionBar";
+import { experimentWorkbookFilename } from "./workbook";
 import { Page } from "../../ui/Page";
 import type {
   ObservationImageCell,
@@ -181,6 +183,13 @@ export function ExperimentGridView({
         .join(" · ")}
       actions={
         <>
+          <Link
+            className={buttonVariants({ variant: "secondary" })}
+            href={`/experiments/${experiment.id}/workbook`}
+            download={experimentWorkbookFilename(experiment)}
+          >
+            {m.experiment_export()}
+          </Link>
           <Button
             variant="primary"
             onPress={() => setOpen({ kind: "observation" })}

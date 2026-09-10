@@ -153,6 +153,16 @@ AI agents maintain experiment records over the same domain layer the workbench u
 claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 ```
 
+## Experiment export
+
+**Export spreadsheet** on the experiment page downloads the grid as one `.xlsx`
+sheet, headed by the experiment, its protocol fields, the inoculation date and
+the date of the export. The design repeats down every row, each observation
+heads the columns it reads, and quantities stay quantities: a count is a number
+and a rate is the fraction it is, carrying a percentage format. Readings still
+to come leave their cells empty, and a unit excluded from the analysis carries
+the culture event that excluded it.
+
 ## Dataset transfer
 
 A Dataset leaves a workbench as an archive: **Download** on the dataset page streams a ZIP holding the dataset's manifest and every image it names, stored uncompressed under the same layout as a local data root. **Import** on the Datasets page reads such an archive in the browser, stores each image under its digest, and then applies the manifest, so a dataset moves between workbenches with its annotations intact and nothing is re-encoded on the way.
