@@ -22,7 +22,7 @@ import {
 } from "../../domain/models/errors";
 import { database, transaction, type Executor } from "../infra/db/client";
 import { modelVersions, models } from "../infra/db/schema";
-import { heldBy, modelRecordCounts, toModelRecords } from "./records";
+import { heldBy, modelRecords } from "./records";
 
 /**
  * Model and version rows, written under two rules. Registration is write-once:
@@ -132,19 +132,19 @@ export async function createModel(value: ModelRequest): Promise<Model> {
 }
 
 /**
- * Forgets a task nothing has recorded against yet. Locking the model row first
- * settles the order against anything recording one: a record that gets there
- * first is counted here, and one that arrives after finds the task gone.
+ * Forgets a task nothing has recorded against yet. The model row is taken
+ * before anything is counted against it, so the count is of every record that
+ * got there first, and one arriving after finds the task gone.
  */
 export async function deleteModel(ref: ModelRef): Promise<void> {
   await transaction(async (tx) => {
-    const [row] = await tx
-      .select({ id: models.id, ...modelRecordCounts(tx, models.id) })
+    const [taken] = await tx
+      .select({ id: models.id })
       .from(models)
       .where(eq(models.id, ref.model))
       .for("update");
-    if (!row) throw new ModelNotFoundError(`Unknown model: ${ref.model}`);
-    const held = heldBy(toModelRecords(row));
+    if (!taken) throw new ModelNotFoundError(`Unknown model: ${ref.model}`);
+    const held = heldBy(await modelRecords(ref.model, tx));
     if (held.length > 0) {
       throw new ModelInUseError(
         `Model ${ref.model} is named by ${held.join(", ")} and cannot be deleted`,

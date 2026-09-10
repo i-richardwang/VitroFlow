@@ -44,6 +44,19 @@ export function modelRecordCounts(
   return counts;
 }
 
+/** How many records of each kind name one model, read at the moment of asking. */
+export async function modelRecords(
+  model: string,
+  db: Executor,
+): Promise<ModelRecords> {
+  const records = {} as ModelRecords;
+  for (const kind of MODEL_RECORD_KINDS) {
+    const column = MODEL_RECORD_COLUMNS[kind];
+    records[kind] = await db.$count(column.table, eq(column, model));
+  }
+  return records;
+}
+
 export function toModelRecords(
   row: Record<ModelRecordKind, unknown>,
 ): ModelRecords {

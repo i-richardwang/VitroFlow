@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import postgres from "postgres";
 
 import {
   modelVersionSchema,
@@ -24,6 +25,8 @@ import { storeAnnotation } from "../annotations/public";
 import { deleteObservation } from "../experiments/public";
 import { unassignObservationImage } from "../experiments/observation-images";
 import { observeImagesForModel } from "../testing/fixtures";
+import { connect } from "../infra/db/connection";
+import { modelVersions } from "../infra/db/schema";
 
 test("a version is registered once and its contents may not change", async () => {
   const model = await registerModel({
@@ -180,3 +183,77 @@ test("a review outliving its observation still holds its model", async () => {
     ModelInUseError,
   );
 });
+
+/**
+ * Two sessions can only meet on a real server, so the database a run is pointed
+ * at decides whether the contended withdrawal is exercised.
+ */
+const testDatabaseUrl = process.env.VITROFLOW_TEST_DATABASE_URL;
+const contendedTest = testDatabaseUrl ? test : test.skip;
+
+/** Returns once a session is waiting on a lock another session holds. */
+async function waitForLockContention(url: string): Promise<void> {
+  const observer = postgres(url, { max: 1, onnotice: () => {} });
+  try {
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      const [waiting] = await observer<{ sessions: number }[]>`
+        select count(*)::int as sessions from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'
+      `;
+      if ((waiting?.sessions ?? 0) > 0) return;
+      await Bun.sleep(10);
+    }
+    throw new Error("The withdrawal never waited for the model row");
+  } finally {
+    await observer.end();
+  }
+}
+
+contendedTest(
+  "a version recorded while a withdrawal waits still holds the model",
+  async () => {
+    const model = await registerModel({
+      schemaVersion: 1,
+      id: "contended-detector",
+      name: "Contended detector",
+      task: "object_detection",
+      classes: ["seed"],
+    });
+    const other = await connect(testDatabaseUrl!);
+    let record = (): void => {};
+    let commit = (): void => {};
+    const recorded = new Promise<void>((resolve) => {
+      record = resolve;
+    });
+    const committed = new Promise<void>((resolve) => {
+      commit = resolve;
+    });
+    const recording = other.db.transaction(async (tx) => {
+      await tx.insert(modelVersions).values({
+        id: "contended-detector-v1",
+        modelId: model.id,
+        createdAt: new Date("2026-09-11T00:00:00.000Z"),
+        source: { kind: "builtin", definition: "contended-v1" },
+        artifact: { kind: "traditional", digest: "f".repeat(64) },
+      });
+      record();
+      await committed;
+    });
+
+    try {
+      await recorded;
+      const withdrawal = deleteModel({ model: model.id });
+      await waitForLockContention(testDatabaseUrl!);
+      commit();
+      await recording;
+      await expect(withdrawal).rejects.toBeInstanceOf(ModelInUseError);
+    } finally {
+      commit();
+      await recording.catch(() => {});
+      await other.close();
+    }
+
+    expect((await listModels()).map(({ id }) => id)).toContain(model.id);
+  },
+);

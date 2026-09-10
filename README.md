@@ -294,6 +294,14 @@ The reference-image regression suite uses the checksum manifest in `tests/fixtur
 make check-reference REFERENCE_IMAGE_DIR=/absolute/path/to/reference-images
 ```
 
+Run the constraints and contended writes that need a real PostgreSQL server:
+
+```bash
+export VITROFLOW_TEST_DATABASE_URL=postgres://vitroflow:vitroflow@localhost:5432/vitroflow_test
+
+make check-postgres
+```
+
 Run the BlobStore contract against an actual S3-compatible endpoint:
 
 ```bash
@@ -306,7 +314,7 @@ export VITROFLOW_TEST_S3_BUCKET=vitroflow
 make check-s3
 ```
 
-`make check` is the local verification gate. The production image, real PostgreSQL invariants, and S3 contract are separate gates: run `make check-image`, `make check-postgres`, and `make check-s3` with their documented environment variables. The default suite uses PGlite and skips the external S3 contract when no endpoint is configured. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
+`make check` is the local verification gate. The production image, real PostgreSQL invariants, and S3 contract are separate gates: run `make check-image`, `make check-postgres`, and `make check-s3` with their documented environment variables. The default suite runs on PGlite, one connection and no external services, so the S3 contract and anything needing two sessions at once wait for their own gate. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
 
 ## Repository layout
 
