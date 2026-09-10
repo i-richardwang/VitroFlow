@@ -20,18 +20,13 @@ import {
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import { currentDay, DayField, fromDay, toDay } from "./DayField";
-import {
-  defaultReading,
-  ReadingFields,
-  type ReadableVersion,
-  type Reading,
-} from "./ReadingFields";
+import { VersionSelect, type ReadableVersion } from "./VersionSelect";
 
 /** What the form collects: when the experiment was observed and how it is read. */
 interface ObservationDraft {
   observedOn: DateValue | null;
   note: string;
-  reading: Reading;
+  modelVersionId: string;
 }
 
 type ObservationDialogProps = {
@@ -59,15 +54,13 @@ export function ObservationDialog(props: ObservationDialogProps) {
     ? {
         observedOn: fromDay(props.observation.observedOn),
         note: props.observation.note,
-        reading: { modelVersionId: props.observation.modelVersionId },
+        modelVersionId: props.observation.modelVersionId,
       }
     : {
         observedOn: currentDay(),
         note: "",
-        reading: defaultReading(
-          versions,
-          props.previous && { modelVersionId: props.previous.modelVersionId },
-        ),
+        modelVersionId:
+          props.previous?.modelVersionId ?? versions[0]!.version.id,
       };
 
   const submit = (draft: ObservationDraft) => {
@@ -76,7 +69,7 @@ export function ObservationDialog(props: ObservationDialogProps) {
       experiment,
       observedOn: toDay(draft.observedOn),
       note: draft.note,
-      ...draft.reading,
+      modelVersionId: draft.modelVersionId,
     };
     void run(
       () =>
@@ -172,11 +165,13 @@ function ObservationEditor({
             minValue={minDate}
             onChange={(observedOn) => setDraft({ ...draft, observedOn })}
           />
-          <ReadingFields
+          <VersionSelect
             busy={busy}
             versions={versions}
-            value={draft.reading}
-            onChange={(reading) => setDraft({ ...draft, reading })}
+            value={draft.modelVersionId}
+            onChange={(modelVersionId) =>
+              setDraft({ ...draft, modelVersionId })
+            }
           />
           <TextField
             variant="secondary"

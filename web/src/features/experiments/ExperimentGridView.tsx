@@ -28,23 +28,22 @@ import {
   type Treatment,
 } from "../../domain/experiments/schema";
 import { observationLabel } from "./labels";
-import type { ReadableVersion } from "./ReadingFields";
+import type { ReadableVersion } from "./VersionSelect";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import {
-  count,
+  cellKey,
+  experimentReadings,
+  summarize,
+  type ExperimentReadings,
+} from "../../domain/experiments/readings";
+import { modelName } from "../../ui/model-names";
+import {
   formatCount,
   formatCountSummary,
   formatRate,
   formatRateSummary,
-  summarize,
-} from "../../domain/models/readings";
-import {
-  cellKey,
-  experimentReadings,
-  type ExperimentReadings,
-} from "../../domain/experiments/readings";
-import { modelName } from "../../ui/model-names";
+} from "../../ui/readings";
 import { m } from "../../paraglide/messages";
 
 type Dialog = { kind: "treatment" } | { kind: "observation" };
@@ -336,8 +335,9 @@ function groupSummary(
     const reading = readings.read(unit.id, observation);
     return reading ? [reading] : [];
   });
-  if (counted.length > 0 && counted.every((reading) => reading.rate !== null)) {
-    return formatRateSummary(summarize(counted.map((item) => item.rate!)));
+  const rates = counted.map((reading) => reading.rate);
+  if (rates.length > 0 && rates.every((rate) => rate !== null)) {
+    return formatRateSummary(summarize(rates));
   }
   return formatCountSummary(summarize(counted.map((item) => item.count)));
 }
@@ -362,21 +362,20 @@ function Cell({
   const dimmed = counted ? "" : "text-muted line-through";
   const reading = readings.read(unit.id, observation);
   if (reading) {
-    const calibrated = image.annotationTally !== null;
     return explain(
       [
-        calibrated && image.detectionTally
-          ? m.experiment_cell_analyzed({
-              value: formatCount(count(image.detectionTally)),
-            })
-          : null,
+        reading.detected === null
+          ? null
+          : m.experiment_cell_analyzed({
+              value: formatCount(reading.detected),
+            }),
         counted ? null : m.experiment_cell_excluded(),
       ]
         .filter(Boolean)
         .join(" · "),
       <Link
         href={href}
-        className={`${calibrated ? "font-semibold" : ""} ${dimmed}`}
+        className={`${reading.calibrated ? "font-semibold" : ""} ${dimmed}`}
       >
         {formatCount(reading.count)}
         {reading.rate === null ? null : (

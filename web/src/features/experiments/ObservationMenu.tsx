@@ -14,7 +14,7 @@ import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
 import { AssignImagesDialog } from "./AssignImagesDialog";
 import { ObservationDialog } from "./ObservationDialog";
-import type { ReadableVersion } from "./ReadingFields";
+import type { ReadableVersion } from "./VersionSelect";
 
 type Action = "images" | "dataset" | "edit" | "delete";
 

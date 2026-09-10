@@ -6,7 +6,7 @@ import {
   detectionValidationSchema,
   trainingRecipeSchema,
 } from "../training/schema";
-import { classListSchema } from "./readings";
+import { classListSchema } from "./classes";
 
 /**
  * A model is a task: what it looks for in an image. Every version of the model

@@ -5,7 +5,7 @@ import { detectionResultSchema } from "../detection/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { MAX_IMAGE_BYTES } from "../images/canonical";
 import { imageDigestSchema } from "../images/schema";
-import { classListSchema } from "../models/readings";
+import { classListSchema } from "../models/classes";
 import { IMAGE_SPLITS } from "../training/schema";
 import { datasetIdSchema } from "./schema";
 

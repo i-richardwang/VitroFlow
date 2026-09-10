@@ -287,7 +287,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "create-observation",
     description:
-      "Add an observation to an experiment: the date, the model version that reads its images, and which of that model's metrics it reads; it may be planned before images exist",
+      "Add an observation to an experiment: the date and the model version that reads its images; it may be planned before images exist",
     destructive: false,
     input: observationRequestSchema,
     output: experimentObservationSchema,
@@ -296,7 +296,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "update-observation",
     description:
-      "Correct an observation's date, note, model version, or metric; images already taken are read again under the new version",
+      "Correct an observation's date, note, or model version; images already taken are read again under the new version",
     destructive: true,
     input: observationUpdateSchema,
     output: experimentObservationSchema,

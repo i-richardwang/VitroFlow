@@ -1,9 +1,10 @@
 import { Switch, SwitchGroup } from "@heroui/react";
 import type { ReactNode } from "react";
 
-import { count, formatCount, type Tally } from "../../domain/models/readings";
+import { count, type Tally } from "../../domain/models/classes";
 import { LAYERS, type LayerKey } from "./controls";
 import { className } from "../../ui/model-names";
+import { formatCount } from "../../ui/readings";
 import { m } from "../../paraglide/messages";
 
 export function Section({

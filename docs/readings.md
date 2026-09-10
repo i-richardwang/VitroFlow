@@ -11,15 +11,14 @@ model's identity: the annotation editor offers them as the class of a new box,
 the YOLO export indexes labels by them, dataset transfer requires both ends to
 agree on them, and a training snapshot freezes them alongside the images.
 
-A model declares no metrics. What an experiment asks of a detection is the
-experiment's question, not the detector's property. A detector returns a tally
-per class; reducing that tally to one number is a choice made afterwards, by
-whoever is asking.
+What an experiment asks of a detection is the experiment's question, not the
+detector's property. A detector returns a tally per class; reducing that tally
+to one number is a choice made afterwards, by whoever is asking.
 
 ## What an observation declares
 
 An observation declares the date it was made and the model version that reads
-its photographs. It declares no metric.
+its photographs.
 
 ## Where the numbers come from
 

@@ -1,14 +1,19 @@
-import { count, rate, type Tally } from "../models/readings";
+import { count, type Tally } from "../models/classes";
 import type { ObservationImageCell } from "./contracts";
 import type { ExperimentObservation } from "./schema";
 
 /**
- * What a unit read on a day: the individuals found, and their share of the
- * population the unit started with.
+ * What a unit read on a day: the individuals found, their share of the
+ * population the unit started with, and whether a reviewer stood behind the
+ * number.
  */
 export interface Reading {
   count: number;
   rate: number | null;
+  /** A reviewer's annotation replaced whatever was detected under it. */
+  calibrated: boolean;
+  /** The detection that annotation replaced, when there was one. */
+  detected: number | null;
 }
 
 /** A cell of the grid is one unit on one observation. */
@@ -45,6 +50,16 @@ export function baselineObservation(
   );
 }
 
+/**
+ * The share of the unit's starting population this count represents. A unit
+ * whose baseline was never counted has no share, and neither has one whose
+ * baseline found nothing.
+ */
+function share(found: number, population: number | null): number | null {
+  if (population === null || population === 0) return null;
+  return found / population;
+}
+
 export interface ExperimentReadings {
   baseline: ExperimentObservation | undefined;
   /** How many individuals the unit started with, or nothing when never counted. */
@@ -70,11 +85,45 @@ export function experimentReadings(
     baseline,
     population,
     read: (unit, observation) => {
-      const counts = cellTally(cells.get(cellKey(unit, observation.id)));
-      if (counts === null) return null;
-      const found = count(counts);
+      const image = cells.get(cellKey(unit, observation.id));
+      const counts = cellTally(image);
+      if (!image || counts === null) return null;
+      const calibrated = image.annotationTally !== null;
+      const replaced = calibrated ? image.detectionTally : null;
       const started = observation.id === baseline?.id ? null : population(unit);
-      return { count: found, rate: rate(found, started) };
+      const found = count(counts);
+      return {
+        count: found,
+        rate: share(found, started),
+        calibrated,
+        detected: replaced === null ? null : count(replaced),
+      };
     },
   };
+}
+
+/**
+ * A quantity over the replicates of one treatment: the typical value and its
+ * spread. Units without a value are absent. The spread is the sample standard
+ * deviation, which a single replicate does not have.
+ */
+export interface Summary {
+  value: number | null;
+  deviation: number | null;
+  sampleSize: number;
+}
+
+export function summarize(values: readonly number[]): Summary {
+  if (values.length === 0) {
+    return { value: null, deviation: null, sampleSize: 0 };
+  }
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const deviation =
+    values.length < 2
+      ? null
+      : Math.sqrt(
+          values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+            (values.length - 1),
+        );
+  return { value: mean, deviation, sampleSize: values.length };
 }

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
-import { tally } from "../../domain/models/readings";
+import { tally } from "../../domain/models/classes";
 import { versionSlug, type Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../../ui/DetectionQuality";

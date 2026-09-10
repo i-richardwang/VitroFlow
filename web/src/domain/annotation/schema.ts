@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { classNameSchema } from "../models/readings";
+import { classNameSchema } from "../models/classes";
 
 /**
  * An image is reviewed once a reviewer has stored boxes for it, and only

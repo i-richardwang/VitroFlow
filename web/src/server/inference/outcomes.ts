@@ -8,7 +8,7 @@ import {
 } from "../../domain/detection/schema";
 import { sameRuntimeDescriptor } from "../../domain/inference/schema";
 import { canonicalJson } from "../../lib/json/canonical";
-import { assertInstanceClasses } from "../../domain/models/readings";
+import { assertInstanceClasses } from "../../domain/models/classes";
 import { supportsRuntime, type Model } from "../../domain/models/schema";
 import type { Worker } from "../../domain/workers/schema";
 import { lockDetection } from "./lock";

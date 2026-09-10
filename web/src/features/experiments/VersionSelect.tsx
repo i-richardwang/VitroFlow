@@ -11,19 +11,7 @@ export interface ReadableVersion {
 }
 
 /** What an observation reads with: one model version. */
-export interface Reading {
-  modelVersionId: string;
-}
-
-/** The reading a new observation starts from: what the last one read, or the newest version. */
-export function defaultReading(
-  versions: readonly ReadableVersion[],
-  previous: Reading | undefined,
-): Reading {
-  return previous ?? { modelVersionId: versions[0]!.version.id };
-}
-
-export function ReadingFields({
+export function VersionSelect({
   busy,
   versions,
   value,
@@ -31,8 +19,8 @@ export function ReadingFields({
 }: {
   busy: boolean;
   versions: readonly ReadableVersion[];
-  value: Reading;
-  onChange: (value: Reading) => void;
+  value: string;
+  onChange: (modelVersionId: string) => void;
 }) {
   return (
     <Select
@@ -40,9 +28,9 @@ export function ReadingFields({
       fullWidth
       isRequired
       isDisabled={busy}
-      selectedKey={value.modelVersionId}
+      selectedKey={value}
       onSelectionChange={(key) => {
-        if (key !== null) onChange({ modelVersionId: String(key) });
+        if (key !== null) onChange(String(key));
       }}
     >
       <Label>{m.observation_version_label()}</Label>

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { reviewSchema } from "../annotation/review";
 import { detectionFailureSchema } from "../detection/schema";
 import { imageDigestSchema } from "../images/schema";
-import { tallySchema } from "../models/readings";
+import { tallySchema } from "../models/classes";
 import { modelSchema } from "../models/schema";
 import {
   cultureEventSchema,
@@ -72,8 +72,7 @@ export type UnitNavigationEntry = z.infer<typeof unitNavigationEntrySchema>;
 
 /**
  * An observation image with its review for the observation's model. The
- * detection the review carries is the observation version's, the one the
- * observation's metric is read from.
+ * detection the review carries is the one the observation's version produced.
  */
 export const experimentObservationImageSchema = z.strictObject({
   ref: observationImageRefSchema,
