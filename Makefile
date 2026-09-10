@@ -3,6 +3,7 @@
 check: check-python check-web
 
 check-python:
+	uv run python scripts/check_architecture.py
 	uv run ruff check src tests scripts
 	uv run ruff format --check src tests scripts
 	uv run pyright

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import { blobExists, putImmutableBlob } from "../infra/blobs/store";
-import { imageBlobKey } from "../images/keys";
+import { imageBlobKey } from "./keys";
 
-import { collectImages } from "../images/collection";
-import { canonicalize } from "../images/ingest";
-import { storeImage } from "../images/store";
+import { collectImages } from "./collection";
+import { canonicalize } from "./ingest";
+import { storeImage } from "./store";
 import { imageBytes, observeImages } from "../testing/fixtures";
 
 describe("collection", () => {

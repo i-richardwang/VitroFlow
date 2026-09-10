@@ -6,8 +6,8 @@ import {
   parseWorkerJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { TRAINING_PHASES } from "../training/schema";
-import { workerIdentitySchema } from "../workers/schema";
+import { TRAINING_PHASES } from "../domain/training/schema";
+import { workerIdentitySchema } from "../domain/workers/schema";
 
 const bodySchema = workerIdentitySchema.extend({
   phase: z.enum(TRAINING_PHASES),

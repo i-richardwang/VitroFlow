@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from vitroflow.config import PipelineConfig
+from vitroflow.detectors.traditional.config import PipelineConfig
 
 
 def test_config_round_trip(tmp_path: Path) -> None:

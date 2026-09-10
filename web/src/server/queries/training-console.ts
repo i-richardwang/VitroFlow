@@ -3,8 +3,8 @@ import type {
   TrainingOverview,
   TrainingRunDetail,
   VersionOverview,
-} from "../../training/read-model";
-import { YOLO26_SEED_SMALL_RECIPE } from "../../training/recipes";
+} from "../../domain/training/read-model";
+import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import {
   readDatasetSnapshot,
   snapshotImageCounts,

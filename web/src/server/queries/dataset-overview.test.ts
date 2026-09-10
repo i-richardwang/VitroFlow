@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
-import { instancesFromDetection } from "../../annotation/detection";
-import { YOLO26_SEED_SMALL_RECIPE } from "../../training/recipes";
+import { instancesFromDetection } from "../../domain/annotation/detection";
+import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "../testing/inference";
 import { datasetOverview } from "./dataset-overview";

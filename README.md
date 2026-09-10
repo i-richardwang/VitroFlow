@@ -1,6 +1,6 @@
 # VitroFlow
 
-The backend's dependency and concurrency boundaries are documented in [docs/backend-architecture.md](docs/backend-architecture.md).
+The source layout and dependency boundaries are documented in [docs/architecture.md](docs/architecture.md); server transaction and concurrency rules are in [docs/backend-architecture.md](docs/backend-architecture.md).
 
 VitroFlow turns repeated culture images into comparable derived metrics and reviewed detector training data. Treatments define the conditions being compared, units provide independent replicates, observations follow those units over time, and each observation reads one metric off its images with one immutable model version.
 

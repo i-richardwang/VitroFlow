@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 
-import { makeResult } from "../../../annotation/testing";
+import { makeResult } from "../../../domain/annotation/testing";
 import { database } from "../../infra/db/client";
-import { inferenceAssignmentSchema } from "../../../inference/assignments";
+import { inferenceAssignmentSchema } from "../../../domain/inference/assignments";
 import { Route as StoreRoute } from "../../../routes/api.images";
 import { Route as HeartbeatRoute } from "../../../routes/api.worker.heartbeat";
 import { Route as ClaimRoute } from "../../../routes/api.worker.inference.claim";

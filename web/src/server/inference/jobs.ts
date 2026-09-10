@@ -7,14 +7,17 @@ import {
   inferenceOutcomes,
   modelVersions,
 } from "../infra/db/schema";
-import type { InferenceOutcome } from "../../detection/schema";
+import type { InferenceOutcome } from "../../domain/detection/schema";
 import {
   inferenceAssignmentSchema,
   inferenceModelManifest,
   type InferenceAssignment,
-} from "../../inference/assignments";
-import { supportsRuntime, type ModelArtifact } from "../../models/schema";
-import type { Worker, WorkerIdentity } from "../../workers/schema";
+} from "../../domain/inference/assignments";
+import {
+  supportsRuntime,
+  type ModelArtifact,
+} from "../../domain/models/schema";
+import type { Worker, WorkerIdentity } from "../../domain/workers/schema";
 import { readModel, toModelVersion } from "../models/public";
 import { lockWorkerSession, sessionIsCurrent } from "../workers/public";
 import { storeInferenceOutcome, type DetectionTarget } from "./outcomes";

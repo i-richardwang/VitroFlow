@@ -2,8 +2,11 @@ import { eq } from "drizzle-orm";
 
 import { database } from "../infra/db/client";
 import { datasetImages } from "../infra/db/schema";
-import type { DatasetImageStep, DatasetImageView } from "../../datasets/image";
-import type { DatasetImageRef } from "../../datasets/schema";
+import type {
+  DatasetImageStep,
+  DatasetImageView,
+} from "../../domain/datasets/image";
+import type { DatasetImageRef } from "../../domain/datasets/schema";
 import { membershipOrder, readDataset } from "../datasets/public";
 import { readModel } from "../models/public";
 import { readReview } from "../annotations/public";

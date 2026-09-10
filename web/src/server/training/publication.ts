@@ -2,19 +2,22 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { database, transaction, type Executor } from "../infra/db/client";
 import { trainingRuns } from "../infra/db/schema";
-import { sameModelVersion, type ModelVersion } from "../../models/schema";
-import { canonicalJson } from "../../json/canonical";
+import {
+  sameModelVersion,
+  type ModelVersion,
+} from "../../domain/models/schema";
+import { canonicalJson } from "../../lib/json/canonical";
 import {
   inferencePublicationSchema,
   type InferencePublication,
   type TrainingRun,
-} from "../../training/schema";
-import type { WorkerIdentity } from "../../workers/schema";
+} from "../../domain/training/schema";
+import type { WorkerIdentity } from "../../domain/workers/schema";
 import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
   TrainingRunNotFoundError,
-} from "../../training/errors";
+} from "../../domain/training/errors";
 import { putImmutableBlob } from "../infra/blobs/store";
 import { contentDigest } from "../infra/digest";
 import { modelWeightsBlobKey } from "./keys";

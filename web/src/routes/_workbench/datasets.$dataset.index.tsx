@@ -5,17 +5,17 @@ import { Button, Link, Table } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
-import { Count } from "../../components/Count";
-import { QualityChips } from "../../components/DetectionQuality";
-import { Hint } from "../../components/Hint";
-import { Page } from "../../components/Page";
-import { archiveFilename } from "../../datasets/archive";
+import { Count } from "../../ui/Count";
+import { QualityChips } from "../../ui/DetectionQuality";
+import { Hint } from "../../ui/Hint";
+import { Page } from "../../ui/Page";
+import { archiveFilename } from "../../domain/datasets/archive-format";
 import {
   getDatasetOverview,
   removeFromDataset,
 } from "../../functions/datasets";
-import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({

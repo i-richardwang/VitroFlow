@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import { ApiKeyNotFoundError } from "../../auth/errors";
+import { ApiKeyNotFoundError } from "../../domain/auth/errors";
 import {
   apiKeySchema,
   issuedApiKeySchema,
@@ -10,7 +10,7 @@ import {
   type ApiKeyCreate,
   type ApiScope,
   type IssuedApiKey,
-} from "../../auth/integrations";
+} from "../../domain/auth/integrations";
 import { database } from "../infra/db/client";
 import { apiKeys, users } from "../infra/db/schema";
 import { auth } from "./service";

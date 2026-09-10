@@ -6,7 +6,7 @@ import {
   parseWorkerJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { workerIdentitySchema } from "../workers/schema";
+import { workerIdentitySchema } from "../domain/workers/schema";
 
 const bodySchema = workerIdentitySchema.extend({
   error: z.string().min(1).max(2000),

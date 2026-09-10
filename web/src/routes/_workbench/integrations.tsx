@@ -2,11 +2,11 @@ import { Button } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { ApiKeysTable } from "../../components/integrations/ApiKeysTable";
-import { CopyableCode } from "../../components/integrations/CopyableCode";
-import { McpClientsTable } from "../../components/integrations/McpClientsTable";
-import { NewApiKeyDialog } from "../../components/integrations/NewApiKeyDialog";
-import { Page, PageSection } from "../../components/Page";
+import { ApiKeysTable } from "../../features/integrations/ApiKeysTable";
+import { CopyableCode } from "../../features/integrations/CopyableCode";
+import { McpClientsTable } from "../../features/integrations/McpClientsTable";
+import { NewApiKeyDialog } from "../../features/integrations/NewApiKeyDialog";
+import { Page, PageSection } from "../../ui/Page";
 import { getIntegrations } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
 

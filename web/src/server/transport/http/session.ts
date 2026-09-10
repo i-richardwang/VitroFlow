@@ -1,6 +1,9 @@
 import { redirect as routerRedirect } from "@tanstack/react-router";
 
-import { workbenchUserSchema, type WorkbenchUser } from "../../../auth/schema";
+import {
+  workbenchUserSchema,
+  type WorkbenchUser,
+} from "../../../domain/auth/schema";
 import { auth } from "../../auth/public";
 
 /** The account behind the request's session cookie, or null when there is none. */

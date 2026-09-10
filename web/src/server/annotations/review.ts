@@ -1,10 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import type { Review } from "../../annotation/review";
-import type { AnnotationRef } from "../../annotation/schema";
+import type { Review } from "../../domain/annotation/review";
+import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { Executor } from "../infra/db/client";
 import { images, inferenceOutcomes, annotations } from "../infra/db/schema";
-import type { DetectionResult } from "../../detection/schema";
+import type { DetectionResult } from "../../domain/detection/schema";
 import { newestDetectingVersion } from "../inference/public";
 
 /**

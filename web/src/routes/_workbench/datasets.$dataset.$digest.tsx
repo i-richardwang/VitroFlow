@@ -3,16 +3,19 @@ import { ButtonGroup, Separator } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { REVIEW_VERSIONS } from "../../annotation/review";
-import { ChevronLeftIcon, ChevronRightIcon } from "../../components/icons";
-import { ImageWorkbench } from "../../components/workbench/ImageWorkbench";
-import { Metrics, Section } from "../../components/workbench/inspector";
-import { StepButton } from "../../components/workbench/StepButton";
-import { datasetImageRefSchema } from "../../datasets/schema";
+import { REVIEW_VERSIONS } from "../../domain/annotation/review";
+import { ChevronLeftIcon, ChevronRightIcon } from "../../ui/icons";
+import { ImageWorkbench } from "../../features/calibration/ImageWorkbench";
+import { Metrics, Section } from "../../features/calibration/inspector";
+import { StepButton } from "../../features/calibration/StepButton";
+import { datasetImageRefSchema } from "../../domain/datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
-import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
-import type { DatasetImageStep, DatasetImageView } from "../../datasets/image";
+import type {
+  DatasetImageStep,
+  DatasetImageView,
+} from "../../domain/datasets/image";
 
 /**
  * `show` is detection or review. `calibrate` opens the draft.

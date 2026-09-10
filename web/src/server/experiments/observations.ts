@@ -8,14 +8,14 @@ import {
   ModelVersionNotFoundError,
   ObservationNotFoundError,
   ObservationRejectedError,
-} from "../../experiments/errors";
+} from "../../domain/experiments/errors";
 import {
   type Experiment,
   type ExperimentObservation,
   type ObservationRef,
   type ObservationRequest,
   type ObservationUpdate,
-} from "../../experiments/schema";
+} from "../../domain/experiments/schema";
 import {
   atObservation,
   listObservations,

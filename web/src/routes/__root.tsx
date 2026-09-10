@@ -10,7 +10,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 
-import { WorkbenchNotice } from "../components/WorkbenchNotice";
+import { WorkbenchNotice } from "../ui/shell/WorkbenchNotice";
 import { m } from "../paraglide/messages";
 import { getLocale } from "../paraglide/runtime";
 import appCss from "../styles/app.css?url";

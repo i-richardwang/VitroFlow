@@ -8,8 +8,11 @@ import {
   type Worker,
   type WorkerHeartbeat,
   type WorkerIdentity,
-} from "../../workers/schema";
-import { WORKER_FORGET_SECONDS, workerPresence } from "../../workers/presence";
+} from "../../domain/workers/schema";
+import {
+  WORKER_FORGET_SECONDS,
+  workerPresence,
+} from "../../domain/workers/presence";
 
 /** Thrown when a session is not the one the roster holds for its worker. */
 export class WorkerSessionConflictError extends Error {}

@@ -5,8 +5,8 @@ import {
   parseWorkerJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { trainingEpochReportSchema } from "../training/schema";
-import { workerIdentitySchema } from "../workers/schema";
+import { trainingEpochReportSchema } from "../domain/training/schema";
+import { workerIdentitySchema } from "../domain/workers/schema";
 
 const bodySchema = workerIdentitySchema.extend(trainingEpochReportSchema.shape);
 

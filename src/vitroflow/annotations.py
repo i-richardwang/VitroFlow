@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from .documents import (
+from vitroflow.contracts.documents import (
     as_digest,
     as_integer,
     as_list,
@@ -16,11 +15,8 @@ from .documents import (
     expect_fields,
     expect_schema_version,
 )
-from .identifiers import CLASS_NAME
-from .wire_contracts import validate_wire_contract
-
-if TYPE_CHECKING:
-    from .manifest import ManifestImage
+from vitroflow.contracts.identifiers import CLASS_NAME
+from vitroflow.contracts.validation import validate_wire_contract
 
 ANNOTATION_SCHEMA_VERSION = 1
 
@@ -78,14 +74,6 @@ class AnnotationDocument:
                 for instance in self.instances
             ],
         }
-
-
-@dataclass(frozen=True)
-class AnnotatedImage:
-    """A manifest entry together with the annotation recorded for it."""
-
-    entry: ManifestImage
-    annotation: AnnotationDocument
 
 
 def _parse_box(
@@ -161,16 +149,3 @@ def parse_annotation(value: Any, context: str = "annotation") -> AnnotationDocum
             payload["instances"], image_width, image_height, f"{context}.instances"
         ),
     )
-
-
-def load_annotations(manifest: str | Path) -> list[AnnotatedImage]:
-    """Every annotated image of a dataset manifest, in manifest order."""
-    from .manifest import load_dataset_manifest
-
-    dataset = load_dataset_manifest(manifest)
-    annotated = []
-    for entry in dataset.images:
-        if entry.annotation is None:
-            continue
-        annotated.append(AnnotatedImage(entry, entry.annotation))
-    return annotated

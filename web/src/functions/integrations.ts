@@ -8,7 +8,7 @@ import {
   apiKeyCreateSchema,
   apiKeyRefSchema,
   mcpClientRefSchema,
-} from "../auth/integrations";
+} from "../domain/auth/integrations";
 import {
   issueApiKey,
   listApiKeys,

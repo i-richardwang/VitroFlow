@@ -1,6 +1,9 @@
 import { desc, eq } from "drizzle-orm";
 
-import { SEED_DETECTOR, SEED_DETECTOR_BASELINE } from "../../models/builtins";
+import {
+  SEED_DETECTOR,
+  SEED_DETECTOR_BASELINE,
+} from "../../domain/models/builtins";
 import {
   modelSchema,
   modelVersionSchema,
@@ -8,7 +11,7 @@ import {
   sameModelVersion,
   type Model,
   type ModelVersion,
-} from "../../models/schema";
+} from "../../domain/models/schema";
 import { database, type Executor } from "../infra/db/client";
 import { modelVersions, models } from "../infra/db/schema";
 

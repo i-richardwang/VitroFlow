@@ -6,8 +6,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from ..annotations import BoundingBox
-from ..identifiers import CLASS_NAME, FINGERPRINT, VERSION_ID, WARNING_CODE
+from vitroflow.annotations import BoundingBox
+from vitroflow.contracts.identifiers import (
+    CLASS_NAME,
+    FINGERPRINT,
+    VERSION_ID,
+    WARNING_CODE,
+)
 
 DETECTION_SCHEMA_VERSION = 1
 

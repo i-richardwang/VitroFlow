@@ -6,11 +6,11 @@ import {
   experimentSummarySchema,
   unitSchema,
   unitSeriesSchema,
-} from "../../experiments/contracts";
+} from "../../domain/experiments/contracts";
 import {
   ExperimentNotFoundError,
   UnitNotFoundError,
-} from "../../experiments/errors";
+} from "../../domain/experiments/errors";
 import {
   cultureEventRefSchema,
   cultureEventRequestSchema,
@@ -34,8 +34,8 @@ import {
   unitRefSchema,
   unitRequestSchema,
   unitUpdateSchema,
-} from "../../experiments/schema";
-import { modelSchema, modelVersionSchema } from "../../models/schema";
+} from "../../domain/experiments/schema";
+import { modelSchema, modelVersionSchema } from "../../domain/models/schema";
 import {
   recordCultureEvent,
   deleteCultureEvent,

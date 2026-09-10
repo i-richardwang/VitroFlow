@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { McpClientNotFoundError } from "../../../auth/errors";
+import { McpClientNotFoundError } from "../../../domain/auth/errors";
 import { guardMcpRequest, mcpHandler, serveMcp } from "./agent";
 import { agentOperations } from "../../agent/operations";
 import { disconnectMcpClient, listMcpClients } from "../../auth/mcp-clients";

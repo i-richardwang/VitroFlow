@@ -1,7 +1,7 @@
-import type { AnnotationDocument } from "../../annotation/schema";
-import type { Dataset } from "../../datasets/schema";
-import type { TrainingRun } from "../../training/schema";
-import type { TrainingSummary } from "../../training/read-model";
+import type { AnnotationDocument } from "../../domain/annotation/schema";
+import type { Dataset } from "../../domain/datasets/schema";
+import type { TrainingRun } from "../../domain/training/schema";
+import type { TrainingSummary } from "../../domain/training/read-model";
 import {
   readDatasetSnapshot,
   activeTrainingRun,

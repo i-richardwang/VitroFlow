@@ -9,32 +9,35 @@ from pathlib import Path
 
 import httpx
 
-from .annotations import load_annotations
-from .artifacts import create_image_artifacts, write_image_artifacts
-from .config import PipelineConfig
-from .dataset_transfer import pull_dataset, push_dataset
-from .files import atomic_directory
-from .manifest import (
+from vitroflow.datasets.annotations import load_annotations
+from vitroflow.datasets.manifest import (
     DatasetManifest,
     load_dataset_manifest,
     manifest_path,
     verified_blob,
 )
-from .scoring import (
+from vitroflow.datasets.transfer import pull_dataset, push_dataset
+from vitroflow.detectors.traditional.artifacts import (
+    create_image_artifacts,
+    write_image_artifacts,
+)
+from vitroflow.detectors.traditional.config import PipelineConfig
+from vitroflow.detectors.traditional.scoring import (
     DEFAULT_MODEL,
     CandidateModel,
     load_candidate_model,
     write_candidate_model,
 )
-from .traditional_training import (
+from vitroflow.detectors.traditional.training import (
     PreparedImage,
     evaluate_candidate_model,
     evaluate_proposals,
     prepare_images,
     train_candidate_model,
 )
-from .worker_command import add_worker_commands
-from .yolo import export_yolo_dataset
+from vitroflow.detectors.ultralytics import export_yolo_dataset
+from vitroflow.io.files import atomic_directory
+from vitroflow.worker.host.command import add_worker_commands
 
 
 def _pipeline_config(path: str | None) -> PipelineConfig:

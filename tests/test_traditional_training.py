@@ -1,11 +1,11 @@
 import numpy as np
 
 from vitroflow.annotations import AnnotationDocument, AnnotationInstance, BoundingBox
-from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence
-from vitroflow.config import DecisionConfig, PipelineConfig
-from vitroflow.proposals import SeedProposal
-from vitroflow.scoring import CandidateModel
-from vitroflow.traditional_training import (
+from vitroflow.detectors.traditional.candidates import FEATURE_NAMES, CandidateEvidence
+from vitroflow.detectors.traditional.config import DecisionConfig, PipelineConfig
+from vitroflow.detectors.traditional.proposals import SeedProposal
+from vitroflow.detectors.traditional.scoring import CandidateModel
+from vitroflow.detectors.traditional.training import (
     PreparedImage,
     evaluate_candidate_model,
     label_candidates,

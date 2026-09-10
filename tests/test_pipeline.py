@@ -5,14 +5,21 @@ import cv2
 import numpy as np
 import pytest
 
-from vitroflow import count_seeds, recognize
-from vitroflow.candidates import FEATURE_NAMES, CandidateEvidence, describe_candidates
-from vitroflow.config import DecisionConfig, PipelineConfig
-from vitroflow.detection import detect_seeds
-from vitroflow.geometry import circle_mask
-from vitroflow.normalization import NormalizedImage, normalize_image
-from vitroflow.proposals import SeedProposal, propose_seed_centers
-from vitroflow.scoring import (
+from vitroflow.detectors.traditional.candidates import (
+    FEATURE_NAMES,
+    CandidateEvidence,
+    describe_candidates,
+)
+from vitroflow.detectors.traditional.config import DecisionConfig, PipelineConfig
+from vitroflow.detectors.traditional.detection import detect_seeds
+from vitroflow.detectors.traditional.geometry import circle_mask
+from vitroflow.detectors.traditional.normalization import (
+    NormalizedImage,
+    normalize_image,
+)
+from vitroflow.detectors.traditional.pipeline import count_seeds, recognize
+from vitroflow.detectors.traditional.proposals import SeedProposal, propose_seed_centers
+from vitroflow.detectors.traditional.scoring import (
     DEFAULT_MODEL,
     CandidateModel,
     load_candidate_model,

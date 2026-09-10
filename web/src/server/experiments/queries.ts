@@ -28,15 +28,15 @@ import type {
   ExperimentSummary,
   ObservationImageCell,
   UnitSeries,
-} from "../../experiments/contracts";
-import { unitOrder } from "../../experiments/naming";
+} from "../../domain/experiments/contracts";
+import { unitOrder } from "../../domain/experiments/naming";
 import {
   daysBetween,
   type ImageAnalysisState,
   type ObservationImageRef,
   type UnitRef,
-} from "../../experiments/schema";
-import type { Tally } from "../../models/metrics";
+} from "../../domain/experiments/schema";
+import type { Tally } from "../../domain/models/metrics";
 import {
   listObservations,
   listTreatments,

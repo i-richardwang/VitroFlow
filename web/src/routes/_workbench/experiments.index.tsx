@@ -5,10 +5,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ImageAnalysisStateChip,
   summarizedImageAnalysis,
-} from "../../components/experiment/ImageAnalysisStateChip";
-import { NewExperimentDialog } from "../../components/experiment/NewExperimentDialog";
-import { ExperimentsIcon } from "../../components/icons";
-import { Page } from "../../components/Page";
+} from "../../features/experiments/ImageAnalysisStateChip";
+import { NewExperimentDialog } from "../../features/experiments/NewExperimentDialog";
+import { ExperimentsIcon } from "../../ui/icons";
+import { Page } from "../../ui/Page";
 import { getExperiments } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 

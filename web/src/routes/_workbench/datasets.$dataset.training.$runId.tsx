@@ -5,17 +5,20 @@ import { Widget } from "@heroui-pro/react/widget";
 import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
-import { Page, PageSection } from "../../components/Page";
-import { Timestamp } from "../../components/Timestamp";
-import { EpochCharts } from "../../components/training/EpochCharts";
-import { ParametersList } from "../../components/training/ParametersList";
-import { TrainingRunState } from "../../components/training/TrainingRunState";
-import { versionSlug } from "../../models/schema";
+import { Page, PageSection } from "../../ui/Page";
+import { Timestamp } from "../../ui/Timestamp";
+import { EpochCharts } from "../../features/training/EpochCharts";
+import { ParametersList } from "../../features/training/ParametersList";
+import { TrainingRunState } from "../../features/training/TrainingRunState";
+import { versionSlug } from "../../domain/models/schema";
 import { getTrainingRun } from "../../functions/training";
-import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
-import { bestEpoch } from "../../training/metrics";
-import { isTrainingRunActive, trainingRunLabel } from "../../training/schema";
+import { bestEpoch } from "../../domain/training/metrics";
+import {
+  isTrainingRunActive,
+  trainingRunLabel,
+} from "../../domain/training/schema";
 
 export const Route = createFileRoute(
   "/_workbench/datasets/$dataset/training/$runId",

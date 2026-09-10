@@ -1,6 +1,6 @@
 import { transaction, type Executor } from "../infra/db/client";
 import { images } from "../infra/db/schema";
-import { MAX_IMAGE_BYTES } from "../../images/canonical";
+import { MAX_IMAGE_BYTES } from "../../domain/images/canonical";
 import { contentDigest } from "../infra/digest";
 import { imageBlobKey } from "./keys";
 import { putImmutableBlob } from "../infra/blobs/store";

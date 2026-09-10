@@ -2,11 +2,11 @@ import { listObservationImageRefs } from "../testing/fixtures";
 import { describe, expect, test } from "bun:test";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { instancesFromDetection } from "../../annotation/detection";
+import { instancesFromDetection } from "../../domain/annotation/detection";
 import { database } from "../infra/db/client";
 import { inferenceOutcomes } from "../infra/db/schema";
 
-import type { Worker } from "../../workers/schema";
+import type { Worker } from "../../domain/workers/schema";
 
 import { addExperimentObservationImages } from "../datasets/memberships";
 import { retryObservationImageAnalysis } from "../experiments/observation-images";
@@ -17,7 +17,7 @@ import {
   DetectionConflictError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
-} from "../inference/outcomes";
+} from "./outcomes";
 import { seedInferenceOutcome } from "../testing/inference";
 import { listImageRecords } from "../datasets/records";
 

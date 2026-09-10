@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
 
-from vitroflow.yolo import DetectionLosses, EpochReport
+from vitroflow.detectors.ultralytics import DetectionLosses, EpochReport
 
 
 def _load_script() -> ModuleType:

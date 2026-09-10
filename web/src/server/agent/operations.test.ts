@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import type { ExperimentGrid } from "../../experiments/contracts";
+import type { ExperimentGrid } from "../../domain/experiments/contracts";
 import type {
   CultureEvent,
   Experiment,
   ExperimentObservation,
-} from "../../experiments/schema";
+} from "../../domain/experiments/schema";
 import { type AgentCallResult, executeAgentOperation } from "./execution";
 import { agentOperations, describeAgentOperations } from "./operations";
 import { baselineVersion } from "../testing/fixtures";

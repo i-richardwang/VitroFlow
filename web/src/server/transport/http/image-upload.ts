@@ -1,5 +1,5 @@
-import { MAX_IMAGE_BYTES } from "../../../images/canonical";
-import { imageDigestSchema } from "../../../images/schema";
+import { MAX_IMAGE_BYTES } from "../../../domain/images/canonical";
+import { imageDigestSchema } from "../../../domain/images/schema";
 import {
   ImageSourceError,
   storeCanonicalImage,

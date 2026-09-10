@@ -4,7 +4,7 @@ import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
   TrainingRunNotFoundError,
-} from "../../../training/errors";
+} from "../../../domain/training/errors";
 import {
   DetectionConflictError,
   DetectionImageNotFoundError,

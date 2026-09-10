@@ -2,11 +2,11 @@ import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 
-import { VersionsTable } from "../../components/dataset/VersionsTable";
-import { Page } from "../../components/Page";
-import { TrainingRunsTable } from "../../components/training/TrainingRunsTable";
+import { VersionsTable } from "../../features/datasets/VersionsTable";
+import { Page } from "../../ui/Page";
+import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingOverview } from "../../functions/training";
-import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/training")({

@@ -11,11 +11,11 @@ import {
   modelVersions,
   models,
 } from "../infra/db/schema";
-import type { Unit } from "../../experiments/contracts";
+import type { Unit } from "../../domain/experiments/contracts";
 import {
   ExperimentNotFoundError,
   ObservationNotFoundError,
-} from "../../experiments/errors";
+} from "../../domain/experiments/errors";
 import {
   cultureEventSchema,
   daysBetween,
@@ -26,8 +26,8 @@ import {
   type Experiment,
   type ExperimentObservation,
   type Treatment,
-} from "../../experiments/schema";
-import type { Model } from "../../models/schema";
+} from "../../domain/experiments/schema";
+import type { Model } from "../../domain/models/schema";
 import { toModel } from "../models/public";
 
 export function toExperiment(row: typeof experiments.$inferSelect): Experiment {

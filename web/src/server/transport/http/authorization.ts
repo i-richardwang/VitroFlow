@@ -1,4 +1,4 @@
-import type { ApiScope } from "../../../auth/integrations";
+import type { ApiScope } from "../../../domain/auth/integrations";
 import { authorizeApiKey, bearerToken, secretsEqual } from "../../auth/public";
 
 interface ApiRealm {

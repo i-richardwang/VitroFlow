@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { instancesFromDetection } from "../../annotation/detection";
-import type { AnnotationInstance } from "../../annotation/schema";
+import { instancesFromDetection } from "../../domain/annotation/detection";
+import type { AnnotationInstance } from "../../domain/annotation/schema";
 import { seedInferenceOutcome } from "../testing/inference";
 import {
   AnnotationConflictError,

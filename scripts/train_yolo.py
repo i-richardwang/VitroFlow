@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from vitroflow.training_recipe import load_training_recipe_manifest
-from vitroflow.yolo import EpochReport, train_yolo_detector
+from vitroflow.detectors.ultralytics import EpochReport, train_yolo_detector
+from vitroflow.training.recipe import load_training_recipe_manifest
 
 DEFAULT_RECIPE_PATH = (
     Path(__file__).resolve().parents[1] / "configs/yolo26/seed-small.recipe.json"

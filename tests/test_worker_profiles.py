@@ -4,7 +4,7 @@ import stat
 
 import pytest
 
-from vitroflow.worker_profiles import (
+from vitroflow.worker.host.profiles import (
     WorkerProfile,
     list_profiles,
     load_profile,

@@ -6,9 +6,13 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from vitroflow import worker_host
-from vitroflow.worker_profiles import WorkerProfile, profile_directory, save_profile
-from vitroflow.worker_session import WorkerSettings
+from vitroflow.worker.host import operations as worker_host
+from vitroflow.worker.host.profiles import (
+    WorkerProfile,
+    profile_directory,
+    save_profile,
+)
+from vitroflow.worker.session import WorkerSettings
 
 
 def test_preflight_checks_the_authenticated_server_and_runtimes(

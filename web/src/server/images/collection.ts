@@ -8,7 +8,7 @@ import {
   images,
   annotations,
 } from "../infra/db/schema";
-import { imageDigestSchema } from "../../images/schema";
+import { imageDigestSchema } from "../../domain/images/schema";
 import { imageBlobKey } from "./keys";
 import { listBlobs, removeBlob } from "../infra/blobs/store";
 import { lockImage } from "./lock";

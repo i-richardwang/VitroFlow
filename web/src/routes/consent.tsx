@@ -3,10 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 
-import { authClient, continuation } from "../auth/client";
-import { BrandLogo } from "../components/BrandLogo";
+import { authClient, continuation } from "../features/account/client";
+import { BrandLogo } from "../ui/BrandLogo";
 import { describeOAuthClient } from "../functions/integrations";
-import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useAsyncAction } from "../ui/hooks/useAsyncAction";
 import { m } from "../paraglide/messages";
 
 /**

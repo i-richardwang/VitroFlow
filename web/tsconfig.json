@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
@@ -12,7 +16,15 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "node", "bun"]
+    "types": [
+      "vite/client",
+      "node",
+      "bun"
+    ]
   },
-  "include": ["src", "scripts"]
+  "include": [
+    "src",
+    "scripts",
+    "test"
+  ]
 }

@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   annotationInstanceSchema,
   annotationRefSchema,
-} from "../annotation/schema";
+} from "../domain/annotation/schema";
 import {
   AnnotationConflictError,
   readAnnotation,

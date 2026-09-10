@@ -1,3 +1,4 @@
+import { DatasetNotFoundError } from "../../domain/datasets/errors";
 import { randomUUID } from "node:crypto";
 import {
   and,
@@ -30,13 +31,13 @@ import {
   type TrainingPhase,
   type TrainingRecipe,
   type TrainingRun,
-} from "../../training/schema";
-import type { TrainingRunSummary } from "../../training/read-model";
-import type { WorkerIdentity } from "../../workers/schema";
+} from "../../domain/training/schema";
+import type { TrainingRunSummary } from "../../domain/training/read-model";
+import type { WorkerIdentity } from "../../domain/workers/schema";
 import {
   TrainingRunConflictError,
   TrainingRunNotFoundError,
-} from "../../training/errors";
+} from "../../domain/training/errors";
 import { createDatasetSnapshot, readDatasetSnapshot } from "./snapshots";
 import { readDataset } from "../datasets/public";
 import {
@@ -379,7 +380,8 @@ export async function createTrainingRun(
 ): Promise<TrainingRun> {
   return transaction(async (tx) => {
     const dataset = await readDataset(datasetId, tx);
-    if (!dataset) throw new Error(`Unknown dataset: ${datasetId}`);
+    if (!dataset)
+      throw new DatasetNotFoundError(`Unknown dataset: ${datasetId}`);
     const active = await activeTrainingRun(dataset.modelId, tx);
     if (active) {
       throw new TrainingRunConflictError(

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..annotations import BoundingBox
-from ..documents import (
+from vitroflow.annotations import BoundingBox
+from vitroflow.contracts.documents import (
     as_integer,
     as_list,
     as_number,
@@ -12,8 +12,8 @@ from ..documents import (
     expect_fields,
     expect_schema_version,
 )
-from ..wire_contracts import validate_wire_contract
-from .contract import (
+from vitroflow.contracts.validation import validate_wire_contract
+from vitroflow.detectors.contract import (
     DETECTION_SCHEMA_VERSION,
     DetectionDiagnostics,
     DetectionFailure,

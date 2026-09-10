@@ -6,16 +6,8 @@ import httpx
 import pytest
 from conftest import annotation_document, manifest_document, manifest_entry
 
-from vitroflow.annotations import load_annotations
-from vitroflow.dataset_transfer import (
-    DatasetTransferError,
-    PullReport,
-    PushReport,
-    pull_dataset,
-    push_dataset,
-)
-from vitroflow.image_io import MAX_IMAGE_BYTES
-from vitroflow.manifest import (
+from vitroflow.datasets.annotations import load_annotations
+from vitroflow.datasets.manifest import (
     MAX_DATASET_MANIFEST_BYTES,
     BlobError,
     blob_path,
@@ -23,6 +15,14 @@ from vitroflow.manifest import (
     parse_dataset_manifest,
     verified_blob,
 )
+from vitroflow.datasets.transfer import (
+    DatasetTransferError,
+    PullReport,
+    PushReport,
+    pull_dataset,
+    push_dataset,
+)
+from vitroflow.io.image_io import MAX_IMAGE_BYTES
 
 IMAGE_A = b"image a"
 IMAGE_B = b"image b"

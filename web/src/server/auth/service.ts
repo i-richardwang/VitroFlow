@@ -9,8 +9,11 @@ import { createAccessControl } from "better-auth/plugins/access";
 import { admin, jwt } from "better-auth/plugins";
 import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
 
-import { API_KEY_PREFIX, MAX_API_KEY_DAYS } from "../../auth/integrations";
-import { MIN_PASSWORD_LENGTH } from "../../auth/schema";
+import {
+  API_KEY_PREFIX,
+  MAX_API_KEY_DAYS,
+} from "../../domain/auth/integrations";
+import { MIN_PASSWORD_LENGTH } from "../../domain/auth/schema";
 import { database, type Executor } from "../infra/db/client";
 import * as schema from "../infra/db/schema";
 import { users } from "../infra/db/schema";

@@ -2,12 +2,12 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Chip, Link, Table } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 
-import { Page } from "../../components/Page";
+import { Page } from "../../ui/Page";
 import { getStatus } from "../../functions/status";
-import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
-import type { WorkerPresence } from "../../workers/presence";
-import type { WorkerActivity } from "../../workers/schema";
+import type { WorkerPresence } from "../../domain/workers/presence";
+import type { WorkerActivity } from "../../domain/workers/schema";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),

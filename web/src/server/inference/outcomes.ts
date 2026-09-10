@@ -5,12 +5,12 @@ import {
   isFailure,
   type DetectionResult,
   type InferenceOutcome,
-} from "../../detection/schema";
-import { sameRuntimeDescriptor } from "../../inference/schema";
-import { canonicalJson } from "../../json/canonical";
-import { assertInstanceClasses } from "../../models/metrics";
-import { supportsRuntime, type Model } from "../../models/schema";
-import type { Worker } from "../../workers/schema";
+} from "../../domain/detection/schema";
+import { sameRuntimeDescriptor } from "../../domain/inference/schema";
+import { canonicalJson } from "../../lib/json/canonical";
+import { assertInstanceClasses } from "../../domain/models/metrics";
+import { supportsRuntime, type Model } from "../../domain/models/schema";
+import type { Worker } from "../../domain/workers/schema";
 import { lockDetection } from "./lock";
 import { assertDocumentImage } from "../images/public";
 import { readModel } from "../models/public";

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { API_KEY_PREFIX } from "../../auth/integrations";
-import { ApiKeyNotFoundError } from "../../auth/errors";
+import { API_KEY_PREFIX } from "../../domain/auth/integrations";
+import { ApiKeyNotFoundError } from "../../domain/auth/errors";
 import {
   authorizeApiKey,
   issueApiKey,

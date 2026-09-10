@@ -12,20 +12,20 @@ import {
 import {
   observationOrdinals,
   unitIsAvailableAt,
-} from "../../experiments/culture-events";
+} from "../../domain/experiments/culture-events";
 import {
   ExperimentObservationImageAlreadyUsedError,
   ExperimentObservationImageNotFoundError,
   ImagesNotStoredError,
   ObservationImageRejectedError,
   UnitNotFoundError,
-} from "../../experiments/errors";
+} from "../../domain/experiments/errors";
 import {
   daysBetween,
   type ObservationImageAssignment,
   type ObservationImageAssignmentResult,
   type ObservationImageRef,
-} from "../../experiments/schema";
+} from "../../domain/experiments/schema";
 import {
   listObservations,
   listUnits,

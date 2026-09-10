@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { inferenceOutcomeSchema } from "../detection/schema";
-import { inferenceTargetSchema } from "../inference/assignments";
+import { inferenceOutcomeSchema } from "../domain/detection/schema";
+import { inferenceTargetSchema } from "../domain/inference/assignments";
 import { completeInferenceClaim } from "../server/inference/public";
 import {
   parseWorkerIdentity,

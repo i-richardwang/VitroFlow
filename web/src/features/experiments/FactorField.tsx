@@ -1,0 +1,74 @@
+import { Input, Label, TextField } from "@heroui/react";
+
+import type { TreatmentFactor } from "../../domain/experiments/schema";
+import { m } from "../../paraglide/messages";
+
+const EMPTY_FACTOR: TreatmentFactor = { name: "", level: "", unit: "" };
+
+export function submittedFactor(
+  factor: TreatmentFactor,
+): TreatmentFactor | null {
+  const name = factor.name.trim();
+  const level = factor.level.trim();
+  const unit = factor.unit.trim();
+  if (!name || !level) return null;
+  return { name, level, unit };
+}
+
+export function FactorField({
+  busy,
+  factor,
+  onChange,
+}: {
+  busy: boolean;
+  factor: TreatmentFactor;
+  onChange: (factor: TreatmentFactor) => void;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <TextField
+        className="min-w-0 flex-1"
+        variant="secondary"
+        isDisabled={busy}
+        value={factor.name}
+        onChange={(name) => onChange({ ...factor, name })}
+      >
+        <Label>{m.treatment_factor_label()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.treatment_factor_placeholder()}
+        />
+      </TextField>
+      <TextField
+        className="w-24 shrink-0"
+        variant="secondary"
+        isDisabled={busy}
+        value={factor.level}
+        onChange={(level) => onChange({ ...factor, level })}
+      >
+        <Label>{m.treatment_level_label()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.treatment_level_placeholder()}
+        />
+      </TextField>
+      <TextField
+        className="w-28 shrink-0"
+        variant="secondary"
+        isDisabled={busy}
+        value={factor.unit}
+        onChange={(unit) => onChange({ ...factor, unit })}
+      >
+        <Label>{m.treatment_unit_label()}</Label>
+        <Input
+          className="w-full"
+          placeholder={m.treatment_unit_placeholder()}
+        />
+      </TextField>
+    </div>
+  );
+}
+
+export function factorDraft(factor: TreatmentFactor | null): TreatmentFactor {
+  return factor ?? EMPTY_FACTOR;
+}

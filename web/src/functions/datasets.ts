@@ -4,7 +4,7 @@ import {
   datasetImageRefSchema,
   datasetImageAdditionSchema,
   datasetRefSchema,
-} from "../datasets/schema";
+} from "../domain/datasets/schema";
 import {
   addExperimentObservationImages,
   listDatasets,

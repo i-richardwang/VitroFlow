@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { database } from "../infra/db/client";
 import { models } from "../infra/db/schema";
-import { ExperimentNotFoundError } from "../../experiments/errors";
+import { ExperimentNotFoundError } from "../../domain/experiments/errors";
 import { type AgentCallResult, executeAgentOperation } from "./execution";
 import { type AgentOperation, command } from "./operations";
 

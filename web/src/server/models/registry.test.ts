@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 
-import { modelVersionSchema, sameModelVersion } from "../../models/schema";
+import {
+  modelVersionSchema,
+  sameModelVersion,
+} from "../../domain/models/schema";
 
 import {
   listAllModelVersions,
@@ -8,7 +11,7 @@ import {
   readModelVersion,
   registerModelVersion,
 } from "./registry";
-import {} from "../testing/fixtures";
+
 import { registerModel } from "./registry";
 
 test("a version is registered once and its contents may not change", async () => {

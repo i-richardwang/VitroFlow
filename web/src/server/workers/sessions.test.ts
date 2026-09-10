@@ -4,7 +4,7 @@ import {
   WORKER_ONLINE_SECONDS,
   WORKER_STALE_SECONDS,
   workerPresence,
-} from "../../workers/presence";
+} from "../../domain/workers/presence";
 import {
   TEST_RUNTIME,
   ULTRALYTICS_RUNTIME,

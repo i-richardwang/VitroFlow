@@ -1,3 +1,5 @@
+import { TrainingRunConflictError } from "../../domain/training/errors";
+import { DatasetNotFoundError } from "../../domain/datasets/errors";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 
 import { database, type Executor } from "../infra/db/client";
@@ -13,7 +15,7 @@ import {
   datasetSnapshotSchema,
   type DatasetSnapshot,
   type ImageSplit,
-} from "../../training/schema";
+} from "../../domain/training/schema";
 import { contentDigest } from "../infra/digest";
 import {
   readDataset,
@@ -128,10 +130,10 @@ export async function createDatasetSnapshot(
   tx: Executor,
 ): Promise<DatasetSnapshot> {
   const dataset = await readDataset(datasetId, tx);
-  if (!dataset) throw new Error(`Unknown dataset: ${datasetId}`);
+  if (!dataset) throw new DatasetNotFoundError(`Unknown dataset: ${datasetId}`);
   const reviewed = await listReviewedRecords(datasetId, tx, true);
   if (reviewed.length < MIN_SNAPSHOT_IMAGES) {
-    throw new Error(
+    throw new TrainingRunConflictError(
       `Training requires at least ${MIN_SNAPSHOT_IMAGES} reviewed images`,
     );
   }

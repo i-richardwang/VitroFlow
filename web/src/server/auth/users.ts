@@ -1,13 +1,13 @@
 import { eq } from "drizzle-orm";
 
-import { UserNotFoundError, UserRejectedError } from "../../auth/errors";
+import { UserNotFoundError, UserRejectedError } from "../../domain/auth/errors";
 import {
   userAccountSchema,
   workbenchUserSchema,
   type UserAccount,
   type UserRole,
   type WorkbenchUser,
-} from "../../auth/schema";
+} from "../../domain/auth/schema";
 import { database } from "../infra/db/client";
 import { users } from "../infra/db/schema";
 import { auth } from "./service";

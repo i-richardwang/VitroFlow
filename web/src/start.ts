@@ -1,10 +1,11 @@
+import { mapBusinessErrors } from "./functions/errors";
 import {
   createCsrfMiddleware,
   createMiddleware,
   createStart,
 } from "@tanstack/react-start";
 
-import { loginPath, requestedPath } from "./auth/navigation";
+import { loginPath, requestedPath } from "./domain/auth/navigation";
 import { apiRequestAuthorization } from "./server/transport/http/authorization";
 import { withRequestLocale } from "./server/transport/http/locale";
 import { readSession, redirect } from "./server/transport/http/session";
@@ -56,6 +57,7 @@ const requireSameOriginServerFunction = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
+  functionMiddleware: [mapBusinessErrors],
   requestMiddleware: [
     requireSameOriginServerFunction,
     resolveLocale,

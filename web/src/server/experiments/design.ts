@@ -12,7 +12,7 @@ import {
   experimentUnits,
   experiments,
 } from "../infra/db/schema";
-import type { Unit } from "../../experiments/contracts";
+import type { Unit } from "../../domain/experiments/contracts";
 import {
   ExperimentHasRecordsError,
   ExperimentNotFoundError,
@@ -22,8 +22,8 @@ import {
   TreatmentRejectedError,
   UnitNotFoundError,
   UnitRejectedError,
-} from "../../experiments/errors";
-import { replicateCodes, sameName } from "../../experiments/naming";
+} from "../../domain/experiments/errors";
+import { replicateCodes, sameName } from "../../domain/experiments/naming";
 import {
   type Experiment,
   type ExperimentRef,
@@ -38,7 +38,7 @@ import {
   type UnitRef,
   type UnitsTreatmentUpdate,
   type UnitUpdate,
-} from "../../experiments/schema";
+} from "../../domain/experiments/schema";
 import {
   atTreatment,
   atUnit,

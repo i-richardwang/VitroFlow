@@ -6,10 +6,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from vitroflow import worker_session
-from vitroflow.detectors import RuntimeDescriptor
-from vitroflow.worker import Worker
-from vitroflow.worker_session import WorkerSettings
+from vitroflow.detectors.contract import RuntimeDescriptor
+from vitroflow.worker import session as worker_session
+from vitroflow.worker.service import Worker
+from vitroflow.worker.session import WorkerSettings
 
 TRADITIONAL = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 ULTRALYTICS = RuntimeDescriptor(adapter="ultralytics", fingerprint="c" * 64)
@@ -85,7 +85,7 @@ def test_a_stopping_worker_takes_nothing(tmp_path: Path, monkeypatch) -> None:
 def test_training_releases_the_inference_model_and_its_own_allocations(
     tmp_path: Path, monkeypatch
 ) -> None:
-    from vitroflow import worker
+    from vitroflow.worker import service as worker
 
     served, _ = _worker(tmp_path, monkeypatch, (TRADITIONAL, ULTRALYTICS))
     events: list[str] = []

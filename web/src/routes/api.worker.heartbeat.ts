@@ -5,7 +5,7 @@ import {
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import { recordWorkerHeartbeat } from "../server/workers/public";
-import { workerHeartbeatSchema } from "../workers/schema";
+import { workerHeartbeatSchema } from "../domain/workers/schema";
 
 export const Route = createFileRoute("/api/worker/heartbeat")({
   server: {

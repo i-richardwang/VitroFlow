@@ -1,10 +1,11 @@
+import { DatasetImportError } from "../../domain/datasets/errors";
 import { eq, inArray } from "drizzle-orm";
 
 import {
   datasetManifestSchema,
   type DatasetManifest,
-} from "../../datasets/manifest";
-import type { Dataset } from "../../datasets/schema";
+} from "../../domain/datasets/manifest";
+import type { Dataset } from "../../domain/datasets/schema";
 import { transaction } from "../infra/db/client";
 import {
   annotations,
@@ -52,8 +53,6 @@ export async function readDatasetManifest(
 }
 
 /** Why this workbench cannot hold the dataset a manifest describes. */
-export class DatasetImportError extends Error {}
-
 function sameClasses(left: readonly string[], right: readonly string[]) {
   return left.length === right.length && left.every((c, i) => c === right[i]);
 }

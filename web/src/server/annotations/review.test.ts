@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import { database } from "../infra/db/client";
 import { seedInferenceOutcome } from "../testing/inference";
-import { instancesFromDetection } from "../../annotation/detection";
+import { instancesFromDetection } from "../../domain/annotation/detection";
 import { storeAnnotation } from "./documents";
 import { readReview } from "./review";
 import {

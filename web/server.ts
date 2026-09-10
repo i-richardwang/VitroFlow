@@ -1,6 +1,6 @@
 import handler from "./dist/server/server.js";
 import { resolve } from "node:path";
-import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/training/artifact";
+import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/domain/training/artifact";
 
 const CLIENT_DIR = `${process.cwd()}/dist/client`;
 const port = Number(process.env.PORT ?? 3000);

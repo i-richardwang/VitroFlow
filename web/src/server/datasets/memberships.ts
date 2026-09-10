@@ -1,3 +1,7 @@
+import {
+  ObservationImageNotFoundError,
+  DatasetModelError,
+} from "../../domain/datasets/errors";
 import { and, asc, eq, or, type Column } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../infra/db/client";
@@ -14,9 +18,9 @@ import {
   type Dataset,
   type DatasetImageRef,
   type DatasetImageAddition,
-} from "../../datasets/schema";
-import type { ObservationImageRef } from "../../experiments/schema";
-import type { ImageSplit } from "../../training/schema";
+} from "../../domain/datasets/schema";
+import type { ObservationImageRef } from "../../domain/experiments/schema";
+import type { ImageSplit } from "../../domain/training/schema";
 import { imageBlobKey, lockImage } from "../images/public";
 
 /** An image as seen through its membership in one dataset. */
@@ -35,12 +39,6 @@ interface DatasetImageAdditionResult {
   added: number;
   existing: number;
 }
-
-/** Thrown when a reference names no experiment observation image. */
-class ObservationImageNotFoundError extends Error {}
-
-/** Thrown when images would join a dataset training another model. */
-class DatasetModelError extends Error {}
 
 export type MembershipRow = {
   membership: typeof datasetImages.$inferSelect;

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 
-import { readStoredZip } from "../../archive/zip";
-import { DATASET_ARCHIVE_LIMITS } from "../../datasets/archive";
-import { datasetManifestSchema } from "../../datasets/manifest";
+import { readStoredZip } from "../../lib/archive/zip";
+import { DATASET_ARCHIVE_LIMITS } from "../../domain/datasets/archive-format";
+import { datasetManifestSchema } from "../../domain/datasets/manifest";
 import { imageBlobKey } from "../images/keys";
 import { requireBlob } from "../infra/blobs/store";
 import { datasetArchive } from "./archive";

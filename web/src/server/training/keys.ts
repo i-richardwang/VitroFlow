@@ -1,4 +1,7 @@
-import { resourceIdSchema, sha256Schema } from "../../identifiers/schema";
+import {
+  resourceIdSchema,
+  sha256Schema,
+} from "../../domain/identifiers/schema";
 
 export function modelWeightsBlobKey(
   trainingRunId: string,

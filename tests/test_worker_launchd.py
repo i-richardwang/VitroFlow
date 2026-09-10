@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vitroflow import worker_launchd
-from vitroflow.worker_launchd import launch_agent_document, service_label
-from vitroflow.worker_profiles import WorkerProfile, save_profile
+from vitroflow.worker.host import launchd as worker_launchd
+from vitroflow.worker.host.launchd import launch_agent_document, service_label
+from vitroflow.worker.host.profiles import WorkerProfile, save_profile
 
 
 def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> None:

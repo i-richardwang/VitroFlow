@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 
-import { YOLO26_SEED_SMALL_RECIPE } from "../../../training/recipes";
-import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../../../training/artifact";
-import { trainingRunSchema } from "../../../training/schema";
+import { YOLO26_SEED_SMALL_RECIPE } from "../../../domain/training/recipes";
+import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../../../domain/training/artifact";
+import { trainingRunSchema } from "../../../domain/training/schema";
 import { Route as HeartbeatRoute } from "../../../routes/api.worker.heartbeat";
 import { Route as WeightsRoute } from "../../../routes/api.worker.inference.model-versions.$versionId.weights";
 import { Route as ClaimRoute } from "../../../routes/api.worker.training.claim";

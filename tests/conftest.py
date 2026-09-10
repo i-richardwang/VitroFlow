@@ -10,7 +10,11 @@ from typing import Any
 import cv2
 import numpy as np
 
-from vitroflow.manifest import MANIFEST_SCHEMA_VERSION, blob_path, manifest_path
+from vitroflow.datasets.manifest import (
+    MANIFEST_SCHEMA_VERSION,
+    blob_path,
+    manifest_path,
+)
 
 
 def annotation_document(

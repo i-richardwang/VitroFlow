@@ -6,7 +6,7 @@ import {
   userPasswordUpdateSchema,
   userRefSchema,
   userRoleUpdateSchema,
-} from "../auth/schema";
+} from "../domain/auth/schema";
 import * as directory from "../server/auth/public";
 
 export const getUsers = createServerFn({ method: "GET" }).handler(() =>

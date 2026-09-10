@@ -1,22 +1,25 @@
-import { filenameStem } from "../../experiments/naming";
+import { filenameStem } from "../../domain/experiments/naming";
 import { readExperimentGrid } from "../experiments/queries";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 
-import { instancesFromDetection } from "../../annotation/detection";
-import { makeResult } from "../../annotation/testing";
+import { instancesFromDetection } from "../../domain/annotation/detection";
+import { makeResult } from "../../domain/annotation/testing";
 import {
   userAccountSchema,
   type UserAccount,
   type UserRole,
-} from "../../auth/schema";
-import type { Dataset } from "../../datasets/schema";
-import type { DetectionResult } from "../../detection/schema";
-import type { Experiment, ObservationImageRef } from "../../experiments/schema";
-import type { RuntimeDescriptor } from "../../inference/schema";
-import { primaryMetric, type ModelVersion } from "../../models/schema";
-import type { WorkerHeartbeat } from "../../workers/schema";
+} from "../../domain/auth/schema";
+import type { Dataset } from "../../domain/datasets/schema";
+import type { DetectionResult } from "../../domain/detection/schema";
+import type {
+  Experiment,
+  ObservationImageRef,
+} from "../../domain/experiments/schema";
+import type { RuntimeDescriptor } from "../../domain/inference/schema";
+import { primaryMetric, type ModelVersion } from "../../domain/models/schema";
+import type { WorkerHeartbeat } from "../../domain/workers/schema";
 import { canonicalize } from "../images/ingest";
 import { addExperimentObservationImages } from "../datasets/memberships";
 import { createExperiment } from "../experiments/design";
@@ -27,13 +30,13 @@ import { auth } from "../auth/service";
 import { storeImage } from "../images/store";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "./inference";
-import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../models/builtins";
+import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../domain/models/builtins";
 import {
   readModel,
   readModelVersion,
   registerModelVersion,
 } from "../models/registry";
-import { YOLO26_SEED_SMALL_RECIPE } from "../../training/recipes";
+import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import { database, transaction } from "../infra/db/client";
 import {
   datasetSnapshots,

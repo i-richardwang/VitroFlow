@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { YOLO26_SEED_SMALL_RECIPE } from "../../training/recipes";
+import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import {
   blobExists,
   putImmutableBlob,
@@ -31,7 +31,10 @@ import {
   reviewedDataset as reviewed,
 } from "../testing/fixtures";
 import { recordWorkerHeartbeat } from "../workers/sessions";
-import type { WorkerHeartbeat, WorkerIdentity } from "../../workers/schema";
+import type {
+  WorkerHeartbeat,
+  WorkerIdentity,
+} from "../../domain/workers/schema";
 
 const CONTENTS = ["first-image", "second-image"];
 

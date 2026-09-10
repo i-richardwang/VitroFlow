@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { transaction, type Executor } from "../infra/db/client";
-import { ConflictError, NotFoundError } from "../../experiments/errors";
+import { ConflictError, NotFoundError } from "../../domain/errors";
 import { type AgentOperation, agentOperations } from "./operations";
 
 export type AgentFailureCode =

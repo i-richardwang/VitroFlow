@@ -20,22 +20,25 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import type { AnnotationDocument } from "../../../annotation/schema";
-import { USER_ROLES } from "../../../auth/schema";
+import type { AnnotationDocument } from "../../../domain/annotation/schema";
+import { USER_ROLES } from "../../../domain/auth/schema";
 import {
   CULTURE_EVENT_TYPES,
   type TreatmentFactor,
-} from "../../../experiments/schema";
-import type { InferenceOutcome } from "../../../detection/schema";
-import type { RuntimeDescriptor } from "../../../inference/schema";
-import type { DerivedMetric } from "../../../models/metrics";
-import type { ModelArtifact, ModelVersion } from "../../../models/schema";
+} from "../../../domain/experiments/schema";
+import type { InferenceOutcome } from "../../../domain/detection/schema";
+import type { RuntimeDescriptor } from "../../../domain/inference/schema";
+import type { DerivedMetric } from "../../../domain/models/metrics";
+import type {
+  ModelArtifact,
+  ModelVersion,
+} from "../../../domain/models/schema";
 import {
   IMAGE_SPLITS,
   TRAINING_PHASES,
   TRAINING_RUN_STATUSES,
   type TrainingRecipe,
-} from "../../../training/schema";
+} from "../../../domain/training/schema";
 
 /**
  * Control plane, detections, and review state live in Postgres; images

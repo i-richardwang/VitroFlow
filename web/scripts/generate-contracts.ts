@@ -1,21 +1,22 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
 import { z, type ZodType } from "zod";
 
-import { annotationSchema } from "../src/annotation/schema";
-import { datasetManifestSchema } from "../src/datasets/manifest";
-import { inferenceOutcomeSchema } from "../src/detection/schema";
-import { inferenceAssignmentSchema } from "../src/inference/assignments";
+import { trainingParametersSchema } from "../src/domain/training/parameters";
+import { annotationSchema } from "../src/domain/annotation/schema";
+import { datasetManifestSchema } from "../src/domain/datasets/manifest";
+import { inferenceOutcomeSchema } from "../src/domain/detection/schema";
+import { inferenceAssignmentSchema } from "../src/domain/inference/assignments";
 import {
   datasetSnapshotSchema,
   trainingRunSchema,
-} from "../src/training/schema";
+} from "../src/domain/training/schema";
 
 const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["annotation", annotationSchema],
+  ["training-parameters", trainingParametersSchema],
   ["dataset-manifest", datasetManifestSchema],
   ["inference-assignment", inferenceAssignmentSchema],
   ["inference-outcome", inferenceOutcomeSchema],

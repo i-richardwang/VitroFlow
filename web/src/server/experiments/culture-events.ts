@@ -12,19 +12,19 @@ import {
   observationOrdinal,
   observationOrdinals,
   unitIsAvailableAt,
-} from "../../experiments/culture-events";
+} from "../../domain/experiments/culture-events";
 import {
   CultureEventNotFoundError,
   ObservationNotFoundError,
   UnitNotFoundError,
   UnitRejectedError,
-} from "../../experiments/errors";
+} from "../../domain/experiments/errors";
 import type {
   CultureEvent,
   CultureEventRef,
   CultureEventRequest,
   CultureEventsRequest,
-} from "../../experiments/schema";
+} from "../../domain/experiments/schema";
 import { listObservations, listUnits, lockExperiment } from "./records";
 
 export async function recordCultureEvent(

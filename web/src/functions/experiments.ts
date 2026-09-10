@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 
 import {
   cultureEventRefSchema,
-  cultureEventRequestSchema,
   experimentRefSchema,
   experimentRequestSchema,
   experimentUpdateSchema,
@@ -20,8 +19,8 @@ import {
   unitsTreatmentUpdateSchema,
   unitUpdateSchema,
   cultureEventsRequestSchema,
-} from "../experiments/schema";
-import type { Model, ModelVersion } from "../models/schema";
+} from "../domain/experiments/schema";
+import type { Model, ModelVersion } from "../domain/models/schema";
 import { listDatasets, listDatasetsForModel } from "../server/datasets/public";
 import {
   addReplicates,
@@ -35,7 +34,6 @@ import {
   updateTreatment,
   updateUnit,
   deleteCultureEvent,
-  recordCultureEvent,
   recordCultureEvents,
   addObservation,
   deleteObservation,
@@ -141,10 +139,6 @@ export const editUnitsTreatment = createServerFn({ method: "POST" })
 export const removeUnit = createServerFn({ method: "POST" })
   .validator(unitRefSchema)
   .handler(({ data }) => deleteUnit(data));
-
-export const createCultureEvent = createServerFn({ method: "POST" })
-  .validator(cultureEventRequestSchema)
-  .handler(({ data }) => recordCultureEvent(data));
 
 export const createCultureEvents = createServerFn({ method: "POST" })
   .validator(cultureEventsRequestSchema)

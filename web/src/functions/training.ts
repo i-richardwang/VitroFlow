@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 
-import { datasetRefSchema } from "../datasets/schema";
-import { resourceIdSchema } from "../identifiers/schema";
-import { trainingOverridesSchema } from "../training/parameters";
-import { YOLO26_SEED_SMALL_RECIPE } from "../training/recipes";
+import { datasetRefSchema } from "../domain/datasets/schema";
+import { resourceIdSchema } from "../domain/identifiers/schema";
+import { trainingOverridesSchema } from "../domain/training/parameters";
+import { YOLO26_SEED_SMALL_RECIPE } from "../domain/training/recipes";
 import {
   trainingConsole,
   trainingOverview,

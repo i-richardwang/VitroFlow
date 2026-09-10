@@ -17,7 +17,7 @@ database, immutable blob storage, and external runtimes
 
 ## Source map
 
-`web/src/server/` and the framework entry `web/src/server.ts` are server-only, enforced by the Vite client import protection. The sibling `web/src/images/`, `datasets/`, `training/`, and other contract directories contain browser-safe schemas and pure functions; they never import server implementations. Framework routes live in `web/src/routes/`, and Server Function adapters live in `web/src/functions/`.
+`web/src/server/` and the framework entry `web/src/server.ts` are server-only, enforced by the Vite client import protection. `web/src/domain/` contains shared schemas and pure transformations; it never imports server implementations, UI, or localization. The complete runtime-capability map is described in [Architecture](architecture.md). Framework routes live in `web/src/routes/`, and Server Function adapters live in `web/src/functions/`.
 
 | Server directory                    | Ownership                                                                                                 |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------- |

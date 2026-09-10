@@ -4,11 +4,11 @@ import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
   TrainingRunNotFoundError,
-} from "../../../training/errors";
+} from "../../../domain/training/errors";
 import {
   workerIdentitySchema,
   type WorkerIdentity,
-} from "../../../workers/schema";
+} from "../../../domain/workers/schema";
 import {
   DetectionConflictError,
   DetectionImageNotFoundError,

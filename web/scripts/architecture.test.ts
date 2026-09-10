@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import { checkArchitecture, importSpecifiers } from "./architecture";
 
 test("dependency extraction includes type imports and exports without treating comments or strings as imports", () => {
@@ -59,8 +60,8 @@ test("shared browser contracts cannot reference the server, even through a type-
     checkArchitecture(
       new Map([
         [
-          "src/images/schema.ts",
-          'import type { Image } from "../server/images/public";',
+          "src/domain/images/schema.ts",
+          'import type { Image } from "../../server/images/public";',
         ],
         ["src/server/images/public.ts", "export interface Image {}"],
       ]),
@@ -82,7 +83,7 @@ test("application initialization belongs to the server entry, not request authen
     "public.ts instead of its internals",
   );
   sources.delete("src/start.ts");
-  sources.set("src/components/Image.tsx", 'import "../server";');
+  sources.set("src/ui/Image.tsx", 'import "../server";');
   expect(checkArchitecture(sources).join("\n")).toContain(
     "shared/browser code must not import server code",
   );
@@ -126,4 +127,63 @@ test("dynamic imports cannot hide dependencies and new flat server files require
   expect(() =>
     importSpecifiers("const load = (name: string) => import(name);"),
   ).toThrow("literal module specifier");
+});
+
+test("pure layers reject UI imports, browser globals and nonliteral dynamic imports", () => {
+  const sources = new Map([
+    [
+      "src/domain/images/rules.ts",
+      'import { label } from "../../ui/label"; export const value = window.location.href;',
+    ],
+    ["src/ui/label.ts", 'export const label = "image";'],
+  ]);
+  expect(checkArchitecture(sources).join("\n")).toContain("layer dependency");
+  expect(checkArchitecture(sources).join("\n")).toContain(
+    "must not use window",
+  );
+  expect(
+    checkArchitecture(
+      new Map([
+        [
+          "src/lib/load.ts",
+          'const name = "x"; export const load = () => import(name);',
+        ],
+      ]),
+    ).join("\n"),
+  ).toContain("literal");
+});
+
+test("shared cycles and UI-to-feature dependencies are rejected", () => {
+  const sources = new Map([
+    ["src/domain/a.ts", 'import { b } from "./b"; export const a = () => b;'],
+    ["src/domain/b.ts", 'import { a } from "./a"; export const b = () => a;'],
+    ["src/ui/panel.ts", 'import { flow } from "../features/flow";'],
+    ["src/features/flow.ts", "export const flow = 1;"],
+  ]);
+  const errors = checkArchitecture(sources).join("\n");
+  expect(errors).toContain("Dependency cycle");
+  expect(errors).toContain("layer dependency");
+});
+
+test("pure rules may name a local document but cannot access the browser document", () => {
+  expect(
+    checkArchitecture(
+      new Map([
+        [
+          "src/domain/parse.ts",
+          "export function parse(document: { name: string }) { return document.name; }",
+        ],
+      ]),
+    ),
+  ).toEqual([]);
+  expect(
+    checkArchitecture(
+      new Map([
+        [
+          "src/domain/parse.ts",
+          'export const title = globalThis["document"].title;',
+        ],
+      ]),
+    ).join("\n"),
+  ).toContain("must not use document");
 });

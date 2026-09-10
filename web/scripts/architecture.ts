@@ -1,3 +1,4 @@
+import traverse from "@babel/traverse";
 import { posix as path } from "node:path";
 import { parse } from "@babel/parser";
 
@@ -51,6 +52,87 @@ const infrastructureEntries = new Set([
   "src/server/infra/digest.ts",
 ]);
 
+/** Framework adapters can cross runtime boundaries; pure rules cannot. */
+function layer(file: string): string | null {
+  if (file === "src/start.ts" || file === "src/router.tsx") return "adapter";
+  if (file === "src/server.ts") return "server";
+  const match =
+    /^src\/(domain|lib|features|ui|server|functions|routes|paraglide)\//.exec(
+      file,
+    );
+  return match?.[1] ?? null;
+}
+const layerDependencies: Record<string, readonly string[]> = {
+  domain: ["domain", "lib"],
+  lib: ["lib"],
+  ui: ["ui", "domain", "lib", "paraglide"],
+  features: ["features", "ui", "domain", "lib", "functions", "paraglide"],
+  server: ["server", "domain", "lib", "paraglide"],
+  functions: ["functions", "server", "domain", "lib"],
+  routes: [
+    "routes",
+    "functions",
+    "features",
+    "ui",
+    "domain",
+    "lib",
+    "server",
+    "paraglide",
+  ],
+  adapter: [
+    "functions",
+    "server",
+    "domain",
+    "lib",
+    "routes",
+    "ui",
+    "paraglide",
+  ],
+};
+
+/** Browser-only capabilities are forbidden in same-code server/client rules. */
+function browserCapabilities(source: string): string[] {
+  const found = new Set<string>();
+  const forbidden = new Set([
+    "window",
+    "document",
+    "navigator",
+    "localStorage",
+    "sessionStorage",
+    "XMLHttpRequest",
+    "FileReader",
+    "HTMLElement",
+    "ResizeObserver",
+  ]);
+  const tree = parse(source, {
+    sourceType: "module",
+    plugins: ["typescript", "jsx"],
+  });
+  traverse(tree, {
+    ReferencedIdentifier(ref) {
+      if (forbidden.has(ref.node.name) && !ref.scope.getBinding(ref.node.name))
+        found.add(ref.node.name);
+    },
+    MemberExpression(ref) {
+      const { object, property, computed } = ref.node;
+      if (
+        object.type !== "Identifier" ||
+        object.name !== "globalThis" ||
+        ref.scope.getBinding("globalThis")
+      )
+        return;
+      const name =
+        !computed && property.type === "Identifier"
+          ? property.name
+          : property.type === "StringLiteral"
+            ? property.value
+            : null;
+      if (name && forbidden.has(name)) found.add(name);
+    },
+  });
+  return [...found];
+}
+
 function serverModule(file: string): string | null {
   if (file === "src/server.ts") return "entry";
   if (file === "src/server/bootstrap.ts") return "bootstrap";
@@ -63,7 +145,8 @@ function testCode(file: string): boolean {
   return (
     /\.test\.[cm]?[jt]sx?$/.test(file) ||
     file.startsWith("test/") ||
-    file.startsWith("src/server/testing/")
+    file.startsWith("src/server/testing/") ||
+    file.endsWith("/testing.ts")
   );
 }
 
@@ -174,11 +257,18 @@ export function checkArchitecture(
   for (const [file, source] of sources) {
     if (testCode(file)) continue;
     const owner = serverModule(file);
+    const sourceLayer = layer(file);
+    if (file.startsWith("src/") && !sourceLayer)
+      errors.push(`${file}: unclassified runtime layer`);
     if (owner && !dependencies[owner])
       errors.push(`${file}: unclassified server module`);
     let imports: string[];
     try {
       imports = importSpecifiers(source);
+      if (sourceLayer === "domain" || sourceLayer === "lib") {
+        for (const capability of browserCapabilities(source))
+          errors.push(`${file}: pure modules must not use ${capability}`);
+      }
     } catch (error) {
       errors.push(
         `${file}: ${error instanceof Error ? error.message : String(error)}`,
@@ -186,32 +276,38 @@ export function checkArchitecture(
       continue;
     }
     for (const specifier of imports) {
-      if (!specifier.startsWith(".")) continue;
+      if (!specifier.startsWith(".")) {
+        if (
+          (sourceLayer === "domain" || sourceLayer === "lib") &&
+          specifier !== "zod"
+        )
+          errors.push(`${file}: pure modules must not import ${specifier}`);
+        continue;
+      }
       const target = resolve(file, specifier, sources);
       const targetOwner = serverModule(target);
+      const targetLayer = layer(target);
       const reject = (reason: string) =>
         errors.push(`${file} -> ${target}: ${reason}`);
+      if (
+        sourceLayer &&
+        targetLayer &&
+        !layerDependencies[sourceLayer]?.includes(targetLayer)
+      )
+        reject("layer dependency is not allowed");
+      if (sources.has(target)) {
+        if (!files.has(file)) files.set(file, new Set());
+        files.get(file)!.add(target);
+      }
       if (testCode(target)) {
         reject("production must not import test code");
         continue;
-      }
-      if (
-        owner &&
-        (adapter(target) ||
-          target.startsWith("src/components/") ||
-          target.startsWith("src/hooks/"))
-      ) {
-        reject("server modules must not depend on application adapters or UI");
       }
       if (!targetOwner) continue;
       if (!sources.has(target))
         reject("server import does not resolve to a source file");
       if (!owner && !adapter(file) && !processEntry(file))
         reject("shared/browser code must not import server code");
-      if (owner) {
-        if (!files.has(file)) files.set(file, new Set());
-        files.get(file)!.add(target);
-      }
       if (owner === targetOwner) {
         if (target.endsWith("/public.ts"))
           reject(

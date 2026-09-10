@@ -6,8 +6,11 @@ import {
   inferenceJobs,
   trainingRuns,
 } from "../infra/db/schema";
-import { workerPresence } from "../../workers/presence";
-import type { WorkerActivity, WorkerIdentity } from "../../workers/schema";
+import { workerPresence } from "../../domain/workers/presence";
+import type {
+  WorkerActivity,
+  WorkerIdentity,
+} from "../../domain/workers/schema";
 import { imageFilenames } from "./image-names";
 import { listWorkers } from "../workers/public";
 

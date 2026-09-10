@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+
 import { checkArchitecture } from "./architecture";
 
 const root = resolve(import.meta.dir, "..");
@@ -25,6 +26,6 @@ if (errors.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    "Server architecture: public APIs, dependency direction, client boundary and cycles checked",
+    "Web architecture: layer boundaries, pure capabilities, server APIs and dependency cycles checked",
   );
 }

@@ -3,10 +3,11 @@ import { Button, Chip, Table } from "@heroui/react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { USER_ROLE_LABELS, isAdmin, type UserAccount } from "../../auth/schema";
-import { Page } from "../../components/Page";
-import { NewUserDialog } from "../../components/users/NewUserDialog";
-import { UserMenu } from "../../components/users/UserMenu";
+import { USER_ROLE_LABELS } from "../../ui/user-roles";
+import { isAdmin, type UserAccount } from "../../domain/auth/schema";
+import { Page } from "../../ui/Page";
+import { NewUserDialog } from "../../features/users/NewUserDialog";
+import { UserMenu } from "../../features/users/UserMenu";
 import { getUsers } from "../../functions/users";
 import { m } from "../../paraglide/messages";
 

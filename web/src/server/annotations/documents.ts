@@ -5,11 +5,11 @@ import {
   type AnnotationDocument,
   type AnnotationInstance,
   type AnnotationRef,
-} from "../../annotation/schema";
+} from "../../domain/annotation/schema";
 import { database, transaction } from "../infra/db/client";
 import { annotations, images } from "../infra/db/schema";
-import { canonicalJson } from "../../json/canonical";
-import { assertInstanceClasses } from "../../models/metrics";
+import { canonicalJson } from "../../lib/json/canonical";
+import { assertInstanceClasses } from "../../domain/models/metrics";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
 

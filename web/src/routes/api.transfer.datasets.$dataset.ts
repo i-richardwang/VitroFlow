@@ -1,3 +1,4 @@
+import { DatasetImportError } from "../domain/datasets/errors";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -5,12 +6,8 @@ import {
   encodeDatasetManifest,
   datasetManifestSchema,
   MAX_DATASET_MANIFEST_BYTES,
-} from "../datasets/manifest";
-import {
-  DatasetImportError,
-  importDataset,
-  readDatasetManifest,
-} from "../server/datasets/public";
+} from "../domain/datasets/manifest";
+import { importDataset, readDatasetManifest } from "../server/datasets/public";
 
 function failed(message: string, status: number): Response {
   return Response.json({ error: message }, { status });

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import type { InferenceOutcome } from "../../detection/schema";
-import type { Worker } from "../../workers/schema";
+import type { InferenceOutcome } from "../../domain/detection/schema";
+import type { Worker } from "../../domain/workers/schema";
 import { transaction } from "../infra/db/client";
 import { inferenceJobs } from "../infra/db/schema";
 import {

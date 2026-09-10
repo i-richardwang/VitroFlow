@@ -5,7 +5,7 @@ import {
   parseWorkerJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { workerIdentitySchema } from "../workers/schema";
+import { workerIdentitySchema } from "../domain/workers/schema";
 
 export const Route = createFileRoute("/api/worker/inference/claim")({
   server: {

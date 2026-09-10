@@ -3,7 +3,7 @@ import sharp from "sharp";
 import {
   MAX_SOURCE_IMAGE_PIXELS,
   SOURCE_IMAGE_FORMATS,
-} from "../../images/canonical";
+} from "../../domain/images/canonical";
 import { contentDigest } from "../infra/digest";
 
 /**

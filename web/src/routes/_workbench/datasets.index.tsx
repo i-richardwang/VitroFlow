@@ -2,10 +2,10 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Table } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Count } from "../../components/Count";
-import { ImportDatasetButton } from "../../components/dataset/ImportDatasetDialog";
-import { Page } from "../../components/Page";
-import { DatasetsIcon } from "../../components/icons";
+import { Count } from "../../ui/Count";
+import { ImportDatasetButton } from "../../features/datasets/ImportDatasetDialog";
+import { Page } from "../../ui/Page";
+import { DatasetsIcon } from "../../ui/icons";
 import { getDatasets } from "../../functions/datasets";
 import { m } from "../../paraglide/messages";
 

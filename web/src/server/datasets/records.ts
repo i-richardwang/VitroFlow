@@ -9,9 +9,12 @@ import {
   inferenceOutcomes,
   annotations,
 } from "../infra/db/schema";
-import type { DatasetImageRef } from "../../datasets/schema";
-import type { AnnotationDocument } from "../../annotation/schema";
-import type { DetectionQuality, DetectionResult } from "../../detection/schema";
+import type { DatasetImageRef } from "../../domain/datasets/schema";
+import type { AnnotationDocument } from "../../domain/annotation/schema";
+import type {
+  DetectionQuality,
+  DetectionResult,
+} from "../../domain/detection/schema";
 import {
   membershipOrder,
   toDatasetImage,

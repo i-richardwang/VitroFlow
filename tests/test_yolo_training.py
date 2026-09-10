@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from vitroflow.yolo import training
-from vitroflow.yolo.training import (
+from vitroflow.detectors.ultralytics import training
+from vitroflow.detectors.ultralytics.training import (
     DetectionLosses,
     EpochReport,
     YoloTrainingInterruptedError,

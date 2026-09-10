@@ -1,12 +1,15 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { UnitWorkbench } from "../../components/experiment/UnitWorkbench";
-import { unitRefSchema, observationIdSchema } from "../../experiments/schema";
+import { UnitWorkbench } from "../../features/experiments/UnitWorkbench";
+import {
+  unitRefSchema,
+  observationIdSchema,
+} from "../../domain/experiments/schema";
 import { getUnit } from "../../functions/experiments";
-import { useRouteRefresh } from "../../hooks/useRouteRefresh";
+import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
-import type { UnitSeries } from "../../experiments/contracts";
+import type { UnitSeries } from "../../domain/experiments/contracts";
 
 /**
  * An observation the link cannot name is no observation: the newest shows.

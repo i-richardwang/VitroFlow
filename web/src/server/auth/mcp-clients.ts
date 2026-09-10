@@ -1,7 +1,10 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
-import { McpClientNotFoundError } from "../../auth/errors";
-import { mcpClientSchema, type McpClient } from "../../auth/integrations";
+import { McpClientNotFoundError } from "../../domain/auth/errors";
+import {
+  mcpClientSchema,
+  type McpClient,
+} from "../../domain/auth/integrations";
 import { database, transaction } from "../infra/db/client";
 import {
   oauthClients,

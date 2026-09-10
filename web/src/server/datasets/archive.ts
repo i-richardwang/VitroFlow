@@ -1,6 +1,9 @@
-import { storedZip } from "../../archive/zip";
-import { blobEntryName, manifestEntryName } from "../../datasets/archive";
-import { encodeDatasetManifest } from "../../datasets/manifest";
+import { storedZip } from "../../lib/archive/zip";
+import {
+  blobEntryName,
+  manifestEntryName,
+} from "../../domain/datasets/archive-format";
+import { encodeDatasetManifest } from "../../domain/datasets/manifest";
 import { imageBlobKey } from "../images/public";
 import { requireBlob } from "../infra/blobs/store";
 import { readDatasetManifest } from "./transfer";

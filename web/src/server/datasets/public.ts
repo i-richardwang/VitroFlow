@@ -18,8 +18,4 @@ export {
   type ImageSummary,
   type ReviewedRecord,
 } from "./records";
-export {
-  DatasetImportError,
-  importDataset,
-  readDatasetManifest,
-} from "./transfer";
+export { importDataset, readDatasetManifest } from "./transfer";

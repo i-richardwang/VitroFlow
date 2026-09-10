@@ -31,5 +31,14 @@
   "quality_dish_detection_failed": "Petri dish not detected",
   "quality_exposure_clipping": "Exposure clipped",
   "quality_low_focus": "Low focus",
-  "close": "Close"
+  "close": "Close",
+  "error_not_found": "This record no longer exists. Refresh the page and try again.",
+  "error_conflict": "The current state does not allow this action. Refresh the page and try again.",
+  "error_invalid_request": "The submitted data was rejected. Check it and try again.",
+  "error_training_conflict": "Training cannot start or change in the current state. Check the reviewed images and active runs.",
+  "error_training_artifact": "The training artifact does not match the run requirements.",
+  "error_dataset_model": "The images and dataset must use the same model.",
+  "error_image_already_used": "An image is already assigned in this experiment.",
+  "error_experiment_has_records": "This experiment has records that prevent this change.",
+  "error_user_rejected": "This change would affect your own access or leave no usable administrator."
 }

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { resourceIdSchema } from "../identifiers/schema";
+import { resourceIdSchema } from "../domain/identifiers/schema";
 import { publishTrainingArtifact } from "../server/training/public";
 import {
   parseWorkerForm,
@@ -12,7 +12,7 @@ import {
   MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
   MAX_TRAINING_MANIFEST_BYTES,
   MAX_TRAINING_WEIGHTS_BYTES,
-} from "../training/artifact";
+} from "../domain/training/artifact";
 
 function payloadTooLarge(message: string): Response {
   return new Response(message, { status: 413 });

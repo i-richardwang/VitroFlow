@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from vitroflow import worker_command
 from vitroflow.cli import main
-from vitroflow.worker_profiles import WorkerProfile, load_profile, save_profile
+from vitroflow.worker.host import command as worker_command
+from vitroflow.worker.host.profiles import WorkerProfile, load_profile, save_profile
 
 
 def _mock_setup(monkeypatch, *, token: str = "secret") -> list[str]:

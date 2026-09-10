@@ -1,6 +1,6 @@
-import type { Dataset } from "../../datasets/schema";
-import type { Model } from "../../models/schema";
-import type { TrainingSummary } from "../../training/read-model";
+import type { Dataset } from "../../domain/datasets/schema";
+import type { Model } from "../../domain/models/schema";
+import type { TrainingSummary } from "../../domain/training/read-model";
 import {
   readDataset,
   countReviewed,

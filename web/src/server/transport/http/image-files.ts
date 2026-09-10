@@ -1,5 +1,5 @@
-import { imageDigestSchema } from "../../../images/schema";
-import { CANONICAL_IMAGE_MEDIA_TYPE } from "../../../images/canonical";
+import { imageDigestSchema } from "../../../domain/images/schema";
+import { CANONICAL_IMAGE_MEDIA_TYPE } from "../../../domain/images/canonical";
 import { imageBlobKey } from "../../images/public";
 import { openBlob } from "../../infra/blobs/store";
 

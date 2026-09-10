@@ -10,21 +10,26 @@ import httpx
 import pytest
 from conftest import annotation_document, encoded_image, write_blob
 
-from vitroflow import training_worker, worker_session
-from vitroflow.image_io import CANONICAL_EXTENSION
-from vitroflow.training_worker import (
-    TrainingClient,
-    TrainingJob,
-    materialize_snapshot,
-    parse_training_snapshot,
+from vitroflow.detectors.ultralytics import (
+    DetectionLosses,
+    EpochReport,
+    YoloTrainingInterruptedError,
 )
-from vitroflow.worker_session import (
+from vitroflow.io.image_io import CANONICAL_EXTENSION
+from vitroflow.worker import session as worker_session
+from vitroflow.worker import training as training_worker
+from vitroflow.worker.session import (
     LeaseLostError,
     WorkerClient,
     WorkerSession,
     keep_lease,
 )
-from vitroflow.yolo import DetectionLosses, EpochReport, YoloTrainingInterruptedError
+from vitroflow.worker.training import (
+    TrainingClient,
+    TrainingJob,
+    materialize_snapshot,
+    parse_training_snapshot,
+)
 
 PARAMETERS = {
     "epochs": 3,

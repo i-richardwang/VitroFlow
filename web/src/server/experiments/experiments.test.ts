@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
-import { instancesFromDetection } from "../../annotation/detection";
-import { makeResult } from "../../annotation/testing";
+import { instancesFromDetection } from "../../domain/annotation/detection";
+import { makeResult } from "../../domain/annotation/testing";
 import { database } from "../infra/db/client";
 import {
   experimentCultureEvents,
@@ -12,8 +12,8 @@ import {
   experimentObservations,
   inferenceOutcomes,
 } from "../infra/db/schema";
-import type { Worker } from "../../workers/schema";
-import type { ModelVersion } from "../../models/schema";
+import type { Worker } from "../../domain/workers/schema";
+import type { ModelVersion } from "../../domain/models/schema";
 import {
   ModelVersionNotFoundError,
   UnitNotFoundError,
@@ -26,7 +26,7 @@ import {
   ObservationRejectedError,
   TreatmentNotFoundError,
   TreatmentRejectedError,
-} from "../../experiments/errors";
+} from "../../domain/experiments/errors";
 import {
   experimentRequestSchema,
   calendarDaySchema,
@@ -34,7 +34,7 @@ import {
   treatmentRequestSchema,
   type Experiment,
   type ExperimentRequestInput,
-} from "../../experiments/schema";
+} from "../../domain/experiments/schema";
 import { storeAnnotation } from "../annotations/documents";
 import { blobExists } from "../infra/blobs/store";
 import { imageBlobKey } from "../images/keys";
@@ -74,7 +74,7 @@ import {
   readExperimentGrid,
   readExperimentObservationImage,
 } from "./queries";
-import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../models/builtins";
+import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../domain/models/builtins";
 import { listAllModelVersions } from "../models/registry";
 import {
   FIXTURE_EDGE,

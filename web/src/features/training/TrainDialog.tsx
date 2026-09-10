@@ -1,0 +1,141 @@
+import {
+  Alert,
+  Button,
+  Description,
+  Label,
+  Modal,
+  NumberField,
+  toast,
+} from "@heroui/react";
+import { useRouter } from "@tanstack/react-router";
+import { useState } from "react";
+
+import { startTrainingRun } from "../../functions/training";
+import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { m } from "../../paraglide/messages";
+import type { TrainingConsole } from "../../domain/training/read-model";
+import { PARAMETER_FIELDS } from "./parameter-fields";
+import {
+  trainingOverrides,
+  trainingOverridesSchema,
+} from "../../domain/training/parameters";
+import { MIN_SNAPSHOT_IMAGES } from "../../domain/training/schema";
+
+export function TrainDialog({ console }: { console: TrainingConsole }) {
+  const { reviewed, training } = console;
+  const [open, setOpen] = useState(false);
+  const canTrain = reviewed >= MIN_SNAPSHOT_IMAGES && training.active === null;
+
+  return (
+    <>
+      <Button
+        variant="primary"
+        isDisabled={!canTrain}
+        onPress={() => setOpen(true)}
+      >
+        {m.train_button()}
+      </Button>
+      <TrainingModal
+        console={console}
+        isOpen={open}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  );
+}
+
+function TrainingModal({
+  console,
+  isOpen,
+  onClose,
+}: {
+  console: TrainingConsole;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const { dataset, recipe, training } = console;
+  const router = useRouter();
+  const { busy, run } = useAsyncAction();
+  const [overrides, setOverrides] = useState(() =>
+    trainingOverrides(console.recipe.parameters),
+  );
+  const valid = trainingOverridesSchema.safeParse(overrides).success;
+
+  return (
+    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
+      <Modal.Backdrop>
+        <Modal.Container size="md">
+          <Modal.Dialog>
+            <Modal.CloseTrigger aria-label={m.close()} />
+            <Modal.Header>
+              <Modal.Heading>{m.train_dialog_title()}</Modal.Heading>
+              <Description>
+                {recipe.baseModel.reference} · {recipe.runtime.framework}{" "}
+                {recipe.runtime.version}
+              </Description>
+            </Modal.Header>
+            <Modal.Body className="flex flex-col gap-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {PARAMETER_FIELDS.map((field) => (
+                  <NumberField
+                    key={field.key}
+                    variant="secondary"
+                    value={overrides[field.key]}
+                    minValue={field.min}
+                    maxValue={field.max}
+                    step={field.step}
+                    formatOptions={{ maximumFractionDigits: 5 }}
+                    onChange={(value) =>
+                      setOverrides((current) => ({
+                        ...current,
+                        [field.key]: value,
+                      }))
+                    }
+                  >
+                    <Label>{field.label()}</Label>
+                    <NumberField.Group>
+                      <NumberField.DecrementButton />
+                      <NumberField.Input />
+                      <NumberField.IncrementButton />
+                    </NumberField.Group>
+                  </NumberField>
+                ))}
+              </div>
+              {training.workerMemoryBytes === null ? (
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>{m.train_dialog_no_worker()}</Alert.Title>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
+                {m.cancel()}
+              </Button>
+              <Button
+                variant="primary"
+                isDisabled={busy || !valid}
+                onPress={() => {
+                  void run(
+                    () => startTrainingRun({ data: { dataset, overrides } }),
+                    m.train_not_started(),
+                  ).then(async (result) => {
+                    if (result.ok) {
+                      onClose();
+                      toast.success(m.train_queued());
+                      await router.invalidate();
+                    }
+                  });
+                }}
+              >
+                {m.train_button()}
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
+  );
+}

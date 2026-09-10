@@ -1,6 +1,6 @@
 import { createRouter } from "@tanstack/react-router";
 
-import type { Crumb } from "./components/shell";
+import type { Crumb } from "./ui/shell/shell";
 import { routeTree } from "./routeTree.gen";
 
 declare module "@tanstack/react-router" {

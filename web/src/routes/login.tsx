@@ -15,10 +15,13 @@ import {
 import { useState } from "react";
 import { z } from "zod";
 
-import { authClient, continuation } from "../auth/client";
-import { carriesAuthorizationRequest, returnPath } from "../auth/navigation";
-import { BrandLogo } from "../components/BrandLogo";
-import { useAsyncAction } from "../hooks/useAsyncAction";
+import { authClient, continuation } from "../features/account/client";
+import {
+  carriesAuthorizationRequest,
+  returnPath,
+} from "../domain/auth/navigation";
+import { BrandLogo } from "../ui/BrandLogo";
+import { useAsyncAction } from "../ui/hooks/useAsyncAction";
 import { m } from "../paraglide/messages";
 import { readSession, redirect } from "../server/transport/http/session";
 
