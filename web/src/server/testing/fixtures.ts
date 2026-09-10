@@ -15,6 +15,7 @@ import type { Dataset } from "../../domain/datasets/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import type {
   Experiment,
+  ExperimentObservation,
   ObservationImageRef,
 } from "../../domain/experiments/schema";
 import type { RuntimeDescriptor } from "../../domain/inference/schema";
@@ -85,7 +86,6 @@ export async function traditionalVersion(
     schemaVersion: 1,
     id: `${modelId}.${slug}`,
     modelId,
-    name: `Traditional vision ${slug}`,
     createdAt,
     source: { kind: "builtin", definition: slug },
     artifact: { kind: "traditional", digest: "c".repeat(64) },
@@ -104,7 +104,6 @@ export async function registerTrainedVersion(
     schemaVersion: 1,
     id: `${modelId}.${slug}`,
     modelId,
-    name: `YOLO ${slug}`,
     createdAt: "2026-08-27T02:00:00.000Z",
     source: {
       kind: "training_run",
@@ -227,6 +226,7 @@ export async function storeTexts(contents: string[]): Promise<string[]> {
 
 export interface ObservedExperiment {
   experiment: Experiment;
+  observation: ExperimentObservation;
   /** In the order of `contents`. */
   digests: string[];
   /** In the order of `contents`. */
@@ -286,6 +286,7 @@ export async function observeImagesForModel(
   const cells = await listExperimentObservationImages(experiment.id);
   return {
     experiment,
+    observation,
     digests,
     images: contents.map((content) => ({
       experiment: experiment.id,

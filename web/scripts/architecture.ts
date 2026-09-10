@@ -11,7 +11,7 @@ const dependencies: Record<string, readonly string[]> = {
   inference: ["images", "models", "workers", "infra"],
   annotations: ["images", "inference", "models", "infra"],
   datasets: ["images", "inference", "models", "infra"],
-  experiments: ["images", "inference", "models", "infra"],
+  experiments: ["annotations", "images", "inference", "models", "infra"],
   training: ["datasets", "models", "workers", "infra"],
   agent: ["experiments", "models", "infra"],
   queries: [

@@ -4,6 +4,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 
 import { DestructiveActionButton } from "../../ui/DestructiveActionDialog";
 import { ModelDialogButton } from "../../features/models/ModelDialog";
+import { modelRecordsSummary } from "../../features/models/records";
 import { ModelsIcon } from "../../ui/icons";
 import { Page } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
@@ -35,7 +36,6 @@ function ModelsPage() {
             <Table.Header>
               <Table.Column isRowHeader>{m.models_column_model()}</Table.Column>
               <Table.Column>{m.models_column_classes()}</Table.Column>
-              <Table.Column>{m.models_column_versions()}</Table.Column>
               <Table.Column>{m.models_column_records()}</Table.Column>
               <Table.Column className="text-right" aria-label="" />
             </Table.Header>
@@ -53,13 +53,7 @@ function ModelsPage() {
             >
               {entries.map((entry) => {
                 const name = modelName(entry.model);
-                const records =
-                  entry.observationCount + entry.datasetCount === 0
-                    ? m.model_records_none()
-                    : m.model_records_summary({
-                        observations: entry.observationCount,
-                        datasets: entry.datasetCount,
-                      });
+                const held = modelRecordsSummary(entry.records);
                 return (
                   <Table.Row key={entry.model.id}>
                     <Table.Cell>
@@ -68,6 +62,11 @@ function ModelsPage() {
                         <span className="font-mono text-muted">
                           {entry.model.id}
                         </span>
+                        {entry.records.versions === 0 ? (
+                          <Chip variant="soft" size="sm">
+                            {m.model_untrained()}
+                          </Chip>
+                        ) : null}
                       </span>
                     </Table.Cell>
                     <Table.Cell className="text-muted">
@@ -75,20 +74,12 @@ function ModelsPage() {
                         .map((each) => className(each))
                         .join(" · ")}
                     </Table.Cell>
-                    <Table.Cell>
-                      {entry.versionCount === 0 ? (
-                        <Chip variant="soft" size="sm">
-                          {m.model_untrained()}
-                        </Chip>
-                      ) : (
-                        <span className="font-mono tabular-nums">
-                          {entry.versionCount}
-                        </span>
-                      )}
+                    <Table.Cell className="text-muted">
+                      {held ?? m.model_records_none()}
                     </Table.Cell>
-                    <Table.Cell className="text-muted">{records}</Table.Cell>
                     <Table.Cell className="text-right">
                       <DestructiveActionButton
+                        isDisabled={held !== null}
                         label={m.model_delete()}
                         title={m.model_menu_delete({ name })}
                         confirmLabel={m.model_delete()}

@@ -22,10 +22,10 @@ to one number is a choice made afterwards, by whoever is asking.
 ## What an observation declares
 
 An observation declares the date it was made and the model its photographs are
-read for. It does not name a version. Which version has read an image is
-recorded with that image's detection, and the version that reads for a model is
-its newest: a model with none leaves its images for a reviewer, and a model
-trained again reads them all afresh.
+read for. Which version has read an image is recorded with that image's
+detection, and the version that reads for a model is its newest: a model with
+none leaves its images for a reviewer, and a model trained again reads them all
+afresh.
 
 ## Where the numbers come from
 
@@ -68,10 +68,10 @@ Germination therefore reads as two counts under two models:
 | Day 0       | Seed detector     | 20    | Denominator for the unit |
 | Day 14      | Germination model | 15    | Numerator for the day    |
 
-The rate is 15 over 20. Neither model declares a germination rate, and neither
-model needs to recognize more than one class. The germination model may have
-never been trained: day 14 is then counted by the reviewer, and those counts
-are the dataset its first version comes from.
+The rate is 15 over 20. Each model recognizes one class, and the rate belongs to
+the experiment that divides one reading by the other. The germination model may
+have never been trained: day 14 is then counted by the reviewer, and those
+counts are the dataset its first version comes from.
 
 ## Several classes in one reading
 
@@ -92,7 +92,7 @@ behind it.
 
 ## Culture events
 
-A culture event decides whether a unit's reading enters an analysis, and the
-rules are unchanged: contaminated, discarded, and missing exclude the unit from
-the observation that records the event onwards; nonviable and harvested keep it
-included. An excluded unit contributes to no treatment summary.
+A culture event decides whether a unit's reading enters an analysis:
+contaminated, discarded, and missing exclude the unit from the observation that
+records the event onwards; nonviable and harvested keep it included. An excluded
+unit contributes to no treatment summary.

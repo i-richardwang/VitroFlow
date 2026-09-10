@@ -49,7 +49,7 @@ Object creation is conditional. Identical writes are idempotent; content at an e
 
 ## Domain rules
 
-A Model defines the classes detected in an image, and nothing more; what an experiment computes from them belongs to the experiment. A Model exists as soon as it is named, with or without a version: its images are then read by a reviewer, and those reviews are what its first version is trained on. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
+A Model defines the classes detected in an image, and nothing more; what an experiment computes from them belongs to the experiment. A Model exists as soon as it is named, with or without a version: its images are then read by a reviewer, and those reviews are what its first version is trained on. Its identifier is how every record names it, so two Models cannot share one, and its classes are fixed at creation because every review stored for it was drawn from them. A Model is withdrawn only while nothing names it: versions, observations, reviews, datasets, and training runs each hold it in place. The built-in `seed-detector` begins with the bundled traditional model; training publishes additional versions of the same Model.
 
 An Experiment's name is unique across the workbench, compared without regard to case. It records the plant material, explant type, shared base medium, notebook notes, and inoculation date.
 

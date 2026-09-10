@@ -16,16 +16,13 @@ import {
   type ModelVersion,
 } from "../../domain/models/schema";
 import {
+  ModelIdTakenError,
   ModelInUseError,
-  ModelNameTakenError,
   ModelNotFoundError,
 } from "../../domain/models/errors";
 import { database, transaction, type Executor } from "../infra/db/client";
-import {
-  experimentObservations,
-  modelVersions,
-  models,
-} from "../infra/db/schema";
+import { modelVersions, models } from "../infra/db/schema";
+import { heldBy, modelRecordCounts, toModelRecords } from "./records";
 
 /**
  * Model and version rows. Registration is write-once: the same contents again
@@ -50,7 +47,6 @@ export function toModelVersion(
     schemaVersion: 1,
     id: row.id,
     modelId: row.modelId,
-    name: row.name,
     createdAt: row.createdAt.toISOString(),
     source: row.source,
     artifact: row.artifact,
@@ -118,7 +114,7 @@ export async function createModel(value: ModelRequest): Promise<Model> {
   });
   return transaction(async (tx) => {
     if (await readModel(model.id, tx)) {
-      throw new ModelNameTakenError(`Model ${model.id} already exists`);
+      throw new ModelIdTakenError(`Model ${model.id} already exists`);
     }
     return registerModel(model, tx);
   });
@@ -127,27 +123,15 @@ export async function createModel(value: ModelRequest): Promise<Model> {
 /** Forgets a task nothing has recorded against yet. */
 export async function deleteModel(ref: ModelRef): Promise<void> {
   await transaction(async (tx) => {
-    if (!(await readModel(ref.model, tx))) {
-      throw new ModelNotFoundError(`Unknown model: ${ref.model}`);
-    }
-    const [version] = await tx
-      .select({ id: modelVersions.id })
-      .from(modelVersions)
-      .where(eq(modelVersions.modelId, ref.model))
-      .limit(1);
-    if (version) {
+    const [row] = await tx
+      .select({ id: models.id, ...modelRecordCounts(tx, models.id) })
+      .from(models)
+      .where(eq(models.id, ref.model));
+    if (!row) throw new ModelNotFoundError(`Unknown model: ${ref.model}`);
+    const held = heldBy(toModelRecords(row));
+    if (held.length > 0) {
       throw new ModelInUseError(
-        `Model ${ref.model} has trained versions and cannot be deleted`,
-      );
-    }
-    const [observation] = await tx
-      .select({ id: experimentObservations.id })
-      .from(experimentObservations)
-      .where(eq(experimentObservations.modelId, ref.model))
-      .limit(1);
-    if (observation) {
-      throw new ModelInUseError(
-        `Model ${ref.model} is observed by an experiment and cannot be deleted`,
+        `Model ${ref.model} is named by ${held.join(", ")} and cannot be deleted`,
       );
     }
     await tx.delete(models).where(eq(models.id, ref.model));
@@ -161,14 +145,13 @@ export async function registerModelVersion(
   const db = executor ?? (await database());
   const version = modelVersionSchema.parse(value);
   if (!(await readModel(version.modelId, db))) {
-    throw new Error(`Unknown model: ${version.modelId}`);
+    throw new ModelNotFoundError(`Unknown model: ${version.modelId}`);
   }
   const [inserted] = await db
     .insert(modelVersions)
     .values({
       id: version.id,
       modelId: version.modelId,
-      name: version.name,
       createdAt: new Date(version.createdAt),
       source: version.source,
       artifact: version.artifact,

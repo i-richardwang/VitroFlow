@@ -9,7 +9,7 @@ export function errorMessage(error: unknown): string {
       training_run_conflict: m.error_training_conflict,
       training_artifact_validation: m.error_training_artifact,
       dataset_model_mismatch: m.error_dataset_model,
-      model_name_taken: m.error_model_name_taken,
+      model_id_taken: m.error_model_id_taken,
       model_in_use: m.error_model_in_use,
       experiment_observation_image_already_used: m.error_image_already_used,
       experiment_has_records: m.error_experiment_has_records,

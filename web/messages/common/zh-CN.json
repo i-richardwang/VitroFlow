@@ -42,6 +42,6 @@
   "error_image_already_used": "有图像已分配到此实验中。",
   "error_experiment_has_records": "此实验已有记录，无法进行此修改。",
   "error_user_rejected": "此修改会影响你自己的访问权限，或导致没有可用的管理员。",
-  "error_model_name_taken": "已有同标识的模型。",
-  "error_model_in_use": "该模型已有版本或记录，无法删除。"
+  "error_model_id_taken": "该标识已被占用。",
+  "error_model_in_use": "只有尚无任何记录的模型才能删除。"
 }

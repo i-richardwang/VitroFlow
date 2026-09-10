@@ -42,6 +42,6 @@
   "error_image_already_used": "An image is already assigned in this experiment.",
   "error_experiment_has_records": "This experiment has records that prevent this change.",
   "error_user_rejected": "This change would affect your own access or leave no usable administrator.",
-  "error_model_name_taken": "A model with this identifier already exists.",
-  "error_model_in_use": "This model has versions or records and cannot be deleted."
+  "error_model_id_taken": "That identifier is already taken.",
+  "error_model_in_use": "Only a model nothing records against can be deleted."
 }

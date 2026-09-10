@@ -35,7 +35,6 @@ export const SEED_DETECTOR_BASELINE = modelVersionSchema.parse({
   schemaVersion: 1,
   id: SEED_DETECTOR_BASELINE_VERSION_ID,
   modelId: SEED_DETECTOR_MODEL_ID,
-  name: "Traditional vision baseline",
   createdAt: TRADITIONAL_MODEL_MANIFEST.createdAt,
   source: {
     kind: "builtin",

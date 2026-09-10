@@ -63,7 +63,6 @@ function trainedModelVersion(
     schemaVersion: 1,
     id: versionId,
     modelId: run.modelId,
-    name: `YOLO26 ${run.createdAt}`,
     createdAt: run.createdAt,
     source: {
       kind: "training_run",

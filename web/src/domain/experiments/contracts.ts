@@ -71,8 +71,8 @@ export const unitNavigationEntrySchema = z.strictObject({
 export type UnitNavigationEntry = z.infer<typeof unitNavigationEntrySchema>;
 
 /**
- * An observation image with its review for the observation's model. The
- * detection the review carries is the one the observation's version produced.
+ * An observation image with its review for the observation's model, and the
+ * failure to report when the version that reads for that model could not.
  */
 export const experimentObservationImageSchema = z.strictObject({
   ref: observationImageRefSchema,

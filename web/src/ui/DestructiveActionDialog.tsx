@@ -58,14 +58,16 @@ export function DestructiveActionDialog({
   );
 }
 
-/** A button that asks before it acts. */
+/** A button that asks before it acts, and does not ask when it cannot act. */
 export function DestructiveActionButton({
+  isDisabled,
   label,
   title,
   confirmLabel,
   onConfirm,
   children,
 }: {
+  isDisabled?: boolean;
   label: string;
   title: string;
   confirmLabel: string;
@@ -76,7 +78,12 @@ export function DestructiveActionButton({
 
   return (
     <>
-      <Button variant="ghost" size="sm" onPress={() => setOpen(true)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        isDisabled={isDisabled}
+        onPress={() => setOpen(true)}
+      >
         {label}
       </Button>
       <DestructiveActionDialog

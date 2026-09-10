@@ -17,7 +17,6 @@ import {
   experimentTreatments,
   experimentUnits,
   experiments,
-  images,
   inferenceOutcomes,
   modelVersions,
   models,
@@ -46,6 +45,7 @@ import {
   toExperiment,
 } from "./records";
 import { toModel } from "../models/public";
+import { readReview } from "../annotations/public";
 import { newestVersion } from "../inference/public";
 
 function tallyOf(document: SQL | AnyColumn) {
@@ -335,12 +335,10 @@ async function readObservationImage(
   const [row] = await db
     .select({
       observationImage: experimentObservationImages,
-      image: images,
       experiment: experiments,
       unit: experimentUnits,
       model: models,
       outcome: inferenceOutcomes.document,
-      annotation: annotations.document,
     })
     .from(experimentObservationImages)
     .innerJoin(
@@ -353,7 +351,6 @@ async function readObservationImage(
       modelVersions,
       eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
     )
-    .innerJoin(images, eq(images.id, experimentObservationImages.imageId))
     .innerJoin(
       experimentUnits,
       and(
@@ -364,21 +361,21 @@ async function readObservationImage(
         eq(experimentUnits.id, experimentObservationImages.unitId),
       ),
     )
-    .leftJoin(
-      annotations,
-      and(
-        eq(annotations.imageId, experimentObservationImages.imageId),
-        eq(annotations.modelId, experimentObservations.modelId),
-      ),
-    )
     .leftJoin(inferenceOutcomes, atImageOutcome())
     .where(atObservationImage(ref.experiment, ref.observationImage));
   if (!row) return null;
   const experiment = toExperiment(row.experiment);
-  const observation = requireObservation(
-    await listObservations(experiment, db),
-    row.observationImage.observationId,
-  );
+  const [observation, review] = await Promise.all([
+    listObservations(experiment, db).then((observations) =>
+      requireObservation(observations, row.observationImage.observationId),
+    ),
+    readReview(
+      { digest: row.observationImage.imageId, modelId: row.model.id },
+      row.observationImage.filename,
+      db,
+    ),
+  ]);
+  if (!review) return null;
   return {
     ref,
     experimentName: experiment.name,
@@ -389,14 +386,7 @@ async function readObservationImage(
     },
     observation,
     model: toModel(row.model),
-    review: {
-      ref: { digest: row.image.id, modelId: row.model.id },
-      filename: row.observationImage.filename,
-      width: row.image.width,
-      height: row.image.height,
-      detection: row.outcome && "instances" in row.outcome ? row.outcome : null,
-      annotation: row.annotation,
-    },
+    review,
     failure: row.outcome && "error" in row.outcome ? row.outcome : null,
   };
 }

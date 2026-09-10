@@ -25,7 +25,7 @@ function classList(text: string): string[] {
 }
 
 /** Names a task the workbench did not have. */
-export function ModelDialog({
+function ModelDialog({
   isOpen,
   onClose,
 }: {

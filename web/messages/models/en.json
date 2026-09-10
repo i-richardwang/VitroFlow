@@ -1,18 +1,15 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "builtin_model_seed_detector": "Seed detector",
-  "builtin_version_traditional_v1": "Traditional vision baseline",
   "builtin_class_seed": "Seeds",
   "models_title": "Models",
   "models_subtitle": "What the workbench knows how to look for",
   "models_empty": "No models yet",
   "models_column_model": "Model",
   "models_column_classes": "Finds",
-  "models_column_versions": "Versions",
   "models_column_records": "Recorded against",
   "model_untrained": "Untrained",
   "model_records_none": "Nothing yet",
-  "model_records_summary": "{observations} observations · {datasets} datasets",
   "model_new": "New model",
   "model_id_label": "Identifier",
   "model_name_label": "Name",
@@ -23,7 +20,12 @@
   "model_menu_delete": "Delete {name}",
   "model_delete": "Delete",
   "model_deleted": "{name} deleted",
-  "model_delete_prompt": "{name} is deleted for good. Only a model nothing records against can be deleted.",
+  "model_delete_prompt": "{name} is deleted for good.",
   "model_id_placeholder": "germination-detector",
-  "model_classes_placeholder": "seed\ngerminated"
+  "model_classes_placeholder": "seed\ngerminated",
+  "model_records_versions": "{count} versions",
+  "model_records_observations": "{count} observations",
+  "model_records_annotations": "{count} reviews",
+  "model_records_datasets": "{count} datasets",
+  "model_records_training_runs": "{count} training runs"
 }

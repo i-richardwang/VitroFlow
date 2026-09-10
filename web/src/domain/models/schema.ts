@@ -65,7 +65,6 @@ const modelVersionIdentity = {
   schemaVersion: z.literal(1),
   id: resourceIdSchema,
   modelId: resourceIdSchema,
-  name: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
 };
 

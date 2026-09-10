@@ -219,7 +219,6 @@ CREATE TABLE "jwks" (
 CREATE TABLE "model_versions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"model_id" text NOT NULL,
-	"name" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	"source" jsonb NOT NULL,
 	"artifact" jsonb NOT NULL,

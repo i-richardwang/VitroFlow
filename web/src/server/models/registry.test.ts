@@ -8,7 +8,7 @@ import {
 import { SEED_DETECTOR_MODEL_ID } from "../../domain/models/builtins";
 import {
   ModelInUseError,
-  ModelNameTakenError,
+  ModelIdTakenError,
   ModelNotFoundError,
 } from "../../domain/models/errors";
 import {
@@ -20,6 +20,10 @@ import {
   registerModel,
   registerModelVersion,
 } from "./registry";
+import { storeAnnotation } from "../annotations/public";
+import { deleteObservation } from "../experiments/public";
+import { unassignObservationImage } from "../experiments/observation-images";
+import { observeImagesForModel } from "../testing/fixtures";
 
 test("a version is registered once and its contents may not change", async () => {
   const model = await registerModel({
@@ -33,7 +37,6 @@ test("a version is registered once and its contents may not change", async () =>
     schemaVersion: 1 as const,
     id: "registry-detector-v1",
     modelId: model.id,
-    name: "Registry detector v1",
     createdAt: "2026-08-27T00:00:00.000Z",
     source: {
       kind: "builtin" as const,
@@ -53,7 +56,6 @@ test("a version is registered once and its contents may not change", async () =>
       artifact: candidate.artifact,
       source: candidate.source,
       createdAt: candidate.createdAt,
-      name: candidate.name,
       modelId: candidate.modelId,
       id: candidate.id,
       schemaVersion: candidate.schemaVersion,
@@ -89,7 +91,6 @@ test("every registered version is listed newest first", async () => {
     schemaVersion: 1 as const,
     id: `listing-detector-${suffix}`,
     modelId: model.id,
-    name: `Listing detector ${suffix}`,
     createdAt,
     source: { kind: "builtin" as const, definition: `listing-${suffix}` },
     artifact: { kind: "traditional" as const, digest: "d".repeat(64) },
@@ -134,7 +135,7 @@ test("a task exists as soon as it is named, before anything can answer it", asyn
       name: "Something else",
       classes: ["seed"],
     }),
-  ).rejects.toBeInstanceOf(ModelNameTakenError);
+  ).rejects.toBeInstanceOf(ModelIdTakenError);
 });
 
 test("a task nothing records against can be withdrawn", async () => {
@@ -154,4 +155,28 @@ test("a task nothing records against can be withdrawn", async () => {
   await expect(
     deleteModel({ model: SEED_DETECTOR_MODEL_ID }),
   ).rejects.toBeInstanceOf(ModelInUseError);
+});
+
+test("a review outliving its observation still holds its model", async () => {
+  const modelId = "reviewed-detector";
+  await createModel({
+    id: modelId,
+    name: "Reviewed detector",
+    classes: ["seed"],
+  });
+  const observed = await observeImagesForModel(
+    "Reviewed images",
+    ["reviewed"],
+    modelId,
+  );
+  await storeAnnotation({ digest: observed.digests[0]!, modelId }, [], null);
+  await unassignObservationImage(observed.images[0]!);
+  await deleteObservation({
+    experiment: observed.experiment.id,
+    observation: observed.observation.id,
+  });
+
+  await expect(deleteModel({ model: modelId })).rejects.toBeInstanceOf(
+    ModelInUseError,
+  );
 });

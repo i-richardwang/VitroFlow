@@ -11,3 +11,4 @@ export {
   toModel,
   toModelVersion,
 } from "./registry";
+export { modelRecordCounts, toModelRecords } from "./records";

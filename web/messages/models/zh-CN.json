@@ -1,18 +1,15 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "builtin_model_seed_detector": "种子检测",
-  "builtin_version_traditional_v1": "传统视觉基线",
   "builtin_class_seed": "种子",
   "models_title": "模型",
   "models_subtitle": "工作台知道该找什么",
   "models_empty": "还没有模型",
   "models_column_model": "模型",
   "models_column_classes": "识别",
-  "models_column_versions": "版本",
   "models_column_records": "已有记录",
   "model_untrained": "未训练",
   "model_records_none": "暂无",
-  "model_records_summary": "{observations} 个观测日 · {datasets} 个数据集",
   "model_new": "新建模型",
   "model_id_label": "标识",
   "model_name_label": "名称",
@@ -23,7 +20,12 @@
   "model_menu_delete": "删除 {name}",
   "model_delete": "删除",
   "model_deleted": "已删除 {name}",
-  "model_delete_prompt": "{name} 将被永久删除。只有尚无任何记录的模型才能删除。",
+  "model_delete_prompt": "{name} 将被永久删除。",
   "model_id_placeholder": "germination-detector",
-  "model_classes_placeholder": "seed\ngerminated"
+  "model_classes_placeholder": "seed\ngerminated",
+  "model_records_versions": "{count} 个版本",
+  "model_records_observations": "{count} 个观测日",
+  "model_records_annotations": "{count} 条标注",
+  "model_records_datasets": "{count} 个数据集",
+  "model_records_training_runs": "{count} 次训练"
 }

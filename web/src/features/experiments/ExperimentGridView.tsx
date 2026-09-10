@@ -237,8 +237,8 @@ export function ExperimentGridView({
 }
 
 /**
- * The column is the day, and the model only when days do not all read with the
- * same one. The version is how the day is read, not what the grid names.
+ * The column is the day, and the model as well when the days read for more than
+ * one: values in a column are comparable, columns may ask different questions.
  */
 function observationHeading(
   observation: ExperimentObservation,
@@ -246,13 +246,9 @@ function observationHeading(
   models: readonly Model[],
 ): string {
   const day = observationLabel(observation);
-  const modelOf = (item: ExperimentObservation) =>
-    models.find((model) => model.id === item.modelId);
-  const model = modelOf(observation);
-  const first = modelOf(observations[0]!);
-  if (!model || observations.every((item) => modelOf(item)?.id === first?.id)) {
-    return day;
-  }
+  const asked = new Set(observations.map((item) => item.modelId));
+  const model = models.find((item) => item.id === observation.modelId);
+  if (asked.size < 2 || !model) return day;
   return `${day} · ${modelName(model)}`;
 }
 

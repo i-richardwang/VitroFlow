@@ -1,5 +1,5 @@
 {
-  "id": "b7b302fa-2ffa-4136-a071-776ea266ee4a",
+  "id": "b51fa9e0-f42e-457c-8624-44e266c47b37",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1955,12 +1955,6 @@
         },
         "model_id": {
           "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true

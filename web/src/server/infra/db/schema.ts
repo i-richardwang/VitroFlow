@@ -406,7 +406,6 @@ export const modelVersions = pgTable(
     modelId: text("model_id")
       .notNull()
       .references(() => models.id),
-    name: text("name").notNull(),
     createdAt: instant("created_at"),
     source: jsonb("source").$type<ModelVersion["source"]>().notNull(),
     artifact: jsonb("artifact").$type<ModelArtifact>().notNull(),

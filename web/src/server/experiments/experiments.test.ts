@@ -319,7 +319,7 @@ describe("experiments", () => {
     ).toBeFalse();
   });
 
-  test("an observation reads with one registered version", async () => {
+  test("an observation reads for a model the registry holds", async () => {
     const version = await trainedVersion("exp-reading");
     const experiment = await createExperiment({
       name: "Reading",
@@ -499,6 +499,46 @@ describe("experiments", () => {
     const restored = (await readExperimentObservationImage(ref))!;
     expect(restored.review.detection).toEqual(before.review.detection);
     expect(restored.review.annotation).toEqual(before.review.annotation);
+  });
+
+  test("a review begins from the newest version that has read the image", async () => {
+    const first = await trainedVersion("exp-retrained");
+    const experiment = await createExperiment({
+      name: "Retrained",
+      inoculatedOn: INOCULATED,
+    });
+    const units = await unitsOf(experiment.id);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+      ...reading(first),
+    });
+    await assignImages(experiment.id, day7.id, units, {
+      "A-1": "retrained-d7",
+    });
+    const digest = await imageDigest("retrained-d7");
+    const imageOf = async () =>
+      (await readExperimentGrid(experiment.id))!.images.find(
+        (image) => image.digest === digest,
+      )!;
+    const ref = {
+      experiment: experiment.id,
+      observationImage: (await imageOf()).id,
+    };
+    await seedInferenceOutcome(
+      { versionId: first.id, digest },
+      resultFor(first, digest, 3),
+      worker,
+    );
+    const read = (await readExperimentObservationImage(ref))!;
+    expect(read.review.detection?.instances).toHaveLength(3);
+
+    await registerTrainedVersion("exp-retrained", "yolo-v2");
+    expect((await imageOf()).state).toBe("pending");
+    expect(
+      (await readExperimentObservationImage(ref))!.review.detection?.instances,
+    ).toHaveLength(3);
   });
 
   test("an observation can be scheduled before any image exists", async () => {
@@ -1469,7 +1509,7 @@ describe("experiments", () => {
     ).toHaveLength(2);
   });
 
-  test("analyzes images under the observation version and exposes tallies", async () => {
+  test("analyzes images for the observation's model and exposes tallies", async () => {
     const version = await trainedVersion("exp-metrics");
     const experiment = await createExperiment({
       name: "Metrics",
