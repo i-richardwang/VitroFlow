@@ -1,5 +1,6 @@
 import { count, type Tally } from "../models/classes";
-import type { ObservationImageCell } from "./contracts";
+import type { ObservationImageCell, Unit } from "./contracts";
+import { exclusionAt, type ObservationOrdinals } from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 
 /**
@@ -126,4 +127,39 @@ export function summarize(values: readonly number[]): Summary {
             (values.length - 1),
         );
   return { value: mean, deviation, sampleSize: values.length };
+}
+
+/** What a treatment read on one day: its replicates' counts, and their shares. */
+export interface TreatmentSummary {
+  count: Summary;
+  rate: Summary | null;
+}
+
+/**
+ * A treatment on one day, over the replicates the analysis still counts, a
+ * population that exclusions move day by day. Shares average only when every
+ * one of those replicates has one, since a mean over some of them would divide
+ * by a population it never states.
+ */
+export function treatmentSummary(
+  readings: ExperimentReadings,
+  replicates: readonly Unit[],
+  observation: ExperimentObservation,
+  ordinals: ObservationOrdinals,
+): TreatmentSummary {
+  const counted = replicates.flatMap((unit) => {
+    if (exclusionAt(unit.events, observation, ordinals)) return [];
+    const reading = readings.read(unit.id, observation);
+    return reading ? [reading] : [];
+  });
+  const shares = counted.flatMap((reading) =>
+    reading.rate === null ? [] : [reading.rate],
+  );
+  return {
+    count: summarize(counted.map((reading) => reading.count)),
+    rate:
+      counted.length > 0 && shares.length === counted.length
+        ? summarize(shares)
+        : null,
+  };
 }

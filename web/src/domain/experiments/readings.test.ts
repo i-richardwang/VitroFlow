@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import type { ObservationImageCell } from "./contracts";
+import type { ObservationImageCell, Unit } from "./contracts";
+import { observationOrdinals } from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 import {
   baselineObservation,
@@ -8,6 +9,7 @@ import {
   cellTally,
   experimentReadings,
   summarize,
+  treatmentSummary,
 } from "./readings";
 
 function cell(
@@ -228,5 +230,97 @@ describe("summaries", () => {
       deviation: null,
       sampleSize: 0,
     });
+  });
+});
+
+describe("what a treatment read on a day", () => {
+  const sown = observation(1);
+  const later = observation(2);
+  const ordinals = observationOrdinals([sown, later]);
+
+  function treatment(cells: ObservationImageCell[], units: Unit[]) {
+    return (day: ExperimentObservation) =>
+      treatmentSummary(
+        experimentReadings([sown, later], grid(cells)),
+        units,
+        day,
+        ordinals,
+      );
+  }
+
+  /** Two dishes sown with twenty seeds, of which fifteen and ten germinated. */
+  const sownAndGerminated = [
+    cell("A1", sown.id, { detectionTally: { seed: 20 } }),
+    cell("A2", sown.id, { detectionTally: { seed: 20 } }),
+    cell("A1", later.id, { detectionTally: { germinated: 15 } }),
+    cell("A2", later.id, { detectionTally: { germinated: 10 } }),
+  ];
+
+  function unit(id: string, events: Unit["events"] = []): Unit {
+    return { id, code: id, treatment: "control", events };
+  }
+
+  function contaminatedAt(day: ExperimentObservation): Unit["events"] {
+    return [
+      {
+        id: `${day.id}-contamination`,
+        type: "contaminated",
+        observation: day.id,
+        recordedAt: "2026-09-15T00:00:00.000Z",
+      },
+    ];
+  }
+
+  test("means the counts, and the shares behind them", () => {
+    const summary = treatment(sownAndGerminated, [unit("A1"), unit("A2")])(
+      later,
+    );
+    expect(summary.count.value).toBe(12.5);
+    expect(summary.count.sampleSize).toBe(2);
+    expect(summary.rate?.value).toBe(0.625);
+  });
+
+  test("the day that establishes the population means counts alone", () => {
+    const summary = treatment(sownAndGerminated, [unit("A1"), unit("A2")])(
+      sown,
+    );
+    expect(summary.count.value).toBe(20);
+    expect(summary.rate).toBeNull();
+  });
+
+  test("a replicate an event excluded is left out, and uncounted", () => {
+    const summary = treatment(sownAndGerminated, [
+      unit("A1"),
+      unit("A2", contaminatedAt(later)),
+    ])(later);
+    expect(summary.count.value).toBe(15);
+    expect(summary.count.sampleSize).toBe(1);
+    expect(summary.rate?.value).toBe(0.75);
+  });
+
+  test("one replicate without a share leaves the treatment without one", () => {
+    const summary = treatment(
+      [
+        ...sownAndGerminated,
+        cell("A3", later.id, { detectionTally: { germinated: 8 } }),
+      ],
+      [unit("A1"), unit("A2"), unit("A3")],
+    )(later);
+    expect(summary.count.value).toBe(11);
+    expect(summary.count.sampleSize).toBe(3);
+    expect(summary.rate).toBeNull();
+  });
+
+  test("a day nothing has read yet means nothing, over nobody", () => {
+    const summary = treatment(
+      [
+        cell("A1", sown.id, { detectionTally: { seed: 20 } }),
+        cell("A2", sown.id, { detectionTally: { seed: 20 } }),
+      ],
+      [unit("A1"), unit("A2")],
+    )(later);
+    expect(summary.count.value).toBeNull();
+    expect(summary.count.sampleSize).toBe(0);
+    expect(summary.rate).toBeNull();
   });
 });

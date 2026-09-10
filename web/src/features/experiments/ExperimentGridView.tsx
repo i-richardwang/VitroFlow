@@ -36,7 +36,7 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import {
   cellKey,
   experimentReadings,
-  summarize,
+  treatmentSummary,
   type ExperimentReadings,
 } from "../../domain/experiments/readings";
 import { modelName } from "../../ui/model-names";
@@ -331,17 +331,10 @@ function groupSummary(
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
 ): string {
-  const counted = units.flatMap((unit) => {
-    if (!unitIsIncludedInAnalysis(unit.events, observation, ordinals))
-      return [];
-    const reading = readings.read(unit.id, observation);
-    return reading ? [reading] : [];
-  });
-  const rates = counted.map((reading) => reading.rate);
-  if (rates.length > 0 && rates.every((rate) => rate !== null)) {
-    return formatRateSummary(summarize(rates));
-  }
-  return formatCountSummary(summarize(counted.map((item) => item.count)));
+  const summary = treatmentSummary(readings, units, observation, ordinals);
+  return summary.rate
+    ? formatRateSummary(summary.rate)
+    : formatCountSummary(summary.count);
 }
 
 function Cell({

@@ -21,7 +21,7 @@ import {
 import {
   cellKey,
   experimentReadings,
-  summarize,
+  treatmentSummary,
   type ExperimentReadings,
 } from "../../domain/experiments/readings";
 import {
@@ -95,9 +95,8 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
  * event took out of the analysis is named by that event, in place of a number
  * nobody should average.
  *
- * A treatment states the replicates its mean is over, which exclusions move
- * day by day. One dish is not a sample, so a unit leaves that column to the
- * treatment above it.
+ * A treatment states the replicates its mean is over. One dish is not a sample,
+ * so a unit leaves that column to the treatment above it.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,
@@ -286,31 +285,24 @@ function meanRow(
   ];
 }
 
-/**
- * The treatment on one day, over the replicates the analysis still counts.
- * Shares average only when every one of those replicates has one, as on the
- * grid: a mean over some of them would divide by a population it never states.
- */
+/** The treatment's day: what its replicates read, and how many read it. */
 function meanCells(
   replicates: readonly Unit[],
   day: Day,
   readings: ExperimentReadings,
   ordinals: ObservationOrdinals,
 ): WorkbookCell[] {
-  const counted = replicates.flatMap((unit) => {
-    if (exclusionAt(unit.events, day.observation, ordinals)) return [];
-    const reading = readings.read(unit.id, day.observation);
-    return reading ? [reading] : [];
-  });
-  const tally = summarize(counted.map((reading) => reading.count));
-  const shares = counted.flatMap((reading) =>
-    reading.rate === null ? [] : [reading.rate],
+  const summary = treatmentSummary(
+    readings,
+    replicates,
+    day.observation,
+    ordinals,
   );
-  const share =
-    shares.length === counted.length ? summarize(shares).value : null;
+  const share = summary.rate?.value ?? null;
   return dayCells(day, {
-    count: tally.value === null ? blankCell : countCell(tally.value),
+    count:
+      summary.count.value === null ? blankCell : countCell(summary.count.value),
     rate: share === null ? blankCell : rateCell(share),
-    replicates: countCell(tally.sampleSize),
+    replicates: countCell(summary.count.sampleSize),
   });
 }

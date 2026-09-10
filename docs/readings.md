@@ -81,14 +81,21 @@ counts both together, and a day read that way divides by a population equal to
 its own count. Germination is read instead as two counts under two models, as
 above.
 
+## What a treatment reads
+
+A treatment reads its replicates day by day, over the ones the analysis still
+counts — a population culture events move from one day to the next. The mean of
+their counts always reads. The mean of their shares reads only when every
+replicate counted has one, since a mean over some of them would divide by a
+population it never states.
+
 ## What the grid shows
 
 A column is the day, and names the model as well only when the days do not all
 read for the same one. A cell shows the unit's count, and its rate beside it
-where there is one. A treatment's row summarizes its replicates by their rates
-when every replicate counted has one, and by their counts otherwise, in both
-cases as the mean, the sample standard deviation, and the number of replicates
-behind it.
+where there is one. A treatment's row shows its shares where it has them and its
+counts otherwise, as the mean, the sample standard deviation, and the number of
+replicates behind it.
 
 ## What the spreadsheet carries
 
@@ -98,8 +105,7 @@ the day the file was taken. Below that the design repeats down every row —
 treatment, factor, unit — so the table sorts, filters and pivots on it, and each
 observation heads the columns it reads: a count, the replicates behind it, and a
 share as well once a population is established. A treatment's mean stands above
-its replicates, over the ones the analysis still counts, and states how many
-those are — a number exclusions move day by day. One dish is not a sample, so a
+its replicates and states how many it is over. One dish is not a sample, so a
 unit leaves that column to the treatment above it.
 
 Quantities stay quantities and days stay days. A count is a number, a share is
