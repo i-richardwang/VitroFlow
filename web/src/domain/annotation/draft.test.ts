@@ -15,15 +15,8 @@ const other: AnnotationInstance = {
   bbox: { x: 1, y: 1, width: 2, height: 3 },
 };
 
-function opened(
-  opening: AnnotationInstance[],
-  base: AnnotationInstance[] | null,
-): ReturnType<typeof openDraft> {
-  return reduceDraft(openDraft(opening), { type: "base", base });
-}
-
 test("submission preserves one snapshot across queued replacements, undo and redo", () => {
-  const initial = opened([], null);
+  const initial = openDraft(null, []);
   const replaced = reduceDraft(initial, { type: "replace", instances: [box] });
   const saving = reduceDraft(replaced, { type: "submit" });
   for (const action of [
@@ -42,7 +35,7 @@ test("submission preserves one snapshot across queued replacements, undo and red
 });
 
 test("undo and redo change the draft without changing its save base", () => {
-  const initial = opened([box], [box]);
+  const initial = openDraft([box], [box]);
   const replaced = reduceDraft(initial, { type: "replace", instances: [] });
   const undone = reduceDraft(replaced, { type: "undo" });
   expect(undone.instances).toEqual([box]);
@@ -54,28 +47,15 @@ test("undo and redo change the draft without changing its save base", () => {
   ).toBe(initial);
 });
 
-test("an untouched draft takes the stored instances once they are read", () => {
-  const draft = reduceDraft(openDraft([box]), { type: "base", base: [other] });
-  expect(draft.ready).toBe(true);
+test("the fetched annotation is both the edit origin and the save base", () => {
+  const draft = openDraft([other], [box]);
   expect(draft.base).toEqual([other]);
   expect(draft.instances).toEqual([other]);
+  expect(draft.past).toEqual([]);
+  expect(draft.future).toEqual([]);
 });
 
-test("replacements made before the stored instances arrive are kept", () => {
-  const started = openDraft([box]);
-  const replaced = reduceDraft(started, { type: "replace", instances: [] });
-  const draft = reduceDraft(replaced, { type: "base", base: [other] });
-  expect(draft.base).toEqual([other]);
-  expect(draft.instances).toEqual([]);
-});
-
-test("reading the same instances keeps the opening array", () => {
-  const opening = [box];
-  const draft = reduceDraft(openDraft(opening), { type: "base", base: [box] });
-  expect(draft.instances).toBe(opening);
-});
-
-test("submit does nothing until the stored annotation has been read", () => {
-  const started = openDraft([box]);
-  expect(reduceDraft(started, { type: "submit" })).toBe(started);
+test("a first review starts from detections, while an empty saved review stays empty", () => {
+  expect(openDraft(null, [box]).instances).toEqual([box]);
+  expect(openDraft([], [box]).instances).toEqual([]);
 });

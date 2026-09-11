@@ -3,8 +3,6 @@ import type { AnnotationInstance } from "./schema";
 
 /** The unsaved calibration of an image's annotation. */
 export interface AnnotationDraft {
-  /** False until this session has read the stored annotation. */
-  ready: boolean;
   base: AnnotationInstance[] | null;
   instances: AnnotationInstance[];
   past: AnnotationInstance[][];
@@ -13,19 +11,20 @@ export interface AnnotationDraft {
 }
 
 export type DraftAction =
-  | { type: "base"; base: AnnotationInstance[] | null }
   | { type: "replace"; instances: AnnotationInstance[] }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "submit" }
   | { type: "failed" };
 
-/** Opens from the instances on screen. Load the stored annotation next. */
-export function openDraft(opening: AnnotationInstance[]): AnnotationDraft {
+/** A draft begins with the stored base, or detection boxes for a first review. */
+export function openDraft(
+  base: AnnotationInstance[] | null,
+  detection: AnnotationInstance[],
+): AnnotationDraft {
   return {
-    ready: false,
-    base: null,
-    instances: opening,
+    base,
+    instances: base ?? detection,
     past: [],
     future: [],
     saving: false,
@@ -40,24 +39,7 @@ export function reduceDraft(
   if (action.type === "failed") return { ...state, saving: false };
   if (state.saving) return state;
   switch (action.type) {
-    case "base": {
-      if (state.ready) return state;
-      const instances =
-        state.past.length === 0
-          ? (action.base ?? state.instances)
-          : state.instances;
-      return {
-        ...state,
-        ready: true,
-        base: action.base,
-        instances:
-          canonicalJson(instances) === canonicalJson(state.instances)
-            ? state.instances
-            : instances,
-      };
-    }
     case "submit":
-      if (!state.ready) return state;
       return { ...state, saving: true };
     case "replace":
       if (canonicalJson(action.instances) === canonicalJson(state.instances))

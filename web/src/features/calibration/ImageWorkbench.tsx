@@ -1,10 +1,6 @@
 import { useState } from "react";
 
-import {
-  reviewInstances,
-  type Review,
-  type ReviewVersion,
-} from "../../domain/annotation/review";
+import type { Review, ReviewVersion } from "../../domain/annotation/review";
 import type { Model } from "../../domain/models/schema";
 import { Workbench } from "../../ui/shell/Workbench";
 import { ImageViewport } from "../../ui/viewport/ImageViewport";
@@ -48,8 +44,8 @@ export function ImageWorkbench({
       >
         {calibrating ? (
           <Editing
+            key={`${review.ref.modelId}:${review.ref.digest}`}
             {...props}
-            opening={reviewInstances(review)}
             onClose={() => onCalibratingChange(false)}
           />
         ) : (

@@ -75,7 +75,7 @@ A Dataset travels as a manifest and the canonical images it names. The manifest 
 
 ## Scope
 
-The current workbench covers one standardized image per unit and observation, read under one fixed detector version. A reading counts every instance found, whatever class it carries, so a rate separating a response from its population is read as two counts under two versions rather than from one image. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
+The current workbench covers one standardized image per unit and observation, read for one model. A reading counts every instance found, whatever class it carries, so a rate separating a response from its population is read as two counts under two models rather than from one image. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
 ## Source development
 

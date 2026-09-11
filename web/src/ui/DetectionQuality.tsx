@@ -3,14 +3,14 @@ import { Alert, Chip } from "@heroui/react";
 import type { DetectionQuality } from "../domain/detection/schema";
 import { m } from "../paraglide/messages";
 
-const WARNING_LABELS: Record<string, () => string> = {
-  dish_detection_failed: m.quality_dish_detection_failed,
-  exposure_clipping: m.quality_exposure_clipping,
-  low_focus: m.quality_low_focus,
-};
+const WARNING_LABELS: ReadonlyMap<string, () => string> = new Map([
+  ["dish_detection_failed", m.quality_dish_detection_failed],
+  ["exposure_clipping", m.quality_exposure_clipping],
+  ["low_focus", m.quality_low_focus],
+]);
 
 function warningLabel(warning: string): string {
-  return WARNING_LABELS[warning]?.() ?? warning.replaceAll("_", " ");
+  return WARNING_LABELS.get(warning)?.() ?? warning.replaceAll("_", " ");
 }
 
 export function QualityChips({ quality }: { quality: DetectionQuality }) {

@@ -18,11 +18,12 @@ import {
   useEffectEvent,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 
 import { errorMessage } from "../../ui/errors";
-import type { Review } from "../../domain/annotation/review";
+import { reviewInstances, type Review } from "../../domain/annotation/review";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import { instancesFromDetection } from "../../domain/annotation/detection";
 import { getAnnotation, saveAnnotation } from "../../functions/review";
@@ -45,18 +46,77 @@ import { TOOL_SPECS, TOOLS, toolForShortcut, type Tool } from "./controls";
 import { ReviewInspector } from "./ReviewInspector";
 import type { CalibrationViewProps } from "./types";
 
-export function Editing({
+type EditingProps = CalibrationViewProps & {
+  onClose: () => void;
+};
+
+/** Fetch the save base before mounting the editor and its input handlers. */
+export function Editing(props: EditingProps) {
+  const [loaded, setLoaded] = useState<{
+    base: AnnotationInstance[] | null;
+  } | null>(null);
+  const failed = useEffectEvent((cause: unknown) => {
+    toast.danger(m.workbench_open_failed(), {
+      description: errorMessage(cause),
+    });
+    props.onClose();
+  });
+  const { digest, modelId } = props.review.ref;
+  useEffect(() => {
+    let cancelled = false;
+    getAnnotation({ data: { digest, modelId } }).then(
+      (annotation) => {
+        if (!cancelled) setLoaded({ base: annotation?.instances ?? null });
+      },
+      (cause: unknown) => {
+        if (!cancelled) failed(cause);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [digest, modelId]);
+
+  if (loaded) return <Editor {...props} base={loaded.base} />;
+  return (
+    <>
+      <WorkbenchActions>
+        <Button variant="tertiary" onPress={props.onClose}>
+          {m.cancel()}
+        </Button>
+        <Button variant="primary" isPending>
+          {m.workbench_save()}
+        </Button>
+      </WorkbenchActions>
+      <WorkbenchInspector>
+        <ReviewInspector
+          model={props.model}
+          instances={props.review.annotation?.instances ?? null}
+          detection={props.review.detection}
+          display={props.display}
+          details={props.context.details}
+        />
+      </WorkbenchInspector>
+      <BoxLayer
+        image={props.review}
+        instances={reviewInstances(props.review)}
+        layers={props.display.layers}
+      />
+    </>
+  );
+}
+
+function Editor({
   model,
   review,
   display,
   context,
-  opening,
+  base,
   onClose,
-}: CalibrationViewProps & {
-  opening: AnnotationInstance[];
-  onClose: () => void;
+}: EditingProps & {
+  base: AnnotationInstance[] | null;
 }) {
-  const session = useEditing({ model, review, opening, onClose });
+  const session = useEditing({ model, review, base, onClose });
   const { saving } = session;
   return (
     <>
@@ -64,11 +124,7 @@ export function Editing({
         <Button variant="tertiary" isDisabled={saving} onPress={session.close}>
           {m.cancel()}
         </Button>
-        <Button
-          variant="primary"
-          isPending={!session.ready || saving}
-          onPress={session.save}
-        >
+        <Button variant="primary" isPending={saving} onPress={session.save}>
           {saving ? m.workbench_saving() : m.workbench_save()}
         </Button>
         <div inert={saving || undefined} className="contents">
@@ -164,12 +220,12 @@ function reduceSession(state: Session, action: SessionAction): Session {
 }
 
 function useEditing({
-  opening,
+  base,
   review,
   model,
   onClose,
 }: {
-  opening: AnnotationInstance[];
+  base: AnnotationInstance[] | null;
   review: Review;
   model: Model;
   onClose: () => void;
@@ -180,38 +236,16 @@ function useEditing({
     reduceSession,
     undefined,
     (): Session => ({
-      draft: openDraft(opening),
+      draft: openDraft(
+        base,
+        review.detection ? instancesFromDetection(review.detection) : [],
+      ),
       tool: "select",
       panning: false,
       selectedId: null,
       activeClass: model.classes[0]!,
     }),
   );
-
-  const failed = useEffectEvent((cause: unknown) => {
-    toast.danger(m.workbench_open_failed(), {
-      description: errorMessage(cause),
-    });
-    onClose();
-  });
-
-  const { digest, modelId } = review.ref;
-  useEffect(() => {
-    let cancelled = false;
-    getAnnotation({ data: { digest, modelId } }).then(
-      (annotation) => {
-        if (!cancelled) {
-          dispatch({ type: "base", base: annotation?.instances ?? null });
-        }
-      },
-      (cause: unknown) => {
-        if (!cancelled) failed(cause);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [digest, modelId]);
 
   const close = useCallback(() => {
     closing.current = true;
@@ -296,7 +330,7 @@ function useEditing({
   }, []);
 
   const save = useCallback(async () => {
-    if (!draft.ready || draft.saving) return;
+    if (draft.saving) return;
     dispatch({ type: "submit" });
     try {
       const result = await saveAnnotation({
@@ -332,7 +366,6 @@ function useEditing({
   });
 
   return {
-    ready: session.draft.ready,
     saving,
     instances,
     close,

@@ -53,6 +53,15 @@ describe("the workbook a browser downloads", () => {
     );
   });
 
+  test("extended filenames encode punctuation according to RFC 8187", async () => {
+    const filename = "O'Brien (萌发)*.xlsx";
+    const response = await workbookResponse(WORKBOOK, filename);
+    const header = response.headers.get("Content-Disposition")!;
+    const encoded = header.split("filename*=UTF-8''")[1]!;
+    expect(encoded).toBe("O%27Brien%20%28%E8%90%8C%E5%8F%91%29%2A.xlsx");
+    expect(decodeURIComponent(encoded)).toBe(filename);
+  });
+
   test("spells a name out of ASCII for whoever cannot read it", async () => {
     const response = await workbookResponse(WORKBOOK, "萌发试验.xlsx");
     expect(response.headers.get("Content-Disposition")).toBe(

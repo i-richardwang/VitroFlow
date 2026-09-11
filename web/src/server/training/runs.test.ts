@@ -200,7 +200,7 @@ test("a training run owns an immutable self-contained snapshot", async () => {
   await failTrainingRun(run.id, owner("snapshot-trainer"), "stopped");
 });
 
-test("the server publishes a candidate version idempotently without selecting it", async () => {
+test("publication registers one immutable version per training run", async () => {
   const dataset = await reviewedDataset("publish-contract");
   const run = await createTrainingRun("publish-contract", recipe);
   await trainer("publisher");

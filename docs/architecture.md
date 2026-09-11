@@ -34,9 +34,9 @@ Domain exceptions inherit shared categories from `domain/errors.ts` and carry st
 
 ## Calibration lifetime
 
-`features/calibration/ImageWorkbench.tsx` owns one `Workbench` and one `ImageViewport`. Its `Viewing` and `Editing` children fill action, toolbar, and inspector slots and supply the visible box layer. Switching modes never keys or replaces the viewport. Display layers, manual zoom, and pan survive the switch.
+`features/calibration/ImageWorkbench.tsx` owns one `Workbench` and one `ImageViewport`. Its `Viewing` and `Editing` children fill action, toolbar, and inspector slots and supply the visible box layer. The editing subtree is keyed by image and model so a different review loads its own baseline. Switching modes never keys or replaces the viewport. Display layers, manual zoom, and pan survive the switch.
 
-`domain/annotation/draft.ts` owns the pure annotation draft, undo/redo, baseline adoption, and the submission freeze. The editing subtree owns the asynchronous baseline request, save, navigation blocking, selection, and keyboard listeners. Unmounting editing ends that interaction lifetime without resetting the frame. The DOM lifecycle test performs wheel zoom and pointer panning, enters and leaves editing, and verifies both the original image node and its transform remain intact.
+`domain/annotation/draft.ts` owns the pure annotation draft, undo/redo, and the submission freeze. The calibration boundary loads the stored baseline before mounting an editor. A draft is initialized from that baseline (or detections for a first review), so its boxes and save base describe the same starting point. The editor owns save, navigation blocking, selection, and keyboard listeners. Unmounting editing ends that interaction lifetime without resetting the frame. The DOM lifecycle test performs wheel zoom and pointer panning, enters and leaves editing, and verifies both the original image node and its transform remain intact.
 
 ## Python source map
 

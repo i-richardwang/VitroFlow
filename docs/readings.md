@@ -75,11 +75,12 @@ counts are the dataset its first version comes from.
 
 ## Several classes in one reading
 
-A reading counts every instance it found, whatever class each one carries. A
-model that recognizes an individual and its response in one pass therefore
-counts both together, and a day read that way divides by a population equal to
-its own count. Germination is read instead as two counts under two models, as
-above.
+A reading counts every instance it found, whatever class each one carries. It
+does not select one class as the numerator or another as the denominator. A
+model that detects both seeds and shoots therefore contributes both to the
+day's count; the denominator still comes from the unit's baseline photograph.
+Germination uses a seed count at baseline and a germinated-individual count on
+later days, under the two models described above.
 
 ## What a treatment reads
 
@@ -120,5 +121,6 @@ would be.
 
 A culture event decides whether a unit's reading enters an analysis:
 contaminated, discarded, and missing exclude the unit from the observation that
-records the event onwards; nonviable and harvested keep it included. An excluded
-unit contributes to no treatment summary.
+records the event onwards. Nonviable does not exclude a unit. Harvested keeps
+it included on the recorded observation and excludes it from later ones, when
+the unit has left the bench. An excluded unit contributes to no treatment summary.

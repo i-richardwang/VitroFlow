@@ -41,9 +41,9 @@ function handler(
   return selected;
 }
 
-test("training HTTP routes publish one candidate version without selecting it", async () => {
+test("training HTTP routes publish a version and serve its weights idempotently", async () => {
   const datasetId = "training-api";
-  const { version: selected } = await reviewedDataset(datasetId, [
+  const { version: sourceVersion } = await reviewedDataset(datasetId, [
     "first",
     "second",
   ]);
@@ -230,7 +230,7 @@ test("training HTTP routes publish one candidate version without selecting it", 
     }),
   } as never);
   expect(await repeated.json()).toEqual(published);
-  expect(published.modelId).toBe(selected.modelId);
+  expect(published.modelId).toBe(sourceVersion.modelId);
 
   const versionId = published.state.modelVersionId;
   const weights = await handler(

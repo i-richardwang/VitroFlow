@@ -50,7 +50,10 @@ function encode(cell: WorkbookCell): Cell {
  */
 function attachment(filename: string): string {
   const plain = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  const encoded = encodeURIComponent(filename);
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
   return `attachment; filename="${plain}"; filename*=UTF-8''${encoded}`;
 }
 
