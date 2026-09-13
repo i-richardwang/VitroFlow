@@ -59,6 +59,7 @@
     }
   ],
   "experiment_column_treatment": "Treatment",
+  "experiment_column_actions": "Actions",
   "experiment_cell_analyzed": "Detected {value}",
   "experiment_cell_excluded": "Excluded from analysis at this observation",
   "experiment_export": "Export spreadsheet",
@@ -68,7 +69,7 @@
   "workbook_quantity_rate": "Rate",
   "workbook_quantity_replicates": "Replicates",
   "workbook_row_mean": "Mean",
-  "workbook_exported": "Exported",
+  "workbook_exported": "Exported on",
   "image_analysis_pending": "Pending detection",
   "image_analysis_analyzed": "Detected",
   "image_analysis_failed": "Failed",
@@ -123,8 +124,7 @@
   "observation_images_assign_count": "Match {count}",
   "observation_images_unit_label": "Unit shown by {file}",
   "observation_images_unassigned": "Unmatched",
-  "observation_images_fill_in_order": "Assign in order",
-  "observation_images_fill_in_order_hint": "Files in name order fill the open units",
+  "observation_images_fill_in_order": "Match in order",
   "unit_title": "Unit {code} of {experiment}",
   "unit_navigation": "Navigation",
   "unit_no_image": "No image yet",
@@ -147,9 +147,9 @@
   "unit_image_not_replaced": "Image not replaced",
   "unit_menu_edit": "Edit unit…",
   "unit_edit": "Edit unit",
-  "unit_unassign_image": "Remove image",
-  "unit_image_unassigned": "Image removed",
-  "unit_image_not_unassigned": "Image not removed",
+  "unit_unassign_image": "Unmatch image",
+  "unit_image_unassigned": "Image unmatched",
+  "unit_image_not_unassigned": "Image not unmatched",
   "unit_menu_delete": "Delete unit…",
   "unit_delete": "Delete unit",
   "unit_delete_title": "Delete {code}?",
@@ -227,6 +227,6 @@
   "treatment_level_placeholder": "1.0",
   "treatment_unit_label": "Unit",
   "treatment_unit_placeholder": "mg/L",
-  "observation_model_label": "Recognition target",
-  "image_analysis_unread": "Awaiting review"
+  "observation_model_label": "Model",
+  "image_analysis_unread": "Not calibrated yet"
 }

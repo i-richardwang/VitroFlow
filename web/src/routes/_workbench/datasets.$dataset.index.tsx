@@ -1,8 +1,7 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
 import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
-import { Button, Link, Table } from "@heroui/react";
-import { buttonVariants } from "@heroui/styles";
+import { Button, Link, Table, buttonVariants } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
 import { Count } from "../../ui/Count";
@@ -10,11 +9,8 @@ import { QualityChips } from "../../ui/DetectionQuality";
 import { Hint } from "../../ui/Hint";
 import { Page } from "../../ui/Page";
 import { archiveFilename } from "../../domain/datasets/archive-format";
-import {
-  getDatasetOverview,
-  removeFromDataset,
-} from "../../functions/datasets";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { ImageMenu } from "../../features/datasets/ImageMenu";
+import { getDatasetOverview } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
 
@@ -164,7 +160,7 @@ function DatasetPage() {
 }
 
 /**
- * Reviewed boxes read as a plain number; a detection nobody has reviewed yet
+ * Reviewed marks read as a plain number; a detection nobody has reviewed yet
  * reads muted, so the column itself shows which images still need a review.
  */
 function BoxCount({
@@ -187,34 +183,5 @@ function BoxCount({
     <Hint text={m.dataset_detected_count({ count: detected })}>
       <span>{boxes}</span>
     </Hint>
-  );
-}
-
-function ImageMenu({
-  dataset,
-  image,
-}: {
-  dataset: string;
-  image: { digest: string; filename: string };
-}) {
-  const router = useRouter();
-  const action = useAsyncAction();
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      isDisabled={action.busy}
-      aria-label={m.dataset_remove_image({ file: image.filename })}
-      onPress={async () => {
-        const result = await action.run(
-          () => removeFromDataset({ data: { dataset, digest: image.digest } }),
-          m.dataset_image_not_removed(),
-        );
-        if (result.ok) await router.invalidate();
-      }}
-    >
-      {m.dataset_remove()}
-    </Button>
   );
 }

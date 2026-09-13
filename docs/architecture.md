@@ -34,9 +34,9 @@ Domain exceptions inherit shared categories from `domain/errors.ts` and carry st
 
 ## Calibration lifetime
 
-`features/calibration/ImageWorkbench.tsx` owns one `Workbench` and one `ImageViewport`. Its `Viewing` and `Editing` children fill action, toolbar, and inspector slots and supply the visible box layer. The editing subtree is keyed by image and model so a different review loads its own baseline. Switching modes never keys or replaces the viewport. Display layers, manual zoom, and pan survive the switch.
+`features/calibration/ImageWorkbench.tsx` owns one `Workbench` and one `ImageViewport`. Calibration is session state on that frame: the same viewport stays mounted while the workbench loads the stored annotation, draws a draft, and returns to the stored review. Display layers, manual zoom, and pan survive the switch.
 
-`domain/annotation/draft.ts` owns the pure annotation draft, undo/redo, and the submission freeze. The calibration boundary loads the stored baseline before mounting an editor. A draft is initialized from that baseline (or detections for a first review), so its boxes and save base describe the same starting point. The editor owns save, navigation blocking, selection, and keyboard listeners. Unmounting editing ends that interaction lifetime without resetting the frame. The DOM lifecycle test performs wheel zoom and pointer panning, enters and leaves editing, and verifies both the original image node and its transform remain intact.
+`domain/annotation/draft.ts` owns the pure annotation draft, undo/redo, and the submission freeze. The frame is idle until asked to calibrate, loading until the stored annotation matches this image and model, then a draft with shortcuts and leave-blocking. A draft is initialized from that baseline (or detections for a first review), so its instances and save base describe the same starting point. Until the fetch completes, Save stays pending and the on-screen marks remain the current review. A cancelled fetch or a different model must not inherit another review's baseline. The DOM lifecycle test performs wheel zoom and pointer panning, enters and leaves calibration, and verifies both the original image node and its transform remain intact.
 
 ## Python source map
 

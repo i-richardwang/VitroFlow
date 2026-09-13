@@ -113,13 +113,9 @@ mock.module("@heroui/react", () => ({
 mock.module("@heroui-pro/react/inline-select", () => ({
   InlineSelect: widget,
 }));
-let editorRenders = 0;
 mock.module("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: async () => {} }),
-  useBlocker: () => {
-    editorRenders++;
-    return { status: "idle" };
-  },
+  useBlocker: () => ({ status: "idle" }),
 }));
 mock.module("../src/ui/shell/shell", () => ({
   ShellActions: Widget,
@@ -141,6 +137,7 @@ mock.module("../src/functions/review", () => ({
 const { ImageWorkbench } =
   await import("../src/features/calibration/ImageWorkbench");
 const { SEED_DETECTOR } = await import("../src/domain/models/builtins");
+const { m } = await import("../src/paraglide/messages");
 const imageSize = { digest: "a".repeat(64), width: 1000, height: 800 };
 const annotation = {
   schemaVersion: 1 as const,
@@ -164,23 +161,28 @@ const review = {
 const mount = browser.document.createElement("div");
 browser.document.body.append(mount);
 const root = createRoot(mount as unknown as HTMLElement);
-const render = async (editing: boolean, model = SEED_DETECTOR) => {
+const render = async (calibrating: boolean, model = SEED_DETECTOR) => {
   await act(async () => {
     root.render(
       createElement(ImageWorkbench, {
         title: "Seed",
         model,
         review: { ...review, ref: { ...review.ref, modelId: model.id } },
-        calibrating: editing,
+        calibrating,
         onCalibratingChange() {},
       }),
     );
   });
 };
+const labeled = (text: string) =>
+  Array.from(mount.querySelectorAll("button")).find(
+    (button) => button.textContent === text,
+  );
 await render(false);
 const image = mount.querySelector("img")!;
 const surface = image.parentElement! as import("happy-dom").HTMLElement;
 const frame = surface.parentElement!;
+const boxes = () => surface.querySelectorAll("rect[vector-effect]").length;
 const initial = surface.style.transform;
 await act(async () => {
   frame.dispatchEvent(
@@ -196,7 +198,6 @@ await act(async () => {
 });
 const zoomed = surface.style.transform;
 assert.notEqual(zoomed, initial, "the wheel must establish a manual view");
-// Use the same pointer gestures as the mounted viewport, including pointer capture.
 frame.setPointerCapture = () => {};
 frame.releasePointerCapture = () => {};
 await act(async () => {
@@ -237,15 +238,17 @@ assert.ok(
   mount.querySelector("aside"),
   "loading must retain the inspector layout slot",
 );
-assert.equal(editorRenders, 0, "loading must not mount the editing session");
+assert.ok(labeled(m.workbench_save())?.disabled, "loading must pending Save");
+assert.equal(labeled(m.workbench_calibrate()), undefined);
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(surface.style.transform, manual);
+assert.equal(boxes(), 1);
 await act(async () => {
   browser.document.dispatchEvent(
     new browser.KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
   );
 });
-assert.equal(editorRenders, 0);
+assert.equal(boxes(), 1, "loading must not attach keyboard handlers");
 const latest = {
   ...annotation,
   instances: [
@@ -260,17 +263,10 @@ const latest = {
 await act(async () => {
   resolveAnnotation?.(latest);
 });
-assert.ok(editorRenders > 0);
-assert.equal(
-  surface.querySelectorAll("rect[vector-effect]").length,
-  2,
-  "editing must display the fetched annotation",
-);
-const { m } = await import("../src/paraglide/messages");
-const save = Array.from(mount.querySelectorAll("button")).find(
-  (button) => button.textContent === m.workbench_save(),
-);
+assert.equal(boxes(), 2, "calibration must display the fetched annotation");
+const save = labeled(m.workbench_save());
 assert.ok(save);
+assert.equal(save.disabled, false);
 await act(async () => {
   save.click();
 });
@@ -283,63 +279,62 @@ assert.deepEqual(
 assert.strictEqual(
   mount.querySelector("img"),
   image,
-  "editing must retain the image DOM node",
+  "calibration must retain the image DOM node",
 );
 assert.strictEqual(
   surface.style.transform,
   manual,
-  "editing must preserve scale and pan",
+  "calibration must preserve scale and pan",
 );
-assert.equal(observed, 1, "editing must not remount the viewport");
+assert.equal(observed, 1, "calibration must not remount the viewport");
 assert.equal(disconnected, 0);
 await render(false);
+assert.ok(labeled(m.workbench_calibrate()));
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(
   surface.style.transform,
   manual,
-  "leaving editing must preserve scale and pan",
+  "leaving calibration must preserve scale and pan",
 );
 assert.equal(observed, 1);
-const previousRenders = editorRenders;
 await render(true);
-assert.equal(editorRenders, previousRenders);
+assert.ok(labeled(m.workbench_save())?.disabled);
 await render(false);
 await act(async () => {
   resolveAnnotation?.(latest);
 });
-assert.equal(
-  editorRenders,
-  previousRenders,
-  "a cancelled load must not start an editor",
+assert.ok(
+  labeled(m.workbench_calibrate()),
+  "a cancelled load must not start a session",
 );
+assert.equal(boxes(), 1);
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(surface.style.transform, manual);
 await render(true);
 await act(async () => {
   resolveAnnotation?.(latest);
 });
-const beforeModelChange = editorRenders;
+assert.equal(boxes(), 2);
 const otherModel = {
   ...SEED_DETECTOR,
   id: "another-model",
   name: "Another model",
 };
 await render(true, otherModel);
-assert.equal(
-  editorRenders,
-  beforeModelChange,
+assert.ok(
+  labeled(m.workbench_save())?.disabled,
   "a different model must load its own baseline",
 );
+assert.equal(boxes(), 1);
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(surface.style.transform, manual);
 await act(async () => {
   resolveAnnotation?.(null);
 });
-assert.ok(editorRenders > beforeModelChange);
-const otherSave = Array.from(mount.querySelectorAll("button")).find(
-  (button) => button.textContent === m.workbench_save(),
-);
+assert.equal(boxes(), 0);
+const otherSave = labeled(m.workbench_save());
 assert.ok(otherSave);
+assert.equal(otherSave.disabled, false);
 await act(async () => {
   otherSave.click();
 });
@@ -353,6 +348,4 @@ assert.equal(observed, 1);
 await act(async () => root.unmount());
 assert.equal(disconnected, 1);
 await browser.happyDOM.close();
-console.log(
-  "Calibration retains one viewport across viewing/editing transitions",
-);
+console.log("Calibration retains one viewport");

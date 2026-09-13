@@ -7,8 +7,8 @@ where each part of that calculation lives.
 ## What a model declares
 
 A model declares the classes it recognizes and nothing else. Classes are the
-model's identity: the annotation editor offers them as the class of a new box,
-the YOLO export indexes labels by them, dataset transfer requires both ends to
+model's identity: calibration offers them as the class of a new mark, the
+YOLO export indexes labels by them, dataset transfer requires both ends to
 agree on them, and a training snapshot freezes them alongside the images.
 
 A model is the question, not the machine that answers it. It exists as soon as
@@ -56,7 +56,7 @@ denominator: its counts still read, and its rates are empty. No unit borrows
 another unit's denominator.
 
 The denominator is derived on every read rather than copied into a column. A
-reviewer who finds a missed individual in the baseline photograph draws the box
+reviewer who finds a missed individual in the baseline photograph marks the one
 that was missing, and every rate in that unit's series corrects itself. A copied
 number would keep the old denominator with nothing to announce that it had gone
 stale.

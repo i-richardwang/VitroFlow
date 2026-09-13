@@ -153,27 +153,10 @@ export function MoreIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function EditIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M11.5 2.5l2 2L5 13H3v-2z" />
-    </Icon>
-  );
-}
-
 export function CloseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
       <path d="M4 4l8 8M12 4l-8 8" />
-    </Icon>
-  );
-}
-
-export function EventIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M8 5.5V8l2 1.5" />
     </Icon>
   );
 }

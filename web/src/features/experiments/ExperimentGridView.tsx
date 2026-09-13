@@ -1,6 +1,5 @@
 import { DataGrid, type DataGridColumn } from "@heroui-pro/react/data-grid";
-import { Button, Link, Tooltip } from "@heroui/react";
-import { buttonVariants } from "@heroui/styles";
+import { Button, Link, Tooltip, buttonVariants } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState, type ReactElement } from "react";
 import type { Selection } from "react-aria-components/Table";
@@ -24,10 +23,9 @@ import {
   unitIsAvailableAt,
   unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
-import {
-  formatFactor,
-  type ExperimentObservation,
-  type Treatment,
+import type {
+  ExperimentObservation,
+  Treatment,
 } from "../../domain/experiments/schema";
 import { observationLabel } from "./labels";
 import type { Model } from "../../domain/models/schema";
@@ -91,11 +89,6 @@ export function ExperimentGridView({
           <span className="flex items-center gap-2">
             <TreatmentDot position={row.treatment.position} />
             <span className="truncate font-medium">{row.treatment.name}</span>
-            {row.treatment.factor ? (
-              <span className="truncate text-muted">
-                {formatFactor(row.treatment.factor)}
-              </span>
-            ) : null}
           </span>
         ) : (
           <Link
@@ -164,7 +157,7 @@ export function ExperimentGridView({
             deletable={treatments.length > 1}
           />
         ) : null,
-      header: "",
+      header: <span className="sr-only">{m.experiment_column_actions()}</span>,
       id: "actions",
       pinned: "end",
       width: 50,
@@ -173,6 +166,7 @@ export function ExperimentGridView({
 
   return (
     <Page
+      width="full"
       title={experiment.name}
       description={[
         experiment.plantMaterial,
@@ -184,9 +178,9 @@ export function ExperimentGridView({
       actions={
         <>
           <Link
-            className={buttonVariants({ variant: "secondary" })}
             href={`/experiments/${experiment.id}/workbook`}
             download={experimentWorkbookFilename(experiment)}
+            className={buttonVariants({ variant: "secondary" })}
           >
             {m.experiment_export()}
           </Link>

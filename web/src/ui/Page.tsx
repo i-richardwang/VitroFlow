@@ -5,14 +5,22 @@ export function Page({
   description,
   actions,
   children,
+  width = "readable",
 }: {
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
+  width?: "readable" | "full";
 }) {
   return (
-    <div className="mx-auto w-full max-w-5xl px-8 pt-10 pb-12">
+    <div
+      className={
+        width === "full"
+          ? "w-full px-8 pt-10 pb-12"
+          : "mx-auto w-full max-w-5xl px-8 pt-10 pb-12"
+      }
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>

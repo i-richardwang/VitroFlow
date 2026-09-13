@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-test("viewing/editing transitions retain the mounted viewport's manual zoom and pan", async () => {
+test("calibration retains the mounted viewport's manual zoom and pan", async () => {
   const child = Bun.spawn(
     [Bun.which("bun")!, "test/calibration-lifecycle.tsx"],
     { stdout: "pipe", stderr: "pipe" },

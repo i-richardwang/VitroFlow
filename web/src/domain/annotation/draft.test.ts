@@ -47,7 +47,7 @@ test("undo and redo change the draft without changing its save base", () => {
   ).toBe(initial);
 });
 
-test("the fetched annotation is both the edit origin and the save base", () => {
+test("the fetched annotation is both the calibration origin and the save base", () => {
   const draft = openDraft([other], [box]);
   expect(draft.base).toEqual([other]);
   expect(draft.instances).toEqual([other]);

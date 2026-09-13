@@ -8,7 +8,7 @@ import type {
   Treatment,
 } from "../../domain/experiments/schema";
 import { m } from "../../paraglide/messages";
-import { CloseIcon, EditIcon, EventIcon } from "../../ui/icons";
+import { CloseIcon } from "../../ui/icons";
 import { MoveUnitsDialog } from "./MoveUnitsDialog";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 
@@ -51,10 +51,7 @@ export function UnitSelectionBar({
             isDisabled={observations.length === 0}
             onPress={() => setOpen("record")}
           >
-            <EventIcon />
-            <span className="action-bar__label">
-              {m.culture_event_record_action()}
-            </span>
+            {m.culture_event_record_action()}
           </Button>
           <Button
             size="sm"
@@ -62,10 +59,7 @@ export function UnitSelectionBar({
             isDisabled={treatments.length < 2}
             onPress={() => setOpen("move")}
           >
-            <EditIcon />
-            <span className="action-bar__label">
-              {m.experiment_move_units()}
-            </span>
+            {m.experiment_move_units()}
           </Button>
         </ActionBar.Content>
         <Separator />

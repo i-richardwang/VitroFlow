@@ -17,6 +17,7 @@
   "dataset_column_boxes": "标记",
   "dataset_column_quality": "质量",
   "dataset_column_actions": "操作",
+  "dataset_menu_label": "{file}的操作",
   "dataset_empty_images": "还没有图片",
   "dataset_detected_count": "检测到 {count}",
   "dataset_boxes_unreviewed": "检测结果，未校准",

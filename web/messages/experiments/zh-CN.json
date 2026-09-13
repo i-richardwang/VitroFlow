@@ -59,13 +59,14 @@
     }
   ],
   "experiment_column_treatment": "处理",
+  "experiment_column_actions": "操作",
   "experiment_cell_analyzed": "检测 {value}",
   "experiment_cell_excluded": "本次观测不计入分析",
   "experiment_export": "导出表格",
-  "workbook_column_factor": "因素",
+  "workbook_column_factor": "因子",
   "workbook_column_unit": "试验单元",
   "workbook_quantity_count": "计数",
-  "workbook_quantity_rate": "率",
+  "workbook_quantity_rate": "比率",
   "workbook_quantity_replicates": "重复数",
   "workbook_row_mean": "均值",
   "workbook_exported": "导出日期",
@@ -101,8 +102,7 @@
   "observation_images_assign_count": "对应 {count} 张",
   "observation_images_unit_label": "{file} 对应的试验单元",
   "observation_images_unassigned": "未对应",
-  "observation_images_fill_in_order": "自动分配",
-  "observation_images_fill_in_order_hint": "按文件名顺序依次对应到空着的试验单元",
+  "observation_images_fill_in_order": "按顺序对应",
   "unit_title": "{experiment} 的试验单元 {code}",
   "unit_navigation": "导航",
   "unit_no_image": "还没有图片",
@@ -192,6 +192,6 @@
   "treatment_level_placeholder": "1.0",
   "treatment_unit_label": "单位",
   "treatment_unit_placeholder": "mg/L",
-  "observation_model_label": "识别目标",
-  "image_analysis_unread": "待标注"
+  "observation_model_label": "模型",
+  "image_analysis_unread": "未校准"
 }

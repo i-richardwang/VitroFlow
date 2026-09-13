@@ -1,14 +1,14 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Chip, Table, toast } from "@heroui/react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Table } from "@heroui/react";
+import { createFileRoute } from "@tanstack/react-router";
 
-import { DestructiveActionButton } from "../../ui/DestructiveActionDialog";
 import { ModelDialogButton } from "../../features/models/ModelDialog";
+import { ModelMenu } from "../../features/models/ModelMenu";
 import { modelRecordsSummary } from "../../features/models/records";
 import { ModelsIcon } from "../../ui/icons";
 import { Page } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
-import { getModelCatalogue, removeModel } from "../../functions/models";
+import { getModelCatalogue } from "../../functions/models";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/models/")({
@@ -22,22 +22,21 @@ export const Route = createFileRoute("/_workbench/models/")({
 
 function ModelsPage() {
   const entries = Route.useLoaderData();
-  const router = useRouter();
 
   return (
-    <Page
-      title={m.models_title()}
-      description={m.models_subtitle()}
-      actions={<ModelDialogButton />}
-    >
+    <Page title={m.models_title()} actions={<ModelDialogButton />}>
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label={m.models_title()}>
             <Table.Header>
               <Table.Column isRowHeader>{m.models_column_model()}</Table.Column>
+              <Table.Column>{m.model_id_label()}</Table.Column>
               <Table.Column>{m.models_column_classes()}</Table.Column>
               <Table.Column>{m.models_column_records()}</Table.Column>
-              <Table.Column className="text-right" aria-label="" />
+              <Table.Column
+                className="text-right"
+                aria-label={m.models_column_actions()}
+              />
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -52,22 +51,14 @@ function ModelsPage() {
               )}
             >
               {entries.map((entry) => {
-                const name = modelName(entry.model);
                 const held = modelRecordsSummary(entry.records);
                 return (
                   <Table.Row key={entry.model.id}>
-                    <Table.Cell>
-                      <span className="flex items-center gap-2">
-                        <span className="font-medium">{name}</span>
-                        <span className="font-mono text-muted">
-                          {entry.model.id}
-                        </span>
-                        {entry.records.versions === 0 ? (
-                          <Chip variant="soft" size="sm">
-                            {m.model_untrained()}
-                          </Chip>
-                        ) : null}
-                      </span>
+                    <Table.Cell className="font-medium">
+                      {modelName(entry.model)}
+                    </Table.Cell>
+                    <Table.Cell className="font-mono text-muted">
+                      {entry.model.id}
                     </Table.Cell>
                     <Table.Cell className="text-muted">
                       {entry.model.classes
@@ -78,21 +69,7 @@ function ModelsPage() {
                       {held ?? m.model_records_none()}
                     </Table.Cell>
                     <Table.Cell className="text-right">
-                      <DestructiveActionButton
-                        isDisabled={held !== null}
-                        label={m.model_delete()}
-                        title={m.model_menu_delete({ name })}
-                        confirmLabel={m.model_delete()}
-                        onConfirm={async () => {
-                          await removeModel({
-                            data: { model: entry.model.id },
-                          });
-                          toast.success(m.model_deleted({ name }));
-                          await router.invalidate();
-                        }}
-                      >
-                        {m.model_delete_prompt({ name })}
-                      </DestructiveActionButton>
+                      {held ? null : <ModelMenu model={entry.model} />}
                     </Table.Cell>
                   </Table.Row>
                 );

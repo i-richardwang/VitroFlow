@@ -162,7 +162,7 @@ describe("the experiment workbook", () => {
         { kind: "date", date: new Date(Date.UTC(2026, 8, 1)) },
       ],
       [
-        { kind: "text", text: "Exported", strong: true },
+        { kind: "text", text: "Exported on", strong: true },
         { kind: "date", date: new Date(Date.UTC(2026, 8, 20)) },
       ],
       [],

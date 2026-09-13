@@ -10,7 +10,6 @@ import type { ExperimentObservation } from "../../domain/experiments/schema";
 import { assignImagesToObservation } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { Hint } from "../../ui/Hint";
 import { ImageDropZone } from "../upload/ImageDropZone";
 import type { ListedImage } from "../upload/state";
 import { useUploads } from "../upload/useUploads";
@@ -184,16 +183,14 @@ export function AssignImagesDialog({
                   )}
                 />
                 {unassigned > 0 ? (
-                  <Hint text={m.observation_images_fill_in_order_hint()}>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      isDisabled={busy || vacantLeft <= 0}
-                      onPress={fillInOrder}
-                    >
-                      {m.observation_images_fill_in_order()}
-                    </Button>
-                  </Hint>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    isDisabled={busy || vacantLeft <= 0}
+                    onPress={fillInOrder}
+                  >
+                    {m.observation_images_fill_in_order()}
+                  </Button>
                 ) : null}
                 {unassigned > 0 ? (
                   <Alert status="warning">
