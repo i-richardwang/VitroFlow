@@ -67,3 +67,23 @@ vitroflow dataset export-yolo \
 ```
 
 `vitroflow recognize` runs the bundled traditional detector over a pulled dataset, and `vitroflow traditional evaluate` and `vitroflow traditional train` score and retrain its candidate scorer from reviewed annotations.
+
+## Standalone visual annotation
+
+`vitroflow annotate` prepares portable image tasks, validates a visual agent's
+complete annotation responses, and collects AI boxes, unresolved regions, overlays,
+and execution records. Each region needs one submission; a `result.json` can be
+passed directly as `--prelabels` to a new round. The file protocol supports
+different agent runtimes; the CLI does not call a model itself.
+It runs on macOS/Linux without the `yolo` extra or a workbench connection.
+
+```bash
+vitroflow annotate plan --image photo.jpg
+vitroflow annotate prepare --image photo.jpg --output output/annotation-task
+vitroflow annotate status --run output/annotation-task
+# Give the task directory and its INSTRUCTIONS.md to a vision-capable agent.
+vitroflow annotate collect --run output/annotation-task --output output/annotation-result
+```
+
+Source development instructions, input formats, checkpoint recovery and result
+semantics are in [the annotation guide](https://github.com/i-richardwang/VitroFlow/blob/main/docs/autoannotation.md).

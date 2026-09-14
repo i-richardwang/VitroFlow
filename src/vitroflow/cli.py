@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 
+from vitroflow.autoannotation.command import add_annotation_commands
 from vitroflow.datasets.annotations import load_annotations
 from vitroflow.datasets.manifest import (
     DatasetManifest,
@@ -289,6 +290,7 @@ def _parser() -> argparse.ArgumentParser:
     export_yolo.add_argument("--seed", type=int, default=0)
     export_yolo.set_defaults(handler=_export_yolo)
 
+    add_annotation_commands(commands)
     add_worker_commands(commands)
     return parser
 

@@ -69,6 +69,7 @@ packages = ["src/vitroflow"]
 include = [
   "/configs",
   "/docs/package.md",
+  "/docs/autoannotation.md",
   "/LICENSE",
   "/README.md",
   "/pyproject.toml",
