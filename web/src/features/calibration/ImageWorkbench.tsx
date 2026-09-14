@@ -17,6 +17,7 @@ import {
 } from "../../ui/shell/Workbench";
 import { ImageViewport } from "../../ui/viewport/ImageViewport";
 import { BoxLayer, EditableBoxLayer } from "./BoxLayer";
+import { AiAnnotation } from "./AiAnnotation";
 import { ReviewInspector } from "./ReviewInspector";
 import { useCalibrationSession } from "./session";
 import { CalibrationTools, DiscardDraftDialog } from "./tools";
@@ -119,6 +120,13 @@ export function ImageWorkbench({
         </WorkbenchToolbar>
       ) : null}
       <WorkbenchInspector>
+        {ready ? (
+          <AiAnnotation
+            key={`${review.ref.digest}/${review.ref.modelId}`}
+            reference={review.ref}
+            calibration={ready}
+          />
+        ) : null}
         <ReviewInspector
           model={model}
           instances={ready?.instances ?? review.annotation?.instances ?? null}

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { annotationRuntimeSchema } from "../annotation-runs/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
 
@@ -25,6 +26,7 @@ export const workerHeartbeatSchema = workerIdentitySchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
+    annotationRuntime: annotationRuntimeSchema.nullable().optional(),
     /** Memory the accelerator offers a job. */
     memoryBytes: z.number().int().positive(),
   })
@@ -37,7 +39,8 @@ export const workerSchema = workerHeartbeatSchema
 /** What a worker is doing: the lease it holds, named for the workbench. */
 export type WorkerActivity =
   | { kind: "inference"; image: string }
-  | { kind: "training"; runId: string; dataset: string };
+  | { kind: "training"; runId: string; dataset: string }
+  | { kind: "annotation"; runId: string; image: string };
 
 export type WorkerIdentity = z.infer<typeof workerIdentitySchema>;
 export type WorkerHeartbeat = z.infer<typeof workerHeartbeatSchema>;

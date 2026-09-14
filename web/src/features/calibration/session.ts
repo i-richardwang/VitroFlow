@@ -39,6 +39,7 @@ type SessionAction =
       detection: AnnotationInstance[];
       activeClass: string;
     }
+  | { type: "load-instances"; instances: AnnotationInstance[] }
   | { type: "stop" }
   | { type: "tool"; tool: Tool }
   | { type: "panning"; panning: boolean }
@@ -61,6 +62,17 @@ function reduceSession(
   }
   if (action.type === "stop" || state === null) return null;
   switch (action.type) {
+    case "load-instances":
+      return state.draft.saving
+        ? state
+        : {
+            ...state,
+            selectedId: null,
+            draft: reduceDraft(state.draft, {
+              type: "replace",
+              instances: action.instances,
+            }),
+          };
     case "tool":
       return { ...state, tool: action.tool };
     case "panning":
@@ -82,6 +94,8 @@ export type Calibration =
       close: () => void;
       save: () => Promise<void>;
       saving: boolean;
+      base: AnnotationInstance[] | null;
+      loadInstances: (instances: AnnotationInstance[]) => void;
       instances: AnnotationInstance[];
       tool: Tool;
       panning: boolean;
@@ -244,12 +258,17 @@ export function useCalibrationSession({
     [instances, replaceInstances, selected],
   );
 
+  const loadInstances = useCallback(
+    (next: AnnotationInstance[]) =>
+      dispatch({ type: "load-instances", instances: next }),
+    [],
+  );
+
   const { detection } = review;
   const restartFromDetection = useCallback(() => {
     if (!detection) return;
-    replaceInstances(instancesFromDetection(detection));
-    dispatch({ type: "selectedId", selectedId: null });
-  }, [detection, replaceInstances]);
+    loadInstances(instancesFromDetection(detection));
+  }, [detection, loadInstances]);
 
   const clearSelection = useCallback(() => {
     dispatch({ type: "selectedId", selectedId: null });
@@ -300,6 +319,8 @@ export function useCalibrationSession({
     save,
     saving,
     instances,
+    base: session.draft.base,
+    loadInstances,
     tool: session.tool,
     panning: session.panning,
     selectedId: session.selectedId,

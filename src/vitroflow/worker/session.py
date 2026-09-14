@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import httpx
 
+from vitroflow.agent_runtimes.pi import PiRuntime
 from vitroflow.detectors.contract import RuntimeDescriptor
 from vitroflow.detectors.traditional.config import PipelineConfig
 from vitroflow.detectors.traditional.detector import TraditionalDetector
@@ -47,6 +48,7 @@ class WorkerSettings:
     work_dir: Path
     poll_seconds: float = 5.0
     device: str | None = None
+    annotation_runtime: PiRuntime | None = None
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
@@ -86,15 +88,22 @@ class WorkerSession:
     started_at: str
     runtimes: tuple[RuntimeDescriptor, ...]
     memory_bytes: int
+    annotation_runtime: dict | None = None
 
     @classmethod
-    def create(cls, worker_id: str, device: str | None) -> WorkerSession:
+    def create(
+        cls,
+        worker_id: str,
+        device: str | None,
+        annotation_runtime: PiRuntime | None = None,
+    ) -> WorkerSession:
         return cls(
             worker_id,
             f"session-{uuid4()}",
             datetime.now(UTC).isoformat(),
             available_runtimes(),
             device_memory_bytes(device or "cpu"),
+            annotation_runtime.probe() if annotation_runtime else None,
         )
 
     @property
@@ -112,6 +121,11 @@ class WorkerSession:
             "startedAt": self.started_at,
             "runtimes": [runtime.to_dict() for runtime in self.runtimes],
             "memoryBytes": self.memory_bytes,
+            **(
+                {"annotationRuntime": self.annotation_runtime}
+                if self.annotation_runtime
+                else {}
+            ),
         }
 
 

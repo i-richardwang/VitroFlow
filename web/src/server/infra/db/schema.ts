@@ -21,6 +21,13 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { AnnotationDocument } from "../../../domain/annotation/schema";
+import {
+  ANNOTATION_RUN_STATUSES,
+  type AnnotationRuntime,
+  type AnnotationRunResult,
+  type StartAnnotationRun,
+  type AnnotationAssignment,
+} from "../../../domain/annotation-runs/schema";
 import { USER_ROLES } from "../../../domain/auth/schema";
 import {
   CULTURE_EVENT_TYPES,
@@ -885,6 +892,7 @@ export const workers = pgTable(
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
+    annotationRuntime: jsonb("annotation_runtime").$type<AnnotationRuntime>(),
     /** Memory the accelerator offers a job. */
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),
@@ -1082,6 +1090,65 @@ export const trainingEpochs = pgTable(
     check(
       "training_epochs_order_check",
       sql`${table.attempt} >= 1 and ${table.epoch} >= 1`,
+    ),
+  ],
+);
+
+/** Immutable requests and separate AI proposals; only accepted annotations train. */
+export const annotationRuns = pgTable(
+  "annotation_runs",
+  {
+    id: text("id").primaryKey(),
+    imageId: text("image_id")
+      .notNull()
+      .references(() => images.id),
+    modelId: text("model_id")
+      .notNull()
+      .references(() => models.id),
+    requestedBy: text("requested_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    request: jsonb("request").$type<StartAnnotationRun>().notNull(),
+    assignment: jsonb("assignment").$type<AnnotationAssignment>().notNull(),
+    status: text("status", { enum: ANNOTATION_RUN_STATUSES }).notNull(),
+    completed: integer("completed").notNull().default(0),
+    total: integer("total").notNull(),
+    workerId: text("worker_id"),
+    sessionId: text("session_id"),
+    leaseExpiresAt: timestamp("lease_expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    createdAt: instant("created_at"),
+    updatedAt: instant("updated_at"),
+    error: text("error"),
+    result: jsonb("result").$type<AnnotationRunResult>(),
+  },
+  (table) => [
+    index("annotation_runs_image_model_idx").on(
+      table.imageId,
+      table.modelId,
+      table.createdAt,
+    ),
+    index("annotation_runs_queue_idx").on(table.status, table.createdAt),
+    uniqueIndex("annotation_runs_active_idx")
+      .on(table.imageId, table.modelId)
+      .where(sql`${table.status} in ('queued', 'running')`),
+    check(
+      "annotation_runs_status_check",
+      sql`${table.status} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`,
+    ),
+    check(
+      "annotation_runs_progress_check",
+      sql`${table.completed} >= 0 and ${table.total} > 0 and ${table.completed} <= ${table.total}`,
+    ),
+    check(
+      "annotation_runs_result_check",
+      sql`(${table.status} = 'succeeded') = (${table.result} is not null)`,
+    ),
+    check(
+      "annotation_runs_lease_check",
+      sql`${table.status} <> 'running' or (${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null)`,
     ),
   ],
 );

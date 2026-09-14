@@ -7,6 +7,7 @@ import {
   experimentObservationImages,
   images,
   annotations,
+  annotationRuns,
 } from "../infra/db/schema";
 import { imageDigestSchema } from "../../domain/images/schema";
 import { imageBlobKey } from "./keys";
@@ -25,6 +26,7 @@ function unclaimed() {
   return sql`not exists (select 1 from ${experimentObservationImages} where ${experimentObservationImages.imageId} = ${images.id})
     and not exists (select 1 from ${datasetImages} where ${datasetImages.imageId} = ${images.id})
     and not exists (select 1 from ${datasetSnapshotImages} where ${datasetSnapshotImages.imageId} = ${images.id})
+    and not exists (select 1 from ${annotationRuns} where ${annotationRuns.imageId} = ${images.id})
     and not exists (select 1 from ${annotations} where ${annotations.imageId} = ${images.id})`;
 }
 

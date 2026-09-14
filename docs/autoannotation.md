@@ -4,7 +4,47 @@
 
 Creating annotations and correcting existing ones use the same task. Each region requires one complete response; results can be exported once every region is complete. To request another round, supply the previous `result.json` as input, or omit existing annotations to start fresh.
 
-The CLI is a standalone file tool for vision-capable agents. It handles images, tiles, coordinates, validation, checkpoints, and export. The agent inspects pixels, identifies objects, and supplies bounding boxes. The CLI does not call models and requires no Worker connection, provider SDK, or segmentation model.
+The annotation package handles images, tiles, coordinates, validation, checkpoints, and export. A vision-capable agent inspects pixels, identifies objects, and supplies bounding boxes. Use the file commands with any external agent, or `annotate run` to supervise Pi automatically. Neither path requires a Worker connection or a segmentation model.
+
+## Run with Pi
+
+Install and authenticate Pi on the execution host, and configure a model that accepts images. The runner uses Pi's default model unless `--model provider/model` overrides it. A custom Pi model must declare `"input": ["text", "image"]`; Pi otherwise omits image content even if the underlying provider supports vision.
+
+```bash
+vitroflow annotate run --image photo.jpg --output output/ai-round-1
+
+# An optional next round uses the same operation with candidate input.
+vitroflow annotate run --image photo.jpg \
+  --prelabels output/ai-round-1/result/result.json --output output/ai-round-2
+
+# A bounded real-image trial before a full image run.
+vitroflow annotate run --image photo.jpg --crop 512 1536 512 512 \
+  --output output/ai-trial --timeout 600
+```
+
+`--pi` selects the executable; `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the selected Pi model at execution, checks its image capability without a model call, then launches one JSON-print session per image. Pi processes the tile tasks sequentially through three native tools: view, preview, and submit. The tool bridge invokes the same annotation CLI; it does not implement another agent loop or give the model a general-purpose Shell. An image task may use many view, preview, and submit tool calls; it does not create one session per tile.
+
+The run directory contains:
+
+```text
+ai-round-1/
+├── tasks/                 Portable package and validated checkpoints
+├── tools/                 Pi tool extension, configuration, response previews
+├── runtime/               Pi session.jsonl, events.jsonl, stderr.log
+├── execution.json         Runtime version, selected model, reported usage
+├── status.json            Supervisor completion or failure
+└── result/
+    ├── result.json        Source-coordinate annotations
+    ├── responses.json     Original accepted responses
+    ├── overlay.png        Visual inspection
+    └── before-overlay.png
+```
+
+The supervisor collects results only after successful process completion and validation of every checkpoint. Exit code zero or a prose claim of completion is insufficient. Timeouts and cancellation terminate the process group. Missing provider usage remains unknown. Full local logs can contain image content and model output; execution directories are private to their owner.
+
+A failed operation retains its task checkpoints and logs. The standalone task commands below can inspect or finish that package. The automatic runner never silently starts another paid attempt. To request another AI round, use a new directory with the previous result as optional input.
+
+For the product and Worker integration, see [AI annotation](ai-annotation.md).
 
 ## First and subsequent rounds
 

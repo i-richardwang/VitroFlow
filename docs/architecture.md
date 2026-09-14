@@ -46,6 +46,8 @@ src/vitroflow/
 ├── contracts/                  Generated schemas, validation, decoding helpers
 ├── annotations.py              Annotation documents and geometry
 ├── autoannotation/             Portable visual tasks, checkpoints, CLI, AI artifacts
+├── agent_runtimes/             External process adapters
+├── agent_annotation/           Supervised annotation execution
 ├── datasets/                   Manifests, reviewed-image loading, transfer
 ├── training/                   Training documents, parameters, recipes
 ├── detectors/
@@ -54,7 +56,8 @@ src/vitroflow/
 │   ├── traditional/            Pipeline, result types, artifacts, training
 │   └── ultralytics/            Detector, dataset preparation, training, runtime
 ├── worker/
-│   ├── service.py              One process serving both queues
+│   ├── service.py              One process serving annotation, training and inference
+│   ├── annotation.py           External-agent annotation transport
 │   ├── inference.py            Inference protocol and task execution
 │   ├── training.py             Training protocol and task execution
 │   ├── model_store.py          Assigned models, cache, and loading
@@ -65,7 +68,7 @@ src/vitroflow/
 └── io/                         Filesystem and image I/O
 ```
 
-`autoannotation` depends only on filesystem/image I/O. Preparation freezes source pixels, configuration and candidate input. The protocol validates a complete response per tile; task operations handle checkpoints and recovery; collection restores source coordinates and exports reusable results. Geometry and rendering are shared utilities, and the CLI only adapts arguments. Each round preserves its input and output in separate directories. The module uses one current schema and has no model dispatcher or Worker dependency. See [the standalone annotation guide](autoannotation.md).
+`autoannotation` depends only on filesystem/image I/O. Preparation freezes source pixels, configuration and candidate input. The protocol validates a complete response per tile; task operations handle checkpoints and recovery; collection restores source coordinates and exports reusable results. Geometry and rendering are shared utilities, and the CLI only adapts arguments. Each round preserves its input and output in separate directories. The module uses one current schema and has no model dispatcher or Worker dependency. See [the standalone annotation guide](autoannotation.md). `agent_annotation` composes it with `agent_runtimes`; the Worker uses that runner without putting provider behavior in the annotation protocol. Product proposals remain distinct from accepted reviews; see [AI annotation](ai-annotation.md).
 
 Worker execution can use algorithms and data documents. Algorithm families do not import workers or host operations. Dataset manifests depend on the detector contract, not an algorithm implementation; loading reviewed dataset entries belongs to `datasets/annotations.py`. Core annotation documents do not load datasets. The top-level package and detector namespace do not eagerly initialize algorithms.
 

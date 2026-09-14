@@ -103,7 +103,7 @@ cd web
 bun run dev
 ```
 
-The workbench applies the SQL migrations in `web/drizzle/` when it starts. Its default source-development configuration connects to Postgres and RustFS on localhost and signs in with the administrator account from `web/.env`.
+The workbench initializes the database from `web/drizzle/0000_init.sql` when it starts. During development, schema changes regenerate this single initial schema and its snapshot; the repository does not carry incremental migrations. An existing development database must be explicitly aligned or rebuilt before using a changed baseline. Its default source-development configuration connects to Postgres and RustFS on localhost and signs in with the administrator account from `web/.env`.
 
 ## Accounts
 

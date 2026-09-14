@@ -1,6 +1,6 @@
 # vitroflow
 
-Command-line client and native Worker runtime for a [VitroFlow](https://github.com/i-richardwang/VitroFlow) workbench. The workbench owns experiments, datasets, review state, and training runs; this package runs the Workers that detect and train for it and moves datasets between a workbench and a local data root.
+Command-line client and native Worker runtime for a [VitroFlow](https://github.com/i-richardwang/VitroFlow) workbench. The workbench owns experiments, datasets, review state, and training runs; this package runs the Workers that detect, annotate with external agents, and train for it and moves datasets between a workbench and a local data root.
 
 Worker services run under `launchd` and therefore require macOS. The `dataset`, `recognize`, and `traditional` commands run wherever Python 3.11+ is available.
 
@@ -10,7 +10,7 @@ Worker services run under `launchd` and therefore require macOS. The `dataset`, 
 uv tool install 'vitroflow[yolo]'
 ```
 
-The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves only the bundled traditional detector and takes no training runs.
+The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves the bundled traditional detector and takes no training runs. AI annotation through Pi is independent of this extra.
 
 ## Workers
 
@@ -34,6 +34,10 @@ vitroflow worker stop mac-studio
 ```
 
 `vitroflow worker run <profile>` runs a Worker in the foreground without `launchd`.
+
+## AI annotation
+
+`vitroflow annotate run --image photo.jpg --output output/ai-round` runs Pi with its default vision model and writes validated annotations and overlays locally. Enable the same capability on a Worker with `worker setup ... --ai-annotation`. See [AI annotation](ai-annotation.md) and [portable annotation tasks](autoannotation.md).
 
 ## Datasets
 

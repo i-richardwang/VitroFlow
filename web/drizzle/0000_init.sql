@@ -15,6 +15,29 @@ CREATE TABLE "accounts" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "annotation_runs" (
+	"id" text PRIMARY KEY NOT NULL,
+	"image_id" text NOT NULL,
+	"model_id" text NOT NULL,
+	"requested_by" text,
+	"request" jsonb NOT NULL,
+	"assignment" jsonb NOT NULL,
+	"status" text NOT NULL,
+	"completed" integer DEFAULT 0 NOT NULL,
+	"total" integer NOT NULL,
+	"worker_id" text,
+	"session_id" text,
+	"lease_expires_at" timestamp with time zone,
+	"created_at" timestamp with time zone NOT NULL,
+	"updated_at" timestamp with time zone NOT NULL,
+	"error" text,
+	"result" jsonb,
+	CONSTRAINT "annotation_runs_status_check" CHECK ("annotation_runs"."status" in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
+	CONSTRAINT "annotation_runs_progress_check" CHECK ("annotation_runs"."completed" >= 0 and "annotation_runs"."total" > 0 and "annotation_runs"."completed" <= "annotation_runs"."total"),
+	CONSTRAINT "annotation_runs_result_check" CHECK (("annotation_runs"."status" = 'succeeded') = ("annotation_runs"."result" is not null)),
+	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."status" <> 'running' or ("annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null and "annotation_runs"."lease_expires_at" is not null))
+);
+--> statement-breakpoint
 CREATE TABLE "annotations" (
 	"image_id" text NOT NULL,
 	"model_id" text NOT NULL,
@@ -462,11 +485,15 @@ CREATE TABLE "workers" (
 	"session_id" text NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
 	"runtimes" jsonb NOT NULL,
+	"annotation_runtime" jsonb,
 	"memory_bytes" bigint NOT NULL,
 	"last_seen_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotation_runs" ADD CONSTRAINT "annotation_runs_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotation_runs" ADD CONSTRAINT "annotation_runs_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotation_runs" ADD CONSTRAINT "annotation_runs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotations" ADD CONSTRAINT "annotations_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotations" ADD CONSTRAINT "annotations_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_reference_id_users_id_fk" FOREIGN KEY ("reference_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -514,6 +541,9 @@ ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_model
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk" FOREIGN KEY ("model_version_id","id","attempt","dataset_snapshot_id","model_id") REFERENCES "public"."model_versions"("id","source_training_run_id","source_training_attempt","source_dataset_snapshot_id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_user_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "accounts_issuer_account_idx" ON "accounts" USING btree ("issuer","account_id");--> statement-breakpoint
+CREATE INDEX "annotation_runs_image_model_idx" ON "annotation_runs" USING btree ("image_id","model_id","created_at");--> statement-breakpoint
+CREATE INDEX "annotation_runs_queue_idx" ON "annotation_runs" USING btree ("status","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "annotation_runs_active_idx" ON "annotation_runs" USING btree ("image_id","model_id") WHERE "annotation_runs"."status" in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "api_keys_reference_idx" ON "api_keys" USING btree ("reference_id");--> statement-breakpoint
 CREATE INDEX "api_keys_key_idx" ON "api_keys" USING btree ("key");--> statement-breakpoint
 CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_id");--> statement-breakpoint

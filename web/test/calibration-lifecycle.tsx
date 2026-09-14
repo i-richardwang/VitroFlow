@@ -72,6 +72,8 @@ const widget = Object.assign(
       "Control",
       "Thumb",
       "Label",
+      "Track",
+      "Fill",
     ].map((name) => [name, Widget]),
   ),
 );
@@ -100,6 +102,11 @@ mock.module("@heroui/react", () => ({
   ButtonGroup: widget,
   Kbd: widget,
   ListBox: widget,
+  Select: widget,
+  Label: widget,
+  TextField: widget,
+  TextArea: widget,
+  ProgressBar: widget,
   Separator: widget,
   ToggleButton: widget,
   ToggleButtonGroup: widget,
@@ -134,6 +141,36 @@ mock.module("../src/functions/review", () => ({
     return { status: "saved" };
   },
 }));
+let workerReads = 0;
+let runReads = 0;
+let workerOnline = false;
+let startRequests = 0;
+mock.module("../src/functions/annotation-runs", () => ({
+  getAnnotationWorkers: async () => {
+    workerReads++;
+    return workerOnline
+      ? [
+          {
+            workerId: "test-worker",
+            annotationRuntime: {
+              runtime: "pi",
+              version: "test",
+              model: "test/vision",
+            },
+          },
+        ]
+      : [];
+  },
+  getAnnotationRuns: async () => {
+    runReads++;
+    return [aiResult];
+  },
+  startAnnotationRun: async () => {
+    startRequests++;
+    throw new Error("Selected annotation worker is not online");
+  },
+  stopAnnotationRun: async () => {},
+}));
 const { ImageWorkbench } =
   await import("../src/features/calibration/ImageWorkbench");
 const { SEED_DETECTOR } = await import("../src/domain/models/builtins");
@@ -149,6 +186,18 @@ const annotation = {
       bbox: { x: 100, y: 100, width: 50, height: 50 },
     },
   ],
+};
+const aiResult = {
+  id: "qa-ai-result",
+  ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },
+  requestedBy: "test",
+  runtime: { runtime: "pi", version: "test", model: "test/vision" },
+  status: "succeeded",
+  progress: { completed: 1, total: 1 },
+  createdAt: "2026-09-14T00:00:00Z",
+  updatedAt: "2026-09-14T00:00:01Z",
+  error: null,
+  result: { document: annotation, issues: [], warnings: [], uncertainIds: [] },
 };
 const review = {
   ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },
@@ -264,6 +313,39 @@ await act(async () => {
   resolveAnnotation?.(latest);
 });
 assert.equal(boxes(), 2, "calibration must display the fetched annotation");
+assert.equal(boxes(), 2, "receiving an AI result must not replace the draft");
+const idleReads = { workers: workerReads, runs: runReads };
+workerOnline = true;
+await act(async () => labeled(m.ai_refresh())!.click());
+assert.equal(workerReads, idleReads.workers + 1);
+assert.equal(runReads, idleReads.runs + 1);
+await act(async () => labeled(m.ai_start())!.click());
+assert.equal(startRequests, 1, "starting delegates admission to the server");
+assert.equal(
+  workerReads,
+  idleReads.workers + 1,
+  "starting does not refetch the Worker roster",
+);
+assert.ok(
+  mount.textContent?.includes("Selected annotation worker is not online"),
+  "a server refusal is visible without changing the draft",
+);
+assert.equal(boxes(), 2);
+await act(async () => labeled(m.ai_load_result())!.click());
+assert.equal(boxes(), 1, "loading a proposal replaces the draft explicitly");
+await act(async () => {
+  browser.window.dispatchEvent(
+    new browser.KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+    }),
+  );
+});
+assert.equal(boxes(), 2, "Undo restores the draft before the AI result");
+assert.strictEqual(mount.querySelector("img"), image);
+assert.equal(surface.style.transform, manual);
+
 const save = labeled(m.workbench_save());
 assert.ok(save);
 assert.equal(save.disabled, false);

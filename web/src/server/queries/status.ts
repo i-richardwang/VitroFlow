@@ -1,7 +1,8 @@
-import { eq, gt } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import { database } from "../infra/db/client";
 import {
+  annotationRuns,
   datasetSnapshots,
   inferenceJobs,
   trainingRuns,
@@ -72,14 +73,48 @@ async function trainingActivity(
   );
 }
 
+async function annotationActivity(
+  at: Date,
+): Promise<Map<string, WorkerActivity>> {
+  const rows = await (
+    await database()
+  )
+    .select()
+    .from(annotationRuns)
+    .where(
+      and(
+        eq(annotationRuns.status, "running"),
+        gt(annotationRuns.leaseExpiresAt, at),
+      ),
+    );
+  const filenames = await imageFilenames(rows.map((row) => row.imageId));
+  return new Map(
+    rows.flatMap((row) =>
+      row.workerId && row.sessionId
+        ? [
+            [
+              `${row.workerId}/${row.sessionId}`,
+              {
+                kind: "annotation",
+                runId: row.id,
+                image: filenames.get(row.imageId) ?? row.imageId,
+              },
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
 export async function getSystemStatus() {
   const at = new Date();
   const age = (timestamp: string) =>
     Math.max(0, Math.floor((at.getTime() - Date.parse(timestamp)) / 1000));
-  const [workers, inference, training] = await Promise.all([
+  const [workers, inference, training, annotation] = await Promise.all([
     listWorkers(at),
     inferenceActivity(at),
     trainingActivity(at),
+    annotationActivity(at),
   ]);
   return {
     workers: workers.map((worker) => ({
@@ -88,6 +123,7 @@ export async function getSystemStatus() {
       lastSeenAt: worker.lastSeenAt,
       lastSeenSeconds: age(worker.lastSeenAt),
       activity:
+        annotation.get(sessionKey(worker)) ??
         inference.get(sessionKey(worker)) ??
         training.get(sessionKey(worker)) ??
         null,

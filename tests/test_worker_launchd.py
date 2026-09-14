@@ -9,6 +9,7 @@ from vitroflow.worker.host.profiles import WorkerProfile, save_profile
 
 def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    monkeypatch.setenv("PATH", "/opt/pi/bin:/opt/node/bin:/usr/bin:/bin")
     save_profile(
         "mps-trainer",
         WorkerProfile(
@@ -32,6 +33,7 @@ def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> N
     assert document["KeepAlive"] is True
     assert document["EnvironmentVariables"] == {
         "VITROFLOW_HOME": str(tmp_path),
+        "PATH": "/opt/pi/bin:/opt/node/bin:/usr/bin:/bin",
     }
     assert document["StandardOutPath"] == "/dev/null"
 

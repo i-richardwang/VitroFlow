@@ -51,3 +51,22 @@ def test_profile_parser_rejects_unknown_fields(tmp_path, monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="unknown worker profile fields"):
         load_profile("bad")
+
+
+def test_annotation_profile_uses_pi_default_and_retains_executable(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    profile = WorkerProfile(
+        server_url="https://example.test",
+        token="secret",
+        worker_id="annotator",
+        ai_annotation=True,
+        pi_executable="/custom/pi",
+    )
+    save_profile("annotator", profile)
+    loaded = load_profile("annotator")
+    assert loaded == profile
+    assert loaded.annotation_runtime is not None
+    assert loaded.annotation_runtime.model is None
+    assert loaded.annotation_runtime.executable == "/custom/pi"

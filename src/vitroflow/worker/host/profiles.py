@@ -8,6 +8,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from vitroflow.agent_runtimes.pi import PiRuntime
 from vitroflow.worker.connection import WorkerConnection, validate_worker_process
 
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -17,6 +18,9 @@ PROFILE_FIELDS = {
     "worker_id",
     "device",
     "poll_seconds",
+    "ai_annotation",
+    "pi_model",
+    "pi_executable",
 }
 
 
@@ -29,10 +33,21 @@ class WorkerProfile:
     worker_id: str
     device: str | None = None
     poll_seconds: float = 5.0
+    ai_annotation: bool = False
+    pi_model: str | None = None
+    pi_executable: str = "pi"
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
         validate_worker_process(self.worker_id, self.poll_seconds, self.device)
+
+    @property
+    def annotation_runtime(self) -> PiRuntime | None:
+        return (
+            PiRuntime(self.pi_model, self.pi_executable)
+            if self.ai_annotation or self.pi_model is not None
+            else None
+        )
 
     @classmethod
     def from_toml(cls, path: Path) -> WorkerProfile:
@@ -53,10 +68,16 @@ class WorkerProfile:
         if self.device is not None:
             values.append(("device", self.device))
         values.append(("poll_seconds", self.poll_seconds))
+        if self.ai_annotation:
+            values.append(("ai_annotation", True))
+        if self.pi_model is not None:
+            values.append(("pi_model", self.pi_model))
+        if self.ai_annotation or self.pi_model is not None:
+            values.append(("pi_executable", self.pi_executable))
         return "".join(
             f"{key} = {json.dumps(value)}\n"
             if isinstance(value, str)
-            else f"{key} = {value}\n"
+            else f"{key} = {str(value).lower() if isinstance(value, bool) else value}\n"
             for key, value in values
         )
 

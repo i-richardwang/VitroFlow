@@ -12,10 +12,17 @@ import {
   trainingRunSchema,
 } from "../src/domain/training/schema";
 
+import {
+  annotationAssignmentSchema,
+  annotationRunResultSchema,
+} from "../src/domain/annotation-runs/schema";
+
 const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["annotation", annotationSchema],
+  ["annotation-assignment", annotationAssignmentSchema],
+  ["annotation-run-result", annotationRunResultSchema],
   ["training-parameters", trainingParametersSchema],
   ["dataset-manifest", datasetManifestSchema],
   ["inference-assignment", inferenceAssignmentSchema],

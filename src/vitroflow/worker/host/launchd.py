@@ -38,7 +38,10 @@ def launch_agent_document(name: str, executable: str | None = None) -> dict[str,
         "KeepAlive": True,
         "ThrottleInterval": 10,
         "WorkingDirectory": str(directory),
-        "EnvironmentVariables": {"VITROFLOW_HOME": str(worker_home())},
+        "EnvironmentVariables": {
+            "VITROFLOW_HOME": str(worker_home()),
+            "PATH": os.environ.get("PATH", os.defpath),
+        },
         "StandardOutPath": "/dev/null",
         "StandardErrorPath": "/dev/null",
     }

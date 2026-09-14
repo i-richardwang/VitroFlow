@@ -55,11 +55,9 @@ def _handle(args: argparse.Namespace) -> int:
     )
 
 
-def add_annotation_commands(commands: argparse._SubParsersAction) -> None:
-    parser = commands.add_parser(
-        "annotate", help="Prepare and collect visual-agent annotation tasks"
-    )
-    subcommands = parser.add_subparsers(dest="annotation_command", required=True)
+def add_annotation_commands(
+    subcommands: argparse._SubParsersAction,
+) -> None:
     for name in ("plan", "prepare"):
         command = subcommands.add_parser(
             name,

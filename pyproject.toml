@@ -70,6 +70,7 @@ include = [
   "/configs",
   "/docs/package.md",
   "/docs/autoannotation.md",
+  "/docs/ai-annotation.md",
   "/LICENSE",
   "/README.md",
   "/pyproject.toml",

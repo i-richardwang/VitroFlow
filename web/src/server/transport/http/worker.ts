@@ -1,3 +1,7 @@
+import {
+  AnnotationRunConflictError,
+  AnnotationRunNotFoundError,
+} from "../../annotation-runs/public";
 import type { ZodType } from "zod";
 
 import {
@@ -85,6 +89,8 @@ export function parseWorkerIdentity(
 }
 
 function statusOf(error: unknown): number | null {
+  if (error instanceof AnnotationRunConflictError) return 409;
+  if (error instanceof AnnotationRunNotFoundError) return 404;
   if (error instanceof WorkerRequestError) return error.status;
   if (
     error instanceof DetectionImageNotFoundError ||
