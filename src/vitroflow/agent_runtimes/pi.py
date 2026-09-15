@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import queue
 import shutil
-import signal
 import subprocess
 import tempfile
 import threading
@@ -16,9 +14,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-
-class AgentInterruptedError(RuntimeError):
-    """The supervisor cancelled an external agent process."""
+from vitroflow.agent_runtimes.contract import AgentInterruptedError, ToolSet
+from vitroflow.agent_runtimes.process import (
+    json_event_stream,
+    runtime_environment,
+    terminate_process,
+)
 
 
 @dataclass(frozen=True)
@@ -135,13 +136,18 @@ class PiRuntime:
         descriptor: dict,
         cancelled: Callable[[], bool] = lambda: False,
         tick: Callable[[], None] = lambda: None,
-        extension: Path | None = None,
-        active_tools: tuple[str, ...] = ("read",),
+        tools: ToolSet,
+        completed: Callable[[], bool] = lambda: False,
     ) -> dict:
         directory.mkdir(parents=True, exist_ok=False, mode=0o700)
         # Pi reads its own provider credentials. Supervisor credentials are not
         # inherited. This environment boundary is not a filesystem sandbox.
         environment = runtime_environment()
+        extension = directory / "tools.ts"
+        shutil.copyfile(Path(__file__).with_name("pi_tools.ts"), extension)
+        (directory / "tools.json").write_text(
+            json.dumps({"command": tools.command, "definitions": tools.definitions})
+        )
         args = [
             self.command(),
             "-p",
@@ -155,10 +161,10 @@ class PiRuntime:
             "--no-skills",
             "--no-context-files",
             "--tools",
-            ",".join(active_tools),
-            *(["--extension", str(extension)] if extension else []),
+            ",".join(tool["name"] for tool in tools.definitions),
+            "--extension",
+            str(extension),
         ]
-        events: queue.Queue[dict | Exception | None] = queue.Queue(maxsize=64)
         with (directory / "stderr.log").open("wb") as stderr:
             process = subprocess.Popen(
                 args,
@@ -170,34 +176,20 @@ class PiRuntime:
                 start_new_session=True,
             )
             assert process.stdout is not None and process.stdin is not None
-            stdout = process.stdout
-
-            def read_events() -> None:
-                try:
-                    with (directory / "events.jsonl").open("wb") as log:
-                        for line in stdout:
-                            log.write(line)
-                            value = json.loads(line)
-                            if not isinstance(value, dict):
-                                raise TypeError("Pi event must be a JSON object")
-                            events.put(value)
-                except (OSError, ValueError, TypeError) as error:
-                    events.put(error)
-                finally:
-                    events.put(None)
-
-            reader = threading.Thread(target=read_events, daemon=True)
-            reader.start()
             started = time.monotonic()
             messages = []
             terminal_error = None
-            try:
+            accepted = False
+            with json_event_stream(process, directory / "events.jsonl") as events:
                 process.stdin.write(prompt.encode())
                 process.stdin.close()
                 ended = False
                 while not ended or process.poll() is None:
                     if cancelled():
                         raise AgentInterruptedError("AI annotation cancelled")
+                    if completed():
+                        accepted = True
+                        break
                     if time.monotonic() - started > self.timeout_seconds:
                         raise RuntimeError("Pi exceeded the annotation time limit")
                     tick()
@@ -231,67 +223,16 @@ class PiRuntime:
                         "success"
                     ):
                         terminal_error = "Pi exhausted provider retries"
-                if process.wait() != 0 or terminal_error:
+                accepted = accepted or completed()
+                if not accepted and (process.wait() != 0 or terminal_error):
                     raise RuntimeError(
                         terminal_error or "Pi process failed; see local runtime logs"
                     )
-                if not messages:
+                if not accepted and not messages:
                     raise RuntimeError("Pi returned no assistant completion")
                 return {
                     **descriptor,
                     "messages": messages,
+                    "completedBySubmission": accepted,
                     "elapsedSeconds": time.monotonic() - started,
                 }
-            finally:
-                # Stop descendants as well as the Pi process, including tools
-                # that remain alive after their parent has exited.
-                terminate_process(process)
-                # Drain the reader queue while it exits after cancellation.
-                while reader.is_alive():
-                    try:
-                        events.get(timeout=0.1)
-                    except queue.Empty:
-                        pass
-                stdout.close()
-
-
-def terminate_process(process: subprocess.Popen) -> None:
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=3)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-    # A tool can survive after Pi exits; its process group must also end.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-
-
-def runtime_environment() -> dict[str, str]:
-    names = {
-        "HOME",
-        "PATH",
-        "TMPDIR",
-        "LANG",
-        "LC_ALL",
-        "SSL_CERT_FILE",
-        "NODE_EXTRA_CA_CERTS",
-        "PI_CODING_AGENT_DIR",
-        "XDG_CONFIG_HOME",
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY",
-        "GEMINI_API_KEY",
-        "GOOGLE_API_KEY",
-        "OPENROUTER_API_KEY",
-        "MISTRAL_API_KEY",
-        "GROQ_API_KEY",
-        "XAI_API_KEY",
-        "AWS_PROFILE",
-        "AWS_REGION",
-    }
-    return {key: value for key, value in os.environ.items() if key in names}

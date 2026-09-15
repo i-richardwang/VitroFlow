@@ -94,6 +94,17 @@ function Button({
     children,
   );
 }
+const selections = new Map<string, (key: string) => void>();
+function SelectionWidget(props: {
+  children?: ReactNode;
+  selectedKey?: string;
+  onSelectionChange?: (key: string) => void;
+}) {
+  if (props.selectedKey && props.onSelectionChange)
+    selections.set(props.selectedKey, props.onSelectionChange);
+  return Widget(props);
+}
+const selectWidget = Object.assign(SelectionWidget, widget);
 mock.module("@heroui/react", () => ({
   Chip: widget,
   Alert: widget,
@@ -102,7 +113,7 @@ mock.module("@heroui/react", () => ({
   ButtonGroup: widget,
   Kbd: widget,
   ListBox: widget,
-  Select: widget,
+  Select: selectWidget,
   Label: widget,
   TextField: widget,
   TextArea: widget,
@@ -145,6 +156,8 @@ let workerReads = 0;
 let runReads = 0;
 let workerOnline = false;
 let startRequests = 0;
+let requestedRuntime: unknown;
+let requestedRegion: unknown;
 mock.module("../src/functions/annotation-runs", () => ({
   getAnnotationWorkers: async () => {
     workerReads++;
@@ -152,11 +165,18 @@ mock.module("../src/functions/annotation-runs", () => ({
       ? [
           {
             workerId: "test-worker",
-            annotationRuntime: {
-              runtime: "pi",
-              version: "test",
-              model: "test/vision",
-            },
+            annotationRuntimes: [
+              {
+                runtime: "pi",
+                version: "test",
+                model: "test/vision",
+              },
+              {
+                runtime: "antigravity",
+                version: "test-agy",
+                model: "default-vision",
+              },
+            ],
           },
         ]
       : [];
@@ -165,8 +185,14 @@ mock.module("../src/functions/annotation-runs", () => ({
     runReads++;
     return [aiResult];
   },
-  startAnnotationRun: async () => {
+  startAnnotationRun: async ({
+    data,
+  }: {
+    data: { runtime: unknown; region: unknown };
+  }) => {
     startRequests++;
+    requestedRuntime = data.runtime;
+    requestedRegion = data.region;
     throw new Error("Selected annotation worker is not online");
   },
   stopAnnotationRun: async () => {},
@@ -192,6 +218,7 @@ const aiResult = {
   ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },
   requestedBy: "test",
   runtime: { runtime: "pi", version: "test", model: "test/vision" },
+  region: { coreSize: 512, halo: 32, displayScale: 2 },
   status: "succeeded",
   progress: { completed: 1, total: 1 },
   createdAt: "2026-09-14T00:00:00Z",
@@ -319,7 +346,16 @@ workerOnline = true;
 await act(async () => labeled(m.ai_refresh())!.click());
 assert.equal(workerReads, idleReads.workers + 1);
 assert.equal(runReads, idleReads.runs + 1);
+await act(async () => selections.get("pi")!("antigravity"));
+await act(async () => selections.get("512")!("256"));
+await act(async () => selections.get("2")!("4"));
 await act(async () => labeled(m.ai_start())!.click());
+assert.deepEqual(requestedRegion, { coreSize: 256, halo: 32, displayScale: 4 });
+assert.deepEqual(requestedRuntime, {
+  runtime: "antigravity",
+  version: "test-agy",
+  model: "default-vision",
+});
 assert.equal(startRequests, 1, "starting delegates admission to the server");
 assert.equal(
   workerReads,

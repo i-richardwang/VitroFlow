@@ -221,6 +221,7 @@ def test_heartbeat_describes_what_the_session_can_do() -> None:
         "sessionId": "test-session",
         "startedAt": "2026-08-27T00:00:00+00:00",
         "runtimes": [RUNTIME.to_dict()],
+        "annotationRuntimes": [],
         "memoryBytes": 8_192,
     }
 

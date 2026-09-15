@@ -30,7 +30,6 @@ import {
 } from "../../domain/annotation-runs/errors";
 const LEASE_MS = 5 * 60 * 1000;
 const LEASE_EXPIRED = "Worker lease expired. Start a new run to retry.";
-const REGION_CONFIG = { coreSize: 512, halo: 32, displayScale: 2 } as const;
 
 function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
   const expired =
@@ -42,6 +41,11 @@ function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
     ref: { digest: row.imageId, modelId: row.modelId },
     requestedBy: row.requestedBy,
     runtime: row.assignment.runtime,
+    region: {
+      coreSize: row.assignment.config.coreSize,
+      halo: row.assignment.config.halo,
+      displayScale: row.assignment.config.displayScale,
+    },
     status: expired ? "failed" : row.status,
     progress: { completed: row.completed, total: row.total },
     createdAt: row.createdAt.toISOString(),
@@ -54,7 +58,7 @@ function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
 export async function annotationWorkers() {
   return (await listWorkers()).filter(
     (worker) =>
-      worker.annotationRuntime &&
+      worker.annotationRuntimes.length > 0 &&
       workerPresence(worker.lastSeenAt) === "online",
   );
 }
@@ -167,9 +171,13 @@ export async function createAnnotationRun(
       );
     }
     const worker = available.find((w) => w.workerId === request.workerId);
-    if (!worker?.annotationRuntime)
+    if (
+      !worker?.annotationRuntimes.some(
+        (runtime) => canonicalJson(runtime) === canonicalJson(request.runtime),
+      )
+    )
       throw new AnnotationRunConflictError(
-        "Selected annotation worker is not online",
+        "Selected annotation runtime is not available on this worker",
       );
     const assignment = annotationAssignmentSchema.parse({
       id: request.id,
@@ -178,9 +186,9 @@ export async function createAnnotationRun(
       config: {
         classes: model.classes,
         rules: request.rules,
-        ...REGION_CONFIG,
+        ...request.region,
       },
-      runtime: worker.annotationRuntime,
+      runtime: request.runtime,
     });
     const [row] = await tx
       .insert(annotationRuns)
@@ -226,7 +234,7 @@ export async function claimAnnotationRun(
   return transaction(async (tx) => {
     const worker = await lockWorkerSession(owner, tx);
     await expire(at, tx);
-    if (!worker.annotationRuntime) return null;
+    if (!worker.annotationRuntimes.length) return null;
     const [owned] = await tx
       .select()
       .from(annotationRuns)
@@ -246,7 +254,7 @@ export async function claimAnnotationRun(
         and(
           eq(annotationRuns.status, "queued"),
           sql`${annotationRuns.request}->>'workerId' = ${owner.workerId}`,
-          sql`${annotationRuns.assignment}->'runtime' = ${JSON.stringify(worker.annotationRuntime)}::jsonb`,
+          sql`${JSON.stringify(worker.annotationRuntimes)}::jsonb @> jsonb_build_array(${annotationRuns.assignment}->'runtime')`,
         ),
       )
       .orderBy(asc(annotationRuns.createdAt))

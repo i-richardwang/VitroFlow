@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -13,9 +14,11 @@ import cv2
 import numpy as np
 import pytest
 
-from vitroflow.agent_annotation import runner
-from vitroflow.agent_runtimes.pi import runtime_environment, terminate_process
+from vitroflow.agent_annotation.tools import DEFINITIONS
+from vitroflow.agent_runtimes import pi
+from vitroflow.agent_runtimes.process import runtime_environment, terminate_process
 from vitroflow.autoannotation.preparation import prepare
+from vitroflow.autoannotation.results import collect
 from vitroflow.autoannotation.storage import read_json, write_json
 from vitroflow.autoannotation.tasks import status
 
@@ -23,17 +26,50 @@ from vitroflow.autoannotation.tasks import status
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is installed separately")
 def test_native_tool_registration_preview_and_submit(tmp_path):
     source = tmp_path / "source.png"
-    cv2.imwrite(str(source), np.full((32, 32, 3), 128, np.uint8))
+    cv2.imwrite(str(source), np.full((40, 80, 3), 128, np.uint8))
     package = tmp_path / "package"
-    prepare(source, package)
-    extension = tmp_path / "annotation.ts"
-    shutil.copyfile(Path(runner.__file__).with_name("pi_tools.ts"), extension)
+    candidates = tmp_path / "candidates.json"
     write_json(
-        tmp_path / "config.json",
+        candidates,
         {
-            "command": [sys.executable, "-m", "vitroflow.cli"],
-            "package": str(package),
+            "image": {
+                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                "width": 80,
+                "height": 40,
+            },
+            "instances": [
+                {
+                    "id": "candidate",
+                    "class": "seed",
+                    "bbox": {"x": 32, "y": 12, "width": 32, "height": 16},
+                }
+            ],
         },
+    )
+    prepare(
+        source,
+        package,
+        crop=[16, 8, 64, 32],
+        prelabels_path=candidates,
+        config={"displayScale": 3},
+    )
+    extension = tmp_path / "annotation.ts"
+    shutil.copyfile(Path(pi.__file__).with_name("pi_tools.ts"), extension)
+    write_json(
+        tmp_path / "tools.json",
+        {
+            "command": [
+                sys.executable,
+                "-m",
+                "vitroflow.agent_annotation.tools",
+                "--config",
+                str(tmp_path / "config.json"),
+            ],
+            "definitions": DEFINITIONS,
+        },
+    )
+    write_json(
+        tmp_path / "config.json", {"package": str(package), "producer": "test/vision"}
     )
     result = tmp_path / "probe.json"
     probe = tmp_path / "probe.ts"
@@ -54,13 +90,17 @@ export default async function(pi) {
     try {
       const invoke = (name, args) => definitions.get(name).execute("test", args, undefined, undefined, context);
       const view = await invoke("annotation_view", { taskId: "tile-000-000" });
-      const value = { taskId: "tile-000-000", instances: [{ id: "one", class: "seed", bbox: { x: 4, y: 5, width: 10, height: 12 } }], issues: [] };
-      let rejected = false;
-      try { await invoke("annotation_preview", { ...value, instances: [{ ...value.instances[0], bbox: { x: 100, y: 100, width: 10, height: 12 } }] }); }
-      catch { rejected = true; }
+      const metadata = JSON.parse(view.content.find(v => v.type === "text").text);
+      const value = { taskId: "tile-000-000", instances: [{ id: "one", class: "seed", box_2d: [125.5, 250.25, 625.5, 750.25] }], issues: [{ box_2d: [0, 0, 1000, 1000], reason: "Boundary test" }] };
+      const invalid = [[0, -1, 100, 100], [0, 0, 1001, 100], [10, 0, 5, 100], [0, 20, 100, 10], [0, 0, 0, 100], [0, 0, 100], [0, 0, NaN, 100]];
+      let rejected = 0;
+      for (const box_2d of invalid) {
+        try { await invoke("annotation_preview", { ...value, instances: [{ ...value.instances[0], box_2d }] }); }
+        catch { rejected++; }
+      }
       const preview = await invoke("annotation_preview", value);
       const accepted = await invoke("annotation_submit", value);
-      result = { tools: pi.getActiveTools(), viewImage: view.content.some(v => v.type === "image"), previewImage: preview.content.some(v => v.type === "image"), rejected, terminate: accepted.terminate };
+      result = { metadata, previewMetadata: JSON.parse(preview.content.find(v => v.type === "text").text), tools: pi.getActiveTools(), viewImages: view.content.filter(v => v.type === "image").length, previewImages: preview.content.filter(v => v.type === "image").length, rejected, terminate: accepted.terminate };
     } catch(error) { result = { error: String(error) }; }
     writeFileSync(RESULT_PATH, JSON.stringify(result));
   });
@@ -103,11 +143,34 @@ export default async function(pi) {
             process.stdin.close()
         if process.stderr:
             process.stderr.close()
-    assert read_json(result) == {
+    observed = read_json(result)
+    metadata = observed.pop("metadata")
+    assert metadata["task"] == {
+        "id": "tile-000-000",
+        "displaySize": [192, 96],
+        "coordinateSpace": "box_2d: [ymin, xmin, ymax, xmax], normalized 0–1000",
+    }
+    assert metadata["mode"] == "refit"
+    assert metadata["references"] == [{"id": "r001", "class": "seed"}]
+    assert "candidates" not in metadata
+    assert observed.pop("previewMetadata") == metadata["task"]
+    assert observed == {
         "tools": ["annotation_view", "annotation_preview", "annotation_submit"],
-        "viewImage": True,
-        "previewImage": True,
-        "rejected": True,
+        "viewImages": 2,
+        "previewImages": 2,
+        "rejected": 7,
         "terminate": True,
     }
     assert status(package)["complete"]
+
+    collect(package, tmp_path / "result")
+    document = read_json(tmp_path / "result/result.json")
+    assert document["instances"][0]["bbox"] == pytest.approx(
+        {"x": 32.016, "y": 12.016, "width": 32, "height": 16}
+    )
+    assert document["issues"][0]["bbox"] == {
+        "x": 16,
+        "y": 8,
+        "width": 64,
+        "height": 32,
+    }

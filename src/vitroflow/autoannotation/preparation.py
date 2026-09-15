@@ -20,6 +20,7 @@ from vitroflow.autoannotation.protocol import (
     nonempty,
     object_digest,
 )
+from vitroflow.autoannotation.rendering import draw, references
 from vitroflow.autoannotation.storage import read_json, write_image, write_json
 from vitroflow.io.files import atomic_directory
 from vitroflow.io.image_io import MAX_IMAGE_BYTES
@@ -162,12 +163,10 @@ def prepare(
                 }
                 write_json(folder / "task.json", task)
                 patch_image = image[patch[1] : patch[3], patch[0] : patch[2]]
-                write_image(
-                    folder / "clean.png",
-                    cv2.resize(
-                        patch_image, tuple(display), interpolation=cv2.INTER_CUBIC
-                    ),
+                clean = cv2.resize(
+                    patch_image, tuple(display), interpolation=cv2.INTER_CUBIC
                 )
+                write_image(folder / "clean.png", clean)
                 local = []
                 for item in originals:
                     edges = clip(rectangle(item["bbox"]), patch)
@@ -183,6 +182,8 @@ def prepare(
                         }
                     )
                 write_json(folder / "prelabels.json", {"instances": local})
+                if local:
+                    write_image(folder / "before.png", draw(clean, references(local)))
                 tasks.append(task)
         assets = {
             str(p.relative_to(root)): digest(p.read_bytes())

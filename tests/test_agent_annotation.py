@@ -14,7 +14,8 @@ import numpy as np
 import pytest
 
 from vitroflow.agent_annotation.runner import run_annotation
-from vitroflow.agent_runtimes.pi import AgentInterruptedError, PiRuntime
+from vitroflow.agent_runtimes.contract import AgentInterruptedError, ToolSet
+from vitroflow.agent_runtimes.pi import PiRuntime
 from vitroflow.autoannotation.storage import read_json
 from vitroflow.worker import connection
 from vitroflow.worker.annotation import AnnotationClient, process_annotation_job
@@ -84,6 +85,15 @@ def test_errors_never_export_success(pi, photo, tmp_path, model, message):
     assert read_json(tmp_path / "run/status.json")["status"] == "failed"
 
 
+def test_pi_stops_after_validated_submission_without_waiting_for_a_final_message(
+    pi, photo, tmp_path
+):
+    report = run_annotation(photo, tmp_path / "run", PiRuntime("test/linger", pi, 5))
+    assert report["execution"]["completedBySubmission"]
+    assert read_json(tmp_path / "run/status.json")["status"] == "succeeded"
+    assert read_json(tmp_path / "run/result/result.json")["coverage"]["fullImage"]
+
+
 def test_timeout_and_cancellation_terminate_pi(pi, tmp_path):
     for name, timeout, cancel, exception in [
         ("timeout", 2, lambda: False, RuntimeError),
@@ -101,6 +111,7 @@ def test_timeout_and_cancellation_terminate_pi(pi, tmp_path):
                 directory,
                 descriptor={"runtime": "pi", "version": "test", "model": "test/wait"},
                 cancelled=cancel,
+                tools=ToolSet((), ()),
             )
         pid = int((directory / "pid").read_text())
         with pytest.raises(ProcessLookupError):

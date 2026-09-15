@@ -1,5 +1,5 @@
 {
-  "id": "c973c289-49d2-47c9-8373-6ec03a0e5e3c",
+  "id": "e14ef154-0e6c-4cd9-b3fb-cba11ee4f1b1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4114,11 +4114,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "annotation_runtime": {
-          "name": "annotation_runtime",
+        "annotation_runtimes": {
+          "name": "annotation_runtimes",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "memory_bytes": {
           "name": "memory_bytes",

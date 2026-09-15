@@ -10,7 +10,7 @@ Worker services run under `launchd` and therefore require macOS. The `dataset`, 
 uv tool install 'vitroflow[yolo]'
 ```
 
-The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves the bundled traditional detector and takes no training runs. AI annotation through Pi is independent of this extra.
+The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves the bundled traditional detector and takes no training runs. AI annotation through external agents is independent of this extra.
 
 ## Workers
 
@@ -37,7 +37,7 @@ vitroflow worker stop mac-studio
 
 ## AI annotation
 
-`vitroflow annotate run --image photo.jpg --output output/ai-round` runs Pi with its default vision model and writes validated annotations and overlays locally. Enable the same capability on a Worker with `worker setup ... --ai-annotation`. See [AI annotation](ai-annotation.md) and [portable annotation tasks](autoannotation.md).
+`vitroflow annotate run --image photo.jpg --output output/ai-round` runs the selected agent (Pi by default) with its configured model and writes validated annotations and overlays locally. Enable the same capability on a Worker with `worker setup ... --annotation-runtime pi --annotation-runtime antigravity`. See [AI annotation](ai-annotation.md) and [portable annotation tasks](autoannotation.md).
 
 ## Datasets
 
@@ -78,10 +78,15 @@ vitroflow dataset export-yolo \
 complete annotation responses, and collects AI boxes, unresolved regions, overlays,
 and execution records. Each region needs one submission; a `result.json` can be
 passed directly as `--prelabels` to a new round. The file protocol supports
-different agent runtimes; the CLI does not call a model itself.
+any vision-capable external agent. `annotate run` supervises an installed Pi or
+Antigravity runtime through its own authentication and model configuration.
 It runs on macOS/Linux without the `yolo` extra or a workbench connection.
 
 ```bash
+# Automatic execution through an installed runtime.
+vitroflow annotate run --runtime pi --image photo.jpg --output output/ai-run
+
+# Portable file workflow for other external agents.
 vitroflow annotate plan --image photo.jpg
 vitroflow annotate prepare --image photo.jpg --output output/annotation-task
 vitroflow annotate status --run output/annotation-task

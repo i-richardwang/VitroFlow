@@ -2,11 +2,11 @@
 
 **Source image + optional existing annotations → visual agent → complete annotations.**
 
-Creating annotations and correcting existing ones use the same task. Each region requires one complete response; results can be exported once every region is complete. To request another round, supply the previous `result.json` as input, or omit existing annotations to start fresh.
+Creating annotations and refitting existing ones use one annotation operation with distinct visual task instructions. Each region requires one complete response; results can be exported once every region is complete. To request another round, supply the previous `result.json` as input, or omit existing annotations to start fresh.
 
-The annotation package handles images, tiles, coordinates, validation, checkpoints, and export. A vision-capable agent inspects pixels, identifies objects, and supplies bounding boxes. Use the file commands with any external agent, or `annotate run` to supervise Pi automatically. Neither path requires a Worker connection or a segmentation model.
+The annotation package handles images, tiles, coordinates, validation, checkpoints, and export. A vision-capable agent inspects pixels, identifies objects, and supplies bounding boxes. Use the file commands with any external agent, or `annotate run` to supervise Pi or Antigravity automatically. Neither path requires a Worker connection or a segmentation model.
 
-## Run with Pi
+## Run with an external agent
 
 Install and authenticate Pi on the execution host, and configure a model that accepts images. The runner uses Pi's default model unless `--model provider/model` overrides it. A custom Pi model must declare `"input": ["text", "image"]`; Pi otherwise omits image content even if the underlying provider supports vision.
 
@@ -22,16 +22,32 @@ vitroflow annotate run --image photo.jpg --crop 512 1536 512 512 \
   --output output/ai-trial --timeout 600
 ```
 
-`--pi` selects the executable; `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the selected Pi model at execution, checks its image capability without a model call, then launches one JSON-print session per image. Pi processes the tile tasks sequentially through three native tools: view, preview, and submit. The tool bridge invokes the same annotation CLI; it does not implement another agent loop or give the model a general-purpose Shell. An image task may use many view, preview, and submit tool calls; it does not create one session per tile.
+Select a runtime explicitly when needed:
+
+```bash
+# One-time Antigravity tool registration after installing VitroFlow.
+vitroflow annotate setup --runtime antigravity
+vitroflow annotate run --runtime antigravity --image photo.jpg --output output/agy-round
+vitroflow annotate run --runtime pi --image photo.jpg --output output/pi-round
+
+# Region size and magnification are independent, for either runtime.
+vitroflow annotate run --runtime antigravity --image photo.jpg \
+  --core-size 256 --halo 32 --display-scale 4 --output output/agy-small-regions
+```
+
+`--runtime` defaults to `pi`; `--executable` selects its executable and `--model` optionally overrides its default. `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the runtime descriptor, then launches one session per image. Both runtimes use the same normalized view, preview, and submit operations and canonical validation. Regions are processed sequentially within that session, not by creating one session per tile.
+
+Antigravity setup registers a local stdio MCP bridge and three scoped tool permissions. It is a one-time host configuration, not a per-run global edit. The executing process binds that bridge to its own task; a standalone Antigravity session has no such binding. See [AI annotation](ai-annotation.md) for configuration, permissions, and runtime differences.
 
 The run directory contains:
 
 ```text
 ai-round-1/
 ├── tasks/                 Portable package and validated checkpoints
-├── tools/                 Pi tool extension, configuration, response previews
-├── runtime/               Pi session.jsonl, events.jsonl, stderr.log
-├── execution.json         Runtime version, selected model, reported usage
+├── tools/                 Tool configuration and response previews
+├── runtime/               Runtime bridge assets, events.jsonl, stderr.log
+├── prompt.txt             Exact shared runtime instructions
+├── execution.json         Runtime version, selected model, local execution details
 ├── status.json            Supervisor completion or failure
 └── result/
     ├── result.json        Source-coordinate annotations
@@ -40,7 +56,7 @@ ai-round-1/
     └── before-overlay.png
 ```
 
-The supervisor collects results only after successful process completion and validation of every checkpoint. Exit code zero or a prose claim of completion is insufficient. Timeouts and cancellation terminate the process group. Missing provider usage remains unknown. Full local logs can contain image content and model output; execution directories are private to their owner.
+The supervisor collects results only after every task has a validated checkpoint. Runtime adapters can stop the session as soon as the final submission is accepted. Exit code zero or a prose claim of completion is insufficient. Timeouts and cancellation terminate the process group. Missing provider usage remains unknown. Full local logs can contain image content and model output; execution directories are private to their owner.
 
 A failed operation retains its task checkpoints and logs. The standalone task commands below can inspect or finish that package. The automatic runner never silently starts another paid attempt. To request another AI round, use a new directory with the previous result as optional input.
 
@@ -76,6 +92,8 @@ Each round uses new task and result directories; existing directories are never 
    "bbox":{"x":100,"y":200,"width":20,"height":12}}]}
 ```
 
+Omit `--prelabels` to request an independent annotation. Supply it when the agent should consider an existing proposal. Regions with references receive a visual refit task and paired clean/reference images; regions without references receive a fresh annotation task. Both return a complete list. This does not add a separate reviewer or guarantee that existing errors will be corrected.
+
 Input coordinates must use original image pixels after EXIF orientation is applied. The image digest and dimensions must match. Exported `result.json` files can be supplied directly; export metadata such as `taskId` and `producer` is not copied into local candidate boxes. Truncation flags are recomputed for the new geometry. A previous result may cover a different region, and areas without candidates still require inspection. `plan` also validates the input format and image identity.
 
 ## Image resolution and tiles
@@ -88,6 +106,8 @@ The tool preserves the decoded source resolution rather than resizing the image 
 | `--halo` | 32 | Context around each core region, in source pixels |
 | `--display-scale` | 2 | Task image magnification, from 1 to 4 |
 
+Context adds source pixels around the core before display magnification. For example, an interior 256-pixel core with 32-pixel context is a 320×320 patch, displayed as 1280×1280 at 4×. Source/crop boundaries clip that context. Magnification changes presentation, not coverage or final source coordinates.
+
 A 3072×4096 image produces a 6×8 grid of 48 regions with the default settings, requiring at least 48 accepted submissions. Tile count is not session count or API call count: an agent can handle multiple tiles, while previews and retries add operations. The default core size is configurable and has not been established as more accurate than other sizes.
 
 ```bash
@@ -95,13 +115,17 @@ vitroflow annotate prepare --image photo.jpg --crop 512 1536 512 512 \
   --core-size 512 --halo 32 --display-scale 2 --output output/local-round
 ```
 
-`--config FILE` supports `coreSize`, `halo`, `displayScale`, `classes`, and `rules`; explicit CLI options take precedence. Custom classes require corresponding rules. The tool does not automatically skip blank regions, select a region of interest, or subdivide tiles recursively. Equal tile dimensions do not guarantee equal object sizes across photographs taken at different distances.
+`plan`, `prepare`, and `run` accept these same region flags. `--config FILE` supports `coreSize`, `halo`, `displayScale`, `classes`, and `rules`; explicit CLI options take precedence. Custom classes require corresponding rules. The tool does not automatically skip blank regions, select a region of interest, or subdivide tiles recursively. Equal tile dimensions do not guarantee equal object sizes across photographs taken at different distances.
 
 ## Agent execution
 
-The agent reads the package's `INSTRUCTIONS.md`, `manifest.json`, and each tile's `task.json`, then views `clean.png` and inspects the entire patch, including the halo and unboxed areas. Optional `prelabels.json` candidates are editable drafts, not constraints on object count or position.
+The agent reads the package's `INSTRUCTIONS.md`, `manifest.json`, and each tile's `task.json`, then views `clean.png` and inspects the entire patch, including the halo and unboxed areas. When `before.png` is present, view it as INITIAL alongside CLEAN and follow the refit task: locate visible bodies and re-estimate all four edges rather than copying old coordinates. Short reference IDs are local to the task. The original `prelabels.json` coordinates remain available for machine audit; supervised tools supply only reference IDs/classes and the image overlay. Regions without references use the fresh task, locating bodies across the whole clean patch.
 
 The default seed rules require complete visible bodies, including pale coats and tips. Rectangles may overlap naturally when seeds touch. Agents should distinguish glare from seed bodies and avoid mechanically shrinking or expanding boxes. Ambiguous boundaries can be marked `uncertain`; areas where object presence cannot be determined belong in `issues`.
+
+`annotation_preview` returns CLEAN and PROPOSED together so geometry is checked against the unmarked pixels. A second preview is useful for a changed proposal; repeating an unchanged overlay adds no new coordinate feedback.
+
+The file commands below accept display-pixel boxes. The supervised agent tools used by `annotate run` instead accept normalized `box_2d` edges and perform this conversion automatically; see [AI annotation](ai-annotation.md).
 
 Save responses outside the checkpoint directory. Bounding boxes use display pixels of the task's `clean.png`:
 

@@ -10,27 +10,47 @@ from vitroflow.autoannotation import preparation, results, tasks
 from vitroflow.autoannotation.storage import read_json
 
 
+def configuration_from_args(args: argparse.Namespace) -> dict:
+    config = read_json(Path(args.config)) if args.config else {}
+    config.update(
+        {
+            key: getattr(args, attr)
+            for key, attr in (
+                ("coreSize", "core_size"),
+                ("halo", "halo"),
+                ("displayScale", "display_scale"),
+            )
+            if getattr(args, attr) is not None
+        }
+    )
+    return config
+
+
+def add_configuration_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--config",
+        help="JSON configuration: coreSize, halo, displayScale, classes, rules",
+    )
+    command.add_argument(
+        "--core-size", type=int, help="Core side in source pixels (default 512)"
+    )
+    command.add_argument(
+        "--halo", type=int, help="Context per side in source pixels (default 32)"
+    )
+    command.add_argument(
+        "--display-scale", type=int, help="Display magnification, 1–4 (default 2)"
+    )
+
+
 def _handle(args: argparse.Namespace) -> int:
     command = args.annotation_command
     if command in ("prepare", "plan"):
-        config = read_json(Path(args.config)) if args.config else {}
-        config.update(
-            {
-                key: getattr(args, attr)
-                for key, attr in (
-                    ("coreSize", "core_size"),
-                    ("halo", "halo"),
-                    ("displayScale", "display_scale"),
-                )
-                if getattr(args, attr) is not None
-            }
-        )
         result = preparation.prepare(
             Path(args.image),
             Path(args.output) if command == "prepare" else None,
             crop=args.crop,
             prelabels_path=Path(args.prelabels) if args.prelabels else None,
-            config=config,
+            config=configuration_from_args(args),
             plan_only=command == "plan",
         )
     elif command == "status":
@@ -76,19 +96,7 @@ def add_annotation_commands(
             "--prelabels",
             help="Previous result.json or source-coordinate candidate JSON",
         )
-        command.add_argument(
-            "--config",
-            help="JSON configuration: coreSize, halo, displayScale, classes, rules",
-        )
-        command.add_argument(
-            "--core-size", type=int, help="Core side in source pixels (default 512)"
-        )
-        command.add_argument(
-            "--halo", type=int, help="Context per side in source pixels (default 32)"
-        )
-        command.add_argument(
-            "--display-scale", type=int, help="Display magnification, 1–4 (default 2)"
-        )
+        add_configuration_arguments(command)
     for name, help_text in (
         ("status", "Inspect completion and execution errors"),
         ("preview", "Render proposed boxes without accepting them"),

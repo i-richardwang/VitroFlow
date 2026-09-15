@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 
-from vitroflow.agent_annotation.command import add_run_command
+from vitroflow.agent_annotation.command import add_agent_annotation_commands
 from vitroflow.autoannotation.command import add_annotation_commands
 from vitroflow.datasets.annotations import load_annotations
 from vitroflow.datasets.manifest import (
@@ -298,7 +298,7 @@ def _parser() -> argparse.ArgumentParser:
         dest="annotation_command", required=True
     )
     add_annotation_commands(annotation_commands)
-    add_run_command(annotation_commands)
+    add_agent_annotation_commands(annotation_commands)
     add_worker_commands(commands)
     return parser
 

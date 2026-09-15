@@ -9,8 +9,9 @@ import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { classListSchema } from "../models/classes";
 
 /** An installed external runtime and the vision model its host selects. */
+export const annotationRuntimeNameSchema = z.enum(["pi", "antigravity"]);
 export const annotationRuntimeSchema = z.strictObject({
-  runtime: z.literal("pi"),
+  runtime: annotationRuntimeNameSchema,
   version: z.string().min(1).max(128),
   model: z.string().min(1).max(256),
 });
@@ -22,20 +23,32 @@ export const ANNOTATION_RUN_STATUSES = [
   "failed",
   "cancelled",
 ] as const;
-export const annotationConfigSchema = z.strictObject({
+export const DEFAULT_ANNOTATION_REGION = {
+  coreSize: 512,
+  halo: 32,
+  displayScale: 2,
+};
+export const annotationRegionSchema = z
+  .strictObject({
+    coreSize: z.number().int().min(16).max(2048),
+    halo: z.number().int().min(0).max(2048),
+    displayScale: z.number().int().min(1).max(4),
+  })
+  .refine((v) => v.halo <= v.coreSize, "Context cannot exceed core size");
+export type AnnotationRegion = z.infer<typeof annotationRegionSchema>;
+export const annotationConfigSchema = annotationRegionSchema.safeExtend({
   classes: classListSchema,
   rules: z.string().trim().min(1).max(8000),
-  coreSize: z.number().int().min(16).max(2048),
-  halo: z.number().int().min(0),
-  displayScale: z.number().int().min(1).max(4),
 });
 export const startAnnotationRunSchema = z.strictObject({
   id: resourceIdSchema,
   ref: annotationRefSchema,
   workerId: resourceIdSchema,
+  runtime: annotationRuntimeSchema,
   input: z.array(annotationInstanceSchema).max(10000).nullable(),
   base: z.array(annotationInstanceSchema).max(10000).nullable(),
   rules: z.string().trim().min(1).max(8000),
+  region: annotationRegionSchema,
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
 export const annotationProgressSchema = z
@@ -82,6 +95,7 @@ export type AnnotationRun = {
   ref: z.infer<typeof annotationRefSchema>;
   requestedBy: string | null;
   runtime: AnnotationRuntime;
+  region: AnnotationRegion;
   status: (typeof ANNOTATION_RUN_STATUSES)[number];
   progress: z.infer<typeof annotationProgressSchema>;
   createdAt: string;

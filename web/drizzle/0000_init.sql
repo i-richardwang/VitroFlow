@@ -485,7 +485,7 @@ CREATE TABLE "workers" (
 	"session_id" text NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
 	"runtimes" jsonb NOT NULL,
-	"annotation_runtime" jsonb,
+	"annotation_runtimes" jsonb NOT NULL,
 	"memory_bytes" bigint NOT NULL,
 	"last_seen_at" timestamp with time zone NOT NULL
 );

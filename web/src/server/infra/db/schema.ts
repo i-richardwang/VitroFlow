@@ -892,7 +892,9 @@ export const workers = pgTable(
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
-    annotationRuntime: jsonb("annotation_runtime").$type<AnnotationRuntime>(),
+    annotationRuntimes: jsonb("annotation_runtimes")
+      .$type<AnnotationRuntime[]>()
+      .notNull(),
     /** Memory the accelerator offers a job. */
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),

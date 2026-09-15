@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import {
   SEED_ANNOTATION_RULES,
+  DEFAULT_ANNOTATION_REGION,
+  startAnnotationRunSchema,
   type AnnotationRunResult,
 } from "../../domain/annotation-runs/schema";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
@@ -30,15 +32,17 @@ async function setup(name: string) {
   };
   await recordWorkerHeartbeat({
     ...testHeartbeat(name),
-    annotationRuntime: runtime,
+    annotationRuntimes: [runtime],
   });
   const request = {
     id: `${name}-run`,
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
     workerId: name,
+    runtime,
     input: null,
     base: null,
     rules: SEED_ANNOTATION_RULES,
+    region: DEFAULT_ANNOTATION_REGION,
   };
   return { user, owner, request, runtime };
 }
@@ -47,6 +51,41 @@ const instance = {
   class: "seed",
   bbox: { x: 2, y: 3, width: 10, height: 11 },
 };
+
+test("region settings are validated, frozen and included in request identity", async () => {
+  const { user, owner, request } = await setup("ai-region");
+  const region = { coreSize: 16, halo: 8, displayScale: 4 };
+  const custom = startAnnotationRunSchema.parse({ ...request, region });
+  for (const invalid of [
+    { ...region, coreSize: 0 },
+    { ...region, halo: 17 },
+    { ...region, displayScale: 5 },
+  ]) {
+    expect(
+      startAnnotationRunSchema.safeParse({ ...request, region: invalid })
+        .success,
+    ).toBe(false);
+  }
+  const run = await createAnnotationRun(custom, user.id);
+  expect(run.region).toEqual(region);
+  const assignment = (await claimAnnotationRun(owner))!;
+  expect(assignment.config).toEqual({
+    ...region,
+    classes: ["seed"],
+    rules: request.rules,
+  });
+  expect(run.progress.total).toBe(
+    Math.ceil(assignment.image.width / region.coreSize) *
+      Math.ceil(assignment.image.height / region.coreSize),
+  );
+  await expect(
+    createAnnotationRun(
+      { ...custom, region: DEFAULT_ANNOTATION_REGION },
+      user.id,
+    ),
+  ).rejects.toThrow("different inputs");
+  expect((await listAnnotationRuns(request.ref))[0]?.region).toEqual(region);
+});
 function resultFor(
   image: { digest: string; width: number; height: number },
   runtime: { runtime: "pi"; version: string; model: string },
@@ -119,7 +158,7 @@ test("cancelled and expired runs cannot publish; a replacement session fences th
     ...testHeartbeat(owner.workerId),
     sessionId: "new-session",
     startedAt: new Date().toISOString(),
-    annotationRuntime: runtime,
+    annotationRuntimes: [runtime],
   });
   await expect(renewAnnotationRun(second.id, owner)).rejects.toThrow(
     "no longer active",
@@ -191,4 +230,51 @@ test("listing projects an expired lease without writing and a new request retire
   await createAnnotationRun({ ...request, id: "ai-read-only-next" }, user.id);
   expect((await stored())[0]?.status).toBe("failed");
   await cancelAnnotationRun("ai-read-only-next");
+});
+
+test("one Worker advertises both runtimes and a run pins the selected descriptor", async () => {
+  const { user, owner, request, runtime } = await setup("ai-choice");
+  const antigravity = {
+    runtime: "antigravity" as const,
+    version: "1.2.3",
+    model: "default-vision",
+  };
+  await recordWorkerHeartbeat({
+    ...testHeartbeat(owner.workerId),
+    annotationRuntimes: [runtime, antigravity],
+  });
+  await expect(
+    createAnnotationRun(
+      { ...request, runtime: { ...antigravity, version: "stale" } },
+      user.id,
+    ),
+  ).rejects.toThrow("not available");
+  const run = await createAnnotationRun(
+    { ...request, runtime: antigravity },
+    user.id,
+  );
+  expect(run.runtime).toEqual(antigravity);
+  await expect(createAnnotationRun(request, user.id)).rejects.toThrow(
+    "different inputs",
+  );
+  // A queued run cannot silently use a different runtime or model after a heartbeat.
+  await recordWorkerHeartbeat({
+    ...testHeartbeat(owner.workerId),
+    annotationRuntimes: [runtime],
+  });
+  expect(await claimAnnotationRun(owner)).toBeNull();
+  await recordWorkerHeartbeat({
+    ...testHeartbeat(owner.workerId),
+    annotationRuntimes: [runtime, antigravity],
+  });
+  const assignment = (await claimAnnotationRun(owner))!;
+  expect(assignment.runtime).toEqual(antigravity);
+  await expect(
+    completeAnnotationRun(run.id, owner, resultFor(assignment.image, runtime)),
+  ).rejects.toThrow("runtime differs");
+  await completeAnnotationRun(run.id, owner, {
+    ...resultFor(assignment.image, runtime),
+    execution: { ...antigravity, elapsedSeconds: 1 },
+  });
+  expect((await listAnnotationRuns(request.ref))[0]!.status).toBe("succeeded");
 });

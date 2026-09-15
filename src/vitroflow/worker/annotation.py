@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 
 from vitroflow.agent_annotation.runner import run_annotation
-from vitroflow.agent_runtimes.pi import AgentInterruptedError, PiRuntime
+from vitroflow.agent_runtimes.contract import AgentInterruptedError, AgentRuntime
 from vitroflow.autoannotation.storage import read_json, write_json
 from vitroflow.contracts.validation import validate_wire_contract
 from vitroflow.worker.session import LeaseLostError, WorkerClient, keep_lease
@@ -99,7 +99,7 @@ def process_annotation_job(
     client: AnnotationClient,
     assignment: dict,
     work_dir: Path,
-    runtime: PiRuntime,
+    runtime: AgentRuntime,
     *,
     stopped: threading.Event,
 ) -> None:
@@ -180,5 +180,5 @@ def process_annotation_job(
                     error="AI annotation execution failed. Inspect the Worker logs before starting a new run.",
                 )
             raise
-        # Delivery can be retried from the durable result without rerunning Pi.
+        # Delivery retries reuse the durable result without rerunning the agent.
         client.update(identifier, "complete", result=result)

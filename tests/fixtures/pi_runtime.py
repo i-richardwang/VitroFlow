@@ -78,6 +78,8 @@ if model != "test/incomplete":
             "issues": [],
         }
         submit(package, task["id"], response)
+if model == "test/linger":
+    time.sleep(60)
 print(
     json.dumps(
         {

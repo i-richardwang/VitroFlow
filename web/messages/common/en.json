@@ -66,5 +66,10 @@
   "ai_apply_explanation": "Replaces the current draft; Undo restores it. To improve this result, start another run from the current draft.",
   "ai_issues": "Areas needing attention",
   "worker_activity_annotation": "Annotating {image} with AI",
-  "ai_refresh": "Refresh workers and runs"
+  "ai_refresh": "Refresh workers and runs",
+  "ai_agent": "Agent",
+  "ai_region_size": "Region size (original image pixels)",
+  "ai_display_scale": "Display magnification",
+  "ai_region_explanation": "Each region includes up to {halo} pixels of context per side. Smaller regions create more tasks; magnification does not change the source area.",
+  "ai_run_region": "Run settings: {size} × {size} pixels · {scale}× display"
 }

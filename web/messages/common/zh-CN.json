@@ -66,5 +66,10 @@
   "ai_apply_explanation": "替换当前草稿，可撤销。若需继续改善，请从当前草稿再运行一次。",
   "ai_issues": "需要关注的区域",
   "worker_activity_annotation": "正在 AI 标注 {image}",
-  "ai_refresh": "刷新 Worker 和任务"
+  "ai_refresh": "刷新 Worker 和任务",
+  "ai_agent": "Agent",
+  "ai_region_size": "识别区域大小（原图像素）",
+  "ai_display_scale": "显示放大倍数",
+  "ai_region_explanation": "每个区域四周最多附加 {halo} 像素上下文。区域越小，任务越多；放大倍数不改变原图范围。",
+  "ai_run_region": "本轮配置：{size} × {size} 像素 · 显示放大 {scale}×"
 }

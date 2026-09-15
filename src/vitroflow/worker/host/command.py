@@ -4,6 +4,7 @@ import argparse
 import getpass
 from typing import Any, Protocol
 
+from vitroflow.agent_runtimes.config import RUNTIME_NAMES, RuntimeConfig
 from vitroflow.worker.host.launchd import (
     require_launchd,
     restart_service,
@@ -40,9 +41,7 @@ def _setup(args: argparse.Namespace) -> int:
         worker_id=args.worker_id or args.profile,
         device=args.device,
         poll_seconds=args.poll_seconds,
-        ai_annotation=args.ai_annotation,
-        pi_model=args.pi_model,
-        pi_executable=args.pi_executable,
+        annotation=tuple(RuntimeConfig(name) for name in args.annotation_runtime),
     )
     for check in preflight_profile(args.profile, profile):
         print(check)
@@ -117,14 +116,12 @@ def add_worker_commands(commands: SubparserCollection) -> None:
     setup.add_argument("--worker-id")
     setup.add_argument("--device")
     setup.add_argument(
-        "--ai-annotation",
-        action="store_true",
-        help="Enable AI annotation using Pi's default model",
+        "--annotation-runtime",
+        choices=RUNTIME_NAMES,
+        action="append",
+        default=[],
+        help="Enable an annotation runtime with its default model; repeat to enable both",
     )
-    setup.add_argument(
-        "--pi-model", help="Enable AI annotation with a Pi vision model selector"
-    )
-    setup.add_argument("--pi-executable", default="pi")
     setup.add_argument("--poll-seconds", type=float, default=5.0)
     setup.add_argument(
         "--force", action="store_true", help="Replace an existing profile"

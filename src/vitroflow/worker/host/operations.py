@@ -29,7 +29,7 @@ def _settings(name: str, profile: WorkerProfile) -> WorkerSettings:
         work_dir=profile_directory(name) / "work",
         poll_seconds=profile.poll_seconds,
         device=profile.device,
-        annotation_runtime=profile.annotation_runtime,
+        annotation_runtimes=profile.annotation_runtimes,
     )
 
 
@@ -80,10 +80,10 @@ def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
         for adapter in adapters
     ]
     checks.append(f"runtimes: {', '.join(runtimes)}")
-    if profile.annotation_runtime:
-        descriptor = profile.annotation_runtime.probe()
+    for runtime in profile.annotation_runtimes.values():
+        descriptor = runtime.probe()
         checks.append(
-            f"annotation: pi {descriptor['version']} / {descriptor['model']} (provider authentication belongs to Pi)"
+            f"annotation: {descriptor['runtime']} {descriptor['version']} / {descriptor['model']} (authentication belongs to the runtime)"
         )
     _check_device(profile.device)
     if profile.device:

@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+from shutil import copyfile
 
 import cv2
 import numpy as np
 
 from vitroflow.autoannotation.geometry import rectangle
 from vitroflow.autoannotation.protocol import object_digest
-from vitroflow.autoannotation.storage import read_json, write_image, write_json
+from vitroflow.autoannotation.storage import write_image, write_json
 from vitroflow.io.files import atomic_directory
 from vitroflow.io.image_io import read_image
+
+
+def references(items: list[dict]) -> list[dict]:
+    """Short task-local labels keep reference overlays readable across rounds."""
+    return [{**item, "id": f"r{i:03d}"} for i, item in enumerate(items, 1)]
 
 
 def draw(image: np.ndarray, items: list[dict], *, origin=(0, 0)) -> np.ndarray:
@@ -36,7 +42,7 @@ def draw(image: np.ndarray, items: list[dict], *, origin=(0, 0)) -> np.ndarray:
 
 def preview(root: Path, task: dict, value: dict, destination: Path) -> dict:
     clean = read_image(root / "tasks" / task["id"] / "clean.png")
-    candidates = read_json(root / "tasks" / task["id"] / "prelabels.json")["instances"]
+    initial = root / "tasks" / task["id"] / "before.png"
     summary = {
         "taskId": task["id"],
         "coordinateSpace": "task clean.png display pixels",
@@ -47,8 +53,8 @@ def preview(root: Path, task: dict, value: dict, destination: Path) -> dict:
     with atomic_directory(destination) as working:
         write_image(working / "clean.png", clean)
         write_image(working / "proposed.png", draw(clean, value["instances"]))
-        if candidates:
-            write_image(working / "before.png", draw(clean, candidates))
+        if initial.is_file():
+            copyfile(initial, working / "before.png")
             summary["images"].append("before.png")
         write_json(working / "manifest.json", summary)
     return {"output": str(destination), **summary}

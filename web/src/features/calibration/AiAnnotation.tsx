@@ -12,6 +12,7 @@ import { canonicalJson } from "../../lib/json/canonical";
 import type { AnnotationRef } from "../../domain/annotation/schema";
 import {
   SEED_ANNOTATION_RULES,
+  DEFAULT_ANNOTATION_REGION,
   type AnnotationRun,
 } from "../../domain/annotation-runs/schema";
 import { SEED_DETECTOR_MODEL_ID } from "../../domain/models/builtins";
@@ -38,7 +39,9 @@ export function AiAnnotation({
   const [runs, setRuns] = useState<AnnotationRun[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workerId, setWorkerId] = useState("");
+  const [runtimeName, setRuntimeName] = useState("");
   const [input, setInput] = useState<"empty" | "draft">("empty");
+  const [region, setRegion] = useState(DEFAULT_ANNOTATION_REGION);
   const [rules, setRules] = useState(
     reference.modelId === SEED_DETECTOR_MODEL_ID ? SEED_ANNOTATION_RULES : "",
   );
@@ -106,16 +109,22 @@ export function AiAnnotation({
   const selected = runs.find((run) => run.id === selectedId) ?? runs[0];
   const chosenWorker =
     workers.find((worker) => worker.workerId === workerId) ?? workers[0];
+  const chosenRuntime =
+    chosenWorker?.annotationRuntimes.find(
+      (runtime) => runtime.runtime === runtimeName,
+    ) ?? chosenWorker?.annotationRuntimes[0];
   async function start() {
-    if (!chosenWorker || busy) return;
+    if (!chosenWorker || !chosenRuntime || busy) return;
     setBusy(true);
     setError(null);
     const values = {
       ref: reference,
       workerId: chosenWorker.workerId,
+      runtime: chosenRuntime,
       input: input === "draft" ? calibration.instances : null,
       base: calibration.base,
       rules,
+      region,
     };
     const fingerprint = canonicalJson(values);
     const id =
@@ -179,9 +188,9 @@ export function AiAnnotation({
                 <ListBox.Item
                   key={worker.workerId}
                   id={worker.workerId}
-                  textValue={`${worker.workerId} · ${worker.annotationRuntime?.model}`}
+                  textValue={worker.workerId}
                 >
-                  {worker.workerId} · {worker.annotationRuntime?.model}
+                  {worker.workerId}
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
               ))}
@@ -190,6 +199,42 @@ export function AiAnnotation({
         </Select>
       ) : (
         <p className="text-sm text-muted">{m.ai_no_worker()}</p>
+      )}
+      {!!chosenWorker?.annotationRuntimes.length && (
+        <Select
+          fullWidth
+          variant="secondary"
+          selectedKey={chosenRuntime?.runtime ?? null}
+          onSelectionChange={(key) =>
+            key !== null && setRuntimeName(String(key))
+          }
+          isDisabled={
+            disabled ||
+            !!activeRun ||
+            chosenWorker.annotationRuntimes.length === 1
+          }
+        >
+          <Label>{m.ai_agent()}</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {chosenWorker.annotationRuntimes.map((runtime) => (
+                <ListBox.Item
+                  key={runtime.runtime}
+                  id={runtime.runtime}
+                  textValue={`${runtime.runtime === "pi" ? "Pi" : "Antigravity"} · ${runtime.model}`}
+                >
+                  {runtime.runtime === "pi" ? "Pi" : "Antigravity"} ·{" "}
+                  {runtime.model}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       )}
       <Button variant="tertiary" isDisabled={disabled} onPress={refresh}>
         {m.ai_refresh()}
@@ -221,6 +266,68 @@ export function AiAnnotation({
           </ListBox>
         </Select.Popover>
       </Select>
+      <Select
+        fullWidth
+        variant="secondary"
+        selectedKey={String(region.coreSize)}
+        onSelectionChange={(key) =>
+          key !== null &&
+          setRegion((value) => ({ ...value, coreSize: Number(key) }))
+        }
+        isDisabled={disabled || !!activeRun}
+      >
+        <Label>{m.ai_region_size()}</Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {[128, 256, 512, 1024].map((size) => (
+              <ListBox.Item
+                key={size}
+                id={String(size)}
+                textValue={`${size} × ${size}`}
+              >
+                {size} × {size}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
+      <Select
+        fullWidth
+        variant="secondary"
+        selectedKey={String(region.displayScale)}
+        onSelectionChange={(key) =>
+          key !== null &&
+          setRegion((value) => ({ ...value, displayScale: Number(key) }))
+        }
+        isDisabled={disabled || !!activeRun}
+      >
+        <Label>{m.ai_display_scale()}</Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {[1, 2, 3, 4].map((scale) => (
+              <ListBox.Item
+                key={scale}
+                id={String(scale)}
+                textValue={`${scale}×`}
+              >
+                {scale}×<ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
+      <p className="text-xs text-muted">
+        {m.ai_region_explanation({ halo: region.halo })}
+      </p>
       <TextField
         fullWidth
         variant="secondary"
@@ -292,6 +399,12 @@ export function AiAnnotation({
       ) : null}
       {selected?.result ? (
         <>
+          <p className="text-xs text-muted">
+            {m.ai_run_region({
+              size: selected.region.coreSize,
+              scale: selected.region.displayScale,
+            })}
+          </p>
           <p className="text-xs text-muted">
             {m.ai_result_summary({
               count: selected.result.document.instances.length,

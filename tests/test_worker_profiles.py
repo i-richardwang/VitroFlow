@@ -4,6 +4,7 @@ import stat
 
 import pytest
 
+from vitroflow.agent_runtimes.config import RuntimeConfig
 from vitroflow.worker.host.profiles import (
     WorkerProfile,
     list_profiles,
@@ -61,12 +62,24 @@ def test_annotation_profile_uses_pi_default_and_retains_executable(
         server_url="https://example.test",
         token="secret",
         worker_id="annotator",
-        ai_annotation=True,
-        pi_executable="/custom/pi",
+        annotation=(
+            RuntimeConfig("pi", executable="/custom/pi"),
+            RuntimeConfig("antigravity"),
+        ),
     )
     save_profile("annotator", profile)
     loaded = load_profile("annotator")
     assert loaded == profile
-    assert loaded.annotation_runtime is not None
-    assert loaded.annotation_runtime.model is None
-    assert loaded.annotation_runtime.executable == "/custom/pi"
+    assert set(loaded.annotation_runtimes) == {"pi", "antigravity"}
+    assert loaded.annotation[0].model is None
+    assert loaded.annotation[0].executable == "/custom/pi"
+
+
+def test_profile_rejects_duplicate_annotation_runtimes():
+    with pytest.raises(ValueError, match="appear once"):
+        WorkerProfile(
+            "https://example.test",
+            "secret",
+            "worker",
+            annotation=(RuntimeConfig("pi"), RuntimeConfig("pi")),
+        )

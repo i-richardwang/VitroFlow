@@ -116,3 +116,61 @@ def test_training_releases_the_inference_model_and_its_own_allocations(
         assert events[-2:] == ["unload", "release"]
     finally:
         served.close()
+
+
+def test_worker_selects_the_assigned_annotation_runtime(tmp_path, monkeypatch):
+    from vitroflow.worker import service
+    from vitroflow.worker.annotation import AnnotationClient
+
+    class Runtime:
+        def __init__(self, name):
+            self.name = name
+
+        def probe(self):
+            return {"runtime": self.name, "version": "test", "model": "default"}
+
+    runtimes = {name: Runtime(name) for name in ["pi", "antigravity"]}
+    monkeypatch.setattr(worker_session, "available_runtimes", lambda: (TRADITIONAL,))
+    monkeypatch.setattr(worker_session, "device_memory_bytes", lambda _: 1)
+    assignment = {"runtime": runtimes["antigravity"].probe()}
+    monkeypatch.setattr(AnnotationClient, "claim", lambda _: assignment)
+    selected = []
+    monkeypatch.setattr(
+        service,
+        "process_annotation_job",
+        lambda client, job, directory, runtime, **kwargs: selected.append(runtime),
+    )
+    worker = Worker(
+        WorkerSettings(
+            "https://example.test",
+            "secret",
+            "worker",
+            tmp_path,
+            annotation_runtimes=runtimes,
+        ),
+        transport=httpx.MockTransport(Workbench()),
+    )
+    try:
+        assert worker.client.session.heartbeat()["annotationRuntimes"] == [
+            runtime.probe() for runtime in runtimes.values()
+        ]
+        assert worker.serve_once(threading.Event())
+        assert selected == [runtimes["antigravity"]]
+    finally:
+        worker.close()
+
+
+def test_unavailable_annotation_runtime_does_not_stop_other_capabilities(
+    tmp_path, monkeypatch
+):
+    class Unavailable:
+        def probe(self):
+            raise ValueError("Not configured")
+
+    monkeypatch.setattr(worker_session, "available_runtimes", lambda: (TRADITIONAL,))
+    monkeypatch.setattr(worker_session, "device_memory_bytes", lambda _: 1)
+    state = worker_session.WorkerSession.create(
+        "worker", None, {"antigravity": Unavailable()}
+    )
+    assert state.annotation_runtimes == ()
+    assert state.runtimes == (TRADITIONAL,)

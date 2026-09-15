@@ -38,7 +38,7 @@ class Worker:
             settings.server_url,
             settings.token,
             WorkerSession.create(
-                settings.worker_id, settings.device, settings.annotation_runtime
+                settings.worker_id, settings.device, settings.annotation_runtimes
             ),
             transport=transport,
         )
@@ -56,7 +56,7 @@ class Worker:
         self.client.heartbeat()
         if stopped.is_set():
             return False
-        if self.settings.annotation_runtime is not None:
+        if self.client.session.annotation_runtimes:
             annotation = self.annotation.claim()
             if annotation is not None:
                 self.store.unload()
@@ -64,7 +64,7 @@ class Worker:
                     self.annotation,
                     annotation,
                     self.settings.work_dir,
-                    self.settings.annotation_runtime,
+                    self.settings.annotation_runtimes[annotation["runtime"]["runtime"]],
                     stopped=stopped,
                 )
                 return True

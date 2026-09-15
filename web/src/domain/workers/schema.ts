@@ -26,7 +26,14 @@ export const workerHeartbeatSchema = workerIdentitySchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
-    annotationRuntime: annotationRuntimeSchema.nullable().optional(),
+    annotationRuntimes: z
+      .array(annotationRuntimeSchema)
+      .max(2)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => item.runtime)).size === items.length,
+        "each annotation runtime appears once",
+      ),
     /** Memory the accelerator offers a job. */
     memoryBytes: z.number().int().positive(),
   })
