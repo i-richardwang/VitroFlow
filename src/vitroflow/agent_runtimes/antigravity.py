@@ -91,7 +91,6 @@ class AntigravityRuntime:
         descriptor: dict,
         tools: ToolSet,
         cancelled: Callable[[], bool] = lambda: False,
-        tick: Callable[[], None] = lambda: None,
         completed: Callable[[], bool] = lambda: False,
     ) -> dict:
         directory.mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -142,7 +141,6 @@ class AntigravityRuntime:
                         raise RuntimeError(
                             "Antigravity exceeded the annotation time limit"
                         )
-                    tick()
                     try:
                         event = events.get(timeout=0.2)
                     except queue.Empty:

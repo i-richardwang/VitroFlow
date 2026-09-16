@@ -55,9 +55,21 @@ def test_supervised_collection_and_private_environment(
     assert result["image"]["width"] == 160
     assert len(result["checkpointDigests"]) == 6
     assert progress[0] == (0, 6) and progress[-1] == (6, 6)
-    assert report["execution"]["messages"][0]["usage"] == {"input": 2, "output": 3}
-    assert read_json(tmp_path / "run/runtime/environment.json") == {}
-    arguments = json.loads((tmp_path / "run/runtime/arguments.json").read_text())
+    assert len(report["execution"]["tasks"]) == 6
+    assert (
+        len(list((tmp_path / "run/attempts").glob("*/*/runtime/environment.json"))) == 6
+    )
+    assert (
+        read_json(
+            next((tmp_path / "run/attempts").glob("*/*/runtime/environment.json"))
+        )
+        == {}
+    )
+    arguments = json.loads(
+        (
+            next((tmp_path / "run/attempts").glob("*/*/runtime/arguments.json"))
+        ).read_text()
+    )
     assert arguments[arguments.index("--model") + 1] == "test/vision"
     assert "--no-extensions" in arguments and "--no-context-files" in arguments
     assert (
@@ -120,7 +132,14 @@ def test_timeout_and_cancellation_terminate_pi(pi, tmp_path):
 
 @pytest.mark.parametrize(
     "transport_failure",
-    [None, "timeout", "server-error", "lease-lost", "delivery-timeout"],
+    [
+        None,
+        "timeout",
+        "server-error",
+        "lease-lost",
+        "delivery-timeout",
+        "collection-crash",
+    ],
 )
 def test_worker_downloads_exact_bytes_freezes_input_and_uploads_result(
     pi, photo, tmp_path, monkeypatch, transport_failure
@@ -201,6 +220,28 @@ def test_worker_downloads_exact_bytes_freezes_input_and_uploads_result(
             assert not any(update["operation"] == "complete" for update in updates)
             assert backoffs == []
             return
+        if transport_failure == "collection-crash":
+            from vitroflow.worker import annotation as module
+
+            def process_exit(*_):
+                raise SystemExit("crash before constructing upload payload")
+
+            with monkeypatch.context() as patch:
+                patch.setattr(module, "product_result", process_exit)
+                with pytest.raises(SystemExit):
+                    process_annotation_job(
+                        client,
+                        claimed,
+                        tmp_path / "work",
+                        PiRuntime("test/vision", pi),
+                        stopped=threading.Event(),
+                    )
+            assert not (
+                tmp_path / "work/annotations/ai-run/product-result.json"
+            ).exists()
+            assert not any(
+                update["operation"] in ("complete", "fail") for update in updates
+            )
         if transport_failure == "delivery-timeout":
             with pytest.raises(httpx.ReadTimeout):
                 process_annotation_job(
@@ -227,7 +268,7 @@ def test_worker_downloads_exact_bytes_freezes_input_and_uploads_result(
     assert completed["operation"] == "complete"
     assert "messages" not in completed["result"]["execution"]
     execution = read_json(tmp_path / "work/annotations/ai-run/execution/execution.json")
-    assert execution["messages"][0]["usage"] == {"input": 2, "output": 3}
+    assert len(execution["tasks"]) == 1
     assert completed["result"]["document"]["image"] == assignment["image"]
     assert completed["result"]["document"]["instances"] == []
     assert completed["workerId"] == "worker"

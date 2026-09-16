@@ -24,6 +24,8 @@ def _handle(args: argparse.Namespace) -> int:
         prelabels=Path(args.prelabels) if args.prelabels else None,
         config=configuration_from_args(args),
         crop=args.crop,
+        max_parallel=args.parallel,
+        resume=args.resume,
         progress=lambda done, total: print(
             f"{done}/{total} tasks accepted", file=sys.stderr
         ),
@@ -48,7 +50,11 @@ def add_agent_annotation_commands(commands: argparse._SubParsersAction) -> None:
         "run", help="Run an external agent and collect one complete image annotation"
     )
     command.add_argument("--image", required=True)
-    command.add_argument("--output", required=True, help="New execution directory")
+    command.add_argument(
+        "--output",
+        required=True,
+        help="Execution directory (existing only with --resume)",
+    )
     command.add_argument(
         "--model", help="Override the selected runtime’s default model"
     )
@@ -56,6 +62,17 @@ def add_agent_annotation_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("--executable", help="Runtime executable path")
     command.add_argument("--timeout", type=float, default=1800)
     command.add_argument("--prelabels")
+    command.add_argument(
+        "--parallel",
+        type=int,
+        default=2,
+        help="Concurrent isolated tile sessions (1–16)",
+    )
+    command.add_argument(
+        "--resume",
+        action="store_true",
+        help="Explicitly retry unfinished tiles using the original inputs",
+    )
     add_configuration_arguments(command)
     command.add_argument("--crop", nargs=4, type=int)
     command.set_defaults(handler=_handle)

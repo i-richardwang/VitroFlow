@@ -21,7 +21,6 @@ from vitroflow.agent_runtimes.antigravity import AntigravityRuntime
 from vitroflow.agent_runtimes.contract import AgentInterruptedError, ToolSet
 from vitroflow.autoannotation.preparation import prepare
 from vitroflow.autoannotation.storage import read_json, write_json
-from vitroflow.autoannotation.tasks import status
 
 
 @pytest.fixture
@@ -57,11 +56,20 @@ def test_antigravity_collects_and_stops_after_final_submission(
     )
     assert report["execution"]["runtime"] == "antigravity"
     assert read_json(tmp_path / "run/result/result.json")["coverage"]["fullImage"]
-    assert read_json(tmp_path / "run/runtime/environment.json") == {}
-    args = json.loads((tmp_path / "run/runtime/arguments.json").read_text())
+    assert (
+        read_json(
+            next((tmp_path / "run/attempts").glob("*/*/runtime/environment.json"))
+        )
+        == {}
+    )
+    args = json.loads(
+        (
+            next((tmp_path / "run/attempts").glob("*/*/runtime/arguments.json"))
+        ).read_text()
+    )
     assert "--dangerously-skip-permissions" not in args
     assert args[args.index("--model") + 1] == (model or "test/vision")
-    pid = int((tmp_path / "run/runtime/pid").read_text())
+    pid = int((next((tmp_path / "run/attempts").glob("*/*/runtime/pid"))).read_text())
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)
 
@@ -95,7 +103,7 @@ def test_antigravity_timeout_and_cancellation(agy, tmp_path, cancel):
         os.kill(int((directory / "pid").read_text()), 0)
 
 
-def test_native_mcp_images_and_normalized_geometry(photo, tmp_path):
+def test_native_mcp_images_and_normalized_geometry(photo, tmp_path, annotation_attempt):
     package = tmp_path / "package"
     candidates = tmp_path / "candidates.json"
     write_json(
@@ -116,8 +124,7 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path):
         },
     )
     prepare(photo, package, prelabels_path=candidates, config={"displayScale": 3})
-    config = tmp_path / "config.json"
-    write_json(config, {"package": str(package), "producer": "transport-test"})
+    coordinator, config = annotation_attempt(package, "transport-test")
     parameters = StdioServerParameters(
         command=sys.executable,
         args=["-m", "vitroflow.agent_runtimes.mcp"],
@@ -149,7 +156,7 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path):
                 "annotation_view", {"taskId": "tile-000-000"}
             )
             assert not viewed.isError
-            assert sum(v.type == "image" for v in viewed.content) == 2
+            assert sum(v.type == "image" for v in viewed.content) == 3
             metadata = json.loads(viewed.content[0].text)
             assert metadata["mode"] == "refit"
             assert metadata["references"] == [{"id": "r001", "class": "seed"}]
@@ -173,10 +180,14 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path):
                 },
             )
             assert rejected.isError
-            assert not status(package)["complete"]
-            accepted = await client.call_tool("annotation_submit", value)
+            assert not coordinator.events["tile-000-000"].is_set()
+            proposal_id = json.loads(preview.content[0].text)["proposalId"]
+            accepted = await client.call_tool(
+                "annotation_submit",
+                {"taskId": value["taskId"], "proposalId": proposal_id},
+            )
             assert not accepted.isError
-            assert status(package)["complete"]
+            assert coordinator.events["tile-000-000"].is_set()
 
     asyncio.run(check())
     direct = AnnotationTools(config).call("annotation_view", {"taskId": "tile-000-000"})

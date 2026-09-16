@@ -53,20 +53,25 @@ def json_event_stream(
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
+    def signal_group(value: signal.Signals) -> None:
+        try:
+            os.killpg(process.pid, value)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            # macOS can report EPERM for an already departed process group.
+            # A live child's permission failure must still be surfaced.
+            if process.poll() is None:
+                raise
+
+    signal_group(signal.SIGTERM)
     try:
         process.wait(timeout=3)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+        signal_group(signal.SIGKILL)
         process.wait()
     # A tool can survive after its parent exits; its process group must also end.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    signal_group(signal.SIGKILL)
 
 
 def runtime_environment() -> dict[str, str]:

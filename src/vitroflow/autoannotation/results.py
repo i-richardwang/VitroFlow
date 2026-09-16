@@ -11,7 +11,11 @@ from vitroflow.autoannotation.geometry import (
     rectangle,
     source_edges,
 )
-from vitroflow.autoannotation.protocol import object_digest
+from vitroflow.autoannotation.protocol import (
+    object_digest,
+    validate_edges,
+    validate_response,
+)
 from vitroflow.autoannotation.rendering import overlay
 from vitroflow.autoannotation.storage import read_json, write_json
 from vitroflow.autoannotation.tasks import (
@@ -44,86 +48,99 @@ def seam_warnings(instances: list[dict]) -> list[dict]:
 
 
 def collect(root: Path, destination: Path) -> dict:
-    outside_package(root, destination)
+    # Portable manual checkpoints are snapshotted before any expensive rendering.
     with locked(root):
         manifest = load_package(root)
-        source = manifest["source"]
-        source_limits = [0, 0, source["width"], source["height"]]
-        coverage = rectangle(manifest["coverage"]["bbox"])
-        instances, issues, responses, revisions = [], [], [], {}
+        accepted = {}
         for task in manifest["tasks"]:
             state = checkpoint(root, manifest, task)
-            if "response" not in state:
-                raise ValueError(f"Incomplete task: {task['id']}")
-            response = state["response"]
-            revisions[task["id"]] = object_digest(state)
-            responses.append(response)
-            for item in response["instances"]:
-                edges = source_edges(item, task)
-                if not owned(edges, task["core"]):
-                    continue
-                instances.append(
-                    {
-                        **item,
-                        "id": f"{task['id']}:{item['id']}",
-                        "bbox": box_from_edges(edges),
-                        "taskId": task["id"],
-                        "producer": response["producer"],
-                        "uncertain": item.get("uncertain", False),
-                        "truncated": any(
-                            abs(a - b) < 1e-6 for a, b in zip(edges, source_limits)
-                        ),
-                        "coverageTruncated": any(
-                            abs(a - b) < 1e-6 for a, b in zip(edges, coverage)
-                        ),
-                        "localTruncated": item.get("truncated", False),
-                    }
-                )
-            issues.extend(
+            if "response" in state:
+                accepted[task["id"]] = state["response"]
+    return collect_responses(root, destination, accepted)
+
+
+def collect_responses(root: Path, destination: Path, accepted: dict[str, dict]) -> dict:
+    outside_package(root, destination)
+    manifest = load_package(root)
+    source = manifest["source"]
+    source_limits = [0, 0, source["width"], source["height"]]
+    coverage = rectangle(manifest["coverage"]["bbox"])
+    instances, issues, responses, revisions = [], [], [], {}
+    for task in manifest["tasks"]:
+        state = {"response": accepted[task["id"]]} if task["id"] in accepted else {}
+        if "response" not in state:
+            raise ValueError(f"Incomplete task: {task['id']}")
+        response = state["response"]
+        validate_response(response, manifest, task)
+        validate_edges(response, manifest, task)
+        revisions[task["id"]] = object_digest(state)
+        responses.append(response)
+        for item in response["instances"]:
+            edges = source_edges(item, task)
+            if not owned(edges, task["core"]):
+                continue
+            instances.append(
                 {
+                    **item,
+                    "id": f"{task['id']}:{item['id']}",
+                    "bbox": box_from_edges(edges),
                     "taskId": task["id"],
-                    "bbox": box_from_edges(source_edges(v, task)),
-                    "reason": v["reason"],
+                    "producer": response["producer"],
+                    "uncertain": item.get("uncertain", False),
+                    "truncated": any(
+                        abs(a - b) < 1e-6 for a, b in zip(edges, source_limits)
+                    ),
+                    "coverageTruncated": any(
+                        abs(a - b) < 1e-6 for a, b in zip(edges, coverage)
+                    ),
+                    "localTruncated": item.get("truncated", False),
                 }
-                for v in response["issues"]
             )
-        warnings = seam_warnings(instances)
-        output = {
-            "schemaVersion": manifest["schemaVersion"],
-            "kind": "ai-annotation-result",
-            "packageId": manifest["packageId"],
-            "checkpointDigests": revisions,
-            "image": source,
-            "coordinateSpace": "oriented source pixels",
-            "coverage": manifest["coverage"],
-            "instances": instances,
-            "issues": issues,
-            "warnings": warnings,
-            "reviewStatus": "unreviewed",
-            "qualityStatus": "needs-review"
-            if issues
-            or warnings
-            or any(
-                v["uncertain"] or v["coverageTruncated"] or v["localTruncated"]
-                for v in instances
-            )
-            else "unverified",
-            "inputDigest": manifest["assets"].get("input.json"),
-        }
-        before = []
-        for item in read_json(root / "prelabels.json")["instances"]:
-            edges = clip(rectangle(item["bbox"]), coverage)
-            if edges[2] > edges[0] and edges[3] > edges[1]:
-                before.append({**item, "bbox": box_from_edges(edges)})
-        with atomic_directory(destination) as working:
-            write_json(working / "result.json", output)
-            write_json(working / "responses.json", {"responses": responses})
-            if "input.json" in manifest["assets"]:
-                write_json(working / "input.json", read_json(root / "input.json"))
-            image = read_image(root / "coverage.png")
-            origin = (coverage[0], coverage[1])
-            overlay(working, "overlay", image, instances, origin)
-            overlay(working, "before-overlay", image, before, origin)
+        issues.extend(
+            {
+                "taskId": task["id"],
+                "bbox": box_from_edges(source_edges(v, task)),
+                "reason": v["reason"],
+            }
+            for v in response["issues"]
+        )
+    warnings = seam_warnings(instances)
+    output = {
+        "schemaVersion": manifest["schemaVersion"],
+        "kind": "ai-annotation-result",
+        "packageId": manifest["packageId"],
+        "checkpointDigests": revisions,
+        "image": source,
+        "coordinateSpace": "oriented source pixels",
+        "coverage": manifest["coverage"],
+        "instances": instances,
+        "issues": issues,
+        "warnings": warnings,
+        "reviewStatus": "unreviewed",
+        "qualityStatus": "needs-review"
+        if issues
+        or warnings
+        or any(
+            v["uncertain"] or v["coverageTruncated"] or v["localTruncated"]
+            for v in instances
+        )
+        else "unverified",
+        "inputDigest": manifest["assets"].get("input.json"),
+    }
+    before = []
+    for item in read_json(root / "prelabels.json")["instances"]:
+        edges = clip(rectangle(item["bbox"]), coverage)
+        if edges[2] > edges[0] and edges[3] > edges[1]:
+            before.append({**item, "bbox": box_from_edges(edges)})
+    with atomic_directory(destination) as working:
+        write_json(working / "result.json", output)
+        write_json(working / "responses.json", {"responses": responses})
+        if "input.json" in manifest["assets"]:
+            write_json(working / "input.json", read_json(root / "input.json"))
+        image = read_image(root / "coverage.png")
+        origin = (coverage[0], coverage[1])
+        overlay(working, "overlay", image, instances, origin)
+        overlay(working, "before-overlay", image, before, origin)
     return {
         "count": len(instances),
         "warnings": len(warnings),

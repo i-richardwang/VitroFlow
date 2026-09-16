@@ -21,7 +21,7 @@ from vitroflow.autoannotation.storage import read_json, write_json
 from vitroflow.io.files import atomic_file
 
 
-def load_package(root: Path) -> dict:
+def read_manifest(root: Path) -> dict:
     manifest = read_json(root / "manifest.json")
     fields(
         manifest,
@@ -42,6 +42,11 @@ def load_package(root: Path) -> dict:
         != manifest["packageId"]
     ):
         raise ValueError("Manifest integrity mismatch; prepare a new package")
+    return manifest
+
+
+def load_package(root: Path) -> dict:
+    manifest = read_manifest(root)
     for relative, checksum in manifest["assets"].items():
         path = root / relative
         if Path(relative).is_absolute() or not path.resolve().is_relative_to(

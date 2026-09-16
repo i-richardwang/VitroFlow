@@ -18,19 +18,15 @@ edges directly from those outlines. Reuse the reference ID for the same body
 where possible; assign a new local ID to each additional body. Return a complete
 proposal, including additions, removals and splits where the image supports them."""
 
-VISUAL_RULES = """Follow the configured class rules. Cover the complete visible
-body, including its coat and tips, before minimizing background. Separate
-touching bodies; their boxes may overlap. Distinguish bodies from glare and
-fibers. Do not force an expected count, copy old geometry, or add arbitrary
-padding. Mark a visible body's uncertain extent as uncertain, and a body cut by
-the image boundary as truncated. Areas with indeterminate identity belong in
-issues rather than fabricated instances."""
+VISUAL_RULES = """Mark uncertain extents as uncertain and bodies cut by the image
+boundary as truncated. Report indeterminate identity in issues rather than
+fabricating instances. Empty regions are normal: return instances=[]."""
 
 PREVIEW_TASK = """Compare CLEAN and PROPOSED at the same scale. Check each body's
 visible extremities against all four drawn edges; proximity to a body does not
 make a misplaced box correct. Correct discrepancies supported by the pixels.
-A second preview can check a changed proposal; do not repeatedly preview
-unchanged geometry. Submit the complete final result, including issues."""
+A changed proposal needs a new preview; do not repeatedly preview unchanged
+geometry."""
 
 
 def task_instruction(has_references: bool) -> str:

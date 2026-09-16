@@ -28,7 +28,7 @@ export const DEFAULT_MODEL_ANNOTATION = {
   instructions: "",
   coreSize: 512,
   halo: 32,
-  displayScale: 2,
+  displayScale: 1,
 } satisfies ModelAnnotation;
 
 /**

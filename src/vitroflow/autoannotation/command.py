@@ -38,7 +38,7 @@ def add_configuration_arguments(command: argparse.ArgumentParser) -> None:
         "--halo", type=int, help="Context per side in source pixels (default 32)"
     )
     command.add_argument(
-        "--display-scale", type=int, help="Display magnification, 1–4 (default 2)"
+        "--display-scale", type=int, help="Display magnification, 1–4 (default 1)"
     )
 
 

@@ -40,7 +40,7 @@ def prepare(
     settings = {
         "coreSize": 512,
         "halo": 32,
-        "displayScale": 2,
+        "displayScale": 1,
         "classes": ["seed"],
         "rules": DEFAULT_RULES,
         **config,
@@ -131,6 +131,14 @@ def prepare(
             # Frozen original input preserves round provenance and unresolved
             # issues without treating prior explanations as visual evidence.
             write_json(root / "input.json", supplied)
+        # Global location evidence is frozen once. Each patch has its own locator;
+        # CLEAN remains at its configured native scale, including halo.
+        overview_scale = min(1.0, 1024 / max(width, height))
+        overview_size = (
+            max(1, round(width * overview_scale)),
+            max(1, round(height * overview_scale)),
+        )
+        overview = cv2.resize(image, overview_size, interpolation=cv2.INTER_AREA)
         tasks = []
         core_size, halo, scale = (
             settings[k] for k in ("coreSize", "halo", "displayScale")
@@ -161,10 +169,29 @@ def prepare(
                     "displayScale": scale,
                     "coordinateSpace": "clean.png display pixels",
                 }
+                context = overview.copy()
+                cv2.rectangle(
+                    context,
+                    (
+                        round(patch[0] * overview_scale),
+                        round(patch[1] * overview_scale),
+                    ),
+                    (
+                        min(overview_size[0] - 1, round(patch[2] * overview_scale)),
+                        min(overview_size[1] - 1, round(patch[3] * overview_scale)),
+                    ),
+                    (20, 50, 255),
+                    3,
+                )
+                write_image(folder / "overview.png", context)
                 write_json(folder / "task.json", task)
                 patch_image = image[patch[1] : patch[3], patch[0] : patch[2]]
-                clean = cv2.resize(
-                    patch_image, tuple(display), interpolation=cv2.INTER_CUBIC
+                clean = (
+                    patch_image
+                    if scale == 1
+                    else cv2.resize(
+                        patch_image, tuple(display), interpolation=cv2.INTER_CUBIC
+                    )
                 )
                 write_image(folder / "clean.png", clean)
                 local = []

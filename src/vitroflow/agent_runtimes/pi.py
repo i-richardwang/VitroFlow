@@ -135,7 +135,6 @@ class PiRuntime:
         *,
         descriptor: dict,
         cancelled: Callable[[], bool] = lambda: False,
-        tick: Callable[[], None] = lambda: None,
         tools: ToolSet,
         completed: Callable[[], bool] = lambda: False,
     ) -> dict:
@@ -192,7 +191,6 @@ class PiRuntime:
                         break
                     if time.monotonic() - started > self.timeout_seconds:
                         raise RuntimeError("Pi exceeded the annotation time limit")
-                    tick()
                     try:
                         event = events.get(timeout=0.2)
                     except queue.Empty:

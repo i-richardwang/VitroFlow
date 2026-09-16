@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
+import pytest
 
+from vitroflow.agent_annotation.coordinator import Coordinator
 from vitroflow.datasets.manifest import (
     MANIFEST_SCHEMA_VERSION,
     blob_path,
@@ -142,3 +145,17 @@ def write_blob(data_root: Path, data: bytes) -> str:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     return digest
+
+
+@pytest.fixture
+def annotation_attempt(tmp_path):
+    with ExitStack() as stack:
+
+        def create(package, producer="test/vision", task_id="tile-000-000"):
+            coordinator = stack.enter_context(
+                Coordinator(tmp_path / "control", package)
+            )
+            attempt = coordinator.command("start", taskId=task_id, producer=producer)
+            return coordinator, Path(attempt["directory"]) / "tools/config.json"
+
+        yield create

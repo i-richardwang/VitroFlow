@@ -31,6 +31,5 @@ class AgentRuntime(Protocol):
         descriptor: dict,
         tools: ToolSet,
         cancelled: Callable[[], bool] = lambda: False,
-        tick: Callable[[], None] = lambda: None,
         completed: Callable[[], bool] = lambda: False,
     ) -> dict: ...

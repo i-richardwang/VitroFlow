@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -64,20 +63,15 @@ if model == "test/invalid-stream":
     print("invalid JSON")
     sys.exit()
 if model != "test/incomplete":
-    from vitroflow.autoannotation.tasks import load_package, submit
+    from vitroflow.agent_annotation.tools import AnnotationTools
 
-    package = Path(re.search(r"image package at (.+)\.\n", prompt).group(1))
-    manifest = load_package(package)
-    for task in manifest["tasks"]:
-        response = {
-            "schemaVersion": manifest["schemaVersion"],
-            "packageId": manifest["packageId"],
-            "taskId": task["id"],
-            "producer": "protocol-test",
-            "instances": [],
-            "issues": [],
-        }
-        submit(package, task["id"], response)
+    command = json.loads(Path("tools.json").read_text())["command"]
+    tools = AnnotationTools(Path(command[command.index("--config") + 1]))
+    task = tools.task
+    tools.call("annotation_view", {"taskId": task["id"]})
+    preview = tools.call("annotation_preview", {"taskId": task["id"], "instances": []})
+    proposal = json.loads(preview["content"][0]["text"])["proposalId"]
+    tools.call("annotation_submit", {"taskId": task["id"], "proposalId": proposal})
 if model == "test/linger":
     time.sleep(60)
 print(

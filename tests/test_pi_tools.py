@@ -18,13 +18,12 @@ from vitroflow.agent_annotation.tools import DEFINITIONS
 from vitroflow.agent_runtimes import pi
 from vitroflow.agent_runtimes.process import runtime_environment, terminate_process
 from vitroflow.autoannotation.preparation import prepare
-from vitroflow.autoannotation.results import collect
+from vitroflow.autoannotation.results import collect_responses
 from vitroflow.autoannotation.storage import read_json, write_json
-from vitroflow.autoannotation.tasks import status
 
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is installed separately")
-def test_native_tool_registration_preview_and_submit(tmp_path):
+def test_native_tool_registration_preview_and_submit(tmp_path, annotation_attempt):
     source = tmp_path / "source.png"
     cv2.imwrite(str(source), np.full((40, 80, 3), 128, np.uint8))
     package = tmp_path / "package"
@@ -53,6 +52,7 @@ def test_native_tool_registration_preview_and_submit(tmp_path):
         prelabels_path=candidates,
         config={"displayScale": 3},
     )
+    coordinator, config = annotation_attempt(package)
     extension = tmp_path / "annotation.ts"
     shutil.copyfile(Path(pi.__file__).with_name("pi_tools.ts"), extension)
     write_json(
@@ -63,13 +63,10 @@ def test_native_tool_registration_preview_and_submit(tmp_path):
                 "-m",
                 "vitroflow.agent_annotation.tools",
                 "--config",
-                str(tmp_path / "config.json"),
+                str(config),
             ],
             "definitions": DEFINITIONS,
         },
-    )
-    write_json(
-        tmp_path / "config.json", {"package": str(package), "producer": "test/vision"}
     )
     result = tmp_path / "probe.json"
     probe = tmp_path / "probe.ts"
@@ -99,7 +96,8 @@ export default async function(pi) {
         catch { rejected++; }
       }
       const preview = await invoke("annotation_preview", value);
-      const accepted = await invoke("annotation_submit", value);
+      const proposalId = JSON.parse(preview.content.find(v => v.type === "text").text).proposalId;
+      const accepted = await invoke("annotation_submit", { taskId: value.taskId, proposalId });
       result = { metadata, previewMetadata: JSON.parse(preview.content.find(v => v.type === "text").text), tools: pi.getActiveTools(), viewImages: view.content.filter(v => v.type === "image").length, previewImages: preview.content.filter(v => v.type === "image").length, rejected, terminate: accepted.terminate };
     } catch(error) { result = { error: String(error) }; }
     writeFileSync(RESULT_PATH, JSON.stringify(result));
@@ -153,17 +151,23 @@ export default async function(pi) {
     assert metadata["mode"] == "refit"
     assert metadata["references"] == [{"id": "r001", "class": "seed"}]
     assert "candidates" not in metadata
-    assert observed.pop("previewMetadata") == metadata["task"]
+    preview_metadata = observed.pop("previewMetadata")
+    assert len(preview_metadata.pop("proposalId")) == 64
+    assert preview_metadata == metadata["task"]
     assert observed == {
         "tools": ["annotation_view", "annotation_preview", "annotation_submit"],
-        "viewImages": 2,
+        "viewImages": 3,
         "previewImages": 2,
         "rejected": 7,
         "terminate": True,
     }
-    assert status(package)["complete"]
+    assert coordinator.events["tile-000-000"].is_set()
 
-    collect(package, tmp_path / "result")
+    collect_responses(
+        package,
+        tmp_path / "result",
+        {k: v["response"] for k, v in coordinator.snapshot()["tasks"].items()},
+    )
     document = read_json(tmp_path / "result/result.json")
     assert document["instances"][0]["bbox"] == pytest.approx(
         {"x": 32.016, "y": 12.016, "width": 32, "height": 16}

@@ -13,6 +13,7 @@ import httpx
 from vitroflow.agent_annotation.runner import run_annotation
 from vitroflow.agent_runtimes.contract import AgentInterruptedError, AgentRuntime
 from vitroflow.autoannotation.storage import read_json, write_json
+from vitroflow.autoannotation.tasks import read_manifest
 from vitroflow.contracts.validation import validate_wire_contract
 from vitroflow.worker.session import LeaseLostError, WorkerClient, keep_lease
 
@@ -115,9 +116,20 @@ def process_annotation_job(
             client.update(identifier, "complete", result=read_json(result_file))
             return
         try:
-            if directory.exists():
-                raise RuntimeError("Unfinished local AI run; start a new run to retry")
-            directory.mkdir(parents=True, mode=0o700)
+            resume = directory.exists()
+            if resume:
+                # Recover delivery/collection after a crash without new model calls.
+                execution_dir = directory / "execution"
+                state = read_json(execution_dir / "state.json")
+                manifest = read_manifest(execution_dir / "tasks")
+                if state["packageId"] != manifest["packageId"] or any(
+                    state["tasks"].get(task["id"], {}).get("state") != "accepted"
+                    for task in manifest["tasks"]
+                ):
+                    raise RuntimeError(
+                        "Unfinished local AI run; explicitly resume it or start a new run"
+                    )
+            directory.mkdir(parents=True, exist_ok=resume, mode=0o700)
             response = client.client.request(
                 "GET",
                 f"api/worker/annotation/runs/{identifier}/image",
@@ -164,6 +176,7 @@ def process_annotation_job(
                 config=assignment["config"],
                 cancelled=cancelled,
                 progress=report_progress,
+                resume=resume,
             )
             if cancelled():
                 raise AgentInterruptedError("AI annotation cancelled")

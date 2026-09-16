@@ -12,8 +12,16 @@ from uuid import uuid4
 
 from jsonschema import Draft202012Validator
 
+from vitroflow.agent_annotation.coordinator import request
 from vitroflow.autoannotation import tasks
 from vitroflow.autoannotation.instructions import task_instruction
+from vitroflow.autoannotation.protocol import (
+    digest,
+    object_digest,
+    validate_edges,
+    validate_response,
+)
+from vitroflow.autoannotation.rendering import preview as render_preview
 from vitroflow.autoannotation.rendering import references
 from vitroflow.autoannotation.storage import read_json, write_json
 
@@ -59,25 +67,32 @@ RESPONSE = object_schema(
             ),
         },
     },
-    ["taskId", "instances", "issues"],
+    ["taskId", "instances"],
+)
+SUBMISSION = object_schema(
+    {
+        "taskId": {"type": "string"},
+        "proposalId": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    },
+    ["taskId", "proposalId"],
 )
 DEFINITIONS = tuple(
     {"name": f"annotation_{name}", "description": description, "inputSchema": schema}
     for name, description, schema in (
         (
             "view",
-            "View CLEAN and optional INITIAL reference images, with task-specific instructions. Estimate box edges visually; previous coordinates are not supplied.",
+            "View OVERVIEW, CLEAN and optional INITIAL reference images, with task-specific instructions. Estimate box edges visually; previous coordinates are not supplied.",
             object_schema({"taskId": {"type": "string"}}, ["taskId"]),
         ),
         (
             "preview",
-            "Validate a complete proposal and view both CLEAN and PROPOSED at the same scale. Use normalized box_2d edges.",
+            "Preview all instances using normalized box_2d edges. Omit issues when none. Returns CLEAN, PROPOSED and a proposalId for submission.",
             RESPONSE,
         ),
         (
             "submit",
-            "Validate and accept a complete task proposal. Supply all instances and issues, including empty lists for empty regions.",
-            RESPONSE,
+            "Accept a previously previewed proposal by its proposalId. Do not repeat coordinates.",
+            SUBMISSION,
         ),
     )
 )
@@ -101,27 +116,49 @@ class AnnotationTools:
         self.package = Path(settings["package"])
         self.producer = settings["producer"]
         self.directory = config.parent / "responses"
-        self.manifest = tasks.load_package(self.package)
+        self.settings = settings
+        self.manifest = tasks.read_manifest(self.package)
+        if self.manifest["packageId"] != settings["packageId"]:
+            raise ValueError("Task input identity mismatch")
+        self.task = tasks.task_by_id(self.manifest, settings["taskId"])
+
+    def asset(self, relative: str) -> Path:
+        path = self.package / relative
+        if digest(path.read_bytes()) != self.manifest["assets"][relative]:
+            raise ValueError(f"Frozen asset changed: {relative}")
+        return path
 
     def call(self, name: str, arguments: dict) -> dict:
         definition = next((item for item in DEFINITIONS if item["name"] == name), None)
         if definition is None:
             raise ValueError("Unknown annotation operation")
         Draft202012Validator(definition["inputSchema"]).validate(arguments)
-        task = next(
-            (t for t in self.manifest["tasks"] if t["id"] == arguments["taskId"]), None
-        )
-        if task is None:
-            raise ValueError("Unknown annotation task")
+        task = self.task
+        if arguments["taskId"] != task["id"]:
+            raise ValueError("Tool is bound to a different task")
+        if name == "annotation_submit":
+            receipt = request(
+                self.settings["endpoint"],
+                {
+                    "operation": "submit",
+                    "taskId": task["id"],
+                    "attemptId": self.settings["attemptId"],
+                    "proposalId": arguments["proposalId"],
+                },
+            )
+            return {"content": [text(receipt)], "complete": True}
         metadata = {
             "id": task["id"],
             "displaySize": task["displaySize"],
             "coordinateSpace": COORDINATE_SPACE,
         }
         width, height = task["displaySize"]
-        folder = self.package / "tasks" / task["id"]
+        relative = f"tasks/{task['id']}"
+        folder = self.package / relative
         if name == "annotation_view":
-            items = references(read_json(folder / "prelabels.json")["instances"])
+            items = references(
+                read_json(self.asset(f"{relative}/prelabels.json"))["instances"]
+            )
             content = [
                 text(
                     {
@@ -133,14 +170,20 @@ class AnnotationTools:
                         ],
                     }
                 ),
+                text(
+                    {
+                        "imageRole": "OVERVIEW — full original image; red rectangle locates CLEAN. Use for spatial context only. Annotate only CLEAN; all coordinates refer to CLEAN."
+                    }
+                ),
+                image(self.asset(f"{relative}/overview.png")),
                 text({"imageRole": "CLEAN — image evidence"}),
-                image(folder / "clean.png"),
+                image(self.asset(f"{relative}/clean.png")),
             ]
             if items:
                 content.extend(
                     [
                         text({"imageRole": "INITIAL — previous annotation references"}),
-                        image(folder / "before.png"),
+                        image(self.asset(f"{relative}/before.png")),
                     ]
                 )
             return {"content": content}
@@ -167,25 +210,30 @@ class AnnotationTools:
             "taskId": task["id"],
             "producer": self.producer,
             "instances": [pixels(i) for i in arguments["instances"]],
-            "issues": [pixels(i) for i in arguments["issues"]],
+            "issues": [pixels(i) for i in arguments.get("issues", [])],
         }
         attempt = self.directory / uuid4().hex
         attempt.mkdir(parents=True)
         write_json(attempt / "response.json", response)
         if name == "annotation_preview":
-            tasks.preview(self.package, task["id"], response, attempt / "preview")
+            validate_response(response, self.manifest, task)
+            validate_edges(response, self.manifest, task)
+            self.asset(f"{relative}/clean.png")
+            if (folder / "before.png").exists():
+                self.asset(f"{relative}/before.png")
+            render_preview(self.package, task, response, attempt / "preview")
+            proposal_id = object_digest(response)
+            write_json(self.directory / "proposals" / f"{proposal_id}.json", response)
             return {
                 "content": [
-                    text(metadata),
+                    text({**metadata, "proposalId": proposal_id}),
                     text({"imageRole": "CLEAN — image evidence"}),
                     image(attempt / "preview/clean.png"),
                     text({"imageRole": "PROPOSED — your current boxes"}),
                     image(attempt / "preview/proposed.png"),
                 ]
             }
-        tasks.submit(self.package, task["id"], response)
-        state = tasks.status(self.package)
-        return {"content": [text(state)], "complete": state["complete"]}
+        raise ValueError("Unknown annotation operation")
 
 
 async def serve(tools: AnnotationTools) -> None:

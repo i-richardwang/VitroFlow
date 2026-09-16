@@ -82,10 +82,10 @@ def test_cli_completion_and_round_trip(photo, tmp_path, capsys):
     assert result["reviewStatus"] == "unreviewed"
     assert result["qualityStatus"] == "needs-review"
     assert result["instances"][0]["bbox"] == {
-        "x": 20,
-        "y": 20,
-        "width": 10,
-        "height": 6,
+        "x": 40,
+        "y": 40,
+        "width": 20,
+        "height": 12,
     }
     assert result["inputDigest"] is None
     assert read_json(result_dir / "responses.json")["responses"][0] == a
@@ -105,7 +105,7 @@ def test_cli_completion_and_round_trip(photo, tmp_path, capsys):
     m2 = tasks.load_package(second)
     t2 = m2["tasks"][0]
     local = read_json(second / "tasks" / t2["id"] / "prelabels.json")["instances"]
-    assert local[0]["bbox"] == {"x": 30, "y": 30, "width": 30, "height": 18}
+    assert local[0]["bbox"] == {"x": 90, "y": 90, "width": 60, "height": 36}
     assert read_json(second / "input.json") == result
     # Replace the candidate with two objects, add one, no per-input decisions.
     b = response(
@@ -272,7 +272,7 @@ def test_issues_and_overlap_are_not_silently_approved_or_suppressed(photo, tmp_p
     result = read_json(tmp_path / "result/result.json")
     assert len(result["instances"]) == 2 and result["warnings"] == []
     assert result["qualityStatus"] == "needs-review"
-    assert result["issues"][0]["bbox"] == {"x": 25, "y": 30, "width": 5, "height": 10}
+    assert result["issues"][0]["bbox"] == {"x": 40, "y": 50, "width": 10, "height": 20}
 
 
 @pytest.mark.parametrize(

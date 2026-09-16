@@ -35,7 +35,7 @@ vitroflow annotate run --runtime antigravity --image photo.jpg \
   --core-size 256 --halo 32 --display-scale 4 --output output/agy-small-regions
 ```
 
-`--runtime` defaults to `pi`; `--executable` selects its executable and `--model` optionally overrides its default. `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the runtime descriptor, then launches one session per image. Both runtimes use the same normalized view, preview, and submit operations and canonical validation. Regions are processed sequentially within that session, not by creating one session per tile.
+`--runtime` defaults to `pi`; `--executable` selects its executable and `--model` optionally overrides its default. `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the runtime descriptor, then launches one independent session per region. `--parallel` bounds concurrent sessions (default 2, range 1–16); `--timeout` applies to each session. Both runtimes use the same normalized view, preview, and submit operations. Each tool is bound to that session's task and attempt; it cannot operate on another region. The first view supplies a full-image overview (longest side at most 1024 pixels) with the current patch outlined, the native-scale CLEAN patch, and optional INITIAL references. Subsequent previews pair CLEAN and PROPOSED.
 
 Antigravity setup registers a local stdio MCP bridge and three scoped tool permissions. It is a one-time host configuration, not a per-run global edit. The executing process binds that bridge to its own task; a standalone Antigravity session has no such binding. See [AI annotation](ai-annotation.md) for configuration, permissions, and runtime differences.
 
@@ -43,11 +43,16 @@ The run directory contains:
 
 ```text
 ai-round-1/
-├── tasks/                 Portable package and validated checkpoints
-├── tools/                 Tool configuration and response previews
-├── runtime/               Runtime bridge assets, events.jsonl, stderr.log
-├── prompt.txt             Exact shared runtime instructions
-├── execution.json         Runtime version, selected model, local execution details
+├── tasks/                 Frozen shared input, including per-patch overview.png
+├── request.json           Original image/input/settings identity for explicit resume
+├── descriptor.json        Frozen runtime identity
+├── state.json             Coordinator-owned attempts and accepted responses
+├── attempts/<task>/<attempt>/
+│   ├── tools/             Bound configuration and immutable proposal versions
+│   ├── runtime/           Runtime bridge assets, events.jsonl, stderr.log
+│   ├── prompt.txt         Instructions for exactly this region
+│   └── execution.json     This attempt's process outcome
+├── execution.json         Runtime identity and accepted attempt outcomes
 ├── status.json            Supervisor completion or failure
 └── result/
     ├── result.json        Source-coordinate annotations
@@ -56,9 +61,15 @@ ai-round-1/
     └── before-overlay.png
 ```
 
-The supervisor collects results only after every task has a validated checkpoint. Runtime adapters can stop the session as soon as the final submission is accepted. Exit code zero or a prose claim of completion is insufficient. Timeouts and cancellation terminate the process group. Missing provider usage remains unknown. Full local logs can contain image content and model output; execution directories are private to their owner.
+The supervisor collects results only after the coordinator has durably accepted every task. Each runtime can stop as soon as its own submission is accepted. Completion callbacks read in-memory events, not package files or image checksums; events are reconstructed from state.json on recovery. Exit code zero or a prose claim of completion is insufficient. Timeouts and cancellation terminate the process group. Missing provider usage remains unknown. Full local logs can contain image content and model output; execution directories are private to their owner.
 
-A failed operation retains its task checkpoints and logs. The standalone task commands below can inspect or finish that package. The automatic runner never silently starts another paid attempt. To request another AI round, use a new directory with the previous result as optional input.
+A failed session stops further dispatch; the sessions already running finish, and their acceptances are kept with the private attempts and logs. To retry only the unfinished regions, repeat the original command and settings with `--resume`: accepted regions are reused without model calls, retried regions get new attempt IDs, and submissions from superseded attempts are fenced by attempt identity. Resuming a completed run recovers export and delivery. A run with a live supervisor refuses a second one. Retrying a failed session is always this explicit request.
+
+```bash
+vitroflow annotate run --image photo.jpg --output output/ai-round-1 --parallel 2 --resume
+```
+
+The manual file commands below operate on portable checkpoints. They do not modify the coordinator's accepted responses in a supervised run. To request another annotation round or an independent seam review, use a new directory with the previous result as optional input and, if appropriate, a seam-spanning `--crop`.
 
 For the product and Worker integration, see [AI annotation](ai-annotation.md).
 
@@ -104,15 +115,15 @@ The tool preserves the decoded source resolution rather than resizing the image 
 | --- | ---: | --- |
 | `--core-size` | 512 | Core region side length in source pixels |
 | `--halo` | 32 | Context around each core region, in source pixels |
-| `--display-scale` | 2 | Task image magnification, from 1 to 4 |
+| `--display-scale` | 1 | Task image magnification, from 1 to 4 |
 
-Context adds source pixels around the core before display magnification. For example, an interior 256-pixel core with 32-pixel context is a 320×320 patch, displayed as 1280×1280 at 4×. Source/crop boundaries clip that context. Magnification changes presentation, not coverage or final source coordinates.
+By default, task images retain the source patch pixels without interpolation. Explicit magnification remains available for controlled experiments. Context adds source pixels around the core before display magnification. For example, an interior 256-pixel core with 32-pixel context is a 320×320 patch, displayed as 1280×1280 at 4×. Source/crop boundaries clip that context. Magnification changes presentation, not coverage or final source coordinates.
 
-A 3072×4096 image produces a 6×8 grid of 48 regions with the default settings, requiring at least 48 accepted submissions. Tile count is not session count or API call count: an agent can handle multiple tiles, while previews and retries add operations. The default core size is configurable and has not been established as more accurate than other sizes.
+A 3072×4096 image produces a 6×8 grid of 48 regions with the default settings, requiring 48 accepted submissions and 48 independent sessions on the initial supervised run. Each session can make several tool or model calls; explicit retries add sessions for unfinished regions. The default core size is configurable and has not been established as more accurate than other sizes.
 
 ```bash
 vitroflow annotate prepare --image photo.jpg --crop 512 1536 512 512 \
-  --core-size 512 --halo 32 --display-scale 2 --output output/local-round
+  --core-size 512 --halo 32 --display-scale 1 --output output/local-round
 ```
 
 `plan`, `prepare`, and `run` accept these same region flags. `--config FILE` supports `coreSize`, `halo`, `displayScale`, `classes`, and `rules`; explicit CLI options take precedence. Custom classes require corresponding rules. The tool does not automatically skip blank regions, select a region of interest, or subdivide tiles recursively. Equal tile dimensions do not guarantee equal object sizes across photographs taken at different distances.
@@ -125,7 +136,7 @@ The default seed rules require complete visible bodies, including pale coats and
 
 `annotation_preview` returns CLEAN and PROPOSED together so geometry is checked against the unmarked pixels. A second preview is useful for a changed proposal; repeating an unchanged overlay adds no new coordinate feedback.
 
-The file commands below accept display-pixel boxes. The supervised agent tools used by `annotate run` instead accept normalized `box_2d` edges and perform this conversion automatically; see [AI annotation](ai-annotation.md).
+The file commands below accept display-pixel boxes. The supervised agent preview used by `annotate run` instead accepts normalized `box_2d` edges and optional issues. It returns a `proposalId`; the agent submits that ID after viewing the preview, without repeating coordinates. The file-based commands below retain their complete response format; see [AI annotation](ai-annotation.md).
 
 Save responses outside the checkpoint directory. Bounding boxes use display pixels of the task's `clean.png`:
 
