@@ -3,13 +3,17 @@ import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Button, Link, Table, buttonVariants } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { Count } from "../../ui/Count";
 import { QualityChips } from "../../ui/DetectionQuality";
 import { Hint } from "../../ui/Hint";
 import { Page } from "../../ui/Page";
 import { archiveFilename } from "../../domain/datasets/archive-format";
+import { AnnotateImagesDialog } from "../../features/calibration/AiAnnotate";
+import { sourceLabels } from "../../features/calibration/labels";
 import { ImageMenu } from "../../features/datasets/ImageMenu";
+import { annotateDatasetImages } from "../../functions/annotation-runs";
 import { getDatasetOverview } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
@@ -36,8 +40,10 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const { images, reviewedCount, training } = Route.useLoaderData();
+  const { images, reviewedCount, training, agents } = Route.useLoaderData();
   const router = useRouter();
+  const [annotating, setAnnotating] = useState(false);
+  const unreviewed = images.filter((image) => image.instanceCount === null);
 
   useRouteRefresh(router, 10_000);
 
@@ -54,6 +60,13 @@ function DatasetPage() {
             {m.dataset_download()}
           </Link>
           <Button
+            variant="secondary"
+            isDisabled={agents.length === 0 || unreviewed.length === 0}
+            onPress={() => setAnnotating(true)}
+          >
+            {m.ai_annotation()}
+          </Button>
+          <Button
             variant="primary"
             onPress={() => {
               void router.navigate({
@@ -67,6 +80,15 @@ function DatasetPage() {
         </>
       }
     >
+      <AnnotateImagesDialog
+        isOpen={annotating}
+        count={unreviewed.length}
+        agents={agents}
+        onConfirm={(runtime) =>
+          annotateDatasetImages({ data: { dataset, runtime } })
+        }
+        onClose={() => setAnnotating(false)}
+      />
       <KPIGroup>
         <KPI>
           <KPI.Header>
@@ -133,6 +155,7 @@ function DatasetPage() {
                   <Table.Cell className="text-right font-mono tabular-nums">
                     <BoxCount
                       detected={image.detectionCount}
+                      proposed={image.proposalCount}
                       boxes={image.instanceCount}
                     />
                   </Table.Cell>
@@ -160,20 +183,35 @@ function DatasetPage() {
 }
 
 /**
- * Reviewed marks read as a plain number; a detection nobody has reviewed yet
- * reads muted, so the column itself shows which images still need a review.
+ * Reviewed marks read as a plain number. Until someone reviews the image, the
+ * best machine reading shows muted, an agent's over the detector's, so the
+ * column itself shows which images still need a review and what they start
+ * from.
  */
 function BoxCount({
   detected,
+  proposed,
   boxes,
 }: {
   detected: number | null;
+  proposed: number | null;
   boxes: number | null;
 }) {
   if (boxes === null) {
+    if (proposed !== null) {
+      return (
+        <Hint
+          text={m.dataset_boxes_unreviewed({ source: sourceLabels.proposal() })}
+        >
+          <span className="text-muted">{proposed}</span>
+        </Hint>
+      );
+    }
     if (detected === null) return <Count value={null} />;
     return (
-      <Hint text={m.dataset_boxes_unreviewed()}>
+      <Hint
+        text={m.dataset_boxes_unreviewed({ source: sourceLabels.detection() })}
+      >
         <span className="text-muted">{detected}</span>
       </Hint>
     );

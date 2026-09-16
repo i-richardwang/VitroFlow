@@ -7,9 +7,12 @@ import {
 } from "../annotation/schema";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { classListSchema } from "../models/classes";
+import { modelAnnotationFields } from "../models/schema";
 
-/** An installed external runtime and the vision model its host selects. */
+/** The external agents a Worker can run; each authenticates and picks its model itself. */
 export const annotationRuntimeNameSchema = z.enum(["pi", "antigravity"]);
+export type AnnotationRuntimeName = z.infer<typeof annotationRuntimeNameSchema>;
+/** What a Worker found installed: the agent, its version, and the vision model it selects. */
 export const annotationRuntimeSchema = z.strictObject({
   runtime: annotationRuntimeNameSchema,
   version: z.string().min(1).max(128),
@@ -23,32 +26,15 @@ export const ANNOTATION_RUN_STATUSES = [
   "failed",
   "cancelled",
 ] as const;
-export const DEFAULT_ANNOTATION_REGION = {
-  coreSize: 512,
-  halo: 32,
-  displayScale: 2,
-};
-export const annotationRegionSchema = z
-  .strictObject({
-    coreSize: z.number().int().min(16).max(2048),
-    halo: z.number().int().min(0).max(2048),
-    displayScale: z.number().int().min(1).max(4),
-  })
-  .refine((v) => v.halo <= v.coreSize, "Context cannot exceed core size");
-export type AnnotationRegion = z.infer<typeof annotationRegionSchema>;
-export const annotationConfigSchema = annotationRegionSchema.safeExtend({
-  classes: classListSchema,
-  rules: z.string().trim().min(1).max(8000),
-});
+/**
+ * A run asks for an agent and a starting point: the image alone, or boxes to
+ * refit. The model says what and how to draw.
+ */
 export const startAnnotationRunSchema = z.strictObject({
   id: resourceIdSchema,
   ref: annotationRefSchema,
-  workerId: resourceIdSchema,
-  runtime: annotationRuntimeSchema,
+  runtime: annotationRuntimeNameSchema,
   input: z.array(annotationInstanceSchema).max(10000).nullable(),
-  base: z.array(annotationInstanceSchema).max(10000).nullable(),
-  rules: z.string().trim().min(1).max(8000),
-  region: annotationRegionSchema,
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
 export const annotationProgressSchema = z
@@ -78,6 +64,7 @@ export const annotationRunResultSchema = z.strictObject({
   }),
 });
 export type AnnotationRunResult = z.infer<typeof annotationRunResultSchema>;
+/** The frozen task a Worker executes; the model's instructions travel as `rules`. */
 export const annotationAssignmentSchema = z.strictObject({
   id: resourceIdSchema,
   image: z.strictObject({
@@ -86,16 +73,17 @@ export const annotationAssignmentSchema = z.strictObject({
     height: z.number().int().positive(),
   }),
   input: z.array(annotationInstanceSchema).nullable(),
-  config: annotationConfigSchema,
-  runtime: annotationRuntimeSchema,
+  config: modelAnnotationFields
+    .omit({ instructions: true })
+    .extend({ classes: classListSchema, rules: z.string().min(1) }),
+  runtime: annotationRuntimeNameSchema,
 });
 export type AnnotationAssignment = z.infer<typeof annotationAssignmentSchema>;
 export type AnnotationRun = {
   id: string;
   ref: z.infer<typeof annotationRefSchema>;
   requestedBy: string | null;
-  runtime: AnnotationRuntime;
-  region: AnnotationRegion;
+  runtime: AnnotationRuntimeName;
   status: (typeof ANNOTATION_RUN_STATUSES)[number];
   progress: z.infer<typeof annotationProgressSchema>;
   createdAt: string;
@@ -104,9 +92,26 @@ export type AnnotationRun = {
   result: AnnotationRunResult | null;
 };
 
-export const SEED_ANNOTATION_RULES = `Annotate each seed body separately, including opaque brown/gold
-and pale yellow/translucent bodies with a coherent elongated outline. Enclose the
-complete visible body, including pale coat and tips, before minimizing background.
-Distinguish seed bodies from fibers and glare. Inspect touching clusters for
-separate bodies at different angles; their rectangles may overlap naturally.
-Do not force an expected count or mechanically shrink, expand or pad boxes.`;
+/**
+ * The AI's reading of an image for a model: the newest run that succeeded,
+ * reduced to what a page shows. Older runs are records, not readings.
+ */
+export const annotationProposalSchema = z.strictObject({
+  runId: resourceIdSchema,
+  agent: annotationRuntimeNameSchema,
+  createdAt: z.string(),
+  document: annotationSchema,
+  issues: annotationRunResultSchema.shape.issues,
+  uncertainIds: annotationRunResultSchema.shape.uncertainIds,
+});
+export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;
+
+/** The newest run while it is still working, or after it failed. */
+export const annotationActivitySchema = z.strictObject({
+  runId: resourceIdSchema,
+  agent: annotationRuntimeNameSchema,
+  status: z.enum(["queued", "running", "failed"]),
+  progress: annotationProgressSchema,
+  error: z.string().nullable(),
+});
+export type AnnotationActivity = z.infer<typeof annotationActivitySchema>;

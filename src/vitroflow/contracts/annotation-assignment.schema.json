@@ -115,8 +115,7 @@
         },
         "rules": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 8000
+          "minLength": 1
         }
       },
       "required": [
@@ -129,32 +128,11 @@
       "additionalProperties": false
     },
     "runtime": {
-      "type": "object",
-      "properties": {
-        "runtime": {
-          "type": "string",
-          "enum": [
-            "pi",
-            "antigravity"
-          ]
-        },
-        "version": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
-        },
-        "model": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        }
-      },
-      "required": [
-        "runtime",
-        "version",
-        "model"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "enum": [
+        "pi",
+        "antigravity"
+      ]
     }
   },
   "required": [

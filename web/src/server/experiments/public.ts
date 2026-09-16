@@ -26,4 +26,9 @@ export {
   deleteObservation,
   updateObservation,
 } from "./observations";
-export { listExperiments, readExperimentGrid, readUnit } from "./queries";
+export {
+  listExperiments,
+  listUnreviewedObservationImages,
+  readExperimentGrid,
+  readUnit,
+} from "./queries";

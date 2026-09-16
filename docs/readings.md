@@ -30,9 +30,12 @@ afresh.
 ## Where the numbers come from
 
 Every photograph yields a tally: how many instances of each class the reading
-found. A calibrated annotation replaces the detection it was drawn over, so a
-unit's tally is its annotation when a reviewer has confirmed one and its
-detection otherwise.
+found. An image can hold three readings, and they rank: a reviewer's
+calibration outranks an AI agent's proposal, which outranks the detector's
+result. A unit's tally is the best reading its photograph has. A proposal
+counts because an agent that sees the photograph reads it better than the
+detector, but it is still a machine's reading; only a calibration marks the
+image reviewed, and the grid shows the difference.
 
 Two quantities derive from that tally.
 
@@ -50,8 +53,8 @@ counted from the first photograph of it, and it is that first count, not each
 day's count, that every later rate divides by.
 
 The earliest observation of an experiment is its baseline. A unit's denominator
-is the total tally of its baseline photograph, under the same annotation-over-
-detection rule as any other reading. A unit with no baseline photograph has no
+is the total tally of its baseline photograph, under the same ranking as any
+other reading. A unit with no baseline photograph has no
 denominator: its counts still read, and its rates are empty. No unit borrows
 another unit's denominator.
 

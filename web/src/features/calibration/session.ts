@@ -9,14 +9,19 @@ import {
   useState,
 } from "react";
 
-import { instancesFromDetection } from "../../domain/annotation/detection";
 import {
   openDraft,
   reduceDraft,
   type AnnotationDraft,
   type DraftAction,
 } from "../../domain/annotation/draft";
-import type { Review } from "../../domain/annotation/review";
+import {
+  availableSources,
+  shownInstances,
+  sourceInstances,
+  type Review,
+  type ReviewSource,
+} from "../../domain/annotation/review";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
 import { getAnnotation, saveAnnotation } from "../../functions/review";
@@ -36,7 +41,7 @@ type SessionAction =
   | {
       type: "start";
       base: AnnotationInstance[] | null;
-      detection: AnnotationInstance[];
+      start: AnnotationInstance[];
       activeClass: string;
     }
   | { type: "load-instances"; instances: AnnotationInstance[] }
@@ -53,7 +58,7 @@ function reduceSession(
 ): SessionState | null {
   if (action.type === "start") {
     return {
-      draft: openDraft(action.base, action.detection),
+      draft: openDraft(action.base, action.start),
       tool: "select",
       panning: false,
       selectedId: null,
@@ -95,7 +100,6 @@ export type Calibration =
       save: () => Promise<void>;
       saving: boolean;
       base: AnnotationInstance[] | null;
-      loadInstances: (instances: AnnotationInstance[]) => void;
       instances: AnnotationInstance[];
       tool: Tool;
       panning: boolean;
@@ -107,7 +111,9 @@ export type Calibration =
       undo: () => void;
       redo: () => void;
       deleteSelected: () => void;
-      restartFromDetection?: () => void;
+      /** The readings the draft can be reset to. */
+      sources: ReviewSource[];
+      restartFrom: (source: ReviewSource) => void;
       className: string;
       changeClass: (className: string) => void;
       activeClass: string;
@@ -116,17 +122,19 @@ export type Calibration =
 
 /**
  * The frame's calibration: idle until asked, loading until the stored
- * annotation matches this image and model, then a draft with shortcuts
- * and leave-blocking.
+ * annotation matches this image and model, then a draft that begins from the
+ * boxes the page was showing, with shortcuts and leave-blocking.
  */
 export function useCalibrationSession({
   calibrating,
   review,
+  source,
   model,
   onClose,
 }: {
   calibrating: boolean;
   review: Review;
+  source: ReviewSource | undefined;
   model: Model;
   onClose: () => void;
 }): Calibration {
@@ -173,9 +181,10 @@ export function useCalibrationSession({
     dispatch({
       type: "start",
       base: loaded.base,
-      detection: review.detection
-        ? instancesFromDetection(review.detection)
-        : [],
+      start:
+        source === "review"
+          ? (loaded.base ?? [])
+          : shownInstances(review, source),
       activeClass: model.classes[0]!,
     });
   } else if (!ready && session !== null) {
@@ -264,11 +273,14 @@ export function useCalibrationSession({
     [],
   );
 
-  const { detection } = review;
-  const restartFromDetection = useCallback(() => {
-    if (!detection) return;
-    loadInstances(instancesFromDetection(detection));
-  }, [detection, loadInstances]);
+  const base = session?.draft.base ?? null;
+  const restartFrom = useCallback(
+    (from: ReviewSource) => {
+      const next = from === "review" ? base : sourceInstances(review, from);
+      if (next) loadInstances(next);
+    },
+    [base, review, loadInstances],
+  );
 
   const clearSelection = useCallback(() => {
     dispatch({ type: "selectedId", selectedId: null });
@@ -320,7 +332,6 @@ export function useCalibrationSession({
     saving,
     instances,
     base: session.draft.base,
-    loadInstances,
     tool: session.tool,
     panning: session.panning,
     selectedId: session.selectedId,
@@ -334,7 +345,11 @@ export function useCalibrationSession({
     undo,
     redo,
     deleteSelected,
-    restartFromDetection: detection ? restartFromDetection : undefined,
+    sources: [
+      ...(base ? (["review"] as const) : []),
+      ...availableSources({ ...review, annotation: null }),
+    ],
+    restartFrom,
     className: selected?.class ?? session.activeClass,
     changeClass,
     activeClass: session.activeClass,

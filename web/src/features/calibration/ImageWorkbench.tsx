@@ -1,12 +1,15 @@
+import { Segment } from "@heroui-pro/react/segment";
 import { Button, Separator } from "@heroui/react";
 import { useState } from "react";
 
 import {
+  availableSources,
   reviewInstances,
-  shownInstances,
+  sourceInstances,
   type Review,
-  type ReviewVersion,
+  type ReviewSource,
 } from "../../domain/annotation/review";
+import type { AnnotationRuntimeName } from "../../domain/annotation-runs/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import {
@@ -16,29 +19,37 @@ import {
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
 import { ImageViewport } from "../../ui/viewport/ImageViewport";
+import { AiAnnotateMenu, AiSection } from "./AiAnnotate";
 import { BoxLayer, EditableBoxLayer } from "./BoxLayer";
-import { AiAnnotation } from "./AiAnnotation";
 import { ReviewInspector } from "./ReviewInspector";
+import { sourceLabels } from "./labels";
 import { useCalibrationSession } from "./session";
 import { CalibrationTools, DiscardDraftDialog } from "./tools";
 import type { LayerKey } from "./controls";
 import type { ImageWorkbenchContext } from "./types";
 
-/** One frame; calibration is session state on it. */
+/**
+ * One frame. It shows one of the image's readings, best by default, and
+ * calibration is session state on it that begins from the reading shown.
+ */
 export function ImageWorkbench({
   title,
   model,
   review,
+  agents,
   calibrating,
-  version = "review",
+  source,
+  onSourceChange,
   onCalibratingChange,
   context = {},
 }: {
   title: string;
   model: Model;
   review: Review;
+  agents: AnnotationRuntimeName[];
   calibrating: boolean;
-  version?: ReviewVersion;
+  source?: ReviewSource;
+  onSourceChange: (source: ReviewSource) => void;
   onCalibratingChange: (calibrating: boolean) => void;
   context?: ImageWorkbenchContext;
 }) {
@@ -46,9 +57,12 @@ export function ImageWorkbench({
     () => new Set(["boxes"]),
   );
   const display = { layers, onLayersChange: setLayers };
+  const sources = availableSources(review);
+  const shown = source && sources.includes(source) ? source : sources[0];
   const calibration = useCalibrationSession({
     calibrating,
     review,
+    source: shown,
     model,
     onClose: () => onCalibratingChange(false),
   });
@@ -58,7 +72,16 @@ export function ImageWorkbench({
     ready?.instances ??
     (calibration.status === "loading"
       ? reviewInstances(review)
-      : shownInstances(review, version));
+      : ((shown && sourceInstances(review, shown)) ?? []));
+  const ai = (
+    <AiAnnotateMenu
+      review={review}
+      model={model}
+      agents={agents}
+      current={ready ? ready.instances : instances.length ? instances : null}
+      disabled={calibration.status === "loading" || saving}
+    />
+  );
 
   return (
     <Workbench title={title}>
@@ -68,6 +91,7 @@ export function ImageWorkbench({
             <Button variant="primary" onPress={() => onCalibratingChange(true)}>
               {m.workbench_calibrate()}
             </Button>
+            {ai}
             {context.actions}
             {context.menu}
           </>
@@ -88,6 +112,7 @@ export function ImageWorkbench({
               {saving ? m.workbench_saving() : m.workbench_save()}
             </Button>
             <div inert={saving || undefined} className="contents">
+              {ai}
               {context.menu}
             </div>
           </>
@@ -108,29 +133,46 @@ export function ImageWorkbench({
             onUndo={ready.undo}
             onRedo={ready.redo}
             onDelete={ready.deleteSelected}
-            onRestart={ready.restartFromDetection}
+            sources={ready.sources}
+            onRestart={ready.restartFrom}
             classes={model.classes}
             className={ready.className}
             onClassChange={ready.changeClass}
           />
         </WorkbenchToolbar>
-      ) : context.toolbar ? (
+      ) : context.toolbar || sources.length > 1 ? (
         <WorkbenchToolbar label={m.workbench_navigation()}>
           {context.toolbar}
+          {context.toolbar && sources.length > 1 ? <Separator /> : null}
+          {sources.length > 1 ? (
+            <Segment
+              variant="ghost"
+              aria-label={m.image_boxes_shown()}
+              selectedKey={shown}
+              onSelectionChange={(key) => {
+                if (key !== null) onSourceChange(String(key) as ReviewSource);
+              }}
+            >
+              {sources.map((item) => (
+                <Segment.Item key={item} id={item}>
+                  {sourceLabels[item]()}
+                </Segment.Item>
+              ))}
+            </Segment>
+          ) : null}
         </WorkbenchToolbar>
       ) : null}
       <WorkbenchInspector>
-        {ready ? (
-          <AiAnnotation
-            key={`${review.ref.digest}/${review.ref.modelId}`}
-            reference={review.ref}
-            calibration={ready}
-          />
-        ) : null}
+        <AiSection
+          review={review}
+          model={model}
+          agents={agents}
+          disabled={saving}
+        />
         <ReviewInspector
           model={model}
-          instances={ready?.instances ?? review.annotation?.instances ?? null}
-          detection={review.detection}
+          review={review}
+          draft={ready?.instances ?? null}
           display={display}
           details={context.details}
         />

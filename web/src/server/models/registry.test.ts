@@ -27,6 +27,7 @@ import { unassignObservationImage } from "../experiments/observation-images";
 import { observeImagesForModel } from "../testing/fixtures";
 import { connect } from "../infra/db/connection";
 import { modelVersions } from "../infra/db/schema";
+import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 test("a version is registered once and its contents may not change", async () => {
   const model = await registerModel({
@@ -35,6 +36,7 @@ test("a version is registered once and its contents may not change", async () =>
     name: "Registry detector",
     task: "object_detection",
     classes: ["seed"],
+    annotation: DEFAULT_MODEL_ANNOTATION,
   });
   const candidate = {
     schemaVersion: 1 as const,
@@ -89,6 +91,7 @@ test("every registered version is listed newest first", async () => {
     name: "Listing detector",
     task: "object_detection",
     classes: ["seed"],
+    annotation: DEFAULT_MODEL_ANNOTATION,
   });
   const version = (createdAt: string, suffix: string) => ({
     schemaVersion: 1 as const,
@@ -122,6 +125,7 @@ test("a task exists as soon as it is named, before anything can answer it", asyn
     name: "Germination detector",
     task: "object_detection",
     classes: ["germinated"],
+    annotation: DEFAULT_MODEL_ANNOTATION,
   });
   expect((await listModels()).map(({ id }) => id)).toContain(
     "germination-detector",
@@ -219,6 +223,7 @@ contendedTest(
       name: "Contended detector",
       task: "object_detection",
       classes: ["seed"],
+      annotation: DEFAULT_MODEL_ANNOTATION,
     });
     const other = await connect(testDatabaseUrl!);
     let record = (): void => {};

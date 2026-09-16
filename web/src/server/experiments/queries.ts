@@ -3,13 +3,19 @@ import {
   asc,
   desc,
   eq,
+  isNull,
   max,
   sql,
   type AnyColumn,
   type SQL,
 } from "drizzle-orm";
 
-import { inSnapshot, snapshot, type Executor } from "../infra/db/client";
+import {
+  database,
+  inSnapshot,
+  snapshot,
+  type Executor,
+} from "../infra/db/client";
 import {
   annotations,
   experimentObservationImages,
@@ -35,6 +41,7 @@ import {
   type ObservationImageRef,
   type UnitRef,
 } from "../../domain/experiments/schema";
+import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { Tally } from "../../domain/models/classes";
 import {
   listObservations,
@@ -47,6 +54,7 @@ import {
 import { toModel } from "../models/public";
 import { readReview } from "../annotations/public";
 import { newestVersion } from "../inference/public";
+import { proposalRunId, proposalRuns } from "../annotation-runs/public";
 
 function tallyOf(document: SQL | AnyColumn) {
   return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
@@ -58,7 +66,9 @@ function observationImageGridQuery(db: Executor) {
       observationImage: experimentObservationImages,
       outcomeStatus: inferenceOutcomes.status,
       detectionTally: tallyOf(inferenceOutcomes.document),
+      proposalTally: tallyOf(sql`${proposalRuns.result}->'document'`),
       annotationTally: tallyOf(annotations.document),
+      proposed: sql<boolean>`${proposalRuns.id} is not null`,
       reviewed: sql<boolean>`${annotations.imageId} is not null`,
       reader: modelVersions.id,
       error: sql<string | null>`${inferenceOutcomes.document}->>'error'`,
@@ -76,7 +86,8 @@ function observationImageGridQuery(db: Executor) {
         eq(annotations.modelId, experimentObservations.modelId),
       ),
     )
-    .leftJoin(inferenceOutcomes, atImageOutcome());
+    .leftJoin(inferenceOutcomes, atImageOutcome())
+    .leftJoin(proposalRuns, atImageProposal());
 }
 
 /** The observation an image was taken at. */
@@ -87,6 +98,17 @@ function atImageObservation() {
       experimentObservationImages.experimentId,
     ),
     eq(experimentObservations.id, experimentObservationImages.observationId),
+  );
+}
+
+/** The newest agent proposal for the image under the observation's model. */
+function atImageProposal() {
+  return eq(
+    proposalRuns.id,
+    proposalRunId(
+      experimentObservationImages.imageId,
+      experimentObservations.modelId,
+    ),
   );
 }
 
@@ -103,8 +125,9 @@ type ObservationImageGridRow = Awaited<
 >[number];
 
 function toCell(row: ObservationImageGridRow): ObservationImageCell {
-  const state: ImageAnalysisState =
-    row.reader === null
+  const state: ImageAnalysisState = row.proposed
+    ? "proposed"
+    : row.reader === null
       ? "unread"
       : row.outcomeStatus === "succeeded"
         ? "analyzed"
@@ -120,6 +143,7 @@ function toCell(row: ObservationImageGridRow): ObservationImageCell {
     state,
     detectionTally:
       row.outcomeStatus === "succeeded" ? (row.detectionTally ?? {}) : null,
+    proposalTally: row.proposed ? (row.proposalTally ?? {}) : null,
     annotationTally: row.reviewed ? (row.annotationTally ?? {}) : null,
     error: row.error,
   };
@@ -258,10 +282,11 @@ async function listExperimentSummaries(
       db
         .select({
           experimentId: experimentObservationImages.experimentId,
-          unread: sql<number>`count(*) filter (where ${modelVersions.id} is null)`,
-          pending: sql<number>`count(*) filter (where ${modelVersions.id} is not null and ${inferenceOutcomes.imageId} is null)`,
-          failed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'failed')`,
-          analyzed: sql<number>`count(*) filter (where ${inferenceOutcomes.status} = 'succeeded')`,
+          unread: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${modelVersions.id} is null)`,
+          pending: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${modelVersions.id} is not null and ${inferenceOutcomes.imageId} is null)`,
+          failed: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${inferenceOutcomes.status} = 'failed')`,
+          analyzed: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${inferenceOutcomes.status} = 'succeeded')`,
+          proposed: sql<number>`count(*) filter (where ${proposalRuns.id} is not null)`,
         })
         .from(experimentObservationImages)
         .innerJoin(experimentObservations, atImageObservation())
@@ -270,6 +295,7 @@ async function listExperimentSummaries(
           eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
         )
         .leftJoin(inferenceOutcomes, atImageOutcome())
+        .leftJoin(proposalRuns, atImageProposal())
         .groupBy(experimentObservationImages.experimentId),
     ]);
   const names = new Map<string, string[]>();
@@ -291,6 +317,7 @@ async function listExperimentSummaries(
         pending: Number(row.pending),
         failed: Number(row.failed),
         analyzed: Number(row.analyzed),
+        proposed: Number(row.proposed),
       },
     ]),
   );
@@ -309,9 +336,41 @@ async function listExperimentSummaries(
         pending: 0,
         failed: 0,
         analyzed: 0,
+        proposed: 0,
       },
     };
   });
+}
+
+/** The images of an observation no reviewer has calibrated, as annotation refs. */
+export async function listUnreviewedObservationImages(
+  experimentId: string,
+  observationId: string,
+): Promise<AnnotationRef[]> {
+  const db = await database();
+  const rows = await db
+    .select({
+      digest: experimentObservationImages.imageId,
+      modelId: experimentObservations.modelId,
+    })
+    .from(experimentObservationImages)
+    .innerJoin(experimentObservations, atImageObservation())
+    .leftJoin(
+      annotations,
+      and(
+        eq(annotations.imageId, experimentObservationImages.imageId),
+        eq(annotations.modelId, experimentObservations.modelId),
+      ),
+    )
+    .where(
+      and(
+        eq(experimentObservationImages.experimentId, experimentId),
+        eq(experimentObservationImages.observationId, observationId),
+        isNull(annotations.imageId),
+      ),
+    )
+    .orderBy(asc(experimentObservationImages.id));
+  return rows;
 }
 
 function atObservationImage(experimentId: string, observationImageId: string) {

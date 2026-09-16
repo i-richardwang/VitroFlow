@@ -1,4 +1,5 @@
 import { newestDetectingVersion } from "../inference/public";
+import { proposalRunId, proposalRuns } from "../annotation-runs/public";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 
 import { database, type Executor } from "../infra/db/client";
@@ -26,6 +27,8 @@ export interface ImageSummary extends DatasetImageRef {
   filename: string;
   /** Boxes of the newest detection, or null until a version has run. */
   detectionCount: number | null;
+  /** Boxes of the newest AI proposal, or null until an agent has drawn one. */
+  proposalCount: number | null;
   /** Boxes of the stored review, or null until someone has reviewed the image. */
   instanceCount: number | null;
   quality: DetectionQuality | null;
@@ -41,12 +44,14 @@ interface DatasetSummary {
 /**
  * A dataset image with the documents that decide its state, loaded in one
  * query. The annotation is the review for the dataset's model; the detection
- * is the newest the model's versions recorded for the image.
+ * is the newest the model's versions recorded for the image; the proposal is
+ * the newest an agent drew for it.
  */
 export interface ImageRecord {
   image: DatasetImage;
   modelId: string;
   detection: DetectionResult | null;
+  proposal: AnnotationDocument | null;
   annotation: AnnotationDocument | null;
 }
 
@@ -62,6 +67,7 @@ export function summarize(record: ImageRecord): ImageSummary {
     digest: image.digest,
     filename: image.filename,
     detectionCount: detection?.instances.length ?? null,
+    proposalCount: record.proposal?.instances.length ?? null,
     instanceCount: annotation?.instances.length ?? null,
     quality: detection?.quality ?? null,
   };
@@ -75,6 +81,7 @@ function recordQuery(db: Executor) {
       image: images,
       modelId: datasets.modelId,
       detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
+      proposal: sql<AnnotationDocument | null>`${proposalRuns.result}->'document'`,
       annotation: annotations.document,
     })
     .from(datasetImages)
@@ -97,6 +104,13 @@ function recordQuery(db: Executor) {
         ),
         eq(inferenceOutcomes.status, "succeeded"),
       ),
+    )
+    .leftJoin(
+      proposalRuns,
+      eq(
+        proposalRuns.id,
+        proposalRunId(datasetImages.imageId, datasets.modelId),
+      ),
     );
 }
 
@@ -104,6 +118,7 @@ function toRecord(
   row: MembershipRow & {
     modelId: string;
     detection: DetectionResult | null;
+    proposal: AnnotationDocument | null;
     annotation: AnnotationDocument | null;
   },
 ): ImageRecord {
@@ -111,6 +126,7 @@ function toRecord(
     image: toDatasetImage(row),
     modelId: row.modelId,
     detection: row.detection,
+    proposal: row.proposal,
     annotation: row.annotation,
   };
 }

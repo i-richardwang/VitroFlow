@@ -1,12 +1,10 @@
 import { expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
-import {
-  SEED_ANNOTATION_RULES,
-  DEFAULT_ANNOTATION_REGION,
-  startAnnotationRunSchema,
-  type AnnotationRunResult,
-} from "../../domain/annotation-runs/schema";
+import { eq, inArray } from "drizzle-orm";
+import type { AnnotationRunResult } from "../../domain/annotation-runs/schema";
+import { SEED_ANNOTATION_INSTRUCTIONS } from "../../domain/models/builtins";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
+import { readReview } from "../annotations/review";
+import { createModel, setModelAnnotation } from "../models/public";
 import { annotationRuns } from "../infra/db/schema";
 import { database } from "../infra/db/client";
 import { observeImages, signInAs, testHeartbeat } from "../testing/fixtures";
@@ -18,12 +16,12 @@ import {
   progressAnnotationRun,
   completeAnnotationRun,
   cancelAnnotationRun,
-  listAnnotationRuns,
+  createAnnotationRuns,
 } from "./runs";
 
 async function setup(name: string) {
   const { user } = await signInAs("member");
-  const observed = await observeImages(name, [name]);
+  const observed = await observeImages(name, [name, `${name}-other`]);
   const owner = { workerId: name, sessionId: `session-${name}` };
   const runtime = {
     runtime: "pi" as const,
@@ -37,14 +35,11 @@ async function setup(name: string) {
   const request = {
     id: `${name}-run`,
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
-    workerId: name,
-    runtime,
+    runtime: "pi" as const,
     input: null,
     base: null,
-    rules: SEED_ANNOTATION_RULES,
-    region: DEFAULT_ANNOTATION_REGION,
   };
-  return { user, owner, request, runtime };
+  return { user, owner, request, runtime, digests: observed.digests };
 }
 const instance = {
   id: "seed-a",
@@ -52,43 +47,48 @@ const instance = {
   bbox: { x: 2, y: 3, width: 10, height: 11 },
 };
 
-test("region settings are validated, frozen and included in request identity", async () => {
-  const { user, owner, request } = await setup("ai-region");
-  const region = { coreSize: 16, halo: 8, displayScale: 4 };
-  const custom = startAnnotationRunSchema.parse({ ...request, region });
-  for (const invalid of [
-    { ...region, coreSize: 0 },
-    { ...region, halo: 17 },
-    { ...region, displayScale: 5 },
-  ]) {
-    expect(
-      startAnnotationRunSchema.safeParse({ ...request, region: invalid })
-        .success,
-    ).toBe(false);
-  }
-  const run = await createAnnotationRun(custom, user.id);
-  expect(run.region).toEqual(region);
+test("the model's instructions and region are frozen into the assignment", async () => {
+  const { user, owner, request, digests } = await setup("ai-region");
+  const model = await createModel({
+    id: "ai-region-model",
+    name: "Region model",
+    classes: ["seed"],
+  });
+  const ref = { digest: digests[0]!, modelId: model.id };
+  await expect(
+    createAnnotationRun({ ...request, ref }, user.id),
+  ).rejects.toThrow("no annotation instructions");
+  const annotation = {
+    instructions: "Box every seed.",
+    coreSize: 16,
+    halo: 8,
+    displayScale: 4,
+  };
+  await setModelAnnotation({ model: model.id, annotation });
+  await expect(
+    setModelAnnotation({
+      model: model.id,
+      annotation: { ...annotation, halo: 17 },
+    }),
+  ).rejects.toThrow("Context cannot exceed core size");
+  const run = await createAnnotationRun({ ...request, ref }, user.id);
   const assignment = (await claimAnnotationRun(owner))!;
   expect(assignment.config).toEqual({
-    ...region,
     classes: ["seed"],
-    rules: request.rules,
+    rules: annotation.instructions,
+    coreSize: 16,
+    halo: 8,
+    displayScale: 4,
   });
   expect(run.progress.total).toBe(
-    Math.ceil(assignment.image.width / region.coreSize) *
-      Math.ceil(assignment.image.height / region.coreSize),
+    Math.ceil(assignment.image.width / 16) *
+      Math.ceil(assignment.image.height / 16),
   );
-  await expect(
-    createAnnotationRun(
-      { ...custom, region: DEFAULT_ANNOTATION_REGION },
-      user.id,
-    ),
-  ).rejects.toThrow("different inputs");
-  expect((await listAnnotationRuns(request.ref))[0]?.region).toEqual(region);
+  await cancelAnnotationRun(run.id);
 });
 function resultFor(
   image: { digest: string; width: number; height: number },
-  runtime: { runtime: "pi"; version: string; model: string },
+  runtime: { runtime: "pi" | "antigravity"; version: string; model: string },
 ): AnnotationRunResult {
   return {
     document: { schemaVersion: 1, image, instances: [instance] },
@@ -110,7 +110,7 @@ test("a frozen AI run completes independently of accepted annotations, is explic
   expect(run.status).toBe("queued");
   expect(await createAnnotationRun(request, user.id)).toEqual(run);
   await expect(
-    createAnnotationRun({ ...request, rules: "changed" }, user.id),
+    createAnnotationRun({ ...request, input: [] }, user.id),
   ).rejects.toThrow("different inputs");
   await expect(
     createAnnotationRun({ ...request, id: "ai-other" }, user.id),
@@ -123,11 +123,16 @@ test("a frozen AI run completes independently of accepted annotations, is explic
   await completeAnnotationRun(run.id, owner, result);
   await completeAnnotationRun(run.id, owner, result);
   expect(await readAnnotation(request.ref)).toBeNull();
-  expect((await listAnnotationRuns(request.ref))[0]?.result).toEqual(result);
+  const db = await database();
+  const review = (await readReview(request.ref, "ai-product.jpg", db))!;
+  expect(review.proposal?.document).toEqual(result.document);
+  expect(review.proposal?.agent).toBe("pi");
+  expect(review.activity).toBeNull();
+  expect(review.annotation).toBeNull();
   await storeAnnotation(request.ref, result.document.instances, null);
   expect((await readAnnotation(request.ref))?.instances).toEqual([instance]);
   const next = await createAnnotationRun(
-    { ...request, id: "ai-product-again", base: [instance], input: [instance] },
+    { ...request, id: "ai-product-again", input: [instance] },
     user.id,
   );
   expect(next.status).toBe("queued");
@@ -210,12 +215,9 @@ test("wrong images, labels, geometry and incomplete evidence are rejected withou
   await expect(storeAnnotation(request.ref, [instance], null)).rejects.toThrow(
     "changed",
   );
-  await expect(
-    createAnnotationRun({ ...request, id: "stale-base-run" }, user.id),
-  ).rejects.toThrow("changed");
 });
 
-test("listing projects an expired lease without writing and a new request retires it", async () => {
+test("reading projects an expired lease without writing and a new request retires it", async () => {
   const { user, owner, request } = await setup("ai-read-only");
   await createAnnotationRun(request, user.id);
   await claimAnnotationRun(owner, new Date(Date.now() - 301000));
@@ -223,7 +225,8 @@ test("listing projects an expired lease without writing and a new request retire
   const stored = () =>
     db.select().from(annotationRuns).where(eq(annotationRuns.id, request.id));
   const [before] = await stored();
-  const [visible] = await listAnnotationRuns(request.ref);
+  const visible = (await readReview(request.ref, "ai-read-only.jpg", db))
+    ?.activity;
   expect(visible?.status).toBe("failed");
   expect(visible?.error).toContain("lease expired");
   expect(await stored()).toEqual([before!]);
@@ -232,49 +235,79 @@ test("listing projects an expired lease without writing and a new request retire
   await cancelAnnotationRun("ai-read-only-next");
 });
 
-test("one Worker advertises both runtimes and a run pins the selected descriptor", async () => {
+test("a run names an agent; any Worker that runs it may claim, and the result must come from it", async () => {
   const { user, owner, request, runtime } = await setup("ai-choice");
   const antigravity = {
     runtime: "antigravity" as const,
     version: "1.2.3",
     model: "default-vision",
   };
+  await expect(
+    createAnnotationRun({ ...request, runtime: "antigravity" }, user.id),
+  ).rejects.toThrow("No online Worker provides");
   await recordWorkerHeartbeat({
     ...testHeartbeat(owner.workerId),
     annotationRuntimes: [runtime, antigravity],
   });
-  await expect(
-    createAnnotationRun(
-      { ...request, runtime: { ...antigravity, version: "stale" } },
-      user.id,
-    ),
-  ).rejects.toThrow("not available");
   const run = await createAnnotationRun(
-    { ...request, runtime: antigravity },
+    { ...request, runtime: "antigravity" },
     user.id,
   );
-  expect(run.runtime).toEqual(antigravity);
+  expect(run.runtime).toBe("antigravity");
   await expect(createAnnotationRun(request, user.id)).rejects.toThrow(
     "different inputs",
   );
-  // A queued run cannot silently use a different runtime or model after a heartbeat.
+  // A Worker without the requested agent leaves the run for one that has it.
   await recordWorkerHeartbeat({
     ...testHeartbeat(owner.workerId),
     annotationRuntimes: [runtime],
   });
   expect(await claimAnnotationRun(owner)).toBeNull();
+  const other = { workerId: "ai-choice-other", sessionId: "session-other" };
   await recordWorkerHeartbeat({
-    ...testHeartbeat(owner.workerId),
-    annotationRuntimes: [runtime, antigravity],
+    ...testHeartbeat(other.workerId),
+    sessionId: other.sessionId,
+    annotationRuntimes: [{ ...antigravity, version: "1.3.0" }],
   });
-  const assignment = (await claimAnnotationRun(owner))!;
-  expect(assignment.runtime).toEqual(antigravity);
+  const assignment = (await claimAnnotationRun(other))!;
+  expect(assignment.runtime).toBe("antigravity");
   await expect(
-    completeAnnotationRun(run.id, owner, resultFor(assignment.image, runtime)),
-  ).rejects.toThrow("runtime differs");
-  await completeAnnotationRun(run.id, owner, {
+    completeAnnotationRun(run.id, other, resultFor(assignment.image, runtime)),
+  ).rejects.toThrow("different agent");
+  await completeAnnotationRun(run.id, other, {
     ...resultFor(assignment.image, runtime),
-    execution: { ...antigravity, elapsedSeconds: 1 },
+    execution: { ...antigravity, version: "1.3.0", elapsedSeconds: 1 },
   });
-  expect((await listAnnotationRuns(request.ref))[0]!.status).toBe("succeeded");
+  const [stored] = await (
+    await database()
+  )
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, run.id));
+  expect(stored?.status).toBe("succeeded");
+  expect(stored?.result?.execution.version).toBe("1.3.0");
+  expect(SEED_ANNOTATION_INSTRUCTIONS).toContain("seed body");
+});
+
+test("a batch draws each image once, leaving images an agent is already reading", async () => {
+  const { user, request, digests } = await setup("ai-batch");
+  const second = { digest: digests[1]!, modelId: request.ref.modelId };
+  const first = await createAnnotationRun(request, user.id);
+  expect(await createAnnotationRuns([request.ref, second], "pi", user.id)).toBe(
+    1,
+  );
+  expect(await createAnnotationRuns([request.ref, second], "pi", user.id)).toBe(
+    0,
+  );
+  const db = await database();
+  const queued = await db
+    .select({ imageId: annotationRuns.imageId })
+    .from(annotationRuns)
+    .where(
+      inArray(annotationRuns.imageId, [request.ref.digest, second.digest]),
+    );
+  expect(queued.map((row) => row.imageId).sort()).toEqual(
+    [request.ref.digest, second.digest].sort(),
+  );
+  await cancelAnnotationRun(first.id);
 });

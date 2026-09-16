@@ -132,7 +132,7 @@ def test_worker_selects_the_assigned_annotation_runtime(tmp_path, monkeypatch):
     runtimes = {name: Runtime(name) for name in ["pi", "antigravity"]}
     monkeypatch.setattr(worker_session, "available_runtimes", lambda: (TRADITIONAL,))
     monkeypatch.setattr(worker_session, "device_memory_bytes", lambda _: 1)
-    assignment = {"runtime": runtimes["antigravity"].probe()}
+    assignment = {"runtime": "antigravity"}
     monkeypatch.setattr(AnnotationClient, "claim", lambda _: assignment)
     selected = []
     monkeypatch.setattr(

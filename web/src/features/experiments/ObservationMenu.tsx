@@ -8,7 +8,10 @@ import type {
 } from "../../domain/experiments/contracts";
 import { observationLabel } from "./labels";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
+import { annotateObservationImages } from "../../functions/annotation-runs";
 import { removeObservation } from "../../functions/experiments";
+import { AnnotateImagesDialog } from "../calibration/AiAnnotate";
+import type { AnnotationRuntimeName } from "../../domain/annotation-runs/schema";
 import { m } from "../../paraglide/messages";
 import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
@@ -16,7 +19,7 @@ import { AssignImagesDialog } from "./AssignImagesDialog";
 import { ObservationDialog } from "./ObservationDialog";
 import type { Model } from "../../domain/models/schema";
 
-type Action = "images" | "dataset" | "edit" | "delete";
+type Action = "images" | "dataset" | "annotate" | "edit" | "delete";
 
 export function ObservationMenu({
   experiment,
@@ -27,6 +30,7 @@ export function ObservationMenu({
   images,
   models,
   datasets,
+  agents,
 }: {
   experiment: string;
   inoculatedOn: string;
@@ -39,6 +43,8 @@ export function ObservationMenu({
   models: readonly Model[];
   /** The datasets training the observation's model. */
   datasets: string[];
+  /** The agents some Worker can run right now. */
+  agents: AnnotationRuntimeName[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -46,6 +52,7 @@ export function ObservationMenu({
   const name = observationLabel(observation);
   const assigned = new Set(images.map((image) => image.unit));
   const vacant = units.filter((unit) => !assigned.has(unit.id));
+  const unreviewed = images.filter((image) => image.annotationTally === null);
 
   return (
     <>
@@ -72,6 +79,11 @@ export function ObservationMenu({
                 textValue={m.observation_add_to_dataset()}
               >
                 <Label>{m.observation_menu_add_to_dataset()}</Label>
+              </Dropdown.Item>
+            ) : null}
+            {unreviewed.length > 0 && agents.length > 0 ? (
+              <Dropdown.Item id="annotate" textValue={m.observation_annotate()}>
+                <Label>{m.observation_menu_annotate()}</Label>
               </Dropdown.Item>
             ) : null}
             <Dropdown.Item id="edit" textValue={m.observation_edit()}>
@@ -112,6 +124,18 @@ export function ObservationMenu({
         }))}
         datasets={datasets}
         heading={m.observation_add_to_dataset()}
+        onClose={close}
+      />
+
+      <AnnotateImagesDialog
+        isOpen={open === "annotate"}
+        count={unreviewed.length}
+        agents={agents}
+        onConfirm={(runtime) =>
+          annotateObservationImages({
+            data: { experiment, observation: observation.id, runtime },
+          })
+        }
         onClose={close}
       />
 

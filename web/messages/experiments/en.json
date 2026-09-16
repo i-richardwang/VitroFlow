@@ -228,5 +228,9 @@
   "treatment_unit_label": "Unit",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "Model",
-  "image_analysis_unread": "Not calibrated yet"
+  "image_analysis_unread": "Not calibrated yet",
+  "image_analysis_proposed": "AI proposal",
+  "experiment_cell_proposed": "AI proposal",
+  "observation_menu_annotate": "AI-annotate uncalibrated images…",
+  "observation_annotate": "AI-annotate uncalibrated images"
 }

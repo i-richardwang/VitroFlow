@@ -47,15 +47,15 @@ test("undo and redo change the draft without changing its save base", () => {
   ).toBe(initial);
 });
 
-test("the fetched annotation is both the calibration origin and the save base", () => {
+test("the draft begins from the boxes shown; the fetched annotation is the save base", () => {
   const draft = openDraft([other], [box]);
   expect(draft.base).toEqual([other]);
-  expect(draft.instances).toEqual([other]);
+  expect(draft.instances).toEqual([box]);
   expect(draft.past).toEqual([]);
   expect(draft.future).toEqual([]);
 });
 
-test("a first review starts from detections, while an empty saved review stays empty", () => {
-  expect(openDraft(null, [box]).instances).toEqual([box]);
-  expect(openDraft([], [box]).instances).toEqual([]);
+test("a first review has no base, and an empty saved review stays empty", () => {
+  expect(openDraft(null, [box]).base).toBeNull();
+  expect(openDraft([], []).instances).toEqual([]);
 });

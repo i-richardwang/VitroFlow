@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
 
+import {
+  sourceInstances,
+  REVIEW_SOURCES,
+  type Review,
+} from "../../domain/annotation/review";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { tally } from "../../domain/models/classes";
@@ -11,51 +16,47 @@ import {
   LayersSection,
   Metrics,
   Section,
+  type CountSource,
   type Metric,
 } from "./inspector";
+import { sourceLabels } from "./labels";
 import type { Display } from "./types";
 
 export function ReviewInspector({
   model,
-  instances,
-  detection,
+  review,
+  draft,
   display,
   details,
 }: {
   model: Model;
-  /** The instances of the review, or of the draft while calibrating. */
-  instances: AnnotationInstance[] | null;
-  detection: DetectionResult | null;
+  review: Review;
+  /** The instances being calibrated, which stand in for the stored review. */
+  draft: AnnotationInstance[] | null;
   display: Display;
   details?: ReactNode;
 }) {
+  const sources: CountSource[] = REVIEW_SOURCES.flatMap((source) => {
+    if (source === "review" && draft) {
+      return [{ label: m.workbench_source_draft(), tally: tally(draft) }];
+    }
+    const instances = sourceInstances(review, source);
+    return instances
+      ? [{ label: sourceLabels[source](), tally: tally(instances) }]
+      : [];
+  });
   return (
     <>
-      <CountsSection
-        classes={model.classes}
-        sources={[
-          ...(instances
-            ? [{ label: m.workbench_source_review(), tally: tally(instances) }]
-            : []),
-          ...(detection
-            ? [
-                {
-                  label: m.workbench_source_detected(),
-                  tally: tally(detection.instances),
-                },
-              ]
-            : []),
-        ]}
-      />
+      <CountsSection classes={model.classes} sources={sources} />
       {details}
       <LayersSection
         layers={display.layers}
         onLayersChange={display.onLayersChange}
       />
-      {detection ? (
+      {review.detection ? (
         <Section title={m.workbench_section_detection()}>
-          <Metrics rows={detectionMetrics(detection)} />
-          <QualityAlert quality={detection.quality} />
+          <Metrics rows={detectionMetrics(review.detection)} />
+          <QualityAlert quality={review.detection.quality} />
         </Section>
       ) : null}
     </>

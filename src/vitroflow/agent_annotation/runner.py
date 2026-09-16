@@ -25,7 +25,6 @@ def run_annotation(
     directory: Path,
     runtime: AgentRuntime,
     *,
-    expected_runtime: dict | None = None,
     prelabels: Path | None = None,
     config: dict | None = None,
     crop: list[int] | None = None,
@@ -60,8 +59,6 @@ def run_annotation(
 
     try:
         descriptor = runtime.probe()
-        if expected_runtime is not None and descriptor != expected_runtime:
-            raise ValueError("Installed annotation runtime differs from assignment")
         tool_directory = directory / "tools"
         tool_directory.mkdir()
         tool_config = tool_directory / "config.json"

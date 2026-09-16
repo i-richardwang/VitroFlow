@@ -8,6 +8,7 @@ import { models } from "../infra/db/schema";
 import { ExperimentNotFoundError } from "../../domain/experiments/errors";
 import { type AgentCallResult, executeAgentOperation } from "./execution";
 import { type AgentOperation, command } from "./operations";
+import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 function failure(result: AgentCallResult): { code: string; message: string } {
   if (result.ok) throw new Error("Operation unexpectedly succeeded");
@@ -121,6 +122,7 @@ describe("agent execution", () => {
             name: id,
             task: "detect",
             classes: [],
+            annotation: DEFAULT_MODEL_ANNOTATION,
           });
           throw new ExperimentNotFoundError(`Unknown experiment: ${id}`);
         },
@@ -152,9 +154,13 @@ describe("agent execution", () => {
         input: z.strictObject({}),
         output: z.null(),
         handler: async (_input, tx) => {
-          await tx!
-            .insert(models)
-            .values({ id, name: id, task: "detect", classes: [] });
+          await tx!.insert(models).values({
+            id,
+            name: id,
+            task: "detect",
+            classes: [],
+            annotation: DEFAULT_MODEL_ANNOTATION,
+          });
           return "wrong" as unknown as null;
         },
       }),

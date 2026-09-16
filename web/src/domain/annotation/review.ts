@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  annotationActivitySchema,
+  annotationProposalSchema,
+} from "../annotation-runs/schema";
 import { detectionResultSchema } from "../detection/schema";
 import { instancesFromDetection } from "./detection";
 import {
@@ -9,15 +13,14 @@ import {
 } from "./schema";
 
 /**
- * One image as it is reviewed for one model, wherever the image is shown.
+ * One image as it is read for one model, wherever the image is shown.
  *
- * `detection` is where a review begins: the version the page shows, or the
- * model's newest that has detected the image. `annotation` is the review as
- * the reviewer last stored it. Each is looked up on its own, and every
- * combination of the two says something: neither means nothing has looked
- * at the image yet, an annotation without a detection is one that arrived
- * with a dataset from another workbench, and a detection without an
- * annotation is a review to be made.
+ * Three readings can exist, and they rank: `annotation` is what a reviewer
+ * decided, `proposal` is what an AI agent drew, `detection` is what the
+ * model's newest version found. A reviewer's decision outranks the agent,
+ * and the agent outranks the detector. Each is looked up on its own; the
+ * ranking decides which one an image reads by. `activity` is the agent
+ * still at work on the image, or its last failure.
  */
 export const reviewSchema = z.strictObject({
   ref: annotationRefSchema,
@@ -25,32 +28,64 @@ export const reviewSchema = z.strictObject({
   width: z.number().int().min(1),
   height: z.number().int().min(1),
   detection: detectionResultSchema.nullable(),
+  proposal: annotationProposalSchema.nullable(),
   annotation: annotationSchema.nullable(),
+  activity: annotationActivitySchema.nullable(),
 });
 
 export type Review = z.infer<typeof reviewSchema>;
 
-/**
- * The instances of the review: the stored ones, else the detection's, which a
- * review begins from. An image no model has read begins from none, which is
- * how a reviewer counts for a model that has never been trained.
- */
-export function reviewInstances(review: Review): AnnotationInstance[] {
-  if (review.annotation) return review.annotation.instances;
-  return review.detection ? instancesFromDetection(review.detection) : [];
+/** Where an image's boxes can come from, best first. */
+export const REVIEW_SOURCES = ["review", "proposal", "detection"] as const;
+
+export type ReviewSource = (typeof REVIEW_SOURCES)[number];
+
+/** The instances one source holds, or null when the image has no such reading. */
+export function sourceInstances(
+  review: Review,
+  source: ReviewSource,
+): AnnotationInstance[] | null {
+  switch (source) {
+    case "review":
+      return review.annotation?.instances ?? null;
+    case "proposal":
+      return review.proposal?.document.instances ?? null;
+    case "detection":
+      return review.detection ? instancesFromDetection(review.detection) : null;
+  }
 }
 
-/** Which instances a page shows: the review, or what the model found. */
-export const REVIEW_VERSIONS = ["review", "detection"] as const;
+/** The sources this image has, best first. */
+export function availableSources(review: Review): ReviewSource[] {
+  return REVIEW_SOURCES.filter(
+    (source) => sourceInstances(review, source) !== null,
+  );
+}
 
-export type ReviewVersion = (typeof REVIEW_VERSIONS)[number];
+/** The source an image reads by: the best it has. */
+export function readingSource(review: Review): ReviewSource | null {
+  return availableSources(review)[0] ?? null;
+}
 
+/**
+ * The instances of the review: those of its best source. An image nothing
+ * has read begins from none, which is how a reviewer counts for a model that
+ * has never been trained.
+ */
+export function reviewInstances(review: Review): AnnotationInstance[] {
+  const source = readingSource(review);
+  return source ? (sourceInstances(review, source) ?? []) : [];
+}
+
+/** Which instances a page shows: the source asked for, if the image has it. */
 export function shownInstances(
   review: Review,
-  version: ReviewVersion,
+  source: ReviewSource | undefined,
 ): AnnotationInstance[] {
-  if (version === "detection") {
-    return review.detection ? instancesFromDetection(review.detection) : [];
-  }
-  return reviewInstances(review);
+  return (source && sourceInstances(review, source)) ?? reviewInstances(review);
+}
+
+/** Whether an agent is still working on the image. */
+export function agentBusy(review: Review): boolean {
+  return review.activity !== null && review.activity.status !== "failed";
 }

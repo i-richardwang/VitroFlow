@@ -160,7 +160,6 @@ def process_annotation_job(
                 source,
                 directory / "execution",
                 runtime,
-                expected_runtime=assignment["runtime"],
                 prelabels=prelabels,
                 config=assignment["config"],
                 cancelled=cancelled,

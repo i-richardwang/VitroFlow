@@ -36,6 +36,7 @@ import {
 import type { InferenceOutcome } from "../../../domain/detection/schema";
 import type { RuntimeDescriptor } from "../../../domain/inference/schema";
 import type {
+  ModelAnnotation,
   ModelArtifact,
   ModelVersion,
 } from "../../../domain/models/schema";
@@ -404,6 +405,7 @@ export const models = pgTable("models", {
   name: text("name").notNull(),
   task: text("task").notNull(),
   classes: jsonb("classes").$type<string[]>().notNull(),
+  annotation: jsonb("annotation").$type<ModelAnnotation>().notNull(),
 });
 
 export const modelVersions = pgTable(

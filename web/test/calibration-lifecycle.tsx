@@ -2,7 +2,13 @@
 import assert from "node:assert/strict";
 import { mock } from "bun:test";
 import { Window } from "happy-dom";
-import { act, createElement, type ReactNode } from "react";
+import {
+  act,
+  createContext,
+  createElement,
+  useContext,
+  type ReactNode,
+} from "react";
 import { createRoot } from "react-dom/client";
 
 const browser = new Window({ url: "http://localhost" });
@@ -105,7 +111,33 @@ function SelectionWidget(props: {
   return Widget(props);
 }
 const selectWidget = Object.assign(SelectionWidget, widget);
+const DropdownActions = createContext<((key: string) => void) | null>(null);
+function DropdownMenu(props: {
+  children?: ReactNode;
+  onAction?: (key: string) => void;
+}) {
+  return createElement(
+    DropdownActions.Provider,
+    { value: props.onAction ?? null },
+    props.children,
+  );
+}
+function DropdownItem(props: { id: string; children?: ReactNode }) {
+  const onAction = useContext(DropdownActions);
+  return createElement(
+    "button",
+    { onClick: () => onAction?.(props.id), "data-item": props.id },
+    props.children,
+  );
+}
+const dropdownWidget = Object.assign(Widget, {
+  ...widget,
+  Menu: DropdownMenu,
+  Item: DropdownItem,
+});
 mock.module("@heroui/react", () => ({
+  Dropdown: dropdownWidget,
+  Modal: widget,
   Chip: widget,
   Alert: widget,
   AlertDialog: widget,
@@ -126,10 +158,13 @@ mock.module("@heroui/react", () => ({
   Toolbar: widget,
   Switch: widget,
   SwitchGroup: widget,
-  toast: { danger() {}, warning() {} },
+  toast: { danger() {}, warning() {}, success() {} },
 }));
 mock.module("@heroui-pro/react/inline-select", () => ({
   InlineSelect: widget,
+}));
+mock.module("@heroui-pro/react/segment", () => ({
+  Segment: selectWidget,
 }));
 mock.module("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: async () => {} }),
@@ -152,48 +187,15 @@ mock.module("../src/functions/review", () => ({
     return { status: "saved" };
   },
 }));
-let workerReads = 0;
-let runReads = 0;
-let workerOnline = false;
-let startRequests = 0;
-let requestedRuntime: unknown;
-let requestedRegion: unknown;
+let startRequests: { runtime: unknown; input: unknown }[] = [];
 mock.module("../src/functions/annotation-runs", () => ({
-  getAnnotationWorkers: async () => {
-    workerReads++;
-    return workerOnline
-      ? [
-          {
-            workerId: "test-worker",
-            annotationRuntimes: [
-              {
-                runtime: "pi",
-                version: "test",
-                model: "test/vision",
-              },
-              {
-                runtime: "antigravity",
-                version: "test-agy",
-                model: "default-vision",
-              },
-            ],
-          },
-        ]
-      : [];
-  },
-  getAnnotationRuns: async () => {
-    runReads++;
-    return [aiResult];
-  },
   startAnnotationRun: async ({
     data,
   }: {
-    data: { runtime: unknown; region: unknown };
+    data: { runtime: unknown; input: unknown };
   }) => {
-    startRequests++;
-    requestedRuntime = data.runtime;
-    requestedRegion = data.region;
-    throw new Error("Selected annotation worker is not online");
+    startRequests.push(data);
+    throw new Error("No online Worker provides the selected agent");
   },
   stopAnnotationRun: async () => {},
 }));
@@ -213,18 +215,20 @@ const annotation = {
     },
   ],
 };
-const aiResult = {
-  id: "qa-ai-result",
-  ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },
-  requestedBy: "test",
-  runtime: { runtime: "pi", version: "test", model: "test/vision" },
-  region: { coreSize: 512, halo: 32, displayScale: 2 },
-  status: "succeeded",
-  progress: { completed: 1, total: 1 },
+const proposal = {
+  runId: "qa-ai-result",
+  agent: "pi" as const,
   createdAt: "2026-09-14T00:00:00Z",
-  updatedAt: "2026-09-14T00:00:01Z",
-  error: null,
-  result: { document: annotation, issues: [], warnings: [], uncertainIds: [] },
+  document: {
+    ...annotation,
+    instances: [1, 2, 3].map((index) => ({
+      ...annotation.instances[0]!,
+      id: `ai-${index}`,
+      bbox: { x: 100 * index, y: 100, width: 40, height: 40 },
+    })),
+  },
+  issues: [],
+  uncertainIds: [],
 };
 const review = {
   ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },
@@ -232,11 +236,14 @@ const review = {
   width: imageSize.width,
   height: imageSize.height,
   detection: null,
+  proposal,
   annotation,
+  activity: null,
 };
 const mount = browser.document.createElement("div");
 browser.document.body.append(mount);
 const root = createRoot(mount as unknown as HTMLElement);
+let source: "review" | "proposal" | "detection" | undefined;
 const render = async (calibrating: boolean, model = SEED_DETECTOR) => {
   await act(async () => {
     root.render(
@@ -244,12 +251,21 @@ const render = async (calibrating: boolean, model = SEED_DETECTOR) => {
         title: "Seed",
         model,
         review: { ...review, ref: { ...review.ref, modelId: model.id } },
+        agents: ["pi"],
         calibrating,
+        source,
+        onSourceChange(next) {
+          source = next;
+        },
         onCalibratingChange() {},
       }),
     );
   });
 };
+const item = (id: string) =>
+  Array.from(mount.querySelectorAll("button")).find(
+    (button) => button.getAttribute("data-item") === id,
+  );
 const labeled = (text: string) =>
   Array.from(mount.querySelectorAll("button")).find(
     (button) => button.textContent === text,
@@ -259,6 +275,13 @@ const image = mount.querySelector("img")!;
 const surface = image.parentElement! as import("happy-dom").HTMLElement;
 const frame = surface.parentElement!;
 const boxes = () => surface.querySelectorAll("rect[vector-effect]").length;
+assert.equal(boxes(), 1, "the reviewer's boxes outrank the agent's");
+await act(async () => selections.get("review")!("proposal"));
+await render(false);
+assert.equal(boxes(), 3, "the page can show the agent's reading instead");
+source = undefined;
+await render(false);
+assert.equal(boxes(), 1);
 const initial = surface.style.transform;
 await act(async () => {
   frame.dispatchEvent(
@@ -340,35 +363,25 @@ await act(async () => {
   resolveAnnotation?.(latest);
 });
 assert.equal(boxes(), 2, "calibration must display the fetched annotation");
-assert.equal(boxes(), 2, "receiving an AI result must not replace the draft");
-const idleReads = { workers: workerReads, runs: runReads };
-workerOnline = true;
-await act(async () => labeled(m.ai_refresh())!.click());
-assert.equal(workerReads, idleReads.workers + 1);
-assert.equal(runReads, idleReads.runs + 1);
-await act(async () => selections.get("pi")!("antigravity"));
-await act(async () => selections.get("512")!("256"));
-await act(async () => selections.get("2")!("4"));
-await act(async () => labeled(m.ai_start())!.click());
-assert.deepEqual(requestedRegion, { coreSize: 256, halo: 32, displayScale: 4 });
-assert.deepEqual(requestedRuntime, {
-  runtime: "antigravity",
-  version: "test-agy",
-  model: "default-vision",
-});
-assert.equal(startRequests, 1, "starting delegates admission to the server");
-assert.equal(
-  workerReads,
-  idleReads.workers + 1,
-  "starting does not refetch the Worker roster",
+assert.equal(boxes(), 2, "an available proposal must not replace the draft");
+await act(async () => item("pi:refit")!.click());
+assert.deepEqual(
+  startRequests.map((request) => request.runtime),
+  ["pi"],
+  "the request names the agent and leaves admission to the server",
 );
-assert.ok(
-  mount.textContent?.includes("Selected annotation worker is not online"),
-  "a server refusal is visible without changing the draft",
+assert.deepEqual(
+  startRequests[0]?.input,
+  latest.instances,
+  "refitting sends the draft as the agent's starting point",
 );
-assert.equal(boxes(), 2);
-await act(async () => labeled(m.ai_load_result())!.click());
-assert.equal(boxes(), 1, "loading a proposal replaces the draft explicitly");
+assert.equal(boxes(), 2, "a server refusal leaves the draft alone");
+await act(async () => item("proposal")!.click());
+assert.equal(boxes(), 3, "resetting to the proposal replaces the draft");
+await act(async () => item("review")!.click());
+assert.equal(boxes(), 2, "resetting to the review restores the stored boxes");
+await act(async () => item("proposal")!.click());
+assert.equal(boxes(), 3);
 await act(async () => {
   browser.window.dispatchEvent(
     new browser.KeyboardEvent("keydown", {

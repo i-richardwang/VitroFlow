@@ -89,6 +89,7 @@ import {
   testHeartbeat,
 } from "../testing/fixtures";
 import { createModel, registerModel } from "../models/registry";
+import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 const INOCULATED = "2026-08-01";
 
@@ -118,6 +119,7 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
     name: `${modelId} detector`,
     task: "object_detection",
     classes: ["seed"],
+    annotation: DEFAULT_MODEL_ANNOTATION,
   });
   return registerTrainedVersion(modelId);
 }
@@ -425,6 +427,7 @@ describe("experiments", () => {
       name: "Germination detector",
       task: "object_detection",
       classes: ["seed", "germinated"],
+      annotation: DEFAULT_MODEL_ANNOTATION,
     });
     const germination = await registerTrainedVersion("exp-stage-germination");
     const experiment = await createExperiment({
@@ -905,6 +908,7 @@ describe("experiments", () => {
       pending: 4,
       failed: 0,
       analyzed: 0,
+      proposed: 0,
     });
   });
 

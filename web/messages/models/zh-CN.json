@@ -26,5 +26,14 @@
   "model_records_observations": "{count} 个观测日",
   "model_records_annotations": "{count} 条复核",
   "model_records_datasets": "{count} 个数据集",
-  "model_records_training_runs": "{count} 次训练"
+  "model_records_training_runs": "{count} 次训练",
+  "model_annotation_label": "标注说明",
+  "model_annotation_placeholder": "描述每个类别下 AI 应框出的个体，以及应排除的内容。",
+  "model_annotation_hint": "现在可留空；AI 标注需要它。",
+  "model_menu_annotation": "标注说明",
+  "model_annotation_title": "{name}的标注说明",
+  "model_annotation_region": "区域：{size} × {size} 原图像素，上下文 {halo} px，显示放大 {scale}×",
+  "model_annotation_save": "保存",
+  "model_annotation_saved": "已保存{name}的标注说明",
+  "model_annotation_not_saved": "标注说明未保存"
 }

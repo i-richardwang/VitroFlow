@@ -69,7 +69,7 @@ function ModelsPage() {
                       {held ?? m.model_records_none()}
                     </Table.Cell>
                     <Table.Cell className="text-right">
-                      {held ? null : <ModelMenu model={entry.model} />}
+                      <ModelMenu model={entry.model} deletable={!held} />
                     </Table.Cell>
                   </Table.Row>
                 );

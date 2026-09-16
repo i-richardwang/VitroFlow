@@ -46,6 +46,7 @@ import {
   experimentObservationImages,
   trainingRuns,
 } from "../infra/db/schema";
+import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 export const TEST_RUNTIME: RuntimeDescriptor = {
   adapter: "traditional",
@@ -81,6 +82,7 @@ export async function traditionalVersion(
     name: `${modelId} detector`,
     task: "object_detection",
     classes: ["seed"],
+    annotation: DEFAULT_MODEL_ANNOTATION,
   });
   return registerModelVersion({
     schemaVersion: 1,

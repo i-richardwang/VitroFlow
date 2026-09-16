@@ -5,12 +5,15 @@ import {
   SEED_DETECTOR_BASELINE,
 } from "../../domain/models/builtins";
 import {
+  DEFAULT_MODEL_ANNOTATION,
+  modelAnnotationRequestSchema,
   modelRequestSchema,
   modelSchema,
   modelVersionSchema,
   sameModel,
   sameModelVersion,
   type Model,
+  type ModelAnnotationRequest,
   type ModelRef,
   type ModelRequest,
   type ModelVersion,
@@ -39,6 +42,7 @@ export function toModel(row: typeof models.$inferSelect): Model {
     name: row.name,
     task: row.task,
     classes: row.classes,
+    annotation: row.annotation,
   });
 }
 
@@ -85,13 +89,18 @@ async function insertModel(model: Model, db: Executor): Promise<Model | null> {
       name: model.name,
       task: model.task,
       classes: [...model.classes],
+      annotation: model.annotation,
     })
     .onConflictDoNothing()
     .returning();
   return inserted ? toModel(inserted) : null;
 }
 
-/** Declares a model the deployment always has: the same one again is welcome. */
+/**
+ * Declares a model the deployment always has: the same one again is welcome.
+ * Its annotation instructions are the deployment's to edit, so registration
+ * supplies a starting point and never overrides what was changed since.
+ */
 export async function registerModel(
   value: Model,
   executor?: Executor,
@@ -101,7 +110,10 @@ export async function registerModel(
   const inserted = await insertModel(model, db);
   if (inserted) return inserted;
   const existing = await readModel(model.id, db);
-  if (!existing || !sameModel(existing, model)) {
+  if (
+    !existing ||
+    !sameModel(existing, { ...model, annotation: existing.annotation })
+  ) {
     throw new Error(
       `Model ${model.id} is already registered with different contents`,
     );
@@ -123,12 +135,28 @@ export async function createModel(value: ModelRequest): Promise<Model> {
     schemaVersion: 1,
     task: "object_detection",
     ...request,
+    annotation: { ...DEFAULT_MODEL_ANNOTATION, ...request.annotation },
   });
   const created = await insertModel(model, await database());
   if (!created) {
     throw new ModelIdTakenError(`Model ${model.id} already exists`);
   }
   return created;
+}
+
+/** Changes how agents annotate the task. Its classes and records are untouched. */
+export async function setModelAnnotation(
+  value: ModelAnnotationRequest,
+): Promise<Model> {
+  const request = modelAnnotationRequestSchema.parse(value);
+  const db = await database();
+  const [row] = await db
+    .update(models)
+    .set({ annotation: request.annotation })
+    .where(eq(models.id, request.model))
+    .returning();
+  if (!row) throw new ModelNotFoundError(`Unknown model: ${request.model}`);
+  return toModel(row);
 }
 
 /**

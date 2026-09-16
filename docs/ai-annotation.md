@@ -4,19 +4,19 @@ VitroFlow supports detector results, AI proposals, and accepted human reviews as
 
 ## Product workflow
 
-1. Open an image and enter calibration.
-2. In **AI annotation**, choose an online annotation Worker, an available Agent (Pi or Antigravity), the starting point (**Image only** or **Current draft**), region size in original-image pixels, and display magnification. Instructions describe the labeling task; seed instructions are supplied by default, while other classes require explicit instructions.
-3. Start a run. The server freezes the exact canonical image identity, labeling model/classes, candidate input, saved-review baseline, region settings, instructions, and Worker runtime descriptor. Progress counts accepted regions.
-4. A Worker claims the run and downloads the canonical product image. The selected agent reads the portable task package, inspects the images, and submits complete annotations. It can remove, add, split, or refit candidates.
-5. The supervisor validates all checkpoints and exports source-coordinate annotations. The server validates identity, geometry, classes, runtime, and completion evidence before marking the run successful.
-6. Choose **Load into draft** to replace the current draft. This action is undoable. Polling never modifies the canvas. Inspect and save through the existing review flow; AI completion alone never marks an image reviewed or makes it eligible for training.
-7. For another round, load a result, choose **Current draft**, and start a new run. There is no mandatory second reviewer or automatic repeat loop.
+An image read for a model can hold three readings, and they rank: a reviewer's calibration outranks an agent's proposal, which outranks the detector's result. Every page reads an image by the best reading it has: the image page shows it, the dataset list counts it, and an experiment's grid and workbook read by it. Only a calibration marks an image reviewed or lets it train.
 
-Use **Image only** for an independent proposal, including a fresh attempt after an unsatisfactory result. **Current draft** supplies reference images for visual refitting: the agent compares the clean pixels with numbered previous boxes and re-estimates visible edges. These inputs have distinct task instructions, while both produce complete proposals and permit changes to instance count and geometry. Regions without references use the fresh task. Neither instruction set guarantees visual correctness; inspect results before saving.
+1. Open an image. The page shows its best reading; the switch in the toolbar shows any other it has: **Detected**, **AI proposal**, **Review**.
+2. Choose **AI annotation** and one of two starts: **From the image** for an independent proposal, or **Refit the boxes shown** to improve whatever the page shows, the draft while calibrating. With several agents online the menu names each. What to draw and how to look at the image belong to the model: its classes, annotation instructions and region settings are edited on the **Models** page, not per run. A model without instructions cannot start AI annotation until they are added.
+3. The server freezes the exact canonical image identity, the model's classes, instructions and region settings, the starting boxes, and the agent name. Progress counts accepted regions, and the page keeps refreshing while an agent is at work. The inspector's **AI proposal** section shows the progress and a cancel action, then the newest proposal's agent, time, box count and areas needing attention.
+4. Any online Worker that runs the requested agent claims the run and downloads the canonical product image. The selected agent reads the portable task package, inspects the images, and submits complete annotations. It can remove, add, split, or refit candidates.
+5. The supervisor validates all checkpoints and exports source-coordinate annotations. The server validates identity, geometry, classes, runtime, and completion evidence before marking the run successful. The newest successful run is the image's proposal; older runs stay as records.
+6. Calibrate. The draft begins from the reading shown, and the toolbar's reset menu replaces it with any other reading: the proposal, the detection, or the stored review. Resetting is undoable. Save through the existing review flow.
+7. To annotate many images at once, choose **AI annotation** on a dataset page or **AI-annotate uncalibrated images** in an observation's menu. The dialog states how many images an agent will draw; calibrated images and images an agent is already reading are left alone.
 
-The panel polls runs while work is active. Worker availability is checked by the server when a run is created; starting a run does not perform a separate client preflight. **Refresh workers and runs** discovers Workers or operations started elsewhere while the panel is idle. Reading runs derives expired lease status without mutating records; lifecycle mutations retire expired work.
+**From the image** starts the fresh task. **Refit the boxes shown** supplies reference images for visual refitting: the agent compares the clean pixels with numbered previous boxes and re-estimates visible edges. These inputs have distinct task instructions, while both produce complete proposals and permit changes to instance count and geometry. Regions without references use the fresh task. Neither instruction set guarantees visual correctness; inspect results before saving.
 
-Saving compares the persisted annotation against the draft's original baseline and refuses concurrent replacement.
+Worker availability is checked by the server when a run is created; the pages list the agents online Workers advertise. Reading a run derives expired lease status without mutating records; lifecycle mutations retire expired work. Saving compares the persisted annotation against the stored review the draft was opened on and refuses concurrent replacement.
 
 ## Worker setup
 
@@ -61,7 +61,7 @@ An empty annotation list disables AI annotation. Run `vitroflow worker doctor an
 
 Pi's probe verifies that the selected model declares image input. Antigravity's probe verifies tool registration and resolves the current model through its CLI; it does not independently certify model vision quality. Probes do not send annotation requests. Authentication, provider access, tool permissions, and image support still require a real smoke test. Runtime defaults such as an `auto` route do not reveal the identity of a model hidden behind that route.
 
-A Worker advertises its runtime/version/model descriptors separately from detector adapters. The product freezes the selected descriptor with the request. Each new annotation operation probes once and rejects a changed descriptor before execution. Queued tasks cannot silently switch runtimes or models. A Worker still handles one assignment at a time, prioritizing annotation, then training, then inference. No cross-runtime fallback or automatic paid retry is added.
+A Worker advertises its runtime/version/model descriptors separately from detector adapters; the workbench uses them to list the agents currently available. A run names an agent, not a Worker: it is claimed by capability, like training, so a queued run waits for any Worker that runs that agent and never for one particular process. The Worker probes the runtime once per operation and records the version and model it actually ran in the result, which is the run's provenance. A Worker still handles one assignment at a time, prioritizing annotation, then training, then inference. No cross-runtime fallback or automatic paid retry is added.
 
 The macOS service captures the command search path when installed. After changing that path, stop and start the profile from the correctly configured terminal to reload its environment. API-backed annotation does not need a GPU or the Ultralytics extra.
 
@@ -81,7 +81,7 @@ Both subprocesses receive a limited environment excluding Worker and database cr
 
 ## Records and files
 
-`annotation_runs` stores immutable requests, labeling scope, input/baseline snapshots, runtime provenance, Worker ownership, lease, progress, and the compact validated result in Postgres. Image bytes remain in the existing content-addressed blob store. The run's image reference participates in image retention. The proposal is independent of `annotations`, which continues to hold the accepted review used by training snapshots.
+`annotation_runs` stores immutable requests, the frozen assignment (classes, instructions, region, agent name), the starting boxes, Worker ownership, lease, progress, and the compact validated result in Postgres. A review joins the newest successful run as the image's proposal and the newest run of any state as its activity. Image bytes remain in the existing content-addressed blob store. The run's image reference participates in image retention. The proposal is independent of `annotations`, which continues to hold the accepted review used by training snapshots.
 
 Product execution metadata contains only runtime, version, model, and elapsed seconds. Runtime-specific usage, terminal events, and transcripts remain in the local execution artifacts. Progress reporting is best effort; a transient reporting failure does not interrupt model execution. Lease loss and cancellation still stop the operation.
 
@@ -97,7 +97,7 @@ The Worker retains full artifacts under:
 
 Product result coordinates describe the exact canonical oriented AVIF pixels, identified by their SHA-256. They are never substituted for the digest of an original camera JPG. Standalone runs preserve the identity of their own input file. Training resizing is independent of annotation coordinates.
 
-The product defaults to 512-pixel cores, 32-pixel context, and 2× display magnification. The panel offers 128, 256, 512 and 1024-pixel cores, independently of 1–4× magnification. The API freezes the full region configuration with each request; changing it requires a new request identity. Result history shows the actual core size and magnification used. A 3072×4096 image has 48 regions at 512 or 192 at 256. Region count is not session count. These are workload choices, not measured accuracy guarantees.
+Region settings belong to the model: 512-pixel cores, 32-pixel context, and 2× display magnification by default, adjustable through the `update-model-annotation` agent operation. Each run freezes the model's settings of that moment into its assignment. A 3072×4096 image has 48 regions at 512 or 192 at 256. Region count is not session count. These are workload choices, not measured accuracy guarantees.
 
 Context is additional source-image area, clipped at image boundaries. A full interior 256-pixel core with 32-pixel context and 4× magnification is displayed as 1280×1280; a standalone crop restricted to 256×256 cannot include outside context and displays as 1024×1024. Magnification does not add source pixels or change the covered area. Original dimensions and scaling remain explicit in every task. Glare, touching bodies, and uncertain extents must be evaluated visually; protocol validation cannot establish precision or recall.
 
@@ -123,6 +123,6 @@ A live lease belongs to one Worker session. Cancellation, expiration, and sessio
 - `worker/annotation.py`: authenticated assignment, image download, leases, and result upload.
 - `web/src/domain/annotation-runs/`: product and transport contracts.
 - `web/src/server/annotation-runs/`: durable run lifecycle and proposal validation.
-- `web/src/features/calibration/AiAnnotation.tsx`: starting, monitoring, and loading a proposal into the existing draft.
+- `web/src/features/calibration/AiAnnotate.tsx`: the annotation menu, the inspector's proposal section, and the batch dialog.
 
 A future Codex or Claude Code adapter implements process execution against the same portable annotation package and completion rules. Runtime-specific CLI events stay out of annotation geometry, product persistence, and calibration state. Runtime construction is explicit; no dynamic plugin registry is required.

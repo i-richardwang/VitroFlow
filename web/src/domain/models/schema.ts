@@ -9,6 +9,29 @@ import {
 import { classListSchema } from "./classes";
 
 /**
+ * How an agent annotates the task: the instructions that describe the bodies
+ * to box, and the source region each look takes. Instructions belong to the
+ * task the way its classes do; a run reads them, never asks for them.
+ */
+export const modelAnnotationFields = z.strictObject({
+  instructions: z.string().trim(),
+  coreSize: z.number().int().min(16).max(2048),
+  halo: z.number().int().min(0).max(2048),
+  displayScale: z.number().int().min(1).max(4),
+});
+export const modelAnnotationSchema = modelAnnotationFields.refine(
+  (v) => v.halo <= v.coreSize,
+  "Context cannot exceed core size",
+);
+
+export const DEFAULT_MODEL_ANNOTATION = {
+  instructions: "",
+  coreSize: 512,
+  halo: 32,
+  displayScale: 2,
+} satisfies ModelAnnotation;
+
+/**
  * A model is a task: what it looks for in an image. It exists as soon as
  * someone asks the question, with or without a version that can answer it;
  * until one is trained, the answers are a reviewer's. Every version of the
@@ -21,13 +44,25 @@ export const modelSchema = z.strictObject({
   name: z.string().min(1),
   task: z.literal("object_detection"),
   classes: classListSchema,
+  annotation: modelAnnotationSchema,
 });
 
-/** What naming a new task asks for: what to call it, and what it finds. */
+/**
+ * What naming a new task asks for: what to call it, what it finds, and how an
+ * agent should draw it. The instructions may be added later; the region
+ * defaults suit the seed dishes the workbench was built for.
+ */
 export const modelRequestSchema = z.strictObject({
   id: resourceIdSchema,
   name: z.string().min(1),
   classes: classListSchema,
+  annotation: modelAnnotationFields.partial().optional(),
+});
+
+/** Changes how an agent draws the task; what it finds stays fixed. */
+export const modelAnnotationRequestSchema = z.strictObject({
+  model: resourceIdSchema,
+  annotation: modelAnnotationSchema,
 });
 
 export const modelRefSchema = z.strictObject({ model: resourceIdSchema });
@@ -90,7 +125,11 @@ export const modelVersionSchema = z.union([
 ]);
 
 export type Model = z.infer<typeof modelSchema>;
+export type ModelAnnotation = z.infer<typeof modelAnnotationSchema>;
 export type ModelRequest = z.infer<typeof modelRequestSchema>;
+export type ModelAnnotationRequest = z.infer<
+  typeof modelAnnotationRequestSchema
+>;
 export type ModelRef = z.infer<typeof modelRefSchema>;
 export type ModelVersion = z.infer<typeof modelVersionSchema>;
 export type ModelArtifact = z.infer<typeof modelArtifactSchema>;

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import {
   annotationSchema,
   type AnnotationRef,
@@ -8,6 +8,7 @@ import {
   annotationRunResultSchema,
   type AnnotationRun,
   type AnnotationRunResult,
+  type AnnotationRuntimeName,
   type StartAnnotationRun,
 } from "../../domain/annotation-runs/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
@@ -15,7 +16,7 @@ import { workerPresence } from "../../domain/workers/presence";
 import type { WorkerIdentity } from "../../domain/workers/schema";
 import { canonicalJson } from "../../lib/json/canonical";
 import { database, transaction, type Executor } from "../infra/db/client";
-import { annotationRuns, annotations, images } from "../infra/db/schema";
+import { annotationRuns, images } from "../infra/db/schema";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
 import {
@@ -28,39 +29,33 @@ import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";
+import { LEASE_EXPIRED, effectiveStatus } from "./readings";
 const LEASE_MS = 5 * 60 * 1000;
-const LEASE_EXPIRED = "Worker lease expired. Start a new run to retry.";
 
 function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
-  const expired =
-    row.status === "running" &&
-    row.leaseExpiresAt !== null &&
-    row.leaseExpiresAt.getTime() <= Date.now();
   return {
     id: row.id,
     ref: { digest: row.imageId, modelId: row.modelId },
     requestedBy: row.requestedBy,
     runtime: row.assignment.runtime,
-    region: {
-      coreSize: row.assignment.config.coreSize,
-      halo: row.assignment.config.halo,
-      displayScale: row.assignment.config.displayScale,
-    },
-    status: expired ? "failed" : row.status,
+    ...effectiveStatus(row),
     progress: { completed: row.completed, total: row.total },
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    error: expired ? LEASE_EXPIRED : row.error,
     result: row.result,
   };
 }
 
-export async function annotationWorkers() {
-  return (await listWorkers()).filter(
-    (worker) =>
-      worker.annotationRuntimes.length > 0 &&
-      workerPresence(worker.lastSeenAt) === "online",
-  );
+/** The agents some online Worker can run right now, in a stable order. */
+export async function availableAnnotationRuntimes(): Promise<
+  AnnotationRuntimeName[]
+> {
+  const names = new Set<AnnotationRuntimeName>();
+  for (const worker of await listWorkers()) {
+    if (workerPresence(worker.lastSeenAt) !== "online") continue;
+    for (const runtime of worker.annotationRuntimes) names.add(runtime.runtime);
+  }
+  return [...names].sort();
 }
 
 /** Expired work fails explicitly; a new paid attempt requires a new request. */
@@ -80,29 +75,11 @@ async function expire(at: Date, db: Executor) {
     );
 }
 
-export async function listAnnotationRuns(
-  ref: AnnotationRef,
-): Promise<AnnotationRun[]> {
-  const db = await database();
-  const rows = await db
-    .select()
-    .from(annotationRuns)
-    .where(
-      and(
-        eq(annotationRuns.imageId, ref.digest),
-        eq(annotationRuns.modelId, ref.modelId),
-      ),
-    )
-    .orderBy(desc(annotationRuns.createdAt))
-    .limit(20);
-  return rows.map(present);
-}
-
 export async function createAnnotationRun(
   request: StartAnnotationRun,
   requestedBy: string,
 ): Promise<AnnotationRun> {
-  const available = await annotationWorkers();
+  const available = await availableAnnotationRuntimes();
   return transaction(async (tx) => {
     await lockImage(request.ref.digest, tx);
     const [existing] = await tx
@@ -142,22 +119,6 @@ export async function createAnnotationRun(
     const model = await readModel(request.ref.modelId, tx);
     if (!image || !model)
       throw new AnnotationRunNotFoundError("Image or labeling model not found");
-    const [current] = await tx
-      .select()
-      .from(annotations)
-      .where(
-        and(
-          eq(annotations.imageId, image.id),
-          eq(annotations.modelId, model.id),
-        ),
-      );
-    if (
-      canonicalJson(current?.document.instances ?? null) !==
-      canonicalJson(request.base)
-    )
-      throw new AnnotationRunConflictError(
-        "Stored annotation changed; reopen calibration before starting AI annotation",
-      );
     if (request.input) {
       annotationSchema.parse({
         schemaVersion: 1,
@@ -170,24 +131,20 @@ export async function createAnnotationRun(
         "AI annotation input",
       );
     }
-    const worker = available.find((w) => w.workerId === request.workerId);
-    if (
-      !worker?.annotationRuntimes.some(
-        (runtime) => canonicalJson(runtime) === canonicalJson(request.runtime),
-      )
-    )
+    if (!available.includes(request.runtime))
       throw new AnnotationRunConflictError(
-        "Selected annotation runtime is not available on this worker",
+        "No online Worker provides the selected agent",
+      );
+    const { instructions, ...region } = model.annotation;
+    if (!instructions)
+      throw new AnnotationRunConflictError(
+        "The model has no annotation instructions; add them on the Models page",
       );
     const assignment = annotationAssignmentSchema.parse({
       id: request.id,
       image: { digest: image.id, width: image.width, height: image.height },
       input: request.input,
-      config: {
-        classes: model.classes,
-        rules: request.rules,
-        ...request.region,
-      },
+      config: { classes: model.classes, rules: instructions, ...region },
       runtime: request.runtime,
     });
     const [row] = await tx
@@ -209,6 +166,45 @@ export async function createAnnotationRun(
       .returning();
     return present(row!);
   });
+}
+
+/**
+ * One run per image, from the image alone, skipping images an agent is
+ * already working on. The count is how many were started.
+ */
+export async function createAnnotationRuns(
+  refs: AnnotationRef[],
+  runtime: AnnotationRuntimeName,
+  requestedBy: string,
+): Promise<number> {
+  if (!refs.length) return 0;
+  const db = await database();
+  const active = await db
+    .select({
+      imageId: annotationRuns.imageId,
+      modelId: annotationRuns.modelId,
+    })
+    .from(annotationRuns)
+    .where(
+      and(
+        inArray(
+          annotationRuns.imageId,
+          refs.map((ref) => ref.digest),
+        ),
+        inArray(annotationRuns.status, ["queued", "running"]),
+      ),
+    );
+  const busy = new Set(active.map((row) => `${row.imageId}/${row.modelId}`));
+  let started = 0;
+  for (const ref of refs) {
+    if (busy.has(`${ref.digest}/${ref.modelId}`)) continue;
+    await createAnnotationRun(
+      { id: crypto.randomUUID(), ref, runtime, input: null },
+      requestedBy,
+    );
+    started++;
+  }
+  return started;
 }
 
 export async function cancelAnnotationRun(id: string): Promise<void> {
@@ -234,7 +230,8 @@ export async function claimAnnotationRun(
   return transaction(async (tx) => {
     const worker = await lockWorkerSession(owner, tx);
     await expire(at, tx);
-    if (!worker.annotationRuntimes.length) return null;
+    const runtimes = worker.annotationRuntimes.map((item) => item.runtime);
+    if (!runtimes.length) return null;
     const [owned] = await tx
       .select()
       .from(annotationRuns)
@@ -253,8 +250,7 @@ export async function claimAnnotationRun(
       .where(
         and(
           eq(annotationRuns.status, "queued"),
-          sql`${annotationRuns.request}->>'workerId' = ${owner.workerId}`,
-          sql`${JSON.stringify(worker.annotationRuntimes)}::jsonb @> jsonb_build_array(${annotationRuns.assignment}->'runtime')`,
+          inArray(sql`${annotationRuns.assignment}->>'runtime'`, runtimes),
         ),
       )
       .orderBy(asc(annotationRuns.createdAt))
@@ -397,13 +393,9 @@ export async function completeAnnotationRun(
       result.document.instances,
       "AI annotation result",
     );
-    const { runtime, version, model } = result.execution;
-    if (
-      canonicalJson({ runtime, version, model }) !==
-      canonicalJson(row.assignment.runtime)
-    )
+    if (result.execution.runtime !== row.assignment.runtime)
       throw new AnnotationRunConflictError(
-        "Result runtime differs from assignment",
+        "Result was produced by a different agent",
       );
     const ids = new Set(
       result.document.instances.map((instance) => instance.id),

@@ -1,5 +1,5 @@
 {
-  "id": "e14ef154-0e6c-4cd9-b3fb-cba11ee4f1b1",
+  "id": "92e5b9c1-d043-4e1c-94db-95f2343406f2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2427,6 +2427,12 @@
         },
         "classes": {
           "name": "classes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "annotation": {
+          "name": "annotation",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true

@@ -1,8 +1,8 @@
 /** Public product and Worker operations for external-agent annotation runs. */
 export {
-  annotationWorkers,
-  listAnnotationRuns,
+  availableAnnotationRuntimes,
   createAnnotationRun,
+  createAnnotationRuns,
   cancelAnnotationRun,
   claimAnnotationRun,
   annotationRunImage,
@@ -11,6 +11,14 @@ export {
   failAnnotationRun,
   completeAnnotationRun,
 } from "./runs";
+export {
+  latestRunId,
+  latestRuns,
+  proposalRunId,
+  proposalRuns,
+  toActivity,
+  toProposal,
+} from "./readings";
 export {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,

@@ -65,6 +65,7 @@ describe("agent operations", () => {
       "delete-observation",
       "unassign-observation-image",
       "retry-observation-image-analysis",
+      "update-model-annotation",
       "delete-model",
     ]);
     expect([...readOnly, ...additive, ...destructive].sort()).toEqual(

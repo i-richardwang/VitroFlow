@@ -64,7 +64,7 @@ class Worker:
                     self.annotation,
                     annotation,
                     self.settings.work_dir,
-                    self.settings.annotation_runtimes[annotation["runtime"]["runtime"]],
+                    self.settings.annotation_runtimes[annotation["runtime"]],
                     stopped=stopped,
                 )
                 return True

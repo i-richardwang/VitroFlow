@@ -25,6 +25,7 @@ function cell(
     filename: "IMG_0001.JPG",
     state: "analyzed",
     detectionTally: null,
+    proposalTally: null,
     annotationTally: null,
     error: null,
     ...overrides,
@@ -53,7 +54,7 @@ function grid(cells: ObservationImageCell[]) {
 const unreviewed = (count: number) => ({
   count,
   rate: null,
-  calibrated: false,
+  source: "detection" as const,
   detected: null,
 });
 
@@ -152,7 +153,7 @@ describe("what a grid reads", () => {
     expect(readings.read("dish", day0)).toEqual({
       count: 20,
       rate: null,
-      calibrated: true,
+      source: "review",
       detected: 19,
     });
   });
@@ -165,7 +166,7 @@ describe("what a grid reads", () => {
     expect(readings.read("dish", day0)).toEqual({
       count: 20,
       rate: null,
-      calibrated: true,
+      source: "review",
       detected: null,
     });
   });

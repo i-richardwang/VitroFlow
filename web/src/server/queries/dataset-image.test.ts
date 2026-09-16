@@ -27,7 +27,9 @@ test("a dataset image page steps through the dataset in its order", async () => 
     width: middle!.review.width,
     height: middle!.review.height,
     detection: result,
+    proposal: null,
     annotation: null,
+    activity: null,
   });
   expect(middle?.previous).toEqual({ digest: a!, filename: "di-a.jpg" });
   expect(middle?.next).toEqual({ digest: c!, filename: "di-c.jpg" });

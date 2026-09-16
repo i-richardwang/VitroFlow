@@ -407,6 +407,7 @@ export const IMAGE_ANALYSIS_STATES = [
   "pending",
   "failed",
   "analyzed",
+  "proposed",
 ] as const;
 
 export const imageAnalysisStateSchema = z.enum(IMAGE_ANALYSIS_STATES);

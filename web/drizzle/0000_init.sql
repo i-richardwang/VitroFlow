@@ -268,7 +268,8 @@ CREATE TABLE "models" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"task" text NOT NULL,
-	"classes" jsonb NOT NULL
+	"classes" jsonb NOT NULL,
+	"annotation" jsonb NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_access_tokens" (

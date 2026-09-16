@@ -1,9 +1,8 @@
-import { Segment } from "@heroui-pro/react/segment";
-import { ButtonGroup, Separator } from "@heroui/react";
+import { ButtonGroup } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { REVIEW_VERSIONS } from "../../domain/annotation/review";
+import { REVIEW_SOURCES, agentBusy } from "../../domain/annotation/review";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../ui/icons";
 import { ImageWorkbench } from "../../features/calibration/ImageWorkbench";
 import { Metrics, Section } from "../../features/calibration/inspector";
@@ -18,10 +17,11 @@ import type {
 } from "../../domain/datasets/image";
 
 /**
- * `show` is detection or review. `calibrate` opens the draft.
+ * `show` names the reading on view; the best shows otherwise. `calibrate`
+ * opens the draft.
  */
 const datasetImageSearchSchema = z.object({
-  show: z.enum(REVIEW_VERSIONS).optional().catch(undefined),
+  show: z.enum(REVIEW_SOURCES).optional().catch(undefined),
   calibrate: z.literal(true).optional().catch(undefined),
 });
 
@@ -53,7 +53,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
 });
 
 function DatasetImagePage() {
-  const { dataset, model, review, split, previous, next } =
+  const { dataset, model, review, agents, split, previous, next } =
     Route.useLoaderData();
   const { show, calibrate } = Route.useSearch();
   const router = useRouter();
@@ -63,7 +63,7 @@ function DatasetImagePage() {
   useRouteRefresh(
     router,
     5000,
-    detection === null && review.annotation === null,
+    (detection === null && review.annotation === null) || agentBusy(review),
   );
 
   const stepTo = (step: DatasetImageStep) =>
@@ -78,8 +78,12 @@ function DatasetImagePage() {
       title={m.image_title({ file: review.filename, dataset: dataset.id })}
       model={model}
       review={review}
+      agents={agents}
       calibrating={calibrate === true}
-      version={show}
+      source={show}
+      onSourceChange={(show) =>
+        void navigate({ search: (previous) => ({ ...previous, show }) })
+      }
       onCalibratingChange={(calibrating) =>
         void navigate({
           search: (previous) => ({
@@ -108,29 +112,6 @@ function DatasetImagePage() {
                 <ChevronRightIcon />
               </StepButton>
             </ButtonGroup>
-            {!calibrate && detection && review.annotation ? (
-              <>
-                <Separator />
-                <Segment
-                  variant="ghost"
-                  aria-label={m.image_boxes_shown()}
-                  selectedKey={show ?? "review"}
-                  onSelectionChange={(key) => {
-                    if (key !== "review" && key !== "detection") return;
-                    void navigate({
-                      search: (previous) => ({ ...previous, show: key }),
-                    });
-                  }}
-                >
-                  <Segment.Item id="detection">
-                    {m.image_boxes_detected()}
-                  </Segment.Item>
-                  <Segment.Item id="review">
-                    {m.image_boxes_reviewed()}
-                  </Segment.Item>
-                </Segment>
-              </>
-            ) : null}
           </>
         ),
         details: split ? (

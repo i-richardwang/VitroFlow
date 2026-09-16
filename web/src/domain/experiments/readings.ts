@@ -1,3 +1,4 @@
+import type { ReviewSource } from "../annotation/review";
 import { count, type Tally } from "../models/classes";
 import type { ObservationImageCell, Unit } from "./contracts";
 import { exclusionAt, type ObservationOrdinals } from "./culture-events";
@@ -5,15 +6,14 @@ import type { ExperimentObservation } from "./schema";
 
 /**
  * What a unit read on a day: the individuals found, their share of the
- * population the unit started with, and whether a reviewer stood behind the
- * number.
+ * population the unit started with, and who stood behind the number.
  */
 export interface Reading {
   count: number;
   rate: number | null;
-  /** A reviewer's annotation replaced whatever was detected under it. */
-  calibrated: boolean;
-  /** The detection that annotation replaced, when there was one. */
+  /** The best reading the image has: a reviewer's, an agent's, or the detector's. */
+  source: ReviewSource;
+  /** The detection the reading replaced, when it came from elsewhere. */
   detected: number | null;
 }
 
@@ -23,15 +23,30 @@ export function cellKey(unit: string, observation: string): string {
 }
 
 /**
- * The tally a cell reads by. A calibrated annotation replaces the detection it
- * was drawn over; an image still waiting, failed, or unreviewed reads by its
- * detection alone.
+ * The tally a cell reads by, and whose it is. A reviewer's annotation
+ * outranks an agent's proposal, which outranks the detection; an image still
+ * waiting or failed reads by nothing.
  */
+export function cellReading(
+  image: ObservationImageCell | undefined,
+): { tally: Tally; source: ReviewSource } | null {
+  if (!image) return null;
+  if (image.annotationTally) {
+    return { tally: image.annotationTally, source: "review" };
+  }
+  if (image.proposalTally) {
+    return { tally: image.proposalTally, source: "proposal" };
+  }
+  if (image.detectionTally) {
+    return { tally: image.detectionTally, source: "detection" };
+  }
+  return null;
+}
+
 export function cellTally(
   image: ObservationImageCell | undefined,
 ): Tally | null {
-  if (!image) return null;
-  return image.annotationTally ?? image.detectionTally;
+  return cellReading(image)?.tally ?? null;
 }
 
 /**
@@ -87,16 +102,16 @@ export function experimentReadings(
     population,
     read: (unit, observation) => {
       const image = cells.get(cellKey(unit, observation.id));
-      const counts = cellTally(image);
-      if (!image || counts === null) return null;
-      const calibrated = image.annotationTally !== null;
-      const replaced = calibrated ? image.detectionTally : null;
+      const reading = cellReading(image);
+      if (!image || !reading) return null;
+      const replaced =
+        reading.source === "detection" ? null : image.detectionTally;
       const started = observation.id === baseline?.id ? null : population(unit);
-      const found = count(counts);
+      const found = count(reading.tally);
       return {
         count: found,
         rate: share(found, started),
-        calibrated,
+        source: reading.source,
         detected: replaced === null ? null : count(replaced),
       };
     },

@@ -193,5 +193,9 @@
   "treatment_unit_label": "单位",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "模型",
-  "image_analysis_unread": "未校准"
+  "image_analysis_unread": "未校准",
+  "image_analysis_proposed": "有 AI 建议",
+  "experiment_cell_proposed": "AI 建议",
+  "observation_menu_annotate": "AI 标注未校准图片…",
+  "observation_annotate": "AI 标注未校准图片"
 }

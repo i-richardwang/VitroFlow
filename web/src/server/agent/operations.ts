@@ -37,6 +37,7 @@ import {
 } from "../../domain/experiments/schema";
 import {
   modelRefSchema,
+  modelAnnotationRequestSchema,
   modelRequestSchema,
   modelSchema,
 } from "../../domain/models/schema";
@@ -63,7 +64,12 @@ import {
   readUnit,
 } from "../experiments/public";
 
-import { createModel, deleteModel, listModels } from "../models/public";
+import {
+  createModel,
+  deleteModel,
+  listModels,
+  setModelAnnotation,
+} from "../models/public";
 
 /**
  * One protocol-neutral application operation. HTTP status codes and MCP tool
@@ -152,6 +158,15 @@ const operations: readonly AgentOperation[] = [
     input: modelRequestSchema,
     output: modelSchema,
     handler: (input) => createModel(input),
+  }),
+  command({
+    name: "update-model-annotation",
+    description:
+      "Change how an AI agent annotates a recognition task: the instructions describing the bodies to box, and the source region each look takes. The classes stay fixed",
+    destructive: true,
+    input: modelAnnotationRequestSchema,
+    output: modelSchema,
+    handler: (input) => setModelAnnotation(input),
   }),
   command({
     name: "delete-model",

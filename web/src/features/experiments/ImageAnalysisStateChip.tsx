@@ -11,6 +11,7 @@ const DISPLAY: Record<
   pending: { label: m.image_analysis_pending, tone: "default" },
   analyzed: { label: m.image_analysis_analyzed, tone: "success" },
   failed: { label: m.image_analysis_failed, tone: "danger" },
+  proposed: { label: m.image_analysis_proposed, tone: "success" },
 };
 
 export function ImageAnalysisStateChip({
@@ -32,6 +33,7 @@ export function summarizedImageAnalysis(
   if (counts.failed > 0) return "failed";
   if (counts.pending > 0) return "pending";
   if (counts.unread > 0) return "unread";
+  if (counts.proposed > 0) return "proposed";
   if (counts.analyzed > 0) return "analyzed";
   return null;
 }

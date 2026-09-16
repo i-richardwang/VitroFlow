@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { annotationRuntimeSchema } from "../annotation-runs/schema";
+import {
+  annotationRuntimeNameSchema,
+  annotationRuntimeSchema,
+} from "../annotation-runs/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
 
@@ -26,9 +29,10 @@ export const workerHeartbeatSchema = workerIdentitySchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
+    /** The external agents this process can run, each at most once. */
     annotationRuntimes: z
       .array(annotationRuntimeSchema)
-      .max(2)
+      .max(annotationRuntimeNameSchema.options.length)
       .refine(
         (items) =>
           new Set(items.map((item) => item.runtime)).size === items.length,

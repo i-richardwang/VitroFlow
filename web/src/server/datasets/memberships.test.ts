@@ -36,6 +36,7 @@ import {
   uploadTexts,
 } from "../testing/fixtures";
 import { createModel, registerModel } from "../models/registry";
+import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 const worker: Worker = {
   ...testHeartbeat("worker"),
@@ -160,6 +161,7 @@ describe("datasets", () => {
       name: "Other task",
       task: "object_detection",
       classes: ["seed"],
+      annotation: DEFAULT_MODEL_ANNOTATION,
     });
     const otherVersion = await registerTrainedVersion("other-task");
     const other = await observeImages(

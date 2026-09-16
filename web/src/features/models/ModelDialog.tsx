@@ -1,5 +1,6 @@
 import {
   Button,
+  Description,
   FieldError,
   Form,
   Input,
@@ -55,10 +56,19 @@ function Editor({ onClose }: { onClose: () => void }) {
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [classes, setClasses] = useState("");
+  const [instructions, setInstructions] = useState("");
 
   const submit = () => {
     void run(
-      () => addModel({ data: { id, name, classes: classList(classes) } }),
+      () =>
+        addModel({
+          data: {
+            id,
+            name,
+            classes: classList(classes),
+            annotation: { instructions },
+          },
+        }),
       m.model_not_created(),
     ).then(async (result) => {
       if (!result.ok) return;
@@ -121,6 +131,21 @@ function Editor({ onClose }: { onClose: () => void }) {
               placeholder={m.model_classes_placeholder()}
             />
             <FieldError />
+          </TextField>
+          <TextField
+            variant="secondary"
+            fullWidth
+            isDisabled={busy}
+            value={instructions}
+            onChange={setInstructions}
+          >
+            <Label>{m.model_annotation_label()}</Label>
+            <TextArea
+              className="w-full"
+              rows={4}
+              placeholder={m.model_annotation_placeholder()}
+            />
+            <Description>{m.model_annotation_hint()}</Description>
           </TextField>
         </Form>
       </Modal.Body>

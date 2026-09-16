@@ -3,7 +3,9 @@ import {
   AlertDialog,
   Button,
   ButtonGroup,
+  Dropdown,
   Kbd,
+  Label,
   ListBox,
   Separator,
   ToggleButton,
@@ -12,9 +14,11 @@ import {
 } from "@heroui/react";
 import type { ReactNode } from "react";
 
+import type { ReviewSource } from "../../domain/annotation/review";
 import { m } from "../../paraglide/messages";
 import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../../ui/icons";
 import { TOOL_SPECS, TOOLS, type Tool } from "./controls";
+import { sourceLabels } from "./labels";
 
 export function CalibrationTools({
   tool,
@@ -24,6 +28,7 @@ export function CalibrationTools({
   onUndo,
   onRedo,
   onDelete,
+  sources,
   onRestart,
   classes,
   className,
@@ -36,8 +41,9 @@ export function CalibrationTools({
   onUndo: () => void;
   onRedo: () => void;
   onDelete: () => void;
-  /** Replaces every instance with what the detection found; present when there is one. */
-  onRestart?: () => void;
+  /** The readings the draft can be reset to, best first. */
+  sources: ReviewSource[];
+  onRestart: (source: ReviewSource) => void;
   classes: string[];
   className: string;
   onClassChange: (className: string) => void;
@@ -130,22 +136,43 @@ export function CalibrationTools({
           </Button>
         </ShortcutTooltip>
       </ButtonGroup>
-      {onRestart ? (
+      {sources.length ? (
         <>
           <Separator />
-          <Tooltip delay={0}>
-            <Button
-              variant="tertiary"
-              isIconOnly
-              aria-label={m.workbench_restart_from_detection()}
-              onPress={onRestart}
-            >
-              <RestartIcon />
-            </Button>
-            <Tooltip.Content>
-              {m.workbench_restart_from_detection()}
-            </Tooltip.Content>
-          </Tooltip>
+          <Dropdown>
+            <Tooltip delay={0}>
+              <Button
+                variant="tertiary"
+                isIconOnly
+                aria-label={m.workbench_restart()}
+              >
+                <RestartIcon />
+              </Button>
+              <Tooltip.Content>{m.workbench_restart()}</Tooltip.Content>
+            </Tooltip>
+            <Dropdown.Popover placement="bottom start">
+              <Dropdown.Menu
+                aria-label={m.workbench_restart()}
+                onAction={(key) => onRestart(String(key) as ReviewSource)}
+              >
+                {sources.map((source) => (
+                  <Dropdown.Item
+                    key={source}
+                    id={source}
+                    textValue={m.workbench_restart_from({
+                      source: sourceLabels[source](),
+                    })}
+                  >
+                    <Label>
+                      {m.workbench_restart_from({
+                        source: sourceLabels[source](),
+                      })}
+                    </Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
         </>
       ) : null}
     </>

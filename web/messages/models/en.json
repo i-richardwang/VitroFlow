@@ -26,5 +26,14 @@
   "model_records_observations": "{count} observations",
   "model_records_annotations": "{count} reviews",
   "model_records_datasets": "{count} datasets",
-  "model_records_training_runs": "{count} training runs"
+  "model_records_training_runs": "{count} training runs",
+  "model_annotation_label": "Annotation instructions",
+  "model_annotation_placeholder": "Describe the bodies an AI agent should box for each class, and what to leave out.",
+  "model_annotation_hint": "Optional now; AI annotation needs them.",
+  "model_menu_annotation": "Annotation instructions",
+  "model_annotation_title": "Annotation instructions for {name}",
+  "model_annotation_region": "Region: {size} × {size} source pixels, {halo} px context, {scale}× display",
+  "model_annotation_save": "Save",
+  "model_annotation_saved": "Instructions for {name} saved",
+  "model_annotation_not_saved": "Instructions not saved"
 }

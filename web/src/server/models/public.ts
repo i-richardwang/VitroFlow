@@ -8,6 +8,7 @@ export {
   readModel,
   readModelVersion,
   registerModelVersion,
+  setModelAnnotation,
   toModel,
   toModelVersion,
 } from "./registry";

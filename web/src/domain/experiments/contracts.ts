@@ -38,6 +38,7 @@ export const observationImageCellSchema = z.strictObject({
   filename: z.string(),
   state: imageAnalysisStateSchema,
   detectionTally: tallySchema.nullable(),
+  proposalTally: tallySchema.nullable(),
   annotationTally: tallySchema.nullable(),
   error: z.string().nullable(),
 });

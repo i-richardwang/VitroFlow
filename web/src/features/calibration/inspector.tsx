@@ -53,7 +53,8 @@ export interface CountSource {
 
 /**
  * What each reading of this image found, per class the model recognizes, with
- * the total when it recognizes more than one.
+ * the total when it recognizes more than one. Readings sit side by side, best
+ * first.
  */
 export function CountsSection({
   classes,
@@ -62,8 +63,7 @@ export function CountsSection({
   classes: string[];
   sources: CountSource[];
 }) {
-  const primary = sources[0];
-  if (!primary) return null;
+  if (!sources.length) return null;
   const rows: { label: string; of: (counts: Tally) => number }[] = [
     ...classes.map((name) => ({
       label: className(name),
@@ -73,36 +73,55 @@ export function CountsSection({
       ? [{ label: m.workbench_count_total(), of: count }]
       : []),
   ];
-
+  if (sources.length === 1) {
+    const [only] = sources;
+    return (
+      <Section title={m.workbench_section_metrics()}>
+        <Metrics
+          rows={rows.map((row) => ({
+            label: row.label,
+            value: formatCount(row.of(only!.tally)),
+          }))}
+        />
+      </Section>
+    );
+  }
   return (
     <Section title={m.workbench_section_metrics()}>
-      <Metrics
-        rows={rows.map((row) => ({
-          label: row.label,
-          value: comparedCount(row.of, primary, sources[1]),
-        }))}
-      />
+      <table className="w-full border-separate border-spacing-y-1.5">
+        <thead>
+          <tr>
+            <td />
+            {sources.map((source) => (
+              <th
+                key={source.label}
+                scope="col"
+                className="text-right font-normal text-muted"
+              >
+                {source.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label}>
+              <th scope="row" className="text-left font-normal text-muted">
+                {row.label}
+              </th>
+              {sources.map((source) => (
+                <td
+                  key={source.label}
+                  className="text-right font-mono font-medium tabular-nums"
+                >
+                  {formatCount(row.of(source.tally))}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </Section>
-  );
-}
-
-function comparedCount(
-  of: (counts: Tally) => number,
-  primary: CountSource,
-  comparison: CountSource | undefined,
-): ReactNode {
-  const formatted = formatCount(of(primary.tally));
-  if (!comparison) return formatted;
-  const other = formatCount(of(comparison.tally));
-  if (other === formatted) return formatted;
-  return (
-    <>
-      {formatted}
-      <span className="font-sans font-normal text-muted">
-        {" "}
-        · {comparison.label} {other}
-      </span>
-    </>
   );
 }
 

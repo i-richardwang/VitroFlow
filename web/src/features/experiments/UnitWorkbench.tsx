@@ -4,6 +4,8 @@ import { Alert, Button, ButtonGroup, Separator } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
 import { observationLabel, cultureEventLabel } from "./labels";
+import type { ReviewSource } from "../../domain/annotation/review";
+import type { AnnotationRuntimeName } from "../../domain/annotation-runs/schema";
 import type { ObservationImageRef } from "../../domain/experiments/schema";
 import {
   latestCultureEvent,
@@ -31,12 +33,18 @@ import { UnitMenu } from "./UnitMenu";
 export function UnitWorkbench({
   series,
   datasets,
+  agents,
   calibrating,
+  source,
+  onSourceChange,
   onCalibratingChange,
 }: {
   series: UnitSeries;
   datasets: string[];
+  agents: AnnotationRuntimeName[];
   calibrating: boolean;
+  source?: ReviewSource;
+  onSourceChange: (source: ReviewSource) => void;
   onCalibratingChange: (calibrating: boolean) => void;
 }) {
   const { experiment, unit, treatments, navigation, shown } = series;
@@ -107,7 +115,10 @@ export function UnitWorkbench({
       title={title}
       model={shown.model}
       review={shown.review}
+      agents={agents}
       calibrating={calibrating}
+      source={source}
+      onSourceChange={onSourceChange}
       onCalibratingChange={onCalibratingChange}
       context={{
         actions: (

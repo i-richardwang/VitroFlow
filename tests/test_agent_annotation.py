@@ -143,7 +143,7 @@ def test_worker_downloads_exact_bytes_freezes_input_and_uploads_result(
             "halo": 32,
             "displayScale": 2,
         },
-        "runtime": {"runtime": "pi", "version": "test-version", "model": "test/vision"},
+        "runtime": "pi",
     }
     probes = []
     original_probe = PiRuntime.probe
@@ -253,22 +253,6 @@ def test_pi_default_model_is_resolved_before_execution(pi):
         "version": "test-version",
         "model": "test/vision",
     }
-
-
-def test_runtime_change_refuses_execution(pi, photo, tmp_path):
-    with pytest.raises(ValueError, match="differs from assignment"):
-        run_annotation(
-            photo,
-            tmp_path / "run",
-            PiRuntime("test/vision", pi),
-            expected_runtime={
-                "runtime": "pi",
-                "version": "previous",
-                "model": "test/vision",
-            },
-        )
-    assert not (tmp_path / "run/runtime").exists()
-    assert read_json(tmp_path / "run/status.json")["status"] == "failed"
 
 
 def test_failed_pi_version_probe_is_an_execution_failure(photo, tmp_path):

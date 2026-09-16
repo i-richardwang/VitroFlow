@@ -16,6 +16,7 @@ import {
   experimentWorkbookFilename,
   type ExperimentWorkbookSource,
 } from "./workbook";
+import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 /** The day, its date, and the quantities under it. */
 const HEADING_ROWS = 3;
@@ -26,6 +27,7 @@ const SEEDS: Model = {
   name: "Seed detector",
   task: "object_detection",
   classes: ["seed"],
+  annotation: DEFAULT_MODEL_ANNOTATION,
 };
 
 const SHOOTS: Model = {
@@ -34,6 +36,7 @@ const SHOOTS: Model = {
   name: "Germination",
   task: "object_detection",
   classes: ["germinated"],
+  annotation: DEFAULT_MODEL_ANNOTATION,
 };
 
 const EXPERIMENT: Experiment = {
@@ -101,6 +104,7 @@ function image(
     filename: `${unitId}.JPG`,
     state: "analyzed",
     detectionTally: tally,
+    proposalTally: null,
     annotationTally: null,
     error: null,
   };

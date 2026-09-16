@@ -61,6 +61,7 @@ export function ExperimentGridView({
     images,
     models,
     datasets,
+    agents,
   } = data;
   const router = useRouter();
   const [open, setOpen] = useState<Dialog | null>(null);
@@ -120,6 +121,7 @@ export function ExperimentGridView({
               (image) => image.observation === observation.id,
             )}
             models={models}
+            agents={agents}
             datasets={datasets
               .filter((dataset) => dataset.modelId === observation.modelId)
               .map((dataset) => dataset.id)}
@@ -353,6 +355,7 @@ function Cell({
   if (reading) {
     return explain(
       [
+        reading.source === "proposal" ? m.experiment_cell_proposed() : null,
         reading.detected === null
           ? null
           : m.experiment_cell_analyzed({
@@ -364,7 +367,7 @@ function Cell({
         .join(" · "),
       <Link
         href={href}
-        className={`${reading.calibrated ? "font-semibold" : ""} ${dimmed}`}
+        className={`${reading.source === "review" ? "font-semibold" : ""} ${dimmed}`}
       >
         {formatCount(reading.count)}
         {reading.rate === null ? null : (

@@ -6,11 +6,20 @@ import type { Executor } from "../infra/db/client";
 import { images, inferenceOutcomes, annotations } from "../infra/db/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { newestDetectingVersion } from "../inference/public";
+import {
+  latestRunId,
+  latestRuns,
+  proposalRunId,
+  proposalRuns,
+  toActivity,
+  toProposal,
+} from "../annotation-runs/public";
 
 /**
- * The review shows the newest of the model's versions that has detected the
- * image. Images carry no name of their own, so the page names the file as it
- * knows it.
+ * The review joins each reading on its own: the newest of the model's
+ * versions that has detected the image, the newest agent run that succeeded,
+ * and the stored annotation. Images carry no name of their own, so the page
+ * names the file as it knows it.
  */
 export async function readReview(
   ref: AnnotationRef,
@@ -24,6 +33,8 @@ export async function readReview(
       height: images.height,
       detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
       annotation: annotations.document,
+      proposal: proposalRuns,
+      latest: latestRuns,
     })
     .from(images)
     .leftJoin(
@@ -41,6 +52,14 @@ export async function readReview(
         eq(inferenceOutcomes.status, "succeeded"),
       ),
     )
+    .leftJoin(
+      proposalRuns,
+      eq(proposalRuns.id, proposalRunId(images.id, ref.modelId)),
+    )
+    .leftJoin(
+      latestRuns,
+      eq(latestRuns.id, latestRunId(images.id, ref.modelId)),
+    )
     .where(eq(images.id, ref.digest));
   if (!row) return null;
   return {
@@ -49,6 +68,8 @@ export async function readReview(
     width: row.width,
     height: row.height,
     detection: row.detection,
+    proposal: toProposal(row.proposal),
     annotation: row.annotation,
+    activity: toActivity(row.latest),
   };
 }

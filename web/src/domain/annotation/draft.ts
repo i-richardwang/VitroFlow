@@ -17,14 +17,17 @@ export type DraftAction =
   | { type: "submit" }
   | { type: "failed" };
 
-/** A draft begins with the stored base, or detection boxes for a first review. */
+/**
+ * A draft begins from the boxes the page was showing; the stored review is
+ * kept apart as the base a save is checked against.
+ */
 export function openDraft(
   base: AnnotationInstance[] | null,
-  detection: AnnotationInstance[],
+  start: AnnotationInstance[],
 ): AnnotationDraft {
   return {
     base,
-    instances: base ?? detection,
+    instances: start,
     past: [],
     future: [],
     saving: false,
