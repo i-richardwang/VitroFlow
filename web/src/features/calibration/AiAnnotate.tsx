@@ -21,6 +21,7 @@ import {
 } from "../../functions/annotation-runs";
 import { m } from "../../paraglide/messages";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { Timestamp } from "../../ui/Timestamp";
 import { Section } from "./inspector";
 import { agentLabels } from "./labels";
 
@@ -178,7 +179,7 @@ export function AiSection({
         <>
           <p className="text-sm">
             {agentLabels[proposal.agent]()} ·{" "}
-            {new Date(proposal.createdAt).toLocaleString()}
+            <Timestamp value={proposal.createdAt} />
           </p>
           <p className="text-xs text-muted">
             {m.ai_result_summary({

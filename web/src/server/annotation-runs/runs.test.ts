@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
-import type { AnnotationRunResult } from "../../domain/annotation-runs/schema";
-import { SEED_ANNOTATION_INSTRUCTIONS } from "../../domain/models/builtins";
+import type {
+  AnnotationRunResult,
+  StartAnnotationRun,
+} from "../../domain/annotation-runs/schema";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { readReview } from "../annotations/review";
 import { createModel, setModelAnnotation } from "../models/public";
@@ -37,8 +39,7 @@ async function setup(name: string) {
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
     runtime: "pi" as const,
     input: null,
-    base: null,
-  };
+  } satisfies StartAnnotationRun;
   return { user, owner, request, runtime, digests: observed.digests };
 }
 const instance = {
@@ -286,13 +287,12 @@ test("a run names an agent; any Worker that runs it may claim, and the result mu
     .where(eq(annotationRuns.id, run.id));
   expect(stored?.status).toBe("succeeded");
   expect(stored?.result?.execution.version).toBe("1.3.0");
-  expect(SEED_ANNOTATION_INSTRUCTIONS).toContain("seed body");
 });
 
 test("a batch draws each image once, leaving images an agent is already reading", async () => {
   const { user, request, digests } = await setup("ai-batch");
   const second = { digest: digests[1]!, modelId: request.ref.modelId };
-  const first = await createAnnotationRun(request, user.id);
+  await createAnnotationRun(request, user.id);
   expect(await createAnnotationRuns([request.ref, second], "pi", user.id)).toBe(
     1,
   );
@@ -301,7 +301,7 @@ test("a batch draws each image once, leaving images an agent is already reading"
   );
   const db = await database();
   const queued = await db
-    .select({ imageId: annotationRuns.imageId })
+    .select({ id: annotationRuns.id, imageId: annotationRuns.imageId })
     .from(annotationRuns)
     .where(
       inArray(annotationRuns.imageId, [request.ref.digest, second.digest]),
@@ -309,5 +309,31 @@ test("a batch draws each image once, leaving images an agent is already reading"
   expect(queued.map((row) => row.imageId).sort()).toEqual(
     [request.ref.digest, second.digest].sort(),
   );
-  await cancelAnnotationRun(first.id);
+  for (const run of queued) await cancelAnnotationRun(run.id);
+});
+
+test("batch admission retires expired work and admits each image only once", async () => {
+  const { user, owner, request } = await setup("ai-expired-batch");
+  await createAnnotationRun(request, user.id);
+  const claimed = await claimAnnotationRun(
+    owner,
+    new Date(Date.now() - 301000),
+  );
+  expect(claimed?.id).toBe(request.id);
+  const db = await database();
+  expect(
+    (await readReview(request.ref, "expired.jpg", db))?.activity?.status,
+  ).toBe("failed");
+
+  const started = await Promise.all([
+    createAnnotationRuns([request.ref, request.ref], "pi", user.id),
+    createAnnotationRuns([request.ref], "pi", user.id),
+  ]);
+  expect(started.reduce((sum, count) => sum + count, 0)).toBe(1);
+  const rows = await db
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.imageId, request.ref.digest));
+  expect(rows.map((row) => row.status).sort()).toEqual(["failed", "queued"]);
+  await cancelAnnotationRun(rows.find((row) => row.status === "queued")!.id);
 });

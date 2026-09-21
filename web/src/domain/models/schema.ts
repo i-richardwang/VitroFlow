@@ -7,17 +7,18 @@ import {
   trainingRecipeSchema,
 } from "../training/schema";
 import { classListSchema } from "./classes";
+import {
+  annotationRegionSchema,
+  DEFAULT_ANNOTATION_REGION,
+} from "./annotation";
 
 /**
  * How an agent annotates the task: the instructions that describe the bodies
  * to box, and the source region each look takes. Instructions belong to the
  * task the way its classes do; a run reads them, never asks for them.
  */
-export const modelAnnotationFields = z.strictObject({
+const modelAnnotationFields = annotationRegionSchema.extend({
   instructions: z.string().trim(),
-  coreSize: z.number().int().min(16).max(2048),
-  halo: z.number().int().min(0).max(2048),
-  displayScale: z.number().int().min(1).max(4),
 });
 export const modelAnnotationSchema = modelAnnotationFields.refine(
   (v) => v.halo <= v.coreSize,
@@ -26,9 +27,7 @@ export const modelAnnotationSchema = modelAnnotationFields.refine(
 
 export const DEFAULT_MODEL_ANNOTATION = {
   instructions: "",
-  coreSize: 512,
-  halo: 32,
-  displayScale: 1,
+  ...DEFAULT_ANNOTATION_REGION,
 } satisfies ModelAnnotation;
 
 /**

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import re
 from pathlib import Path
 
 import cv2
@@ -12,16 +11,15 @@ import numpy as np
 from vitroflow.autoannotation.geometry import box_from_edges, clip, rectangle
 from vitroflow.autoannotation.instructions import INSTRUCTIONS
 from vitroflow.autoannotation.protocol import (
-    DEFAULT_RULES,
     SCHEMA_VERSION,
     candidates,
     digest,
-    fields,
     nonempty,
     object_digest,
 )
 from vitroflow.autoannotation.rendering import draw, references
 from vitroflow.autoannotation.storage import read_json, write_image, write_json
+from vitroflow.contracts.validation import contract_defaults, validate_wire_contract
 from vitroflow.io.files import atomic_directory
 from vitroflow.io.image_io import MAX_IMAGE_BYTES
 
@@ -36,39 +34,17 @@ def prepare(
     plan_only: bool = False,
 ) -> dict:
     config = config or {}
-    fields(config, set(), {"coreSize", "halo", "displayScale", "classes", "rules"})
-    settings = {
-        "coreSize": 512,
-        "halo": 32,
-        "displayScale": 1,
-        "classes": ["seed"],
-        "rules": DEFAULT_RULES,
-        **config,
-    }
-    for key, lo, hi in (
-        ("coreSize", 16, 2048),
-        ("halo", 0, 2048),
-        ("displayScale", 1, 4),
-    ):
-        n = settings[key]
-        if isinstance(n, bool) or not isinstance(n, int) or not lo <= n <= hi:
-            raise ValueError(f"{key} must be an integer in [{lo}, {hi}]")
+    defaults = contract_defaults("annotation-config")
+    settings = {**defaults, **config}
+    validate_wire_contract("annotation-config", settings, "annotation config")
+    for key in ("coreSize", "halo", "displayScale"):
+        settings[key] = int(settings[key])
+    nonempty(settings["rules"], "rules")
     if settings["halo"] > settings["coreSize"]:
         raise ValueError("halo cannot exceed coreSize")
     classes = settings["classes"]
-    if (
-        not isinstance(classes, list)
-        or not classes
-        or any(
-            not isinstance(c, str) or not re.fullmatch(r"[a-z][a-z0-9_-]*", c)
-            for c in classes
-        )
-        or len(set(classes)) != len(classes)
-    ):
-        raise ValueError("classes must be distinct lowercase identifiers")
-    if classes != ["seed"] and "rules" not in config:
+    if classes != defaults["classes"] and "rules" not in config:
         raise ValueError("Custom classes require explicit rules")
-    nonempty(settings["rules"], "rules")
     if image_path.stat().st_size > MAX_IMAGE_BYTES:
         raise ValueError("Image exceeds 64 MiB")
     source_bytes = image_path.read_bytes()

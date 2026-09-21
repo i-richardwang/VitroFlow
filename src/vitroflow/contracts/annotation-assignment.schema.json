@@ -111,7 +111,8 @@
           "items": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
-          }
+          },
+          "uniqueItems": true
         },
         "rules": {
           "type": "string",
@@ -125,7 +126,16 @@
         "classes",
         "rules"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "default": {
+        "coreSize": 512,
+        "halo": 32,
+        "displayScale": 1,
+        "classes": [
+          "seed"
+        ],
+        "rules": "Annotate each seed body separately, including opaque brown/gold\nand pale yellow/translucent bodies with a coherent elongated outline. Enclose the\ncomplete visible body, including pale coat and tips, before minimizing background.\nDistinguish seed bodies from fibers and glare. Inspect touching clusters for\nseparate bodies at different angles; their rectangles may overlap naturally.\nDo not force an expected count or mechanically shrink, expand or pad boxes."
+      }
     },
     "runtime": {
       "type": "string",

@@ -6,8 +6,7 @@ import {
   boundingBoxSchema,
 } from "../annotation/schema";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
-import { classListSchema } from "../models/classes";
-import { modelAnnotationFields } from "../models/schema";
+import { annotationConfigSchema } from "../models/annotation";
 
 /** The external agents a Worker can run; each authenticates and picks its model itself. */
 export const annotationRuntimeNameSchema = z.enum(["pi", "antigravity"]);
@@ -73,9 +72,7 @@ export const annotationAssignmentSchema = z.strictObject({
     height: z.number().int().positive(),
   }),
   input: z.array(annotationInstanceSchema).nullable(),
-  config: modelAnnotationFields
-    .omit({ instructions: true })
-    .extend({ classes: classListSchema, rules: z.string().min(1) }),
+  config: annotationConfigSchema,
   runtime: annotationRuntimeNameSchema,
 });
 export type AnnotationAssignment = z.infer<typeof annotationAssignmentSchema>;

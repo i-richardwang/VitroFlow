@@ -10,12 +10,6 @@ from typing import Any
 from vitroflow.autoannotation.geometry import owned, rectangle, source_edges
 
 SCHEMA_VERSION = "vitroflow.autoannotation/v5"
-DEFAULT_RULES = """Annotate each seed body separately, including opaque brown/gold
-and pale yellow/translucent bodies with a coherent elongated outline. Enclose the
-complete visible body, including pale coat and tips, before minimizing background.
-Distinguish seed bodies from fibers and glare. Inspect touching clusters for
-separate bodies at different angles; their rectangles may overlap naturally.
-Do not force an expected count or mechanically shrink, expand or pad boxes."""
 
 
 def encoded(value: Any) -> bytes:

@@ -80,92 +80,100 @@ export async function createAnnotationRun(
   requestedBy: string,
 ): Promise<AnnotationRun> {
   const available = await availableAnnotationRuntimes();
-  return transaction(async (tx) => {
-    await lockImage(request.ref.digest, tx);
-    const [existing] = await tx
-      .select()
-      .from(annotationRuns)
-      .where(eq(annotationRuns.id, request.id));
-    if (existing) {
-      if (
-        existing.requestedBy !== requestedBy ||
-        canonicalJson(existing.request) !== canonicalJson(request)
-      )
-        throw new AnnotationRunConflictError(
-          "Request id already has different inputs",
-        );
-      return present(existing);
-    }
-    const now = new Date();
-    await expire(now, tx);
-    const [active] = await tx
-      .select()
-      .from(annotationRuns)
-      .where(
-        and(
-          eq(annotationRuns.imageId, request.ref.digest),
-          eq(annotationRuns.modelId, request.ref.modelId),
-          inArray(annotationRuns.status, ["queued", "running"]),
-        ),
-      );
-    if (active)
+  const run = await transaction((tx) =>
+    admitRun(request, requestedBy, available, tx),
+  );
+  if (!run)
+    throw new AnnotationRunConflictError(
+      "This image already has an active AI annotation run",
+    );
+  return run;
+}
+
+/** Under the image lock, either admit this request or leave its active run alone. */
+async function admitRun(
+  request: StartAnnotationRun,
+  requestedBy: string,
+  available: AnnotationRuntimeName[],
+  tx: Executor,
+): Promise<AnnotationRun | null> {
+  await lockImage(request.ref.digest, tx);
+  const [existing] = await tx
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, request.id));
+  if (existing) {
+    if (
+      existing.requestedBy !== requestedBy ||
+      canonicalJson(existing.request) !== canonicalJson(request)
+    )
       throw new AnnotationRunConflictError(
-        "This image already has an active AI annotation run",
+        "Request id already has different inputs",
       );
-    const [image] = await tx
-      .select()
-      .from(images)
-      .where(eq(images.id, request.ref.digest));
-    const model = await readModel(request.ref.modelId, tx);
-    if (!image || !model)
-      throw new AnnotationRunNotFoundError("Image or labeling model not found");
-    if (request.input) {
-      annotationSchema.parse({
-        schemaVersion: 1,
-        image: { digest: image.id, width: image.width, height: image.height },
-        instances: request.input,
-      });
-      assertInstanceClasses(
-        model.classes,
-        request.input,
-        "AI annotation input",
-      );
-    }
-    if (!available.includes(request.runtime))
-      throw new AnnotationRunConflictError(
-        "No online Worker provides the selected agent",
-      );
-    const { instructions, ...region } = model.annotation;
-    if (!instructions)
-      throw new AnnotationRunConflictError(
-        "The model has no annotation instructions; add them on the Models page",
-      );
-    const assignment = annotationAssignmentSchema.parse({
-      id: request.id,
+    return present(existing);
+  }
+  const now = new Date();
+  await expire(now, tx);
+  const [active] = await tx
+    .select()
+    .from(annotationRuns)
+    .where(
+      and(
+        eq(annotationRuns.imageId, request.ref.digest),
+        eq(annotationRuns.modelId, request.ref.modelId),
+        inArray(annotationRuns.status, ["queued", "running"]),
+      ),
+    );
+  if (active) return null;
+  const [image] = await tx
+    .select()
+    .from(images)
+    .where(eq(images.id, request.ref.digest));
+  const model = await readModel(request.ref.modelId, tx);
+  if (!image || !model)
+    throw new AnnotationRunNotFoundError("Image or labeling model not found");
+  if (request.input) {
+    annotationSchema.parse({
+      schemaVersion: 1,
       image: { digest: image.id, width: image.width, height: image.height },
-      input: request.input,
-      config: { classes: model.classes, rules: instructions, ...region },
-      runtime: request.runtime,
+      instances: request.input,
     });
-    const [row] = await tx
-      .insert(annotationRuns)
-      .values({
-        id: request.id,
-        imageId: image.id,
-        modelId: model.id,
-        requestedBy,
-        request,
-        assignment,
-        status: "queued",
-        total:
-          Math.ceil(image.width / assignment.config.coreSize) *
-          Math.ceil(image.height / assignment.config.coreSize),
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
-    return present(row!);
+    assertInstanceClasses(model.classes, request.input, "AI annotation input");
+  }
+  if (!available.includes(request.runtime))
+    throw new AnnotationRunConflictError(
+      "No online Worker provides the selected agent",
+    );
+  const { instructions, ...region } = model.annotation;
+  if (!instructions)
+    throw new AnnotationRunConflictError(
+      "The model has no annotation instructions; add them on the Models page",
+    );
+  const assignment = annotationAssignmentSchema.parse({
+    id: request.id,
+    image: { digest: image.id, width: image.width, height: image.height },
+    input: request.input,
+    config: { classes: model.classes, rules: instructions, ...region },
+    runtime: request.runtime,
   });
+  const [row] = await tx
+    .insert(annotationRuns)
+    .values({
+      id: request.id,
+      imageId: image.id,
+      modelId: model.id,
+      requestedBy,
+      request,
+      assignment,
+      status: "queued",
+      total:
+        Math.ceil(image.width / assignment.config.coreSize) *
+        Math.ceil(image.height / assignment.config.coreSize),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return present(row!);
 }
 
 /**
@@ -178,31 +186,18 @@ export async function createAnnotationRuns(
   requestedBy: string,
 ): Promise<number> {
   if (!refs.length) return 0;
-  const db = await database();
-  const active = await db
-    .select({
-      imageId: annotationRuns.imageId,
-      modelId: annotationRuns.modelId,
-    })
-    .from(annotationRuns)
-    .where(
-      and(
-        inArray(
-          annotationRuns.imageId,
-          refs.map((ref) => ref.digest),
-        ),
-        inArray(annotationRuns.status, ["queued", "running"]),
-      ),
-    );
-  const busy = new Set(active.map((row) => `${row.imageId}/${row.modelId}`));
+  const available = await availableAnnotationRuntimes();
   let started = 0;
   for (const ref of refs) {
-    if (busy.has(`${ref.digest}/${ref.modelId}`)) continue;
-    await createAnnotationRun(
-      { id: crypto.randomUUID(), ref, runtime, input: null },
-      requestedBy,
+    const run = await transaction((tx) =>
+      admitRun(
+        { id: crypto.randomUUID(), ref, runtime, input: null },
+        requestedBy,
+        available,
+        tx,
+      ),
     );
-    started++;
+    if (run) started++;
   }
   return started;
 }

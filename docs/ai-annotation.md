@@ -105,7 +105,7 @@ Context is additional source-image area, clipped at image boundaries. A full int
 
 The existing Worker bearer realm protects annotation claim/image/progress/lease/completion endpoints. Browser actions require the normal authenticated session. A request ID is idempotent only for the same creator and frozen input; one image/model can have at most one active run. A replayed claim returns the same assignment.
 
-A live lease belongs to one Worker session. Cancellation, expiration, and session replacement prevent late progress or completion from becoming accepted results. Completion retries with the same payload and original owner are idempotent. Lease expiration fails explicitly; there is no automatic cross-host restart, shared checkpoint service, or hidden paid retry. A completed local payload can be uploaded again after an uncertain transport response. If every region was already accepted, the Worker reconstructs export and upload after a local crash without model calls. Partial work stays available for inspection; standalone `annotate run --resume` is an explicit request to retry unfinished regions, while product retries require a new request.
+A live lease belongs to one Worker session. Cancellation, expiration, and session replacement prevent late progress or completion from becoming accepted results. Completion retries with the same payload and original owner are idempotent. Lease expiration fails explicitly; there is no automatic cross-host restart, shared checkpoint service, or hidden paid retry. A completed local payload can be uploaded again after an uncertain transport response. After a local crash, the Worker delegates export recovery to `recover_annotation`. That operation owns input validation, coordinator state, and export; it accepts no runtime and only exports a fully accepted run. The Worker does not interpret coordinator files. Partial work stays available for inspection; standalone `annotate run --resume` is an explicit request to retry unfinished regions, while product retries require a new request.
 
 ## Source ownership
 
@@ -118,7 +118,7 @@ A live lease belongs to one Worker session. Cancellation, expiration, and sessio
 - `agent_annotation/command.py`: command-line entry points and presentation.
 - `agent_annotation/instructions.py`: shared runtime prompt and visual execution flow.
 - `autoannotation/instructions.py`: fresh/refit task briefs and visual fitting rules.
-- `agent_annotation/runner.py`: bounded per-region sessions, explicit resume, cancellation and collection.
+- `agent_annotation/runner.py`: bounded per-region sessions, explicit resume, export-only recovery, cancellation and collection.
 - `agent_annotation/coordinator.py`: sole local owner of attempt lifecycle and durable result acceptance.
 - `agent_annotation/tools.py`: common model-facing tool operations and their invoke/MCP transports.
 - `worker/annotation.py`: authenticated assignment, image download, leases, and result upload.

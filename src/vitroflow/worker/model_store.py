@@ -11,93 +11,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from vitroflow.contracts.documents import (
-    as_digest,
-    as_integer,
-    as_list,
-    as_number,
-    as_object,
-    as_string,
-    expect_fields,
-    expect_schema_version,
-)
-from vitroflow.contracts.identifiers import CLASS_NAME, VERSION_ID
+from vitroflow.contracts.validation import validate_wire_contract
 from vitroflow.detectors.contract import Detector
 from vitroflow.detectors.traditional.config import PipelineConfig
 from vitroflow.detectors.traditional.detector import TraditionalDetector
 from vitroflow.detectors.traditional.scoring import DEFAULT_MODEL
 from vitroflow.detectors.ultralytics.detector import UltralyticsDetector
 from vitroflow.detectors.ultralytics.runtime import release_accelerator
-from vitroflow.training.recipe import parse_training_recipe
 
-MODEL_MANIFEST_SCHEMA_VERSION = 1
 CACHE_VALIDATION_ERRORS = (OSError, TypeError, ValueError, RuntimeError)
 LOGGER = logging.getLogger(__name__)
 
 
 class WeightsSource(Protocol):
     def weights(self, version_id: str) -> bytes: ...
-
-
-def _inference_settings(value: Any, context: str) -> None:
-    settings = as_object(value, context)
-    expect_fields(
-        settings,
-        {"confidence", "imageSize", "maxDetections", "endToEnd"},
-        context,
-    )
-    confidence = as_number(settings["confidence"], f"{context}.confidence")
-    if not 0 <= confidence <= 1:
-        raise ValueError(f"{context}.confidence must be between 0 and 1")
-    as_integer(settings["imageSize"], f"{context}.imageSize", 1)
-    as_integer(settings["maxDetections"], f"{context}.maxDetections", 1)
-    if not isinstance(settings["endToEnd"], bool):
-        raise TypeError(f"{context}.endToEnd must be a boolean")
-
-
-def _validation_metrics(value: Any, context: str) -> None:
-    metrics = as_object(value, context)
-    expect_fields(
-        metrics,
-        {"precision", "recall", "map50", "map50To95", "fitness"},
-        context,
-    )
-    for name in ("precision", "recall", "map50", "map50To95"):
-        metric = as_number(metrics[name], f"{context}.{name}")
-        if not 0 <= metric <= 1:
-            raise ValueError(f"{context}.{name} must be between 0 and 1")
-    as_number(metrics["fitness"], f"{context}.fitness")
-
-
-def _model_artifact(value: Any, context: str) -> dict[str, Any]:
-    artifact = as_object(value, context)
-    kind = artifact.get("kind")
-    if kind == "traditional":
-        expect_fields(artifact, {"kind", "digest"}, context)
-    elif kind == "ultralytics":
-        expect_fields(
-            artifact,
-            {
-                "kind",
-                "digest",
-                "weights",
-                "inference",
-                "validation",
-                "training",
-            },
-            context,
-        )
-        weights = as_object(artifact["weights"], f"{context}.weights")
-        expect_fields(weights, {"digest", "bytes"}, f"{context}.weights")
-        as_digest(weights["digest"], f"{context}.weights.digest")
-        as_integer(weights["bytes"], f"{context}.weights.bytes", 1)
-        _inference_settings(artifact["inference"], f"{context}.inference")
-        _validation_metrics(artifact["validation"], f"{context}.validation")
-        parse_training_recipe(artifact["training"], f"{context}.training")
-    else:
-        raise ValueError(f"{context}.kind is unsupported")
-    as_digest(artifact["digest"], f"{context}.digest")
-    return artifact
 
 
 @dataclass(frozen=True)
@@ -110,38 +37,11 @@ class ModelManifest:
 
     @classmethod
     def parse(cls, value: Any, context: str = "model manifest") -> ModelManifest:
-        manifest = as_object(value, context)
-        expect_fields(
-            manifest,
-            {"schemaVersion", "modelVersionId", "classes", "artifact"},
-            context,
-        )
-        expect_schema_version(
-            manifest,
-            "schemaVersion",
-            MODEL_MANIFEST_SCHEMA_VERSION,
-            context,
-        )
-        version_id = as_string(manifest["modelVersionId"], f"{context}.modelVersionId")
-        if not VERSION_ID.fullmatch(version_id):
-            raise ValueError(f"{context}.modelVersionId is invalid")
-        classes = tuple(
-            as_string(item, f"{context}.classes[{index}]")
-            for index, item in enumerate(
-                as_list(manifest["classes"], f"{context}.classes")
-            )
-        )
-        if not classes:
-            raise ValueError(f"{context}.classes must not be empty")
-        if len(set(classes)) != len(classes):
-            raise ValueError(f"{context}.classes must be unique")
-        for name in classes:
-            if not CLASS_NAME.fullmatch(name):
-                raise ValueError(f"{context}.classes contains invalid class {name}")
+        validate_wire_contract("inference-model-manifest", value, context)
         return cls(
-            model_version_id=version_id,
-            classes=classes,
-            artifact=_model_artifact(manifest["artifact"], f"{context}.artifact"),
+            model_version_id=value["modelVersionId"],
+            classes=tuple(value["classes"]),
+            artifact=value["artifact"],
         )
 
 

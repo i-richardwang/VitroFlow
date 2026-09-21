@@ -60,8 +60,6 @@ export const unitObservationSchema = z.strictObject({
   image: observationImageCellSchema.nullable(),
 });
 
-export type UnitObservation = z.infer<typeof unitObservationSchema>;
-
 /** A unit as the series steps through it: enough to name it and its treatment. */
 export const unitNavigationEntrySchema = z.strictObject({
   id: unitIdSchema,

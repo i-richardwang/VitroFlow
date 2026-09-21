@@ -247,8 +247,6 @@ export const unitRequestSchema = unitRefSchema.extend({
   observation: observationIdSchema.optional(),
 });
 
-export type UnitRequest = z.infer<typeof unitRequestSchema>;
-
 /** A unit's code and treatment are corrected together; its records stay. */
 export const unitUpdateSchema = unitRefSchema.extend({
   code: unitCodeSchema,

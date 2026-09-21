@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextlib import contextmanager
 from pathlib import Path
 
-from vitroflow.agent_annotation.coordinator import (
-    AnnotationRunBusyError,
-    Coordinator,
-)
+from vitroflow.agent_annotation.coordinator import Coordinator
 from vitroflow.agent_annotation.instructions import runtime_prompt
 from vitroflow.agent_annotation.tools import DEFINITIONS
 from vitroflow.agent_runtimes.contract import (
@@ -55,6 +53,50 @@ def run_annotation(
         or not 1 <= max_parallel <= MAX_PARALLEL
     ):
         raise ValueError(f"parallel must be an integer in [1, {MAX_PARALLEL}]")
+    started = time.monotonic()
+    with _execution(image, directory, prelabels, config, crop, resume) as coordinator:
+        descriptor = supervise(
+            coordinator,
+            runtime,
+            max_parallel=max_parallel,
+            cancelled=cancelled,
+            progress=progress,
+        )
+        return export(coordinator, descriptor, started)
+
+
+def recover_annotation(
+    image: Path,
+    directory: Path,
+    *,
+    prelabels: Path | None = None,
+    config: dict | None = None,
+    crop: list[int] | None = None,
+    cancelled: Callable[[], bool] = lambda: False,
+) -> dict:
+    """Recover a fully accepted run's export without starting an agent session."""
+    started = time.monotonic()
+    with _execution(image, directory, prelabels, config, crop, True) as coordinator:
+        if not all(event.is_set() for event in coordinator.events.values()):
+            raise RuntimeError(
+                "Unfinished local AI run; explicitly resume it or start a new run"
+            )
+        if cancelled():
+            raise AgentInterruptedError("AI annotation cancelled")
+        descriptor = read_json(coordinator.directory / "descriptor.json")
+        return export(coordinator, descriptor, started)
+
+
+@contextmanager
+def _execution(
+    image: Path,
+    directory: Path,
+    prelabels: Path | None,
+    config: dict | None,
+    crop: list[int] | None,
+    resume: bool,
+) -> Iterator[Coordinator]:
+    """Own inputs and status for the lifetime of a run or export recovery."""
     directory = directory.resolve()
     if resume and not directory.is_dir():
         raise ValueError("Resume requires an existing annotation run")
@@ -68,28 +110,26 @@ def run_annotation(
         raise ValueError("Resume requires the original image, input and settings")
     directory.mkdir(parents=True, exist_ok=resume, mode=0o700)
     package = directory / "tasks"
-    started = time.monotonic()
-    try:
-        if not resume:
+    if not resume:
+        try:
             write_json(directory / "request.json", identity)
             prepare(image, package, prelabels_path=prelabels, config=config, crop=crop)
-        with Coordinator(directory, package) as coordinator:
-            write_json(directory / "status.json", {"status": "running"})
-            descriptor = supervise(
-                coordinator,
-                runtime,
-                max_parallel=max_parallel,
-                cancelled=cancelled,
-                progress=progress,
+        except FAILURES as error:
+            write_json(
+                directory / "status.json", {"status": "failed", "error": str(error)}
             )
-            report = export(coordinator, descriptor, started)
+            raise
+    with Coordinator(directory, package) as coordinator:
+        write_json(directory / "status.json", {"status": "running"})
+        try:
+            yield coordinator
+        except FAILURES as error:
+            write_json(
+                directory / "status.json", {"status": "failed", "error": str(error)}
+            )
+            raise
+        else:
             write_json(directory / "status.json", {"status": "succeeded"})
-            return report
-    except AnnotationRunBusyError:
-        raise
-    except FAILURES as error:
-        write_json(directory / "status.json", {"status": "failed", "error": str(error)})
-        raise
 
 
 def supervise(

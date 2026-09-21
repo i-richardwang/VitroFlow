@@ -63,7 +63,7 @@ export function availableSources(review: Review): ReviewSource[] {
 }
 
 /** The source an image reads by: the best it has. */
-export function readingSource(review: Review): ReviewSource | null {
+function readingSource(review: Review): ReviewSource | null {
   return availableSources(review)[0] ?? null;
 }
 

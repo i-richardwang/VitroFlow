@@ -1,11 +1,8 @@
 import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
-import {
-  blobExists,
-  putImmutableBlob,
-  requireBlob,
-} from "../infra/blobs/store";
+import { blobExists } from "../testing/blobs";
+import { putImmutableBlob, requireBlob } from "../infra/blobs/store";
 import { modelWeightsBlobKey } from "./keys";
 import { imageBlobKey } from "../images/keys";
 import { contentDigest } from "../infra/digest";

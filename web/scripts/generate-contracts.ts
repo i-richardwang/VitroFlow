@@ -6,7 +6,11 @@ import { trainingParametersSchema } from "../src/domain/training/parameters";
 import { annotationSchema } from "../src/domain/annotation/schema";
 import { datasetManifestSchema } from "../src/domain/datasets/manifest";
 import { inferenceOutcomeSchema } from "../src/domain/detection/schema";
-import { inferenceAssignmentSchema } from "../src/domain/inference/assignments";
+import {
+  inferenceAssignmentSchema,
+  inferenceModelManifestSchema,
+} from "../src/domain/inference/assignments";
+import { annotationConfigSchema } from "../src/domain/models/annotation";
 import {
   datasetSnapshotSchema,
   trainingRunSchema,
@@ -21,11 +25,13 @@ const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["annotation", annotationSchema],
+  ["annotation-config", annotationConfigSchema],
   ["annotation-assignment", annotationAssignmentSchema],
   ["annotation-run-result", annotationRunResultSchema],
   ["training-parameters", trainingParametersSchema],
   ["dataset-manifest", datasetManifestSchema],
   ["inference-assignment", inferenceAssignmentSchema],
+  ["inference-model-manifest", inferenceModelManifestSchema],
   ["inference-outcome", inferenceOutcomeSchema],
   ["training-run", trainingRunSchema],
   ["training-snapshot", datasetSnapshotSchema],

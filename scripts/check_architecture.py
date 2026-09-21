@@ -10,7 +10,7 @@ DEPENDENCIES: dict[str, set[str]] = {
     "contracts": set(),
     "io": set(),
     "annotations": {"contracts"},
-    "autoannotation": {"io"},
+    "autoannotation": {"contracts", "io"},
     "agent_runtimes": set(),
     "agent_annotation": {"agent_runtimes", "autoannotation"},
     "detector_contracts": {"annotations", "contracts"},

@@ -343,10 +343,6 @@ export function putImmutableBlob(
   return blobs().putImmutable(key, contents);
 }
 
-export function blobExists(key: string): Promise<boolean> {
-  return blobs().exists(key);
-}
-
 /** Every key under a prefix, in lexicographic order. */
 export function listBlobs(prefix: string): Promise<string[]> {
   return blobs().list(prefix);

@@ -9,7 +9,7 @@ HTTP / MCP / worker routes
 application operations and worker control planes
             │
             ▼
-experiment, dataset, model, inference, and training domain services
+experiment, dataset, model, annotation, inference, and training domain services
             │
             ▼
 database, immutable blob storage, and external runtimes
@@ -25,6 +25,7 @@ database, immutable blob storage, and external runtimes
 | `experiments/`                      | Experiment design, observations, culture events, and observation image membership                         |
 | `datasets/`                         | Dataset membership, review records, and import/export                                                     |
 | `annotations/`                      | Current human annotations, optimistic replacement, and review documents                                   |
+| `annotation-runs/`                  | Frozen AI requests, leases, progress, completion evidence, and proposals                                   |
 | `inference/`                        | Image/version jobs, leases, canonical outcomes, and latest successful detection queries                   |
 | `training/`                         | Runs, frozen training snapshots, epochs, publication, and weight collection                               |
 | `models/`                           | Models and immutable version registration                                                                 |
@@ -62,7 +63,9 @@ Inference is a queue, not a snapshot query. A worker atomically claims one deman
 
 Production inference results enter through lease completion. Tests seed outcomes through `testing/inference.ts`; this fixture is outside the production module graph. Collection and outcome tests live alongside the image and inference modules that own those rules.
 
-Training shares the roster and its ownership vocabulary—worker, session, lease, and attempt—but keeps its own run state machine because epochs and publication belong to a durable training run. Both claims lock the worker row, and every owned write carries the predicate that the session is still the roster's. A worker process serves both queues, taking a training run first when it advertises the ultralytics runtime, so the runtimes a session heartbeats are the whole of what it will do. The process owns the accelerator lifecycle: it releases the cached inference model before training and collects runtime allocations when training exits. Consecutive inference tasks may reuse the cached model.
+Training and AI annotation share the roster and its ownership vocabulary—worker, session, lease, and attempt—but each keeps its own run state machine. Claims lock the worker row, and every owned write carries the predicate that the session is still the roster's. A worker process serves three queues, prioritizing annotation, then training, then inference, according to its advertised capabilities. The process owns the accelerator lifecycle: it releases the cached inference model before training and collects runtime allocations when training exits. Consecutive inference tasks may reuse the cached model.
+
+`annotation-runs/runs.ts` admits both single-image and batch requests through one operation under the image lock: retire expired work, check for an active run, validate the request, and freeze the assignment. A batch skips an image that still has active work; concurrent or repeated references cannot create duplicate active runs. Reads project expired lease status without writing. The Python annotation runner owns local execution and recovery; its export-only recovery operation accepts no runtime and cannot launch an agent. The Worker owns assignment transfer, leases, and result upload.
 
 ## Wire contracts
 

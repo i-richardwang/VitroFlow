@@ -35,9 +35,9 @@ import {
   type ExperimentRequestInput,
 } from "../../domain/experiments/schema";
 import { storeAnnotation } from "../annotations/documents";
-import { blobExists } from "../infra/blobs/store";
 import { imageBlobKey } from "../images/keys";
 import { collectImages } from "../images/collection";
+import { blobExists } from "../testing/blobs";
 import { seedInferenceOutcome } from "../testing/inference";
 import {
   addReplicates,
@@ -47,7 +47,6 @@ import {
   deleteExperiment,
   deleteTreatment,
   moveUnits,
-  readExperiment,
   updateUnit,
   updateTreatment,
   updateExperiment,
@@ -568,7 +567,7 @@ describe("experiments", () => {
     ).resolves.toMatchObject({ day: 14 });
 
     await deleteExperiment({ experiment: experiment.id });
-    expect(await readExperiment(experiment.id)).toBeNull();
+    expect(await readExperimentGrid(experiment.id)).toBeNull();
   });
 
   test("a treatment can gain replicates after it is designed", async () => {
@@ -1761,7 +1760,7 @@ describe("experiments", () => {
       inoculatedOn: INOCULATED,
     });
     await deleteExperiment({ experiment: disposable.id });
-    expect(await readExperiment(disposable.id)).toBeNull();
+    expect(await readExperimentGrid(disposable.id)).toBeNull();
     await expect(
       deleteExperiment({ experiment: disposable.id }),
     ).rejects.toThrow(ExperimentNotFoundError);

@@ -1,5 +1,5 @@
 /** Numbers inside codes compare by value, so `A2` precedes `A10`. */
-export function compareUnitCodes(left: string, right: string): number {
+function compareUnitCodes(left: string, right: string): number {
   return left.localeCompare(right, "en", { numeric: true });
 }
 
@@ -78,7 +78,7 @@ export function suggestUnit(
 }
 
 /** Camera filenames count up as the shutter fires, so `IMG_0002` precedes `IMG_0010`. */
-export function compareFilenames(left: string, right: string): number {
+function compareFilenames(left: string, right: string): number {
   return filenameStem(left).localeCompare(filenameStem(right), "en", {
     numeric: true,
   });

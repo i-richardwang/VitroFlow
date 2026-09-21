@@ -18,8 +18,6 @@ export const datasetRefSchema = z.strictObject({
   dataset: datasetIdSchema,
 });
 
-export type DatasetRef = z.infer<typeof datasetRefSchema>;
-
 /** One image as a member of one dataset. */
 export const datasetImageRefSchema = datasetRefSchema.extend({
   digest: imageDigestSchema,

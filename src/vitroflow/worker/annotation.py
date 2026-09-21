@@ -10,10 +10,9 @@ from pathlib import Path
 
 import httpx
 
-from vitroflow.agent_annotation.runner import run_annotation
+from vitroflow.agent_annotation.runner import recover_annotation, run_annotation
 from vitroflow.agent_runtimes.contract import AgentInterruptedError, AgentRuntime
 from vitroflow.autoannotation.storage import read_json, write_json
-from vitroflow.autoannotation.tasks import read_manifest
 from vitroflow.contracts.validation import validate_wire_contract
 from vitroflow.worker.session import LeaseLostError, WorkerClient, keep_lease
 
@@ -117,18 +116,6 @@ def process_annotation_job(
             return
         try:
             resume = directory.exists()
-            if resume:
-                # Recover delivery/collection after a crash without new model calls.
-                execution_dir = directory / "execution"
-                state = read_json(execution_dir / "state.json")
-                manifest = read_manifest(execution_dir / "tasks")
-                if state["packageId"] != manifest["packageId"] or any(
-                    state["tasks"].get(task["id"], {}).get("state") != "accepted"
-                    for task in manifest["tasks"]
-                ):
-                    raise RuntimeError(
-                        "Unfinished local AI run; explicitly resume it or start a new run"
-                    )
             directory.mkdir(parents=True, exist_ok=resume, mode=0o700)
             response = client.client.request(
                 "GET",
@@ -168,16 +155,21 @@ def process_annotation_job(
                 except httpx.HTTPError as error:
                     LOGGER.warning("Could not report AI annotation progress: %s", error)
 
-            run_annotation(
-                source,
-                directory / "execution",
-                runtime,
-                prelabels=prelabels,
-                config=assignment["config"],
-                cancelled=cancelled,
-                progress=report_progress,
-                resume=resume,
-            )
+            inputs = {
+                "prelabels": prelabels,
+                "config": assignment["config"],
+                "cancelled": cancelled,
+            }
+            if resume:
+                recover_annotation(source, directory / "execution", **inputs)
+            else:
+                run_annotation(
+                    source,
+                    directory / "execution",
+                    runtime,
+                    progress=report_progress,
+                    **inputs,
+                )
             if cancelled():
                 raise AgentInterruptedError("AI annotation cancelled")
             result = product_result(assignment, directory / "execution")

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
 
-import { database, inTransaction, type Executor } from "../infra/db/client";
+import { inTransaction, type Executor } from "../infra/db/client";
 import { isUniqueViolation } from "../infra/db/errors";
 import {
   experimentCultureEvents,
@@ -45,17 +45,10 @@ import {
   listTreatments,
   listUnits,
   lockExperiment,
-  readExperimentRecord,
   toExperiment,
   toTreatment,
   toUnit,
 } from "./records";
-
-export async function readExperiment(
-  experimentId: string,
-): Promise<Experiment | null> {
-  return readExperimentRecord(experimentId, await database());
-}
 
 /** An experiment starts with its design: every treatment laid out in replicates. */
 export async function createExperiment(

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { blobExists, putImmutableBlob } from "../infra/blobs/store";
+import { blobExists } from "../testing/blobs";
+import { putImmutableBlob } from "../infra/blobs/store";
 import { imageBlobKey } from "./keys";
 
 import { collectImages } from "./collection";

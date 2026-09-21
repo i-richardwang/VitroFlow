@@ -37,6 +37,8 @@ vitroflow annotate run --runtime antigravity --image photo.jpg \
 
 `--runtime` defaults to `pi`; `--executable` selects its executable and `--model` optionally overrides its default. `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the runtime descriptor, then launches one independent session per region. `--parallel` bounds concurrent sessions (default 2, range 1–16); `--timeout` applies to each session. Both runtimes use the same normalized view, preview, and submit operations. Each tool is bound to that session's task and attempt; it cannot operate on another region. The first view supplies a full-image overview (longest side at most 1024 pixels) with the current patch outlined, the native-scale CLEAN patch, and optional INITIAL references. Subsequent previews pair CLEAN and PROPOSED.
 
+Configuration defaults and field constraints come from the shared annotation contract generated from `web/src/domain/models/annotation.ts`. Class names use unique lowercase snake_case identifiers. Custom classes require explicit instructions; context cannot exceed the core size.
+
 Antigravity setup registers a local stdio MCP bridge and three scoped tool permissions. It is a one-time host configuration, not a per-run global edit. The executing process binds that bridge to its own task; a standalone Antigravity session has no such binding. See [AI annotation](ai-annotation.md) for configuration, permissions, and runtime differences.
 
 The run directory contains:

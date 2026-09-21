@@ -500,6 +500,9 @@ def test_exif_orientation_and_tile_pixels(tmp_path):
         {"displayScale": 0},
         {"classes": []},
         {"classes": ["other"]},
+        {"classes": ["seed-body"], "rules": "Box each body."},
+        {"classes": ["seed", "seed"], "rules": "Box each body."},
+        {"rules": "   "},
     ],
 )
 def test_invalid_config_has_no_output(photo, tmp_path, config):

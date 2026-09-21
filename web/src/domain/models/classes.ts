@@ -14,7 +14,8 @@ export const classListSchema = z
     if (new Set(classes).size !== classes.length) {
       context.addIssue({ code: "custom", message: "Classes must be unique" });
     }
-  });
+  })
+  .meta({ uniqueItems: true });
 
 /**
  * Instances per class in one observation image, keyed by whatever a model calls
