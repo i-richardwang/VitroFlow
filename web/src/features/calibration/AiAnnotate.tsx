@@ -23,7 +23,7 @@ import { m } from "../../paraglide/messages";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Timestamp } from "../../ui/Timestamp";
 import { Section } from "./inspector";
-import { agentLabels } from "./labels";
+import { agentLabels, executorLabel } from "./labels";
 
 type Start = "fresh" | "refit";
 
@@ -60,7 +60,7 @@ export function AiAnnotateMenu({
           data: {
             id: crypto.randomUUID(),
             ref: review.ref,
-            runtime: agent,
+            executor: { kind: "worker", runtime: agent },
             input: from === "refit" ? current : null,
           },
         }),
@@ -140,8 +140,9 @@ export function AiSection({
       {activity && activity.status !== "failed" ? (
         <div className="flex flex-col gap-2" role="status">
           <span className="text-sm">
-            {agentLabels[activity.agent]()} · {stateLabels[activity.status]()} ·{" "}
-            {activity.progress.completed}/{activity.progress.total}
+            {executorLabel(activity.executor)} ·{" "}
+            {stateLabels[activity.status]()} · {activity.progress.completed}/
+            {activity.progress.total}
           </span>
           <ProgressBar
             className="w-full"
@@ -171,14 +172,14 @@ export function AiSection({
       ) : null}
       {activity?.status === "failed" ? (
         <p role="alert" className="text-sm text-danger">
-          {agentLabels[activity.agent]()} · {m.ai_failed()}
+          {executorLabel(activity.executor)} · {m.ai_failed()}
           {activity.error ? ` · ${activity.error}` : null}
         </p>
       ) : null}
       {proposal ? (
         <>
           <p className="text-sm">
-            {agentLabels[proposal.agent]()} ·{" "}
+            {executorLabel(proposal.executor)} ·{" "}
             <Timestamp value={proposal.createdAt} />
           </p>
           <p className="text-xs text-muted">

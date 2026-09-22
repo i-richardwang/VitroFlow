@@ -60,7 +60,7 @@ export function toProposal(row: Row | null): AnnotationProposal | null {
   if (!row?.result) return null;
   return {
     runId: row.id,
-    agent: row.assignment.runtime,
+    executor: row.executor,
     createdAt: row.createdAt.toISOString(),
     document: row.result.document,
     issues: row.result.issues,
@@ -74,7 +74,7 @@ export function toActivity(row: Row | null): AnnotationActivity | null {
   if (status === "succeeded" || status === "cancelled") return null;
   return {
     runId: row.id,
-    agent: row.assignment.runtime,
+    executor: row.executor,
     status,
     progress: { completed: row.completed, total: row.total },
     error,

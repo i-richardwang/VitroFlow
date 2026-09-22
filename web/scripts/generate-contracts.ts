@@ -1,3 +1,8 @@
+import {
+  annotationViewInput,
+  annotationPreviewInput,
+  annotationSubmitInput,
+} from "../src/domain/annotation-runs/tasks";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z, type ZodType } from "zod";
@@ -16,18 +21,17 @@ import {
   trainingRunSchema,
 } from "../src/domain/training/schema";
 
-import {
-  annotationAssignmentSchema,
-  annotationRunResultSchema,
-} from "../src/domain/annotation-runs/schema";
+import { annotationJobSchema } from "../src/domain/annotation-runs/schema";
 
 const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["annotation", annotationSchema],
+  ["annotation-tool-view", annotationViewInput],
+  ["annotation-tool-preview", annotationPreviewInput],
+  ["annotation-tool-submit", annotationSubmitInput],
   ["annotation-config", annotationConfigSchema],
-  ["annotation-assignment", annotationAssignmentSchema],
-  ["annotation-run-result", annotationRunResultSchema],
+  ["annotation-job", annotationJobSchema],
   ["training-parameters", trainingParametersSchema],
   ["dataset-manifest", datasetManifestSchema],
   ["inference-assignment", inferenceAssignmentSchema],

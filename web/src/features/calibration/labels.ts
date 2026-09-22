@@ -1,5 +1,8 @@
 import type { ReviewSource } from "../../domain/annotation/review";
-import type { AnnotationRuntimeName } from "../../domain/annotation-runs/schema";
+import type {
+  AnnotationRuntimeName,
+  AnnotationExecutor,
+} from "../../domain/annotation-runs/schema";
 import { m } from "../../paraglide/messages";
 
 /** The readings of an image, named as every page names them. */
@@ -13,3 +16,8 @@ export const agentLabels: Record<AnnotationRuntimeName, () => string> = {
   pi: m.ai_agent_pi,
   antigravity: m.ai_agent_antigravity,
 };
+
+export const executorLabel = (executor: AnnotationExecutor) =>
+  executor.kind === "interactive"
+    ? m.ai_executor_interactive()
+    : agentLabels[executor.runtime]();

@@ -187,12 +187,12 @@ mock.module("../src/functions/review", () => ({
     return { status: "saved" };
   },
 }));
-let startRequests: { runtime: unknown; input: unknown }[] = [];
+let startRequests: { executor: unknown; input: unknown }[] = [];
 mock.module("../src/functions/annotation-runs", () => ({
   startAnnotationRun: async ({
     data,
   }: {
-    data: { runtime: unknown; input: unknown };
+    data: { executor: unknown; input: unknown };
   }) => {
     startRequests.push(data);
     throw new Error("No online Worker provides the selected agent");
@@ -217,7 +217,7 @@ const annotation = {
 };
 const proposal = {
   runId: "qa-ai-result",
-  agent: "pi" as const,
+  executor: { kind: "worker" as const, runtime: "pi" as const },
   createdAt: "2026-09-14T00:00:00Z",
   document: {
     ...annotation,
@@ -366,8 +366,8 @@ assert.equal(boxes(), 2, "calibration must display the fetched annotation");
 assert.equal(boxes(), 2, "an available proposal must not replace the draft");
 await act(async () => item("pi:refit")!.click());
 assert.deepEqual(
-  startRequests.map((request) => request.runtime),
-  ["pi"],
+  startRequests.map((request) => request.executor),
+  [{ kind: "worker", runtime: "pi" }],
   "the request names the agent and leaves admission to the server",
 );
 assert.deepEqual(

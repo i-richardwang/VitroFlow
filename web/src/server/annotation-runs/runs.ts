@@ -1,43 +1,37 @@
-import { and, asc, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { regions } from "../../domain/annotation-runs/tasks";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import {
   annotationSchema,
   type AnnotationRef,
 } from "../../domain/annotation/schema";
 import {
-  annotationAssignmentSchema,
-  annotationRunResultSchema,
+  annotationDefinitionSchema,
   type AnnotationRun,
-  type AnnotationRunResult,
   type AnnotationRuntimeName,
   type StartAnnotationRun,
 } from "../../domain/annotation-runs/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
 import { workerPresence } from "../../domain/workers/presence";
-import type { WorkerIdentity } from "../../domain/workers/schema";
 import { canonicalJson } from "../../lib/json/canonical";
-import { database, transaction, type Executor } from "../infra/db/client";
-import { annotationRuns, images } from "../infra/db/schema";
+import { transaction, type Executor } from "../infra/db/client";
+import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
-import {
-  listWorkers,
-  lockWorkerSession,
-  sessionIsCurrent,
-} from "../workers/public";
+import { listWorkers } from "../workers/public";
 
 import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";
 import { LEASE_EXPIRED, effectiveStatus } from "./readings";
-const LEASE_MS = 5 * 60 * 1000;
 
 function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
   return {
     id: row.id,
     ref: { digest: row.imageId, modelId: row.modelId },
     requestedBy: row.requestedBy,
-    runtime: row.assignment.runtime,
+    executor: row.executor,
+    runtime: row.runtime,
     ...effectiveStatus(row),
     progress: { completed: row.completed, total: row.total },
     createdAt: row.createdAt.toISOString(),
@@ -59,7 +53,7 @@ export async function availableAnnotationRuntimes(): Promise<
 }
 
 /** Expired work fails explicitly; a new paid attempt requires a new request. */
-async function expire(at: Date, db: Executor) {
+export async function expireAnnotationRuns(at: Date, db: Executor) {
   await db
     .update(annotationRuns)
     .set({
@@ -79,7 +73,10 @@ export async function createAnnotationRun(
   request: StartAnnotationRun,
   requestedBy: string,
 ): Promise<AnnotationRun> {
-  const available = await availableAnnotationRuntimes();
+  const available =
+    request.executor.kind === "worker"
+      ? await availableAnnotationRuntimes()
+      : [];
   const run = await transaction((tx) =>
     admitRun(request, requestedBy, available, tx),
   );
@@ -113,7 +110,7 @@ async function admitRun(
     return present(existing);
   }
   const now = new Date();
-  await expire(now, tx);
+  await expireAnnotationRuns(now, tx);
   const [active] = await tx
     .select()
     .from(annotationRuns)
@@ -140,7 +137,10 @@ async function admitRun(
     });
     assertInstanceClasses(model.classes, request.input, "AI annotation input");
   }
-  if (!available.includes(request.runtime))
+  if (
+    request.executor.kind === "worker" &&
+    !available.includes(request.executor.runtime)
+  )
     throw new AnnotationRunConflictError(
       "No online Worker provides the selected agent",
     );
@@ -149,13 +149,16 @@ async function admitRun(
     throw new AnnotationRunConflictError(
       "The model has no annotation instructions; add them on the Models page",
     );
-  const assignment = annotationAssignmentSchema.parse({
-    id: request.id,
+  const definition = annotationDefinitionSchema.parse({
     image: { digest: image.id, width: image.width, height: image.height },
     input: request.input,
     config: { classes: model.classes, rules: instructions, ...region },
-    runtime: request.runtime,
   });
+  const tasks = regions(definition);
+  if (tasks.length > 4096)
+    throw new AnnotationRunConflictError(
+      "Annotation requires too many regions; increase the model's core size",
+    );
   const [row] = await tx
     .insert(annotationRuns)
     .values({
@@ -164,15 +167,23 @@ async function admitRun(
       modelId: model.id,
       requestedBy,
       request,
-      assignment,
-      status: "queued",
-      total:
-        Math.ceil(image.width / assignment.config.coreSize) *
-        Math.ceil(image.height / assignment.config.coreSize),
+      definition,
+      executor: request.executor,
+      status: request.executor.kind === "interactive" ? "running" : "queued",
+      total: tasks.length,
       createdAt: now,
       updatedAt: now,
     })
     .returning();
+  for (let i = 0; i < tasks.length; i += 1000) {
+    await tx.insert(annotationTasks).values(
+      tasks.slice(i, i + 1000).map((region) => ({
+        runId: request.id,
+        taskId: `${request.id}/${region.id}`,
+        region,
+      })),
+    );
+  }
   return present(row!);
 }
 
@@ -191,7 +202,12 @@ export async function createAnnotationRuns(
   for (const ref of refs) {
     const run = await transaction((tx) =>
       admitRun(
-        { id: crypto.randomUUID(), ref, runtime, input: null },
+        {
+          id: crypto.randomUUID(),
+          ref,
+          executor: { kind: "worker", runtime },
+          input: null,
+        },
         requestedBy,
         available,
         tx,
@@ -205,7 +221,7 @@ export async function createAnnotationRuns(
 export async function cancelAnnotationRun(id: string): Promise<void> {
   await transaction(async (tx) => {
     const now = new Date();
-    await expire(now, tx);
+    await expireAnnotationRuns(now, tx);
     await tx
       .update(annotationRuns)
       .set({ status: "cancelled", updatedAt: now })
@@ -214,214 +230,6 @@ export async function cancelAnnotationRun(id: string): Promise<void> {
           eq(annotationRuns.id, id),
           inArray(annotationRuns.status, ["queued", "running"]),
         ),
-      );
-  });
-}
-
-export async function claimAnnotationRun(
-  owner: WorkerIdentity,
-  at = new Date(),
-) {
-  return transaction(async (tx) => {
-    const worker = await lockWorkerSession(owner, tx);
-    await expire(at, tx);
-    const runtimes = worker.annotationRuntimes.map((item) => item.runtime);
-    if (!runtimes.length) return null;
-    const [owned] = await tx
-      .select()
-      .from(annotationRuns)
-      .where(
-        and(
-          eq(annotationRuns.workerId, owner.workerId),
-          eq(annotationRuns.sessionId, owner.sessionId),
-          eq(annotationRuns.status, "running"),
-        ),
-      );
-    // A replayed HTTP claim returns the same assignment, never a second paid job.
-    if (owned) return owned.assignment;
-    const candidates = await tx
-      .select()
-      .from(annotationRuns)
-      .where(
-        and(
-          eq(annotationRuns.status, "queued"),
-          inArray(sql`${annotationRuns.assignment}->>'runtime'`, runtimes),
-        ),
-      )
-      .orderBy(asc(annotationRuns.createdAt))
-      .for("update", { skipLocked: true })
-      .limit(1);
-    const row = candidates[0];
-    if (!row) return null;
-    await tx
-      .update(annotationRuns)
-      .set({
-        status: "running",
-        workerId: owner.workerId,
-        sessionId: owner.sessionId,
-        leaseExpiresAt: new Date(at.getTime() + LEASE_MS),
-        updatedAt: at,
-      })
-      .where(eq(annotationRuns.id, row.id));
-    return row.assignment;
-  });
-}
-
-function owned(id: string, owner: WorkerIdentity, at: Date) {
-  return and(
-    eq(annotationRuns.id, id),
-    eq(annotationRuns.status, "running"),
-    eq(annotationRuns.workerId, owner.workerId),
-    eq(annotationRuns.sessionId, owner.sessionId),
-    gt(annotationRuns.leaseExpiresAt, at),
-    sessionIsCurrent(owner),
-  );
-}
-
-export async function annotationRunImage(id: string, owner: WorkerIdentity) {
-  const [row] = await (
-    await database()
-  )
-    .select()
-    .from(annotationRuns)
-    .where(owned(id, owner, new Date()));
-  if (!row)
-    throw new AnnotationRunConflictError(
-      "AI annotation lease is no longer active",
-    );
-  return row.imageId;
-}
-
-export async function renewAnnotationRun(
-  id: string,
-  owner: WorkerIdentity,
-  at = new Date(),
-) {
-  const [row] = await (
-    await database()
-  )
-    .update(annotationRuns)
-    .set({ leaseExpiresAt: new Date(at.getTime() + LEASE_MS), updatedAt: at })
-    .where(owned(id, owner, at))
-    .returning();
-  if (!row)
-    throw new AnnotationRunConflictError(
-      "AI annotation lease is no longer active",
-    );
-}
-
-export async function progressAnnotationRun(
-  id: string,
-  owner: WorkerIdentity,
-  completed: number,
-  total: number,
-) {
-  const [row] = await (
-    await database()
-  )
-    .update(annotationRuns)
-    .set({ completed, updatedAt: new Date() })
-    .where(
-      and(
-        owned(id, owner, new Date()),
-        eq(annotationRuns.total, total),
-        lte(annotationRuns.completed, completed),
-      ),
-    )
-    .returning();
-  if (!row)
-    throw new AnnotationRunConflictError(
-      "Invalid progress or inactive AI annotation lease",
-    );
-}
-
-export async function failAnnotationRun(
-  id: string,
-  owner: WorkerIdentity,
-  error: string,
-) {
-  const [row] = await (
-    await database()
-  )
-    .update(annotationRuns)
-    .set({ status: "failed", error, updatedAt: new Date() })
-    .where(owned(id, owner, new Date()))
-    .returning();
-  if (!row)
-    throw new AnnotationRunConflictError(
-      "AI annotation lease is no longer active",
-    );
-}
-
-export async function completeAnnotationRun(
-  id: string,
-  owner: WorkerIdentity,
-  value: AnnotationRunResult,
-) {
-  const result = annotationRunResultSchema.parse(value);
-  return transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(annotationRuns)
-      .where(eq(annotationRuns.id, id))
-      .for("update");
-    if (!row)
-      throw new AnnotationRunNotFoundError("AI annotation run not found");
-    if (row.workerId !== owner.workerId || row.sessionId !== owner.sessionId)
-      throw new AnnotationRunConflictError(
-        "AI annotation has a different owner",
-      );
-    if (
-      row.status === "succeeded" &&
-      canonicalJson(row.result) === canonicalJson(result)
-    )
-      return;
-    if (
-      canonicalJson(result.document.image) !==
-      canonicalJson(row.assignment.image)
-    )
-      throw new AnnotationRunConflictError(
-        "Result describes a different image",
-      );
-    assertInstanceClasses(
-      row.assignment.config.classes,
-      result.document.instances,
-      "AI annotation result",
-    );
-    if (result.execution.runtime !== row.assignment.runtime)
-      throw new AnnotationRunConflictError(
-        "Result was produced by a different agent",
-      );
-    const ids = new Set(
-      result.document.instances.map((instance) => instance.id),
-    );
-    if (result.uncertainIds.some((id) => !ids.has(id)))
-      throw new AnnotationRunConflictError("Unknown uncertain instance");
-    for (const issue of result.issues) {
-      const { x, y, width, height } = issue.bbox;
-      if (
-        x < 0 ||
-        y < 0 ||
-        x + width > row.assignment.image.width ||
-        y + height > row.assignment.image.height
-      )
-        throw new AnnotationRunConflictError("Issue exceeds image bounds");
-    }
-    if (Object.keys(result.checkpointDigests).length !== row.total)
-      throw new AnnotationRunConflictError("Incomplete task evidence");
-    const [stored] = await tx
-      .update(annotationRuns)
-      .set({
-        status: "succeeded",
-        result,
-        completed: row.total,
-        updatedAt: new Date(),
-      })
-      .where(owned(id, owner, new Date()))
-      .returning();
-    if (!stored)
-      throw new AnnotationRunConflictError(
-        "AI annotation lease is no longer active",
       );
   });
 }

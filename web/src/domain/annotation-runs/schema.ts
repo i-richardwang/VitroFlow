@@ -8,16 +8,27 @@ import {
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { annotationConfigSchema } from "../models/annotation";
 
-/** The external agents a Worker can run; each authenticates and picks its model itself. */
 export const annotationRuntimeNameSchema = z.enum(["pi", "antigravity"]);
 export type AnnotationRuntimeName = z.infer<typeof annotationRuntimeNameSchema>;
-/** What a Worker found installed: the agent, its version, and the vision model it selects. */
+
+/** A runtime installed on a Worker, with its resolved version and vision model. */
 export const annotationRuntimeSchema = z.strictObject({
   runtime: annotationRuntimeNameSchema,
   version: z.string().min(1).max(128),
   model: z.string().min(1).max(256),
 });
 export type AnnotationRuntime = z.infer<typeof annotationRuntimeSchema>;
+
+/** Who drives the run, independent of the protocol used to call its tools. */
+export const annotationExecutorSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("interactive") }),
+  z.strictObject({
+    kind: z.literal("worker"),
+    runtime: annotationRuntimeNameSchema,
+  }),
+]);
+export type AnnotationExecutor = z.infer<typeof annotationExecutorSchema>;
+
 export const ANNOTATION_RUN_STATUSES = [
   "queued",
   "running",
@@ -25,14 +36,10 @@ export const ANNOTATION_RUN_STATUSES = [
   "failed",
   "cancelled",
 ] as const;
-/**
- * A run asks for an agent and a starting point: the image alone, or boxes to
- * refit. The model says what and how to draw.
- */
 export const startAnnotationRunSchema = z.strictObject({
   id: resourceIdSchema,
   ref: annotationRefSchema,
-  runtime: annotationRuntimeNameSchema,
+  executor: annotationExecutorSchema,
   input: z.array(annotationInstanceSchema).max(10000).nullable(),
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
@@ -43,29 +50,8 @@ export const annotationProgressSchema = z
   })
   .refine((v) => v.completed <= v.total, "Completed exceeds total");
 
-/** Product-sized result; full image assets and runtime transcripts stay on the host. */
-export const annotationRunResultSchema = z.strictObject({
-  document: annotationSchema,
-  packageId: sha256Schema,
-  checkpointDigests: z.record(z.string(), sha256Schema),
-  issues: z
-    .array(
-      z.strictObject({
-        bbox: boundingBoxSchema,
-        reason: z.string().min(1).max(2000),
-      }),
-    )
-    .max(10000),
-  warnings: z.array(z.string().max(2000)).max(10000),
-  uncertainIds: z.array(z.string().min(1)).max(10000),
-  execution: annotationRuntimeSchema.extend({
-    elapsedSeconds: z.number().nonnegative(),
-  }),
-});
-export type AnnotationRunResult = z.infer<typeof annotationRunResultSchema>;
-/** The frozen task a Worker executes; the model's instructions travel as `rules`. */
-export const annotationAssignmentSchema = z.strictObject({
-  id: resourceIdSchema,
+/** Frozen source pixels, visual references and labeling rules owned by the service. */
+export const annotationDefinitionSchema = z.strictObject({
   image: z.strictObject({
     digest: sha256Schema,
     width: z.number().int().positive(),
@@ -73,14 +59,34 @@ export const annotationAssignmentSchema = z.strictObject({
   }),
   input: z.array(annotationInstanceSchema).nullable(),
   config: annotationConfigSchema,
+});
+export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
+
+/** The only data a supervisor needs when claiming a run. */
+export const annotationJobSchema = z.strictObject({
+  id: resourceIdSchema,
   runtime: annotationRuntimeNameSchema,
 });
-export type AnnotationAssignment = z.infer<typeof annotationAssignmentSchema>;
+
+/** A complete, unreviewed source-coordinate proposal. Provenance belongs to the run. */
+export const annotationRunResultSchema = z.strictObject({
+  document: annotationSchema,
+  issues: z.array(
+    z.strictObject({
+      bbox: boundingBoxSchema,
+      reason: z.string().min(1).max(2000),
+    }),
+  ),
+  warnings: z.array(z.string().max(2000)),
+  uncertainIds: z.array(z.string().min(1)),
+});
+export type AnnotationRunResult = z.infer<typeof annotationRunResultSchema>;
 export type AnnotationRun = {
   id: string;
   ref: z.infer<typeof annotationRefSchema>;
   requestedBy: string | null;
-  runtime: AnnotationRuntimeName;
+  executor: AnnotationExecutor;
+  runtime: AnnotationRuntime | null;
   status: (typeof ANNOTATION_RUN_STATUSES)[number];
   progress: z.infer<typeof annotationProgressSchema>;
   createdAt: string;
@@ -89,24 +95,18 @@ export type AnnotationRun = {
   result: AnnotationRunResult | null;
 };
 
-/**
- * The AI's reading of an image for a model: the newest run that succeeded,
- * reduced to what a page shows. Older runs are records, not readings.
- */
 export const annotationProposalSchema = z.strictObject({
   runId: resourceIdSchema,
-  agent: annotationRuntimeNameSchema,
+  executor: annotationExecutorSchema,
   createdAt: z.string(),
   document: annotationSchema,
   issues: annotationRunResultSchema.shape.issues,
   uncertainIds: annotationRunResultSchema.shape.uncertainIds,
 });
 export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;
-
-/** The newest run while it is still working, or after it failed. */
 export const annotationActivitySchema = z.strictObject({
   runId: resourceIdSchema,
-  agent: annotationRuntimeNameSchema,
+  executor: annotationExecutorSchema,
   status: z.enum(["queued", "running", "failed"]),
   progress: annotationProgressSchema,
   error: z.string().nullable(),

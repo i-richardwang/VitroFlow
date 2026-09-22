@@ -1,36 +1,31 @@
+import { issueTaskToken } from "../server/transport/mcp/task-credentials";
+import { deploymentEndpoint } from "../server/infra/deployment";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { workerIdentitySchema } from "../domain/workers/schema";
+import { annotationRuntimeSchema } from "../domain/annotation-runs/schema";
 import {
-  annotationProgressSchema,
-  annotationRunResultSchema,
-} from "../domain/annotation-runs/schema";
-import {
-  annotationRunImage,
   renewAnnotationRun,
-  progressAnnotationRun,
   failAnnotationRun,
-  completeAnnotationRun,
+  assignWorkerTask,
+  workerAnnotationStatus,
 } from "../server/annotation-runs/public";
-import { imageResponse } from "../server/transport/http/image-files";
 import {
-  parseWorkerIdentity,
   parseWorkerJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 const updateSchema = z.discriminatedUnion("operation", [
   workerIdentitySchema.extend({ operation: z.literal("lease") }),
+  workerIdentitySchema.extend({ operation: z.literal("status") }),
   workerIdentitySchema.extend({
-    operation: z.literal("progress"),
-    progress: annotationProgressSchema,
+    operation: z.literal("assign"),
+    taskId: z.string().min(1),
+    attemptId: z.string().uuid(),
+    runtime: annotationRuntimeSchema,
   }),
   workerIdentitySchema.extend({
     operation: z.literal("fail"),
     error: z.string().min(1).max(2000),
-  }),
-  workerIdentitySchema.extend({
-    operation: z.literal("complete"),
-    result: annotationRunResultSchema,
   }),
 ]);
 export const Route = createFileRoute(
@@ -38,20 +33,6 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      GET: async ({ request, params }) => {
-        if (params.operation !== "image")
-          return new Response("Not found", { status: 404 });
-        try {
-          return imageResponse(
-            await annotationRunImage(
-              params.runId,
-              parseWorkerIdentity(new URL(request.url).searchParams),
-            ),
-          );
-        } catch (error) {
-          return workerErrorResponse(error, "AI annotation image failed");
-        }
-      },
       POST: async ({ request, params }) => {
         try {
           const body = await parseWorkerJson(request, updateSchema);
@@ -61,24 +42,37 @@ export const Route = createFileRoute(
             case "lease":
               await renewAnnotationRun(params.runId, body);
               break;
-            case "progress":
-              await progressAnnotationRun(
-                params.runId,
-                body,
-                body.progress.completed,
-                body.progress.total,
-              );
-              break;
             case "fail":
               await failAnnotationRun(params.runId, body, body.error);
               break;
-            case "complete":
-              await completeAnnotationRun(params.runId, body, body.result);
-              break;
+            case "status":
+              return Response.json(
+                await workerAnnotationStatus(params.runId, body),
+              );
+            case "assign": {
+              const grant = await assignWorkerTask(
+                params.runId,
+                body,
+                body.taskId,
+                body.attemptId,
+                body.runtime,
+              );
+              return Response.json(
+                grant.accepted
+                  ? grant
+                  : {
+                      accepted: false,
+                      runId: params.runId,
+                      taskId: grant.taskId,
+                      token: issueTaskToken(grant.principal),
+                      endpoint: deploymentEndpoint().mcpResource,
+                    },
+              );
+            }
           }
           return Response.json({ ok: true });
         } catch (error) {
-          return workerErrorResponse(error, "AI annotation update failed");
+          return workerErrorResponse(error, "AI annotation operation failed");
         }
       },
     },

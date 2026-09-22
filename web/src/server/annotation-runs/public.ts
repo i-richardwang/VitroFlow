@@ -4,12 +4,6 @@ export {
   createAnnotationRun,
   createAnnotationRuns,
   cancelAnnotationRun,
-  claimAnnotationRun,
-  annotationRunImage,
-  renewAnnotationRun,
-  progressAnnotationRun,
-  failAnnotationRun,
-  completeAnnotationRun,
 } from "./runs";
 export {
   latestRunId,
@@ -23,3 +17,14 @@ export {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";
+export { nextAnnotationTask, submitProposal } from "./tasks";
+export { viewAnnotationTask, previewAnnotationTask } from "./views";
+export type { AnnotationPanel } from "./rendering";
+export { validateTaskPrincipal } from "./access";
+export {
+  claimAnnotationRun,
+  renewAnnotationRun,
+  failAnnotationRun,
+  assignWorkerTask,
+  workerAnnotationStatus,
+} from "./worker";

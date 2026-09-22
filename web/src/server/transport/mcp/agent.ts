@@ -1,3 +1,7 @@
+import { isTaskToken, verifyTaskToken } from "./task-credentials";
+import type { AnnotationPrincipal } from "../../../domain/annotation-runs/access";
+import { registerAnnotationTools } from "./annotation";
+import { validateTaskPrincipal } from "../../annotation-runs/public";
 import { requireMcpAuth } from "@better-auth/mcp";
 import {
   bearerAuthChallengeResponse,
@@ -9,6 +13,7 @@ import {
   OAuthError,
   OAuthErrorCode,
   type ToolAnnotations,
+  type McpRequestContext,
   originValidationResponse,
 } from "@modelcontextprotocol/server";
 
@@ -30,9 +35,8 @@ import { deploymentEndpoint } from "../../infra/deployment";
 
 /**
  * The MCP face of the agent operations: every tool is one registry entry, so
- * the tool list can never drift from the HTTP surface. Image bytes do not
- * travel through MCP; agents upload them to /api/agent/images and pass the
- * returned digest to assign-images-to-observation.
+ * the business tool list cannot drift from the HTTP surface. Annotation
+ * tools additionally return images and are scoped to a user or region attempt.
  */
 function toolAnnotations(operation: AgentOperation): ToolAnnotations {
   return operation.kind === "query"
@@ -40,12 +44,17 @@ function toolAnnotations(operation: AgentOperation): ToolAnnotations {
     : { destructiveHint: operation.destructive, openWorldHint: false };
 }
 
-function buildServer(): McpServer {
+function buildServer({ authInfo }: McpRequestContext): McpServer {
+  const principal = authInfo?.extra?.annotationPrincipal as
+    AnnotationPrincipal | undefined;
   const server = new McpServer({
     name: "vitroflow",
     version: packageJson.version,
   });
-  for (const operation of agentOperations.values()) {
+  if (principal) registerAnnotationTools(server, principal);
+  for (const operation of principal?.kind === "task"
+    ? []
+    : agentOperations.values()) {
     server.registerTool(
       operation.name,
       {
@@ -114,6 +123,25 @@ let protectedHandler: Promise<RequestHandler> | undefined;
 export async function serveMcp(request: Request): Promise<Response> {
   const refused = guardMcpRequest(request);
   if (refused) return refused;
+  const credential = bearerToken(request);
+  if (credential && isTaskToken(credential)) {
+    const principal = verifyTaskToken(credential);
+    if (!principal)
+      return new Response("Invalid annotation credential", { status: 401 });
+    try {
+      await validateTaskPrincipal(principal);
+    } catch {
+      return new Response("Inactive annotation credential", { status: 401 });
+    }
+    return mcpHandler.fetch(request, {
+      authInfo: {
+        token: credential,
+        clientId: "annotation-task",
+        scopes: ["annotation:task"],
+        extra: { annotationPrincipal: principal },
+      },
+    });
+  }
   protectedHandler ??= auth().then((instance) => {
     const deployment = deploymentEndpoint();
     return requireMcpAuth(
@@ -142,6 +170,13 @@ export async function serveMcp(request: Request): Promise<Response> {
             token,
             clientId,
             scopes,
+            extra: {
+              annotationPrincipal: {
+                kind: "user",
+                userId: claims.sub,
+                clientId,
+              },
+            },
             expiresAt: claims.exp,
             resource: new URL(deployment.mcpResource),
           },

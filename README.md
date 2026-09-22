@@ -77,7 +77,7 @@ A Dataset travels as a manifest and the canonical images it names. The manifest 
 
 The current workbench covers one standardized image per unit and observation, read for one model. A reading counts every instance found, whatever class it carries, so a rate separating a response from its population is read as two counts under two models rather than from one image. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
-The standalone [visual annotation tool](docs/autoannotation.md) prepares image tasks for vision-capable agents and collects their boxes after one submission per region through a portable file protocol. Previous results can be supplied directly to another round when needed. It currently runs independently of the workbench and Worker queues.
+The standalone [visual annotation tool](docs/autoannotation.md) prepares image tasks for vision-capable agents and collects their boxes after one submission per region through a portable file protocol. Previous results can be supplied directly to another round when needed. For product annotation, [the shared MCP service](docs/ai-annotation.md) serves both interactive clients and Worker-launched agents; the standalone file workflow remains available for offline use.
 
 ## Source development
 
@@ -149,7 +149,7 @@ For training they claim a queued run, download its immutable snapshot, materiali
 AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request is authorized afresh by its API key or MCP client; each command runs in one transaction that a failure rolls back whole. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
 
 - `POST /api/agent/<operation>` calls one operation with its JSON input, authenticated by a personal API key with the agent scope as a bearer token. `GET /api/agent/operations` describes every operation with its JSON Schema, and `POST /api/agent/images` stores image bytes and returns the digest that observation assignment expects.
-- `POST /api/mcp` serves the same operations as strict MCP 2026-07-28 tools. The workbench is the OAuth 2.1 authorization server for its own MCP endpoint: a client discovers it, sends the person to sign in and approve the connection, and loses access immediately when the person disconnects it.
+- `POST /api/mcp` serves those operations and the authenticated [visual annotation tools](docs/ai-annotation.md) as strict MCP 2026-07-28 tools. The workbench is the OAuth 2.1 authorization server for its own MCP endpoint: a client discovers it, sends the person to sign in and approve the connection, and loses access immediately when the person disconnects it.
 
 ```bash
 claude mcp add --transport http vitroflow https://<workbench>/api/mcp

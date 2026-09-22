@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from vitroflow.agent_annotation.coordinator import Coordinator, request
-from vitroflow.agent_annotation.runner import recover_annotation, run_annotation
+from vitroflow.agent_annotation.runner import run_annotation
 from vitroflow.agent_annotation.tools import AnnotationTools
 from vitroflow.autoannotation.preparation import prepare
 from vitroflow.autoannotation.storage import read_json, write_json
@@ -225,10 +225,6 @@ def test_parallel_sessions_and_explicit_resume_only_unfinished_tiles(tmp_path):
             progress=lambda a, b: progress.append(a),
         )
     assert [t for t, _ in first.calls] == ["tile-000-000", "tile-000-001"]
-    before = read_json(tmp_path / "run/state.json")
-    with pytest.raises(RuntimeError, match="Unfinished local AI run"):
-        recover_annotation(image, tmp_path / "run", config=config)
-    assert read_json(tmp_path / "run/state.json") == before
     second = FakeRuntime()
     report = run_annotation(image, tmp_path / "run", second, config=config, resume=True)
     assert [t for t, _ in second.calls] == ["tile-000-001"]
@@ -238,8 +234,6 @@ def test_parallel_sessions_and_explicit_resume_only_unfinished_tiles(tmp_path):
     third = FakeRuntime()
     run_annotation(image, tmp_path / "run", third, config=config, resume=True)
     assert third.calls == [] and third.probes == 0
-    recovered = recover_annotation(image, tmp_path / "run", config=config)
-    assert recovered == report
     with pytest.raises(ValueError, match="original image, input and settings"):
         run_annotation(
             image, tmp_path / "run", FakeRuntime(), config={"halo": 4}, resume=True

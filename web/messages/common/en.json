@@ -66,5 +66,6 @@
   "ai_batch_title": "AI annotation",
   "ai_batch_count": "An agent will draw the {count} images nobody has calibrated. Calibrated images are left alone.",
   "ai_batch_confirm": "Start",
-  "ai_batch_started": "AI annotation started for {count} images"
+  "ai_batch_started": "AI annotation started for {count} images",
+  "ai_executor_interactive": "Interactive agent"
 }

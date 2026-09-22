@@ -7,6 +7,7 @@ import asyncio
 import base64
 import json
 import sys
+from importlib.resources import files
 from pathlib import Path
 from uuid import uuid4
 
@@ -26,73 +27,28 @@ from vitroflow.autoannotation.rendering import references
 from vitroflow.autoannotation.storage import read_json, write_json
 
 COORDINATE_SPACE = "box_2d: [ymin, xmin, ymax, xmax], normalized 0–1000"
-BOX = {
-    "type": "array",
-    "items": {"type": "number", "minimum": 0, "maximum": 1000},
-    "minItems": 4,
-    "maxItems": 4,
-    "description": COORDINATE_SPACE,
-}
-
-
-def object_schema(properties: dict, required: list[str]) -> dict:
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required,
-        "additionalProperties": False,
-    }
-
-
-RESPONSE = object_schema(
-    {
-        "taskId": {"type": "string"},
-        "instances": {
-            "type": "array",
-            "items": object_schema(
-                {
-                    "id": {"type": "string"},
-                    "class": {"type": "string"},
-                    "box_2d": BOX,
-                    "uncertain": {"type": "boolean"},
-                    "truncated": {"type": "boolean"},
-                },
-                ["id", "class", "box_2d"],
-            ),
-        },
-        "issues": {
-            "type": "array",
-            "items": object_schema(
-                {"box_2d": BOX, "reason": {"type": "string"}}, ["box_2d", "reason"]
-            ),
-        },
-    },
-    ["taskId", "instances"],
-)
-SUBMISSION = object_schema(
-    {
-        "taskId": {"type": "string"},
-        "proposalId": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    },
-    ["taskId", "proposalId"],
-)
 DEFINITIONS = tuple(
-    {"name": f"annotation_{name}", "description": description, "inputSchema": schema}
-    for name, description, schema in (
+    {
+        "name": f"annotation_{name}",
+        "description": description,
+        "inputSchema": json.loads(
+            files("vitroflow.contracts")
+            .joinpath(f"annotation-tool-{name}.schema.json")
+            .read_text()
+        ),
+    }
+    for name, description in (
         (
             "view",
-            "View OVERVIEW, CLEAN and optional INITIAL reference images, with task-specific instructions. Estimate box edges visually; previous coordinates are not supplied.",
-            object_schema({"taskId": {"type": "string"}}, ["taskId"]),
+            "View OVERVIEW, CLEAN and optional INITIAL reference images with annotation instructions.",
         ),
         (
             "preview",
-            "Preview all instances using normalized box_2d edges. Omit issues when none. Returns CLEAN, PROPOSED and a proposalId for submission.",
-            RESPONSE,
+            "Preview the complete proposal with normalized box_2d edges. Returns CLEAN, PROPOSED and proposalId.",
         ),
         (
             "submit",
-            "Accept a previously previewed proposal by its proposalId. Do not repeat coordinates.",
-            SUBMISSION,
+            "Accept exactly the previewed proposal by proposalId. Do not repeat coordinates.",
         ),
     )
 )

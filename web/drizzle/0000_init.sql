@@ -15,13 +15,23 @@ CREATE TABLE "accounts" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "annotation_previews" (
+	"run_id" text NOT NULL,
+	"task_id" text NOT NULL,
+	"attempt_id" text NOT NULL,
+	"proposal_id" text NOT NULL,
+	"response" jsonb NOT NULL,
+	CONSTRAINT "annotation_previews_run_id_task_id_attempt_id_proposal_id_pk" PRIMARY KEY("run_id","task_id","attempt_id","proposal_id")
+);
+--> statement-breakpoint
 CREATE TABLE "annotation_runs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"image_id" text NOT NULL,
 	"model_id" text NOT NULL,
 	"requested_by" text,
 	"request" jsonb NOT NULL,
-	"assignment" jsonb NOT NULL,
+	"definition" jsonb NOT NULL,
+	"executor" jsonb NOT NULL,
 	"status" text NOT NULL,
 	"completed" integer DEFAULT 0 NOT NULL,
 	"total" integer NOT NULL,
@@ -32,10 +42,23 @@ CREATE TABLE "annotation_runs" (
 	"updated_at" timestamp with time zone NOT NULL,
 	"error" text,
 	"result" jsonb,
+	"runtime" jsonb,
 	CONSTRAINT "annotation_runs_status_check" CHECK ("annotation_runs"."status" in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
 	CONSTRAINT "annotation_runs_progress_check" CHECK ("annotation_runs"."completed" >= 0 and "annotation_runs"."total" > 0 and "annotation_runs"."completed" <= "annotation_runs"."total"),
 	CONSTRAINT "annotation_runs_result_check" CHECK (("annotation_runs"."status" = 'succeeded') = ("annotation_runs"."result" is not null)),
-	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."status" <> 'running' or ("annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null and "annotation_runs"."lease_expires_at" is not null))
+	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."status" <> 'running' or "annotation_runs"."executor"->>'kind' = 'interactive' or ("annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null and "annotation_runs"."lease_expires_at" is not null))
+);
+--> statement-breakpoint
+CREATE TABLE "annotation_tasks" (
+	"run_id" text NOT NULL,
+	"task_id" text NOT NULL,
+	"region" jsonb NOT NULL,
+	"attempt_id" text,
+	"response" jsonb,
+	"accepted_proposal_id" text,
+	CONSTRAINT "annotation_tasks_run_id_task_id_pk" PRIMARY KEY("run_id","task_id"),
+	CONSTRAINT "annotation_tasks_identifier_unique" UNIQUE("task_id"),
+	CONSTRAINT "annotation_tasks_acceptance_check" CHECK (("annotation_tasks"."response" is null) = ("annotation_tasks"."accepted_proposal_id" is null) and ("annotation_tasks"."response" is null or "annotation_tasks"."attempt_id" is not null))
 );
 --> statement-breakpoint
 CREATE TABLE "annotations" (
@@ -492,9 +515,12 @@ CREATE TABLE "workers" (
 );
 --> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotation_previews" ADD CONSTRAINT "annotation_previews_run_id_annotation_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."annotation_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotation_previews" ADD CONSTRAINT "annotation_previews_run_id_task_id_annotation_tasks_run_id_task_id_fk" FOREIGN KEY ("run_id","task_id") REFERENCES "public"."annotation_tasks"("run_id","task_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotation_runs" ADD CONSTRAINT "annotation_runs_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotation_runs" ADD CONSTRAINT "annotation_runs_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotation_runs" ADD CONSTRAINT "annotation_runs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "annotation_tasks" ADD CONSTRAINT "annotation_tasks_run_id_annotation_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."annotation_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotations" ADD CONSTRAINT "annotations_image_id_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."images"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotations" ADD CONSTRAINT "annotations_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_reference_id_users_id_fk" FOREIGN KEY ("reference_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

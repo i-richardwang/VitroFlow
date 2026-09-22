@@ -65,28 +65,6 @@ def run_annotation(
         return export(coordinator, descriptor, started)
 
 
-def recover_annotation(
-    image: Path,
-    directory: Path,
-    *,
-    prelabels: Path | None = None,
-    config: dict | None = None,
-    crop: list[int] | None = None,
-    cancelled: Callable[[], bool] = lambda: False,
-) -> dict:
-    """Recover a fully accepted run's export without starting an agent session."""
-    started = time.monotonic()
-    with _execution(image, directory, prelabels, config, crop, True) as coordinator:
-        if not all(event.is_set() for event in coordinator.events.values()):
-            raise RuntimeError(
-                "Unfinished local AI run; explicitly resume it or start a new run"
-            )
-        if cancelled():
-            raise AgentInterruptedError("AI annotation cancelled")
-        descriptor = read_json(coordinator.directory / "descriptor.json")
-        return export(coordinator, descriptor, started)
-
-
 @contextmanager
 def _execution(
     image: Path,

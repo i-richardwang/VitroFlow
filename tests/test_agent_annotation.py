@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import sys
-import threading
 from pathlib import Path
-from types import SimpleNamespace
 
 import cv2
-import httpx
 import numpy as np
 import pytest
 
@@ -17,9 +13,6 @@ from vitroflow.agent_annotation.runner import run_annotation
 from vitroflow.agent_runtimes.contract import AgentInterruptedError, ToolSet
 from vitroflow.agent_runtimes.pi import PiRuntime
 from vitroflow.autoannotation.storage import read_json
-from vitroflow.worker import connection
-from vitroflow.worker.annotation import AnnotationClient, process_annotation_job
-from vitroflow.worker.session import LeaseLostError, WorkerClient, WorkerSession
 
 
 @pytest.fixture
@@ -128,163 +121,6 @@ def test_timeout_and_cancellation_terminate_pi(pi, tmp_path):
         pid = int((directory / "pid").read_text())
         with pytest.raises(ProcessLookupError):
             os.kill(pid, 0)
-
-
-@pytest.mark.parametrize(
-    "transport_failure",
-    [
-        None,
-        "timeout",
-        "server-error",
-        "lease-lost",
-        "delivery-timeout",
-        "collection-crash",
-    ],
-)
-def test_worker_downloads_exact_bytes_freezes_input_and_uploads_result(
-    pi, photo, tmp_path, monkeypatch, transport_failure
-):
-    backoffs = []
-    monkeypatch.setattr(connection, "time", SimpleNamespace(sleep=backoffs.append))
-    content = photo.read_bytes()
-    assignment = {
-        "id": "ai-run",
-        "image": {
-            "digest": hashlib.sha256(content).hexdigest(),
-            "width": 160,
-            "height": 80,
-        },
-        "input": [],
-        "config": {
-            "classes": ["seed"],
-            "rules": "Annotate seeds",
-            "coreSize": 512,
-            "halo": 32,
-            "displayScale": 2,
-        },
-        "runtime": "pi",
-    }
-    probes = []
-    original_probe = PiRuntime.probe
-
-    def probe(runtime):
-        probes.append(runtime)
-        return original_probe(runtime)
-
-    monkeypatch.setattr(PiRuntime, "probe", probe)
-    updates = []
-    delivery_available = False
-
-    def respond(request):
-        assert request.headers["Authorization"] == "Bearer worker-token"
-        if request.method == "GET":
-            return httpx.Response(200, content=content)
-        if request.url.path.endswith("claim"):
-            return httpx.Response(200, json={"run": assignment})
-        update = json.loads(request.content)
-        updates.append(update)
-        if (
-            update["operation"] == "complete"
-            and transport_failure == "delivery-timeout"
-            and not delivery_available
-        ):
-            raise httpx.ReadTimeout("Delivery unavailable", request=request)
-        if update["operation"] == "progress":
-            if transport_failure == "timeout":
-                raise httpx.ReadTimeout("Temporary progress timeout", request=request)
-            if transport_failure == "server-error":
-                return httpx.Response(503)
-            if transport_failure == "lease-lost":
-                return httpx.Response(409)
-        return httpx.Response(200, json={"ok": True})
-
-    worker = WorkerClient(
-        "https://workbench.test",
-        "worker-token",
-        WorkerSession("worker", "session", "2026-09-14T00:00:00Z", (), 1024),
-        transport=httpx.MockTransport(respond),
-    )
-    client = AnnotationClient(worker)
-    try:
-        claimed = client.claim()
-        assert claimed == assignment
-        if transport_failure == "lease-lost":
-            with pytest.raises(LeaseLostError):
-                process_annotation_job(
-                    client,
-                    claimed,
-                    tmp_path / "work",
-                    PiRuntime("test/vision", pi),
-                    stopped=threading.Event(),
-                )
-            assert not any(update["operation"] == "complete" for update in updates)
-            assert backoffs == []
-            return
-        if transport_failure == "collection-crash":
-            from vitroflow.worker import annotation as module
-
-            def process_exit(*_):
-                raise SystemExit("crash before constructing upload payload")
-
-            with monkeypatch.context() as patch:
-                patch.setattr(module, "product_result", process_exit)
-                with pytest.raises(SystemExit):
-                    process_annotation_job(
-                        client,
-                        claimed,
-                        tmp_path / "work",
-                        PiRuntime("test/vision", pi),
-                        stopped=threading.Event(),
-                    )
-            assert not (
-                tmp_path / "work/annotations/ai-run/product-result.json"
-            ).exists()
-            assert not any(
-                update["operation"] in ("complete", "fail") for update in updates
-            )
-        if transport_failure == "delivery-timeout":
-            with pytest.raises(httpx.ReadTimeout):
-                process_annotation_job(
-                    client,
-                    claimed,
-                    tmp_path / "work",
-                    PiRuntime("test/vision", pi),
-                    stopped=threading.Event(),
-                )
-            assert not any(update["operation"] == "fail" for update in updates)
-            assert (tmp_path / "work/annotations/ai-run/product-result.json").is_file()
-            delivery_available = True
-        process_annotation_job(
-            client,
-            claimed,
-            tmp_path / "work",
-            PiRuntime("test/vision", pi),
-            stopped=threading.Event(),
-        )
-    finally:
-        worker.close()
-    assert len(probes) == 1
-    completed = updates[-1]
-    assert completed["operation"] == "complete"
-    assert "messages" not in completed["result"]["execution"]
-    execution = read_json(tmp_path / "work/annotations/ai-run/execution/execution.json")
-    assert len(execution["tasks"]) == 1
-    assert completed["result"]["document"]["image"] == assignment["image"]
-    assert completed["result"]["document"]["instances"] == []
-    assert completed["workerId"] == "worker"
-    reported = [
-        value["progress"]["completed"]
-        for value in updates
-        if value["operation"] == "progress"
-    ]
-    assert reported[0] == 0 and reported[-1] == 1
-    assert reported == sorted(reported)
-    if transport_failure in ("timeout", "server-error"):
-        assert backoffs == [0.5, 1.0] * (len(reported) // 3)
-    elif transport_failure == "delivery-timeout":
-        assert backoffs == [0.5, 1.0]
-    else:
-        assert backoffs == []
 
 
 def test_pi_default_model_is_resolved_before_execution(pi):

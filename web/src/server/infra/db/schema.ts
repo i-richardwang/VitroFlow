@@ -1,3 +1,7 @@
+import type {
+  Region,
+  RegionProposal,
+} from "../../../domain/annotation-runs/tasks";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -26,7 +30,8 @@ import {
   type AnnotationRuntime,
   type AnnotationRunResult,
   type StartAnnotationRun,
-  type AnnotationAssignment,
+  type AnnotationDefinition,
+  type AnnotationExecutor,
 } from "../../../domain/annotation-runs/schema";
 import { USER_ROLES } from "../../../domain/auth/schema";
 import {
@@ -1113,7 +1118,8 @@ export const annotationRuns = pgTable(
       onDelete: "set null",
     }),
     request: jsonb("request").$type<StartAnnotationRun>().notNull(),
-    assignment: jsonb("assignment").$type<AnnotationAssignment>().notNull(),
+    definition: jsonb("definition").$type<AnnotationDefinition>().notNull(),
+    executor: jsonb("executor").$type<AnnotationExecutor>().notNull(),
     status: text("status", { enum: ANNOTATION_RUN_STATUSES }).notNull(),
     completed: integer("completed").notNull().default(0),
     total: integer("total").notNull(),
@@ -1127,6 +1133,7 @@ export const annotationRuns = pgTable(
     updatedAt: instant("updated_at"),
     error: text("error"),
     result: jsonb("result").$type<AnnotationRunResult>(),
+    runtime: jsonb("runtime").$type<AnnotationRuntime>(),
   },
   (table) => [
     index("annotation_runs_image_model_idx").on(
@@ -1152,7 +1159,52 @@ export const annotationRuns = pgTable(
     ),
     check(
       "annotation_runs_lease_check",
-      sql`${table.status} <> 'running' or (${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null)`,
+      sql`${table.status} <> 'running' or ${table.executor}->>'kind' = 'interactive' or (${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null)`,
     ),
+  ],
+);
+
+/** Server-owned regional checkpoints shared by interactive and scheduled agents. */
+export const annotationTasks = pgTable(
+  "annotation_tasks",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => annotationRuns.id, { onDelete: "cascade" }),
+    taskId: text("task_id").notNull(),
+    region: jsonb("region").$type<Region>().notNull(),
+    attemptId: text("attempt_id"),
+    response: jsonb("response").$type<RegionProposal>(),
+    acceptedProposalId: text("accepted_proposal_id"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.taskId] }),
+    unique("annotation_tasks_identifier_unique").on(table.taskId),
+    check(
+      "annotation_tasks_acceptance_check",
+      sql`(${table.response} is null) = (${table.acceptedProposalId} is null) and (${table.response} is null or ${table.attemptId} is not null)`,
+    ),
+  ],
+);
+
+export const annotationPreviews = pgTable(
+  "annotation_previews",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => annotationRuns.id, { onDelete: "cascade" }),
+    taskId: text("task_id").notNull(),
+    attemptId: text("attempt_id").notNull(),
+    proposalId: text("proposal_id").notNull(),
+    response: jsonb("response").$type<RegionProposal>().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.runId, table.taskId, table.attemptId, table.proposalId],
+    }),
+    foreignKey({
+      columns: [table.runId, table.taskId],
+      foreignColumns: [annotationTasks.runId, annotationTasks.taskId],
+    }).onDelete("cascade"),
   ],
 );

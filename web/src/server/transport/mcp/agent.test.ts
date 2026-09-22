@@ -1,11 +1,19 @@
+import { issueTaskToken } from "./task-credentials";
 import { describe, expect, test } from "bun:test";
-
 import { McpClientNotFoundError } from "../../../domain/auth/errors";
 import { guardMcpRequest, mcpHandler, serveMcp } from "./agent";
 import { agentOperations } from "../../agent/operations";
 import { disconnectMcpClient, listMcpClients } from "../../auth/mcp-clients";
 import { authorizeMcpClient, signInAs } from "../../testing/fixtures";
 import { banUser, revokeUserSessions } from "../../auth/users";
+import { observeImages, testHeartbeat } from "../../testing/fixtures";
+import {
+  createAnnotationRun,
+  claimAnnotationRun,
+  assignWorkerTask,
+  cancelAnnotationRun,
+} from "../../annotation-runs/public";
+import { recordWorkerHeartbeat } from "../../workers/public";
 
 const meta = {
   "io.modelcontextprotocol/protocolVersion": "2026-07-28",
@@ -284,4 +292,144 @@ describe("MCP endpoint authorization", () => {
     const response = await call("not-a-token");
     expect(response.status).toBe(401);
   });
+});
+
+// Exercise the public endpoint, including OAuth and task-token authentication.
+
+async function authenticatedRpc(
+  token: string,
+  method: string,
+  params?: Record<string, unknown>,
+) {
+  const response = await serveMcp(
+    modernRequest(
+      `${process.env.BETTER_AUTH_URL}/api/mcp`,
+      method,
+      params,
+      token,
+    ),
+  );
+  expect(response.status).toBe(200);
+  const body = await response.text();
+  const messages = body
+    .split("\n")
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => JSON.parse(line.slice(6)));
+  return messages.at(-1) ?? JSON.parse(body);
+}
+
+test("OAuth clients annotate through the same MCP endpoint that serves task-scoped Worker agents", async () => {
+  const { user, headers } = await signInAs("member");
+  const { accessToken } = await authorizeMcpClient(headers);
+  const observed = await observeImages("mcp-annotation", ["mcp-annotation"]);
+  const ref = {
+    digest: observed.digests[0]!,
+    modelId: observed.version.modelId,
+  };
+  const list = await authenticatedRpc(accessToken, "tools/list");
+  const names = list.result.tools.map((t: { name: string }) => t.name);
+  expect(
+    names.filter((n: string) => n.startsWith("annotation_")).sort(),
+  ).toEqual([
+    "annotation_next",
+    "annotation_preview",
+    "annotation_start",
+    "annotation_submit",
+    "annotation_view",
+  ]);
+  const call = async (name: string, args: Record<string, unknown>) =>
+    (
+      await authenticatedRpc(accessToken, "tools/call", {
+        name,
+        arguments: args,
+      })
+    ).result;
+  const started = await call("annotation_start", {
+    requestId: crypto.randomUUID(),
+    ref,
+  });
+  expect(started.isError).toBeUndefined();
+  const { runId } = JSON.parse(started.content[0].text);
+  const next = await call("annotation_next", { runId });
+  const { taskId } = JSON.parse(next.content[0].text);
+  const viewed = await call("annotation_view", { taskId });
+  expect(
+    viewed.content.some((item: { type: string }) => item.type === "image"),
+  ).toBe(true);
+  const preview = await call("annotation_preview", { taskId, instances: [] });
+  expect(preview.isError).toBeUndefined();
+  const { proposalId } = JSON.parse(preview.content[0].text);
+  const submit = await call("annotation_submit", { taskId, proposalId });
+  expect(JSON.parse(submit.content[0].text).status).toBe("succeeded");
+
+  const runtime = {
+    runtime: "pi" as const,
+    version: "test",
+    model: "test/vision",
+  };
+  const heartbeat = {
+    ...testHeartbeat("mcp-task-worker"),
+    annotationRuntimes: [runtime],
+  };
+  await recordWorkerHeartbeat(heartbeat);
+  const run = await createAnnotationRun(
+    {
+      id: crypto.randomUUID(),
+      ref,
+      input: null,
+      executor: { kind: "worker", runtime: "pi" },
+    },
+    user.id,
+  );
+  await claimAnnotationRun(heartbeat);
+  const binding = await assignWorkerTask(
+    run.id,
+    heartbeat,
+    `${run.id}/tile-000-000`,
+    crypto.randomUUID(),
+    runtime,
+  );
+  if (binding.accepted) throw new Error("Unexpected acceptance");
+  const taskList = await authenticatedRpc(
+    issueTaskToken(binding.principal),
+    "tools/list",
+  );
+  expect(
+    taskList.result.tools.map((t: { name: string }) => t.name).sort(),
+  ).toEqual(["annotation_preview", "annotation_submit", "annotation_view"]);
+  const denied = await authenticatedRpc(
+    issueTaskToken(binding.principal),
+    "tools/call",
+    {
+      name: "list-experiments",
+      arguments: {},
+    },
+  );
+  expect(denied.error ?? denied.result?.isError).toBeTruthy();
+  const scoped = await authenticatedRpc(
+    issueTaskToken(binding.principal),
+    "tools/call",
+    {
+      name: "annotation_view",
+      arguments: { taskId: `${run.id}/tile-000-000` },
+    },
+  );
+  expect(
+    scoped.result.content.some(
+      (item: { type: string }) => item.type === "image",
+    ),
+  ).toBe(true);
+  await cancelAnnotationRun(run.id);
+  expect(
+    (
+      await serveMcp(
+        modernRequest(
+          `${process.env.BETTER_AUTH_URL}/api/mcp`,
+          "tools/list",
+          undefined,
+          issueTaskToken(binding.principal),
+        ),
+      )
+    ).status,
+  ).toBe(401);
 });
