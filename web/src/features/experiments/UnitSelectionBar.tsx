@@ -12,7 +12,6 @@ import { CloseIcon } from "../../ui/icons";
 import { MoveUnitsDialog } from "./MoveUnitsDialog";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 
-/** Bulk actions for the units selected on the experiment grid. */
 export function UnitSelectionBar({
   experiment,
   units,

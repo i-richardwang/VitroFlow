@@ -31,7 +31,6 @@ export function ReviewInspector({
 }: {
   model: Model;
   review: Review;
-  /** The instances being calibrated, which stand in for the stored review. */
   draft: AnnotationInstance[] | null;
   display: Display;
   details?: ReactNode;

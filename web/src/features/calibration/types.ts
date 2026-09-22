@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import type { LayerKey } from "./controls";
 
-/** What a page adds around the image. */
 export interface ImageWorkbenchContext {
   actions?: ReactNode;
   menu?: ReactNode;

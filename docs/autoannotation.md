@@ -190,17 +190,3 @@ Before and after overlays have independent number-to-ID mappings; equal numbers 
 Each final box belongs to the core region containing its center. An owned box touching an internal patch boundary cannot be submitted; prepare a task with sufficient context. Source and coverage boundary truncation are recorded separately. Natural overlap is preserved, and possible duplicates across tile boundaries are reported. Geometry validation cannot detect every missed object or misplaced box.
 
 Results have `reviewStatus=unreviewed`. Unresolved issues, uncertain instances, truncation, or seam warnings produce `qualityStatus=needs-review`; otherwise it remains `unverified`. Completion describes execution, not established accuracy or human approval.
-
-## Module responsibilities
-
-| File | Responsibility |
-| --- | --- |
-| `preparation.py` | Validate configuration, decode images, plan tiles, and freeze inputs |
-| `protocol.py` | Define the data contract, validate inputs and responses, and provide annotation rules |
-| `instructions.py` | Supply execution instructions for visual agents |
-| `tasks.py` | Validate package integrity, report status, preview, submit, and recover tasks |
-| `results.py` | Assign core ownership, restore source coordinates, and export results |
-| `geometry.py` / `rendering.py` | Compute coordinates and render boxes |
-| `storage.py` / `command.py` | Handle file I/O and CLI arguments |
-
-The protocol accepts one current schema and validates it when reading files. Task states are `pending`, `failed`, and `complete`; `status` reports `invalid` for damaged checkpoints. The schema identifier detects mismatched files rather than selecting different execution flows.

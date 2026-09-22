@@ -14,7 +14,6 @@ import {
 import { availableAnnotationRuntimes } from "../server/annotation-runs/public";
 import { readDatasetImage, datasetOverview } from "../server/queries/public";
 
-/** The dataset with the agents its pages may ask to annotate for it. */
 export const getDatasetOverview = createServerFn({ method: "GET" })
   .validator(datasetRefSchema)
   .handler(async ({ data }) => {
@@ -39,7 +38,6 @@ export const getDatasets = createServerFn({ method: "GET" }).handler(async () =>
   ),
 );
 
-/** Adds experiment images to a dataset, creating it on first use. */
 export const addToDataset = createServerFn({ method: "POST" })
   .validator(datasetImageAdditionSchema)
   .handler(({ data }) => addExperimentObservationImages(data));

@@ -245,7 +245,6 @@ export async function readTrainingRun(
   return row ? toRun(row) : null;
 }
 
-/** The newest bounded page of runs, with current-attempt metrics aggregated by SQL. */
 export async function listTrainingRunSummaries(
   options: { datasetId?: string; limit?: number } = {},
 ): Promise<TrainingRunSummary[]> {
@@ -310,7 +309,6 @@ export async function listTrainingRunSummaries(
   }));
 }
 
-/** Runs across all datasets, or the runs trained from one dataset's snapshots. */
 export async function countTrainingRuns(datasetId?: string): Promise<number> {
   const db = await database();
   const [row] = await db
@@ -339,7 +337,6 @@ export async function countActiveTrainingRuns(
   return row?.count ?? 0;
 }
 
-/** The newest run trained from a dataset, if it has ever trained. */
 export async function latestTrainingRun(
   datasetId: string,
 ): Promise<TrainingRun | null> {
@@ -357,7 +354,6 @@ export async function latestTrainingRun(
   return row ? toRun(row.run) : null;
 }
 
-/** The run still queued or leased for a model; at most one exists. */
 export async function activeTrainingRun(
   modelId: string,
   db?: Executor,
@@ -646,7 +642,6 @@ export async function recordTrainingEpoch(
   });
 }
 
-/** Every recorded epoch of a run, oldest attempt first. */
 export async function listTrainingEpochs(
   runId: string,
 ): Promise<TrainingEpoch[]> {

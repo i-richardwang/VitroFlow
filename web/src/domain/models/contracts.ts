@@ -10,7 +10,7 @@ const count = z.number().int().min(0);
  * produced its versions. A model none of these name is a question nobody has
  * answered yet, and can be withdrawn.
  */
-export const modelRecordsSchema = z.strictObject({
+const modelRecordsSchema = z.strictObject({
   versions: count,
   observations: count,
   annotations: count,
@@ -26,8 +26,7 @@ export const MODEL_RECORD_KINDS = Object.keys(
   modelRecordsSchema.shape,
 ) as ModelRecordKind[];
 
-/** A task in the catalogue, with what has accumulated against it. */
-export const modelCatalogueEntrySchema = z.strictObject({
+const modelCatalogueEntrySchema = z.strictObject({
   model: modelSchema,
   records: modelRecordsSchema,
 });

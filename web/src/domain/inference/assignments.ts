@@ -9,7 +9,6 @@ import {
   type ModelVersion,
 } from "../models/schema";
 
-/** The immutable inputs an Inference Worker needs to execute one version. */
 export const inferenceModelManifestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   modelVersionId: resourceIdSchema,
@@ -17,13 +16,11 @@ export const inferenceModelManifestSchema = z.strictObject({
   artifact: modelArtifactSchema,
 });
 
-/** One leased task: a loadable model and the image to run through it. */
 export const inferenceAssignmentSchema = z.strictObject({
   manifest: inferenceModelManifestSchema,
   image: imageDigestSchema,
 });
 
-/** The durable image/version pair named by inference routes. */
 export const inferenceTargetSchema = z.strictObject({
   versionId: resourceIdSchema,
   digest: imageDigestSchema,

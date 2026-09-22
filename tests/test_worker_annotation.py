@@ -1,5 +1,3 @@
-"""The supervisor only schedules; image and result traffic use task MCP credentials."""
-
 import json
 import threading
 from pathlib import Path

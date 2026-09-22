@@ -13,7 +13,6 @@ async function collect(): Promise<void> {
   );
 }
 
-/** Runs control-plane storage maintenance without coupling it to HTTP traffic. */
 for (;;) {
   let delay = COLLECTION_INTERVAL_MS;
   try {

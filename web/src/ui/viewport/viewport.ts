@@ -27,7 +27,7 @@ export interface View {
  * The scale at which the image just covers the frame: its shorter side,
  * relative to the frame, spans it exactly and the longer side overflows.
  */
-export function fillScale(frame: Size, image: ImageSize): number {
+function fillScale(frame: Size, image: ImageSize): number {
   return Math.max(frame.width / image.width, frame.height / image.height);
 }
 

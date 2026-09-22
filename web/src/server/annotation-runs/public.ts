@@ -1,4 +1,3 @@
-/** Public product and Worker operations for external-agent annotation runs. */
 export {
   availableAnnotationRuntimes,
   createAnnotationRun,

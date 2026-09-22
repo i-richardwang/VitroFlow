@@ -164,26 +164,3 @@ sessions while already running sessions finish. No automatic paid retry or
 cross-runtime fallback occurs. A transport retry of an accepted proposal is
 idempotent and does not rerun inference. A new product run is required after a
 failed/cancelled run.
-
-## Code ownership
-
-- `domain/annotation-runs`: executor and task contracts, region geometry, proposal
-  validation and pure result collection.
-- `server/annotation-runs/runs.ts`: run admission, frozen definitions and cancellation.
-- `server/annotation-runs/access.ts`: ownership, attempt fencing and lock order.
-- `server/annotation-runs/worker.ts`: claims, leases, task assignment and runtime provenance.
-- `server/annotation-runs/tasks.ts`: interactive task selection, immutable previews and acceptance.
-- `server/annotation-runs/views.ts` and `rendering.ts`: authorized image access and visual evidence.
-- `server/transport/mcp`: tool discovery, protocol encoding and signed task credentials.
-- `vitroflow.worker.annotation`: regional session scheduling and completion observation.
-- `vitroflow.agent_annotation.remote`: the runtime's remote MCP transport adapter.
-
-A run separates its frozen annotation definition from its executor. An interactive
-executor has no reported runtime; a Worker executor selects Pi or Antigravity and
-records its real version and model when assigning the first task. A Worker claim
-contains only the run ID and selected runtime. The final proposal contains the
-annotation document, issues, seam warnings and uncertain IDs.
-
-The database is defined by the project's single initial schema. Server and Workers
-use the same current contracts. Validate hosted-client image delivery and tool
-execution against a running deployment before using that client for annotation.

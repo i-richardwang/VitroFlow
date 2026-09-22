@@ -16,7 +16,7 @@ const traditionalManifestSchema = z.strictObject({
   artifactDigest: sha256Schema,
 });
 
-export const TRADITIONAL_MODEL_MANIFEST =
+const TRADITIONAL_MODEL_MANIFEST =
   traditionalManifestSchema.parse(traditionalManifest);
 
 /**

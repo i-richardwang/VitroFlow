@@ -5,22 +5,19 @@
  * and compute on them.
  */
 
-/** A day on the civil calendar, its month and day numbered from one. */
 export interface CalendarDate {
   readonly year: number;
   readonly month: number;
   readonly day: number;
 }
 
-/** A cell holds a word, a day, a tally, a share of one, or nothing. */
-export type CellValue =
+type CellValue =
   | { readonly kind: "blank" }
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "date"; readonly date: Date }
   | { readonly kind: "count"; readonly count: number }
   | { readonly kind: "rate"; readonly rate: number };
 
-/** How a cell is set: headings carry weight, and may cover their group. */
 export interface CellStyle {
   readonly strong?: boolean;
   readonly columns?: number;
@@ -59,12 +56,10 @@ export function rateCell(rate: number, style: CellStyle = {}): WorkbookCell {
   return { kind: "rate", rate, ...style };
 }
 
-export interface WorkbookColumn {
-  /** Width in characters, the unit a spreadsheet sizes columns by. */
+interface WorkbookColumn {
   readonly width: number;
 }
 
-/** A sheet of cells, its columns sized, its heading rows and keys held in view. */
 export interface Workbook {
   sheet: string;
   columns: WorkbookColumn[];
@@ -73,7 +68,6 @@ export interface Workbook {
   stickyColumns: number;
 }
 
-/** One space between words, and none at either end. */
 function tidy(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -96,7 +90,6 @@ export function sheetName(name: string, fallback: string): string {
 const UNWRITABLE = /[\\/:*?"<>|\p{Cc}]/gu;
 const EXTENSION = ".xlsx";
 
-/** A name a file system will take and a browser will not read as a path. */
 export function workbookFilename(name: string, fallback: string): string {
   const written = tidy(name.replace(UNWRITABLE, " "));
   return `${written.length > 0 ? written : fallback}${EXTENSION}`;

@@ -22,13 +22,11 @@ import type { ObservationImageRef } from "../../domain/experiments/schema";
 import type { ImageSplit } from "../../domain/training/schema";
 import { imageBlobKey, lockImage } from "../images/public";
 
-/** An image as seen through its membership in one dataset. */
 export interface DatasetImage extends DatasetImageRef {
   filename: string;
   width: number;
   height: number;
   bytes: number;
-  /** Where the bytes live, by content digest. */
   blobKey: string;
   split: ImageSplit | null;
 }
@@ -60,7 +58,6 @@ export function toDatasetImage({
   };
 }
 
-/** Membership creation time, then filename and digest. */
 export function membershipOrder() {
   return [
     asc(datasetImages.addedAt),
@@ -69,13 +66,11 @@ export function membershipOrder() {
   ];
 }
 
-/** Every table keyed by a membership carries these two columns. */
 interface MembershipKeyed {
   datasetId: Column;
   imageId: Column;
 }
 
-/** The row of `table` that belongs to one membership. */
 function atRef(table: MembershipKeyed, { dataset, digest }: DatasetImageRef) {
   return and(eq(table.datasetId, dataset), eq(table.imageId, digest));
 }
@@ -108,7 +103,6 @@ export async function listDatasets(): Promise<Dataset[]> {
   return rows.map(toDataset);
 }
 
-/** Datasets whose reviews train one model. */
 export async function listDatasetsForModel(
   modelId: string,
 ): Promise<Dataset[]> {
@@ -121,7 +115,6 @@ export async function listDatasetsForModel(
   return rows.map(toDataset);
 }
 
-/** The dataset, created for the model if it does not exist yet. */
 async function ensureDataset(
   datasetId: string,
   modelId: string,

@@ -11,7 +11,6 @@ import { annotationConfigSchema } from "../models/annotation";
 export const annotationRuntimeNameSchema = z.enum(["pi", "antigravity"]);
 export type AnnotationRuntimeName = z.infer<typeof annotationRuntimeNameSchema>;
 
-/** A runtime installed on a Worker, with its resolved version and vision model. */
 export const annotationRuntimeSchema = z.strictObject({
   runtime: annotationRuntimeNameSchema,
   version: z.string().min(1).max(128),
@@ -19,8 +18,7 @@ export const annotationRuntimeSchema = z.strictObject({
 });
 export type AnnotationRuntime = z.infer<typeof annotationRuntimeSchema>;
 
-/** Who drives the run, independent of the protocol used to call its tools. */
-export const annotationExecutorSchema = z.discriminatedUnion("kind", [
+const annotationExecutorSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("interactive") }),
   z.strictObject({
     kind: z.literal("worker"),
@@ -43,14 +41,13 @@ export const startAnnotationRunSchema = z.strictObject({
   input: z.array(annotationInstanceSchema).max(10000).nullable(),
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
-export const annotationProgressSchema = z
+const annotationProgressSchema = z
   .strictObject({
     completed: z.number().int().nonnegative(),
     total: z.number().int().positive(),
   })
   .refine((v) => v.completed <= v.total, "Completed exceeds total");
 
-/** Frozen source pixels, visual references and labeling rules owned by the service. */
 export const annotationDefinitionSchema = z.strictObject({
   image: z.strictObject({
     digest: sha256Schema,
@@ -62,13 +59,11 @@ export const annotationDefinitionSchema = z.strictObject({
 });
 export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
-/** The only data a supervisor needs when claiming a run. */
 export const annotationJobSchema = z.strictObject({
   id: resourceIdSchema,
   runtime: annotationRuntimeNameSchema,
 });
 
-/** A complete, unreviewed source-coordinate proposal. Provenance belongs to the run. */
 export const annotationRunResultSchema = z.strictObject({
   document: annotationSchema,
   issues: z.array(

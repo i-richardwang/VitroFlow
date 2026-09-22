@@ -1,7 +1,6 @@
 import { Button } from "@heroui/react";
 import type { ReactNode } from "react";
 
-/** Moves to the neighbouring record; disabled at either end of the series. */
 export function StepButton({
   label,
   neighbour,

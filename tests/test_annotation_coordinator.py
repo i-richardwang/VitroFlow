@@ -1,5 +1,3 @@
-"""Ownership, durable acceptance and isolated execution under real concurrency."""
-
 import base64
 import json
 import threading

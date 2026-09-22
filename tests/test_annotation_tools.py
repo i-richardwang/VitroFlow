@@ -1,5 +1,3 @@
-"""Visual task inputs, paired previews and source-coordinate correction."""
-
 import base64
 import hashlib
 import json

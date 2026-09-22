@@ -17,7 +17,6 @@ const userNameSchema = z.string().trim().min(1).max(120);
 const userEmailSchema = z.string().trim().toLowerCase().email().max(254);
 const passwordSchema = z.string().min(MIN_PASSWORD_LENGTH).max(256);
 
-/** The account behind a browser session, as pages see it. */
 export const workbenchUserSchema = z.object({
   id: z.string(),
   name: userNameSchema,
@@ -26,7 +25,6 @@ export const workbenchUserSchema = z.object({
 });
 export type WorkbenchUser = z.infer<typeof workbenchUserSchema>;
 
-/** An account as the user directory lists it. */
 export const userAccountSchema = workbenchUserSchema.extend({
   banned: z.boolean(),
   createdAt: z.string().datetime(),

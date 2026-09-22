@@ -1,5 +1,3 @@
-"""Cleanup must distinguish a departed child from a live permission failure."""
-
 from types import SimpleNamespace
 
 import pytest

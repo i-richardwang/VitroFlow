@@ -15,29 +15,9 @@ experiment, dataset, model, annotation, inference, and training domain services
 database, immutable blob storage, and external runtimes
 ```
 
-## Source map
+## Source boundaries
 
 `web/src/server/` and the framework entry `web/src/server.ts` are server-only, enforced by the Vite client import protection. `web/src/domain/` contains shared schemas and pure transformations; it never imports server implementations, UI, or localization. The complete runtime-capability map is described in [Architecture](architecture.md). Framework routes live in `web/src/routes/`, and Server Function adapters live in `web/src/functions/`.
-
-| Server directory                    | Ownership                                                                                                 |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `images/`                           | Canonicalization, immutable image storage, digest locks, and image collection                             |
-| `experiments/`                      | Experiment design, observations, culture events, and observation image membership                         |
-| `datasets/`                         | Dataset membership, review records, and import/export                                                     |
-| `annotations/`                      | Current human annotations, optimistic replacement, and review documents                                   |
-| `annotation-runs/`                  | Frozen AI requests, leases, progress, completion evidence, and proposals                                   |
-| `inference/`                        | Image/version jobs, leases, canonical outcomes, and latest successful detection queries                   |
-| `training/`                         | Runs, frozen training snapshots, epochs, publication, and weight collection                               |
-| `models/`                           | Models and immutable version registration                                                                 |
-| `workers/`                          | Worker roster, process sessions, and heartbeat presence                                                   |
-| `auth/`                             | Accounts, API keys, OAuth clients, and live authorization checks                                          |
-| `agent/`                            | Protocol-neutral operation catalog and execution boundary                                                 |
-| `queries/`                          | Cross-module page projections: dataset overview, training console, system status, and image display names |
-| `transport/http/`, `transport/mcp/` | Request parsing, protocol responses, authentication gates, and locale/session adapters                    |
-| `maintenance/`                      | Composition of resource collectors                                                                        |
-| `infra/`                            | Database mechanics, shared database schema, blob drivers, digests, and deployment configuration           |
-| `bootstrap.ts`                      | Application database initialization and builtin model installation                                        |
-| `testing/`                          | Cross-module test fixtures; production never imports them                                                 |
 
 Business modules and `queries/` expose a small `public.ts`. Cross-module callers import that entry; files inside a module import their siblings directly. Public entries export specific operations and contracts, not every internal function. Infrastructure capabilities and protocol adapters use explicit file entry points instead of an all-purpose barrel.
 

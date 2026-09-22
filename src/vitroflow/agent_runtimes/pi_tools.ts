@@ -1,4 +1,3 @@
-/** Bind local tools to Pi; domain operations belong to the tool command. */
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";

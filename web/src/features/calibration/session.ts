@@ -111,7 +111,6 @@ export type Calibration =
       undo: () => void;
       redo: () => void;
       deleteSelected: () => void;
-      /** The readings the draft can be reset to. */
       sources: ReviewSource[];
       restartFrom: (source: ReviewSource) => void;
       className: string;

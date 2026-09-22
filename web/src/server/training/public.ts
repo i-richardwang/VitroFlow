@@ -1,4 +1,3 @@
-/** Public operations and query contracts; other files are module internals. */
 export { collectUnreferencedModelWeights } from "./collection";
 export { publishTrainingArtifact } from "./publication";
 export {

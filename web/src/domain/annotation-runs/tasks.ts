@@ -11,7 +11,7 @@ const box = z
     (edges) => edges[0]! < edges[2]! && edges[1]! < edges[3]!,
     "Box edges must be ordered",
   );
-export const regionProposalSchema = z.strictObject({
+const regionProposalSchema = z.strictObject({
   instances: z
     .array(
       z.strictObject({
@@ -110,7 +110,6 @@ export function validateProposal(
   return proposal;
 }
 
-/** Model-facing schemas are also generated for the standalone Python tools. */
 export const annotationViewInput = z.strictObject({
   taskId: z.string().min(1),
 });

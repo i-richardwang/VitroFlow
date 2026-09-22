@@ -1,5 +1,4 @@
 import { issueTaskToken } from "../../web/src/server/transport/mcp/task-credentials";
-/** Real product MCP endpoint for the Python bridge integration test. */
 import "../../web/test/setup";
 import { serveMcp } from "../../web/src/server/transport/mcp/agent";
 import {

@@ -1,5 +1,3 @@
-"""YOLO dataset preparation and detector fine-tuning."""
-
 from vitroflow.detectors.ultralytics.dataset import (
     DatasetImage,
     YoloDatasetManifest,

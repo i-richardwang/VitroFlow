@@ -1,4 +1,3 @@
-/** Public operations and query contracts; other files are module internals. */
 export { collectImages } from "./collection";
 export { assertDocumentImage } from "./documents";
 export { ImageSourceError } from "./ingest";

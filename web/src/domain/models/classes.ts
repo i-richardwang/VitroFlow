@@ -4,7 +4,6 @@ const identifierSchema = z
   .string()
   .regex(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/, "Use lower_snake_case");
 
-/** The category a model assigns to each instance it finds. */
 export const classNameSchema = identifierSchema;
 
 export const classListSchema = z
@@ -26,7 +25,6 @@ export const tallySchema = z.record(z.string(), z.number().int().min(0));
 
 export type Tally = z.infer<typeof tallySchema>;
 
-/** How many instances of one class a reading found. */
 export function classCount(counts: Tally, name: string): number {
   return Object.hasOwn(counts, name) ? counts[name] : 0;
 }
@@ -39,12 +37,10 @@ export function tally(instances: readonly { class: string }[]): Tally {
   return counts;
 }
 
-/** How many individuals a reading found, across every class it recognizes. */
 export function count(counts: Tally): number {
   return Object.values(counts).reduce((sum, found) => sum + found, 0);
 }
 
-/** Rejects instances that cannot belong to this model's detection task. */
 export function assertInstanceClasses(
   classes: readonly string[],
   instances: readonly { class: string }[],

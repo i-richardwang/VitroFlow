@@ -23,7 +23,6 @@ export function effectiveStatus(row: Row, at = new Date()) {
   };
 }
 
-/** The runs a review joins: the newest that succeeded, and the newest of all. */
 export const proposalRuns = alias(annotationRuns, "proposal_runs");
 export const latestRuns = alias(annotationRuns, "latest_runs");
 
@@ -43,7 +42,6 @@ function newestRun(
   )`;
 }
 
-/** The newest run of the image for the model that succeeded. */
 export function proposalRunId(
   imageId: SQLWrapper,
   modelId: SQLWrapper | string,
@@ -51,7 +49,6 @@ export function proposalRunId(
   return newestRun(imageId, modelId, true);
 }
 
-/** The newest run of the image for the model, whatever became of it. */
 export function latestRunId(imageId: SQLWrapper, modelId: SQLWrapper | string) {
   return newestRun(imageId, modelId, false);
 }

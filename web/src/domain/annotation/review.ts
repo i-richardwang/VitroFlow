@@ -40,7 +40,6 @@ export const REVIEW_SOURCES = ["review", "proposal", "detection"] as const;
 
 export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 
-/** The instances one source holds, or null when the image has no such reading. */
 export function sourceInstances(
   review: Review,
   source: ReviewSource,
@@ -55,14 +54,12 @@ export function sourceInstances(
   }
 }
 
-/** The sources this image has, best first. */
 export function availableSources(review: Review): ReviewSource[] {
   return REVIEW_SOURCES.filter(
     (source) => sourceInstances(review, source) !== null,
   );
 }
 
-/** The source an image reads by: the best it has. */
 function readingSource(review: Review): ReviewSource | null {
   return availableSources(review)[0] ?? null;
 }
@@ -77,7 +74,6 @@ export function reviewInstances(review: Review): AnnotationInstance[] {
   return source ? (sourceInstances(review, source) ?? []) : [];
 }
 
-/** Which instances a page shows: the source asked for, if the image has it. */
 export function shownInstances(
   review: Review,
   source: ReviewSource | undefined,
@@ -85,7 +81,6 @@ export function shownInstances(
   return (source && sourceInstances(review, source)) ?? reviewInstances(review);
 }
 
-/** Whether an agent is still working on the image. */
 export function agentBusy(review: Review): boolean {
   return review.activity !== null && review.activity.status !== "failed";
 }

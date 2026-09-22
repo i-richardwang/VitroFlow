@@ -5,7 +5,6 @@ import type {
 } from "../../domain/annotation-runs/schema";
 import { m } from "../../paraglide/messages";
 
-/** The readings of an image, named as every page names them. */
 export const sourceLabels: Record<ReviewSource, () => string> = {
   review: m.workbench_source_review,
   proposal: m.workbench_source_proposal,

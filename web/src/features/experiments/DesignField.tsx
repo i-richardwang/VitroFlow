@@ -20,7 +20,6 @@ export const INITIAL_DESIGN: DesignRow[] = [
   { name: "", replicates: DEFAULT_REPLICATES },
 ];
 
-/** The rows that name a treatment, in the order they will be numbered. */
 export function submittedDesign(rows: DesignRow[]): TreatmentDesignInput[] {
   return rows
     .map(({ name, replicates }) => ({ name: name.trim(), replicates }))

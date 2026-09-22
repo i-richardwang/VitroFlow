@@ -18,7 +18,6 @@ import {
 } from "./workbook";
 import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
-/** The day, its date, and the quantities under it. */
 const HEADING_ROWS = 3;
 
 const SEEDS: Model = {
@@ -110,7 +109,6 @@ function image(
   };
 }
 
-/** Two replicates sown with twenty seeds, of which fifteen and ten germinated. */
 function trial(overrides: Partial<ExperimentWorkbookSource> = {}) {
   return experimentWorkbook(
     {
@@ -131,12 +129,10 @@ function trial(overrides: Partial<ExperimentWorkbookSource> = {}) {
   );
 }
 
-/** The block that says which experiment this is, above the heading. */
 function describes(workbook: ReturnType<typeof trial>): WorkbookCell[][] {
   return workbook.rows.slice(0, workbook.stickyRows - HEADING_ROWS);
 }
 
-/** The day, its date, and the quantities read under it. */
 function heading(workbook: ReturnType<typeof trial>): WorkbookCell[][] {
   return workbook.rows.slice(
     workbook.stickyRows - HEADING_ROWS,
@@ -144,7 +140,6 @@ function heading(workbook: ReturnType<typeof trial>): WorkbookCell[][] {
   );
 }
 
-/** The rows below the heading, which is where the readings begin. */
 function readings(workbook: ReturnType<typeof trial>): WorkbookCell[][] {
   return workbook.rows.slice(workbook.stickyRows);
 }

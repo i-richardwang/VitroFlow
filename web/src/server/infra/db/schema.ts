@@ -202,7 +202,6 @@ export const apiKeys = pgTable(
   ],
 );
 
-/** Signing keys for the access tokens the OAuth server issues. */
 export const jwks = pgTable("jwks", {
   id: text("id").primaryKey(),
   publicKey: text("public_key").notNull(),
@@ -399,7 +398,6 @@ export const oauthConsents = pgTable(
   ],
 );
 
-/** Replay protection for client assertions and DPoP proofs. */
 export const oauthClientAssertions = pgTable("oauth_client_assertions", {
   id: text("id").primaryKey(),
   expiresAt: instant("expires_at"),
@@ -509,7 +507,6 @@ export const images = pgTable(
   "images",
   {
     id: text("id").primaryKey(),
-    /** The pixels the bytes hold, with orientation already applied. */
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     bytes: integer("bytes").notNull(),
@@ -524,7 +521,6 @@ export const images = pgTable(
   ],
 );
 
-/** An image's membership in a dataset, with the split it keeps across snapshots. */
 export const datasetImages = pgTable(
   "dataset_images",
   {
@@ -628,22 +624,15 @@ export const annotations = pgTable(
   ],
 );
 
-/** Measurements of the same units on successive occasions. */
 export const experiments = pgTable(
   "experiments",
   {
     id: uuid("id").primaryKey(),
-    /** Names one experiment in the notebook; two cannot read the same. */
     name: text("name").notNull(),
-    /** The plant under culture: species, cultivar, or line. */
     plantMaterial: text("plant_material").notNull(),
-    /** The type of tissue used to initiate the units. */
     explantType: text("explant_type").notNull(),
-    /** The base medium every treatment shares. */
     baseMedium: text("base_medium").notNull(),
-    /** The rest of the notebook page: conditions, goals, remarks. */
     notes: text("notes").notNull(),
-    /** Day zero: when the explants entered culture. */
     inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
     createdAt: instant("created_at"),
   },
@@ -803,7 +792,6 @@ export const experimentUnits = pgTable(
   ],
 );
 
-/** Something that happened to a unit, seen at an observation. */
 export const experimentCultureEvents = pgTable(
   "experiment_culture_events",
   {
@@ -902,7 +890,6 @@ export const workers = pgTable(
     annotationRuntimes: jsonb("annotation_runtimes")
       .$type<AnnotationRuntime[]>()
       .notNull(),
-    /** Memory the accelerator offers a job. */
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),
   },

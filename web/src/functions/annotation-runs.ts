@@ -33,7 +33,6 @@ export const stopAnnotationRun = createServerFn({ method: "POST" })
   .validator(resourceIdSchema)
   .handler(({ data }) => cancelAnnotationRun(data));
 
-/** Asks an agent to draw every image of the dataset nobody has calibrated. */
 export const annotateDatasetImages = createServerFn({ method: "POST" })
   .validator(datasetRefSchema.extend({ runtime: annotationRuntimeNameSchema }))
   .handler(async ({ data }) => {
@@ -47,7 +46,6 @@ export const annotateDatasetImages = createServerFn({ method: "POST" })
     return createAnnotationRuns(refs, data.runtime, user.id);
   });
 
-/** Asks an agent to draw every image of the observation nobody has calibrated. */
 export const annotateObservationImages = createServerFn({ method: "POST" })
   .validator(
     observationRefSchema.extend({ runtime: annotationRuntimeNameSchema }),

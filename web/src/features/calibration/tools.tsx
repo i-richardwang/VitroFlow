@@ -41,7 +41,6 @@ export function CalibrationTools({
   onUndo: () => void;
   onRedo: () => void;
   onDelete: () => void;
-  /** The readings the draft can be reset to, best first. */
   sources: ReviewSource[];
   onRestart: (source: ReviewSource) => void;
   classes: string[];

@@ -67,7 +67,6 @@ function Box({
   children,
 }: {
   box: BoundingBox;
-  /** Shown above the box when present. */
   ordinal?: number;
   selected?: boolean;
   cursor?: string;
@@ -105,7 +104,6 @@ function Box({
   );
 }
 
-/** The boxes as stored, drawn over the image. */
 export function BoxLayer({
   image,
   instances,
@@ -166,9 +164,7 @@ export function EditableBoxLayer({
   instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
   tool: Tool;
-  /** Space held: every drag pans. */
   panning: boolean;
-  /** The class given to added boxes. */
   className: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;

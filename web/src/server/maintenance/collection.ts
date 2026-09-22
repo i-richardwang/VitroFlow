@@ -6,7 +6,6 @@ interface CollectedBlobs {
   modelWeights: string[];
 }
 
-/** Collects every immutable object type according to its ownership rules. */
 export async function collectUnreferencedBlobs(): Promise<CollectedBlobs> {
   return {
     images: await collectImages(),

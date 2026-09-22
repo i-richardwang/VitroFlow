@@ -92,7 +92,6 @@ import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 const INOCULATED = "2026-08-01";
 
-/** Creates an experiment; unless the test designs it, one treatment `A` in one replicate. */
 async function createExperiment(
   value: Omit<ExperimentRequestInput, "treatments"> &
     Partial<Pick<ExperimentRequestInput, "treatments">>,
@@ -123,7 +122,6 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
   return registerTrainedVersion(modelId);
 }
 
-/** An observation read for the version's model. */
 function reading(version: ModelVersion) {
   return { modelId: version.modelId };
 }
@@ -159,7 +157,6 @@ function failureFor(version: ModelVersion, digest: string) {
   };
 }
 
-/** Unit identifiers by code. */
 async function unitsOf(experiment: string): Promise<Map<string, string>> {
   const grid = await readExperimentGrid(experiment);
   return new Map(grid!.units.map((unit) => [unit.code, unit.id]));

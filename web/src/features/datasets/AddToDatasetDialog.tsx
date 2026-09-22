@@ -51,7 +51,6 @@ export function AddToDatasetButton({
   );
 }
 
-/** Adds images to one of the datasets offered, or to a new one. */
 export function AddToDatasetDialog({
   isOpen,
   images,

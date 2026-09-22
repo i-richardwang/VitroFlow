@@ -41,7 +41,6 @@ async function readImageRecord(ref: { dataset: string; digest: string }) {
   );
 }
 
-/** The succeeded outcome stored for one image-version pair, if any. */
 async function storedDetection(target: { versionId: string; digest: string }) {
   const db = await database();
   const [row] = await db
@@ -57,7 +56,6 @@ async function storedDetection(target: { versionId: string; digest: string }) {
   return row?.document ?? null;
 }
 
-/** This file registers several versions, so it keeps a model of its own. */
 const outcomeVersion = (slug: string, createdAt?: string) =>
   traditionalVersion("outcome-detector", slug, createdAt);
 
@@ -68,7 +66,6 @@ async function isReviewed(ref: { dataset: string; digest: string }) {
 }
 
 describe("detections", () => {
-  /** The digests this version has not recorded an outcome for yet. */
   async function pendingFor(versionId: string, digests: string[]) {
     const db = await database();
     const rows = await db

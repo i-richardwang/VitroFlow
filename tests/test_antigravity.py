@@ -1,5 +1,3 @@
-"""Runtime and native MCP boundary tests; these do not measure model accuracy."""
-
 from __future__ import annotations
 
 import asyncio

@@ -36,12 +36,10 @@ import { cultureEventLabel, observationLabel } from "./labels";
 import { modelName } from "../../ui/model-names";
 import { m } from "../../paraglide/messages";
 
-/** The grid, and the models its days were read for. */
 export type ExperimentWorkbookSource = ExperimentGrid & {
   models: readonly Model[];
 };
 
-/** A quantity a day is read for, and which occupies a column under it. */
 type Quantity = "count" | "rate" | "replicates";
 
 /**
@@ -69,14 +67,12 @@ function quantityLabel(quantity: Quantity): string {
   }
 }
 
-/** A day across the top, and the columns it occupies underneath. */
 interface Day {
   observation: ExperimentObservation;
   model: Model | null;
   quantities: readonly Quantity[];
 }
 
-/** The design names every row, so the table sorts and pivots on it. */
 const DESIGN_COLUMNS = [{ width: 22 }, { width: 16 }, { width: 14 }];
 const HEADING_ROWS = 3;
 
@@ -147,17 +143,14 @@ export function experimentWorkbook(
   };
 }
 
-/** A calendar day, as the day a spreadsheet counts rather than the text of it. */
 function calendarCell(day: CalendarDay, style: CellStyle = {}): WorkbookCell {
   return dateCell(parseDate(day), style);
 }
 
-/** A field left unfilled has nothing to say. */
 function fieldCell(value: string): WorkbookCell {
   return value.length > 0 ? textCell(value) : blankCell;
 }
 
-/** Which experiment this is, and when the numbers were taken from it. */
 function provenance(
   experiment: Experiment,
   exportedOn: CalendarDay,
@@ -174,7 +167,6 @@ function provenance(
     .map(([label, value]) => [textCell(label, { strong: true }), value]);
 }
 
-/** The day, the date it was made, and the quantities read under it. */
 function heading(days: readonly Day[]): WorkbookCell[][] {
   const covering = { strong: true, rows: HEADING_ROWS };
   const names: WorkbookCell[] = [
@@ -210,14 +202,12 @@ function dayHeading(day: Day): string {
   return day.model ? `${label} · ${modelName(day.model)}` : label;
 }
 
-/** The level this treatment sets, for the rows to be grouped and filtered by. */
 function factorCell(treatment: Treatment, style: CellStyle = {}): WorkbookCell {
   return treatment.factor
     ? textCell(formatFactor(treatment.factor), style)
     : blankCell;
 }
 
-/** The cells a day holds, taken in the order the day is read for them. */
 function dayCells(
   day: Day,
   read: Record<Quantity, WorkbookCell>,

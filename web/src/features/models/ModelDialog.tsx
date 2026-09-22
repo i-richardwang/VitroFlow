@@ -17,7 +17,6 @@ import { addModel } from "../../functions/models";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 
-/** Classes are written one per line, the way a reviewer lists what to look for. */
 function classList(text: string): string[] {
   return text
     .split("\n")
@@ -25,7 +24,6 @@ function classList(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-/** Names a task the workbench did not have. */
 function ModelDialog({
   isOpen,
   onClose,

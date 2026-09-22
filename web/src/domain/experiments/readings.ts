@@ -8,16 +8,13 @@ import type { ExperimentObservation } from "./schema";
  * What a unit read on a day: the individuals found, their share of the
  * population the unit started with, and who stood behind the number.
  */
-export interface Reading {
+interface Reading {
   count: number;
   rate: number | null;
-  /** The best reading the image has: a reviewer's, an agent's, or the detector's. */
   source: ReviewSource;
-  /** The detection the reading replaced, when it came from elsewhere. */
   detected: number | null;
 }
 
-/** A cell of the grid is one unit on one observation. */
 export function cellKey(unit: string, observation: string): string {
   return `${unit}:${observation}`;
 }
@@ -27,7 +24,7 @@ export function cellKey(unit: string, observation: string): string {
  * outranks an agent's proposal, which outranks the detection; an image still
  * waiting or failed reads by nothing.
  */
-export function cellReading(
+function cellReading(
   image: ObservationImageCell | undefined,
 ): { tally: Tally; source: ReviewSource } | null {
   if (!image) return null;
@@ -78,7 +75,6 @@ function share(found: number, population: number | null): number | null {
 
 export interface ExperimentReadings {
   baseline: ExperimentObservation | undefined;
-  /** How many individuals the unit started with, or nothing when never counted. */
   population: (unit: string) => number | null;
   read: (unit: string, observation: ExperimentObservation) => Reading | null;
 }
@@ -144,7 +140,6 @@ export function summarize(values: readonly number[]): Summary {
   return { value: mean, deviation, sampleSize: values.length };
 }
 
-/** What a treatment read on one day: its replicates' counts, and their shares. */
 export interface TreatmentSummary {
   count: Summary;
   rate: Summary | null;

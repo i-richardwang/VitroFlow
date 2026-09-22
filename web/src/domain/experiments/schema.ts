@@ -46,22 +46,22 @@ export const experimentNameSchema = z
   .min(1, "Experiment name is required")
   .max(120, "Experiment name must be at most 120 characters");
 
-export const plantMaterialSchema = z
+const plantMaterialSchema = z
   .string()
   .trim()
   .max(120, "Plant material must be at most 120 characters");
 
-export const explantTypeSchema = z
+const explantTypeSchema = z
   .string()
   .trim()
   .max(120, "Explant type must be at most 120 characters");
 
-export const baseMediumSchema = z
+const baseMediumSchema = z
   .string()
   .trim()
   .max(200, "Base medium must be at most 200 characters");
 
-export const experimentNotesSchema = z
+const experimentNotesSchema = z
   .string()
   .trim()
   .max(2000, "Notes must be at most 2000 characters");
@@ -72,12 +72,12 @@ export const treatmentNameSchema = z
   .min(1, "Treatment name is required")
   .max(120, "Treatment name must be at most 120 characters");
 
-export const treatmentNoteSchema = z
+const treatmentNoteSchema = z
   .string()
   .trim()
   .max(1000, "Treatment note must be at most 1000 characters");
 
-export const treatmentFactorSchema = z.strictObject({
+const treatmentFactorSchema = z.strictObject({
   name: z
     .string()
     .trim()
@@ -104,7 +104,7 @@ export const unitCodeSchema = z
   .min(1, "Unit code is required")
   .max(60, "Unit code must be at most 60 characters");
 
-export const observationNoteSchema = z
+const observationNoteSchema = z
   .string()
   .trim()
   .max(500, "Observation note must be at most 500 characters");
@@ -119,7 +119,7 @@ export const CULTURE_EVENT_TYPES = [
 
 export type CultureEventType = (typeof CULTURE_EVENT_TYPES)[number];
 
-export const cultureEventTypeSchema = z.enum(CULTURE_EVENT_TYPES);
+const cultureEventTypeSchema = z.enum(CULTURE_EVENT_TYPES);
 
 export const experimentSchema = z.strictObject({
   id: experimentIdSchema,
@@ -134,15 +134,13 @@ export const experimentSchema = z.strictObject({
 
 export type Experiment = z.infer<typeof experimentSchema>;
 
-/** How many replicates a treatment is laid out with. */
-export const replicateCountSchema = z
+const replicateCountSchema = z
   .number()
   .int()
   .min(1, "A treatment needs at least one replicate")
   .max(200, "A treatment can have at most 200 replicates");
 
-/** A treatment as designed: what it applies and how many units replicate it. */
-export const treatmentDesignSchema = z.strictObject({
+const treatmentDesignSchema = z.strictObject({
   name: treatmentNameSchema,
   factor: treatmentFactorSchema.nullable().default(null),
   note: treatmentNoteSchema.default(""),
@@ -161,7 +159,6 @@ function distinctIds(ids: readonly string[]): boolean {
   return new Set(ids).size === ids.length;
 }
 
-/** An experiment is created with its design: at least one treatment. */
 export const experimentRequestSchema = z.strictObject({
   name: experimentNameSchema,
   plantMaterial: plantMaterialSchema.default(""),
@@ -220,7 +217,6 @@ export const treatmentRequestSchema = treatmentDesignSchema.extend({
 
 export type TreatmentRequest = z.infer<typeof treatmentRequestSchema>;
 
-/** More replicates for a treatment already designed. */
 export const replicateRequestSchema = treatmentRefSchema.extend({
   replicates: replicateCountSchema,
 });
@@ -242,12 +238,10 @@ export const unitRefSchema = z.strictObject({
 
 export type UnitRef = z.infer<typeof unitRefSchema>;
 
-/** A unit's image series, opened at one observation or at the newest. */
 export const unitRequestSchema = unitRefSchema.extend({
   observation: observationIdSchema.optional(),
 });
 
-/** A unit's code and treatment are corrected together; its records stay. */
 export const unitUpdateSchema = unitRefSchema.extend({
   code: unitCodeSchema,
   treatment: treatmentIdSchema,
@@ -255,7 +249,6 @@ export const unitUpdateSchema = unitRefSchema.extend({
 
 export type UnitUpdate = z.infer<typeof unitUpdateSchema>;
 
-/** Several units move to one treatment; each keeps its code. */
 export const unitsTreatmentUpdateSchema = z.strictObject({
   experiment: experimentIdSchema,
   units: z
@@ -268,9 +261,8 @@ export const unitsTreatmentUpdateSchema = z.strictObject({
 
 export type UnitsTreatmentUpdate = z.infer<typeof unitsTreatmentUpdateSchema>;
 
-export const cultureEventIdSchema = z.uuid();
+const cultureEventIdSchema = z.uuid();
 
-/** Something that happened to a unit, seen at an observation. */
 export const cultureEventSchema = z.strictObject({
   id: cultureEventIdSchema,
   type: cultureEventTypeSchema,
@@ -287,7 +279,6 @@ export const cultureEventRequestSchema = unitRefSchema.extend({
 
 export type CultureEventRequest = z.infer<typeof cultureEventRequestSchema>;
 
-/** The same event, recorded on several units at one observation. */
 export const cultureEventsRequestSchema = z.strictObject({
   experiment: experimentIdSchema,
   units: z
@@ -400,7 +391,7 @@ export type ObservationImageAssignmentResult = z.infer<
  * no version yet leaves its images unread: nothing is queued, nothing failed,
  * and the count is whatever a reviewer draws.
  */
-export const IMAGE_ANALYSIS_STATES = [
+const IMAGE_ANALYSIS_STATES = [
   "unread",
   "pending",
   "failed",

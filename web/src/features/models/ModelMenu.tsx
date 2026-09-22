@@ -20,7 +20,6 @@ import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { MoreIcon } from "../../ui/icons";
 import { modelName } from "../../ui/model-names";
 
-/** What can be done to a task: its instructions can change; its name and classes cannot. */
 export function ModelMenu({
   model,
   deletable,

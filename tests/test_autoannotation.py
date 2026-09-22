@@ -1,5 +1,3 @@
-"""Single-pass completion, portable round trips and geometry across executions."""
-
 from __future__ import annotations
 
 import copy

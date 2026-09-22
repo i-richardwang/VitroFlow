@@ -16,14 +16,12 @@ export function returnPath(value: unknown): string {
   return `${destination.pathname}${destination.search}`;
 }
 
-/** The sign-in page for a protected destination. */
 export function loginPath(destination: unknown): string {
   const target = returnPath(destination);
   if (target === DEFAULT_RETURN_PATH) return "/login";
   return `/login?${new URLSearchParams({ returnTo: target })}`;
 }
 
-/** The path and query a document request was trying to reach. */
 export function requestedPath(request: Request): string {
   const { pathname, search } = new URL(request.url);
   return returnPath(`${pathname}${search}`);

@@ -98,7 +98,6 @@ const NAV = [
   },
 ] as const;
 
-/** Navigation only administrators see. */
 const ADMIN_NAV = [
   {
     label: m.nav_group_workbench,
@@ -127,7 +126,6 @@ export function ShellActions({ children }: { children: ReactNode }) {
   return createPortal(children, slot);
 }
 
-/** AppLayout aside. Sheet below 1024px. */
 export function ShellAside({ children }: { children: ReactNode }) {
   const aside = use(AsideSlot);
   if (!aside) {
@@ -237,7 +235,6 @@ function AppNavbar({
   );
 }
 
-/** The deepest settled match that declares a trail decides it. */
 function trail(
   matches: ReadonlyArray<{
     status: string;

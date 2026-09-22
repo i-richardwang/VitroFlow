@@ -75,7 +75,6 @@ export const detectionResultSchema = z
     });
   });
 
-/** Why one attempt failed before it could produce a valid detection result. */
 export const detectionFailureSchema = z.strictObject({
   schemaVersion: z.literal(1),
   image: z.strictObject({ digest: imageDigestSchema }),
@@ -83,7 +82,6 @@ export const detectionFailureSchema = z.strictObject({
   error: z.string().min(1).max(2000),
 });
 
-/** Everything an Inference Worker reports back for one image. */
 export const inferenceOutcomeSchema = z.union([
   detectionResultSchema,
   detectionFailureSchema,

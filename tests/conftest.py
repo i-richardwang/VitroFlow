@@ -1,5 +1,3 @@
-"""Builders for the workbench documents the tests exchange with the Python side."""
-
 from __future__ import annotations
 
 import hashlib

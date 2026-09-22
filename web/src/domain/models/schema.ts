@@ -20,7 +20,7 @@ import {
 const modelAnnotationFields = annotationRegionSchema.extend({
   instructions: z.string().trim(),
 });
-export const modelAnnotationSchema = modelAnnotationFields.refine(
+const modelAnnotationSchema = modelAnnotationFields.refine(
   (v) => v.halo <= v.coreSize,
   "Context cannot exceed core size",
 );

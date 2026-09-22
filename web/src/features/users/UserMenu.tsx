@@ -29,7 +29,6 @@ import { RoleSelect } from "./RoleSelect";
 
 type Action = "role" | "reset-password" | "suspend" | "delete";
 
-/** Administrative actions for another account in the directory. */
 export function UserMenu({ account }: { account: UserAccount }) {
   const router = useRouter();
   const { run } = useAsyncAction();

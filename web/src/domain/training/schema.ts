@@ -113,7 +113,6 @@ export const detectionValidationSchema = z.strictObject({
   fitness: z.number().finite(),
 });
 
-/** What Ultralytics knows after one epoch's validation pass. */
 export const trainingEpochReportSchema = z.strictObject({
   epoch: z.number().int().positive(),
   train: lossSchema,
@@ -203,7 +202,6 @@ export function trainingRunId(uuid: string): string {
   return `${TRAINING_RUN_ID_PREFIX}${uuid}`;
 }
 
-/** The leading block of the run's UUID, enough to tell runs apart in a list. */
 export function trainingRunLabel(run: Pick<TrainingRun, "id">): string {
   const uuid = run.id.startsWith(TRAINING_RUN_ID_PREFIX)
     ? run.id.slice(TRAINING_RUN_ID_PREFIX.length)

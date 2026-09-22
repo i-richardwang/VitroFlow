@@ -23,29 +23,7 @@ Experimental design
   -> candidate model version
 ```
 
-Postgres is the source of truth for records. One S3-compatible bucket stores immutable image and model-weight bytes referenced by those records.
-
-| Records                                                                                                                                             | Purpose                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `models`, `model_versions`                                                                                                                          | Detector tasks, class definitions, runtime manifests, and immutable artifacts   |
-| `images`                                                                                                                                            | Canonical images addressed by the SHA-256 digest of normalized AVIF bytes       |
-| `experiments`, `experiment_treatments`, `experiment_units`, `experiment_culture_events`, `experiment_observations`, `experiment_observation_images` | Experimental design and repeated observations, each read for one model          |
-| `inference_outcomes`                                                                                                                                | The single success-or-failure outcome for an image and model-version pair       |
-| `annotations`                                                                                                                                       | Current reviewer annotations for an image and model                             |
-| `datasets`, `dataset_images`                                                                                                                        | Reviewed training collections with stable train/validation assignments          |
-| `dataset_snapshots`, `dataset_snapshot_images`                                                                                                      | Immutable training inputs                                                       |
-| `training_runs`, `training_epochs`                                                                                                                  | Leased training state and per-attempt epoch metrics                             |
-| `workers`, `inference_jobs`                                                                                                                         | Worker sessions with their capabilities and presence, and leased inference jobs |
-
-The object layout is:
-
-```text
-<bucket>/
-├── images/<xx>/<sha256>
-└── model-weights/<training-run>/<attempt>/<sha256>
-```
-
-Object creation is conditional. Identical writes are idempotent; content at an existing key is never replaced. The maintenance process removes unreferenced images and model weights using the same database locking boundaries as their writers.
+Postgres is the source of truth for records. One S3-compatible bucket stores immutable image and model-weight bytes referenced by those records. Storage ownership, transactions, and collection rules are documented in [Backend architecture](docs/backend-architecture.md).
 
 ## Domain rules
 
@@ -158,13 +136,8 @@ claude mcp add --transport http vitroflow https://<workbench>/api/mcp
 ## Experiment export
 
 **Export spreadsheet** on the experiment page downloads the grid as one `.xlsx`
-sheet, headed by the experiment, its protocol fields, the inoculation date and
-the date of the export. The design repeats down every row, each observation
-heads the columns it reads, and a treatment's mean states the replicates it is
-over. Quantities stay quantities and days stay days: a count is a number, a rate
-is the fraction it is carrying a percentage format, and a date is a date.
-Readings still to come leave their cells empty, and a unit excluded from the
-analysis carries the culture event that excluded it.
+sheet. Its rows, quantities, missing values, and culture-event semantics follow
+the rules in [Readings](docs/readings.md).
 
 ## Dataset transfer
 
@@ -317,18 +290,5 @@ make check-s3
 ```
 
 `make check` is the local verification gate. The production image, real PostgreSQL invariants, and S3 contract are separate gates: run `make check-image`, `make check-postgres`, and `make check-s3` with their documented environment variables. The default suite runs on PGlite, one connection and no external services, so the S3 contract and anything needing two sessions at once wait for their own gate. The reference-image gate is reproducible from its digest manifest and runs wherever the private corpus is provisioned.
-
-## Repository layout
-
-```text
-configs/                 detector and training recipe manifests
-scripts/train_yolo.py    reviewed local YOLO training entry point
-src/vitroflow/           Python CLI, recognition, datasets, and Workers
-tests/                   Python unit, contract, and reference tests
-web/                     React workbench, server, database, and Web tests
-compose.yaml             production-shaped local deployment
-Dockerfile.web           pinned Web image build
-Makefile                 repository verification gates
-```
 
 VitroFlow is licensed under the [MIT License](LICENSE).

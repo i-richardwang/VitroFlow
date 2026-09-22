@@ -30,7 +30,7 @@ export const unitSchema = z.strictObject({
 
 export type Unit = z.infer<typeof unitSchema>;
 
-export const observationImageCellSchema = z.strictObject({
+const observationImageCellSchema = z.strictObject({
   id: observationImageIdSchema,
   unit: unitIdSchema,
   observation: observationIdSchema,
@@ -55,13 +55,13 @@ export const experimentGridSchema = z.strictObject({
 
 export type ExperimentGrid = z.infer<typeof experimentGridSchema>;
 
-export const unitObservationSchema = z.strictObject({
+const unitObservationSchema = z.strictObject({
   observation: experimentObservationSchema,
   image: observationImageCellSchema.nullable(),
 });
 
 /** A unit as the series steps through it: enough to name it and its treatment. */
-export const unitNavigationEntrySchema = z.strictObject({
+const unitNavigationEntrySchema = z.strictObject({
   id: unitIdSchema,
   code: unitCodeSchema,
   treatment: treatmentIdSchema,
@@ -73,7 +73,7 @@ export type UnitNavigationEntry = z.infer<typeof unitNavigationEntrySchema>;
  * An observation image with its review for the observation's model, and the
  * failure to report when the version that reads for that model could not.
  */
-export const experimentObservationImageSchema = z.strictObject({
+const experimentObservationImageSchema = z.strictObject({
   ref: observationImageRefSchema,
   experimentName: experimentNameSchema,
   unit: unitNavigationEntrySchema,

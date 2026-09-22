@@ -58,7 +58,6 @@ export function DestructiveActionDialog({
   );
 }
 
-/** A button that asks before it acts, and does not ask when it cannot act. */
 export function DestructiveActionButton({
   isDisabled,
   label,

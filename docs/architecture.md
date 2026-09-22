@@ -2,21 +2,7 @@
 
 VitroFlow has a Web control plane and a Python client/worker package. Source boundaries describe the capabilities a module may use; each boundary is organized by the domain or lifecycle it owns. React components can render on the server, so a frontend directory does not authorize browser globals during rendering.
 
-## Web source map
-
-```text
-web/src/
-├── domain/       Shared contracts, invariants, and pure transformations
-├── lib/          Isomorphic ZIP, canonical JSON, and HTTP JSON utilities
-├── server/       Database-backed services and protocol adapters
-├── functions/    Server Function adapters and RPC error mapping
-├── features/     Complete user interactions, grouped by feature
-├── ui/           Reusable presentation, layout, viewport, and hooks
-├── routes/       File routes: loading, metadata, handlers, and composition
-├── paraglide/    Generated localization runtime and messages
-├── server.ts     Framework server entry and application bootstrap
-└── start.ts      Request and function middleware
-```
+## Web boundaries
 
 `domain/` and `lib/` do not import React, localization, frontend features, or server implementations, and do not access browser-only globals. Domain modules may use library utilities; libraries do not depend on domain modules. Domain schemas and transformations can be used directly by services, contract generation, or frontend features.
 
@@ -38,35 +24,7 @@ Domain exceptions inherit shared categories from `domain/errors.ts` and carry st
 
 `domain/annotation/draft.ts` owns the pure annotation draft, undo/redo, and the submission freeze. The frame is idle until asked to calibrate, loading until the stored annotation matches this image and model, then a draft with shortcuts and leave-blocking. Draft instances begin from the displayed reading: review, AI proposal, or detections. The save base independently records the persisted review, so saving detects concurrent edits regardless of where the draft's boxes came from. Until the fetch completes, Save stays pending and the on-screen marks remain the current reading. A cancelled fetch or a different model must not inherit another review's baseline. The DOM lifecycle test performs wheel zoom and pointer panning, enters and leaves calibration, and verifies both the original image node and its transform remain intact.
 
-## Python source map
-
-```text
-src/vitroflow/
-├── cli.py
-├── contracts/                  Generated schemas, validation, decoding helpers
-├── annotations.py              Annotation documents and geometry
-├── autoannotation/             Portable visual tasks, checkpoints, CLI, AI artifacts
-├── agent_runtimes/             External process adapters
-├── agent_annotation/           Supervised annotation execution
-├── datasets/                   Manifests, reviewed-image loading, transfer
-├── training/                   Training documents, parameters, recipes
-├── detectors/
-│   ├── contract.py             Algorithm-independent detector contract
-│   ├── documents.py            Detection outcome decoding
-│   ├── traditional/            Pipeline, result types, artifacts, training
-│   └── ultralytics/            Detector, dataset preparation, training, runtime
-├── worker/
-│   ├── service.py              One process serving annotation, training and inference
-│   ├── annotation.py           External-agent annotation transport
-│   ├── inference.py            Inference protocol and task execution
-│   ├── training.py             Training protocol and task execution
-│   ├── model_store.py          Assigned models, cache, and loading
-│   ├── session.py
-│   ├── connection.py
-│   ├── runtime.py
-│   └── host/                   Profiles, logs, launchd, commands, host operations
-└── io/                         Filesystem and image I/O
-```
+## Python boundaries
 
 `autoannotation` depends only on shared contracts and filesystem/image I/O. Preparation freezes source pixels, configuration and candidate input. The protocol validates a complete response per tile; task operations handle checkpoints and recovery; collection restores source coordinates and exports reusable results. Geometry and rendering are shared utilities, and the CLI only adapts arguments. Each round preserves its input and output in separate directories. The module uses one current schema and has no model dispatcher or Worker dependency. See [the standalone annotation guide](autoannotation.md). `agent_annotation` composes it with `agent_runtimes` and owns execution and export recovery. Product Workers schedule regional agent sessions through the remote MCP service; the server owns image rendering, geometry, task acceptance and result assembly. Product proposals remain distinct from accepted reviews; see [AI annotation](ai-annotation.md).
 

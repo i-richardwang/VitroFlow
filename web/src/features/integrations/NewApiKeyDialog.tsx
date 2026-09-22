@@ -53,7 +53,6 @@ export function NewApiKeyDialog({
   );
 }
 
-/** Collects the key's details, then shows the secret the one time it exists. */
 function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
