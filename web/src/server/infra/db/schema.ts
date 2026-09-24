@@ -26,12 +26,12 @@ import {
 
 import type { AnnotationDocument } from "../../../domain/annotation/schema";
 import {
+  ANNOTATION_EXECUTORS,
   ANNOTATION_RUN_STATUSES,
   type AnnotationRuntime,
   type AnnotationRunResult,
   type StartAnnotationRun,
   type AnnotationDefinition,
-  type AnnotationExecutor,
 } from "../../../domain/annotation-runs/schema";
 import { USER_ROLES } from "../../../domain/auth/schema";
 import {
@@ -887,9 +887,7 @@ export const workers = pgTable(
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
-    annotationRuntimes: jsonb("annotation_runtimes")
-      .$type<AnnotationRuntime[]>()
-      .notNull(),
+    annotationRuntime: jsonb("annotation_runtime").$type<AnnotationRuntime>(),
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),
   },
@@ -1106,7 +1104,7 @@ export const annotationRuns = pgTable(
     }),
     request: jsonb("request").$type<StartAnnotationRun>().notNull(),
     definition: jsonb("definition").$type<AnnotationDefinition>().notNull(),
-    executor: jsonb("executor").$type<AnnotationExecutor>().notNull(),
+    executor: text("executor", { enum: ANNOTATION_EXECUTORS }).notNull(),
     status: text("status", { enum: ANNOTATION_RUN_STATUSES }).notNull(),
     completed: integer("completed").notNull().default(0),
     total: integer("total").notNull(),
@@ -1145,8 +1143,12 @@ export const annotationRuns = pgTable(
       sql`(${table.status} = 'succeeded') = (${table.result} is not null)`,
     ),
     check(
+      "annotation_runs_executor_check",
+      sql`${table.executor} = 'worker' or (${table.executor} = 'interactive' and ${table.status} <> 'queued' and ${table.workerId} is null and ${table.sessionId} is null and ${table.runtime} is null)`,
+    ),
+    check(
       "annotation_runs_lease_check",
-      sql`${table.status} <> 'running' or ${table.executor}->>'kind' = 'interactive' or (${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null)`,
+      sql`${table.status} <> 'running' or (${table.leaseExpiresAt} is not null and (${table.executor} = 'interactive' or (${table.workerId} is not null and ${table.sessionId} is not null)))`,
     ),
   ],
 );
@@ -1194,4 +1196,17 @@ export const annotationPreviews = pgTable(
       foreignColumns: [annotationTasks.runId, annotationTasks.taskId],
     }).onDelete("cascade"),
   ],
+);
+
+/**
+ * The choices an administrator makes for the whole workbench, in its single
+ * row. Without the row every choice holds its default.
+ */
+export const workspaceSettings = pgTable(
+  "workspace_settings",
+  {
+    id: boolean("id").primaryKey().default(true),
+    interactiveAnnotation: boolean("interactive_annotation").notNull(),
+  },
+  (table) => [check("workspace_settings_singleton_check", sql`${table.id}`)],
 );

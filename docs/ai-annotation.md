@@ -14,19 +14,33 @@ over detection. Only a human review makes the image eligible for training.
 On an image, **AI annotation** either starts from clean pixels or refits the boxes
 currently shown. Model settings own classes, instructions and region geometry.
 The server freezes those inputs at creation. Dataset and observation batch actions
-queue one run per eligible image. Workers advertise Pi and Antigravity; a queued
-run can be claimed by any Worker providing its requested runtime.
+queue one run per eligible image. The actions appear only while some online Worker
+runs an annotation agent, and a request never names one: any such Worker claims
+the oldest queued run, and the run records the agent it was claimed by.
 
-An interactive MCP client can create the same kind of proposal without an online
-Worker. Its executor is recorded as `interactive`; the server does not pretend to know the
-client's hidden model identity. Both paths appear in the existing proposal and
-review UI, and neither writes an accepted human review automatically.
+An agent a person connects over MCP, such as ChatGPT, can create the same kind of
+proposal from its own conversation, without an online Worker. The run is recorded
+as `interactive`; the server does not pretend to know the client's hidden model
+identity. Pages show both as the same AI proposal and AI activity, and neither
+writes an accepted human review automatically.
+
+An image and model have at most one active run, whoever drives it. Both kinds hold
+a lease: a Worker renews its own, and every call from a connected agent renews its
+run's. A run whose lease lapses fails, releasing the image for a new request.
+
+## Administration
+
+Each Worker runs at most one annotation agent, chosen in its profile (see
+[Worker responsibilities](#worker-responsibilities)). Administrators decide on the
+Integrations page whether connected agents may annotate. Turned off, OAuth clients
+no longer see the annotation tools and open interactive runs are cancelled; their
+other MCP tools are unaffected.
 
 ## One service, two principals
 
 | Principal | Authentication | Tools | Scope |
 | --- | --- | --- | --- |
-| Interactive client | User OAuth at the existing MCP resource | `annotation_start`, `annotation_next`, and the three core tools | The user's own interactive runs |
+| Interactive client | User OAuth at the existing MCP resource, while interactive annotation is enabled | `annotation_start`, `annotation_next`, and the three core tools | The user's own interactive runs |
 | Worker-launched agent | Signed, short-lived task bearer token | The three core tools only | One run, region and attempt |
 
 The authenticated per-request MCP factory constructs the tool list. Every core
@@ -51,7 +65,8 @@ reference list. Omitting it starts from the image alone.
 
 `annotation_next({runId})` returns progress and the current unfinished `taskId`.
 Calling it again before submission returns the same task. A null task ID indicates
-completion. Run IDs can be used in a later conversation to resume after interruption.
+completion. A run ID can resume the run in a later conversation, provided no more
+than 30 minutes pass without a call; after that the run lapses and a new one is needed.
 
 The core schemas are identical for both principals and are also generated into
 Python's standalone tool contracts:
@@ -89,11 +104,12 @@ Example instruction after connecting a client:
 
 ## Worker responsibilities
 
-The Worker claims runs and renews its existing lease. It probes the selected
-runtime once, obtains the server's regional task list, and schedules up to two
-independent sessions concurrently. Before each session it requests a task-bound
-credential. Runtime/version/model provenance is frozen by the first assignment;
-later sessions must match it.
+The Worker probes its agent once when it starts and reports the result in its
+heartbeat; a Worker whose agent cannot be probed keeps serving inference and
+training. It claims runs and renews its lease, obtains the server's regional task
+list, and schedules up to two independent sessions concurrently. Before each
+session it requests a task-bound credential. The claim records the agent's
+runtime, version and model as the run's provenance.
 
 Pi's native extension and Antigravity's stdio entry are thin transports to the
 same remote MCP endpoint. The bridge fetches tool definitions from that endpoint
@@ -108,24 +124,21 @@ Install/authenticate Pi (`pi`) or Antigravity (`agy`) on the Worker host, then:
 vitroflow annotate setup --runtime antigravity  # only for Antigravity
 vitroflow worker setup annotator \
   --server https://your-workbench.example \
-  --annotation-runtime pi \
-  --annotation-runtime antigravity
+  --annotation-runtime pi
 ```
 
-Each enabled runtime has one private `config.toml` entry:
+The agent is one private `config.toml` table:
 
 ```toml
-[[annotation]]
-runtime = "pi"
+[annotation]
+runtime = "pi"                          # or "antigravity"
 # model = "provider/model"
 # executable = "/absolute/path/to/pi"
-
-[[annotation]]
-runtime = "antigravity"
-# model = "model-slug"
-# executable = "/absolute/path/to/agy"
 # timeout_seconds = 1800
 ```
+
+Pi reaches other providers' models through `model`. The agent and its model belong
+to the Worker's profile.
 
 Run `vitroflow worker doctor annotator` and restart after changing settings.
 Antigravity setup registers the task-bound stdio bridge in its global MCP config;
@@ -143,8 +156,9 @@ image, local product checkpoint package or final upload payload. Standalone
 
 Postgres is the single authority:
 
-- `annotation_runs`: frozen input, creator, selected executor, Worker lease,
-  aggregate progress, execution provenance and final proposal.
+- `annotation_runs`: frozen input, creator, executor (`worker` or `interactive`),
+  lease, aggregate progress, the claiming agent and final proposal.
+- `workspace_settings`: whether connected agents may annotate.
 - `annotation_tasks`: frozen core/patch geometry, current attempt and accepted
   regional response.
 - `annotation_previews`: immutable proposal versions bound to a regional attempt.
@@ -158,9 +172,9 @@ neighboring results. Owned boxes touching internal patch edges are rejected.
 Uncertainty, boundary truncation and seam-review warnings remain in the proposal.
 Geometry validation does not establish visual accuracy.
 
-Interactive runs persist across conversation interruptions until completed or
-cancelled. Worker lease loss fails explicitly; execution failures stop new
-sessions while already running sessions finish. No automatic paid retry or
+Lease loss fails a run explicitly, whether a Worker stopped renewing or a
+connected agent stopped calling. Worker execution failures stop new sessions while
+already running sessions finish. No automatic paid retry or
 cross-runtime fallback occurs. A transport retry of an accepted proposal is
 idempotent and does not rerun inference. A new product run is required after a
 failed/cancelled run.

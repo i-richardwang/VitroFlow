@@ -12,6 +12,7 @@ import {
   claimAnnotationRun,
   assignWorkerTask,
   cancelAnnotationRun,
+  setInteractiveAnnotation,
 } from "../../annotation-runs/public";
 import { recordWorkerHeartbeat } from "../../workers/public";
 
@@ -369,16 +370,12 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
   };
   const heartbeat = {
     ...testHeartbeat("mcp-task-worker"),
-    annotationRuntimes: [runtime],
+    annotationRuntime: runtime,
   };
   await recordWorkerHeartbeat(heartbeat);
   const run = await createAnnotationRun(
-    {
-      id: crypto.randomUUID(),
-      ref,
-      input: null,
-      executor: { kind: "worker", runtime: "pi" },
-    },
+    { id: crypto.randomUUID(), ref, input: null },
+    "worker",
     user.id,
   );
   await claimAnnotationRun(heartbeat);
@@ -387,7 +384,6 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
     heartbeat,
     `${run.id}/tile-000-000`,
     crypto.randomUUID(),
-    runtime,
   );
   if (binding.accepted) throw new Error("Unexpected acceptance");
   const taskList = await authenticatedRpc(
@@ -432,4 +428,22 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
       )
     ).status,
   ).toBe(401);
+});
+
+test("an administrator's switch decides whether OAuth clients see the annotation tools", async () => {
+  const { headers } = await signInAs("member");
+  const { accessToken } = await authorizeMcpClient(headers);
+  const names = async () =>
+    (await authenticatedRpc(accessToken, "tools/list")).result.tools.map(
+      (t: { name: string }) => t.name,
+    ) as string[];
+  await setInteractiveAnnotation(false);
+  try {
+    const hidden = await names();
+    expect(hidden.some((name) => name.startsWith("annotation_"))).toBe(false);
+    expect(hidden).toContain("list-experiments");
+  } finally {
+    await setInteractiveAnnotation(true);
+  }
+  expect(await names()).toContain("annotation_start");
 });

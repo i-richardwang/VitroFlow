@@ -31,7 +31,7 @@ CREATE TABLE "annotation_runs" (
 	"requested_by" text,
 	"request" jsonb NOT NULL,
 	"definition" jsonb NOT NULL,
-	"executor" jsonb NOT NULL,
+	"executor" text NOT NULL,
 	"status" text NOT NULL,
 	"completed" integer DEFAULT 0 NOT NULL,
 	"total" integer NOT NULL,
@@ -46,7 +46,8 @@ CREATE TABLE "annotation_runs" (
 	CONSTRAINT "annotation_runs_status_check" CHECK ("annotation_runs"."status" in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
 	CONSTRAINT "annotation_runs_progress_check" CHECK ("annotation_runs"."completed" >= 0 and "annotation_runs"."total" > 0 and "annotation_runs"."completed" <= "annotation_runs"."total"),
 	CONSTRAINT "annotation_runs_result_check" CHECK (("annotation_runs"."status" = 'succeeded') = ("annotation_runs"."result" is not null)),
-	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."status" <> 'running' or "annotation_runs"."executor"->>'kind' = 'interactive' or ("annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null and "annotation_runs"."lease_expires_at" is not null))
+	CONSTRAINT "annotation_runs_executor_check" CHECK ("annotation_runs"."executor" = 'worker' or ("annotation_runs"."executor" = 'interactive' and "annotation_runs"."status" <> 'queued' and "annotation_runs"."worker_id" is null and "annotation_runs"."session_id" is null and "annotation_runs"."runtime" is null)),
+	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."status" <> 'running' or ("annotation_runs"."lease_expires_at" is not null and ("annotation_runs"."executor" = 'interactive' or ("annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null))))
 );
 --> statement-breakpoint
 CREATE TABLE "annotation_tasks" (
@@ -509,9 +510,15 @@ CREATE TABLE "workers" (
 	"session_id" text NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
 	"runtimes" jsonb NOT NULL,
-	"annotation_runtimes" jsonb NOT NULL,
+	"annotation_runtime" jsonb,
 	"memory_bytes" bigint NOT NULL,
 	"last_seen_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workspace_settings" (
+	"id" boolean PRIMARY KEY DEFAULT true NOT NULL,
+	"interactive_annotation" boolean NOT NULL,
+	CONSTRAINT "workspace_settings_singleton_check" CHECK ("workspace_settings"."id")
 );
 --> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

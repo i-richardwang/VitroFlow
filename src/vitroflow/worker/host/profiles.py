@@ -32,19 +32,18 @@ class WorkerProfile:
     worker_id: str
     device: str | None = None
     poll_seconds: float = 5.0
-    annotation: tuple[RuntimeConfig, ...] = ()
+    annotation: RuntimeConfig | None = None
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
         validate_worker_process(self.worker_id, self.poll_seconds, self.device)
-        if len({item.runtime for item in self.annotation}) != len(self.annotation):
-            raise ValueError("Each annotation runtime must appear once")
-        for config in self.annotation:
-            config.create()
+        if self.annotation:
+            self.annotation.create()
 
     @property
-    def annotation_runtimes(self) -> dict[str, AgentRuntime]:
-        return {config.runtime: config.create() for config in self.annotation}
+    def annotation_runtime(self) -> AgentRuntime | None:
+        """The one AI annotation agent this Worker runs, if any."""
+        return self.annotation.create() if self.annotation else None
 
     @classmethod
     def from_toml(cls, path: Path) -> WorkerProfile:
@@ -54,9 +53,8 @@ class WorkerProfile:
             raise ValueError(
                 f"unknown worker profile fields: {', '.join(sorted(unknown))}"
             )
-        document["annotation"] = tuple(
-            RuntimeConfig(**value) for value in document.get("annotation", [])
-        )
+        if "annotation" in document:
+            document["annotation"] = RuntimeConfig(**document["annotation"])
         return cls(**document)
 
     def to_toml(self) -> str:
@@ -69,9 +67,9 @@ class WorkerProfile:
             values.append(("device", self.device))
         values.append(("poll_seconds", self.poll_seconds))
         result = "".join(f"{key} = {json.dumps(value)}\n" for key, value in values)
-        for config in self.annotation:
-            result += "\n[[annotation]]\n"
-            for key, value in asdict(config).items():
+        if self.annotation:
+            result += "\n[annotation]\n"
+            for key, value in asdict(self.annotation).items():
                 if value is not None:
                     result += f"{key} = {json.dumps(value)}\n"
         return result

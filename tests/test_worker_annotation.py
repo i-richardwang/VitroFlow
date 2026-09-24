@@ -8,7 +8,12 @@ import pytest
 
 from vitroflow.agent_annotation.remote import AnnotationMcpClient
 from vitroflow.worker.annotation import AnnotationClient, process_annotation_job
-from vitroflow.worker.session import LeaseLostError, WorkerClient, WorkerSession
+from vitroflow.worker.session import (
+    AnnotationAgent,
+    LeaseLostError,
+    WorkerClient,
+    WorkerSession,
+)
 
 
 @pytest.mark.parametrize(
@@ -29,6 +34,13 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
         operation = body["operation"]
         operations.append(operation)
         if operation == "assign":
+            assert set(body) == {
+                "workerId",
+                "sessionId",
+                "operation",
+                "taskId",
+                "attemptId",
+            }
             if outcome == "lease-lost":
                 return httpx.Response(409, text="lease lost")
             return httpx.Response(
@@ -84,7 +96,8 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
     monkeypatch.setattr(httpx, "post", remote_post)
     executions = []
 
-    def execute(prompt, directory, *, tools, **kwargs):
+    def execute(prompt, directory, *, descriptor, tools, **kwargs):
+        assert descriptor == agent.descriptor
         config_path = Path(tools.command[-1])
         config = json.loads(config_path.read_text())
         assert config_path.stat().st_mode & 0o777 == 0o600
@@ -98,7 +111,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
             )
         return descriptor
 
-    runtime = SimpleNamespace(probe=lambda: descriptor, execute=execute)
+    agent = AnnotationAgent(SimpleNamespace(execute=execute), descriptor)
     worker = WorkerClient(
         "https://lab.example",
         "worker-secret",
@@ -112,7 +125,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
                     AnnotationClient(worker),
                     {"id": "run"},
                     tmp_path,
-                    runtime,
+                    agent,
                     stopped=threading.Event(),
                 )
         else:
@@ -120,7 +133,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
                 AnnotationClient(worker),
                 {"id": "run"},
                 tmp_path,
-                runtime,
+                agent,
                 stopped=threading.Event(),
             )
             assert set(executions) == set(tasks)
@@ -130,7 +143,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
                 AnnotationClient(worker),
                 {"id": "run"},
                 tmp_path,
-                runtime,
+                agent,
                 stopped=threading.Event(),
             )
             assert len(executions) == 3

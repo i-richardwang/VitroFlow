@@ -3,7 +3,6 @@ import { deploymentEndpoint } from "../server/infra/deployment";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { workerIdentitySchema } from "../domain/workers/schema";
-import { annotationRuntimeSchema } from "../domain/annotation-runs/schema";
 import {
   renewAnnotationRun,
   failAnnotationRun,
@@ -21,7 +20,6 @@ const updateSchema = z.discriminatedUnion("operation", [
     operation: z.literal("assign"),
     taskId: z.string().min(1),
     attemptId: z.string().uuid(),
-    runtime: annotationRuntimeSchema,
   }),
   workerIdentitySchema.extend({
     operation: z.literal("fail"),
@@ -55,7 +53,6 @@ export const Route = createFileRoute(
                 body,
                 body.taskId,
                 body.attemptId,
-                body.runtime,
               );
               return Response.json(
                 grant.accepted

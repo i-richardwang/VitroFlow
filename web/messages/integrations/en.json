@@ -39,5 +39,8 @@
   "mcp_empty": "No MCP clients",
   "mcp_disconnect": "Disconnect",
   "mcp_disconnect_title": "Disconnect {name}?",
-  "mcp_disconnected": "{name} disconnected"
+  "mcp_disconnected": "{name} disconnected",
+  "interactive_annotation": "External AI annotation",
+  "interactive_annotation_description": "Let agents connected over MCP, such as ChatGPT, produce AI proposals for images. Turning this off cancels their annotation in progress.",
+  "interactive_annotation_not_changed": "Setting not changed"
 }

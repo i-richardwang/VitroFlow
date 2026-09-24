@@ -23,7 +23,7 @@ function toWorker(row: typeof workers.$inferSelect): Worker {
     sessionId: row.sessionId,
     startedAt: row.startedAt.toISOString(),
     runtimes: row.runtimes,
-    annotationRuntimes: row.annotationRuntimes,
+    annotationRuntime: row.annotationRuntime,
     memoryBytes: row.memoryBytes,
     lastSeenAt: row.lastSeenAt.toISOString(),
   });
@@ -56,7 +56,7 @@ export async function recordWorkerHeartbeat(
     sessionId: worker.sessionId,
     startedAt: new Date(worker.startedAt),
     runtimes: worker.runtimes,
-    annotationRuntimes: worker.annotationRuntimes,
+    annotationRuntime: worker.annotationRuntime,
     memoryBytes: worker.memoryBytes,
     lastSeenAt: at,
   };

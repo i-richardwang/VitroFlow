@@ -22,16 +22,16 @@ const runtime = {
 };
 const owner = {
   ...testHeartbeat("python-mcp-worker"),
-  annotationRuntimes: [runtime],
+  annotationRuntime: runtime,
 };
 await recordWorkerHeartbeat(owner);
 const run = await createAnnotationRun(
   {
     id: crypto.randomUUID(),
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
-    executor: {kind: "worker", runtime: "pi"},
     input: null,
   },
+  "worker",
   user.id,
 );
 await claimAnnotationRun(owner);
@@ -40,7 +40,6 @@ const binding = await assignWorkerTask(
   owner,
   `${run.id}/tile-000-000`,
   crypto.randomUUID(),
-  runtime,
 );
 if (binding.accepted) throw new Error("Unexpected acceptance");
 const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: serveMcp });

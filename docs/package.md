@@ -37,7 +37,7 @@ vitroflow worker stop mac-studio
 
 ## AI annotation
 
-`vitroflow annotate run --image photo.jpg --output output/ai-round` runs the selected agent (Pi by default) with its configured model and writes validated annotations and overlays locally. Enable the same capability on a Worker with `worker setup ... --annotation-runtime pi --annotation-runtime antigravity`. See [AI annotation](ai-annotation.md) and [portable annotation tasks](autoannotation.md).
+`vitroflow annotate run --image photo.jpg --output output/ai-round` runs the selected agent (Pi by default) with its configured model and writes validated annotations and overlays locally. Give a Worker the same capability with `worker setup ... --annotation-runtime pi` (or `antigravity`). See [AI annotation](ai-annotation.md) and [portable annotation tasks](autoannotation.md).
 
 ## Datasets
 

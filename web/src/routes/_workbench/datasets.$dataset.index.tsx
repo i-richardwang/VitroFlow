@@ -40,7 +40,8 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const { images, reviewedCount, training, agents } = Route.useLoaderData();
+  const { images, reviewedCount, training, canAnnotate } =
+    Route.useLoaderData();
   const router = useRouter();
   const [annotating, setAnnotating] = useState(false);
   const unreviewed = images.filter((image) => image.instanceCount === null);
@@ -59,13 +60,15 @@ function DatasetPage() {
           >
             {m.dataset_download()}
           </Link>
-          <Button
-            variant="secondary"
-            isDisabled={agents.length === 0 || unreviewed.length === 0}
-            onPress={() => setAnnotating(true)}
-          >
-            {m.ai_annotation()}
-          </Button>
+          {canAnnotate ? (
+            <Button
+              variant="secondary"
+              isDisabled={unreviewed.length === 0}
+              onPress={() => setAnnotating(true)}
+            >
+              {m.ai_annotation()}
+            </Button>
+          ) : null}
           <Button
             variant="primary"
             onPress={() => {
@@ -83,10 +86,7 @@ function DatasetPage() {
       <AnnotateImagesDialog
         isOpen={annotating}
         count={unreviewed.length}
-        agents={agents}
-        onConfirm={(runtime) =>
-          annotateDatasetImages({ data: { dataset, runtime } })
-        }
+        onConfirm={() => annotateDatasetImages({ data: { dataset } })}
         onClose={() => setAnnotating(false)}
       />
       <KPIGroup>

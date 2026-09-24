@@ -1,9 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import {
-  annotationRuntimeNameSchema,
-  startAnnotationRunSchema,
-} from "../domain/annotation-runs/schema";
+import { startAnnotationRunSchema } from "../domain/annotation-runs/schema";
 import { datasetRefSchema } from "../domain/datasets/schema";
 import { observationRefSchema } from "../domain/experiments/schema";
 import { resourceIdSchema } from "../domain/identifiers/schema";
@@ -26,7 +23,7 @@ export const startAnnotationRun = createServerFn({ method: "POST" })
   .validator(startAnnotationRunSchema)
   .handler(async ({ data }) => {
     const user = await requireUser();
-    return createAnnotationRun(data, user.id);
+    return createAnnotationRun(data, "worker", user.id);
   });
 
 export const stopAnnotationRun = createServerFn({ method: "POST" })
@@ -34,7 +31,7 @@ export const stopAnnotationRun = createServerFn({ method: "POST" })
   .handler(({ data }) => cancelAnnotationRun(data));
 
 export const annotateDatasetImages = createServerFn({ method: "POST" })
-  .validator(datasetRefSchema.extend({ runtime: annotationRuntimeNameSchema }))
+  .validator(datasetRefSchema)
   .handler(async ({ data }) => {
     const user = await requireUser();
     const refs = (await listImageRecords(data.dataset))
@@ -43,18 +40,16 @@ export const annotateDatasetImages = createServerFn({ method: "POST" })
         digest: record.image.digest,
         modelId: record.modelId,
       }));
-    return createAnnotationRuns(refs, data.runtime, user.id);
+    return createAnnotationRuns(refs, user.id);
   });
 
 export const annotateObservationImages = createServerFn({ method: "POST" })
-  .validator(
-    observationRefSchema.extend({ runtime: annotationRuntimeNameSchema }),
-  )
+  .validator(observationRefSchema)
   .handler(async ({ data }) => {
     const user = await requireUser();
     const refs = await listUnreviewedObservationImages(
       data.experiment,
       data.observation,
     );
-    return createAnnotationRuns(refs, data.runtime, user.id);
+    return createAnnotationRuns(refs, user.id);
   });

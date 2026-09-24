@@ -1,5 +1,5 @@
 {
-  "id": "0fe1f1f6-0681-427a-ba61-8df95c4bb222",
+  "id": "b4a9f4f1-ad17-4231-8efe-e35997bc691a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -276,7 +276,7 @@
         },
         "executor": {
           "name": "executor",
-          "type": "jsonb",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -477,9 +477,13 @@
           "name": "annotation_runs_result_check",
           "value": "(\"annotation_runs\".\"status\" = 'succeeded') = (\"annotation_runs\".\"result\" is not null)"
         },
+        "annotation_runs_executor_check": {
+          "name": "annotation_runs_executor_check",
+          "value": "\"annotation_runs\".\"executor\" = 'worker' or (\"annotation_runs\".\"executor\" = 'interactive' and \"annotation_runs\".\"status\" <> 'queued' and \"annotation_runs\".\"worker_id\" is null and \"annotation_runs\".\"session_id\" is null and \"annotation_runs\".\"runtime\" is null)"
+        },
         "annotation_runs_lease_check": {
           "name": "annotation_runs_lease_check",
-          "value": "\"annotation_runs\".\"status\" <> 'running' or \"annotation_runs\".\"executor\"->>'kind' = 'interactive' or (\"annotation_runs\".\"worker_id\" is not null and \"annotation_runs\".\"session_id\" is not null and \"annotation_runs\".\"lease_expires_at\" is not null)"
+          "value": "\"annotation_runs\".\"status\" <> 'running' or (\"annotation_runs\".\"lease_expires_at\" is not null and (\"annotation_runs\".\"executor\" = 'interactive' or (\"annotation_runs\".\"worker_id\" is not null and \"annotation_runs\".\"session_id\" is not null)))"
         }
       },
       "isRLSEnabled": false
@@ -4298,11 +4302,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "annotation_runtimes": {
-          "name": "annotation_runtimes",
+        "annotation_runtime": {
+          "name": "annotation_runtime",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "memory_bytes": {
           "name": "memory_bytes",
@@ -4339,6 +4343,37 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_settings": {
+      "name": "workspace_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "interactive_annotation": {
+          "name": "interactive_annotation",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_settings_singleton_check": {
+          "name": "workspace_settings_singleton_check",
+          "value": "\"workspace_settings\".\"id\""
+        }
+      },
       "isRLSEnabled": false
     }
   },

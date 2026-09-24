@@ -1,5 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { AnnotationRuntime } from "../../domain/annotation-runs/schema";
+import { and, asc, eq } from "drizzle-orm";
 import type { WorkerIdentity } from "../../domain/workers/schema";
 import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors";
 import { database, transaction } from "../infra/db/client";
@@ -12,11 +11,12 @@ const LEASE_MS = 5 * 60 * 1000;
 function conflict(message: string): never {
   throw new AnnotationRunConflictError(message);
 }
-function job(run: RunRow) {
-  if (run.executor.kind !== "worker")
-    return conflict("Run has no Worker executor");
-  return { id: run.id, runtime: run.executor.runtime };
-}
+const job = (run: RunRow) => ({ id: run.id });
+
+/**
+ * The oldest queued run goes to a Worker with an agent, and the run records
+ * that agent: the one its whole result comes from.
+ */
 export async function claimAnnotationRun(
   owner: WorkerIdentity,
   at = new Date(),
@@ -24,8 +24,8 @@ export async function claimAnnotationRun(
   return transaction(async (tx) => {
     const worker = await lockWorkerSession(owner, tx);
     await expireAnnotationRuns(at, tx);
-    const runtimes = worker.annotationRuntimes.map((item) => item.runtime);
-    if (!runtimes.length) return null;
+    const runtime = worker.annotationRuntime;
+    if (!runtime) return null;
     const [owned] = await tx
       .select()
       .from(annotationRuns)
@@ -41,12 +41,7 @@ export async function claimAnnotationRun(
     const candidates = await tx
       .select()
       .from(annotationRuns)
-      .where(
-        and(
-          eq(annotationRuns.status, "queued"),
-          inArray(sql`${annotationRuns.executor}->>'runtime'`, runtimes),
-        ),
-      )
+      .where(eq(annotationRuns.status, "queued"))
       .orderBy(asc(annotationRuns.createdAt))
       .for("update", { skipLocked: true })
       .limit(1);
@@ -59,6 +54,7 @@ export async function claimAnnotationRun(
         workerId: owner.workerId,
         sessionId: owner.sessionId,
         leaseExpiresAt: new Date(at.getTime() + LEASE_MS),
+        runtime,
         updatedAt: at,
       })
       .where(eq(annotationRuns.id, row.id));
@@ -72,29 +68,11 @@ export async function assignWorkerTask(
   owner: WorkerIdentity,
   taskId: string,
   attemptId: string,
-  runtime: AnnotationRuntime,
 ) {
   return transaction(async (tx) => {
     const run = await lockRun(tx, runId);
     if (run.status !== "running") conflict("Annotation run is not running");
     await requireWorkerLease(tx, run, owner);
-    if (
-      run.executor.kind !== "worker" ||
-      runtime.runtime !== run.executor.runtime
-    )
-      conflict("Wrong annotation runtime");
-    if (
-      run.runtime &&
-      (run.runtime.runtime !== runtime.runtime ||
-        run.runtime.version !== runtime.version ||
-        run.runtime.model !== runtime.model)
-    )
-      conflict("Runtime changed during the run");
-    if (!run.runtime)
-      await tx
-        .update(annotationRuns)
-        .set({ runtime })
-        .where(eq(annotationRuns.id, runId));
     const [task] = await tx
       .select()
       .from(annotationTasks)

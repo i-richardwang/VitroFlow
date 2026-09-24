@@ -7,20 +7,22 @@ import type {
 } from "../../domain/annotation-runs/schema";
 import { annotationRuns } from "../infra/db/schema";
 
-export const LEASE_EXPIRED = "Worker lease expired. Start a new run to retry.";
+export const LEASE_EXPIRED =
+  "The agent stopped working on this run. Start a new run to retry.";
 
 type Row = typeof annotationRuns.$inferSelect;
 
-/** A running run whose Worker stopped renewing has failed, whatever the row says. */
+/** A running run whose agent stopped renewing its lease has failed, whatever the row says. */
 export function effectiveStatus(row: Row, at = new Date()) {
-  const expired =
-    row.status === "running" &&
-    row.leaseExpiresAt !== null &&
-    row.leaseExpiresAt.getTime() <= at.getTime();
-  return {
-    status: expired ? ("failed" as const) : row.status,
-    error: expired ? LEASE_EXPIRED : row.error,
-  };
+  return row.status === "running" && leaseLapsed(row, at)
+    ? ("failed" as const)
+    : row.status;
+}
+
+export function leaseLapsed(row: Row, at: Date) {
+  return (
+    row.leaseExpiresAt !== null && row.leaseExpiresAt.getTime() <= at.getTime()
+  );
 }
 
 export const proposalRuns = alias(annotationRuns, "proposal_runs");
@@ -57,7 +59,6 @@ export function toProposal(row: Row | null): AnnotationProposal | null {
   if (!row?.result) return null;
   return {
     runId: row.id,
-    executor: row.executor,
     createdAt: row.createdAt.toISOString(),
     document: row.result.document,
     issues: row.result.issues,
@@ -67,13 +68,11 @@ export function toProposal(row: Row | null): AnnotationProposal | null {
 
 export function toActivity(row: Row | null): AnnotationActivity | null {
   if (!row) return null;
-  const { status, error } = effectiveStatus(row);
+  const status = effectiveStatus(row);
   if (status === "succeeded" || status === "cancelled") return null;
   return {
     runId: row.id,
-    executor: row.executor,
     status,
     progress: { completed: row.completed, total: row.total },
-    error,
   };
 }

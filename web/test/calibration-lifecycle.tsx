@@ -187,15 +187,11 @@ mock.module("../src/functions/review", () => ({
     return { status: "saved" };
   },
 }));
-let startRequests: { executor: unknown; input: unknown }[] = [];
+let startRequests: { input: unknown }[] = [];
 mock.module("../src/functions/annotation-runs", () => ({
-  startAnnotationRun: async ({
-    data,
-  }: {
-    data: { executor: unknown; input: unknown };
-  }) => {
+  startAnnotationRun: async ({ data }: { data: { input: unknown } }) => {
     startRequests.push(data);
-    throw new Error("No online Worker provides the selected agent");
+    throw new Error("No AI annotation agent is online");
   },
   stopAnnotationRun: async () => {},
 }));
@@ -217,7 +213,6 @@ const annotation = {
 };
 const proposal = {
   runId: "qa-ai-result",
-  executor: { kind: "worker" as const, runtime: "pi" as const },
   createdAt: "2026-09-14T00:00:00Z",
   document: {
     ...annotation,
@@ -251,7 +246,7 @@ const render = async (calibrating: boolean, model = SEED_DETECTOR) => {
         title: "Seed",
         model,
         review: { ...review, ref: { ...review.ref, modelId: model.id } },
-        agents: ["pi"],
+        canAnnotate: true,
         calibrating,
         source,
         onSourceChange(next) {
@@ -364,12 +359,8 @@ await act(async () => {
 });
 assert.equal(boxes(), 2, "calibration must display the fetched annotation");
 assert.equal(boxes(), 2, "an available proposal must not replace the draft");
-await act(async () => item("pi:refit")!.click());
-assert.deepEqual(
-  startRequests.map((request) => request.executor),
-  [{ kind: "worker", runtime: "pi" }],
-  "the request names the agent and leaves admission to the server",
-);
+await act(async () => item("refit")!.click());
+assert.equal(startRequests.length, 1, "refitting asks the server once");
 assert.deepEqual(
   startRequests[0]?.input,
   latest.instances,

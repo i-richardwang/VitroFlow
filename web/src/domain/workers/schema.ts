@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  annotationRuntimeNameSchema,
-  annotationRuntimeSchema,
-} from "../annotation-runs/schema";
+import { annotationRuntimeSchema } from "../annotation-runs/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
 
@@ -26,14 +23,7 @@ export const workerHeartbeatSchema = workerIdentitySchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
-    annotationRuntimes: z
-      .array(annotationRuntimeSchema)
-      .max(annotationRuntimeNameSchema.options.length)
-      .refine(
-        (items) =>
-          new Set(items.map((item) => item.runtime)).size === items.length,
-        "each annotation runtime appears once",
-      ),
+    annotationRuntime: annotationRuntimeSchema.nullable(),
     memoryBytes: z.number().int().positive(),
   })
   .strict();

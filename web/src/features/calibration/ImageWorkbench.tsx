@@ -9,7 +9,6 @@ import {
   type Review,
   type ReviewSource,
 } from "../../domain/annotation/review";
-import type { AnnotationRuntimeName } from "../../domain/annotation-runs/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import {
@@ -36,7 +35,7 @@ export function ImageWorkbench({
   title,
   model,
   review,
-  agents,
+  canAnnotate,
   calibrating,
   source,
   onSourceChange,
@@ -46,7 +45,8 @@ export function ImageWorkbench({
   title: string;
   model: Model;
   review: Review;
-  agents: AnnotationRuntimeName[];
+  /** Whether an agent is online to be asked; without one the page offers none. */
+  canAnnotate: boolean;
   calibrating: boolean;
   source?: ReviewSource;
   onSourceChange: (source: ReviewSource) => void;
@@ -73,15 +73,14 @@ export function ImageWorkbench({
     (calibration.status === "loading"
       ? reviewInstances(review)
       : ((shown && sourceInstances(review, shown)) ?? []));
-  const ai = (
+  const ai = canAnnotate ? (
     <AiAnnotateMenu
       review={review}
       model={model}
-      agents={agents}
       current={ready ? ready.instances : instances.length ? instances : null}
       disabled={calibration.status === "loading" || saving}
     />
-  );
+  ) : null;
 
   return (
     <Workbench title={title}>
@@ -166,7 +165,7 @@ export function ImageWorkbench({
         <AiSection
           review={review}
           model={model}
-          agents={agents}
+          canAnnotate={canAnnotate}
           disabled={saving}
         />
         <ReviewInspector

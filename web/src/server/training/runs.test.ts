@@ -55,7 +55,7 @@ function heartbeat(identity: WorkerIdentity, startedAt: Date): WorkerHeartbeat {
     ...identity,
     startedAt: startedAt.toISOString(),
     runtimes: [ULTRALYTICS_RUNTIME],
-    annotationRuntimes: [],
+    annotationRuntime: null,
     memoryBytes: 24 * 1024 ** 3,
   };
 }

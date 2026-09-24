@@ -11,7 +11,7 @@ import {
   removeDatasetImage,
   summarizeDataset,
 } from "../server/datasets/public";
-import { availableAnnotationRuntimes } from "../server/annotation-runs/public";
+import { annotationWorkerOnline } from "../server/annotation-runs/public";
 import { readDatasetImage, datasetOverview } from "../server/queries/public";
 
 export const getDatasetOverview = createServerFn({ method: "GET" })
@@ -19,7 +19,7 @@ export const getDatasetOverview = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const overview = await datasetOverview(data.dataset);
     if (!overview) return null;
-    return { ...overview, agents: await availableAnnotationRuntimes() };
+    return { ...overview, canAnnotate: await annotationWorkerOnline() };
   });
 
 export const getDatasetImage = createServerFn({ method: "GET" })
@@ -27,7 +27,7 @@ export const getDatasetImage = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const view = await readDatasetImage(data);
     if (!view) return null;
-    return { ...view, agents: await availableAnnotationRuntimes() };
+    return { ...view, canAnnotate: await annotationWorkerOnline() };
   });
 
 export const getDatasets = createServerFn({ method: "GET" }).handler(async () =>

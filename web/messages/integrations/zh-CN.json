@@ -39,5 +39,8 @@
   "mcp_empty": "暂无 MCP 客户端",
   "mcp_disconnect": "断开",
   "mcp_disconnect_title": "断开 {name}？",
-  "mcp_disconnected": "已断开 {name}"
+  "mcp_disconnected": "已断开 {name}",
+  "interactive_annotation": "外部 AI 标注",
+  "interactive_annotation_description": "允许通过 MCP 连接的智能体（如 ChatGPT）为图片生成 AI 建议。关闭后，进行中的外部标注会被取消。",
+  "interactive_annotation_not_changed": "设置未更改"
 }

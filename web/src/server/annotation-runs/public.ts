@@ -1,5 +1,5 @@
 export {
-  availableAnnotationRuntimes,
+  annotationWorkerOnline,
   createAnnotationRun,
   createAnnotationRuns,
   cancelAnnotationRun,
@@ -20,6 +20,10 @@ export { nextAnnotationTask, submitProposal } from "./tasks";
 export { viewAnnotationTask, previewAnnotationTask } from "./views";
 export type { AnnotationPanel } from "./rendering";
 export { validateTaskPrincipal } from "./access";
+export {
+  interactiveAnnotationEnabled,
+  setInteractiveAnnotation,
+} from "./interactive";
 export {
   claimAnnotationRun,
   renewAnnotationRun,

@@ -2,18 +2,14 @@ import {
   Button,
   Dropdown,
   Label,
-  ListBox,
   Modal,
   ProgressBar,
-  Select,
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
 
 import { agentBusy, type Review } from "../../domain/annotation/review";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
-import type { AnnotationRuntimeName } from "../../domain/annotation-runs/schema";
 import type { Model } from "../../domain/models/schema";
 import {
   startAnnotationRun,
@@ -23,9 +19,13 @@ import { m } from "../../paraglide/messages";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Timestamp } from "../../ui/Timestamp";
 import { Section } from "./inspector";
-import { agentLabels, executorLabel } from "./labels";
 
 type Start = "fresh" | "refit";
+
+const START_LABELS: Record<Start, () => string> = {
+  fresh: m.ai_fresh,
+  refit: m.ai_refit,
+};
 
 /**
  * Asks an agent to read the image: from the image alone, or by refitting the
@@ -34,13 +34,11 @@ type Start = "fresh" | "refit";
 export function AiAnnotateMenu({
   review,
   model,
-  agents,
   current,
   disabled,
 }: {
   review: Review;
   model: Model;
-  agents: AnnotationRuntimeName[];
   /** The boxes an agent would refit, or null when the page shows none. */
   current: AnnotationInstance[] | null;
   disabled: boolean;
@@ -50,17 +48,15 @@ export function AiAnnotateMenu({
   const blocked =
     disabled ||
     busy ||
-    agents.length === 0 ||
     model.annotation.instructions.length === 0 ||
     agentBusy(review);
-  const start = (agent: AnnotationRuntimeName, from: Start) =>
+  const start = (from: Start) =>
     void run(
       () =>
         startAnnotationRun({
           data: {
             id: crypto.randomUUID(),
             ref: review.ref,
-            executor: { kind: "worker", runtime: agent },
             input: from === "refit" ? current : null,
           },
         }),
@@ -68,10 +64,6 @@ export function AiAnnotateMenu({
     ).then(async (result) => {
       if (result.ok) await router.invalidate();
     });
-  const label = (agent: AnnotationRuntimeName, from: Start) => {
-    const text = from === "fresh" ? m.ai_fresh() : m.ai_refit();
-    return agents.length > 1 ? `${agentLabels[agent]()} · ${text}` : text;
-  };
   return (
     <Dropdown>
       <Button variant="secondary" isDisabled={blocked}>
@@ -80,69 +72,53 @@ export function AiAnnotateMenu({
       <Dropdown.Popover placement="bottom end">
         <Dropdown.Menu
           aria-label={m.ai_annotation()}
-          onAction={(key) => {
-            const [agent, from] = String(key).split(":") as [
-              AnnotationRuntimeName,
-              Start,
-            ];
-            start(agent, from);
-          }}
-          disabledKeys={
-            current?.length ? [] : agents.map((agent) => `${agent}:refit`)
-          }
+          onAction={(key) => start(String(key) as Start)}
+          disabledKeys={current?.length ? [] : ["refit"]}
         >
-          {agents.flatMap((agent) =>
-            (["fresh", "refit"] as const).map((from) => (
-              <Dropdown.Item
-                key={`${agent}:${from}`}
-                id={`${agent}:${from}`}
-                textValue={label(agent, from)}
-              >
-                <Label>{label(agent, from)}</Label>
-              </Dropdown.Item>
-            )),
-          )}
+          {(["fresh", "refit"] as const).map((from) => (
+            <Dropdown.Item
+              key={from}
+              id={from}
+              textValue={START_LABELS[from]()}
+            >
+              <Label>{START_LABELS[from]()}</Label>
+            </Dropdown.Item>
+          ))}
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
   );
 }
 
-/** What the agent is doing or did for this image, and why it cannot be asked. */
+/**
+ * The agent's reading of this image: the one at work, the last that failed,
+ * or the proposal it left. A model without instructions says why no agent
+ * can be asked.
+ */
 export function AiSection({
   review,
   model,
-  agents,
+  canAnnotate,
   disabled,
 }: {
   review: Review;
   model: Model;
-  agents: AnnotationRuntimeName[];
+  canAnnotate: boolean;
   disabled: boolean;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
   const { activity, proposal } = review;
-  const stateLabels = {
-    queued: m.ai_queued,
-    running: m.ai_running,
-    failed: m.ai_failed,
-  };
-  const blocker =
-    agents.length === 0
-      ? m.ai_no_worker()
-      : model.annotation.instructions.length === 0
-        ? m.ai_no_instructions()
-        : null;
-  if (!activity && !proposal && !blocker) return null;
+  const uninstructed =
+    canAnnotate && model.annotation.instructions.length === 0;
+  if (!activity && !proposal && !uninstructed) return null;
   return (
     <Section title={m.ai_section()}>
       {activity && activity.status !== "failed" ? (
         <div className="flex flex-col gap-2" role="status">
           <span className="text-sm">
-            {executorLabel(activity.executor)} ·{" "}
-            {stateLabels[activity.status]()} · {activity.progress.completed}/
-            {activity.progress.total}
+            {activity.status === "queued" ? m.ai_queued() : m.ai_running()} ·{" "}
+            {activity.progress.completed}/{activity.progress.total}
           </span>
           <ProgressBar
             className="w-full"
@@ -172,14 +148,12 @@ export function AiSection({
       ) : null}
       {activity?.status === "failed" ? (
         <p role="alert" className="text-sm text-danger">
-          {executorLabel(activity.executor)} · {m.ai_failed()}
-          {activity.error ? ` · ${activity.error}` : null}
+          {m.ai_failed()}
         </p>
       ) : null}
       {proposal ? (
         <>
           <p className="text-sm">
-            {executorLabel(proposal.executor)} ·{" "}
             <Timestamp value={proposal.createdAt} />
           </p>
           <p className="text-xs text-muted">
@@ -201,33 +175,30 @@ export function AiSection({
           ) : null}
         </>
       ) : null}
-      {blocker ? <p className="text-sm text-muted">{blocker}</p> : null}
+      {uninstructed ? (
+        <p className="text-sm text-muted">{m.ai_no_instructions()}</p>
+      ) : null}
     </Section>
   );
 }
 
 /**
  * Asks an agent to draw every image nobody has calibrated. The count is the
- * cost the person agrees to; the runs queue for any Worker that runs the
- * agent.
+ * cost the person agrees to.
  */
 export function AnnotateImagesDialog({
   isOpen,
   count,
-  agents,
   onConfirm,
   onClose,
 }: {
   isOpen: boolean;
   count: number;
-  agents: AnnotationRuntimeName[];
-  onConfirm: (agent: AnnotationRuntimeName) => Promise<number>;
+  onConfirm: () => Promise<number>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
-  const [agent, setAgent] = useState<AnnotationRuntimeName | null>(null);
-  const chosen = agent && agents.includes(agent) ? agent : agents[0];
   return (
     <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
       <Modal.Backdrop>
@@ -237,40 +208,8 @@ export function AnnotateImagesDialog({
             <Modal.Header>
               <Modal.Heading>{m.ai_batch_title()}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body className="flex flex-col gap-4">
+            <Modal.Body>
               <p className="text-sm">{m.ai_batch_count({ count })}</p>
-              {agents.length > 1 ? (
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={chosen ?? null}
-                  onSelectionChange={(key) =>
-                    key !== null &&
-                    setAgent(String(key) as AnnotationRuntimeName)
-                  }
-                >
-                  <Label>{m.ai_agent()}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {agents.map((name) => (
-                        <ListBox.Item
-                          key={name}
-                          id={name}
-                          textValue={agentLabels[name]()}
-                        >
-                          {agentLabels[name]()}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              ) : null}
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
@@ -278,10 +217,9 @@ export function AnnotateImagesDialog({
               </Button>
               <Button
                 variant="primary"
-                isDisabled={busy || !chosen || count === 0}
+                isDisabled={busy || count === 0}
                 onPress={() =>
-                  chosen &&
-                  void run(() => onConfirm(chosen), m.ai_not_started()).then(
+                  void run(onConfirm, m.ai_not_started()).then(
                     async (result) => {
                       if (!result.ok) return;
                       onClose();

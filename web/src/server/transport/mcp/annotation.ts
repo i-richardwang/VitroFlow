@@ -87,7 +87,7 @@ export function registerAnnotationTools(
   if (principal.kind === "user") {
     register(
       "annotation_start",
-      "Create or reopen an annotation run for an image and model. Reuse requestId to retry. Then call annotation_next, view, preview and submit until complete. Results remain unreviewed AI proposals.",
+      "Create or reopen an annotation run for an image and model. Reuse requestId to retry. Then call annotation_next, view, preview and submit until complete. A run left without calls for 30 minutes lapses. Results remain unreviewed AI proposals.",
       z.strictObject({
         requestId: z.string().uuid(),
         ref: annotationRefSchema,
@@ -100,12 +100,8 @@ export function registerAnnotationTools(
       false,
       async (args) => {
         const run = await createAnnotationRun(
-          {
-            id: args.requestId,
-            ref: args.ref,
-            input: args.input,
-            executor: { kind: "interactive" },
-          },
+          { id: args.requestId, ref: args.ref, input: args.input },
+          "interactive",
           principal.userId,
         );
         return {

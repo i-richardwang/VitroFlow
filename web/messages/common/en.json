@@ -45,18 +45,14 @@
   "error_model_id_taken": "That identifier is already taken.",
   "error_model_in_use": "Only a model nothing records against can be deleted.",
   "ai_annotation": "AI annotation",
-  "ai_no_worker": "No AI annotation Worker is online. Configure a Worker with Pi or Antigravity.",
   "ai_progress": "Annotation progress",
   "ai_stop": "Cancel AI run",
   "ai_queued": "Queued",
   "ai_running": "Annotating",
-  "ai_failed": "Failed",
+  "ai_failed": "AI annotation failed",
   "ai_result_summary": "{count} boxes · {issues} issues · {uncertain} uncertain boxes",
   "ai_issues": "Areas needing attention",
   "worker_activity_annotation": "Annotating {image} with AI",
-  "ai_agent": "Agent",
-  "ai_agent_pi": "Pi",
-  "ai_agent_antigravity": "Antigravity",
   "ai_no_instructions": "This model has no annotation instructions. Add them on the Models page before starting AI annotation.",
   "ai_fresh": "From the image",
   "ai_refit": "Refit the boxes shown",
@@ -66,6 +62,5 @@
   "ai_batch_title": "AI annotation",
   "ai_batch_count": "An agent will draw the {count} images nobody has calibrated. Calibrated images are left alone.",
   "ai_batch_confirm": "Start",
-  "ai_batch_started": "AI annotation started for {count} images",
-  "ai_executor_interactive": "Interactive agent"
+  "ai_batch_started": "AI annotation started for {count} images"
 }

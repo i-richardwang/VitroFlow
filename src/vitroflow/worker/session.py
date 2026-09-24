@@ -12,7 +12,7 @@ import os
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -48,7 +48,7 @@ class WorkerSettings:
     work_dir: Path
     poll_seconds: float = 5.0
     device: str | None = None
-    annotation_runtimes: dict[str, AgentRuntime] = field(default_factory=dict)
+    annotation_runtime: AgentRuntime | None = None
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
@@ -80,6 +80,25 @@ def device_memory_bytes(device: str) -> int:
 
 
 @dataclass(frozen=True)
+class AnnotationAgent:
+    """The agent a process runs, as it described itself when the process started."""
+
+    runtime: AgentRuntime
+    descriptor: dict
+
+
+def probe_annotation_agent(runtime: AgentRuntime | None) -> AnnotationAgent | None:
+    """An agent that cannot describe itself leaves the Worker's other work running."""
+    if runtime is None:
+        return None
+    try:
+        return AnnotationAgent(runtime, runtime.probe())
+    except (OSError, ValueError, RuntimeError) as error:
+        LOGGER.warning("Annotation agent is unavailable: %s", error)
+        return None
+
+
+@dataclass(frozen=True)
 class WorkerSession:
     """One process incarnation of a worker and what it can do."""
 
@@ -88,33 +107,22 @@ class WorkerSession:
     started_at: str
     runtimes: tuple[RuntimeDescriptor, ...]
     memory_bytes: int
-    annotation_runtimes: tuple[dict, ...] = ()
+    annotation_agent: AnnotationAgent | None = None
 
     @classmethod
     def create(
         cls,
         worker_id: str,
         device: str | None,
-        annotation_runtimes: dict[str, AgentRuntime] | None = None,
+        annotation_runtime: AgentRuntime | None = None,
     ) -> WorkerSession:
-        descriptors = []
-        for name, runtime in (annotation_runtimes or {}).items():
-            try:
-                descriptor = runtime.probe()
-                if descriptor["runtime"] != name:
-                    raise ValueError(
-                        "Configured runtime name differs from its descriptor"
-                    )
-                descriptors.append(descriptor)
-            except (OSError, ValueError, RuntimeError) as error:
-                LOGGER.warning("Annotation runtime %s is unavailable: %s", name, error)
         return cls(
             worker_id,
             f"session-{uuid4()}",
             datetime.now(UTC).isoformat(),
             available_runtimes(),
             device_memory_bytes(device or "cpu"),
-            tuple(descriptors),
+            probe_annotation_agent(annotation_runtime),
         )
 
     @property
@@ -132,7 +140,9 @@ class WorkerSession:
             "startedAt": self.started_at,
             "runtimes": [runtime.to_dict() for runtime in self.runtimes],
             "memoryBytes": self.memory_bytes,
-            "annotationRuntimes": list(self.annotation_runtimes),
+            "annotationRuntime": (
+                self.annotation_agent.descriptor if self.annotation_agent else None
+            ),
         }
 
 

@@ -53,7 +53,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
 });
 
 function DatasetImagePage() {
-  const { dataset, model, review, agents, split, previous, next } =
+  const { dataset, model, review, canAnnotate, split, previous, next } =
     Route.useLoaderData();
   const { show, calibrate } = Route.useSearch();
   const router = useRouter();
@@ -78,7 +78,7 @@ function DatasetImagePage() {
       title={m.image_title({ file: review.filename, dataset: dataset.id })}
       model={model}
       review={review}
-      agents={agents}
+      canAnnotate={canAnnotate}
       calibrating={calibrate === true}
       source={show}
       onSourceChange={(show) =>

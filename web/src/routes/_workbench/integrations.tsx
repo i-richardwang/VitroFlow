@@ -4,8 +4,10 @@ import { useState } from "react";
 
 import { ApiKeysTable } from "../../features/integrations/ApiKeysTable";
 import { CopyableCode } from "../../features/integrations/CopyableCode";
+import { InteractiveAnnotationSwitch } from "../../features/integrations/InteractiveAnnotationSwitch";
 import { McpClientsTable } from "../../features/integrations/McpClientsTable";
 import { NewApiKeyDialog } from "../../features/integrations/NewApiKeyDialog";
+import { isAdmin } from "../../domain/auth/schema";
 import { Page, PageSection } from "../../ui/Page";
 import { getIntegrations } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
@@ -20,7 +22,9 @@ export const Route = createFileRoute("/_workbench/integrations")({
 });
 
 function IntegrationsPage() {
-  const { apiKeys, mcpClients, mcpUrl } = Route.useLoaderData();
+  const { apiKeys, mcpClients, mcpUrl, interactiveAnnotation } =
+    Route.useLoaderData();
+  const { user } = Route.useRouteContext();
   const [creating, setCreating] = useState(false);
 
   return (
@@ -38,6 +42,9 @@ function IntegrationsPage() {
       <PageSection title={m.integrations_mcp_clients()}>
         <CopyableCode value={mcpUrl} label={m.mcp_endpoint()} />
         <McpClientsTable mcpClients={mcpClients} />
+        {isAdmin(user) ? (
+          <InteractiveAnnotationSwitch enabled={interactiveAnnotation} />
+        ) : null}
       </PageSection>
       <NewApiKeyDialog isOpen={creating} onClose={() => setCreating(false)} />
     </Page>

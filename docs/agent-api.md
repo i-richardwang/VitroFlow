@@ -76,9 +76,10 @@ A command runs in one database transaction: it either changes the record as a wh
 
 ## Visual annotation
 
-The same `/api/mcp` endpoint exposes interactive annotation tools to OAuth users:
-`annotation_start`, `annotation_next`, `annotation_view`, `annotation_preview`,
-and `annotation_submit`. Image replies use MCP image content. These tools use the
+The same `/api/mcp` endpoint exposes interactive annotation tools to OAuth users
+while an administrator allows interactive annotation: `annotation_start`,
+`annotation_next`, `annotation_view`, `annotation_preview`, and
+`annotation_submit`. Image replies use MCP image content. These tools use the
 annotation service rather than the business-operation JSON registry. Worker task
 credentials expose only view/preview/submit and cannot access business operations.
 See [AI annotation](ai-annotation.md) for the task lifecycle, authentication and

@@ -4,14 +4,13 @@ import {
   workerAnnotationStatus,
   claimAnnotationRun,
 } from "./worker";
-import type { AnnotationRuntime } from "../../domain/annotation-runs/schema";
 import type { WorkerIdentity } from "../../domain/workers/schema";
 import { expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, ne } from "drizzle-orm";
 import type { StartAnnotationRun } from "../../domain/annotation-runs/schema";
 import { readReview } from "../annotations/review";
 import { createModel, setModelAnnotation } from "../models/public";
-import { annotationRuns } from "../infra/db/schema";
+import { annotationRuns, workers } from "../infra/db/schema";
 import { database } from "../infra/db/client";
 import { observeImages, signInAs, testHeartbeat } from "../testing/fixtures";
 import { recordWorkerHeartbeat } from "../workers/sessions";
@@ -20,19 +19,16 @@ import {
   cancelAnnotationRun,
   createAnnotationRuns,
 } from "./runs";
+import { nextAnnotationTask } from "./tasks";
+import { setInteractiveAnnotation } from "./interactive";
 
-async function finish(
-  runId: string,
-  owner: WorkerIdentity,
-  runtime: AnnotationRuntime,
-) {
+async function finish(runId: string, owner: WorkerIdentity) {
   for (const task of (await workerAnnotationStatus(runId, owner)).tasks) {
     const binding = await assignWorkerTask(
       runId,
       owner,
       task.taskId,
       crypto.randomUUID(),
-      runtime,
     );
     if (binding.accepted) continue;
     const principal = binding.principal;
@@ -43,26 +39,32 @@ async function finish(
   }
 }
 
+async function stored(id: string) {
+  const [row] = await (
+    await database()
+  )
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, id));
+  return row!;
+}
+
+const pi = { runtime: "pi" as const, version: "0.85.1", model: "test/vision" };
+
 async function setup(name: string) {
   const { user } = await signInAs("member");
   const observed = await observeImages(name, [name, `${name}-other`]);
   const owner = { workerId: name, sessionId: `session-${name}` };
-  const runtime = {
-    runtime: "pi" as const,
-    version: "0.85.1",
-    model: "test/vision",
-  };
   await recordWorkerHeartbeat({
     ...testHeartbeat(name),
-    annotationRuntimes: [runtime],
+    annotationRuntime: pi,
   });
   const request = {
     id: `${name}-run`,
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
-    executor: { kind: "worker", runtime: "pi" } as const,
     input: null,
   } satisfies StartAnnotationRun;
-  return { user, owner, request, runtime, digests: observed.digests };
+  return { user, owner, request, digests: observed.digests };
 }
 test("the model's instructions and region are frozen into the run definition", async () => {
   const { user, owner, request, digests } = await setup("ai-region");
@@ -73,7 +75,7 @@ test("the model's instructions and region are frozen into the run definition", a
   });
   const ref = { digest: digests[0]!, modelId: model.id };
   await expect(
-    createAnnotationRun({ ...request, ref }, user.id),
+    createAnnotationRun({ ...request, ref }, "worker", user.id),
   ).rejects.toThrow("no annotation instructions");
   const annotation = {
     instructions: "Box every seed.",
@@ -88,18 +90,9 @@ test("the model's instructions and region are frozen into the run definition", a
       annotation: { ...annotation, halo: 17 },
     }),
   ).rejects.toThrow("Context cannot exceed core size");
-  const run = await createAnnotationRun({ ...request, ref }, user.id);
-  expect(await claimAnnotationRun(owner)).toEqual({
-    id: run.id,
-    runtime: "pi",
-  });
-  const [stored] = await (
-    await database()
-  )
-    .select()
-    .from(annotationRuns)
-    .where(eq(annotationRuns.id, run.id));
-  const definition = stored!.definition;
+  const run = await createAnnotationRun({ ...request, ref }, "worker", user.id);
+  expect(await claimAnnotationRun(owner)).toEqual({ id: run.id });
+  const { definition } = await stored(run.id);
   expect(definition.config).toEqual({
     classes: ["seed"],
     rules: annotation.instructions,
@@ -115,91 +108,138 @@ test("the model's instructions and region are frozen into the run definition", a
 });
 test("reading projects an expired lease without writing and a new request retires it", async () => {
   const { user, owner, request } = await setup("ai-read-only");
-  await createAnnotationRun(request, user.id);
+  await createAnnotationRun(request, "worker", user.id);
   await claimAnnotationRun(owner, new Date(Date.now() - 301000));
   const db = await database();
-  const stored = () =>
-    db.select().from(annotationRuns).where(eq(annotationRuns.id, request.id));
-  const [before] = await stored();
+  const before = await stored(request.id);
   const visible = (await readReview(request.ref, "ai-read-only.jpg", db))
     ?.activity;
   expect(visible?.status).toBe("failed");
-  expect(visible?.error).toContain("lease expired");
-  expect(await stored()).toEqual([before!]);
-  await createAnnotationRun({ ...request, id: "ai-read-only-next" }, user.id);
-  expect((await stored())[0]?.status).toBe("failed");
+  expect(await stored(request.id)).toEqual(before);
+  await createAnnotationRun(
+    { ...request, id: "ai-read-only-next" },
+    "worker",
+    user.id,
+  );
+  expect((await stored(request.id)).status).toBe("failed");
   await cancelAnnotationRun("ai-read-only-next");
 });
 
-test("a run names an agent; any Worker that runs it may claim, and the result must come from it", async () => {
-  const { user, owner, request, runtime } = await setup("ai-choice");
-  const antigravity = {
-    runtime: "antigravity" as const,
-    version: "1.2.3",
-    model: "default-vision",
+test("any Worker with an agent claims the oldest run, and the run keeps the agent it was claimed by", async () => {
+  const { user, owner, request } = await setup("ai-claim");
+  const bare = {
+    workerId: "ai-claim-bare",
+    sessionId: "session-ai-claim-bare",
   };
+  await recordWorkerHeartbeat({
+    ...testHeartbeat(bare.workerId),
+    sessionId: bare.sessionId,
+  });
+  const run = await createAnnotationRun(request, "worker", user.id);
+  expect(run.status).toBe("queued");
   await expect(
-    createAnnotationRun(
-      { ...request, executor: { kind: "worker", runtime: "antigravity" } },
-      user.id,
-    ),
-  ).rejects.toThrow("No online Worker provides");
+    createAnnotationRun({ ...request, input: [] }, "worker", user.id),
+  ).rejects.toThrow("different inputs");
+  expect(await claimAnnotationRun(bare)).toBeNull();
+  expect(await claimAnnotationRun(owner)).toEqual({ id: run.id });
+  expect(await claimAnnotationRun(owner)).toEqual({ id: run.id });
   await recordWorkerHeartbeat({
     ...testHeartbeat(owner.workerId),
-    annotationRuntimes: [runtime, antigravity],
+    annotationRuntime: { ...pi, version: "0.86.0" },
   });
-  const run = await createAnnotationRun(
-    { ...request, executor: { kind: "worker", runtime: "antigravity" } },
-    user.id,
-  );
-  expect(run.executor).toEqual({ kind: "worker", runtime: "antigravity" });
-  await expect(createAnnotationRun(request, user.id)).rejects.toThrow(
-    "different inputs",
-  );
-  // A Worker without the requested agent leaves the run for one that has it.
-  await recordWorkerHeartbeat({
-    ...testHeartbeat(owner.workerId),
-    annotationRuntimes: [runtime],
-  });
-  expect(await claimAnnotationRun(owner)).toBeNull();
-  const other = { workerId: "ai-choice-other", sessionId: "session-other" };
-  await recordWorkerHeartbeat({
-    ...testHeartbeat(other.workerId),
-    sessionId: other.sessionId,
-    annotationRuntimes: [{ ...antigravity, version: "1.3.0" }],
-  });
-  const job = (await claimAnnotationRun(other))!;
-  expect(job.runtime).toBe("antigravity");
-  await expect(
-    assignWorkerTask(
-      run.id,
-      other,
-      `${run.id}/tile-000-000`,
-      crypto.randomUUID(),
-      runtime,
-    ),
-  ).rejects.toThrow("Wrong annotation runtime");
-  await finish(run.id, other, { ...antigravity, version: "1.3.0" });
-  const [stored] = await (
+  await finish(run.id, owner);
+  const row = await stored(run.id);
+  expect(row.status).toBe("succeeded");
+  expect(row.executor).toBe("worker");
+  expect(row.runtime).toEqual(pi);
+});
+
+test("a Worker run needs an online agent", async () => {
+  const { user, request } = await setup("ai-offline");
+  // Every other Worker in the roster falls silent; this one runs no agent.
+  await (
     await database()
   )
-    .select()
-    .from(annotationRuns)
-    .where(eq(annotationRuns.id, run.id));
-  expect(stored?.status).toBe("succeeded");
-  expect(stored?.runtime?.version).toBe("1.3.0");
+    .update(workers)
+    .set({ lastSeenAt: new Date(0) })
+    .where(ne(workers.id, "ai-offline"));
+  await recordWorkerHeartbeat(testHeartbeat("ai-offline"));
+  await expect(createAnnotationRun(request, "worker", user.id)).rejects.toThrow(
+    "No AI annotation agent is online",
+  );
+  await expect(createAnnotationRuns([request.ref], user.id)).rejects.toThrow(
+    "No AI annotation agent is online",
+  );
+});
+
+test("an interactive run lives while its agent keeps calling and lapses when it stops", async () => {
+  const { user, request } = await setup("ai-interactive-lease");
+  const principal = { kind: "user" as const, userId: user.id, clientId: "c" };
+  const run = await createAnnotationRun(request, "interactive", user.id);
+  expect(run.status).toBe("running");
+  const lapseIn = async (ms: number) =>
+    (await database())
+      .update(annotationRuns)
+      .set({ leaseExpiresAt: new Date(Date.now() + ms) })
+      .where(eq(annotationRuns.id, run.id));
+  await lapseIn(1000);
+  await nextAnnotationTask(principal, run.id);
+  expect((await stored(run.id)).leaseExpiresAt!.getTime()).toBeGreaterThan(
+    Date.now() + 20 * 60 * 1000,
+  );
+  await expect(
+    createAnnotationRun({ ...request, id: "ai-blocked" }, "worker", user.id),
+  ).rejects.toThrow("already has an active");
+  await lapseIn(-1000);
+  expect(
+    (await readReview(request.ref, "lease.jpg", await database()))?.activity
+      ?.status,
+  ).toBe("failed");
+  await expect(nextAnnotationTask(principal, run.id)).rejects.toThrow(
+    "stopped working",
+  );
+  const next = await createAnnotationRun(
+    { ...request, id: "ai-after-lapse" },
+    "worker",
+    user.id,
+  );
+  expect(next.status).toBe("queued");
+  expect((await stored(run.id)).status).toBe("failed");
+  await cancelAnnotationRun(next.id);
+});
+
+test("turning interactive annotation off ends the runs connected agents hold, and only those", async () => {
+  const { user, request, digests } = await setup("ai-interactive-off");
+  const interactive = await createAnnotationRun(
+    request,
+    "interactive",
+    user.id,
+  );
+  const scheduled = await createAnnotationRun(
+    {
+      id: "ai-interactive-off-worker",
+      ref: { ...request.ref, digest: digests[1]! },
+      input: null,
+    },
+    "worker",
+    user.id,
+  );
+  await setInteractiveAnnotation(false);
+  try {
+    expect((await stored(interactive.id)).status).toBe("cancelled");
+    expect((await stored(scheduled.id)).status).toBe("queued");
+  } finally {
+    await setInteractiveAnnotation(true);
+    await cancelAnnotationRun(scheduled.id);
+  }
 });
 
 test("a batch draws each image once, leaving images an agent is already reading", async () => {
   const { user, request, digests } = await setup("ai-batch");
   const second = { digest: digests[1]!, modelId: request.ref.modelId };
-  await createAnnotationRun(request, user.id);
-  expect(await createAnnotationRuns([request.ref, second], "pi", user.id)).toBe(
-    1,
-  );
-  expect(await createAnnotationRuns([request.ref, second], "pi", user.id)).toBe(
-    0,
-  );
+  await createAnnotationRun(request, "worker", user.id);
+  expect(await createAnnotationRuns([request.ref, second], user.id)).toBe(1);
+  expect(await createAnnotationRuns([request.ref, second], user.id)).toBe(0);
   const db = await database();
   const queued = await db
     .select({ id: annotationRuns.id, imageId: annotationRuns.imageId })
@@ -215,7 +255,7 @@ test("a batch draws each image once, leaving images an agent is already reading"
 
 test("batch admission retires expired work and admits each image only once", async () => {
   const { user, owner, request } = await setup("ai-expired-batch");
-  await createAnnotationRun(request, user.id);
+  await createAnnotationRun(request, "worker", user.id);
   const claimed = await claimAnnotationRun(
     owner,
     new Date(Date.now() - 301000),
@@ -227,8 +267,8 @@ test("batch admission retires expired work and admits each image only once", asy
   ).toBe("failed");
 
   const started = await Promise.all([
-    createAnnotationRuns([request.ref, request.ref], "pi", user.id),
-    createAnnotationRuns([request.ref], "pi", user.id),
+    createAnnotationRuns([request.ref, request.ref], user.id),
+    createAnnotationRuns([request.ref], user.id),
   ]);
   expect(started.reduce((sum, count) => sum + count, 0)).toBe(1);
   const rows = await db

@@ -6,8 +6,8 @@ import {
 } from "../../domain/annotation/schema";
 import {
   annotationDefinitionSchema,
+  type AnnotationExecutor,
   type AnnotationRun,
-  type AnnotationRuntimeName,
   type StartAnnotationRun,
 } from "../../domain/annotation-runs/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
@@ -23,33 +23,29 @@ import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";
+import { interactiveLease } from "./access";
 import { LEASE_EXPIRED, effectiveStatus } from "./readings";
 
 function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
   return {
     id: row.id,
-    ref: { digest: row.imageId, modelId: row.modelId },
-    requestedBy: row.requestedBy,
-    executor: row.executor,
-    runtime: row.runtime,
-    ...effectiveStatus(row),
+    status: effectiveStatus(row),
     progress: { completed: row.completed, total: row.total },
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    result: row.result,
   };
 }
 
-/** The agents some online Worker can run right now, in a stable order. */
-export async function availableAnnotationRuntimes(): Promise<
-  AnnotationRuntimeName[]
-> {
-  const names = new Set<AnnotationRuntimeName>();
-  for (const worker of await listWorkers()) {
-    if (workerPresence(worker.lastSeenAt) !== "online") continue;
-    for (const runtime of worker.annotationRuntimes) names.add(runtime.runtime);
-  }
-  return [...names].sort();
+/** Whether some online Worker runs an annotation agent right now. */
+export async function annotationWorkerOnline(): Promise<boolean> {
+  return (await listWorkers()).some(
+    (worker) =>
+      worker.annotationRuntime !== null &&
+      workerPresence(worker.lastSeenAt) === "online",
+  );
+}
+
+async function requireAnnotationWorker() {
+  if (!(await annotationWorkerOnline()))
+    throw new AnnotationRunConflictError("No AI annotation agent is online");
 }
 
 /** Expired work fails explicitly; a new paid attempt requires a new request. */
@@ -69,16 +65,19 @@ export async function expireAnnotationRuns(at: Date, db: Executor) {
     );
 }
 
+/**
+ * Starts one run. A Worker run waits in the queue for any Worker with an
+ * agent; an interactive run belongs to the connected agent that asked, which
+ * holds it for as long as it keeps calling.
+ */
 export async function createAnnotationRun(
   request: StartAnnotationRun,
+  executor: AnnotationExecutor,
   requestedBy: string,
 ): Promise<AnnotationRun> {
-  const available =
-    request.executor.kind === "worker"
-      ? await availableAnnotationRuntimes()
-      : [];
+  if (executor === "worker") await requireAnnotationWorker();
   const run = await transaction((tx) =>
-    admitRun(request, requestedBy, available, tx),
+    admitRun(request, executor, requestedBy, tx),
   );
   if (!run)
     throw new AnnotationRunConflictError(
@@ -90,8 +89,8 @@ export async function createAnnotationRun(
 /** Under the image lock, either admit this request or leave its active run alone. */
 async function admitRun(
   request: StartAnnotationRun,
+  executor: AnnotationExecutor,
   requestedBy: string,
-  available: AnnotationRuntimeName[],
   tx: Executor,
 ): Promise<AnnotationRun | null> {
   await lockImage(request.ref.digest, tx);
@@ -102,6 +101,7 @@ async function admitRun(
   if (existing) {
     if (
       existing.requestedBy !== requestedBy ||
+      existing.executor !== executor ||
       canonicalJson(existing.request) !== canonicalJson(request)
     )
       throw new AnnotationRunConflictError(
@@ -137,13 +137,6 @@ async function admitRun(
     });
     assertInstanceClasses(model.classes, request.input, "AI annotation input");
   }
-  if (
-    request.executor.kind === "worker" &&
-    !available.includes(request.executor.runtime)
-  )
-    throw new AnnotationRunConflictError(
-      "No online Worker provides the selected agent",
-    );
   const { instructions, ...region } = model.annotation;
   if (!instructions)
     throw new AnnotationRunConflictError(
@@ -168,8 +161,10 @@ async function admitRun(
       requestedBy,
       request,
       definition,
-      executor: request.executor,
-      status: request.executor.kind === "interactive" ? "running" : "queued",
+      executor,
+      ...(executor === "interactive"
+        ? { status: "running", leaseExpiresAt: interactiveLease(now) }
+        : { status: "queued" }),
       total: tasks.length,
       createdAt: now,
       updatedAt: now,
@@ -188,28 +183,22 @@ async function admitRun(
 }
 
 /**
- * One run per image, from the image alone, skipping images an agent is
- * already working on. The count is how many were started.
+ * One Worker run per image, from the image alone, skipping images an agent
+ * is already working on. The count is how many were started.
  */
 export async function createAnnotationRuns(
   refs: AnnotationRef[],
-  runtime: AnnotationRuntimeName,
   requestedBy: string,
 ): Promise<number> {
   if (!refs.length) return 0;
-  const available = await availableAnnotationRuntimes();
+  await requireAnnotationWorker();
   let started = 0;
   for (const ref of refs) {
     const run = await transaction((tx) =>
       admitRun(
-        {
-          id: crypto.randomUUID(),
-          ref,
-          executor: { kind: "worker", runtime },
-          input: null,
-        },
+        { id: crypto.randomUUID(), ref, input: null },
+        "worker",
         requestedBy,
-        available,
         tx,
       ),
     );

@@ -9,6 +9,11 @@ import {
   apiKeyRefSchema,
   mcpClientRefSchema,
 } from "../domain/auth/integrations";
+import { isAdmin } from "../domain/auth/schema";
+import {
+  interactiveAnnotationEnabled,
+  setInteractiveAnnotation,
+} from "../server/annotation-runs/public";
 import {
   issueApiKey,
   listApiKeys,
@@ -22,26 +27,38 @@ import { deploymentEndpoint } from "../server/infra/deployment";
 
 import { readSession } from "../server/transport/http/session";
 
-async function actor(): Promise<string> {
+async function signedIn() {
   const user = await readSession(getRequestHeaders());
   if (!user) throw new Response("Unauthorized", { status: 401 });
-  return user.id;
+  return user;
 }
+
+const actor = async () => (await signedIn()).id;
 
 export const getIntegrations = createServerFn({ method: "GET" }).handler(
   async () => {
     const user = await actor();
-    const [apiKeys, mcpClients] = await Promise.all([
+    const [apiKeys, mcpClients, interactiveAnnotation] = await Promise.all([
       listApiKeys(user),
       listMcpClients(user),
+      interactiveAnnotationEnabled(),
     ]);
     return {
       apiKeys,
       mcpClients,
       mcpUrl: deploymentEndpoint().mcpResource,
+      interactiveAnnotation,
     };
   },
 );
+
+export const changeInteractiveAnnotation = createServerFn({ method: "POST" })
+  .validator(z.object({ enabled: z.boolean() }))
+  .handler(async ({ data }) => {
+    if (!isAdmin(await signedIn()))
+      throw new Response("Forbidden", { status: 403 });
+    await setInteractiveAnnotation(data.enabled);
+  });
 
 export const addApiKey = createServerFn({ method: "POST" })
   .validator(apiKeyCreateSchema)

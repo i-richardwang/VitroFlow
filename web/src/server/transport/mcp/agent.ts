@@ -1,7 +1,10 @@
 import { isTaskToken, verifyTaskToken } from "./task-credentials";
 import type { AnnotationPrincipal } from "../../../domain/annotation-runs/access";
 import { registerAnnotationTools } from "./annotation";
-import { validateTaskPrincipal } from "../../annotation-runs/public";
+import {
+  interactiveAnnotationEnabled,
+  validateTaskPrincipal,
+} from "../../annotation-runs/public";
 import { requireMcpAuth } from "@better-auth/mcp";
 import {
   bearerAuthChallengeResponse,
@@ -36,7 +39,8 @@ import { deploymentEndpoint } from "../../infra/deployment";
 /**
  * The MCP face of the agent operations: every tool is one registry entry, so
  * the business tool list cannot drift from the HTTP surface. Annotation
- * tools additionally return images and are scoped to a user or region attempt.
+ * tools additionally return images and are scoped to a user or region attempt;
+ * a user sees them only while interactive annotation is enabled.
  */
 function toolAnnotations(operation: AgentOperation): ToolAnnotations {
   return operation.kind === "query"
@@ -148,7 +152,8 @@ export async function serveMcp(request: Request): Promise<Response> {
       instance,
       async (accepted, claims) => {
         const clientId = mcpClientId(claims);
-        if (!clientId || !(await mcpAuthorizationIsLive(claims))) {
+        const userId = claims.sub;
+        if (!clientId || !userId || !(await mcpAuthorizationIsLive(claims))) {
           return bearerAuthChallengeResponse(
             new OAuthError(
               OAuthErrorCode.InvalidToken,
@@ -165,18 +170,19 @@ export async function serveMcp(request: Request): Promise<Response> {
           typeof claims.scope === "string"
             ? claims.scope.split(" ").filter(Boolean)
             : [];
+        const principal: AnnotationPrincipal = {
+          kind: "user",
+          userId,
+          clientId,
+        };
         return mcpHandler.fetch(accepted, {
           authInfo: {
             token,
             clientId,
             scopes,
-            extra: {
-              annotationPrincipal: {
-                kind: "user",
-                userId: claims.sub,
-                clientId,
-              },
-            },
+            extra: (await interactiveAnnotationEnabled())
+              ? { annotationPrincipal: principal }
+              : {},
             expiresAt: claims.exp,
             resource: new URL(deployment.mcpResource),
           },

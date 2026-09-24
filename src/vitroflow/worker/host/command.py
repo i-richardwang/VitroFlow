@@ -41,7 +41,9 @@ def _setup(args: argparse.Namespace) -> int:
         worker_id=args.worker_id or args.profile,
         device=args.device,
         poll_seconds=args.poll_seconds,
-        annotation=tuple(RuntimeConfig(name) for name in args.annotation_runtime),
+        annotation=(
+            RuntimeConfig(args.annotation_runtime) if args.annotation_runtime else None
+        ),
     )
     for check in preflight_profile(args.profile, profile):
         print(check)
@@ -118,9 +120,7 @@ def add_worker_commands(commands: SubparserCollection) -> None:
     setup.add_argument(
         "--annotation-runtime",
         choices=RUNTIME_NAMES,
-        action="append",
-        default=[],
-        help="Enable an annotation runtime with its default model; repeat to enable both",
+        help="Run this AI annotation agent with its default model",
     )
     setup.add_argument("--poll-seconds", type=float, default=5.0)
     setup.add_argument(

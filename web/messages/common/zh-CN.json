@@ -45,18 +45,14 @@
   "error_model_id_taken": "该标识已被占用。",
   "error_model_in_use": "只有尚无任何记录的模型才能删除。",
   "ai_annotation": "AI 标注",
-  "ai_no_worker": "没有在线的 AI 标注 Worker。请为 Worker 配置 Pi 或 Antigravity。",
   "ai_progress": "标注进度",
   "ai_stop": "取消 AI 标注",
   "ai_queued": "排队中",
   "ai_running": "标注中",
-  "ai_failed": "失败",
+  "ai_failed": "AI 标注失败",
   "ai_result_summary": "{count} 个框 · {issues} 项疑问 · {uncertain} 个不确定框",
   "ai_issues": "需要关注的区域",
   "worker_activity_annotation": "正在 AI 标注 {image}",
-  "ai_agent": "Agent",
-  "ai_agent_pi": "Pi",
-  "ai_agent_antigravity": "Antigravity",
   "ai_no_instructions": "该模型还没有标注说明。请先在「模型」页补充，再开始 AI 标注。",
   "ai_fresh": "从图片开始",
   "ai_refit": "改进当前框",
@@ -66,6 +62,5 @@
   "ai_batch_title": "AI 标注",
   "ai_batch_count": "将为 {count} 张未校准的图片生成 AI 建议，已校准的图片不受影响。",
   "ai_batch_confirm": "开始",
-  "ai_batch_started": "已为 {count} 张图片开始 AI 标注",
-  "ai_executor_interactive": "交互式智能体"
+  "ai_batch_started": "已为 {count} 张图片开始 AI 标注"
 }

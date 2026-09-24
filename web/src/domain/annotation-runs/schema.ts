@@ -8,24 +8,20 @@ import {
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { annotationConfigSchema } from "../models/annotation";
 
-export const annotationRuntimeNameSchema = z.enum(["pi", "antigravity"]);
-export type AnnotationRuntimeName = z.infer<typeof annotationRuntimeNameSchema>;
-
+/** The agent a Worker runs, as it reported itself when the Worker started. */
 export const annotationRuntimeSchema = z.strictObject({
-  runtime: annotationRuntimeNameSchema,
+  runtime: z.enum(["pi", "antigravity"]),
   version: z.string().min(1).max(128),
   model: z.string().min(1).max(256),
 });
 export type AnnotationRuntime = z.infer<typeof annotationRuntimeSchema>;
 
-const annotationExecutorSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("interactive") }),
-  z.strictObject({
-    kind: z.literal("worker"),
-    runtime: annotationRuntimeNameSchema,
-  }),
-]);
-export type AnnotationExecutor = z.infer<typeof annotationExecutorSchema>;
+/**
+ * Who drives a run: a Worker the workbench dispatches it to, or an agent the
+ * person connected over MCP that drives it from its own conversation.
+ */
+export const ANNOTATION_EXECUTORS = ["worker", "interactive"] as const;
+export type AnnotationExecutor = (typeof ANNOTATION_EXECUTORS)[number];
 
 export const ANNOTATION_RUN_STATUSES = [
   "queued",
@@ -37,7 +33,6 @@ export const ANNOTATION_RUN_STATUSES = [
 export const startAnnotationRunSchema = z.strictObject({
   id: resourceIdSchema,
   ref: annotationRefSchema,
-  executor: annotationExecutorSchema,
   input: z.array(annotationInstanceSchema).max(10000).nullable(),
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
@@ -59,10 +54,7 @@ export const annotationDefinitionSchema = z.strictObject({
 });
 export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
-export const annotationJobSchema = z.strictObject({
-  id: resourceIdSchema,
-  runtime: annotationRuntimeNameSchema,
-});
+export const annotationJobSchema = z.strictObject({ id: resourceIdSchema });
 
 export const annotationRunResultSchema = z.strictObject({
   document: annotationSchema,
@@ -78,21 +70,12 @@ export const annotationRunResultSchema = z.strictObject({
 export type AnnotationRunResult = z.infer<typeof annotationRunResultSchema>;
 export type AnnotationRun = {
   id: string;
-  ref: z.infer<typeof annotationRefSchema>;
-  requestedBy: string | null;
-  executor: AnnotationExecutor;
-  runtime: AnnotationRuntime | null;
   status: (typeof ANNOTATION_RUN_STATUSES)[number];
   progress: z.infer<typeof annotationProgressSchema>;
-  createdAt: string;
-  updatedAt: string;
-  error: string | null;
-  result: AnnotationRunResult | null;
 };
 
 export const annotationProposalSchema = z.strictObject({
   runId: resourceIdSchema,
-  executor: annotationExecutorSchema,
   createdAt: z.string(),
   document: annotationSchema,
   issues: annotationRunResultSchema.shape.issues,
@@ -101,9 +84,7 @@ export const annotationProposalSchema = z.strictObject({
 export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;
 export const annotationActivitySchema = z.strictObject({
   runId: resourceIdSchema,
-  executor: annotationExecutorSchema,
   status: z.enum(["queued", "running", "failed"]),
   progress: annotationProgressSchema,
-  error: z.string().nullable(),
 });
 export type AnnotationActivity = z.infer<typeof annotationActivitySchema>;

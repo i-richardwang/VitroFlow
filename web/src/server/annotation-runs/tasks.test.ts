@@ -30,17 +30,11 @@ async function setup(name: string, scheduled = false) {
   if (scheduled)
     await recordWorkerHeartbeat({
       ...testHeartbeat(name),
-      annotationRuntimes: [runtime],
+      annotationRuntime: runtime,
     });
   const run = await createAnnotationRun(
-    {
-      id: crypto.randomUUID(),
-      ref,
-      input: null,
-      executor: scheduled
-        ? { kind: "worker", runtime: "pi" }
-        : { kind: "interactive" },
-    },
+    { id: crypto.randomUUID(), ref, input: null },
+    scheduled ? "worker" : "interactive",
     user.id,
   );
   const principal: AnnotationPrincipal = {
@@ -48,7 +42,7 @@ async function setup(name: string, scheduled = false) {
     userId: user.id,
     clientId: "test-client",
   };
-  return { run, principal, owner, runtime, ref };
+  return { run, principal, owner, ref };
 }
 const proposal = {
   instances: [{ id: "s1", class: "seed", box_2d: [100, 100, 300, 300] }],
@@ -87,7 +81,7 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
   expect(stored!.result!.document.instances[0]!.bbox.x).toBe(
     access.run.definition.image.width * 0.1,
   );
-  expect(stored!.executor).toEqual({ kind: "interactive" });
+  expect(stored!.executor).toBe("interactive");
   expect(stored!.runtime).toBeNull();
   await expect(
     submitProposal(principal, taskId, "f".repeat(64)),
@@ -126,14 +120,13 @@ test("user ownership, classes, finite geometry and preview identity are enforced
 });
 
 test("task credentials fence other regions, replaced attempts, cancellation, expiry and replaced Worker sessions", async () => {
-  const { run, owner, runtime } = await setup("remote-fencing", true);
+  const { run, owner } = await setup("remote-fencing", true);
   await claimAnnotationRun(owner);
   const binding = await assignWorkerTask(
     run.id,
     owner,
     `${run.id}/tile-000-000`,
     crypto.randomUUID(),
-    runtime,
   );
   if (binding.accepted) throw new Error("Unexpected acceptance");
   const principal = binding.principal;
@@ -148,7 +141,6 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
     owner,
     principal.taskId,
     crypto.randomUUID(),
-    runtime,
   );
   if (newer.accepted) throw new Error("Unexpected acceptance");
   await expect(
@@ -162,7 +154,11 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
     ...testHeartbeat(owner.workerId),
     sessionId: "replacement",
     startedAt: new Date().toISOString(),
-    annotationRuntimes: [runtime],
+    annotationRuntime: {
+      runtime: "pi",
+      version: "test",
+      model: "test/vision",
+    },
   });
   await expect(validateTaskPrincipal(newPrincipal)).rejects.toThrow();
   await cancelAnnotationRun(run.id);
@@ -190,12 +186,8 @@ test("all regions, including empty ones, must be accepted before finalization", 
     },
   });
   const second = await createAnnotationRun(
-    {
-      id: crypto.randomUUID(),
-      ref,
-      input: null,
-      executor: { kind: "interactive" },
-    },
+    { id: crypto.randomUUID(), ref, input: null },
+    "interactive",
     principal.kind === "user" ? principal.userId : "",
   );
   expect(second.progress.total).toBeGreaterThan(1);

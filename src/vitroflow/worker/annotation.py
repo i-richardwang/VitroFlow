@@ -15,14 +15,15 @@ from uuid import uuid4
 import httpx
 
 from vitroflow.agent_annotation.remote import AnnotationMcpClient
-from vitroflow.agent_runtimes.contract import (
-    AgentInterruptedError,
-    AgentRuntime,
-    ToolSet,
-)
+from vitroflow.agent_runtimes.contract import AgentInterruptedError, ToolSet
 from vitroflow.autoannotation.storage import write_json
 from vitroflow.contracts.validation import validate_wire_contract
-from vitroflow.worker.session import LeaseLostError, WorkerClient, keep_lease
+from vitroflow.worker.session import (
+    AnnotationAgent,
+    LeaseLostError,
+    WorkerClient,
+    keep_lease,
+)
 
 
 class AnnotationClient:
@@ -57,13 +58,13 @@ class _AnnotationRun:
         client: AnnotationClient,
         identifier: str,
         directory: Path,
-        runtime: AgentRuntime,
+        agent: AnnotationAgent,
         cancelled: Callable[[], bool],
     ) -> None:
         self.client = client
         self.identifier = identifier
         self.directory = directory
-        self.runtime = runtime
+        self.agent = agent
         self.cancelled = cancelled
         self.halt = threading.Event()
         self.accepted: dict[str, threading.Event] = {}
@@ -78,14 +79,10 @@ class _AnnotationRun:
                 event.set()
         return status
 
-    def execute(self, task_id: str, descriptor: dict) -> None:
+    def execute(self, task_id: str) -> None:
         attempt = str(uuid4())
         binding = self.client.update(
-            self.identifier,
-            "assign",
-            taskId=task_id,
-            attemptId=attempt,
-            runtime=descriptor,
+            self.identifier, "assign", taskId=task_id, attemptId=attempt
         )
         if binding["accepted"]:
             self.accepted[task_id].set()
@@ -123,10 +120,10 @@ class _AnnotationRun:
             )
             error = None
             try:
-                outcome = self.runtime.execute(
+                outcome = self.agent.runtime.execute(
                     prompt,
                     folder / "runtime",
-                    descriptor=descriptor,
+                    descriptor=self.agent.descriptor,
                     tools=tools,
                     cancelled=lambda: self.halt.is_set() or self.cancelled(),
                     completed=self.accepted[task_id].is_set,
@@ -147,7 +144,6 @@ class _AnnotationRun:
         status = self.status()
         if status["status"] == "succeeded":
             return
-        descriptor = self.runtime.probe()
         pending = [task["taskId"] for task in status["tasks"] if not task["accepted"]]
         active = set()
         failure: BaseException | None = None
@@ -157,9 +153,7 @@ class _AnnotationRun:
                     if self.cancelled():
                         raise AgentInterruptedError("AI annotation cancelled")
                     while pending and failure is None and len(active) < 2:
-                        active.add(
-                            pool.submit(self.execute, pending.pop(0), descriptor)
-                        )
+                        active.add(pool.submit(self.execute, pending.pop(0)))
                     done, active = wait(active, timeout=1, return_when=FIRST_COMPLETED)
                     for future in done:
                         try:
@@ -184,7 +178,7 @@ def process_annotation_job(
     client: AnnotationClient,
     job: dict,
     work_dir: Path,
-    runtime: AgentRuntime,
+    agent: AnnotationAgent,
     *,
     stopped: threading.Event,
 ) -> None:
@@ -197,7 +191,7 @@ def process_annotation_job(
 
     with keep_lease(client.client, renew, cancelled=stopped.is_set) as cancelled:
         try:
-            _AnnotationRun(client, identifier, directory, runtime, cancelled).run()
+            _AnnotationRun(client, identifier, directory, agent, cancelled).run()
         except LeaseLostError:
             raise
         except (OSError, ValueError, RuntimeError, httpx.HTTPError):

@@ -5,8 +5,15 @@ import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors"
 import { database, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks } from "../infra/db/schema";
 import { lockWorkerSession, sessionIsCurrent } from "../workers/public";
+import { LEASE_EXPIRED, leaseLapsed } from "./readings";
 
 export type RunRow = typeof annotationRuns.$inferSelect;
+
+/** How long a connected agent may pause between calls before its run lapses. */
+const INTERACTIVE_LEASE_MS = 30 * 60 * 1000;
+
+export const interactiveLease = (at: Date) =>
+  new Date(at.getTime() + INTERACTIVE_LEASE_MS);
 const conflict = (message: string): never => {
   throw new AnnotationRunConflictError(message);
 };
@@ -59,11 +66,17 @@ export async function authorizeRun(
   if (row.status !== "running" && row.status !== "succeeded")
     conflict("Annotation run is not active");
   if (principal.kind === "user") {
-    if (
-      row.requestedBy !== principal.userId ||
-      row.executor.kind !== "interactive"
-    )
+    if (row.requestedBy !== principal.userId || row.executor !== "interactive")
       conflict("Annotation run is not owned by this user");
+    if (row.status === "running") {
+      const now = new Date();
+      if (leaseLapsed(row, now)) conflict(LEASE_EXPIRED);
+      // Every call from the connected agent keeps its run alive.
+      await tx
+        .update(annotationRuns)
+        .set({ leaseExpiresAt: interactiveLease(now) })
+        .where(eq(annotationRuns.id, row.id));
+    }
   } else {
     if (principal.runId !== row.id || principal.expiresAt <= Date.now())
       conflict("Task credential expired or belongs to another run");
