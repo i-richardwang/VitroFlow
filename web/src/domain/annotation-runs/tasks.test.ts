@@ -5,10 +5,13 @@ import {
   owns,
   validateProposal,
   seamWarnings,
+  tiles,
 } from "./tasks";
+import { collectRegions } from "./results";
 import type { AnnotationDefinition } from "./schema";
 const definition: AnnotationDefinition = {
   input: null,
+  scope: null,
   image: { digest: "a".repeat(64), width: 120, height: 80 },
   config: {
     coreSize: 64,
@@ -72,4 +75,50 @@ test("seam checks flag strong cross-region overlap and preserve same-region over
   expect(
     seamWarnings([first, { ...second, bbox: { ...second.bbox, y: 20 } }]),
   ).toEqual([]);
+});
+
+test("a scope selects the regions it touches, and the result keeps the input boxes of the others", () => {
+  const kept = {
+    id: "kept",
+    class: "seed",
+    bbox: { x: 4, y: 4, width: 8, height: 8 },
+  };
+  const replaced = {
+    id: "replaced",
+    class: "seed",
+    bbox: { x: 100, y: 10, width: 8, height: 8 },
+  };
+  const scoped: AnnotationDefinition = {
+    ...definition,
+    input: [kept, replaced],
+    scope: [{ x: 90, y: 0, width: 20, height: 20 }],
+  };
+  expect(tiles(scoped)).toHaveLength(4);
+  const redrawn = regions(scoped);
+  expect(redrawn.map((region) => region.id)).toEqual(["tile-000-001"]);
+  const result = collectRegions(scoped, [
+    {
+      taskId: "run/tile-000-001",
+      region: redrawn[0]!,
+      response: {
+        instances: [
+          {
+            id: "s1",
+            class: "seed",
+            box_2d: [200, 400, 400, 600],
+            uncertain: false,
+            truncated: false,
+          },
+        ],
+        issues: [],
+      },
+    },
+  ]);
+  expect(result.document.instances.map((instance) => instance.id)).toEqual([
+    "run/tile-000-001/s1",
+    "kept",
+  ]);
+  expect(
+    regions({ ...scoped, scope: [{ x: 0, y: 0, width: 120, height: 80 }] }),
+  ).toHaveLength(4);
 });

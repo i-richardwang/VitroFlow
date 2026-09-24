@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { observeImages, signInAs, testHeartbeat } from "../testing/fixtures";
 import { recordWorkerHeartbeat } from "../workers/public";
-import { readAnnotation } from "../annotations/documents";
+import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { database } from "../infra/db/client";
 import { annotationRuns } from "../infra/db/schema";
 import { createModel, setModelAnnotation } from "../models/public";
@@ -33,7 +33,7 @@ async function setup(name: string, scheduled = false) {
       annotationRuntime: runtime,
     });
   const run = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: null },
+    { id: crypto.randomUUID(), ref, input: null, scope: null },
     scheduled ? "worker" : "interactive",
     user.id,
   );
@@ -186,7 +186,7 @@ test("all regions, including empty ones, must be accepted before finalization", 
     },
   });
   const second = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: null },
+    { id: crypto.randomUUID(), ref, input: null, scope: null },
     "interactive",
     principal.kind === "user" ? principal.userId : "",
   );
@@ -209,4 +209,98 @@ test("all regions, including empty ones, must be accepted before finalization", 
     );
   }
   expect(completed).toBe(second.progress.total);
+});
+
+test("a run scoped to part of the image redraws only the regions it touches and keeps the boxes of the reading it begins from elsewhere", async () => {
+  const { run, principal, ref } = await setup("remote-partial");
+  await cancelAnnotationRun(run.id);
+  const model = await createModel({
+    id: crypto.randomUUID(),
+    name: "Partial annotation test",
+    classes: ["seed"],
+  });
+  ref.modelId = model.id;
+  await setModelAnnotation({
+    model: ref.modelId,
+    annotation: {
+      instructions: "Box all seeds",
+      coreSize: 16,
+      halo: 4,
+      displayScale: 1,
+    },
+  });
+  const kept = {
+    id: "kept",
+    class: "seed",
+    bbox: { x: 2, y: 2, width: 4, height: 4 },
+  };
+  const stale = {
+    id: "stale",
+    class: "seed",
+    bbox: { x: 50, y: 50, width: 4, height: 4 },
+  };
+  await storeAnnotation(ref, [kept, stale], null);
+  const userId = principal.kind === "user" ? principal.userId : "";
+  const corner = { x: 48, y: 48, width: 16, height: 16 };
+  await expect(
+    createAnnotationRun(
+      { id: crypto.randomUUID(), ref, input: null, scope: [corner] },
+      "interactive",
+      userId,
+    ),
+  ).rejects.toThrow("needs the boxes to keep");
+  await expect(
+    createAnnotationRun(
+      { id: crypto.randomUUID(), ref, input: "proposal", scope: [corner] },
+      "interactive",
+      userId,
+    ),
+  ).rejects.toThrow("no proposal to begin from");
+  await expect(
+    createAnnotationRun(
+      {
+        id: crypto.randomUUID(),
+        ref,
+        input: "review",
+        scope: [{ ...corner, width: 32 }],
+      },
+      "interactive",
+      userId,
+    ),
+  ).rejects.toThrow("exceeds image bounds");
+  const partial = await createAnnotationRun(
+    { id: crypto.randomUUID(), ref, input: "review", scope: [corner] },
+    "interactive",
+    userId,
+  );
+  expect(partial.progress.total).toBe(1);
+  const [stored] = await (
+    await database()
+  )
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, partial.id));
+  expect(stored!.definition.input).toEqual([kept, stale]);
+  expect(stored!.request.input).toBe("review");
+  const next = await nextAnnotationTask(principal, partial.id);
+  expect(next.taskId).toBe(`${partial.id}/tile-003-003`);
+  const preview = await savePreview(principal, next.taskId!, {
+    instances: [{ id: "fresh", class: "seed", box_2d: [500, 500, 700, 700] }],
+  });
+  const receipt = await submitProposal(
+    principal,
+    next.taskId!,
+    preview.proposalId,
+  );
+  expect(receipt.status).toBe("succeeded");
+  const [done] = await (
+    await database()
+  )
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, partial.id));
+  expect(
+    done!.result!.document.instances.map((instance) => instance.id).sort(),
+  ).toEqual([`${partial.id}/tile-003-003/fresh`, "kept"]);
+  expect((await readAnnotation(ref))!.instances).toEqual([kept, stale]);
 });

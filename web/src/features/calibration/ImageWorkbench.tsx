@@ -7,8 +7,8 @@ import {
   reviewInstances,
   sourceInstances,
   type Review,
-  type ReviewSource,
 } from "../../domain/annotation/review";
+import type { ReviewSource } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import {

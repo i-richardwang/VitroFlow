@@ -14,7 +14,7 @@ import {
 } from "@heroui/react";
 import type { ReactNode } from "react";
 
-import type { ReviewSource } from "../../domain/annotation/review";
+import type { ReviewSource } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
 import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../../ui/icons";
 import { TOOL_SPECS, TOOLS, type Tool } from "./controls";

@@ -63,6 +63,7 @@ async function setup(name: string) {
     id: `${name}-run`,
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
     input: null,
+    scope: null,
   } satisfies StartAnnotationRun;
   return { user, owner, request, digests: observed.digests };
 }
@@ -138,7 +139,11 @@ test("any Worker with an agent claims the oldest run, and the run keeps the agen
   const run = await createAnnotationRun(request, "worker", user.id);
   expect(run.status).toBe("queued");
   await expect(
-    createAnnotationRun({ ...request, input: [] }, "worker", user.id),
+    createAnnotationRun(
+      { ...request, input: [], scope: null },
+      "worker",
+      user.id,
+    ),
   ).rejects.toThrow("different inputs");
   expect(await claimAnnotationRun(bare)).toBeNull();
   expect(await claimAnnotationRun(owner)).toEqual({ id: run.id });
@@ -220,6 +225,7 @@ test("turning interactive annotation off ends the runs connected agents hold, an
       id: "ai-interactive-off-worker",
       ref: { ...request.ref, digest: digests[1]! },
       input: null,
+      scope: null,
     },
     "worker",
     user.id,

@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 
+import { sourceInstances, type Review } from "../../domain/annotation/review";
 import {
-  sourceInstances,
   REVIEW_SOURCES,
-  type Review,
-} from "../../domain/annotation/review";
-import type { AnnotationInstance } from "../../domain/annotation/schema";
+  type AnnotationInstance,
+} from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { tally } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";

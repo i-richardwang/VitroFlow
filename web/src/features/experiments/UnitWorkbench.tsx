@@ -4,7 +4,7 @@ import { Alert, Button, ButtonGroup, Separator } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
 import { observationLabel, cultureEventLabel } from "./labels";
-import type { ReviewSource } from "../../domain/annotation/review";
+import type { ReviewSource } from "../../domain/annotation/schema";
 import type { ObservationImageRef } from "../../domain/experiments/schema";
 import {
   latestCultureEvent,

@@ -11,10 +11,14 @@ An image/model can have detector results, an AI proposal and an accepted human
 review. The review takes precedence over the proposal, which takes precedence
 over detection. Only a human review makes the image eligible for training.
 
-On an image, **AI annotation** either starts from clean pixels or refits the boxes
-currently shown. Model settings own classes, instructions and region geometry.
-The server freezes those inputs at creation. Dataset and observation batch actions
-queue one run per eligible image. The actions appear only while some online Worker
+A run has two inputs besides the image. Its **input** is the boxes it begins
+from: none, so the agent draws from clean pixels, or a set of boxes it refits.
+Its **scope** is the part of the image it redraws: the whole image, or only the
+regions some source-pixel boxes touch, in which case every other region keeps
+its input boxes. On an image, **AI annotation** redraws the whole image from
+clean pixels or from the boxes shown. Model settings own classes, instructions
+and region geometry. The server freezes all of these at creation. Dataset and
+observation batch actions queue one run per eligible image. The actions appear only while some online Worker
 runs an annotation agent, and a request never names one: any such Worker claims
 the oldest queued run, and the run records the agent it was claimed by.
 
@@ -40,7 +44,7 @@ other MCP tools are unaffected.
 
 | Principal | Authentication | Tools | Scope |
 | --- | --- | --- | --- |
-| Interactive client | User OAuth at the existing MCP resource, while interactive annotation is enabled | `annotation_start`, `annotation_next`, and the three core tools | The user's own interactive runs |
+| Interactive client | User OAuth at the existing MCP resource, while interactive annotation is enabled | `annotation_read`, `annotation_start`, `annotation_next`, and the three core tools | The user's own interactive runs |
 | Worker-launched agent | Signed, short-lived task bearer token | The three core tools only | One run, region and attempt |
 
 The authenticated per-request MCP factory constructs the tool list. Every core
@@ -58,10 +62,22 @@ private and removed when the regional session exits.
 
 ## Tool contract
 
-`annotation_start({requestId, ref: {digest, modelId}, input?})` creates an
-interactive run. `requestId` is a caller-generated UUID; retrying it with identical
-inputs returns the same run. `input` is an optional complete source-coordinate
-reference list. Omitting it starts from the image alone.
+`annotation_read({ref: {digest, modelId}})` returns how the image is annotated
+for the model right now: the reviewer's boxes, the AI proposal and the detection
+as source-coordinate instances, which of them the image reads by, and any run
+still at work. It is the view to consult before redrawing part of an image.
+
+`annotation_start({requestId, ref: {digest, modelId}, input?, scope?})` creates
+an interactive run. `requestId` is a caller-generated UUID; retrying it with
+identical inputs returns the same run. `input` is the boxes the run begins from:
+a complete source-coordinate list, the name of one of the image's readings
+(`"review"`, `"proposal"` or `"detection"`, as `annotation_read` lists them) taken
+as it stands when the run is admitted, or nothing to start from the image alone.
+Naming a reading the image lacks is refused. `scope` is an
+optional list of source-coordinate boxes `{x, y, width, height}`; the run then
+covers only the regions those boxes touch, and every other region keeps its
+`input` boxes in the result. A scoped run therefore requires `input`, and a scope
+touching no region or leaving the image is refused.
 
 `annotation_next({runId})` returns progress and the current unfinished `taskId`.
 Calling it again before submission returns the same task. A null task ID indicates
@@ -156,8 +172,8 @@ image, local product checkpoint package or final upload payload. Standalone
 
 Postgres is the single authority:
 
-- `annotation_runs`: frozen input, creator, executor (`worker` or `interactive`),
-  lease, aggregate progress, the claiming agent and final proposal.
+- `annotation_runs`: frozen input and scope, creator, executor (`worker` or
+  `interactive`), lease, aggregate progress, the claiming agent and final proposal.
 - `workspace_settings`: whether connected agents may annotate.
 - `annotation_tasks`: frozen core/patch geometry, current attempt and accepted
   regional response.
@@ -168,7 +184,9 @@ run changes, validate authorization and geometry, accept a region and update
 progress. Concurrent final submissions cannot complete a run twice. Worker/session
 locks follow the same order as claiming. Source-coordinate boxes are owned by the
 half-open core containing their centers; halo context is not duplicated into
-neighboring results. Owned boxes touching internal patch edges are rejected.
+neighboring results. The same ownership decides which frozen input boxes a scoped
+run carries into its result: those whose centers fall in a region it did not
+redraw. Owned boxes touching internal patch edges are rejected.
 Uncertainty, boundary truncation and seam-review warnings remain in the proposal.
 Geometry validation does not establish visual accuracy.
 

@@ -1,4 +1,4 @@
-import type { ReviewSource } from "../annotation/review";
+import type { ReviewSource } from "../annotation/schema";
 import { count, type Tally } from "../models/classes";
 import type { ObservationImageCell, Unit } from "./contracts";
 import { exclusionAt, type ObservationOrdinals } from "./culture-events";

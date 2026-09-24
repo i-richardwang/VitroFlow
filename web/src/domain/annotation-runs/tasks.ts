@@ -31,7 +31,8 @@ const regionProposalSchema = z.strictObject({
 export type RegionProposal = z.infer<typeof regionProposalSchema>;
 export type Region = { id: string; core: BoundingBox; patch: BoundingBox };
 
-export function regions(definition: AnnotationDefinition): Region[] {
+/** The grid an image is cut into for a model, whatever a run redraws. */
+export function tiles(definition: AnnotationDefinition): Region[] {
   const { width, height } = definition.image;
   const { coreSize, halo } = definition.config;
   const result: Region[] = [];
@@ -58,6 +59,23 @@ export function regions(definition: AnnotationDefinition): Region[] {
     }
   }
   return result;
+}
+
+function intersects(a: BoundingBox, b: BoundingBox): boolean {
+  return (
+    a.x < b.x + b.width &&
+    b.x < a.x + a.width &&
+    a.y < b.y + b.height &&
+    b.y < a.y + a.height
+  );
+}
+
+/** The regions a run redraws: every tile, or those whose core its scope touches. */
+export function regions(definition: AnnotationDefinition): Region[] {
+  const all = tiles(definition);
+  const scope = definition.scope;
+  if (!scope) return all;
+  return all.filter((tile) => scope.some((box) => intersects(tile.core, box)));
 }
 
 export function sourceBox(edges: number[], patch: BoundingBox): BoundingBox {

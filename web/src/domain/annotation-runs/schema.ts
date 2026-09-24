@@ -4,6 +4,7 @@ import {
   annotationRefSchema,
   annotationSchema,
   boundingBoxSchema,
+  REVIEW_SOURCES,
 } from "../annotation/schema";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { annotationConfigSchema } from "../models/annotation";
@@ -30,10 +31,32 @@ export const ANNOTATION_RUN_STATUSES = [
   "failed",
   "cancelled",
 ] as const;
+/**
+ * The boxes a run begins from: none, a complete list the caller supplies, or
+ * one of the image's readings as it stands when the run is admitted.
+ */
+export const annotationInputSchema = z.union([
+  z.array(annotationInstanceSchema).max(10000),
+  z.enum(REVIEW_SOURCES),
+  z.null(),
+]);
+
+/**
+ * The part of the image a run redraws, as boxes in source pixels. A run is
+ * scoped to the regions those boxes touch; the regions outside keep the
+ * boxes the run began from. Null redraws the whole image.
+ */
+export const annotationScopeSchema = z
+  .array(boundingBoxSchema)
+  .min(1)
+  .max(64)
+  .nullable();
+
 export const startAnnotationRunSchema = z.strictObject({
   id: resourceIdSchema,
   ref: annotationRefSchema,
-  input: z.array(annotationInstanceSchema).max(10000).nullable(),
+  input: annotationInputSchema,
+  scope: annotationScopeSchema,
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
 const annotationProgressSchema = z
@@ -50,6 +73,7 @@ export const annotationDefinitionSchema = z.strictObject({
     height: z.number().int().positive(),
   }),
   input: z.array(annotationInstanceSchema).nullable(),
+  scope: annotationScopeSchema,
   config: annotationConfigSchema,
 });
 export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;

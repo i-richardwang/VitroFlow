@@ -28,6 +28,11 @@ export const annotationRefSchema = z.strictObject({
 
 export type AnnotationRef = z.infer<typeof annotationRefSchema>;
 
+/** Where an image's boxes can come from, best first. */
+export const REVIEW_SOURCES = ["review", "proposal", "detection"] as const;
+
+export type ReviewSource = (typeof REVIEW_SOURCES)[number];
+
 export const boundingBoxSchema = z.strictObject({
   x: z.number().finite(),
   y: z.number().finite(),

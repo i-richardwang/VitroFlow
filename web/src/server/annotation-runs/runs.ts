@@ -1,8 +1,11 @@
 import { regions } from "../../domain/annotation-runs/tasks";
+import { sourceInstances } from "../../domain/annotation/review";
 import { and, eq, inArray, lte } from "drizzle-orm";
 import {
   annotationSchema,
   type AnnotationRef,
+  type BoundingBox,
+  type ReviewSource,
 } from "../../domain/annotation/schema";
 import {
   annotationDefinitionSchema,
@@ -15,6 +18,7 @@ import { workerPresence } from "../../domain/workers/presence";
 import { canonicalJson } from "../../lib/json/canonical";
 import { transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
+import { readReadings } from "../annotations/public";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
 import { listWorkers } from "../workers/public";
@@ -86,6 +90,21 @@ export async function createAnnotationRun(
   return run;
 }
 
+/** The boxes of one reading as it stands now; a reading the image lacks cannot begin a run. */
+async function readingInstances(
+  ref: AnnotationRef,
+  source: ReviewSource,
+  tx: Executor,
+) {
+  const readings = await readReadings(ref, tx);
+  const instances = readings && sourceInstances(readings, source);
+  if (!instances)
+    throw new AnnotationRunConflictError(
+      `The image has no ${source} to begin from`,
+    );
+  return instances;
+}
+
 /** Under the image lock, either admit this request or leave its active run alone. */
 async function admitRun(
   request: StartAnnotationRun,
@@ -129,13 +148,31 @@ async function admitRun(
   const model = await readModel(request.ref.modelId, tx);
   if (!image || !model)
     throw new AnnotationRunNotFoundError("Image or labeling model not found");
-  if (request.input) {
+  const frame = { digest: image.id, width: image.width, height: image.height };
+  const input =
+    typeof request.input === "string"
+      ? await readingInstances(request.ref, request.input, tx)
+      : request.input;
+  if (input) {
     annotationSchema.parse({
       schemaVersion: 1,
-      image: { digest: image.id, width: image.width, height: image.height },
-      instances: request.input,
+      image: frame,
+      instances: input,
     });
-    assertInstanceClasses(model.classes, request.input, "AI annotation input");
+    assertInstanceClasses(model.classes, input, "AI annotation input");
+  }
+  if (request.scope) {
+    if (!input)
+      throw new AnnotationRunConflictError(
+        "Redrawing part of the image needs the boxes to keep; pass input",
+      );
+    const inside = (b: BoundingBox) =>
+      b.x >= 0 &&
+      b.y >= 0 &&
+      b.x + b.width <= image.width &&
+      b.y + b.height <= image.height;
+    if (!request.scope.every(inside))
+      throw new AnnotationRunConflictError("Scope exceeds image bounds");
   }
   const { instructions, ...region } = model.annotation;
   if (!instructions)
@@ -143,11 +180,14 @@ async function admitRun(
       "The model has no annotation instructions; add them on the Models page",
     );
   const definition = annotationDefinitionSchema.parse({
-    image: { digest: image.id, width: image.width, height: image.height },
-    input: request.input,
+    image: frame,
+    input,
+    scope: request.scope,
     config: { classes: model.classes, rules: instructions, ...region },
   });
   const tasks = regions(definition);
+  if (!tasks.length)
+    throw new AnnotationRunConflictError("The scope touches no region");
   if (tasks.length > 4096)
     throw new AnnotationRunConflictError(
       "Annotation requires too many regions; increase the model's core size",
@@ -196,7 +236,7 @@ export async function createAnnotationRuns(
   for (const ref of refs) {
     const run = await transaction((tx) =>
       admitRun(
-        { id: crypto.randomUUID(), ref, input: null },
+        { id: crypto.randomUUID(), ref, input: null, scope: null },
         "worker",
         requestedBy,
         tx,

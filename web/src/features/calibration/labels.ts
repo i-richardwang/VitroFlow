@@ -1,4 +1,4 @@
-import type { ReviewSource } from "../../domain/annotation/review";
+import type { ReviewSource } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
 
 export const sourceLabels: Record<ReviewSource, () => string> = {

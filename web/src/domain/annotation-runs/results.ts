@@ -3,10 +3,17 @@ import {
   owns,
   sourceBox,
   seamWarnings,
+  tiles,
   type Region,
   type RegionProposal,
 } from "./tasks";
 
+/**
+ * The image as the run leaves it: the accepted answer of every region it
+ * redrew, and in the regions it did not, the boxes it began from. A box
+ * belongs to the region holding its center, so each part of the image is
+ * read by exactly one of the two.
+ */
 export function collectRegions(
   definition: AnnotationDefinition,
   tasks: { taskId: string; region: Region; response: RegionProposal | null }[],
@@ -33,6 +40,14 @@ export function collectRegions(
       const bbox = sourceBox(issue.box_2d, task.region.patch);
       if (owns(task.region.core, bbox))
         issues.push({ bbox, reason: issue.reason });
+    }
+  }
+  const redrawn = new Set(tasks.map((task) => task.region.id));
+  for (const tile of tiles(definition)) {
+    if (redrawn.has(tile.id)) continue;
+    for (const item of definition.input ?? []) {
+      if (owns(tile.core, item.bbox))
+        instances.push({ ...item, taskId: tile.id });
     }
   }
   return annotationRunResultSchema.parse({

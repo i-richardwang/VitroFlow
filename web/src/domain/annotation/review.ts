@@ -9,11 +9,13 @@ import { instancesFromDetection } from "./detection";
 import {
   annotationRefSchema,
   annotationSchema,
+  REVIEW_SOURCES,
   type AnnotationInstance,
+  type ReviewSource,
 } from "./schema";
 
 /**
- * One image as it is read for one model, wherever the image is shown.
+ * One image as it is read for one model.
  *
  * Three readings can exist, and they rank: `annotation` is what a reviewer
  * decided, `proposal` is what an AI agent drew, `detection` is what the
@@ -22,9 +24,8 @@ import {
  * ranking decides which one an image reads by. `activity` is the agent
  * still at work on the image, or its last failure.
  */
-export const reviewSchema = z.strictObject({
+export const readingsSchema = z.strictObject({
   ref: annotationRefSchema,
-  filename: z.string(),
   width: z.number().int().min(1),
   height: z.number().int().min(1),
   detection: detectionResultSchema.nullable(),
@@ -33,54 +34,76 @@ export const reviewSchema = z.strictObject({
   activity: annotationActivitySchema.nullable(),
 });
 
+export type Readings = z.infer<typeof readingsSchema>;
+
+/** The readings as a page shows them, under the name the page knows the file by. */
+export const reviewSchema = readingsSchema.extend({ filename: z.string() });
+
 export type Review = z.infer<typeof reviewSchema>;
 
-/** Where an image's boxes can come from, best first. */
-export const REVIEW_SOURCES = ["review", "proposal", "detection"] as const;
-
-export type ReviewSource = (typeof REVIEW_SOURCES)[number];
-
 export function sourceInstances(
-  review: Review,
+  readings: Readings,
   source: ReviewSource,
 ): AnnotationInstance[] | null {
   switch (source) {
     case "review":
-      return review.annotation?.instances ?? null;
+      return readings.annotation?.instances ?? null;
     case "proposal":
-      return review.proposal?.document.instances ?? null;
+      return readings.proposal?.document.instances ?? null;
     case "detection":
-      return review.detection ? instancesFromDetection(review.detection) : null;
+      return readings.detection
+        ? instancesFromDetection(readings.detection)
+        : null;
   }
 }
 
-export function availableSources(review: Review): ReviewSource[] {
+export function availableSources(readings: Readings): ReviewSource[] {
   return REVIEW_SOURCES.filter(
-    (source) => sourceInstances(review, source) !== null,
+    (source) => sourceInstances(readings, source) !== null,
   );
 }
 
-function readingSource(review: Review): ReviewSource | null {
-  return availableSources(review)[0] ?? null;
+function readingSource(readings: Readings): ReviewSource | null {
+  return availableSources(readings)[0] ?? null;
 }
 
 /**
- * The instances of the review: those of its best source. An image nothing
+ * The instances the image reads by: those of its best reading. An image nothing
  * has read begins from none, which is how a reviewer counts for a model that
  * has never been trained.
  */
-export function reviewInstances(review: Review): AnnotationInstance[] {
-  const source = readingSource(review);
-  return source ? (sourceInstances(review, source) ?? []) : [];
+export function reviewInstances(readings: Readings): AnnotationInstance[] {
+  const source = readingSource(readings);
+  return source ? (sourceInstances(readings, source) ?? []) : [];
 }
 
 export function shownInstances(
-  review: Review,
+  readings: Readings,
   source: ReviewSource | undefined,
 ): AnnotationInstance[] {
-  return (source && sourceInstances(review, source)) ?? reviewInstances(review);
+  return (
+    (source && sourceInstances(readings, source)) ?? reviewInstances(readings)
+  );
 }
 
-export function agentBusy(review: Review): boolean {
-  return review.activity !== null && review.activity.status !== "failed";
+export function agentBusy(readings: Readings): boolean {
+  return readings.activity !== null && readings.activity.status !== "failed";
+}
+
+/**
+ * The readings as an agent reads them: every reading as boxes in source
+ * pixels, and which one the image reads by. A run names one of these
+ * readings as the boxes it begins from.
+ */
+export function annotationReading(readings: Readings) {
+  return {
+    ref: readings.ref,
+    width: readings.width,
+    height: readings.height,
+    reading: readingSource(readings),
+    review: sourceInstances(readings, "review"),
+    proposal: readings.proposal,
+    detection: sourceInstances(readings, "detection"),
+    activity: readings.activity,
+  };
 }

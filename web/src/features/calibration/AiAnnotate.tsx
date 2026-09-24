@@ -58,6 +58,7 @@ export function AiAnnotateMenu({
             id: crypto.randomUUID(),
             ref: review.ref,
             input: from === "refit" ? current : null,
+            scope: null,
           },
         }),
       m.ai_not_started(),

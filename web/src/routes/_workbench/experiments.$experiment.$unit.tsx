@@ -1,7 +1,8 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { REVIEW_SOURCES, agentBusy } from "../../domain/annotation/review";
+import { agentBusy } from "../../domain/annotation/review";
+import { REVIEW_SOURCES } from "../../domain/annotation/schema";
 import { UnitWorkbench } from "../../features/experiments/UnitWorkbench";
 import {
   unitRefSchema,

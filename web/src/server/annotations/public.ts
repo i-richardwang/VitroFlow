@@ -3,4 +3,4 @@ export {
   readAnnotation,
   storeAnnotation,
 } from "./documents";
-export { readReview } from "./review";
+export { readAnnotationReading, readReadings, readReview } from "./review";

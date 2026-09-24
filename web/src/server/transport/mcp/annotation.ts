@@ -1,11 +1,15 @@
 import type { AnnotationPrincipal } from "../../../domain/annotation-runs/access";
-import { AnnotationRunConflictError } from "../../../domain/annotation-runs/errors";
+import {
+  AnnotationRunConflictError,
+  AnnotationRunNotFoundError,
+} from "../../../domain/annotation-runs/errors";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
+import { annotationRefSchema } from "../../../domain/annotation/schema";
 import {
-  annotationRefSchema,
-  annotationInstanceSchema,
-} from "../../../domain/annotation/schema";
+  annotationInputSchema,
+  annotationScopeSchema,
+} from "../../../domain/annotation-runs/schema";
 import {
   annotationViewInput,
   annotationPreviewInput,
@@ -19,6 +23,7 @@ import {
   submitProposal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
+import { readAnnotationReading } from "../../annotations/public";
 
 const textContent = (value: unknown) => ({
   type: "text" as const,
@@ -70,6 +75,7 @@ export function registerAnnotationTools(
         } catch (error) {
           const expected =
             error instanceof AnnotationRunConflictError ||
+            error instanceof AnnotationRunNotFoundError ||
             error instanceof z.ZodError;
           if (!expected) console.error("Annotation tool failed", error);
           return {
@@ -86,21 +92,32 @@ export function registerAnnotationTools(
   }
   if (principal.kind === "user") {
     register(
+      "annotation_read",
+      "Read how an image is currently annotated for a model: the reviewer's boxes, the AI proposal and the detection, in source pixels, and which of them the image reads by. Start here before redrawing part of an image.",
+      z.strictObject({ ref: annotationRefSchema }),
+      true,
+      async (args) => ({
+        content: [textContent(await readAnnotationReading(args.ref))],
+      }),
+    );
+    register(
       "annotation_start",
-      "Create or reopen an annotation run for an image and model. Reuse requestId to retry. Then call annotation_next, view, preview and submit until complete. A run left without calls for 30 minutes lapses. Results remain unreviewed AI proposals.",
+      "Create or reopen an annotation run for an image and model. Reuse requestId to retry. input is the boxes to begin from: a complete list, the name of a reading annotation_read lists (review, proposal or detection), or null for none. scope limits the run to the regions touched by these source-pixel boxes; regions outside keep the input boxes, so scope needs input. Then call annotation_next, view, preview and submit until complete. A run left without calls for 30 minutes lapses. Results remain unreviewed AI proposals.",
       z.strictObject({
         requestId: z.string().uuid(),
         ref: annotationRefSchema,
-        input: z
-          .array(annotationInstanceSchema)
-          .max(10000)
-          .nullable()
-          .default(null),
+        input: annotationInputSchema.default(null),
+        scope: annotationScopeSchema.default(null),
       }),
       false,
       async (args) => {
         const run = await createAnnotationRun(
-          { id: args.requestId, ref: args.ref, input: args.input },
+          {
+            id: args.requestId,
+            ref: args.ref,
+            input: args.input,
+            scope: args.scope,
+          },
           "interactive",
           principal.userId,
         );

@@ -334,6 +334,7 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
   ).toEqual([
     "annotation_next",
     "annotation_preview",
+    "annotation_read",
     "annotation_start",
     "annotation_submit",
     "annotation_view",
@@ -362,6 +363,22 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
   const { proposalId } = JSON.parse(preview.content[0].text);
   const submit = await call("annotation_submit", { taskId, proposalId });
   expect(JSON.parse(submit.content[0].text).status).toBe("succeeded");
+  const read = JSON.parse(
+    (await call("annotation_read", { ref })).content[0].text,
+  );
+  expect(read.reading).toBe("proposal");
+  expect(read.proposal.runId).toBe(runId);
+  expect(read.review).toBeNull();
+  const partial = await call("annotation_start", {
+    requestId: crypto.randomUUID(),
+    ref,
+    input: "proposal",
+    scope: [{ x: 0, y: 0, width: 8, height: 8 }],
+  });
+  expect(partial.isError).toBeUndefined();
+  const partialRun = JSON.parse(partial.content[0].text);
+  expect(partialRun.progress.total).toBe(1);
+  await cancelAnnotationRun(partialRun.runId);
 
   const runtime = {
     runtime: "pi" as const,
@@ -374,7 +391,7 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
   };
   await recordWorkerHeartbeat(heartbeat);
   const run = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: null },
+    { id: crypto.randomUUID(), ref, input: null, scope: null },
     "worker",
     user.id,
   );
