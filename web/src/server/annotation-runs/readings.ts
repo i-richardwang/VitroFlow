@@ -7,19 +7,16 @@ import type {
 } from "../../domain/annotation-runs/schema";
 import { annotationRuns } from "../infra/db/schema";
 
-export const LEASE_EXPIRED =
-  "The agent stopped working on this run. Start a new run to retry.";
-
 type Row = typeof annotationRuns.$inferSelect;
 
-/** A running run whose agent stopped renewing its lease has failed, whatever the row says. */
+/** A run whose Worker stopped renewing its lease is back in the queue, whatever the row says. */
 export function effectiveStatus(row: Row, at = new Date()) {
   return row.status === "running" && leaseLapsed(row, at)
-    ? ("failed" as const)
+    ? ("queued" as const)
     : row.status;
 }
 
-export function leaseLapsed(row: Row, at: Date) {
+function leaseLapsed(row: Row, at: Date) {
   return (
     row.leaseExpiresAt !== null && row.leaseExpiresAt.getTime() <= at.getTime()
   );
@@ -58,7 +55,6 @@ export function latestRunId(imageId: SQLWrapper, modelId: SQLWrapper | string) {
 export function toProposal(row: Row | null): AnnotationProposal | null {
   if (!row?.result) return null;
   return {
-    runId: row.id,
     createdAt: row.createdAt.toISOString(),
     document: row.result.document,
     issues: row.result.issues,
@@ -71,7 +67,6 @@ export function toActivity(row: Row | null): AnnotationActivity | null {
   const status = effectiveStatus(row);
   if (status === "succeeded" || status === "cancelled") return null;
   return {
-    runId: row.id,
     status,
     progress: { completed: row.completed, total: row.total },
   };

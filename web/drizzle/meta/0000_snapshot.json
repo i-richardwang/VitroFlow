@@ -1,5 +1,5 @@
 {
-  "id": "b4a9f4f1-ad17-4231-8efe-e35997bc691a",
+  "id": "35bde09c-cac2-4521-b783-2350e2dc2e6b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -262,12 +262,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "request": {
-          "name": "request",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
         "definition": {
           "name": "definition",
           "type": "jsonb",
@@ -337,12 +331,6 @@
         },
         "result": {
           "name": "result",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "runtime": {
-          "name": "runtime",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -479,11 +467,11 @@
         },
         "annotation_runs_executor_check": {
           "name": "annotation_runs_executor_check",
-          "value": "\"annotation_runs\".\"executor\" = 'worker' or (\"annotation_runs\".\"executor\" = 'interactive' and \"annotation_runs\".\"status\" <> 'queued' and \"annotation_runs\".\"worker_id\" is null and \"annotation_runs\".\"session_id\" is null and \"annotation_runs\".\"runtime\" is null)"
+          "value": "\"annotation_runs\".\"executor\" = 'worker' or (\"annotation_runs\".\"executor\" = 'interactive' and \"annotation_runs\".\"status\" <> 'queued' and \"annotation_runs\".\"worker_id\" is null and \"annotation_runs\".\"session_id\" is null and \"annotation_runs\".\"lease_expires_at\" is null)"
         },
         "annotation_runs_lease_check": {
           "name": "annotation_runs_lease_check",
-          "value": "\"annotation_runs\".\"status\" <> 'running' or (\"annotation_runs\".\"lease_expires_at\" is not null and (\"annotation_runs\".\"executor\" = 'interactive' or (\"annotation_runs\".\"worker_id\" is not null and \"annotation_runs\".\"session_id\" is not null)))"
+          "value": "\"annotation_runs\".\"executor\" = 'interactive' or (\"annotation_runs\".\"status\" <> 'running' or (\"annotation_runs\".\"lease_expires_at\" is not null and \"annotation_runs\".\"worker_id\" is not null and \"annotation_runs\".\"session_id\" is not null)) and (\"annotation_runs\".\"status\" <> 'queued' or (\"annotation_runs\".\"lease_expires_at\" is null and \"annotation_runs\".\"worker_id\" is null and \"annotation_runs\".\"session_id\" is null))"
         }
       },
       "isRLSEnabled": false

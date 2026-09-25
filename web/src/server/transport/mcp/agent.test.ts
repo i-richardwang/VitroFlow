@@ -332,6 +332,7 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
   expect(
     names.filter((n: string) => n.startsWith("annotation_")).sort(),
   ).toEqual([
+    "annotation_cancel",
     "annotation_next",
     "annotation_preview",
     "annotation_read",
@@ -346,13 +347,9 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
         arguments: args,
       })
     ).result;
-  const started = await call("annotation_start", {
-    requestId: crypto.randomUUID(),
-    ref,
-  });
+  const started = await call("annotation_start", { ref });
   expect(started.isError).toBeUndefined();
-  const { runId } = JSON.parse(started.content[0].text);
-  const next = await call("annotation_next", { runId });
+  const next = await call("annotation_next", { ref });
   const { taskId } = JSON.parse(next.content[0].text);
   const viewed = await call("annotation_view", { taskId });
   expect(
@@ -367,18 +364,18 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
     (await call("annotation_read", { ref })).content[0].text,
   );
   expect(read.reading).toBe("proposal");
-  expect(read.proposal.runId).toBe(runId);
   expect(read.review).toBeNull();
-  const partial = await call("annotation_start", {
-    requestId: crypto.randomUUID(),
+  const partial = {
     ref,
     input: "proposal",
     scope: [{ x: 0, y: 0, width: 8, height: 8 }],
-  });
-  expect(partial.isError).toBeUndefined();
-  const partialRun = JSON.parse(partial.content[0].text);
-  expect(partialRun.progress.total).toBe(1);
-  await cancelAnnotationRun(partialRun.runId);
+  };
+  const redraw = await call("annotation_start", partial);
+  expect(redraw.isError).toBeUndefined();
+  expect(JSON.parse(redraw.content[0].text).progress.total).toBe(1);
+  expect((await call("annotation_start", partial)).isError).toBe(true);
+  expect((await call("annotation_cancel", { ref })).isError).toBeUndefined();
+  expect((await call("annotation_next", { ref })).isError).toBe(true);
 
   const runtime = {
     runtime: "pi" as const,
@@ -391,7 +388,7 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
   };
   await recordWorkerHeartbeat(heartbeat);
   const run = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: null, scope: null },
+    { ref, input: null, scope: null },
     "worker",
     user.id,
   );
@@ -432,7 +429,7 @@ test("OAuth clients annotate through the same MCP endpoint that serves task-scop
       (item: { type: string }) => item.type === "image",
     ),
   ).toBe(true);
-  await cancelAnnotationRun(run.id);
+  await cancelAnnotationRun(ref);
   expect(
     (
       await serveMcp(

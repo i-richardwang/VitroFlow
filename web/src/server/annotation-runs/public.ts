@@ -16,7 +16,11 @@ export {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";
-export { nextAnnotationTask, submitProposal } from "./tasks";
+export {
+  cancelOwnAnnotationRun,
+  nextAnnotationTask,
+  submitProposal,
+} from "./tasks";
 export { viewAnnotationTask, previewAnnotationTask } from "./views";
 export type { AnnotationPanel } from "./rendering";
 export { validateTaskPrincipal } from "./access";

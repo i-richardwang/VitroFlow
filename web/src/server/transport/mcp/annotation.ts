@@ -17,6 +17,7 @@ import {
 } from "../../../domain/annotation-runs/tasks";
 import {
   createAnnotationRun,
+  cancelOwnAnnotationRun,
   nextAnnotationTask,
   viewAnnotationTask,
   previewAnnotationTask,
@@ -93,7 +94,7 @@ export function registerAnnotationTools(
   if (principal.kind === "user") {
     register(
       "annotation_read",
-      "Read how an image is currently annotated for a model: the reviewer's boxes, the AI proposal and the detection, in source pixels, and which of them the image reads by. Start here before redrawing part of an image.",
+      "Read how an image is currently annotated for a model: the reviewer's boxes, the AI proposal and the detection, in source pixels, which of them the image reads by, and the run in progress with its progress. Start here before starting or continuing a run.",
       z.strictObject({ ref: annotationRefSchema }),
       true,
       async (args) => ({
@@ -102,9 +103,8 @@ export function registerAnnotationTools(
     );
     register(
       "annotation_start",
-      "Create or reopen an annotation run for an image and model. Reuse requestId to retry. input is the boxes to begin from: a complete list, the name of a reading annotation_read lists (review, proposal or detection), or null for none. scope limits the run to the regions touched by these source-pixel boxes; regions outside keep the input boxes, so scope needs input. Then call annotation_next, view, preview and submit until complete. A run left without calls for 30 minutes lapses. Results remain unreviewed AI proposals.",
+      "Start an annotation run for an image and model. input is the boxes to begin from: a complete list, the name of a reading annotation_read lists (review, proposal or detection), or null for none. scope limits the run to the regions touched by these source-pixel boxes; regions outside keep the input boxes, so scope needs input. An image has one run in progress at a time; when yours already is, continue it with annotation_next. Results remain unreviewed AI proposals.",
       z.strictObject({
-        requestId: z.string().uuid(),
         ref: annotationRefSchema,
         input: annotationInputSchema.default(null),
         scope: annotationScopeSchema.default(null),
@@ -112,34 +112,31 @@ export function registerAnnotationTools(
       false,
       async (args) => {
         const run = await createAnnotationRun(
-          {
-            id: args.requestId,
-            ref: args.ref,
-            input: args.input,
-            scope: args.scope,
-          },
+          args,
           "interactive",
           principal.userId,
         );
-        return {
-          content: [
-            textContent({
-              runId: run.id,
-              status: run.status,
-              progress: run.progress,
-            }),
-          ],
-        };
+        return { content: [textContent({ progress: run.progress })] };
       },
     );
     register(
       "annotation_next",
-      "Get progress and the next unfinished region; safely resumes the current region after interruption. A null taskId means all regions are complete.",
-      z.strictObject({ runId: z.string().min(1) }),
+      "Get the next region of the image's run in progress, with progress. It returns the same region until that region is accepted, so the run continues from any conversation. Then view, preview and submit it, and repeat until annotation_submit reports the run succeeded.",
+      z.strictObject({ ref: annotationRefSchema }),
       false,
       async (args) => ({
-        content: [textContent(await nextAnnotationTask(principal, args.runId))],
+        content: [textContent(await nextAnnotationTask(principal, args.ref))],
       }),
+    );
+    register(
+      "annotation_cancel",
+      "Cancel your run in progress on the image, discarding its accepted regions, to start again with another input or scope.",
+      z.strictObject({ ref: annotationRefSchema }),
+      false,
+      async (args) => {
+        await cancelOwnAnnotationRun(principal, args.ref);
+        return { content: [textContent({ cancelled: true })] };
+      },
     );
   }
   register(

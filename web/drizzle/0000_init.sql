@@ -29,7 +29,6 @@ CREATE TABLE "annotation_runs" (
 	"image_id" text NOT NULL,
 	"model_id" text NOT NULL,
 	"requested_by" text,
-	"request" jsonb NOT NULL,
 	"definition" jsonb NOT NULL,
 	"executor" text NOT NULL,
 	"status" text NOT NULL,
@@ -42,12 +41,11 @@ CREATE TABLE "annotation_runs" (
 	"updated_at" timestamp with time zone NOT NULL,
 	"error" text,
 	"result" jsonb,
-	"runtime" jsonb,
 	CONSTRAINT "annotation_runs_status_check" CHECK ("annotation_runs"."status" in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
 	CONSTRAINT "annotation_runs_progress_check" CHECK ("annotation_runs"."completed" >= 0 and "annotation_runs"."total" > 0 and "annotation_runs"."completed" <= "annotation_runs"."total"),
 	CONSTRAINT "annotation_runs_result_check" CHECK (("annotation_runs"."status" = 'succeeded') = ("annotation_runs"."result" is not null)),
-	CONSTRAINT "annotation_runs_executor_check" CHECK ("annotation_runs"."executor" = 'worker' or ("annotation_runs"."executor" = 'interactive' and "annotation_runs"."status" <> 'queued' and "annotation_runs"."worker_id" is null and "annotation_runs"."session_id" is null and "annotation_runs"."runtime" is null)),
-	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."status" <> 'running' or ("annotation_runs"."lease_expires_at" is not null and ("annotation_runs"."executor" = 'interactive' or ("annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null))))
+	CONSTRAINT "annotation_runs_executor_check" CHECK ("annotation_runs"."executor" = 'worker' or ("annotation_runs"."executor" = 'interactive' and "annotation_runs"."status" <> 'queued' and "annotation_runs"."worker_id" is null and "annotation_runs"."session_id" is null and "annotation_runs"."lease_expires_at" is null)),
+	CONSTRAINT "annotation_runs_lease_check" CHECK ("annotation_runs"."executor" = 'interactive' or ("annotation_runs"."status" <> 'running' or ("annotation_runs"."lease_expires_at" is not null and "annotation_runs"."worker_id" is not null and "annotation_runs"."session_id" is not null)) and ("annotation_runs"."status" <> 'queued' or ("annotation_runs"."lease_expires_at" is null and "annotation_runs"."worker_id" is null and "annotation_runs"."session_id" is null)))
 );
 --> statement-breakpoint
 CREATE TABLE "annotation_tasks" (

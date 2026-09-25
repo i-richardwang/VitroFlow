@@ -30,7 +30,6 @@ import {
   ANNOTATION_RUN_STATUSES,
   type AnnotationRuntime,
   type AnnotationRunResult,
-  type StartAnnotationRun,
   type AnnotationDefinition,
 } from "../../../domain/annotation-runs/schema";
 import { USER_ROLES } from "../../../domain/auth/schema";
@@ -1088,7 +1087,7 @@ export const trainingEpochs = pgTable(
   ],
 );
 
-/** Immutable requests and separate AI proposals; only accepted annotations train. */
+/** Frozen definitions and separate AI proposals; only accepted annotations train. */
 export const annotationRuns = pgTable(
   "annotation_runs",
   {
@@ -1102,7 +1101,6 @@ export const annotationRuns = pgTable(
     requestedBy: text("requested_by").references(() => users.id, {
       onDelete: "set null",
     }),
-    request: jsonb("request").$type<StartAnnotationRun>().notNull(),
     definition: jsonb("definition").$type<AnnotationDefinition>().notNull(),
     executor: text("executor", { enum: ANNOTATION_EXECUTORS }).notNull(),
     status: text("status", { enum: ANNOTATION_RUN_STATUSES }).notNull(),
@@ -1118,7 +1116,6 @@ export const annotationRuns = pgTable(
     updatedAt: instant("updated_at"),
     error: text("error"),
     result: jsonb("result").$type<AnnotationRunResult>(),
-    runtime: jsonb("runtime").$type<AnnotationRuntime>(),
   },
   (table) => [
     index("annotation_runs_image_model_idx").on(
@@ -1144,11 +1141,11 @@ export const annotationRuns = pgTable(
     ),
     check(
       "annotation_runs_executor_check",
-      sql`${table.executor} = 'worker' or (${table.executor} = 'interactive' and ${table.status} <> 'queued' and ${table.workerId} is null and ${table.sessionId} is null and ${table.runtime} is null)`,
+      sql`${table.executor} = 'worker' or (${table.executor} = 'interactive' and ${table.status} <> 'queued' and ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null)`,
     ),
     check(
       "annotation_runs_lease_check",
-      sql`${table.status} <> 'running' or (${table.leaseExpiresAt} is not null and (${table.executor} = 'interactive' or (${table.workerId} is not null and ${table.sessionId} is not null)))`,
+      sql`${table.executor} = 'interactive' or (${table.status} <> 'running' or (${table.leaseExpiresAt} is not null and ${table.workerId} is not null and ${table.sessionId} is not null)) and (${table.status} <> 'queued' or (${table.leaseExpiresAt} is null and ${table.workerId} is null and ${table.sessionId} is null))`,
     ),
   ],
 );

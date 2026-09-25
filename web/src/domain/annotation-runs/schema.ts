@@ -53,7 +53,6 @@ export const annotationScopeSchema = z
   .nullable();
 
 export const startAnnotationRunSchema = z.strictObject({
-  id: resourceIdSchema,
   ref: annotationRefSchema,
   input: annotationInputSchema,
   scope: annotationScopeSchema,
@@ -99,7 +98,6 @@ export type AnnotationRun = {
 };
 
 export const annotationProposalSchema = z.strictObject({
-  runId: resourceIdSchema,
   createdAt: z.string(),
   document: annotationSchema,
   issues: annotationRunResultSchema.shape.issues,
@@ -107,7 +105,6 @@ export const annotationProposalSchema = z.strictObject({
 });
 export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;
 export const annotationActivitySchema = z.strictObject({
-  runId: resourceIdSchema,
   status: z.enum(["queued", "running", "failed"]),
   progress: annotationProgressSchema,
 });

@@ -1,59 +1,96 @@
 import { createHash } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
+import type { AnnotationRef } from "../../domain/annotation/schema";
 import { validateProposal } from "../../domain/annotation-runs/tasks";
 import { collectRegions } from "../../domain/annotation-runs/results";
 import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors";
 import { canonicalJson } from "../../lib/json/canonical";
-import { transaction } from "../infra/db/client";
+import { transaction, type Executor } from "../infra/db/client";
 import {
   annotationRuns,
   annotationTasks,
   annotationPreviews,
 } from "../infra/db/schema";
-import { lockRun, authorizeRun, readTask, taskWhere } from "./access";
+import { lockRun, readTask, taskWhere } from "./access";
+import { activeRun } from "./runs";
 const conflict = (message: string): never => {
   throw new AnnotationRunConflictError(message);
 };
 const contentDigest = (value: unknown) =>
   createHash("sha256").update(canonicalJson(value)).digest("hex");
 
-/** Interactive clients resume the current unfinished region rather than silently skipping it. */
-export async function nextAnnotationTask(
+/**
+ * The run a person's connected agent drives on an image: the one in progress
+ * for the model, provided that person started it from a connected agent.
+ */
+async function ownActiveRun(
   principal: AnnotationPrincipal,
-  runId: string,
+  ref: AnnotationRef,
+  tx: Executor,
 ) {
   if (principal.kind !== "user")
-    return conflict("Only user sessions may select tasks");
+    return conflict("Only user sessions may choose a run");
+  const active = await activeRun(ref, tx);
+  const run = active && (await lockRun(tx, active.id));
+  if (!run || (run.status !== "queued" && run.status !== "running"))
+    return conflict(
+      "No AI annotation run is in progress for this image; start one with annotation_start",
+    );
+  if (run.executor !== "interactive")
+    return conflict("A Worker agent is annotating this image");
+  if (run.requestedBy !== principal.userId)
+    return conflict("Another person is annotating this image");
+  return run;
+}
+
+/**
+ * The first region of the image's run still waiting for an answer. It stays
+ * the same until it is accepted, so any agent the person connects, in any
+ * conversation, continues where the last one stopped.
+ */
+export async function nextAnnotationTask(
+  principal: AnnotationPrincipal,
+  ref: AnnotationRef,
+) {
   return transaction(async (tx) => {
-    const run = await lockRun(tx, runId);
-    await authorizeRun(tx, run, principal);
-    const tasks = await tx
+    const run = await ownActiveRun(principal, ref, tx);
+    const [task] = await tx
       .select()
       .from(annotationTasks)
-      .where(eq(annotationTasks.runId, runId))
-      .orderBy(asc(annotationTasks.taskId));
-    const task = tasks.find((t) => t.response === null);
-    if (!task)
-      return {
-        runId,
-        status: run.status,
-        completed: run.completed,
-        total: run.total,
-        taskId: null,
-      };
+      .where(
+        and(
+          eq(annotationTasks.runId, run.id),
+          isNull(annotationTasks.response),
+        ),
+      )
+      .orderBy(asc(annotationTasks.taskId))
+      .limit(1);
+    if (!task) return conflict("The run has no region left to annotate");
     if (!task.attemptId)
       await tx
         .update(annotationTasks)
         .set({ attemptId: crypto.randomUUID() })
-        .where(taskWhere(runId, task.taskId));
+        .where(taskWhere(run.id, task.taskId));
     return {
-      runId,
-      status: run.status,
+      taskId: task.taskId,
       completed: run.completed,
       total: run.total,
-      taskId: task.taskId,
     };
+  });
+}
+
+/** A person's agent may give up its own run, to start again differently. */
+export async function cancelOwnAnnotationRun(
+  principal: AnnotationPrincipal,
+  ref: AnnotationRef,
+) {
+  await transaction(async (tx) => {
+    const run = await ownActiveRun(principal, ref, tx);
+    await tx
+      .update(annotationRuns)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(annotationRuns.id, run.id));
   });
 }
 
@@ -137,7 +174,6 @@ export async function submitProposal(
         .where(eq(annotationRuns.id, runId));
     }
     return {
-      runId,
       taskId,
       accepted: true,
       status: run.status,

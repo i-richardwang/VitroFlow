@@ -1,10 +1,9 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import type { WorkerIdentity } from "../../domain/workers/schema";
 import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors";
-import { database, transaction } from "../infra/db/client";
+import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks } from "../infra/db/schema";
 import { lockWorkerSession, currentWorkerSession } from "../workers/public";
-import { expireAnnotationRuns } from "./runs";
 import { lockRun, requireWorkerLease, taskWhere, type RunRow } from "./access";
 
 const LEASE_MS = 5 * 60 * 1000;
@@ -14,18 +13,51 @@ function conflict(message: string): never {
 const job = (run: RunRow) => ({ id: run.id });
 
 /**
- * The oldest queued run goes to a Worker with an agent, and the run records
- * that agent: the one its whole result comes from.
+ * A Worker that stopped renewing its lease lets go of its run: the run
+ * returns to the queue with every accepted region, and the regions still
+ * open lose their attempts, fencing the credentials issued for them.
  */
+async function releaseLapsedClaims(at: Date, db: Executor) {
+  const released = await db
+    .update(annotationRuns)
+    .set({
+      status: "queued",
+      workerId: null,
+      sessionId: null,
+      leaseExpiresAt: null,
+      updatedAt: at,
+    })
+    .where(
+      and(
+        eq(annotationRuns.status, "running"),
+        lte(annotationRuns.leaseExpiresAt, at),
+      ),
+    )
+    .returning({ id: annotationRuns.id });
+  if (!released.length) return;
+  await db
+    .update(annotationTasks)
+    .set({ attemptId: null })
+    .where(
+      and(
+        inArray(
+          annotationTasks.runId,
+          released.map((run) => run.id),
+        ),
+        isNull(annotationTasks.response),
+      ),
+    );
+}
+
+/** The oldest queued run goes to a Worker that runs an agent. */
 export async function claimAnnotationRun(
   owner: WorkerIdentity,
   at = new Date(),
 ) {
   return transaction(async (tx) => {
     const worker = await lockWorkerSession(owner, tx);
-    await expireAnnotationRuns(at, tx);
-    const runtime = worker.annotationRuntime;
-    if (!runtime) return null;
+    await releaseLapsedClaims(at, tx);
+    if (!worker.annotationRuntime) return null;
     const [owned] = await tx
       .select()
       .from(annotationRuns)
@@ -54,7 +86,6 @@ export async function claimAnnotationRun(
         workerId: owner.workerId,
         sessionId: owner.sessionId,
         leaseExpiresAt: new Date(at.getTime() + LEASE_MS),
-        runtime,
         updatedAt: at,
       })
       .where(eq(annotationRuns.id, row.id));

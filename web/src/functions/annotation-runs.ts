@@ -3,7 +3,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { startAnnotationRunSchema } from "../domain/annotation-runs/schema";
 import { datasetRefSchema } from "../domain/datasets/schema";
 import { observationRefSchema } from "../domain/experiments/schema";
-import { resourceIdSchema } from "../domain/identifiers/schema";
+import { annotationRefSchema } from "../domain/annotation/schema";
 import {
   createAnnotationRun,
   createAnnotationRuns,
@@ -27,7 +27,7 @@ export const startAnnotationRun = createServerFn({ method: "POST" })
   });
 
 export const stopAnnotationRun = createServerFn({ method: "POST" })
-  .validator(resourceIdSchema)
+  .validator(annotationRefSchema)
   .handler(({ data }) => cancelAnnotationRun(data));
 
 export const annotateDatasetImages = createServerFn({ method: "POST" })

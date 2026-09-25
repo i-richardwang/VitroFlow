@@ -33,7 +33,7 @@ async function setup(name: string, scheduled = false) {
       annotationRuntime: runtime,
     });
   const run = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: null, scope: null },
+    { ref, input: null, scope: null },
     scheduled ? "worker" : "interactive",
     user.id,
   );
@@ -50,9 +50,9 @@ const proposal = {
 
 test("interactive image-to-preview-to-submit is durable, idempotent and remains an unreviewed proposal", async () => {
   const { run, principal, ref } = await setup("remote-flow");
-  const next = await nextAnnotationTask(principal, run.id);
-  expect(await nextAnnotationTask(principal, run.id)).toEqual(next);
-  const taskId = next.taskId!;
+  const next = await nextAnnotationTask(principal, ref);
+  expect(await nextAnnotationTask(principal, ref)).toEqual(next);
+  const taskId = next.taskId;
   const access = await readTask(principal, taskId);
   const content = await viewAnnotationTask(principal, taskId);
   const pictures = content.filter((i) => i.kind === "image");
@@ -61,7 +61,7 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
   expect(dimensions.width).toBe(
     access.task.region.patch.width * access.run.definition.config.displayScale,
   );
-  expect((await nextAnnotationTask(principal, run.id)).completed).toBe(0);
+  expect((await nextAnnotationTask(principal, ref)).completed).toBe(0);
   const preview = await previewAnnotationTask(principal, taskId, proposal);
   expect(preview.panels.filter((i) => i.kind === "image")).toHaveLength(2);
   const replies = await Promise.all([
@@ -70,7 +70,9 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
   ]);
   expect(replies[0]).toEqual(replies[1]);
   expect(replies[0]?.status).toBe("succeeded");
-  expect((await nextAnnotationTask(principal, run.id)).taskId).toBeNull();
+  await expect(nextAnnotationTask(principal, ref)).rejects.toThrow(
+    "No AI annotation run is in progress",
+  );
   expect(await readAnnotation(ref)).toBeNull();
   const [stored] = await (
     await database()
@@ -82,21 +84,20 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
     access.run.definition.image.width * 0.1,
   );
   expect(stored!.executor).toBe("interactive");
-  expect(stored!.runtime).toBeNull();
   await expect(
     submitProposal(principal, taskId, "f".repeat(64)),
   ).rejects.toThrow("different proposal");
 });
 
 test("user ownership, classes, finite geometry and preview identity are enforced", async () => {
-  const { run, principal } = await setup("remote-validation");
-  const taskId = (await nextAnnotationTask(principal, run.id)).taskId!;
+  const { principal, ref } = await setup("remote-validation");
+  const taskId = (await nextAnnotationTask(principal, ref)).taskId;
   await expect(
     nextAnnotationTask(
       { kind: "user", userId: "other", clientId: "client" },
-      run.id,
+      ref,
     ),
-  ).rejects.toThrow("not owned");
+  ).rejects.toThrow("Another person");
   await expect(
     savePreview(principal, taskId, {
       instances: [{ ...proposal.instances[0], class: "weed" }],
@@ -115,12 +116,12 @@ test("user ownership, classes, finite geometry and preview identity are enforced
   await expect(
     submitProposal(principal, taskId, "a".repeat(64)),
   ).rejects.toThrow("preview first");
-  await cancelAnnotationRun(run.id);
+  await cancelAnnotationRun(ref);
   await expect(readTask(principal, taskId)).rejects.toThrow("not active");
 });
 
 test("task credentials fence other regions, replaced attempts, cancellation, expiry and replaced Worker sessions", async () => {
-  const { run, owner } = await setup("remote-fencing", true);
+  const { run, owner, ref } = await setup("remote-fencing", true);
   await claimAnnotationRun(owner);
   const binding = await assignWorkerTask(
     run.id,
@@ -131,9 +132,7 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
   if (binding.accepted) throw new Error("Unexpected acceptance");
   const principal = binding.principal;
   await validateTaskPrincipal(principal);
-  await expect(nextAnnotationTask(principal, run.id)).rejects.toThrow(
-    "Only user",
-  );
+  await expect(nextAnnotationTask(principal, ref)).rejects.toThrow("Only user");
   await expect(readTask(principal, "other")).rejects.toThrow();
   const preview = await savePreview(principal, principal.taskId, proposal);
   const newer = await assignWorkerTask(
@@ -161,15 +160,15 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
     },
   });
   await expect(validateTaskPrincipal(newPrincipal)).rejects.toThrow();
-  await cancelAnnotationRun(run.id);
+  await cancelAnnotationRun(ref);
   await expect(validateTaskPrincipal(newPrincipal)).rejects.toThrow(
     "not active",
   );
 });
 
 test("all regions, including empty ones, must be accepted before finalization", async () => {
-  const { run, principal, ref } = await setup("remote-multiregion");
-  await cancelAnnotationRun(run.id);
+  const { principal, ref } = await setup("remote-multiregion");
+  await cancelAnnotationRun(ref);
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Regional annotation test",
@@ -186,15 +185,14 @@ test("all regions, including empty ones, must be accepted before finalization", 
     },
   });
   const second = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: null, scope: null },
+    { ref, input: null, scope: null },
     "interactive",
     principal.kind === "user" ? principal.userId : "",
   );
   expect(second.progress.total).toBeGreaterThan(1);
   let completed = 0;
-  for (;;) {
-    const next = await nextAnnotationTask(principal, second.id);
-    if (!next.taskId) break;
+  for (let status = second.status; status === "running";) {
+    const next = await nextAnnotationTask(principal, ref);
     const preview = await savePreview(principal, next.taskId, {
       instances: [],
     });
@@ -204,6 +202,7 @@ test("all regions, including empty ones, must be accepted before finalization", 
       preview.proposalId,
     );
     completed++;
+    status = receipt.status;
     expect(receipt.status).toBe(
       completed === second.progress.total ? "succeeded" : "running",
     );
@@ -212,8 +211,8 @@ test("all regions, including empty ones, must be accepted before finalization", 
 });
 
 test("a run scoped to part of the image redraws only the regions it touches and keeps the boxes of the reading it begins from elsewhere", async () => {
-  const { run, principal, ref } = await setup("remote-partial");
-  await cancelAnnotationRun(run.id);
+  const { principal, ref } = await setup("remote-partial");
+  await cancelAnnotationRun(ref);
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Partial annotation test",
@@ -244,14 +243,14 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   const corner = { x: 48, y: 48, width: 16, height: 16 };
   await expect(
     createAnnotationRun(
-      { id: crypto.randomUUID(), ref, input: null, scope: [corner] },
+      { ref, input: null, scope: [corner] },
       "interactive",
       userId,
     ),
   ).rejects.toThrow("needs the boxes to keep");
   await expect(
     createAnnotationRun(
-      { id: crypto.randomUUID(), ref, input: "proposal", scope: [corner] },
+      { ref, input: "proposal", scope: [corner] },
       "interactive",
       userId,
     ),
@@ -259,7 +258,6 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   await expect(
     createAnnotationRun(
       {
-        id: crypto.randomUUID(),
         ref,
         input: "review",
         scope: [{ ...corner, width: 32 }],
@@ -269,7 +267,7 @@ test("a run scoped to part of the image redraws only the regions it touches and 
     ),
   ).rejects.toThrow("exceeds image bounds");
   const partial = await createAnnotationRun(
-    { id: crypto.randomUUID(), ref, input: "review", scope: [corner] },
+    { ref, input: "review", scope: [corner] },
     "interactive",
     userId,
   );
@@ -281,15 +279,14 @@ test("a run scoped to part of the image redraws only the regions it touches and 
     .from(annotationRuns)
     .where(eq(annotationRuns.id, partial.id));
   expect(stored!.definition.input).toEqual([kept, stale]);
-  expect(stored!.request.input).toBe("review");
-  const next = await nextAnnotationTask(principal, partial.id);
+  const next = await nextAnnotationTask(principal, ref);
   expect(next.taskId).toBe(`${partial.id}/tile-003-003`);
-  const preview = await savePreview(principal, next.taskId!, {
+  const preview = await savePreview(principal, next.taskId, {
     instances: [{ id: "fresh", class: "seed", box_2d: [500, 500, 700, 700] }],
   });
   const receipt = await submitProposal(
     principal,
-    next.taskId!,
+    next.taskId,
     preview.proposalId,
   );
   expect(receipt.status).toBe("succeeded");

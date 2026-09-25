@@ -55,7 +55,6 @@ export function AiAnnotateMenu({
       () =>
         startAnnotationRun({
           data: {
-            id: crypto.randomUUID(),
             ref: review.ref,
             input: from === "refit" ? current : null,
             scope: null,
@@ -136,7 +135,7 @@ export function AiSection({
             isDisabled={disabled || busy}
             onPress={() =>
               void run(
-                () => stopAnnotationRun({ data: activity.runId }),
+                () => stopAnnotationRun({ data: review.ref }),
                 m.ai_not_stopped(),
               ).then(async (result) => {
                 if (result.ok) await router.invalidate();
