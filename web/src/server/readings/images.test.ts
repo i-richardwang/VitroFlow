@@ -3,8 +3,8 @@ import { expect, test } from "bun:test";
 import { database } from "../infra/db/client";
 import { seedInferenceOutcome } from "../testing/inference";
 import { instancesFromDetection } from "../../domain/annotation/detection";
-import { storeAnnotation } from "./documents";
-import { readReview } from "./review";
+import { storeAnnotation } from "../annotations/documents";
+import { readReview } from "./images";
 import {
   TEST_RUNTIME,
   ULTRALYTICS_RUNTIME,

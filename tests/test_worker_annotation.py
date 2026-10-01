@@ -47,7 +47,6 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
                 200,
                 json={
                     "accepted": False,
-                    "runId": "run",
                     "taskId": body["taskId"],
                     "endpoint": "https://lab.example/api/mcp",
                     "token": "task-" + body["taskId"],

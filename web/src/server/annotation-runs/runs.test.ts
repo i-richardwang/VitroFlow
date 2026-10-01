@@ -7,7 +7,7 @@ import type { WorkerIdentity } from "../../domain/workers/schema";
 import { expect, test } from "bun:test";
 import { eq, inArray, ne } from "drizzle-orm";
 import type { StartAnnotationRun } from "../../domain/annotation-runs/schema";
-import { readReview } from "../annotations/review";
+import { readReview } from "../readings/public";
 import { createModel, setModelAnnotation } from "../models/public";
 import { annotationRuns, workers } from "../infra/db/schema";
 import { database } from "../infra/db/client";

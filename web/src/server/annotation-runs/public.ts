@@ -5,14 +5,6 @@ export {
   cancelAnnotationRun,
 } from "./runs";
 export {
-  latestRunId,
-  latestRuns,
-  proposalRunId,
-  proposalRuns,
-  toActivity,
-  toProposal,
-} from "./readings";
-export {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";

@@ -52,6 +52,7 @@
   "ai_failed": "AI 标注失败",
   "ai_result_summary": "{count} 个框 · {issues} 项疑问 · {uncertain} 个不确定框",
   "ai_issues": "需要关注的区域",
+  "ai_seam_warning": "相邻区域的部分框可能标记了同一个对象，请在确认标注前检查是否重复；真实对象的框也可能正常重叠。",
   "worker_activity_annotation": "正在 AI 标注 {image}",
   "ai_no_instructions": "该模型还没有标注说明。请先在「模型」页补充，再开始 AI 标注。",
   "ai_fresh": "从图片开始",

@@ -9,7 +9,7 @@ import type {
 import type { DatasetImageRef } from "../../domain/datasets/schema";
 import { membershipOrder, readDataset } from "../datasets/public";
 import { readModel } from "../models/public";
-import { readReview } from "../annotations/public";
+import { readReview } from "../readings/public";
 
 export async function readDatasetImage(
   ref: DatasetImageRef,

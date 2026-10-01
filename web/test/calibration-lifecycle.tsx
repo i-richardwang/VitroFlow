@@ -212,7 +212,6 @@ const annotation = {
   ],
 };
 const proposal = {
-  runId: "qa-ai-result",
   createdAt: "2026-09-14T00:00:00Z",
   document: {
     ...annotation,
@@ -224,6 +223,7 @@ const proposal = {
   },
   issues: [],
   uncertainIds: [],
+  warnings: [],
 };
 const review = {
   ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },

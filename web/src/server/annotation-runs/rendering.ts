@@ -1,8 +1,9 @@
 import sharp from "sharp";
 import type { BoundingBox } from "../../domain/annotation/schema";
-import type { RegionProposal } from "../../domain/annotation-runs/tasks";
-import { sourceBox } from "../../domain/annotation-runs/tasks";
-import type { AnnotationDefinition } from "../../domain/annotation-runs/schema";
+import type {
+  AnnotationDefinition,
+  AnnotationContent,
+} from "../../domain/annotation-runs/schema";
 import type { Region } from "../../domain/annotation-runs/tasks";
 export type AnnotationPanel =
   { kind: "image"; bytes: Buffer } | { kind: "description"; value: unknown };
@@ -36,7 +37,7 @@ export async function renderTask(
   definition: AnnotationDefinition,
   region: Region,
   bytes: Uint8Array,
-  proposal?: RegionProposal,
+  proposal?: AnnotationContent,
 ) {
   const { patch } = region,
     scale = definition.config.displayScale;
@@ -74,8 +75,8 @@ export async function renderTask(
           input: overlay(
             width,
             height,
-            proposal.instances.map((item) => ({
-              bbox: local(sourceBox(item.box_2d, patch)),
+            proposal.document.instances.map((item) => ({
+              bbox: local(item.bbox),
               label: item.id,
             })),
           ),
@@ -87,7 +88,7 @@ export async function renderTask(
       description("CLEAN — image evidence"),
       image(clean),
       description(
-        "PROPOSED — inspect every edge against CLEAN before submitting. Changed geometry requires another preview.",
+        "PROPOSED — boxes this region will save; halo-only boxes belong to neighboring regions. Inspect every edge against CLEAN before submitting. Changed geometry requires another preview.",
       ),
       image(drawn),
     );

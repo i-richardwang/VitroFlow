@@ -25,6 +25,7 @@
   "include": [
     "src",
     "scripts",
-    "test"
+    "test",
+    "../tests/fixtures/*.ts"
   ]
 }

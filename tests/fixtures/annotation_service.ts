@@ -27,9 +27,9 @@ const owner = {
 await recordWorkerHeartbeat(owner);
 const run = await createAnnotationRun(
   {
-    id: crypto.randomUUID(),
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },
     input: null,
+    scope: null,
   },
   "worker",
   user.id,

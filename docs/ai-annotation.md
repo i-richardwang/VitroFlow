@@ -15,7 +15,9 @@ A run has two inputs besides the image. Its **input** is the boxes it begins
 from: none, so the agent draws from clean pixels, or a set of boxes it refits.
 Its **scope** is the part of the image it redraws: the whole image, or only the
 regions some source-pixel boxes touch, in which case every other region keeps
-its input boxes. On an image, **AI annotation** redraws the whole image from
+its input boxes. When beginning from an AI proposal, untouched regions also keep
+their uncertainty and issues. The touched regions are replaced in full, including
+their associated notes. On an image, **AI annotation** redraws the whole image from
 clean pixels or from the boxes shown. Model settings own classes, instructions
 and region geometry. The server freezes all of these at creation. Dataset and
 observation batch actions queue one run per eligible image. The actions appear
@@ -79,9 +81,11 @@ when the run is admitted, or nothing to start from the image alone. Naming a
 reading the image lacks is refused. `scope` is an optional list of
 source-coordinate boxes `{x, y, width, height}`; the run then covers only the
 regions those boxes touch, and every other region keeps its `input` boxes in the
-result. A scoped run therefore requires `input`, and a scope touching no region or
-leaving the image is refused. While the image has a run in progress, starting
-another is refused with that run's progress.
+result. With `input: "proposal"`, the run also freezes its uncertainty and issues
+and carries those of untouched regions into the result. This is a whole-region
+redraw, not an edit restricted to the exact scope rectangle. A scoped run requires
+`input`, and a scope touching no region or leaving the image is refused. While the
+image has a run in progress, starting another is refused with that run's progress.
 
 `annotation_next({ref})` returns progress and the `taskId` of the first region of
 the image's run still waiting for an answer. It returns the same region until that
@@ -102,6 +106,11 @@ Python's standalone tool contracts:
   stores an immutable version, and returns `proposalId`, CLEAN and PROPOSED images.
   Instances have `id`, `class`, `box_2d`, and optional `uncertain`/`truncated` flags.
   Coordinates are `[ymin, xmin, ymax, xmax]`, normalized to 0–1000 relative to CLEAN.
+  Preparation validates the response and projects its owned boxes into source
+  coordinates for rendering. The immutable response is the content accepted by
+  submission and projected into the final image. PROPOSED
+  shows only the boxes this region owns and will save; halo-only boxes belong to
+  neighboring regions. Preview and final collection use the same projection.
 - `annotation_submit({taskId, proposalId})` durably accepts exactly the previewed
   proposal. Changed geometry requires a new preview. Empty regions still submit an
   empty instance list. The final accepted region automatically completes the run.
@@ -197,11 +206,16 @@ neighboring results. The same ownership decides which frozen input boxes a scope
 run carries into its result: those whose centers fall in a region it did not
 redraw. Owned boxes touching internal patch edges are rejected.
 Uncertainty, boundary truncation and seam-review warnings remain in the proposal.
+Seam warnings are recomputed from the resulting boxes and exposed to both MCP
+clients and the workbench. They ask for human review, never merge or delete boxes:
+real objects can overlap. Frozen input notes, when present, describe the input
+proposal; bare boxes carry no such assessment.
 Geometry validation does not establish visual accuracy.
 
-Lease loss fails a run explicitly, whether a Worker stopped renewing or a
-connected agent stopped calling. Worker execution failures stop new sessions while
-already running sessions finish. No automatic paid retry or
-cross-runtime fallback occurs. A transport retry of an accepted proposal is
+An interactive run stays open until completed or cancelled. A Worker lease loss
+returns the run to the queue, retaining accepted regions; a new claim may execute
+the unfinished regions again. Reported Worker execution failures stop new sessions
+while already running sessions finish, then fail the run. Failed runs are not
+automatically retried. A transport retry of an accepted proposal is
 idempotent and does not rerun inference. A new product run is required after a
 failed/cancelled run.

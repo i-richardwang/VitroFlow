@@ -1,5 +1,5 @@
 import { newestDetectingVersion } from "../inference/public";
-import { proposalRunId, proposalRuns } from "../annotation-runs/public";
+import { proposalRunId, proposalRuns } from "../readings/public";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 
 import { database, type Executor } from "../infra/db/client";

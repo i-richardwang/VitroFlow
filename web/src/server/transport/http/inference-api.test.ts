@@ -14,7 +14,7 @@ import { createExperiment } from "../../experiments/design";
 import { assignObservationImages } from "../../experiments/observation-images";
 import { addObservation } from "../../experiments/observations";
 import { listUnits } from "../../experiments/records";
-import { readReview } from "../../annotations/review";
+import { readReview } from "../../readings/public";
 import { contentDigest } from "../../infra/digest";
 import {
   FIXTURE_EDGE,

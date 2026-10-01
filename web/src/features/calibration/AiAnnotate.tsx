@@ -173,6 +173,9 @@ export function AiSection({
               </ul>
             </details>
           ) : null}
+          {proposal.warnings.length > 0 ? (
+            <p className="text-xs text-warning">{m.ai_seam_warning()}</p>
+          ) : null}
         </>
       ) : null}
       {uninstructed ? (

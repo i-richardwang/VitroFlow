@@ -1,3 +1,4 @@
+import { readAnnotationReading } from "../../readings/public";
 import type { AnnotationPrincipal } from "../../../domain/annotation-runs/access";
 import {
   AnnotationRunConflictError,
@@ -24,7 +25,6 @@ import {
   submitProposal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
-import { readAnnotationReading } from "../../annotations/public";
 
 const textContent = (value: unknown) => ({
   type: "text" as const,

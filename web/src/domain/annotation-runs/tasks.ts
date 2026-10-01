@@ -1,7 +1,11 @@
 import { AnnotationRunConflictError } from "./errors";
 import { z } from "zod";
-import type { AnnotationDefinition } from "./schema";
-import type { AnnotationInstance, BoundingBox } from "../annotation/schema";
+import type { AnnotationContent, AnnotationDefinition } from "./schema";
+import {
+  annotationSchema,
+  type AnnotationInstance,
+  type BoundingBox,
+} from "../annotation/schema";
 
 const edge = z.number().min(0).max(1000);
 const box = z
@@ -78,13 +82,16 @@ export function regions(definition: AnnotationDefinition): Region[] {
   return all.filter((tile) => scope.some((box) => intersects(tile.core, box)));
 }
 
-export function sourceBox(edges: number[], patch: BoundingBox): BoundingBox {
+function sourceBox(edges: number[], patch: BoundingBox): BoundingBox {
   const [top, left, bottom, right] = edges as [number, number, number, number];
+  const x = patch.x + (left * patch.width) / 1000;
+  const y = patch.y + (top * patch.height) / 1000;
+  // Derive extents from the same edges, including the exact source boundary.
   return {
-    x: patch.x + (left * patch.width) / 1000,
-    y: patch.y + (top * patch.height) / 1000,
-    width: ((right - left) * patch.width) / 1000,
-    height: ((bottom - top) * patch.height) / 1000,
+    x,
+    y,
+    width: patch.x + (right * patch.width) / 1000 - x,
+    height: patch.y + (bottom * patch.height) / 1000 - y,
   };
 }
 export function owns(core: BoundingBox, box: BoundingBox): boolean {
@@ -97,35 +104,63 @@ export function owns(core: BoundingBox, box: BoundingBox): boolean {
     y < core.y + core.height
   );
 }
-export function validateProposal(
+export function prepareProposal(
   value: unknown,
   region: Region,
   definition: AnnotationDefinition,
-): RegionProposal {
-  const proposal = regionProposalSchema.parse(value);
+) {
+  const response = regionProposalSchema.parse(value);
+  return { response, content: projectProposal(response, region, definition) };
+}
+
+/** Preview and collection use the same owned boxes and the same source geometry. */
+export function projectProposal(
+  proposal: RegionProposal,
+  region: Region,
+  definition: AnnotationDefinition,
+): AnnotationContent {
+  const instances: AnnotationInstance[] = [];
+  const uncertainIds: string[] = [];
   const ids = new Set<string>();
-  for (const instance of proposal.instances) {
-    if (ids.has(instance.id))
+  for (const item of proposal.instances) {
+    if (ids.has(item.id))
       throw new AnnotationRunConflictError("Duplicate instance ID");
-    ids.add(instance.id);
-    if (!definition.config.classes.includes(instance.class))
+    ids.add(item.id);
+    if (!definition.config.classes.includes(item.class))
       throw new AnnotationRunConflictError("Unknown annotation class");
-    const box = sourceBox(instance.box_2d, region.patch);
-    if (!owns(region.core, box)) continue;
-    const [top, left, bottom, right] = instance.box_2d;
+    const bbox = sourceBox(item.box_2d, region.patch);
+    if (!owns(region.core, bbox)) continue;
+    const [top, left, bottom, right] = item.box_2d;
     const p = region.patch;
     if (
       (left === 0 && p.x > 0) ||
       (top === 0 && p.y > 0) ||
       (right === 1000 && p.x + p.width < definition.image.width) ||
       (bottom === 1000 && p.y + p.height < definition.image.height)
-    ) {
+    )
       throw new AnnotationRunConflictError(
         "Owned box touches an internal patch boundary; use a larger halo in a new run",
       );
-    }
+    instances.push({ id: item.id, class: item.class, bbox });
+    if (
+      item.uncertain ||
+      item.truncated ||
+      item.box_2d.some((edge) => edge === 0 || edge === 1000)
+    )
+      uncertainIds.push(item.id);
   }
-  return proposal;
+  return {
+    document: annotationSchema.parse({
+      schemaVersion: 1,
+      image: definition.image,
+      instances,
+    }),
+    issues: proposal.issues.flatMap((issue) => {
+      const bbox = sourceBox(issue.box_2d, region.patch);
+      return owns(region.core, bbox) ? [{ bbox, reason: issue.reason }] : [];
+    }),
+    uncertainIds,
+  };
 }
 
 export const annotationViewInput = z.strictObject({

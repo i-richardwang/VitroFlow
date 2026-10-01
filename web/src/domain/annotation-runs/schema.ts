@@ -65,6 +65,17 @@ const annotationProgressSchema = z
   })
   .refine((v) => v.completed <= v.total, "Completed exceeds total");
 
+/** Questions that remain attached to the boxes and areas an agent has read. */
+const annotationNotesSchema = z.strictObject({
+  issues: z.array(
+    z.strictObject({
+      bbox: boundingBoxSchema,
+      reason: z.string().min(1).max(2000),
+    }),
+  ),
+  uncertainIds: z.array(z.string().min(1)),
+});
+
 export const annotationDefinitionSchema = z.strictObject({
   image: z.strictObject({
     digest: sha256Schema,
@@ -72,6 +83,7 @@ export const annotationDefinitionSchema = z.strictObject({
     height: z.number().int().positive(),
   }),
   input: z.array(annotationInstanceSchema).nullable(),
+  inputNotes: annotationNotesSchema.optional(),
   scope: annotationScopeSchema,
   config: annotationConfigSchema,
 });
@@ -79,16 +91,14 @@ export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
 export const annotationJobSchema = z.strictObject({ id: resourceIdSchema });
 
-export const annotationRunResultSchema = z.strictObject({
+const annotationContentSchema = z.strictObject({
   document: annotationSchema,
-  issues: z.array(
-    z.strictObject({
-      bbox: boundingBoxSchema,
-      reason: z.string().min(1).max(2000),
-    }),
-  ),
+  ...annotationNotesSchema.shape,
+});
+export type AnnotationContent = z.infer<typeof annotationContentSchema>;
+
+export const annotationRunResultSchema = annotationContentSchema.extend({
   warnings: z.array(z.string().max(2000)),
-  uncertainIds: z.array(z.string().min(1)),
 });
 export type AnnotationRunResult = z.infer<typeof annotationRunResultSchema>;
 export type AnnotationRun = {
@@ -97,11 +107,8 @@ export type AnnotationRun = {
   progress: z.infer<typeof annotationProgressSchema>;
 };
 
-export const annotationProposalSchema = z.strictObject({
+export const annotationProposalSchema = annotationRunResultSchema.extend({
   createdAt: z.string(),
-  document: annotationSchema,
-  issues: annotationRunResultSchema.shape.issues,
-  uncertainIds: annotationRunResultSchema.shape.uncertainIds,
 });
 export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;
 export const annotationActivitySchema = z.strictObject({

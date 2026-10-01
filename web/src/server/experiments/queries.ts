@@ -52,9 +52,8 @@ import {
   toExperiment,
 } from "./records";
 import { toModel } from "../models/public";
-import { readReview } from "../annotations/public";
+import { readReview, proposalRunId, proposalRuns } from "../readings/public";
 import { newestVersion } from "../inference/public";
-import { proposalRunId, proposalRuns } from "../annotation-runs/public";
 
 function tallyOf(document: SQL | AnyColumn) {
   return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;

@@ -1,7 +1,7 @@
 import { annotationRunResultSchema, type AnnotationDefinition } from "./schema";
 import {
   owns,
-  sourceBox,
+  projectProposal,
   seamWarnings,
   tiles,
   type Region,
@@ -22,32 +22,31 @@ export function collectRegions(
     issues = [],
     uncertainIds: string[] = [];
   for (const task of tasks) {
-    const response = task.response!;
-    for (const item of response.instances) {
-      const bbox = sourceBox(item.box_2d, task.region.patch);
-      if (!owns(task.region.core, bbox)) continue;
-      const id = `${task.taskId}/${item.id}`;
-      instances.push({ id, class: item.class, bbox, taskId: task.taskId });
-      const edges = item.box_2d;
-      if (
-        item.uncertain ||
-        item.truncated ||
-        edges.some((v) => v === 0 || v === 1000)
-      )
-        uncertainIds.push(id);
-    }
-    for (const issue of response.issues) {
-      const bbox = sourceBox(issue.box_2d, task.region.patch);
-      if (owns(task.region.core, bbox))
-        issues.push({ bbox, reason: issue.reason });
-    }
+    const content = projectProposal(task.response!, task.region, definition);
+    instances.push(
+      ...content.document.instances.map((item) => ({
+        ...item,
+        id: `${task.taskId}/${item.id}`,
+        taskId: task.taskId,
+      })),
+    );
+    uncertainIds.push(
+      ...content.uncertainIds.map((id) => `${task.taskId}/${id}`),
+    );
+    issues.push(...content.issues);
   }
   const redrawn = new Set(tasks.map((task) => task.region.id));
+  const inputUncertain = new Set(definition.inputNotes?.uncertainIds);
   for (const tile of tiles(definition)) {
     if (redrawn.has(tile.id)) continue;
     for (const item of definition.input ?? []) {
-      if (owns(tile.core, item.bbox))
+      if (owns(tile.core, item.bbox)) {
         instances.push({ ...item, taskId: tile.id });
+        if (inputUncertain.has(item.id)) uncertainIds.push(item.id);
+      }
+    }
+    for (const issue of definition.inputNotes?.issues ?? []) {
+      if (owns(tile.core, issue.bbox)) issues.push(issue);
     }
   }
   return annotationRunResultSchema.parse({

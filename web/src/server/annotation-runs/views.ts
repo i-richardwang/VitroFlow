@@ -20,7 +20,7 @@ export async function previewAnnotationTask(
   taskId: string,
   proposal: unknown,
 ) {
-  const { run, task, response, proposalId } = await savePreview(
+  const { run, task, content, proposalId } = await savePreview(
     principal,
     taskId,
     proposal,
@@ -31,7 +31,7 @@ export async function previewAnnotationTask(
       run.definition,
       task.region,
       await requireBlob(imageBlobKey(run.imageId)),
-      response,
+      content,
     ),
   };
 }

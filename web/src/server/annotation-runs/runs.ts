@@ -17,7 +17,6 @@ import { assertInstanceClasses } from "../../domain/models/classes";
 import { workerPresence } from "../../domain/workers/presence";
 import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
-import { readReadings } from "../annotations/public";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
 import { listWorkers } from "../workers/public";
@@ -26,12 +25,12 @@ import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../domain/annotation-runs/errors";
-import { effectiveStatus } from "./readings";
+import { readReadings } from "../readings/public";
 
 function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
   return {
     id: row.id,
-    status: effectiveStatus(row),
+    status: row.status,
     progress: { completed: row.completed, total: row.total },
   };
 }
@@ -73,8 +72,8 @@ export async function createAnnotationRun(
   return admitted.run;
 }
 
-/** The boxes of one reading as it stands now; a reading the image lacks cannot begin a run. */
-async function readingInstances(
+/** Freeze a reading's boxes and, for an AI proposal, its unresolved questions. */
+async function readingInput(
   ref: AnnotationRef,
   source: ReviewSource,
   tx: Executor,
@@ -85,7 +84,17 @@ async function readingInstances(
     throw new AnnotationRunConflictError(
       `The image has no ${source} to begin from`,
     );
-  return instances;
+  return {
+    input: instances,
+    ...(source === "proposal" && readings?.proposal
+      ? {
+          inputNotes: {
+            issues: readings.proposal.issues,
+            uncertainIds: readings.proposal.uncertainIds,
+          },
+        }
+      : {}),
+  };
 }
 
 /** Under the image lock, either admit this request or leave its active run alone. */
@@ -106,10 +115,11 @@ async function admitRun(
   if (!image || !model)
     throw new AnnotationRunNotFoundError("Image or labeling model not found");
   const frame = { digest: image.id, width: image.width, height: image.height };
-  const input =
+  const initial =
     typeof request.input === "string"
-      ? await readingInstances(request.ref, request.input, tx)
-      : request.input;
+      ? await readingInput(request.ref, request.input, tx)
+      : { input: request.input };
+  const { input } = initial;
   if (input) {
     annotationSchema.parse({
       schemaVersion: 1,
@@ -138,7 +148,7 @@ async function admitRun(
     );
   const definition = annotationDefinitionSchema.parse({
     image: frame,
-    input,
+    ...initial,
     scope: request.scope,
     config: { classes: model.classes, rules: instructions, ...region },
   });

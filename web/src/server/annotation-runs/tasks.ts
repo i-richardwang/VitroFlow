@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
 import type { AnnotationRef } from "../../domain/annotation/schema";
-import { validateProposal } from "../../domain/annotation-runs/tasks";
+import { prepareProposal } from "../../domain/annotation-runs/tasks";
 import { collectRegions } from "../../domain/annotation-runs/results";
 import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors";
 import { canonicalJson } from "../../lib/json/canonical";
@@ -104,7 +104,11 @@ export async function savePreview(
     const runId = run.id;
     if (task.response || run.status !== "running")
       return conflict("Region has already been accepted");
-    const response = validateProposal(value, task.region, run.definition);
+    const { response, content } = prepareProposal(
+      value,
+      task.region,
+      run.definition,
+    );
     const proposalId = contentDigest({
       runId,
       taskId,
@@ -121,7 +125,7 @@ export async function savePreview(
         response,
       })
       .onConflictDoNothing();
-    return { run, task, response, proposalId };
+    return { run, task, content, proposalId };
   });
 }
 
@@ -150,7 +154,6 @@ export async function submitProposal(
         );
       if (!preview)
         return conflict("Unknown proposal for this attempt; preview first");
-      validateProposal(preview.response, task.region, run.definition);
       await tx
         .update(annotationTasks)
         .set({ response: preview.response, acceptedProposalId: proposalId })

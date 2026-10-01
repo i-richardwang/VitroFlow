@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { observeImages, signInAs, testHeartbeat } from "../testing/fixtures";
 import { recordWorkerHeartbeat } from "../workers/public";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
+import { readAnnotationReading } from "../readings/public";
 import { database } from "../infra/db/client";
 import { annotationRuns } from "../infra/db/schema";
 import { createModel, setModelAnnotation } from "../models/public";
@@ -300,4 +301,113 @@ test("a run scoped to part of the image redraws only the regions it touches and 
     done!.result!.document.instances.map((instance) => instance.id).sort(),
   ).toEqual([`${partial.id}/tile-003-003/fresh`, "kept"]);
   expect((await readAnnotation(ref))!.instances).toEqual([kept, stale]);
+});
+
+test("partial redraw preserves untouched proposal notes, replaces redrawn notes and exposes seam warnings", async () => {
+  const { principal, ref } = await setup("remote-partial-notes");
+  await cancelAnnotationRun(ref);
+  const model = await createModel({
+    id: crypto.randomUUID(),
+    name: "Partial proposal notes",
+    classes: ["seed"],
+  });
+  ref.modelId = model.id;
+  await setModelAnnotation({
+    model: ref.modelId,
+    annotation: {
+      instructions: "Box all seeds",
+      coreSize: 16,
+      halo: 4,
+      displayScale: 1,
+    },
+  });
+  const userId = principal.kind === "user" ? principal.userId : "";
+  const base = await createAnnotationRun(
+    { ref, input: null, scope: null },
+    "interactive",
+    userId,
+  );
+  for (let i = 0; i < base.progress.total; i++) {
+    const { taskId } = await nextAnnotationTask(principal, ref);
+    const first = taskId.endsWith("tile-000-000");
+    const neighbor = taskId.endsWith("tile-000-001");
+    const corner = taskId.endsWith("tile-003-003");
+    const box_2d = first
+      ? [100, 600, 300, 950]
+      : neighbor
+        ? [100, 90, 300, 360]
+        : [500, 500, 700, 700];
+    const preview = await savePreview(principal, taskId, {
+      instances:
+        first || neighbor || corner
+          ? [{ id: "seed", class: "seed", box_2d, uncertain: first || corner }]
+          : [],
+      issues:
+        first || corner
+          ? [
+              {
+                box_2d,
+                reason: first ? "Check retained area" : "Check redrawn area",
+              },
+            ]
+          : [],
+    });
+    await submitProposal(principal, taskId, preview.proposalId);
+  }
+  const before = (await readAnnotationReading(ref)).proposal!;
+  expect(before.uncertainIds).toHaveLength(2);
+  expect(before.issues).toHaveLength(2);
+  expect(before.warnings).toHaveLength(1);
+
+  const partial = await createAnnotationRun(
+    {
+      ref,
+      input: "proposal",
+      scope: [{ x: 48, y: 48, width: 16, height: 16 }],
+    },
+    "interactive",
+    userId,
+  );
+  const db = await database();
+  const [frozen] = await db
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, partial.id));
+  expect(frozen!.definition.inputNotes).toEqual({
+    issues: before.issues,
+    uncertainIds: before.uncertainIds,
+  });
+  const { taskId } = await nextAnnotationTask(principal, ref);
+  const preview = await savePreview(principal, taskId, { instances: [] });
+  await submitProposal(principal, taskId, preview.proposalId);
+  const after = (await readAnnotationReading(ref)).proposal!;
+  expect(after.document.instances).toEqual(
+    before.document.instances.filter(
+      (item) => !item.id.includes("tile-003-003"),
+    ),
+  );
+  expect(after.uncertainIds).toEqual(
+    before.uncertainIds.filter((id) => !id.includes("tile-003-003")),
+  );
+  expect(after.issues).toEqual(
+    before.issues.filter((issue) => issue.reason === "Check retained area"),
+  );
+  expect(after.warnings).toEqual(before.warnings);
+  expect(await readAnnotation(ref)).toBeNull();
+
+  const redraw = await createAnnotationRun(
+    { ref, input: "proposal", scope: null },
+    "interactive",
+    userId,
+  );
+  for (let i = 0; i < redraw.progress.total; i++) {
+    const next = await nextAnnotationTask(principal, ref);
+    const empty = await savePreview(principal, next.taskId, { instances: [] });
+    await submitProposal(principal, next.taskId, empty.proposalId);
+  }
+  const final = (await readAnnotationReading(ref)).proposal!;
+  expect(final.document.instances).toEqual([]);
+  expect(final.issues).toEqual([]);
+  expect(final.uncertainIds).toEqual([]);
+  expect(final.warnings).toEqual([]);
 });

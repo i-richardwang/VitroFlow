@@ -52,6 +52,7 @@
   "ai_failed": "AI annotation failed",
   "ai_result_summary": "{count} boxes · {issues} issues · {uncertain} uncertain boxes",
   "ai_issues": "Areas needing attention",
+  "ai_seam_warning": "Some boxes in neighboring regions may mark the same object. Check for duplicates before accepting the annotation; overlapping boxes can also be valid.",
   "worker_activity_annotation": "Annotating {image} with AI",
   "ai_no_instructions": "This model has no annotation instructions. Add them on the Models page before starting AI annotation.",
   "ai_fresh": "From the image",
