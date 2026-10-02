@@ -1,10 +1,23 @@
 import { InlineSelect } from "@heroui-pro/react/inline-select";
-import { Alert, Button, Form, ListBox, Modal, toast } from "@heroui/react";
+import {
+  Alert,
+  Button,
+  Chip,
+  Form,
+  ListBox,
+  Modal,
+  toast,
+} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
 import { pairInOrder, suggestUnit } from "../../domain/experiments/naming";
+import {
+  photoConflicts,
+  type PhotoConflict,
+  type PlacedPhoto,
+} from "../../domain/experiments/photos";
 import { observationLabel } from "./labels";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
 import { assignImagesToObservation } from "../../functions/experiments";
@@ -21,6 +34,7 @@ export function AssignImagesDialog({
   observation,
   units,
   assigned,
+  placed,
   isOpen,
   onClose,
 }: {
@@ -28,6 +42,8 @@ export function AssignImagesDialog({
   observation: ExperimentObservation;
   units: Unit[];
   assigned: ReadonlySet<string>;
+  /** The photographs the experiment already holds. */
+  placed: readonly PlacedPhoto[];
   isOpen: boolean;
   onClose: () => void;
 }) {
@@ -41,58 +57,62 @@ export function AssignImagesDialog({
   const open = units.filter((unit) => !assigned.has(unit.id));
   const openUnits = useRef(open);
   openUnits.current = open;
+  const placedPhotos = useRef(placed);
+  placedPhotos.current = placed;
 
-  /** Each file is guessed once, when it arrives; a choice made is never undone. */
+  /**
+   * Each photograph is guessed once, when it is stored and free to take a
+   * unit; a choice made is never undone.
+   */
   const { images } = uploads;
   useEffect(() => {
-    const arrived = images.filter((image) => !suggested.current.has(image.id));
+    const arrived = freePhotos(
+      storedPhotos(images),
+      placedPhotos.current,
+    ).filter((photo) => !suggested.current.has(photo.id));
     if (arrived.length === 0) return;
-    for (const image of arrived) suggested.current.add(image.id);
+    for (const photo of arrived) suggested.current.add(photo.id);
     setAssignments((current) => {
       const claimed = new Set(
         Object.values(current).filter((unit): unit is string => unit !== null),
       );
       const next = { ...current };
-      for (const image of arrived) {
+      for (const photo of arrived) {
         const code = suggestUnit(
-          image.file.name,
+          photo.filename,
           openUnits.current.map((unit) => unit.code),
         );
         const unit = openUnits.current.find((item) => item.code === code);
         if (!unit || claimed.has(unit.id)) continue;
         claimed.add(unit.id);
-        next[image.id] = unit.id;
+        next[photo.id] = unit.id;
       }
       return next;
     });
   }, [images]);
 
-  const ready = uploads.images.flatMap((image) => {
-    if (image.state.status !== "stored") return [];
-    const unit = assignments[image.id];
-    if (!unit) return [];
-    return [
-      {
-        unit,
-        digest: image.state.digest,
-        filename: image.file.name,
-      },
-    ];
-  });
-  const stored = uploads.images.filter(
-    (image) => image.state.status === "stored",
+  const stored = storedPhotos(uploads.images);
+  const conflicts = photoConflicts(stored, placed);
+  const free = stored.filter((photo) => !conflicts.has(photo.id));
+  const chosen = new Map(
+    free.flatMap((photo) => {
+      const unit = assignments[photo.id];
+      return unit ? [[photo.id, unit] as const] : [];
+    }),
   );
-  const unassigned = stored.length - ready.length;
+  const ready = free.flatMap((photo) => {
+    const unit = chosen.get(photo.id);
+    return unit
+      ? [{ unit, digest: photo.digest, filename: photo.filename }]
+      : [];
+  });
+  const unassigned = free.length - ready.length;
 
   /** Camera names say nothing about dishes; shooting order does. */
   const fillInOrder = () =>
     setAssignments((current) => {
-      const claimed = new Set(
-        Object.values(current).filter((unit): unit is string => unit !== null),
-      );
-      const waiting = stored
-        .filter((image) => !current[image.id])
-        .map((image) => ({ id: image.id, filename: image.file.name }));
+      const claimed = new Set(free.flatMap((photo) => current[photo.id] ?? []));
+      const waiting = free.filter((photo) => !current[photo.id]);
       const vacant = open
         .filter((unit) => !claimed.has(unit.id))
         .map((unit) => unit.id);
@@ -131,7 +151,7 @@ export function AssignImagesDialog({
                           images: ready,
                         },
                       }),
-                    m.observation_images_not_assigned(),
+                    m.observation_images_assign_failed(),
                   ).then(async (result) => {
                     if (!result.ok) return;
                     uploads.clearStored();
@@ -156,31 +176,32 @@ export function AssignImagesDialog({
                     setAssignments(({ [id]: _removed, ...rest }) => rest);
                   }}
                   busy={busy}
-                  annotate={(image) => (
-                    <UnitChoice
-                      image={image}
-                      units={units}
-                      unavailable={
-                        new Set([
-                          ...assigned,
-                          ...Object.entries(assignments)
-                            .filter(
-                              ([id, unit]) =>
-                                unit !== null && Number(id) !== image.id,
-                            )
-                            .map(([, unit]) => unit!),
-                        ])
-                      }
-                      value={assignments[image.id] ?? null}
-                      busy={busy}
-                      onChange={(unit) =>
-                        setAssignments((current) => ({
-                          ...current,
-                          [image.id]: unit,
-                        }))
-                      }
-                    />
-                  )}
+                  annotate={(image) => {
+                    const conflict = conflicts.get(image.id);
+                    if (conflict) return <ConflictChip conflict={conflict} />;
+                    return (
+                      <UnitChoice
+                        image={image}
+                        units={units}
+                        unavailable={
+                          new Set([
+                            ...assigned,
+                            ...[...chosen]
+                              .filter(([id]) => id !== image.id)
+                              .map(([, unit]) => unit),
+                          ])
+                        }
+                        value={chosen.get(image.id) ?? null}
+                        busy={busy}
+                        onChange={(unit) =>
+                          setAssignments((current) => ({
+                            ...current,
+                            [image.id]: unit,
+                          }))
+                        }
+                      />
+                    );
+                  }}
                 />
                 {unassigned > 0 ? (
                   <Button
@@ -191,6 +212,18 @@ export function AssignImagesDialog({
                   >
                     {m.observation_images_fill_in_order()}
                   </Button>
+                ) : null}
+                {conflicts.size > 0 ? (
+                  <Alert status="warning">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Title>
+                        {m.observation_images_skipped({
+                          count: conflicts.size,
+                        })}
+                      </Alert.Title>
+                    </Alert.Content>
+                  </Alert>
                 ) : null}
                 {unassigned > 0 ? (
                   <Alert status="warning">
@@ -234,6 +267,48 @@ export function AssignImagesDialog({
         </Modal.Container>
       </Modal.Backdrop>
     </Modal>
+  );
+}
+
+interface StoredPhoto {
+  id: number;
+  digest: string;
+  filename: string;
+}
+
+function storedPhotos(images: readonly ListedImage[]): StoredPhoto[] {
+  return images.flatMap((image) =>
+    image.state.status === "stored"
+      ? [
+          {
+            id: image.id,
+            digest: image.state.digest,
+            filename: image.file.name,
+          },
+        ]
+      : [],
+  );
+}
+
+function freePhotos(
+  stored: readonly StoredPhoto[],
+  placed: readonly PlacedPhoto[],
+): StoredPhoto[] {
+  const conflicts = photoConflicts(stored, placed);
+  return stored.filter((photo) => !conflicts.has(photo.id));
+}
+
+/** Where a photograph already is, in place of the unit it cannot take. */
+function ConflictChip({ conflict }: { conflict: PhotoConflict }) {
+  return (
+    <Chip color="warning" variant="soft" size="sm">
+      {conflict.kind === "placed"
+        ? m.observation_images_placed({
+            unit: conflict.placed.unit,
+            day: conflict.placed.day,
+          })
+        : m.observation_images_repeated({ file: conflict.filename })}
+    </Chip>
   );
 }
 

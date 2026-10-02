@@ -7,6 +7,7 @@ import type {
   Unit,
 } from "../../domain/experiments/contracts";
 import { observationLabel } from "./labels";
+import type { PlacedPhoto } from "../../domain/experiments/photos";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
 import { annotateObservationImages } from "../../functions/annotation-runs";
 import { removeObservation } from "../../functions/experiments";
@@ -27,6 +28,7 @@ export function ObservationMenu({
   label,
   units,
   images,
+  placed,
   models,
   datasets,
   canAnnotate,
@@ -39,6 +41,8 @@ export function ObservationMenu({
   units: Unit[];
   /** The images taken at this observation. */
   images: ObservationImageCell[];
+  /** The photographs the experiment holds across all its observations. */
+  placed: readonly PlacedPhoto[];
   models: readonly Model[];
   /** The datasets training the observation's model. */
   datasets: string[];
@@ -110,6 +114,7 @@ export function ObservationMenu({
           observation={observation}
           units={units}
           assigned={assigned}
+          placed={placed}
           isOpen={open === "images"}
           onClose={close}
         />

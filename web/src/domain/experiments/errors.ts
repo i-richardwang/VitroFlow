@@ -1,4 +1,7 @@
+import { z } from "zod";
+
 import { ConflictError, NotFoundError } from "../errors";
+import { placedPhotoSchema, type PlacedPhoto } from "./photos";
 
 export class ExperimentNotFoundError extends NotFoundError {
   readonly code = "experiment_not_found";
@@ -41,26 +44,17 @@ export class ObservationImageRejectedError extends ConflictError {
   readonly code = "observation_image_rejected";
 }
 
-export interface UsedExperimentObservationImage {
-  digest: string;
-  filename: string;
-  unit: string;
-  day: number;
-}
+/** The photographs a refused assignment would have placed a second time. */
+export const imageAlreadyUsedDetailsSchema = z.strictObject({
+  images: z.array(placedPhotoSchema).min(1),
+});
 
 export class ExperimentObservationImageAlreadyUsedError extends ConflictError {
   readonly code = "experiment_observation_image_already_used";
   override get details() {
-    return {
-      images: this.images.map(({ digest, filename, unit, day }) => ({
-        digest,
-        filename,
-        unit,
-        day,
-      })),
-    };
+    return imageAlreadyUsedDetailsSchema.parse({ images: this.images });
   }
-  constructor(public readonly images: UsedExperimentObservationImage[]) {
+  constructor(public readonly images: PlacedPhoto[]) {
     const [first] = images;
     super(
       first

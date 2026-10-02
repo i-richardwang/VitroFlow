@@ -23,6 +23,7 @@ import {
   unitIsAvailableAt,
   unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
+import { placedPhotos } from "../../domain/experiments/photos";
 import type {
   ExperimentObservation,
   Treatment,
@@ -76,6 +77,7 @@ export function ExperimentGridView({
   );
   const ordinals = observationOrdinals(observations);
   const readings = experimentReadings(observations, cells);
+  const placed = placedPhotos(data);
   const hasRecords =
     images.length > 0 || units.some((unit) => unit.events.length > 0);
   const rows = experimentRows(treatments, units);
@@ -120,6 +122,7 @@ export function ExperimentGridView({
             images={images.filter(
               (image) => image.observation === observation.id,
             )}
+            placed={placed}
             models={models}
             canAnnotate={canAnnotate}
             datasets={datasets

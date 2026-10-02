@@ -26,3 +26,31 @@ test("known refusals have their specific message", () => {
     }),
   ).toBe(m.error_model_id_taken());
 });
+
+test("an image refusal names each photograph and where the experiment holds it", () => {
+  const message = errorMessage({
+    kind: "business_failure",
+    code: "experiment_observation_image_already_used",
+    category: "conflict",
+    details: {
+      images: [
+        {
+          digest: "a".repeat(64),
+          filename: "IMG_0412.jpg",
+          unit: "A-1",
+          day: 5,
+        },
+      ],
+    },
+  });
+  expect(message).toBe(
+    m.error_image_already_used({
+      images: m.error_image_already_used_item({
+        file: "IMG_0412.jpg",
+        unit: "A-1",
+        day: 5,
+      }),
+    }),
+  );
+  expect(message).toContain("IMG_0412.jpg");
+});
