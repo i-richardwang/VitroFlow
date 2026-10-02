@@ -3,10 +3,10 @@ import "../../web/test/setup";
 import { serveAnnotationMcp } from "../../web/src/server/transport/mcp/annotation";
 import {
   observeImages,
+  recordTestHeartbeat,
   signInAs,
   testHeartbeat,
 } from "../../web/src/server/testing/fixtures";
-import { recordWorkerHeartbeat } from "../../web/src/server/workers/public";
 import {
   createAnnotationRun,
   claimAnnotationRun,
@@ -24,7 +24,7 @@ const owner = {
   ...testHeartbeat("python-mcp-worker"),
   annotationRuntime: runtime,
 };
-await recordWorkerHeartbeat(owner);
+await recordTestHeartbeat(owner);
 const run = await createAnnotationRun(
   {
     ref: { digest: observed.digests[0]!, modelId: observed.version.modelId },

@@ -1,5 +1,6 @@
 import type { ApiScope } from "../../../domain/auth/integrations";
-import { authorizeApiKey, bearerToken, secretsEqual } from "../../auth/public";
+import { authorizeApiKey, bearerToken } from "../../auth/public";
+import { authenticateWorker } from "../../workers/public";
 
 interface ApiRealm {
   matches: (pathname: string) => boolean;
@@ -7,21 +8,13 @@ interface ApiRealm {
   admits: (request: Request) => Promise<boolean | null>;
 }
 
-/**
- * A realm worker processes open with the credential configured for them. An
- * unconfigured credential closes the realm: every request answers 401.
- */
-function workerRealm(prefix: string, credential: string): ApiRealm {
+/** The realm enrolled workers open with the token they were issued. */
+function workerRealm(prefix: string): ApiRealm {
   return {
     matches: (pathname) => pathname.startsWith(prefix),
     admits: async (request) => {
-      const expected = process.env[credential];
-      const presented = bearerToken(request);
-      return (
-        expected !== undefined &&
-        presented !== null &&
-        secretsEqual(presented, expected)
-      );
+      const token = bearerToken(request);
+      return token !== null && (await authenticateWorker(token)) !== null;
     },
   };
 }
@@ -40,7 +33,7 @@ function apiKeyRealm(prefix: string, scope: ApiScope): ApiRealm {
 
 /** Each bearer-guarded API realm and what opens it. */
 const API_REALMS: ApiRealm[] = [
-  workerRealm("/api/worker/", "VITROFLOW_WORKER_TOKEN"),
+  workerRealm("/api/worker/"),
   apiKeyRealm("/api/transfer/", "transfer"),
 ];
 

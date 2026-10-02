@@ -1,5 +1,5 @@
 {
-  "id": "35bde09c-cac2-4521-b783-2350e2dc2e6b",
+  "id": "6e3ebacb-a8ba-4dcf-91ee-2c899daf6875",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4262,12 +4262,12 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workers": {
-      "name": "workers",
+    "public.worker_sessions": {
+      "name": "worker_sessions",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
+        "worker_id": {
+          "name": "worker_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true
@@ -4310,8 +4310,8 @@
         }
       },
       "indexes": {
-        "workers_seen_idx": {
-          "name": "workers_seen_idx",
+        "worker_sessions_seen_idx": {
+          "name": "worker_sessions_seen_idx",
           "columns": [
             {
               "expression": "last_seen_at",
@@ -4326,9 +4326,62 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "worker_sessions_worker_id_workers_id_fk": {
+          "name": "worker_sessions_worker_id_workers_id_fk",
+          "tableFrom": "worker_sessions",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "worker_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workers": {
+      "name": "workers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enrolled_at": {
+          "name": "enrolled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "workers_token_hash_unique": {
+          "name": "workers_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

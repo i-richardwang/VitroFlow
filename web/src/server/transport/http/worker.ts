@@ -10,7 +10,7 @@ import {
   TrainingRunNotFoundError,
 } from "../../../domain/training/errors";
 import {
-  workerIdentitySchema,
+  workerSessionSchema,
   type WorkerIdentity,
 } from "../../../domain/workers/schema";
 import {
@@ -21,16 +21,28 @@ import {
   InferenceClaimRejectedError,
 } from "../../inference/public";
 
-import { WorkerSessionConflictError } from "../../workers/public";
+import { bearerToken } from "../../auth/public";
+import {
+  WorkerSessionConflictError,
+  authenticateWorker,
+} from "../../workers/public";
 
 /** A request a worker route refuses before touching any record. */
 export class WorkerRequestError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 404 | 409 | 422 = 400,
+    readonly status: 400 | 401 | 404 | 409 | 422 = 400,
   ) {
     super(message);
   }
+}
+
+/** The enrolled worker the request's token proves it is. */
+export async function requestingWorker(request: Request): Promise<string> {
+  const token = bearerToken(request);
+  const workerId = token ? await authenticateWorker(token) : null;
+  if (!workerId) throw new WorkerRequestError("Unknown worker token", 401);
+  return workerId;
 }
 
 export async function parseWorkerJson<T>(
@@ -44,6 +56,18 @@ export async function parseWorkerJson<T>(
     throw new WorkerRequestError("Request body must be valid JSON");
   }
   return parseWorkerValue(value, schema, "Request body");
+}
+
+/**
+ * A JSON request a worker session makes: the body names the session, and
+ * the worker is the one the token proves.
+ */
+export async function parseWorkerSessionJson<T extends { sessionId: string }>(
+  request: Request,
+  schema: ZodType<T>,
+): Promise<T & { workerId: string }> {
+  const body = await parseWorkerJson(request, schema);
+  return { ...body, workerId: await requestingWorker(request) };
 }
 
 export function parseWorkerJsonText(text: string): unknown {
@@ -75,17 +99,14 @@ export function parseWorkerValue<T>(
 }
 
 /** The worker session a GET names in its query string. */
-export function parseWorkerIdentity(
-  values: Pick<URLSearchParams, "get">,
-): WorkerIdentity {
-  const parsed = workerIdentitySchema.safeParse({
-    workerId: values.get("workerId"),
-    sessionId: values.get("sessionId"),
+export async function parseWorkerQuery(
+  request: Request,
+): Promise<WorkerIdentity> {
+  const parsed = workerSessionSchema.safeParse({
+    sessionId: new URL(request.url).searchParams.get("sessionId"),
   });
-  if (!parsed.success) {
-    throw new WorkerRequestError("workerId and sessionId are required");
-  }
-  return parsed.data;
+  if (!parsed.success) throw new WorkerRequestError("sessionId is required");
+  return { workerId: await requestingWorker(request), ...parsed.data };
 }
 
 function statusOf(error: unknown): number | null {

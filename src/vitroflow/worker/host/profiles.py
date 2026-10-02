@@ -16,7 +16,6 @@ PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PROFILE_FIELDS = {
     "server_url",
     "token",
-    "worker_id",
     "device",
     "poll_seconds",
     "annotation",
@@ -25,18 +24,18 @@ PROFILE_FIELDS = {
 
 @dataclass(frozen=True)
 class WorkerProfile:
-    """One native Worker process: who it serves, as whom, and on which accelerator."""
+    """One native Worker process: which workbench it serves with which enrolled
+    worker's token, and on which accelerator."""
 
     server_url: str
     token: str
-    worker_id: str
     device: str | None = None
     poll_seconds: float = 5.0
     annotation: RuntimeConfig | None = None
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
-        validate_worker_process(self.worker_id, self.poll_seconds, self.device)
+        validate_worker_process(self.poll_seconds, self.device)
         if self.annotation:
             self.annotation.create()
 
@@ -61,7 +60,6 @@ class WorkerProfile:
         values: list[tuple[str, object]] = [
             ("server_url", self.server_url),
             ("token", self.token),
-            ("worker_id", self.worker_id),
         ]
         if self.device is not None:
             values.append(("device", self.device))

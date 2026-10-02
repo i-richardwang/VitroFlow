@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { workerIdentitySchema } from "../domain/workers/schema";
+import { workerSessionSchema } from "../domain/workers/schema";
 import { claimAnnotationRun } from "../server/annotation-runs/public";
 import {
-  parseWorkerJson,
+  parseWorkerSessionJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 export const Route = createFileRoute("/api/worker/annotation/claim")({
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/worker/annotation/claim")({
         try {
           return Response.json({
             run: await claimAnnotationRun(
-              await parseWorkerJson(request, workerIdentitySchema),
+              await parseWorkerSessionJson(request, workerSessionSchema),
             ),
           });
         } catch (error) {

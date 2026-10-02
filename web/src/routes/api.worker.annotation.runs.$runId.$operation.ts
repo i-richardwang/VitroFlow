@@ -2,7 +2,7 @@ import { issueTaskToken } from "../server/transport/mcp/task-credentials";
 import { deploymentEndpoint } from "../server/infra/deployment";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { workerIdentitySchema } from "../domain/workers/schema";
+import { workerSessionSchema } from "../domain/workers/schema";
 import {
   renewAnnotationRun,
   failAnnotationRun,
@@ -10,18 +10,18 @@ import {
   workerAnnotationStatus,
 } from "../server/annotation-runs/public";
 import {
-  parseWorkerJson,
+  parseWorkerSessionJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 const updateSchema = z.discriminatedUnion("operation", [
-  workerIdentitySchema.extend({ operation: z.literal("lease") }),
-  workerIdentitySchema.extend({ operation: z.literal("status") }),
-  workerIdentitySchema.extend({
+  workerSessionSchema.extend({ operation: z.literal("lease") }),
+  workerSessionSchema.extend({ operation: z.literal("status") }),
+  workerSessionSchema.extend({
     operation: z.literal("assign"),
     taskId: z.string().min(1),
     attemptId: z.uuid(),
   }),
-  workerIdentitySchema.extend({
+  workerSessionSchema.extend({
     operation: z.literal("fail"),
     error: z.string().min(1).max(2000),
   }),
@@ -33,7 +33,7 @@ export const Route = createFileRoute(
     handlers: {
       POST: async ({ request, params }) => {
         try {
-          const body = await parseWorkerJson(request, updateSchema);
+          const body = await parseWorkerSessionJson(request, updateSchema);
           if (body.operation !== params.operation)
             return new Response("Operation mismatch", { status: 400 });
           switch (body.operation) {

@@ -14,12 +14,16 @@ const runtimesSchema = z
     "each adapter appears once",
   );
 
-export const workerIdentitySchema = z.strictObject({
-  workerId: resourceIdSchema,
+/**
+ * The process session a worker request names. Which worker sent it follows
+ * from the token the request carries, never from the request itself.
+ */
+export const workerSessionSchema = z.strictObject({
   sessionId: resourceIdSchema,
 });
 
-export const workerHeartbeatSchema = workerIdentitySchema
+/** What a worker process reports about itself on every heartbeat. */
+export const workerReportSchema = workerSessionSchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
@@ -28,18 +32,35 @@ export const workerHeartbeatSchema = workerIdentitySchema
   })
   .strict();
 
-export const workerSchema = workerHeartbeatSchema
-  .extend({ lastSeenAt: z.string().datetime({ offset: true }) })
+export const workerSchema = workerReportSchema
+  .extend({
+    workerId: resourceIdSchema,
+    lastSeenAt: z.string().datetime({ offset: true }),
+  })
   .strict();
+
+/** A worker by the name its administrator enrolled it under. */
+export const workerRefSchema = z.strictObject({ workerId: resourceIdSchema });
 
 export type WorkerActivity =
   | { kind: "inference"; image: string }
   | { kind: "training"; runId: string; dataset: string }
   | { kind: "annotation"; runId: string; image: string };
 
-export type WorkerIdentity = z.infer<typeof workerIdentitySchema>;
-export type WorkerHeartbeat = z.infer<typeof workerHeartbeatSchema>;
+/** A worker session as the server knows it: the enrolled worker and its process. */
+export interface WorkerIdentity {
+  workerId: string;
+  sessionId: string;
+}
+export type WorkerReport = z.infer<typeof workerReportSchema>;
+export type WorkerHeartbeat = WorkerReport & { workerId: string };
 export type Worker = z.infer<typeof workerSchema>;
+
+/** A newly enrolled worker with its token, which is shown only this once. */
+export interface EnrolledWorker {
+  workerId: string;
+  token: string;
+}
 
 /** Training runs on the ultralytics runtime; a worker without it only detects. */
 export function canTrain(worker: Pick<Worker, "runtimes">): boolean {

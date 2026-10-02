@@ -46,7 +46,7 @@ def photo(tmp_path):
 def test_antigravity_collects_and_stops_after_final_submission(
     agy, photo, tmp_path, monkeypatch, model
 ):
-    monkeypatch.setenv("VITROFLOW_WORKER_TOKEN", "not-inherited")
+    monkeypatch.setenv("VITROFLOW_ADMIN_PASSWORD", "not-inherited")
     runtime = AntigravityRuntime(model, agy, 10)
     report = run_annotation(
         photo, tmp_path / "run", runtime, config={"coreSize": 64, "halo": 16}

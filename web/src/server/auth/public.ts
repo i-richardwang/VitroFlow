@@ -7,7 +7,6 @@ export {
 export { bearerToken } from "./bearer";
 export { disconnectMcpClient, listMcpClients } from "./mcp-clients";
 export { mcpAuthorizationIsLive, mcpClientId } from "./programmatic-access";
-export { secretsEqual } from "./secrets";
 export { auth } from "./service";
 export {
   banUser,

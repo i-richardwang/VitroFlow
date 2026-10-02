@@ -35,7 +35,7 @@ HTTP maps failure codes to status codes. MCP derives tool annotations and format
 
 ## Worker control planes
 
-One credential opens the worker realm. A worker ID names a configured worker, while a fresh session ID fences one process incarnation from another. The `workers` roster holds one row per worker: its current session, the runtimes it executes, the annotation agent it runs if any, the memory it offers, and when it was last heard from. Presence is the heartbeat age; what a worker is doing is the lease it holds, never a second copy in the roster.
+An administrator enrolls each worker under a name, and the token issued then is the worker's identity: the workbench keeps only its hash, resolves every worker request to its worker from the token, and never reads a worker ID from a request. Removing the worker revokes the token and ends its session. A fresh session ID fences one process incarnation from another. `workers` holds the enrolled machines; `worker_sessions` holds each one's current session: the runtimes it executes, the annotation agent it runs if any, the memory it offers, and when it was last heard from. Presence is the heartbeat age; what a worker is doing is the lease it holds, never a second copy in the roster.
 
 Inference is a queue, not a snapshot query. A worker atomically claims one demanded image/version pair in `inference_jobs` and renews its lease while loading and predicting. Completion atomically consumes an unexpired lease owned by the current worker session in the same transaction that stores the outcome. The immutable `inference_outcomes` row remains the business record.
 

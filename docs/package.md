@@ -14,7 +14,7 @@ The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise.
 
 ## Workers
 
-Each Worker profile has a stable worker ID, the workbench worker credential, and a private work directory. Setup validates authentication, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
+An administrator enrolls each machine on the workbench's Status page, which shows the machine's token once. Each Worker profile holds that token and a private work directory; the workbench knows the worker by its token. Setup validates the token, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
 
 ```bash
 vitroflow worker setup mac-studio \
@@ -22,7 +22,7 @@ vitroflow worker setup mac-studio \
   --device mps
 ```
 
-The Worker token is prompted without echo and stored in `~/.vitroflow/profiles/<profile>/config.toml` with mode `0600`; LaunchAgent files contain no credentials.
+The token is prompted without echo and stored in `~/.vitroflow/profiles/<profile>/config.toml` with mode `0600`; LaunchAgent files contain no credentials.
 
 ```bash
 vitroflow worker list

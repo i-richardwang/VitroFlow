@@ -13,7 +13,7 @@ import type {
   WorkerIdentity,
 } from "../../domain/workers/schema";
 import { imageFilenames } from "./image-names";
-import { listWorkers } from "../workers/public";
+import { listEnrolledWorkers, listWorkers } from "../workers/public";
 
 function sessionKey({ workerId, sessionId }: WorkerIdentity): string {
   return `${workerId}/${sessionId}`;
@@ -106,27 +106,46 @@ async function annotationActivity(
   );
 }
 
+/**
+ * Every enrolled worker with its latest session: presence, what it is doing,
+ * and how long ago it was heard from. A worker that never connected has none.
+ */
 export async function getSystemStatus() {
   const at = new Date();
   const age = (timestamp: string) =>
     Math.max(0, Math.floor((at.getTime() - Date.parse(timestamp)) / 1000));
-  const [workers, inference, training, annotation] = await Promise.all([
-    listWorkers(at),
-    inferenceActivity(at),
-    trainingActivity(at),
-    annotationActivity(at),
-  ]);
+  const [enrolled, sessions, inference, training, annotation] =
+    await Promise.all([
+      listEnrolledWorkers(),
+      listWorkers(),
+      inferenceActivity(at),
+      trainingActivity(at),
+      annotationActivity(at),
+    ]);
+  const sessionOf = new Map(
+    sessions.map((session) => [session.workerId, session]),
+  );
   return {
-    workers: workers.map((worker) => ({
-      workerId: worker.workerId,
-      presence: workerPresence(worker.lastSeenAt, at),
-      lastSeenAt: worker.lastSeenAt,
-      lastSeenSeconds: age(worker.lastSeenAt),
-      activity:
-        annotation.get(sessionKey(worker)) ??
-        inference.get(sessionKey(worker)) ??
-        training.get(sessionKey(worker)) ??
-        null,
-    })),
+    workers: enrolled.map((workerId) => {
+      const session = sessionOf.get(workerId);
+      if (!session) {
+        return {
+          workerId,
+          presence: "offline" as const,
+          lastSeenSeconds: null,
+          activity: null,
+        };
+      }
+      return {
+        workerId,
+        presence: workerPresence(session.lastSeenAt, at),
+        lastSeenSeconds: age(session.lastSeenAt),
+        activity:
+          annotation.get(sessionKey(session)) ??
+          inference.get(sessionKey(session)) ??
+          training.get(sessionKey(session)) ??
+          null,
+      };
+    }),
   };
 }

@@ -1,0 +1,9 @@
+import { ConflictError, NotFoundError } from "../errors";
+
+export class WorkerNotFoundError extends NotFoundError {
+  readonly code = "worker_not_found";
+}
+
+export class WorkerAlreadyEnrolledError extends ConflictError {
+  readonly code = "worker_already_enrolled";
+}

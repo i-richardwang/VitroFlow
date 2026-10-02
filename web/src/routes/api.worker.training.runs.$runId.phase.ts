@@ -3,13 +3,13 @@ import { z } from "zod";
 
 import { enterTrainingPhase } from "../server/training/public";
 import {
-  parseWorkerJson,
+  parseWorkerSessionJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import { TRAINING_PHASES } from "../domain/training/schema";
-import { workerIdentitySchema } from "../domain/workers/schema";
+import { workerSessionSchema } from "../domain/workers/schema";
 
-const bodySchema = workerIdentitySchema.extend({
+const bodySchema = workerSessionSchema.extend({
   phase: z.enum(TRAINING_PHASES),
 });
 
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/phase")({
     handlers: {
       POST: async ({ params, request }) => {
         try {
-          const { phase, ...owner } = await parseWorkerJson(
+          const { phase, ...owner } = await parseWorkerSessionJson(
             request,
             bodySchema,
           );

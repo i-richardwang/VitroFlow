@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 
 import { database, type Executor } from "../infra/db/client";
-import { workers } from "../infra/db/schema";
+import { workerSessions } from "../infra/db/schema";
 import {
   canTrain,
   workerSchema,
@@ -9,17 +9,14 @@ import {
   type WorkerHeartbeat,
   type WorkerIdentity,
 } from "../../domain/workers/schema";
-import {
-  WORKER_FORGET_SECONDS,
-  workerPresence,
-} from "../../domain/workers/presence";
+import { workerPresence } from "../../domain/workers/presence";
 
 /** Thrown when a session is not the one the roster holds for its worker. */
 export class WorkerSessionConflictError extends Error {}
 
-function toWorker(row: typeof workers.$inferSelect): Worker {
+function toWorker(row: typeof workerSessions.$inferSelect): Worker {
   return workerSchema.parse({
-    workerId: row.id,
+    workerId: row.workerId,
     sessionId: row.sessionId,
     startedAt: row.startedAt.toISOString(),
     runtimes: row.runtimes,
@@ -29,20 +26,11 @@ function toWorker(row: typeof workers.$inferSelect): Worker {
   });
 }
 
-function forgetBefore(at: Date): Date {
-  return new Date(at.getTime() - WORKER_FORGET_SECONDS * 1000);
-}
-
-/** Workers silent for longer than the forget window leave the roster. */
-async function forgetSilentWorkers(at: Date, db: Executor): Promise<void> {
-  await db.delete(workers).where(lt(workers.lastSeenAt, forgetBefore(at)));
-}
-
 /**
  * A worker heartbeats while polling for work and while it holds a lease;
- * presence is derived from the heartbeat age. A worker id names one process
- * at a time: a newer session replaces an older one, and an older session
- * that heartbeats afterwards is refused.
+ * presence is derived from the heartbeat age. A worker runs one process at a
+ * time: a newer session replaces an older one, and an older session that
+ * heartbeats afterwards is refused.
  */
 export async function recordWorkerHeartbeat(
   heartbeat: WorkerHeartbeat,
@@ -60,16 +48,17 @@ export async function recordWorkerHeartbeat(
     memoryBytes: worker.memoryBytes,
     lastSeenAt: at,
   };
-  const db = await database();
-  const [stored] = await db
-    .insert(workers)
-    .values({ id: worker.workerId, ...row })
+  const [stored] = await (
+    await database()
+  )
+    .insert(workerSessions)
+    .values({ workerId: worker.workerId, ...row })
     .onConflictDoUpdate({
-      target: workers.id,
+      target: workerSessions.workerId,
       set: row,
       setWhere: or(
-        eq(workers.sessionId, worker.sessionId),
-        lt(workers.startedAt, new Date(worker.startedAt)),
+        eq(workerSessions.sessionId, worker.sessionId),
+        lt(workerSessions.startedAt, new Date(worker.startedAt)),
       ),
     })
     .returning();
@@ -78,25 +67,24 @@ export async function recordWorkerHeartbeat(
       `Worker ${worker.workerId} has a newer active session`,
     );
   }
-  await forgetSilentWorkers(at, db);
   return toWorker(stored);
 }
 
 function sessionRow(identity: WorkerIdentity, db: Executor) {
   return db
     .select()
-    .from(workers)
+    .from(workerSessions)
     .where(
       and(
-        eq(workers.id, identity.workerId),
-        eq(workers.sessionId, identity.sessionId),
+        eq(workerSessions.workerId, identity.workerId),
+        eq(workerSessions.sessionId, identity.sessionId),
       ),
     );
 }
 
 function sessionOf(
   identity: WorkerIdentity,
-  row: typeof workers.$inferSelect | undefined,
+  row: typeof workerSessions.$inferSelect | undefined,
 ): Worker {
   if (!row) {
     throw new WorkerSessionConflictError(
@@ -133,20 +121,20 @@ export async function lockWorkerSession(
  */
 export function sessionIsCurrent(owner: WorkerIdentity) {
   return sql`exists (
-    select 1 from ${workers}
-    where ${workers.id} = ${owner.workerId}
-      and ${workers.sessionId} = ${owner.sessionId}
+    select 1 from ${workerSessions}
+    where ${workerSessions.workerId} = ${owner.workerId}
+      and ${workerSessions.sessionId} = ${owner.sessionId}
   )`;
 }
 
-/** Workers heard from within the forget window, newest first. */
-export async function listWorkers(at: Date = new Date()): Promise<Worker[]> {
-  const db = await database();
-  const rows = await db
+/** The latest session of every worker that has connected, newest first. */
+export async function listWorkers(): Promise<Worker[]> {
+  const rows = await (
+    await database()
+  )
     .select()
-    .from(workers)
-    .where(gte(workers.lastSeenAt, forgetBefore(at)))
-    .orderBy(desc(workers.lastSeenAt));
+    .from(workerSessions)
+    .orderBy(desc(workerSessions.lastSeenAt));
   return rows.map(toWorker);
 }
 
@@ -154,8 +142,7 @@ export async function listWorkers(at: Date = new Date()): Promise<Worker[]> {
 export async function listOnlineTrainers(
   at: Date = new Date(),
 ): Promise<Worker[]> {
-  const online = await listWorkers(at);
-  return online.filter(
+  return (await listWorkers()).filter(
     (worker) =>
       canTrain(worker) && workerPresence(worker.lastSeenAt, at) === "online",
   );

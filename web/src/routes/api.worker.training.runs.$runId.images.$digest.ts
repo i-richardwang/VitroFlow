@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { imageResponse } from "../server/transport/http/image-files";
 import { snapshotForRun } from "../server/training/public";
 import {
-  parseWorkerIdentity,
+  parseWorkerQuery,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 
@@ -14,7 +14,7 @@ export const Route = createFileRoute(
     handlers: {
       GET: async ({ params, request }) => {
         try {
-          const owner = parseWorkerIdentity(new URL(request.url).searchParams);
+          const owner = await parseWorkerQuery(request);
           const snapshot = await snapshotForRun(params.runId, owner);
           if (!snapshot.images.some((image) => image.digest === params.digest))
             return new Response("Not found", { status: 404 });

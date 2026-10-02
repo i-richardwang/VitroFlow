@@ -37,9 +37,7 @@ class Worker:
         self.client = WorkerClient(
             settings.server_url,
             settings.token,
-            WorkerSession.create(
-                settings.worker_id, settings.device, settings.annotation_runtime
-            ),
+            WorkerSession.create(settings.device, settings.annotation_runtime),
             transport=transport,
         )
         self.inference = InferenceClient(self.client)

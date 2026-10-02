@@ -22,6 +22,7 @@ import {
   imageBytes,
   imageDigest,
 } from "../../testing/fixtures";
+import { enrollWorker } from "../../workers/public";
 
 type Handler = (context: never) => Response | Promise<Response>;
 
@@ -75,6 +76,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     observation: observation.id,
     images: [{ unit: unit!.id, digest, filename: "api.jpg" }],
   });
+  const { token } = await enrollWorker("api-worker");
+  const authorization = `Bearer ${token}`;
   const runtime = {
     adapter: "traditional" as const,
     fingerprint: "b".repeat(64),
@@ -85,8 +88,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   )({
     request: new Request("http://localhost/api/worker/heartbeat", {
       method: "POST",
+      headers: { authorization },
       body: JSON.stringify({
-        workerId: "api-worker",
         sessionId: "api-session",
         startedAt: "2026-01-01T00:00:00Z",
         runtimes: [runtime],
@@ -109,10 +112,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     )({
       request: new Request("http://localhost/api/worker/inference/claim", {
         method: "POST",
-        body: JSON.stringify({
-          workerId: "api-worker",
-          sessionId: "api-session",
-        }),
+        headers: { authorization },
+        body: JSON.stringify({ sessionId: "api-session" }),
       }),
     } as never);
   let assignment: ReturnType<typeof inferenceAssignmentSchema.parse> | null =
@@ -147,10 +148,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       `http://localhost/api/worker/inference/claims/${version.id}/${digest}/lease`,
       {
         method: "POST",
-        body: JSON.stringify({
-          workerId: "api-worker",
-          sessionId: "api-session",
-        }),
+        headers: { authorization },
+        body: JSON.stringify({ sessionId: "api-session" }),
       },
     ),
   } as never);
@@ -166,7 +165,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       )({
         request: new Request("http://localhost/api/worker/inference/claim", {
           method: "POST",
-          body: JSON.stringify({ workerId: "api-worker" }),
+          headers: { authorization },
+          body: JSON.stringify({}),
         }),
       } as never)
     ).status,
@@ -196,19 +196,19 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     },
   };
   const target = { versionId: version.id, digest };
-  const put = (
-    body: unknown,
-    workerId = "api-worker",
-    sessionId = "api-session",
-  ) =>
+  const put = (body: unknown, sessionId = "api-session") =>
     handler(
       ResultRoute,
       "PUT",
     )({
       params: target,
       request: new Request(
-        `http://localhost/api/worker/inference/results/${version.id}/${digest}?workerId=${workerId}&sessionId=${sessionId}`,
-        { method: "PUT", body: JSON.stringify(body) },
+        `http://localhost/api/worker/inference/results/${version.id}/${digest}?sessionId=${sessionId}`,
+        {
+          method: "PUT",
+          headers: { authorization },
+          body: JSON.stringify(body),
+        },
       ),
     } as never);
   const rawPut = (params: typeof target, body: string) =>
@@ -218,8 +218,8 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     )({
       params,
       request: new Request(
-        `http://localhost/api/worker/inference/results/${params.versionId}/${params.digest}?workerId=api-worker&sessionId=api-session`,
-        { method: "PUT", body },
+        `http://localhost/api/worker/inference/results/${params.versionId}/${params.digest}?sessionId=api-session`,
+        { method: "PUT", headers: { authorization }, body },
       ),
     } as never);
   expect((await rawPut(target, "not json")).status).toBe(400);
@@ -231,7 +231,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       )
     ).status,
   ).toBe(400);
-  expect((await put(result, "unknown-worker")).status).toBe(409);
+  expect((await put(result, "replaced-session")).status).toBe(409);
   expect(
     (
       await put({
@@ -269,9 +269,21 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   ).toBe(409);
 });
 
-test("inference readiness identifies the authenticated control plane", async () => {
-  const response = await handler(ReadyRoute, "GET")({} as never);
-  expect(response.status).toBe(204);
+test("readiness names the enrolled worker a token belongs to", async () => {
+  const { token } = await enrollWorker("ready-worker");
+  const ready = (authorization: string) =>
+    handler(
+      ReadyRoute,
+      "GET",
+    )({
+      request: new Request("http://localhost/api/worker/ready", {
+        headers: { authorization },
+      }),
+    } as never);
+  const response = await ready(`Bearer ${token}`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ workerId: "ready-worker" });
+  expect((await ready("Bearer vfw_unknown")).status).toBe(401);
 });
 
 test("storing an image rejects an absent or excessive body before reading it", async () => {

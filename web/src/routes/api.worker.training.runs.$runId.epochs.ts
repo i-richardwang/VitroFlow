@@ -2,13 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { recordTrainingEpoch } from "../server/training/public";
 import {
-  parseWorkerJson,
+  parseWorkerSessionJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import { trainingEpochReportSchema } from "../domain/training/schema";
-import { workerIdentitySchema } from "../domain/workers/schema";
+import { workerSessionSchema } from "../domain/workers/schema";
 
-const bodySchema = workerIdentitySchema.extend(trainingEpochReportSchema.shape);
+const bodySchema = workerSessionSchema.extend(trainingEpochReportSchema.shape);
 
 export const Route = createFileRoute("/api/worker/training/runs/$runId/epochs")(
   {
@@ -16,10 +16,8 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/epochs")(
       handlers: {
         POST: async ({ params, request }) => {
           try {
-            const { workerId, sessionId, ...report } = await parseWorkerJson(
-              request,
-              bodySchema,
-            );
+            const { workerId, sessionId, ...report } =
+              await parseWorkerSessionJson(request, bodySchema);
             return Response.json(
               await recordTrainingEpoch(
                 params.runId,

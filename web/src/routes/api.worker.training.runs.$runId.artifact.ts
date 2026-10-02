@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { resourceIdSchema } from "../domain/identifiers/schema";
+import type { WorkerIdentity } from "../domain/workers/schema";
 import { publishTrainingArtifact } from "../server/training/public";
 import {
   parseWorkerForm,
   parseWorkerJsonText,
   parseWorkerValue,
+  requestingWorker,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import {
@@ -31,18 +33,17 @@ export const Route = createFileRoute(
         if (declaredLength > MAX_TRAINING_ARTIFACT_REQUEST_BYTES) {
           return payloadTooLarge("Training artifact request is too large");
         }
-        let owner: { workerId: string; sessionId: string };
+        let owner: WorkerIdentity;
         let weights: Uint8Array;
         let publication: unknown;
         try {
           const form = await parseWorkerForm(request);
-          const worker = form.get("workerId");
           const session = form.get("sessionId");
           const weightsFile = form.get("weights");
           const inference = form.get("inference");
           if (!(weightsFile instanceof File) || !(inference instanceof File)) {
             return new Response(
-              "workerId, sessionId, weights, and inference are required",
+              "sessionId, weights, and inference are required",
               {
                 status: 400,
               },
@@ -55,7 +56,7 @@ export const Route = createFileRoute(
             return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
           owner = {
-            workerId: parseWorkerValue(worker, resourceIdSchema, "workerId"),
+            workerId: await requestingWorker(request),
             sessionId: parseWorkerValue(session, resourceIdSchema, "sessionId"),
           };
           weights = new Uint8Array(await weightsFile.arrayBuffer());

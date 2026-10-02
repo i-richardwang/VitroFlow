@@ -38,7 +38,6 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
         operations.append(operation)
         if operation == "assign":
             assert set(body) == {
-                "workerId",
                 "sessionId",
                 "operation",
                 "taskId",
@@ -117,7 +116,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
     worker = WorkerClient(
         "https://lab.example",
         "worker-secret",
-        WorkerSession("worker", "session", "2026-09-22T00:00:00Z", (), 1024),
+        WorkerSession("session", "2026-09-22T00:00:00Z", (), 1024),
         transport=httpx.MockTransport(respond),
     )
     try:

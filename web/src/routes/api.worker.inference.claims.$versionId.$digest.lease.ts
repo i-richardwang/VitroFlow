@@ -3,11 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { inferenceTargetSchema } from "../domain/inference/assignments";
 import { renewInferenceClaim } from "../server/inference/public";
 import {
-  parseWorkerJson,
+  parseWorkerSessionJson,
   parseWorkerValue,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { workerIdentitySchema } from "../domain/workers/schema";
+import { workerSessionSchema } from "../domain/workers/schema";
 
 export const Route = createFileRoute(
   "/api/worker/inference/claims/$versionId/$digest/lease",
@@ -21,7 +21,10 @@ export const Route = createFileRoute(
             inferenceTargetSchema,
             "Inference target",
           );
-          const owner = await parseWorkerJson(request, workerIdentitySchema);
+          const owner = await parseWorkerSessionJson(
+            request,
+            workerSessionSchema,
+          );
           return Response.json(await renewInferenceClaim(target, owner));
         } catch (error) {
           return workerErrorResponse(error, "Could not renew inference lease");

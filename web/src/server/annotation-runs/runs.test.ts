@@ -9,10 +9,14 @@ import { eq, inArray, ne } from "drizzle-orm";
 import type { StartAnnotationRun } from "../../domain/annotation-runs/schema";
 import { readReview } from "../readings/public";
 import { createModel, setModelAnnotation } from "../models/public";
-import { annotationRuns, workers } from "../infra/db/schema";
+import { annotationRuns, workerSessions } from "../infra/db/schema";
 import { database } from "../infra/db/client";
-import { observeImages, signInAs, testHeartbeat } from "../testing/fixtures";
-import { recordWorkerHeartbeat } from "../workers/sessions";
+import {
+  observeImages,
+  recordTestHeartbeat,
+  signInAs,
+  testHeartbeat,
+} from "../testing/fixtures";
 import {
   createAnnotationRun,
   cancelAnnotationRun,
@@ -59,7 +63,7 @@ async function setup(name: string) {
   const { user } = await signInAs("member");
   const observed = await observeImages(name, [name, `${name}-other`]);
   const owner = { workerId: name, sessionId: `session-${name}` };
-  await recordWorkerHeartbeat({
+  await recordTestHeartbeat({
     ...testHeartbeat(name),
     annotationRuntime: pi,
   });
@@ -162,7 +166,7 @@ test("a Worker that stops renewing lets go of its run, which another Worker fini
     workerId: "ai-release-other",
     sessionId: "session-ai-release-other",
   };
-  await recordWorkerHeartbeat({
+  await recordTestHeartbeat({
     ...testHeartbeat(other.workerId),
     annotationRuntime: pi,
   });
@@ -185,7 +189,7 @@ test("any Worker with an agent claims the oldest run", async () => {
     workerId: "ai-claim-bare",
     sessionId: "session-ai-claim-bare",
   };
-  await recordWorkerHeartbeat({
+  await recordTestHeartbeat({
     ...testHeartbeat(bare.workerId),
     sessionId: bare.sessionId,
   });
@@ -209,10 +213,10 @@ test("a Worker run needs an online agent", async () => {
   await (
     await database()
   )
-    .update(workers)
+    .update(workerSessions)
     .set({ lastSeenAt: new Date(0) })
-    .where(ne(workers.id, "ai-offline"));
-  await recordWorkerHeartbeat(testHeartbeat("ai-offline"));
+    .where(ne(workerSessions.workerId, "ai-offline"));
+  await recordTestHeartbeat(testHeartbeat("ai-offline"));
   await expect(createAnnotationRun(request, "worker", user.id)).rejects.toThrow(
     "No AI annotation agent is online",
   );

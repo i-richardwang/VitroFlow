@@ -1,8 +1,12 @@
 import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
-import { observeImages, signInAs, testHeartbeat } from "../testing/fixtures";
-import { recordWorkerHeartbeat } from "../workers/public";
+import {
+  observeImages,
+  recordTestHeartbeat,
+  signInAs,
+  testHeartbeat,
+} from "../testing/fixtures";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { readAnnotationReading } from "../readings/public";
 import { database } from "../infra/db/client";
@@ -29,7 +33,7 @@ async function setup(name: string, scheduled = false) {
     model: "test/vision",
   };
   if (scheduled)
-    await recordWorkerHeartbeat({
+    await recordTestHeartbeat({
       ...testHeartbeat(name),
       annotationRuntime: runtime,
     });
@@ -150,7 +154,7 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
   await expect(
     submitProposal(newPrincipal, principal.taskId, preview.proposalId),
   ).rejects.toThrow("Unknown proposal");
-  await recordWorkerHeartbeat({
+  await recordTestHeartbeat({
     ...testHeartbeat(owner.workerId),
     sessionId: "replacement",
     startedAt: new Date().toISOString(),

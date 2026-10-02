@@ -24,7 +24,7 @@ def test_preflight_checks_the_authenticated_server_and_runtimes(
     def ready(url: str, **kwargs: object) -> httpx.Response:
         request = httpx.Request("GET", url, headers=kwargs["headers"])
         requests.append(request)
-        return httpx.Response(204, request=request)
+        return httpx.Response(200, json={"workerId": "trainer"}, request=request)
 
     monkeypatch.setattr(worker_host.httpx, "get", ready)
     monkeypatch.setattr(
@@ -38,7 +38,6 @@ def test_preflight_checks_the_authenticated_server_and_runtimes(
     profile = WorkerProfile(
         server_url="https://example.test",
         token="training-secret",
-        worker_id="trainer",
         device="cpu",
     )
 
@@ -46,6 +45,7 @@ def test_preflight_checks_the_authenticated_server_and_runtimes(
 
     assert requests[0].url.path == "/api/worker/ready"
     assert requests[0].headers["authorization"] == "Bearer training-secret"
+    assert "worker: trainer" in checks
     assert checks[-2:] == ("runtimes: traditional, ultralytics (cpu)", "device: cpu")
 
 
@@ -58,7 +58,7 @@ def test_preflight_reports_the_runtimes_it_will_advertise(
     def ready(url: str, **kwargs: object) -> httpx.Response:
         request = httpx.Request("GET", url, headers=kwargs["headers"])
         requests.append(request)
-        return httpx.Response(204, request=request)
+        return httpx.Response(200, json={"workerId": "trainer"}, request=request)
 
     monkeypatch.setattr(worker_host.httpx, "get", ready)
     monkeypatch.setattr(
@@ -69,7 +69,6 @@ def test_preflight_reports_the_runtimes_it_will_advertise(
     profile = WorkerProfile(
         server_url="https://example.test",
         token="inference-secret",
-        worker_id="mac-mps",
     )
 
     checks = worker_host.preflight_profile("mac-mps", profile)
@@ -86,7 +85,9 @@ def test_preflight_surfaces_an_installed_but_broken_runtime(
     monkeypatch.setattr(
         worker_host.httpx,
         "get",
-        lambda url, **_kwargs: httpx.Response(204, request=httpx.Request("GET", url)),
+        lambda url, **_kwargs: httpx.Response(
+            200, json={"workerId": "mac-mps"}, request=httpx.Request("GET", url)
+        ),
     )
 
     def broken_runtime():
@@ -96,7 +97,6 @@ def test_preflight_surfaces_an_installed_but_broken_runtime(
     profile = WorkerProfile(
         server_url="https://example.test",
         token="inference-secret",
-        worker_id="mac-mps",
     )
 
     with pytest.raises(RuntimeError, match="installed but cannot be imported"):
@@ -112,7 +112,6 @@ def test_profile_host_passes_typed_settings_and_marks_readiness(
         WorkerProfile(
             server_url="https://example.test",
             token="secret",
-            worker_id="trainer",
             device="cpu",
         ),
     )
@@ -145,7 +144,6 @@ def test_profile_host_records_startup_failures_in_status_and_log(
         WorkerProfile(
             server_url="https://example.test",
             token="secret",
-            worker_id="trainer",
         ),
     )
 
@@ -169,7 +167,6 @@ def _status_profile(name: str, state: str, **document: object) -> None:
         WorkerProfile(
             server_url="https://example.test",
             token="secret",
-            worker_id=name,
             device="cpu",
         ),
     )

@@ -4,7 +4,6 @@ export type WorkerPresence = (typeof WORKER_PRESENCES)[number];
 
 export const WORKER_ONLINE_SECONDS = 30;
 export const WORKER_STALE_SECONDS = 90;
-export const WORKER_FORGET_SECONDS = 7 * 24 * 60 * 60;
 
 function secondsSince(timestamp: string, at: Date): number {
   return (at.getTime() - Date.parse(timestamp)) / 1000;

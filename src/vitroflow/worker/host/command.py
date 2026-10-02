@@ -34,11 +34,10 @@ def _setup(args: argparse.Namespace) -> int:
             f"worker profile already exists: {args.profile}; use --force to replace it"
         )
     require_launchd()
-    token = getpass.getpass("Worker token: ")
+    token = getpass.getpass("Worker token from the workbench: ")
     profile = WorkerProfile(
         server_url=args.server,
         token=token,
-        worker_id=args.worker_id or args.profile,
         device=args.device,
         poll_seconds=args.poll_seconds,
         annotation=(
@@ -115,7 +114,6 @@ def add_worker_commands(commands: SubparserCollection) -> None:
     )
     setup.add_argument("profile")
     setup.add_argument("--server", required=True)
-    setup.add_argument("--worker-id")
     setup.add_argument("--device")
     setup.add_argument(
         "--annotation-runtime",

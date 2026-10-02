@@ -25,7 +25,6 @@ def _settings(name: str, profile: WorkerProfile) -> WorkerSettings:
     return WorkerSettings(
         server_url=profile.server_url,
         token=profile.token,
-        worker_id=profile.worker_id,
         work_dir=profile_directory(name) / "work",
         poll_seconds=profile.poll_seconds,
         device=profile.device,
@@ -50,14 +49,20 @@ def _check_device(device: str | None) -> None:
             raise RuntimeError(f"CUDA device {index} is not available")
 
 
-def _check_ready(profile: WorkerProfile) -> None:
-    """The Server admits this credential to the worker realm."""
+def _enrolled_worker(profile: WorkerProfile) -> str:
+    """The worker the workbench enrolled this profile's token for."""
     response = httpx.get(
         f"{profile.server_url.rstrip('/')}/api/worker/ready",
         headers={"Authorization": f"Bearer {profile.token}"},
         timeout=30,
     )
+    if response.status_code == 401:
+        raise RuntimeError(
+            "the workbench does not recognize this token; enroll the worker "
+            "on the Status page and use the token it shows"
+        )
     response.raise_for_status()
+    return str(response.json()["workerId"])
 
 
 def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
@@ -66,10 +71,11 @@ def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
     work.mkdir(parents=True, exist_ok=True)
     if not os.access(work, os.W_OK):
         raise PermissionError(f"worker directory is not writable: {work}")
-    _check_ready(profile)
+    worker = _enrolled_worker(profile)
     checks = [
         f"profile: {name}",
         f"server: {profile.server_url}",
+        f"worker: {worker}",
         f"work directory: {work}",
     ]
     adapters = [runtime.adapter for runtime in available_runtimes()]

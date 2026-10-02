@@ -20,7 +20,8 @@ import type {
 } from "../../domain/experiments/schema";
 import type { RuntimeDescriptor } from "../../domain/inference/schema";
 import type { ModelVersion } from "../../domain/models/schema";
-import type { WorkerHeartbeat } from "../../domain/workers/schema";
+import type { Worker, WorkerHeartbeat } from "../../domain/workers/schema";
+import { recordWorkerHeartbeat } from "../workers/sessions";
 import { canonicalize } from "../images/ingest";
 import { addExperimentObservationImages } from "../datasets/memberships";
 import { createExperiment } from "../experiments/design";
@@ -48,6 +49,7 @@ import {
   datasets,
   experimentObservationImages,
   trainingRuns,
+  workers,
 } from "../infra/db/schema";
 import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
@@ -176,6 +178,27 @@ export function testHeartbeat(workerId: string): WorkerHeartbeat {
     annotationRuntime: null,
     memoryBytes: 8 * 1024 ** 3,
   };
+}
+
+/**
+ * A heartbeat from a worker the test enrolled, enrolling it on first use as an
+ * administrator would.
+ */
+export async function recordTestHeartbeat(
+  heartbeat: WorkerHeartbeat,
+  at?: Date,
+): Promise<Worker> {
+  await (
+    await database()
+  )
+    .insert(workers)
+    .values({
+      id: heartbeat.workerId,
+      tokenHash: `test-${heartbeat.workerId}`,
+      enrolledAt: new Date(),
+    })
+    .onConflictDoNothing();
+  return recordWorkerHeartbeat(heartbeat, at);
 }
 
 /** Fixture images are grids of flat blocks so lossy encoding keeps them distinct. */

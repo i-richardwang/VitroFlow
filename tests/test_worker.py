@@ -42,7 +42,6 @@ def _worker(
     settings = WorkerSettings(
         server_url="https://example.test",
         token="secret",
-        worker_id="one",
         work_dir=tmp_path,
     )
     return Worker(settings, transport=httpx.MockTransport(workbench)), workbench
@@ -138,7 +137,6 @@ def test_worker_runs_claimed_annotation_with_its_probed_agent(tmp_path, monkeypa
         WorkerSettings(
             "https://example.test",
             "secret",
-            "worker",
             tmp_path,
             annotation_runtime=runtime,
         ),
@@ -161,7 +159,7 @@ def test_unavailable_annotation_runtime_does_not_stop_other_capabilities(
 
     monkeypatch.setattr(worker_session, "available_runtimes", lambda: (TRADITIONAL,))
     monkeypatch.setattr(worker_session, "device_memory_bytes", lambda _: 1)
-    state = worker_session.WorkerSession.create("worker", None, Unavailable())
+    state = worker_session.WorkerSession.create(None, Unavailable())
     assert state.annotation_agent is None
     assert state.heartbeat()["annotationRuntime"] is None
     assert state.runtimes == (TRADITIONAL,)

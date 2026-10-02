@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from vitroflow.contracts.identifiers import WORKER_DEVICE, WORKER_ID
+from vitroflow.contracts.identifiers import WORKER_DEVICE
 
 RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
@@ -27,13 +27,7 @@ class WorkerConnection:
         return self.server_url.rstrip("/") + "/"
 
 
-def validate_worker_process(
-    worker_id: str,
-    poll_seconds: float,
-    device: str | None,
-) -> None:
-    if not WORKER_ID.fullmatch(worker_id):
-        raise ValueError("worker id is invalid")
+def validate_worker_process(poll_seconds: float, device: str | None) -> None:
     if poll_seconds <= 0:
         raise ValueError("poll interval must be positive")
     if device is not None and not WORKER_DEVICE.fullmatch(device):

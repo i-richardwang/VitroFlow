@@ -1,8 +1,9 @@
 """What every Worker process is to the workbench: one session of one worker.
 
-A session heartbeats who it is and what it can do; the work it holds is a
-lease the workbench fences by the same identity. Inference and training keep
-their own protocols for the work itself.
+The token names the enrolled worker; the session names this process. A
+session heartbeats what it can do, and the work it holds is a lease the
+workbench fences by the session. Inference and training keep their own
+protocols for the work itself.
 """
 
 from __future__ import annotations
@@ -44,7 +45,6 @@ class LeaseLostError(RuntimeError):
 class WorkerSettings:
     server_url: str
     token: str
-    worker_id: str
     work_dir: Path
     poll_seconds: float = 5.0
     device: str | None = None
@@ -52,7 +52,7 @@ class WorkerSettings:
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
-        validate_worker_process(self.worker_id, self.poll_seconds, self.device)
+        validate_worker_process(self.poll_seconds, self.device)
 
 
 def available_runtimes() -> tuple[RuntimeDescriptor, ...]:
@@ -102,7 +102,6 @@ def probe_annotation_agent(runtime: AgentRuntime | None) -> AnnotationAgent | No
 class WorkerSession:
     """One process incarnation of a worker and what it can do."""
 
-    worker_id: str
     session_id: str
     started_at: str
     runtimes: tuple[RuntimeDescriptor, ...]
@@ -112,12 +111,10 @@ class WorkerSession:
     @classmethod
     def create(
         cls,
-        worker_id: str,
         device: str | None,
         annotation_runtime: AgentRuntime | None = None,
     ) -> WorkerSession:
         return cls(
-            worker_id,
             f"session-{uuid4()}",
             datetime.now(UTC).isoformat(),
             available_runtimes(),
@@ -127,7 +124,7 @@ class WorkerSession:
 
     @property
     def identity(self) -> dict[str, str]:
-        return {"workerId": self.worker_id, "sessionId": self.session_id}
+        return {"sessionId": self.session_id}
 
     @property
     def can_train(self) -> bool:
@@ -177,7 +174,7 @@ class WorkerClient(WorkerHttpClient):
 
     @staticmethod
     def require_current_session(response: httpx.Response) -> None:
-        """A 409 means another session owns this identity or its work."""
+        """A 409 means another session of this worker owns it or its work."""
         if response.status_code == 409:
             raise LeaseLostError(response.text)
         response.raise_for_status()

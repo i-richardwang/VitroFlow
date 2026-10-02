@@ -24,7 +24,7 @@ import {
 import { addApiKey } from "../../functions/integrations";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { CopyableCode } from "./CopyableCode";
+import { CopyableCode } from "../../ui/CopyableCode";
 
 const EXPIRY_OPTIONS = [
   { id: "30", label: m.api_key_expiry_30_days, days: 30 },

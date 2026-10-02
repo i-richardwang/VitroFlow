@@ -6,18 +6,18 @@ import { instancesFromDetection } from "../../domain/annotation/detection";
 import { storeAnnotation } from "../annotations/documents";
 import { readReview } from "./images";
 import {
-  TEST_RUNTIME,
-  ULTRALYTICS_RUNTIME,
   observeImages,
+  recordTestHeartbeat,
   registerTrainedVersion,
-  traditionalVersion,
   resultFor,
+  TEST_RUNTIME,
   testHeartbeat,
+  traditionalVersion,
+  ULTRALYTICS_RUNTIME,
 } from "../testing/fixtures";
-import { recordWorkerHeartbeat } from "../workers/sessions";
 
 test("a review shows the newest detection and the stored annotation", async () => {
-  const worker = await recordWorkerHeartbeat({
+  const worker = await recordTestHeartbeat({
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
   });

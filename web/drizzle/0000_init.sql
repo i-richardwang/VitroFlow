@@ -503,14 +503,21 @@ CREATE TABLE "verifications" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "workers" (
-	"id" text PRIMARY KEY NOT NULL,
+CREATE TABLE "worker_sessions" (
+	"worker_id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"started_at" timestamp with time zone NOT NULL,
 	"runtimes" jsonb NOT NULL,
 	"annotation_runtime" jsonb,
 	"memory_bytes" bigint NOT NULL,
 	"last_seen_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workers" (
+	"id" text PRIMARY KEY NOT NULL,
+	"token_hash" text NOT NULL,
+	"enrolled_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "workers_token_hash_unique" UNIQUE("token_hash")
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_settings" (
@@ -571,6 +578,7 @@ ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_id_models_id_fk"
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_dataset_snapshot_id_model_id_dataset_snapshots_id_model_id_fk" FOREIGN KEY ("dataset_snapshot_id","model_id") REFERENCES "public"."dataset_snapshots"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_model_id_model_versions_id_model_id_fk" FOREIGN KEY ("model_version_id","model_id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk" FOREIGN KEY ("model_version_id","id","attempt","dataset_snapshot_id","model_id") REFERENCES "public"."model_versions"("id","source_training_run_id","source_training_attempt","source_dataset_snapshot_id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "worker_sessions" ADD CONSTRAINT "worker_sessions_worker_id_workers_id_fk" FOREIGN KEY ("worker_id") REFERENCES "public"."workers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_user_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "accounts_issuer_account_idx" ON "accounts" USING btree ("issuer","account_id");--> statement-breakpoint
 CREATE INDEX "annotation_runs_image_model_idx" ON "annotation_runs" USING btree ("image_id","model_id","created_at");--> statement-breakpoint
@@ -609,4 +617,4 @@ CREATE UNIQUE INDEX "training_runs_one_active_per_model" ON "training_runs" USIN
 CREATE INDEX "training_runs_model_idx" ON "training_runs" USING btree ("model_id","created_at");--> statement-breakpoint
 CREATE INDEX "training_runs_claimable_idx" ON "training_runs" USING btree ("created_at") WHERE "training_runs"."status" in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "verifications_identifier_idx" ON "verifications" USING btree ("identifier");--> statement-breakpoint
-CREATE INDEX "workers_seen_idx" ON "workers" USING btree ("last_seen_at");
+CREATE INDEX "worker_sessions_seen_idx" ON "worker_sessions" USING btree ("last_seen_at");

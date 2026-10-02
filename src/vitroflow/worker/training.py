@@ -52,8 +52,8 @@ class TrainingClient:
         if document["run"] is None:
             return None
         job = TrainingJob.parse(document["run"])
-        if {"workerId": job.worker_id, "sessionId": job.session_id} != self.identity:
-            raise ValueError("Training claim returned another worker's lease")
+        if job.session_id != self.worker.session.session_id:
+            raise ValueError("Training claim returned another session's lease")
         return job
 
     def fetch_snapshot(self, run_id: str) -> TrainingSnapshot:

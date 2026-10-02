@@ -1,4 +1,10 @@
 export {
+  authenticateWorker,
+  enrollWorker,
+  listEnrolledWorkers,
+  removeWorker,
+} from "./enrollment";
+export {
   WorkerSessionConflictError,
   currentWorkerSession,
   listOnlineTrainers,

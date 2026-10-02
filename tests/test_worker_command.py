@@ -53,7 +53,6 @@ def test_setup_keeps_existing_profile_when_preflight_fails(
         WorkerProfile(
             server_url="https://old.example.test",
             token="old-secret",
-            worker_id="trainer",
         ),
     )
     monkeypatch.setattr(worker_command.getpass, "getpass", lambda _prompt: "new-secret")
@@ -93,7 +92,6 @@ def test_setup_restarts_a_replaced_profile(tmp_path, monkeypatch) -> None:
         WorkerProfile(
             server_url="https://old.example.test",
             token="old-secret",
-            worker_id="trainer",
         ),
     )
     monkeypatch.setattr(worker_command, "require_launchd", lambda: None)
@@ -133,7 +131,6 @@ def test_setup_rejects_an_existing_profile_before_prompting(
         WorkerProfile(
             server_url="https://example.test",
             token="secret",
-            worker_id="trainer",
         ),
     )
     monkeypatch.setattr(
@@ -164,7 +161,6 @@ def test_list_reports_each_profile(tmp_path, monkeypatch, capsys) -> None:
         WorkerProfile(
             server_url="https://example.test",
             token="secret",
-            worker_id="trainer",
         ),
     )
 

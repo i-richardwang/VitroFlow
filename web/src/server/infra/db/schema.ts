@@ -876,13 +876,26 @@ export const experimentObservationImages = pgTable(
 );
 
 /**
- * A worker process by what it can execute and how much memory it offers a
- * job. What it is doing follows from the lease it holds.
+ * A machine an administrator enrolled as a worker. Its token is its identity:
+ * only the token's hash is kept, and removing the worker revokes it.
  */
-export const workers = pgTable(
-  "workers",
+export const workers = pgTable("workers", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  enrolledAt: instant("enrolled_at"),
+});
+
+/**
+ * The process currently serving as a worker, by what it can execute and how
+ * much memory it offers a job. What it is doing follows from the lease it
+ * holds.
+ */
+export const workerSessions = pgTable(
+  "worker_sessions",
   {
-    id: text("id").primaryKey(),
+    workerId: text("worker_id")
+      .primaryKey()
+      .references(() => workers.id, { onDelete: "cascade" }),
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
@@ -890,7 +903,7 @@ export const workers = pgTable(
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),
   },
-  (table) => [index("workers_seen_idx").on(table.lastSeenAt)],
+  (table) => [index("worker_sessions_seen_idx").on(table.lastSeenAt)],
 );
 
 /**

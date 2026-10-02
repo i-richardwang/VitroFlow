@@ -10,6 +10,7 @@ const BUSINESS_ERROR_LABELS: ReadonlyMap<string, () => string> = new Map([
   ["experiment_observation_image_already_used", m.error_image_already_used],
   ["experiment_has_records", m.error_experiment_has_records],
   ["user_rejected", m.error_user_rejected],
+  ["worker_already_enrolled", m.error_worker_name_taken],
 ]);
 
 /** RPC failures are validated data, never reconstructed Error subclasses. */

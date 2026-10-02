@@ -7,9 +7,9 @@ import {
 } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
 
-import { Hint } from "../../ui/Hint";
-import { CheckIcon, CopyIcon } from "../../ui/icons";
-import { m } from "../../paraglide/messages";
+import { Hint } from "./Hint";
+import { CheckIcon, CopyIcon } from "./icons";
+import { m } from "../paraglide/messages";
 
 export function CopyableCode({
   value,

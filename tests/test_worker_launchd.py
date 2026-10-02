@@ -15,7 +15,6 @@ def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> N
         WorkerProfile(
             server_url="https://example.test",
             token="secret",
-            worker_id="mps-trainer",
             device="mps",
         ),
     )

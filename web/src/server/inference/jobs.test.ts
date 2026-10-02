@@ -7,12 +7,12 @@ import {
   completeInferenceClaim,
   renewInferenceClaim,
 } from "./jobs";
-import { recordWorkerHeartbeat } from "../workers/sessions";
 import {
-  ULTRALYTICS_RUNTIME,
   observeImages,
   observeImagesForModel,
+  recordTestHeartbeat,
   testHeartbeat,
+  ULTRALYTICS_RUNTIME,
 } from "../testing/fixtures";
 import { createModel } from "../models/public";
 
@@ -32,11 +32,11 @@ test("inference claims are exclusive and expired ownership is fenced", async () 
     ...testHeartbeat("claim-runtime").runtimes,
     ULTRALYTICS_RUNTIME,
   ];
-  const first = await recordWorkerHeartbeat({
+  const first = await recordTestHeartbeat({
     ...testHeartbeat("claim-worker-a"),
     runtimes,
   });
-  const second = await recordWorkerHeartbeat({
+  const second = await recordTestHeartbeat({
     ...testHeartbeat("claim-worker-b"),
     runtimes,
   });
@@ -75,9 +75,7 @@ test("inference claims are exclusive and expired ownership is fenced", async () 
 
 test("only a live owner can renew an inference claim", async () => {
   await observeImages("claim-renew", ["claim-renew"]);
-  const worker = await recordWorkerHeartbeat(
-    testHeartbeat("claim-renew-worker"),
-  );
+  const worker = await recordTestHeartbeat(testHeartbeat("claim-renew-worker"));
   const claimedAt = new Date("2026-09-03T12:00:00.000Z");
   const assignment = await claimInferenceAssignment(worker, claimedAt);
   expect(assignment).not.toBeNull();
@@ -114,7 +112,7 @@ test("a model with no version demands no work of any worker", async () => {
     ["unclaimable"],
     model.id,
   );
-  const worker = await recordWorkerHeartbeat({
+  const worker = await recordTestHeartbeat({
     ...testHeartbeat("unclaimable-worker"),
     runtimes: [
       ...testHeartbeat("unclaimable-worker").runtimes,

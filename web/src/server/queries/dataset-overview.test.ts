@@ -12,13 +12,13 @@ import {
   failTrainingRun,
 } from "../training/runs";
 import {
-  ULTRALYTICS_RUNTIME,
   imageDigest,
+  recordTestHeartbeat,
   resultFor,
   testHeartbeat,
+  ULTRALYTICS_RUNTIME,
   uploadTexts,
 } from "../testing/fixtures";
-import { recordWorkerHeartbeat } from "../workers/sessions";
 
 /** This test's clock; workers heartbeating at wall-clock time are offline here. */
 const HEARTBEAT_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -27,7 +27,7 @@ const OVERVIEW_AT = new Date(HEARTBEAT_AT.getTime() + 10_000);
 test("the overview derives review progress and training readiness", async () => {
   const at = OVERVIEW_AT;
   const { version } = await uploadTexts("overview", ["ov-a", "ov-b", "ov-c"]);
-  const worker = await recordWorkerHeartbeat(
+  const worker = await recordTestHeartbeat(
     testHeartbeat("overview-worker"),
     HEARTBEAT_AT,
   );
@@ -67,7 +67,7 @@ test("the overview derives review progress and training readiness", async () => 
   overview = await datasetOverview("overview", at);
   expect(overview?.training.active?.id).toBe(run.id);
   expect(overview?.training.reviewedSinceLastRun).toBe(0);
-  const owner = await recordWorkerHeartbeat(
+  const owner = await recordTestHeartbeat(
     {
       ...testHeartbeat("overview-trainer"),
       runtimes: [ULTRALYTICS_RUNTIME],

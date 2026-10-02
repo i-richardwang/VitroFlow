@@ -15,8 +15,9 @@ import { Route as SnapshotRoute } from "../../../routes/api.worker.training.runs
 import { contentDigest } from "../../infra/digest";
 import { ULTRALYTICS_RUNTIME, reviewedDataset } from "../../testing/fixtures";
 import { createTrainingRun } from "../../training/runs";
+import { enrollWorker } from "../../workers/public";
 
-const OWNER = { workerId: "api-trainer", sessionId: "api-trainer-session" };
+const SESSION = { sessionId: "api-trainer-session" };
 
 test("the shared training claim fixture is the Web training contract", async () => {
   const fixture = await Bun.file(
@@ -49,6 +50,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   ]);
 
   const created = await createTrainingRun(datasetId, YOLO26_SEED_SMALL_RECIPE);
+  const { token } = await enrollWorker("api-trainer");
+  const authorization = `Bearer ${token}`;
 
   const heartbeat = await handler(
     HeartbeatRoute,
@@ -56,8 +59,9 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   )({
     request: new Request("http://localhost/api/worker/heartbeat", {
       method: "POST",
+      headers: { authorization },
       body: JSON.stringify({
-        ...OWNER,
+        ...SESSION,
         startedAt: "2026-08-27T00:00:00.000Z",
         runtimes: [ULTRALYTICS_RUNTIME],
         annotationRuntime: null,
@@ -73,7 +77,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   )({
     request: new Request("http://localhost/api/worker/training/claim", {
       method: "POST",
-      body: JSON.stringify(OWNER),
+      headers: { authorization },
+      body: JSON.stringify(SESSION),
     }),
   } as never);
   const job = await claim.json();
@@ -86,7 +91,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   )({
     params: { runId: created.id },
     request: new Request(
-      `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams(OWNER)}`,
+      `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams(SESSION)}`,
+      { headers: { authorization } },
     ),
   } as never);
   const snapshotImages = (await snapshot.json()).images;
@@ -99,7 +105,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   )({
     params: { runId: created.id, digest },
     request: new Request(
-      `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams(OWNER)}`,
+      `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams(SESSION)}`,
+      { headers: { authorization } },
     ),
   } as never);
   expect(image.status).toBe(200);
@@ -112,7 +119,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     params: { runId: created.id },
     request: new Request("http://localhost/phase", {
       method: "POST",
-      body: JSON.stringify({ ...OWNER, phase: "training" }),
+      headers: { authorization },
+      body: JSON.stringify({ ...SESSION, phase: "training" }),
     }),
   } as never);
   expect(trainingPhase.status).toBe(200);
@@ -124,8 +132,9 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     params: { runId: created.id },
     request: new Request("http://localhost/epochs", {
       method: "POST",
+      headers: { authorization },
       body: JSON.stringify({
-        ...OWNER,
+        ...SESSION,
         epoch: 1,
         train: { box: 1.2, classification: 2.4, regression: 1.1 },
         val: { box: 1.3, classification: 2.5, regression: 1.2 },
@@ -152,7 +161,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     params: { runId: created.id },
     request: new Request("http://localhost/lease", {
       method: "POST",
-      body: JSON.stringify(OWNER),
+      headers: { authorization },
+      body: JSON.stringify(SESSION),
     }),
   } as never);
   expect(lease.status).toBe(200);
@@ -165,7 +175,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     params: { runId: created.id },
     request: new Request("http://localhost/phase", {
       method: "POST",
-      body: JSON.stringify({ ...OWNER, phase: "validating" }),
+      headers: { authorization },
+      body: JSON.stringify({ ...SESSION, phase: "validating" }),
     }),
   } as never);
   expect(validationPhase.status).toBe(200);
@@ -195,8 +206,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     },
   };
   const form = new FormData();
-  form.append("workerId", OWNER.workerId);
-  form.append("sessionId", OWNER.sessionId);
+  form.append("sessionId", SESSION.sessionId);
   form.append("weights", new File(["weights"], "best.pt"));
   form.append(
     "inference",
@@ -211,7 +221,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     params: { runId: created.id },
     request: new Request("http://localhost/artifact", {
       method: "PUT",
-      headers: { "content-length": "1000" },
+      headers: { authorization, "content-length": "1000" },
       body: form,
     }),
   } as never);
@@ -226,7 +236,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     params: { runId: created.id },
     request: new Request("http://localhost/artifact", {
       method: "PUT",
-      headers: { "content-length": "1000" },
+      headers: { authorization, "content-length": "1000" },
       body: form,
     }),
   } as never);
@@ -244,6 +254,8 @@ test("training HTTP routes publish a version and serve its weights idempotently"
 });
 
 test("training HTTP routes distinguish invalid requests from lease conflicts", async () => {
+  const { token } = await enrollWorker("api-conflict-trainer");
+  const authorization = `Bearer ${token}`;
   const invalid = await handler(
     PhaseRoute,
     "POST",
@@ -251,8 +263,8 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
     params: { runId: "train-invalid" },
     request: new Request("http://localhost/phase", {
       method: "POST",
+      headers: { authorization },
       body: JSON.stringify({
-        workerId: "trainer",
         sessionId: "trainer-session",
         phase: "complete",
       }),
@@ -267,10 +279,8 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
     params: { runId: "train-missing" },
     request: new Request("http://localhost/lease", {
       method: "POST",
-      body: JSON.stringify({
-        workerId: "trainer",
-        sessionId: "trainer-session",
-      }),
+      headers: { authorization },
+      body: JSON.stringify({ sessionId: "trainer-session" }),
     }),
   } as never);
   expect(conflict.status).toBe(409);

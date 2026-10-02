@@ -104,7 +104,7 @@ def _snapshot_image(
 
 def session(memory_bytes: int) -> WorkerSession:
     return WorkerSession(
-        "trainer", "trainer-session", "2026-08-27T00:00:00.000Z", (), memory_bytes
+        "trainer-session", "2026-08-27T00:00:00.000Z", (), memory_bytes
     )
 
 

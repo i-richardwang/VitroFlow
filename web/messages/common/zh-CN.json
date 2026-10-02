@@ -63,5 +63,6 @@
   "ai_batch_title": "AI 标注",
   "ai_batch_count": "将为 {count} 张未校准的图片生成 AI 建议，已校准的图片不受影响。",
   "ai_batch_confirm": "开始",
-  "ai_batch_started": "已为 {count} 张图片开始 AI 标注"
+  "ai_batch_started": "已为 {count} 张图片开始 AI 标注",
+  "error_worker_name_taken": "已有同名的工作节点。"
 }

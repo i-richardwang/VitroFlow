@@ -82,9 +82,7 @@ class FakeStore:
 
 
 DETECTOR = FakeDetector()
-SESSION = WorkerSession(
-    "test-worker", "test-session", "2026-08-27T00:00:00+00:00", (RUNTIME,), 8_192
-)
+SESSION = WorkerSession("test-session", "2026-08-27T00:00:00+00:00", (RUNTIME,), 8_192)
 PRODUCER = DetectionProducer("set.traditional-v1", "a" * 64, RUNTIME)
 
 
@@ -217,7 +215,6 @@ def test_assignment_validates_its_manifest() -> None:
 
 def test_heartbeat_describes_what_the_session_can_do() -> None:
     assert SESSION.heartbeat() == {
-        "workerId": "test-worker",
         "sessionId": "test-session",
         "startedAt": "2026-08-27T00:00:00+00:00",
         "runtimes": [RUNTIME.to_dict()],
@@ -246,15 +243,12 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
     ]
     assert models.loads == ["set.traditional-v1"]
     assert json.loads(workbench.requests[0].read()) == {
-        "workerId": "test-worker",
         "sessionId": "test-session",
     }
     assert json.loads(workbench.requests[1].read()) == {
-        "workerId": "test-worker",
         "sessionId": "test-session",
     }
     assert dict(workbench.requests[3].url.params) == {
-        "workerId": "test-worker",
         "sessionId": "test-session",
     }
     for body in workbench.result_bodies():

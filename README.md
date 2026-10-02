@@ -89,11 +89,11 @@ Everyone signs in with an email address and password; there is no self-service s
 
 A deployment whose directory is empty creates its first administrator from `VITROFLOW_ADMIN_EMAIL` and `VITROFLOW_ADMIN_PASSWORD` when it starts. Once any account exists those variables are inert. `BETTER_AUTH_SECRET` signs session cookies, and `BETTER_AUTH_URL` is the public workbench origin that browser requests must match.
 
-Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and dataset transfer surfaces and reviews the MCP clients it has authorized. Worker credentials are separate bearer tokens configured on the deployment.
+Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and dataset transfer surfaces and reviews the MCP clients it has authorized. Workers are machines, not accounts: an administrator enrolls each one on the **Status** page and it presents its own token.
 
 ## Workers
 
-Workers communicate only with the workbench HTTP API under one worker credential. Each native Worker profile has a stable worker ID, a fresh process-session ID, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds. A Worker serves both queues: one that can train takes a queued training run before an inference pair, and one without the Ultralytics runtime only detects.
+Workers communicate only with the workbench HTTP API. An administrator enrolls each machine under a name on the **Status** page, which shows its token once; the token is the worker's identity on every request, and removing the worker revokes it and returns its work to the queue. Each native Worker profile holds that token, a fresh process-session ID, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds. A Worker serves both queues: one that can train takes a queued training run before an inference pair, and one without the Ultralytics runtime only detects.
 
 The Python package is published on PyPI as [`vitroflow`](https://pypi.org/project/vitroflow/); its own README is [docs/package.md](docs/package.md). On macOS, install it and configure `launchd` services:
 
@@ -105,7 +105,7 @@ vitroflow worker setup mac-studio \
   --device mps
 ```
 
-Setup validates authentication, runtime imports, and the selected device before saving the profile. The token is prompted without echo and is stored in `~/.vitroflow/profiles/<profile>/config.toml` with mode `0600`; LaunchAgent files contain no credentials.
+Setup asks for the token the Status page showed, then validates it, the runtime imports, and the selected device before saving the profile. The token is prompted without echo and stored in `~/.vitroflow/profiles/<profile>/config.toml` with mode `0600`; LaunchAgent files contain no credentials.
 
 Operational commands are:
 
@@ -244,7 +244,7 @@ docker compose up --build -d
 
 Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped.
 
-`HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. `VITROFLOW_WORKER_TOKEN` is the credential every Worker presents. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
+`HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 
 `zeabur-template.yaml` deploys the server side on Zeabur: the workbench built from `Dockerfile.web`, plus the marketplace PostgreSQL and MinIO services, which the dashboard maintains directly. Workers stay outside the platform. Zeabur has no one-shot service, so MinIO creates the bucket from its own start command.
 

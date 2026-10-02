@@ -23,12 +23,12 @@ import {
 } from "./runs";
 import { publishTrainingArtifact } from "./publication";
 import {
-  ULTRALYTICS_RUNTIME,
   imageDigest,
+  recordTestHeartbeat,
   reviewedDataset as reviewed,
   traditionalVersion,
+  ULTRALYTICS_RUNTIME,
 } from "../testing/fixtures";
-import { recordWorkerHeartbeat } from "../workers/sessions";
 import type {
   WorkerHeartbeat,
   WorkerIdentity,
@@ -62,7 +62,7 @@ function heartbeat(identity: WorkerIdentity, startedAt: Date): WorkerHeartbeat {
 
 async function trainer(workerId: string) {
   const identity = owner(workerId);
-  await recordWorkerHeartbeat(
+  await recordTestHeartbeat(
     heartbeat(identity, new Date("2026-08-27T00:00:00.000Z")),
   );
   return identity;
@@ -496,11 +496,11 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
   const oldSession = owner("restarting-trainer", "session-old");
   const newSession = owner("restarting-trainer", "session-new");
   const started = new Date("2026-08-28T00:00:00.000Z");
-  await recordWorkerHeartbeat(heartbeat(oldSession, started), started);
+  await recordTestHeartbeat(heartbeat(oldSession, started), started);
   expect((await claimTrainingRun(oldSession, started))?.attempt).toBe(1);
 
   const restarted = new Date(started.getTime() + 1_000);
-  await recordWorkerHeartbeat(heartbeat(newSession, restarted), restarted);
+  await recordTestHeartbeat(heartbeat(newSession, restarted), restarted);
   await expect(
     renewTrainingLease(run.id, oldSession, restarted),
   ).rejects.toThrow(/not owned/);
@@ -511,7 +511,7 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
     state: { status: "running", phase: "preparing" },
   });
   await expect(
-    recordWorkerHeartbeat(heartbeat(oldSession, started), restarted),
+    recordTestHeartbeat(heartbeat(oldSession, started), restarted),
   ).rejects.toThrow(/newer active session/);
   await failTrainingRun(run.id, newSession, "stopped");
 });

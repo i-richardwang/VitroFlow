@@ -1,9 +1,13 @@
 import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Chip, Link, Table } from "@heroui/react";
+import { Button, Chip, Link, Table, toast } from "@heroui/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { Page } from "../../ui/Page";
-import { getStatus } from "../../functions/status";
+import { deleteWorker, getStatus } from "../../functions/status";
+import { EnrollWorkerDialog } from "../../features/workers/EnrollWorkerDialog";
+import { isAdmin } from "../../domain/auth/schema";
+import { DestructiveActionButton } from "../../ui/DestructiveActionDialog";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
 import type { WorkerPresence } from "../../domain/workers/presence";
@@ -29,11 +33,23 @@ const PRESENCE: Record<
 
 function StatusPage() {
   const { workers } = Route.useLoaderData();
+  const { user } = Route.useRouteContext();
   const router = useRouter();
+  const [enrolling, setEnrolling] = useState(false);
+  const administers = isAdmin(user);
   useRouteRefresh(router, 5000);
 
   return (
-    <Page title={m.status_title()}>
+    <Page
+      title={m.status_title()}
+      actions={
+        administers ? (
+          <Button variant="primary" onPress={() => setEnrolling(true)}>
+            {m.worker_enroll()}
+          </Button>
+        ) : null
+      }
+    >
       <Table>
         <Table.ScrollContainer>
           <Table.Content aria-label={m.status_table_label()}>
@@ -44,6 +60,9 @@ function StatusPage() {
               <Table.Column>{m.status_column_presence()}</Table.Column>
               <Table.Column>{m.status_column_activity()}</Table.Column>
               <Table.Column>{m.status_column_last_seen()}</Table.Column>
+              {administers ? (
+                <Table.Column aria-label={m.worker_remove()} />
+              ) : null}
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
@@ -72,15 +91,47 @@ function StatusPage() {
                     <Activity activity={worker.activity} />
                   </Table.Cell>
                   <Table.Cell className="font-mono text-muted tabular-nums">
-                    {formatAge(worker.lastSeenSeconds)}
+                    {worker.lastSeenSeconds === null
+                      ? m.worker_never_seen()
+                      : formatAge(worker.lastSeenSeconds)}
                   </Table.Cell>
+                  {administers ? (
+                    <Table.Cell className="text-right">
+                      <RemoveWorkerButton workerId={worker.workerId} />
+                    </Table.Cell>
+                  ) : null}
                 </Table.Row>
               ))}
             </Table.Body>
           </Table.Content>
         </Table.ScrollContainer>
       </Table>
+      {administers ? (
+        <EnrollWorkerDialog
+          isOpen={enrolling}
+          onClose={() => setEnrolling(false)}
+        />
+      ) : null}
     </Page>
+  );
+}
+
+function RemoveWorkerButton({ workerId }: { workerId: string }) {
+  const router = useRouter();
+
+  return (
+    <DestructiveActionButton
+      label={m.worker_remove()}
+      title={m.worker_remove_title({ name: workerId })}
+      confirmLabel={m.worker_remove()}
+      onConfirm={async () => {
+        await deleteWorker({ data: { workerId } });
+        toast.success(m.worker_removed({ name: workerId }));
+        await router.invalidate();
+      }}
+    >
+      {m.worker_remove_description()}
+    </DestructiveActionButton>
   );
 }
 

@@ -1,12 +1,9 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import { apiRequestAuthorization } from "./authorization";
 import { issueApiKey } from "../../auth/api-keys";
 import { apiKeyHeaders, signInAs } from "../../testing/fixtures";
-
-afterEach(() => {
-  delete process.env.VITROFLOW_WORKER_TOKEN;
-});
+import { enrollWorker, removeWorker } from "../../workers/public";
 
 function bearer(token?: string): Request {
   return new Request("http://workbench", {
@@ -27,26 +24,22 @@ describe("API credentials", () => {
     }
   });
 
-  test("the worker realm admits only the worker credential", async () => {
-    process.env.VITROFLOW_WORKER_TOKEN = "worker-secret";
+  test("the worker realm admits only the tokens of enrolled workers", async () => {
+    const { token } = await enrollWorker("realm-worker");
     for (const pathname of [
       "/api/worker/heartbeat",
       "/api/worker/inference/claim",
       "/api/worker/training/claim",
     ]) {
-      expect(
-        await apiRequestAuthorization(pathname, bearer("worker-secret")),
-      ).toBe(true);
+      expect(await apiRequestAuthorization(pathname, bearer(token))).toBe(true);
       expect(await apiRequestAuthorization(pathname, bearer("wrong"))).toBe(
         false,
       );
       expect(await apiRequestAuthorization(pathname, bearer())).toBe(false);
     }
-  });
-
-  test("an unconfigured worker realm is closed", async () => {
+    await removeWorker("realm-worker");
     expect(
-      await apiRequestAuthorization("/api/worker/heartbeat", bearer("any")),
+      await apiRequestAuthorization("/api/worker/heartbeat", bearer(token)),
     ).toBe(false);
   });
 

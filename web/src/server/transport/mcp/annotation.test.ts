@@ -8,6 +8,7 @@ import { disconnectMcpClient, listMcpClients } from "../../auth/mcp-clients";
 import {
   authorizeMcpClient,
   observeImages,
+  recordTestHeartbeat,
   signInAs,
   testHeartbeat,
 } from "../../testing/fixtures";
@@ -19,7 +20,6 @@ import {
   cancelAnnotationRun,
   setInteractiveAnnotation,
 } from "../../annotation-runs/public";
-import { recordWorkerHeartbeat } from "../../workers/public";
 
 const annotationEndpoint = () =>
   `${process.env.BETTER_AUTH_URL}/api/annotation/mcp`;
@@ -253,7 +253,7 @@ test("people's agents and Worker agents annotate through the same annotation ser
       model: "test/vision",
     },
   };
-  await recordWorkerHeartbeat(heartbeat);
+  await recordTestHeartbeat(heartbeat);
   const run = await createAnnotationRun(
     { ref, input: null, scope: null },
     "worker",

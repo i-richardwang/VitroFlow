@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ApiKeysTable } from "../../features/integrations/ApiKeysTable";
-import { CopyableCode } from "../../features/integrations/CopyableCode";
+import { CopyableCode } from "../../ui/CopyableCode";
 import { InteractiveAnnotationSwitch } from "../../features/integrations/InteractiveAnnotationSwitch";
 import { McpClientsTable } from "../../features/integrations/McpClientsTable";
 import { NewApiKeyDialog } from "../../features/integrations/NewApiKeyDialog";

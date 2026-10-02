@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://schema.zeabur.app/template.json
 #
 # Deploys the VitroFlow server side only: the workbench, its Postgres, and its
-# S3-compatible store. Workers hold the GPUs and stay outside Zeabur; point
-# them at the deployed workbench with the worker token.
+# S3-compatible store. Workers hold the GPUs and stay outside Zeabur; an
+# administrator enrolls each one on the workbench's Status page.
 #
 # Prereq: the source repository is private, so install the Zeabur GitHub App on
 # the repository owner and grant it access before the first deploy.
@@ -30,8 +30,9 @@ spec:
         - **minio** — S3-compatible object store for immutable blobs
 
         Workers are not part of this template. They only make outbound calls,
-        so run them next to their GPUs and give them the `VITROFLOW_WORKER_TOKEN`
-        set on the workbench.
+        so run them next to their GPUs. An administrator enrolls each machine on
+        the workbench's Status page, which shows the token and the setup command
+        for it once.
 
         ## After deploying
         Bind your own domain to the workbench in its Networking tab; no domain is

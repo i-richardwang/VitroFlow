@@ -34,7 +34,7 @@ def photo(tmp_path):
 def test_supervised_collection_and_private_environment(
     pi, photo, tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("VITROFLOW_WORKER_TOKEN", "must-not-inherit")
+    monkeypatch.setenv("VITROFLOW_ADMIN_PASSWORD", "must-not-inherit")
     progress = []
     report = run_annotation(
         photo,
