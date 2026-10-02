@@ -127,16 +127,6 @@
   "observation_images_fill_in_order": "Match in order",
   "observation_images_placed": "Already {unit}, day {day}",
   "observation_images_repeated": "Same as {file}",
-  "observation_images_skipped": [
-    {
-      "declarations": ["input count", "local countPlural = count: plural"],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "One image is already in this experiment or repeated here, and will not be matched",
-        "countPlural=other": "{count} images are already in this experiment or repeated here, and will not be matched"
-      }
-    }
-  ],
   "unit_title": "Unit {code} of {experiment}",
   "unit_navigation": "Navigation",
   "unit_no_image": "No image yet",

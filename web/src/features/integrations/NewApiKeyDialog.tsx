@@ -81,7 +81,6 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                   <CopyableCode
                     value={issued.secret}
                     label={m.api_key_dialog_secret_label()}
-                    variant="secondary"
                   />
                 </Modal.Body>
                 <Modal.Footer>

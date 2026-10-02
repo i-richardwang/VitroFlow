@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   Dropdown,
   Form,
   Label,
@@ -155,13 +154,6 @@ function AnnotationEditor({
               rows={8}
               placeholder={m.model_annotation_placeholder()}
             />
-            <Description>
-              {m.model_annotation_region({
-                size: model.annotation.coreSize,
-                halo: model.annotation.halo,
-                scale: model.annotation.displayScale,
-              })}
-            </Description>
           </TextField>
         </Form>
       </Modal.Body>

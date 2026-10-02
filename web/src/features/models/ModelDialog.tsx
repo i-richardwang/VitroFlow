@@ -1,6 +1,5 @@
 import {
   Button,
-  Description,
   FieldError,
   Form,
   Input,
@@ -143,7 +142,6 @@ function Editor({ onClose }: { onClose: () => void }) {
               rows={4}
               placeholder={m.model_annotation_placeholder()}
             />
-            <Description>{m.model_annotation_hint()}</Description>
           </TextField>
         </Form>
       </Modal.Body>

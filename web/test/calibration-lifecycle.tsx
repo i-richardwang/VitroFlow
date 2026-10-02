@@ -80,6 +80,7 @@ const widget = Object.assign(
       "Label",
       "Track",
       "Fill",
+      "Title",
     ].map((name) => [name, Widget]),
   ),
 );
@@ -141,6 +142,7 @@ mock.module("@heroui/react", () => ({
   Chip: widget,
   Alert: widget,
   AlertDialog: widget,
+  Disclosure: widget,
   Button,
   ButtonGroup: widget,
   Kbd: widget,

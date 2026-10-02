@@ -78,6 +78,7 @@ export function ImageWorkbench({
       review={review}
       model={model}
       current={ready ? ready.instances : instances.length ? instances : null}
+      calibrating={ready !== null}
       disabled={calibration.status === "loading" || saving}
     />
   ) : null;

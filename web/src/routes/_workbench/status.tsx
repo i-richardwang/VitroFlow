@@ -61,7 +61,7 @@ function StatusPage() {
               <Table.Column>{m.status_column_activity()}</Table.Column>
               <Table.Column>{m.status_column_last_seen()}</Table.Column>
               {administers ? (
-                <Table.Column aria-label={m.worker_remove()} />
+                <Table.Column aria-label={m.status_column_actions()} />
               ) : null}
             </Table.Header>
             <Table.Body

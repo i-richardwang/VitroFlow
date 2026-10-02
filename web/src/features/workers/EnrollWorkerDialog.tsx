@@ -55,7 +55,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
             {enrolled ? (
               <>
                 <Modal.Header>
-                  <Modal.Heading>{enrolled.workerId}</Modal.Heading>
+                  <Modal.Heading>{m.worker_enroll_ready()}</Modal.Heading>
                   <Description>{m.worker_enroll_shown_once()}</Description>
                 </Modal.Header>
                 <Modal.Body className="flex flex-col gap-4">
@@ -63,12 +63,10 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                     value={`vitroflow worker setup ${enrolled.workerId} --server ${window.location.origin}`}
                     label={m.worker_enroll_command_label()}
                     description={m.worker_enroll_command_description()}
-                    variant="secondary"
                   />
                   <CopyableCode
                     value={enrolled.token}
                     label={m.worker_enroll_token_label()}
-                    variant="secondary"
                   />
                 </Modal.Body>
                 <Modal.Footer>
@@ -115,7 +113,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                         className="w-full font-mono"
                         autoComplete="off"
                         pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
-                        placeholder="gpu-1"
+                        placeholder={m.worker_enroll_name_placeholder()}
                       />
                       <Description>
                         {m.worker_enroll_name_description()}

@@ -139,16 +139,13 @@ export function CalibrationTools({
         <>
           <Separator />
           <Dropdown>
-            <Tooltip delay={0}>
-              <Button
-                variant="tertiary"
-                isIconOnly
-                aria-label={m.workbench_restart()}
-              >
-                <RestartIcon />
-              </Button>
-              <Tooltip.Content>{m.workbench_restart()}</Tooltip.Content>
-            </Tooltip>
+            <Button
+              variant="tertiary"
+              isIconOnly
+              aria-label={m.workbench_restart()}
+            >
+              <RestartIcon />
+            </Button>
             <Dropdown.Popover placement="bottom start">
               <Dropdown.Menu
                 aria-label={m.workbench_restart()}

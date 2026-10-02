@@ -7,11 +7,9 @@ import { useState } from "react";
 
 import { Count } from "../../ui/Count";
 import { QualityChips } from "../../ui/DetectionQuality";
-import { Hint } from "../../ui/Hint";
 import { Page } from "../../ui/Page";
 import { archiveFilename } from "../../domain/datasets/archive-format";
 import { AnnotateImagesDialog } from "../../features/calibration/AiAnnotate";
-import { sourceLabels } from "../../features/calibration/labels";
 import { ImageMenu } from "../../features/datasets/ImageMenu";
 import { annotateDatasetImages } from "../../functions/annotation-runs";
 import { getDatasetOverview } from "../../functions/datasets";
@@ -182,12 +180,7 @@ function DatasetPage() {
   );
 }
 
-/**
- * Reviewed marks read as a plain number. Until someone reviews the image, the
- * best machine reading shows muted, an agent's over the detector's, so the
- * column itself shows which images still need a review and what they start
- * from.
- */
+/** Unreviewed counts are muted. A reviewer's count is plain. */
 function BoxCount({
   detected,
   proposed,
@@ -199,27 +192,10 @@ function BoxCount({
 }) {
   if (boxes === null) {
     if (proposed !== null) {
-      return (
-        <Hint
-          text={m.dataset_boxes_unreviewed({ source: sourceLabels.proposal() })}
-        >
-          <span className="text-muted">{proposed}</span>
-        </Hint>
-      );
+      return <span className="text-muted">{proposed}</span>;
     }
     if (detected === null) return <Count value={null} />;
-    return (
-      <Hint
-        text={m.dataset_boxes_unreviewed({ source: sourceLabels.detection() })}
-      >
-        <span className="text-muted">{detected}</span>
-      </Hint>
-    );
+    return <span className="text-muted">{detected}</span>;
   }
-  if (detected === null || detected === boxes) return <>{boxes}</>;
-  return (
-    <Hint text={m.dataset_detected_count({ count: detected })}>
-      <span>{boxes}</span>
-    </Hint>
-  );
+  return <>{boxes}</>;
 }

@@ -19,8 +19,6 @@
   "dataset_column_actions": "Actions",
   "dataset_menu_label": "Actions for {file}",
   "dataset_empty_images": "No images yet",
-  "dataset_detected_count": "Detected {count}",
-  "dataset_boxes_unreviewed": "{source}, not calibrated yet",
   "dataset_remove_image": "Remove {file} from the dataset",
   "dataset_remove": "Remove",
   "dataset_image_not_removed": "Image not removed",

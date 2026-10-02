@@ -213,18 +213,6 @@ export function AssignImagesDialog({
                     {m.observation_images_fill_in_order()}
                   </Button>
                 ) : null}
-                {conflicts.size > 0 ? (
-                  <Alert status="warning">
-                    <Alert.Indicator />
-                    <Alert.Content>
-                      <Alert.Title>
-                        {m.observation_images_skipped({
-                          count: conflicts.size,
-                        })}
-                      </Alert.Title>
-                    </Alert.Content>
-                  </Alert>
-                ) : null}
                 {unassigned > 0 ? (
                   <Alert status="warning">
                     <Alert.Indicator />

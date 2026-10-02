@@ -1,5 +1,7 @@
 import {
+  Alert,
   Button,
+  Disclosure,
   Dropdown,
   Label,
   Modal,
@@ -35,16 +37,21 @@ export function AiAnnotateMenu({
   review,
   model,
   current,
+  calibrating,
   disabled,
 }: {
   review: Review;
   model: Model;
   /** The boxes an agent would refit, or null when the page shows none. */
   current: AnnotationInstance[] | null;
+  /** While calibrating, only refitting the draft is offered. */
+  calibrating: boolean;
   disabled: boolean;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
+  const options: Start[] = calibrating ? ["refit"] : ["fresh", "refit"];
+  if (calibrating && !current?.length) return null;
   const blocked =
     disabled ||
     busy ||
@@ -75,7 +82,7 @@ export function AiAnnotateMenu({
           onAction={(key) => start(String(key) as Start)}
           disabledKeys={current?.length ? [] : ["refit"]}
         >
-          {(["fresh", "refit"] as const).map((from) => (
+          {options.map((from) => (
             <Dropdown.Item
               key={from}
               id={from}
@@ -117,8 +124,7 @@ export function AiSection({
       {activity && activity.status !== "failed" ? (
         <div className="flex flex-col gap-2" role="status">
           <span className="text-sm">
-            {activity.status === "queued" ? m.ai_queued() : m.ai_running()} ·{" "}
-            {activity.progress.completed}/{activity.progress.total}
+            {activity.status === "queued" ? m.ai_queued() : m.ai_running()}
           </span>
           <ProgressBar
             className="w-full"
@@ -147,9 +153,12 @@ export function AiSection({
         </div>
       ) : null}
       {activity?.status === "failed" ? (
-        <p role="alert" className="text-sm text-danger">
-          {m.ai_failed()}
-        </p>
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{m.ai_failed()}</Alert.Title>
+          </Alert.Content>
+        </Alert>
       ) : null}
       {proposal ? (
         <>
@@ -164,14 +173,21 @@ export function AiSection({
             })}
           </p>
           {proposal.issues.length > 0 ? (
-            <details className="text-xs">
-              <summary>{m.ai_issues()}</summary>
-              <ul className="space-y-1">
-                {proposal.issues.map((issue, index) => (
-                  <li key={index}>{issue.reason}</li>
-                ))}
-              </ul>
-            </details>
+            <Disclosure>
+              <Disclosure.Heading>
+                <Button slot="trigger" variant="ghost" size="sm">
+                  {m.ai_issues()}
+                  <Disclosure.Indicator />
+                </Button>
+              </Disclosure.Heading>
+              <Disclosure.Content>
+                <ul className="space-y-1 text-xs">
+                  {proposal.issues.map((issue, index) => (
+                    <li key={index}>{issue.reason}</li>
+                  ))}
+                </ul>
+              </Disclosure.Content>
+            </Disclosure>
           ) : null}
           {proposal.warnings.length > 0 ? (
             <p className="text-xs text-warning">{m.ai_seam_warning()}</p>

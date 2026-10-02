@@ -105,7 +105,6 @@
   "observation_images_fill_in_order": "按顺序对应",
   "observation_images_placed": "已用作 {unit} · 第 {day} 天",
   "observation_images_repeated": "与 {file} 相同",
-  "observation_images_skipped": "{count} 张图片已在本实验中或在本批重复，不会被对应",
   "unit_title": "{experiment} 的试验单元 {code}",
   "unit_navigation": "导航",
   "unit_no_image": "还没有图片",

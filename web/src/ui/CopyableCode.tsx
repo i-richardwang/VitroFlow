@@ -15,12 +15,10 @@ export function CopyableCode({
   value,
   label,
   description,
-  variant = "primary",
 }: {
   value: string;
   label: string;
   description?: string;
-  variant?: "primary" | "secondary";
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | null>(null);
@@ -37,12 +35,12 @@ export function CopyableCode({
       <TextField
         isReadOnly
         fullWidth
-        variant={variant}
+        variant="secondary"
         value={value}
         name={label}
       >
         <Label>{label}</Label>
-        <InputGroup fullWidth variant={variant}>
+        <InputGroup fullWidth variant="secondary">
           <InputGroup.Input />
           <InputGroup.Suffix className="pe-0">
             <Hint
