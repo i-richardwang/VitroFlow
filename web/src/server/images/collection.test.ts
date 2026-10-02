@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
 import { blobExists } from "../testing/blobs";
-import { putImmutableBlob } from "../infra/blobs/store";
-import { imageBlobKey } from "./keys";
+import { putImmutableBlob, listBlobs } from "../infra/blobs/store";
+import { imageBlobKey, imageRegionsPrefix } from "./keys";
 
 import { collectImages } from "./collection";
 import { canonicalize } from "./ingest";
 import { storeImage } from "./store";
+import { readImageRegion } from "./regions";
 import { imageBytes, observeImages } from "../testing/fixtures";
 
 describe("collection", () => {
@@ -20,22 +21,45 @@ describe("collection", () => {
   });
 
   test("collects images no observation claimed", async () => {
-    const { digest } = await storeImage(await imageBytes("abandoned"));
+    const image = await storeImage(await imageBytes("abandoned"));
+    const { digest } = image;
+    await readImageRegion(
+      image,
+      { coreSize: 512, halo: 32, displayScale: 1 },
+      "tile-000-000",
+    );
+    expect(
+      (await listBlobs(imageRegionsPrefix(digest))).length,
+    ).toBeGreaterThan(0);
     expect(await collectImages(later())).toContain(digest);
     expect(await blobExists(imageBlobKey(digest))).toBe(false);
+    expect(await listBlobs(imageRegionsPrefix(digest))).toEqual([]);
   });
 
   test("an observation keeps its images", async () => {
     const { digests } = await observeImages("kept images", ["kept"]);
+    const frame = await canonicalize(await imageBytes("kept"));
+    const evidence = await readImageRegion(
+      frame,
+      { coreSize: 512, halo: 32, displayScale: 1 },
+      "tile-000-000",
+    );
     expect(await collectImages(later())).not.toContain(digests[0]);
     expect(await blobExists(imageBlobKey(digests[0]!))).toBe(true);
+    expect(await blobExists(evidence.key)).toBe(true);
   });
 
   test("collects an immutable object whose Image transaction never committed", async () => {
     const orphan = await canonicalize(await imageBytes("orphan"));
     await putImmutableBlob(imageBlobKey(orphan.digest), orphan.bytes);
+    const evidence = await readImageRegion(
+      orphan,
+      { coreSize: 512, halo: 32, displayScale: 1 },
+      "tile-000-000",
+    );
 
     expect(await collectImages()).toContain(orphan.digest);
     expect(await blobExists(imageBlobKey(orphan.digest))).toBe(false);
+    expect(await blobExists(evidence.key)).toBe(false);
   });
 });

@@ -1,6 +1,5 @@
 import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
-import { imageBlobKey } from "../images/public";
-import { requireBlob } from "../infra/blobs/store";
+import { readImageRegion } from "../images/public";
 import { readTask } from "./access";
 import { savePreview } from "./tasks";
 import { renderTask } from "./rendering";
@@ -12,7 +11,12 @@ export async function viewAnnotationTask(
   return renderTask(
     run.definition,
     task.region,
-    await requireBlob(imageBlobKey(run.imageId)),
+    await readImageRegion(
+      run.definition.image,
+      run.definition.config,
+      task.region.id,
+      run.definition.scope,
+    ),
   );
 }
 export async function previewAnnotationTask(
@@ -30,8 +34,13 @@ export async function previewAnnotationTask(
     panels: await renderTask(
       run.definition,
       task.region,
-      await requireBlob(imageBlobKey(run.imageId)),
-      content,
+      await readImageRegion(
+        run.definition.image,
+        run.definition.config,
+        task.region.id,
+        run.definition.scope,
+      ),
+      { content, proposalId },
     ),
   };
 }

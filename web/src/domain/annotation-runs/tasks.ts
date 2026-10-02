@@ -1,3 +1,4 @@
+import { imageRegions, type ImageRegion } from "../images/regions";
 import { AnnotationRunConflictError } from "./errors";
 import { z } from "zod";
 import type { AnnotationContent, AnnotationDefinition } from "./schema";
@@ -33,53 +34,16 @@ const regionProposalSchema = z.strictObject({
     .default([]),
 });
 export type RegionProposal = z.infer<typeof regionProposalSchema>;
-export type Region = { id: string; core: BoundingBox; patch: BoundingBox };
+export type Region = ImageRegion;
 
 /** The grid an image is cut into for a model, whatever a run redraws. */
 export function tiles(definition: AnnotationDefinition): Region[] {
-  const { width, height } = definition.image;
-  const { coreSize, halo } = definition.config;
-  const result: Region[] = [];
-  for (let y = 0, row = 0; y < height; y += coreSize, row++) {
-    for (let x = 0, col = 0; x < width; x += coreSize, col++) {
-      const core = {
-        x,
-        y,
-        width: Math.min(coreSize, width - x),
-        height: Math.min(coreSize, height - y),
-      };
-      const left = Math.max(0, x - halo),
-        top = Math.max(0, y - halo);
-      result.push({
-        id: `tile-${String(row).padStart(3, "0")}-${String(col).padStart(3, "0")}`,
-        core,
-        patch: {
-          x: left,
-          y: top,
-          width: Math.min(width, x + core.width + halo) - left,
-          height: Math.min(height, y + core.height + halo) - top,
-        },
-      });
-    }
-  }
-  return result;
-}
-
-function intersects(a: BoundingBox, b: BoundingBox): boolean {
-  return (
-    a.x < b.x + b.width &&
-    b.x < a.x + a.width &&
-    a.y < b.y + b.height &&
-    b.y < a.y + a.height
-  );
+  return imageRegions(definition.image, definition.config);
 }
 
 /** The regions a run redraws: every tile, or those whose core its scope touches. */
 export function regions(definition: AnnotationDefinition): Region[] {
-  const all = tiles(definition);
-  const scope = definition.scope;
-  if (!scope) return all;
-  return all.filter((tile) => scope.some((box) => intersects(tile.core, box)));
+  return imageRegions(definition.image, definition.config, definition.scope);
 }
 
 function sourceBox(edges: number[], patch: BoundingBox): BoundingBox {

@@ -147,6 +147,28 @@ location overview is limited to a 1024-pixel longest side. Display magnification
 changes presentation, not final coordinates. Runs are limited to 4096 regions;
 increase core size for larger images.
 
+The image asset module prepares evidence on first access. It reads and decodes
+the canonical AVIF once, then uses those same decoded pixels to produce lossless
+PNG regions and a base overview. A scoped run prepares only the regions it
+touches; their assets are shared with whole-image runs. Region geometry is shared
+with task planning;
+rules, initial boxes and proposals are not part of the image assets. The source
+digest, core size, halo, display scale and renderer version identify a reusable
+set of assets in the existing blob store. Runs and clients share them, including
+after a server restart. Partial preparations contain independently usable images;
+a later missing-region request can finish preparation without changing any
+accepted annotation.
+
+Ingestion and image preparation share one process-wide slot, acquired before
+loading an original for preparation. Concurrent requests for the same asset set
+share its preparation. A 32 MiB LRU retains encoded evidence, not decoded original
+images. Views use prepared CLEAN and overview; preview composites only CLEAN.
+Location, reference and proposal overlays use a separate 16 MiB LRU and at most
+two concurrent renders. These budgets bound retained cache bytes; decoder and
+render working memory are additional. Authorization and task state are checked
+on every operation, including cache hits. Collection removes derived assets when
+their source Image is no longer rooted.
+
 A connected client must actually deliver MCP image content to its vision model.
 Displaying an image in the chat UI alone does not verify that behavior. Real
 ChatGPT or other hosted-client image handling and continuous tool execution must

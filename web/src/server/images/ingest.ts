@@ -5,6 +5,7 @@ import {
   SOURCE_IMAGE_FORMATS,
 } from "../../domain/images/canonical";
 import { contentDigest } from "../infra/digest";
+import { processImage } from "./processing";
 
 /**
  * Images enter the system here, once. An uploaded file is a source, not
@@ -35,30 +36,6 @@ const SOURCE_FORMAT_SET = new Set<string>(SOURCE_IMAGE_FORMATS);
 
 /** A source that cannot enter the canonical image boundary. */
 export class ImageSourceError extends Error {}
-
-/** Encoder threads used while processing one image at a time. */
-sharp.concurrency(2);
-
-let canonicalizationTail = Promise.resolve();
-
-/**
- * Decoding a maximum-size source dominates workbench memory. HTTP requests may
- * arrive concurrently, but one process materializes only one image at a
- * time; the next request can finish travelling while the current image encodes.
- */
-async function inCanonicalizationSlot<T>(work: () => Promise<T>): Promise<T> {
-  const previous = canonicalizationTail;
-  let release!: () => void;
-  canonicalizationTail = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await previous;
-  try {
-    return await work();
-  } finally {
-    release();
-  }
-}
 
 /**
  * The pixel size of bytes that are already a canonical image, as another
@@ -110,7 +87,7 @@ export interface CanonicalImage {
 export async function canonicalize(
   source: Uint8Array,
 ): Promise<CanonicalImage> {
-  return inCanonicalizationSlot(() => canonicalizeSource(source));
+  return processImage(() => canonicalizeSource(source));
 }
 
 async function canonicalizeSource(source: Uint8Array): Promise<CanonicalImage> {

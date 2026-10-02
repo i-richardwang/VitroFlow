@@ -1,4 +1,9 @@
 import sharp from "sharp";
+import { createSingleFlight, createWorkGate } from "../../lib/async/work";
+import { ByteCache } from "../../lib/cache/bytes";
+import { canonicalJson } from "../../lib/json/canonical";
+import { contentDigest } from "../infra/digest";
+import type { ImageRegionEvidence } from "../images/public";
 import type { BoundingBox } from "../../domain/annotation/schema";
 import type {
   AnnotationDefinition,
@@ -33,26 +38,42 @@ function overlay(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxes.map(({ bbox: b, label }) => `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="none" stroke="#ef4444" stroke-width="2"/><text x="${b.x + 2}" y="${Math.max(12, b.y + 12)}" fill="#fff" stroke="#000" stroke-width="0.3" font-size="12">${escape(label)}</text>`).join("")}</svg>`,
   );
 }
+const rendered = new ByteCache<Buffer>(16 * 1024 * 1024);
+const rendering = createSingleFlight<Buffer>();
+const renderRegion = createWorkGate(2);
+
+async function marked(
+  key: string,
+  bytes: Buffer,
+  width: number,
+  height: number,
+  boxes: { bbox: BoundingBox; label: string }[],
+): Promise<Buffer> {
+  const cached = rendered.get(key);
+  if (cached) return cached;
+  return rendering(key, () =>
+    renderRegion(async () => {
+      const drawn = await sharp(bytes)
+        .composite([{ input: overlay(width, height, boxes) }])
+        .png()
+        .toBuffer();
+      rendered.set(key, drawn);
+      return drawn;
+    }),
+  );
+}
+
 export async function renderTask(
   definition: AnnotationDefinition,
   region: Region,
-  bytes: Uint8Array,
-  proposal?: AnnotationContent,
+  evidence: ImageRegionEvidence,
+  preview?: { content: AnnotationContent; proposalId: string },
 ) {
   const { patch } = region,
     scale = definition.config.displayScale;
   const width = patch.width * scale,
     height = patch.height * scale;
-  const clean = await sharp(bytes)
-    .extract({
-      left: patch.x,
-      top: patch.y,
-      width: patch.width,
-      height: patch.height,
-    })
-    .resize(width, height, { kernel: "nearest" })
-    .png()
-    .toBuffer();
+  const { clean } = evidence;
   const panels: AnnotationPanel[] = [];
   const metadata = {
     classes: definition.config.classes,
@@ -68,22 +89,17 @@ export async function renderTask(
     width: b.width * scale,
     height: b.height * scale,
   });
-  if (proposal) {
-    const drawn = await sharp(clean)
-      .composite([
-        {
-          input: overlay(
-            width,
-            height,
-            proposal.document.instances.map((item) => ({
-              bbox: local(item.bbox),
-              label: item.id,
-            })),
-          ),
-        },
-      ])
-      .png()
-      .toBuffer();
+  if (preview) {
+    const drawn = await marked(
+      `proposal/${preview.proposalId}`,
+      clean,
+      width,
+      height,
+      preview.content.document.instances.map((item) => ({
+        bbox: local(item.bbox),
+        label: item.id,
+      })),
+    );
     panels.push(
       description("CLEAN — image evidence"),
       image(clean),
@@ -93,31 +109,23 @@ export async function renderTask(
       image(drawn),
     );
   } else {
-    const overviewScale = Math.min(
-      1,
-      1024 / Math.max(definition.image.width, definition.image.height),
-    );
-    const ow = Math.round(definition.image.width * overviewScale),
-      oh = Math.round(definition.image.height * overviewScale);
-    const overview = await sharp(bytes).resize(ow, oh).png().toBuffer();
-    const located = await sharp(overview)
-      .composite([
-        {
-          input: overlay(ow, oh, [
-            {
-              bbox: {
-                x: patch.x * overviewScale,
-                y: patch.y * overviewScale,
-                width: patch.width * overviewScale,
-                height: patch.height * overviewScale,
-              },
-              label: "CLEAN",
-            },
-          ]),
+    const {
+      bytes: overview,
+      width: ow,
+      height: oh,
+      scale: overviewScale,
+    } = evidence.overview;
+    const located = await marked(`${evidence.key}/location`, overview, ow, oh, [
+      {
+        bbox: {
+          x: patch.x * overviewScale,
+          y: patch.y * overviewScale,
+          width: patch.width * overviewScale,
+          height: patch.height * overviewScale,
         },
-      ])
-      .png()
-      .toBuffer();
+        label: "CLEAN",
+      },
+    ]);
     panels.push(
       description("OVERVIEW — location of this region"),
       image(located),
@@ -142,21 +150,17 @@ export async function renderTask(
         : [];
     });
     if (references.length) {
-      const initial = await sharp(clean)
-        .composite([
-          {
-            input: overlay(
-              width,
-              height,
-              references.map((item, i) => ({
-                bbox: local(item.bbox),
-                label: String(i + 1),
-              })),
-            ),
-          },
-        ])
-        .png()
-        .toBuffer();
+      const boxes = references.map((item, i) => ({
+        bbox: local(item.bbox),
+        label: String(i + 1),
+      }));
+      const initial = await marked(
+        `${evidence.key}/references/${contentDigest(canonicalJson(boxes))}`,
+        clean,
+        width,
+        height,
+        boxes,
+      );
       panels.push(
         description({
           instructions:

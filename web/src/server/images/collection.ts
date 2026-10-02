@@ -10,7 +10,7 @@ import {
   annotationRuns,
 } from "../infra/db/schema";
 import { imageDigestSchema } from "../../domain/images/schema";
-import { imageBlobKey } from "./keys";
+import { imageBlobKey, imageRegionsPrefix } from "./keys";
 import { listBlobs, removeBlob } from "../infra/blobs/store";
 import { lockImage } from "./lock";
 
@@ -56,19 +56,31 @@ async function forgetExpiredImages(now: Date): Promise<void> {
   }
 }
 
-/**
- * Removes image objects with no committed Image row. The digest lock is shared
- * with storage and claims: a concurrent store either commits its row first and
- * roots the object, or rolls back before this check and leaves it collectible.
- * This transaction changes no database state, so an object deletion never has
- * a database mutation that would need to roll back with it.
- */
+/** Canonical bytes and derived regions share the lifetime of their Image row. */
 async function sweepImageBlobs(): Promise<string[]> {
-  const collected: string[] = [];
-  for (const key of await listBlobs("images/")) {
-    const parsed = imageDigestSchema.safeParse(key.split("/").at(-1));
-    if (!parsed.success || key !== imageBlobKey(parsed.data)) continue;
+  const objects = new Map<string, string[]>();
+  const [sources, regions] = await Promise.all([
+    listBlobs("images/"),
+    listBlobs("image-regions/"),
+  ]);
+  for (const key of [...sources, ...regions]) {
+    const candidate = key.startsWith("images/")
+      ? key.split("/").at(-1)
+      : key.split("/")[1];
+    const parsed = imageDigestSchema.safeParse(candidate);
+    if (!parsed.success) continue;
     const digest = parsed.data;
+    if (
+      key !== imageBlobKey(digest) &&
+      !key.startsWith(imageRegionsPrefix(digest))
+    )
+      continue;
+    const keys = objects.get(digest) ?? [];
+    keys.push(key);
+    objects.set(digest, keys);
+  }
+  const collected: string[] = [];
+  for (const [digest, keys] of objects) {
     const removed = await transaction(async (tx) => {
       await lockImage(digest, tx);
       const [row] = await tx
@@ -76,7 +88,7 @@ async function sweepImageBlobs(): Promise<string[]> {
         .from(images)
         .where(eq(images.id, digest));
       if (row) return false;
-      await removeBlob(key);
+      for (const key of keys) await removeBlob(key);
       return true;
     });
     if (removed) collected.push(digest);

@@ -13,6 +13,7 @@ import {
  * S3-compatible bucket:
  *
  *   images/<xx>/<sha256>                         images, by content digest
+ *   image-regions/<sha256>/<recipe>/<region>.png  derived image evidence
  *   model-weights/<run-id>/<attempt>/<sha256>     one training attempt's weights
  *
  * Images are content addressed, so identical uploads share one object and
@@ -329,6 +330,11 @@ export async function requireBlob(key: string): Promise<Uint8Array> {
   const bytes = await blobs().read(key);
   if (!bytes) throw new Error(`Missing blob: ${key}`);
   return bytes;
+}
+
+/** Optional immutable bytes, for readers that can prepare a missing asset. */
+export function readBlob(key: string): Promise<Uint8Array | null> {
+  return blobs().read(key);
 }
 
 /** A blob as a stream and its length, so a response never buffers it. */

@@ -69,6 +69,14 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
   expect((await nextAnnotationTask(principal, ref)).completed).toBe(0);
   const preview = await previewAnnotationTask(principal, taskId, proposal);
   expect(preview.panels.filter((i) => i.kind === "image")).toHaveLength(2);
+  const repeated = await previewAnnotationTask(principal, taskId, proposal);
+  expect(repeated.proposalId).toBe(preview.proposalId);
+  expect(repeated.panels.filter((i) => i.kind === "image")[1]!.bytes).toBe(
+    preview.panels.filter((i) => i.kind === "image")[1]!.bytes,
+  );
+  await expect(
+    viewAnnotationTask({ ...principal, userId: "other" }, taskId),
+  ).rejects.toThrow("not owned");
   const replies = await Promise.all([
     submitProposal(principal, taskId, preview.proposalId),
     submitProposal(principal, taskId, preview.proposalId),
