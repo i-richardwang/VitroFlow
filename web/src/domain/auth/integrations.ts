@@ -63,12 +63,22 @@ export function permissionScopes(permissions: unknown): ApiScope[] {
   });
 }
 
+/**
+ * The workbench serves two MCP servers for two jobs: maintaining experiment
+ * records, and drawing boxes on images. An agent is configured with the one
+ * its job needs, and each is authorized on its own.
+ */
+export const MCP_SERVERS = ["experiments", "annotation"] as const;
+export type McpServerName = (typeof MCP_SERVERS)[number];
+
 /** An MCP client the account has authorized. */
 export const mcpClientSchema = z.object({
   /** The consent record; withdrawing it disconnects the client. */
   id: z.string(),
   clientId: z.string(),
   name: z.string(),
+  /** The servers the client holds a grant for. */
+  servers: z.array(z.enum(MCP_SERVERS)),
   grantedAt: z.string().datetime(),
   lastGrantedAt: z.string().datetime(),
 });

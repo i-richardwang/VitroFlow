@@ -14,7 +14,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { API_SCOPE_LABELS } from "./scope-labels";
+import { API_SCOPE_LABELS } from "./labels";
 import {
   API_SCOPES,
   MAX_API_KEY_DAYS,

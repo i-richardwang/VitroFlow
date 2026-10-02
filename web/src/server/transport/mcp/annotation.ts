@@ -1,11 +1,17 @@
+import {
+  createMcpHandler,
+  McpServer,
+  type McpRequestContext,
+} from "@modelcontextprotocol/server";
+import { z } from "zod";
+
+import packageJson from "../../../../package.json";
 import { readAnnotationReading } from "../../readings/public";
 import type { AnnotationPrincipal } from "../../../domain/annotation-runs/access";
 import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../../domain/annotation-runs/errors";
-import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/server";
 import { annotationRefSchema } from "../../../domain/annotation/schema";
 import {
   annotationInputSchema,
@@ -23,8 +29,13 @@ import {
   viewAnnotationTask,
   previewAnnotationTask,
   submitProposal,
+  interactiveAnnotationEnabled,
+  validateTaskPrincipal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
+import { guardMcpRequest, serveWithOAuth } from "./access";
+import { isTaskToken, verifyTaskToken } from "./task-credentials";
+import { bearerToken } from "../../auth/public";
 
 const textContent = (value: unknown) => ({
   type: "text" as const,
@@ -42,7 +53,7 @@ const content = (panels: AnnotationPanel[]) =>
   );
 
 /** One schema and handler per operation, independent of the calling runtime. */
-export function registerAnnotationTools(
+function registerAnnotationTools(
   server: McpServer,
   principal: AnnotationPrincipal,
 ) {
@@ -179,4 +190,84 @@ export function registerAnnotationTools(
       ],
     }),
   );
+}
+
+/**
+ * The annotation MCP server: drawing boxes on images, region by region. A
+ * Worker's agent holds a task credential for one region; a person's own agent
+ * holds an OAuth grant and drives whole runs while an administrator allows it.
+ */
+function buildServer({ authInfo }: McpRequestContext): McpServer {
+  const principal = authInfo?.extra?.annotationPrincipal as AnnotationPrincipal;
+  const server = new McpServer(
+    { name: "vitroflow-annotation", version: packageJson.version },
+    {
+      instructions:
+        principal.kind === "user"
+          ? "Annotate images for a model by drawing boxes region by region. Read the image with annotation_read, start or continue its run with annotation_start and annotation_next, then view, preview and submit each region until the run succeeds. Results are AI proposals a person reviews."
+          : "Annotate the one region this credential names: view it, preview a complete proposal, and submit exactly what you previewed.",
+    },
+  );
+  registerAnnotationTools(server, principal);
+  return server;
+}
+
+export const annotationMcpHandler = createMcpHandler(buildServer, {
+  legacy: "reject",
+});
+
+const refused = (message: string, status: number) =>
+  Response.json(
+    { jsonrpc: "2.0", id: null, error: { code: -32001, message } },
+    { status },
+  );
+
+/**
+ * A task credential opens the server for its region while the Worker's
+ * attempt stands; an OAuth grant opens it for the account while interactive
+ * annotation is allowed.
+ */
+export async function serveAnnotationMcp(request: Request): Promise<Response> {
+  const guarded = guardMcpRequest(request);
+  if (guarded) return guarded;
+  const credential = bearerToken(request);
+  if (credential && isTaskToken(credential)) {
+    const principal = verifyTaskToken(credential);
+    if (!principal) return refused("Invalid annotation credential", 401);
+    try {
+      await validateTaskPrincipal(principal);
+    } catch {
+      return refused("Inactive annotation credential", 401);
+    }
+    return annotationMcpHandler.fetch(request, {
+      authInfo: {
+        token: credential,
+        clientId: "annotation-task",
+        scopes: ["annotation:task"],
+        extra: { annotationPrincipal: principal },
+      },
+    });
+  }
+  return serveWithOAuth("annotation", request, async (accepted, grant) => {
+    if (!(await interactiveAnnotationEnabled()))
+      return refused(
+        "An administrator has turned off annotation by personal agents",
+        403,
+      );
+    const principal: AnnotationPrincipal = {
+      kind: "user",
+      userId: grant.userId,
+      clientId: grant.clientId,
+    };
+    return annotationMcpHandler.fetch(accepted, {
+      authInfo: {
+        token: grant.token,
+        clientId: grant.clientId,
+        scopes: grant.scopes,
+        expiresAt: grant.expiresAt,
+        resource: grant.resource,
+        extra: { annotationPrincipal: principal },
+      },
+    });
+  });
 }

@@ -5,7 +5,7 @@ import { changeInteractiveAnnotation } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 
-/** An administrator decides whether connected agents may annotate images. */
+/** An administrator decides whether people's own agents may use the annotation MCP. */
 export function InteractiveAnnotationSwitch({ enabled }: { enabled: boolean }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();

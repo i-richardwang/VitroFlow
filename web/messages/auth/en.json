@@ -24,5 +24,6 @@
   "account_change_password": "Change password",
   "account_changing_password": "Changing…",
   "account_password_changed": "Password changed",
-  "account_password_not_changed": "Password not changed"
+  "account_password_not_changed": "Password not changed",
+  "consent_servers": "Requests access to: {servers}"
 }

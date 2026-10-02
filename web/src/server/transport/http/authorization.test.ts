@@ -16,7 +16,13 @@ function bearer(token?: string): Request {
 
 describe("API credentials", () => {
   test("session paths belong to no bearer realm", async () => {
-    for (const pathname of ["/", "/login", "/experiments", "/api/mcp"]) {
+    for (const pathname of [
+      "/",
+      "/login",
+      "/experiments",
+      "/api/experiments/mcp",
+      "/api/annotation/mcp",
+    ]) {
       expect(await apiRequestAuthorization(pathname, bearer("x"))).toBe(null);
     }
   });

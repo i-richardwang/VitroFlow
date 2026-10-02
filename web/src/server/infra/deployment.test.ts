@@ -18,7 +18,10 @@ describe("deployment endpoint", () => {
       expect(deploymentEndpoint()).toEqual({
         origin: "https://lab.example",
         hostname: "lab.example",
-        mcpResource: "https://lab.example/api/mcp",
+        mcpResources: {
+          experiments: "https://lab.example/api/experiments/mcp",
+          annotation: "https://lab.example/api/annotation/mcp",
+        },
       });
     });
   });

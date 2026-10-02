@@ -6,6 +6,7 @@ import { z } from "zod";
 import { authClient, continuation } from "../features/account/client";
 import { BrandLogo } from "../ui/BrandLogo";
 import { describeOAuthClient } from "../functions/integrations";
+import { MCP_SERVER_LABELS } from "../features/integrations/labels";
 import { useAsyncAction } from "../ui/hooks/useAsyncAction";
 import { m } from "../paraglide/messages";
 
@@ -15,10 +16,17 @@ import { m } from "../paraglide/messages";
  * decision, and the authorization server answers with where to go next.
  */
 export const Route = createFileRoute("/consent")({
-  validateSearch: z.object({ client_id: z.string() }).loose(),
-  loaderDeps: ({ search }) => ({ clientId: search.client_id }),
-  loader: ({ deps }) =>
-    describeOAuthClient({ data: { clientId: deps.clientId } }),
+  validateSearch: z
+    .object({
+      client_id: z.string(),
+      resource: z.union([z.string(), z.array(z.string())]).optional(),
+    })
+    .loose(),
+  loaderDeps: ({ search }) => ({
+    clientId: search.client_id,
+    resources: [search.resource ?? []].flat(),
+  }),
+  loader: ({ deps }) => describeOAuthClient({ data: deps }),
   head: () => ({
     meta: [{ title: `${m.consent_allow()} · ${m.app_name()}` }],
   }),
@@ -55,6 +63,15 @@ function ConsentPage() {
             <Card.Title render={(props) => <h1 {...props} />}>
               {m.consent_title({ client: client.name })}
             </Card.Title>
+            {client.servers.length > 0 ? (
+              <Card.Description>
+                {m.consent_servers({
+                  servers: client.servers
+                    .map((server) => MCP_SERVER_LABELS[server]())
+                    .join(" · "),
+                })}
+              </Card.Description>
+            ) : null}
             {client.uri ? (
               <Card.Description>
                 <Link href={client.uri} target="_blank" rel="noreferrer">

@@ -74,7 +74,13 @@ function build(db: Executor) {
       mcp({
         loginPage: "/login",
         consentPage: "/consent",
-        resource: deployment.mcpResource,
+        // Tokens for the experiment and annotation servers carry different
+        // audiences, so a grant for one does not open the other.
+        resource: deployment.mcpResources.experiments,
+        resources: [deployment.mcpResources.annotation],
+        clientRegistrationDefaultResources: [
+          deployment.mcpResources.annotation,
+        ],
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
       }),

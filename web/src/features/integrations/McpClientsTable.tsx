@@ -6,6 +6,7 @@ import type { McpClient } from "../../domain/auth/integrations";
 import { removeMcpClient } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
 import { DestructiveActionButton } from "../../ui/DestructiveActionDialog";
+import { MCP_SERVER_LABELS } from "./labels";
 import { Timestamp } from "../../ui/Timestamp";
 
 export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
@@ -15,6 +16,7 @@ export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
         <Table.Content aria-label={m.integrations_mcp_clients()}>
           <Table.Header>
             <Table.Column isRowHeader>{m.mcp_column_client()}</Table.Column>
+            <Table.Column>{m.mcp_column_servers()}</Table.Column>
             <Table.Column>{m.mcp_column_approved()}</Table.Column>
             <Table.Column aria-label={m.mcp_column_actions()} />
           </Table.Header>
@@ -30,6 +32,11 @@ export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
             {mcpClients.map((client) => (
               <Table.Row key={client.id}>
                 <Table.Cell className="font-medium">{client.name}</Table.Cell>
+                <Table.Cell className="text-muted">
+                  {client.servers
+                    .map((server) => MCP_SERVER_LABELS[server]())
+                    .join(" · ")}
+                </Table.Cell>
                 <Table.Cell className="text-muted">
                   <Timestamp value={client.lastGrantedAt} />
                 </Table.Cell>

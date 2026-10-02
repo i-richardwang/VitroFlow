@@ -4,6 +4,7 @@
   "integrations_new_key": "New key",
   "integrations_api_keys": "API keys",
   "integrations_mcp_clients": "MCP clients",
+  "integrations_mcp_servers": "MCP servers",
   "integrations_copy": "Copy",
   "integrations_copied": "Copied",
   "api_key_scope_agent": "Agent interface",
@@ -32,7 +33,6 @@
   "api_key_dialog_create": "Create",
   "api_key_dialog_creating": "Creating…",
   "api_key_not_created": "API key not created",
-  "mcp_endpoint": "Endpoint",
   "mcp_column_client": "Client",
   "mcp_column_approved": "Approved",
   "mcp_column_actions": "Actions",
@@ -40,7 +40,13 @@
   "mcp_disconnect": "Disconnect",
   "mcp_disconnect_title": "Disconnect {name}?",
   "mcp_disconnected": "{name} disconnected",
-  "interactive_annotation": "External AI annotation",
-  "interactive_annotation_description": "Let agents connected over MCP, such as ChatGPT, produce AI proposals for images. Turning this off cancels their annotation in progress.",
-  "interactive_annotation_not_changed": "Setting not changed"
+  "interactive_annotation": "Allow personal agents to annotate",
+  "interactive_annotation_description": "Let people's own agents, such as Claude or ChatGPT, connect to the annotation MCP and produce AI proposals for images. Turning this off refuses those connections and cancels their annotation in progress; Workers are unaffected.",
+  "interactive_annotation_not_changed": "Setting not changed",
+  "mcp_server_experiments": "Experiments MCP",
+  "mcp_server_experiments_description": "For agents that maintain experiments: design, treatments, observation dates and image filing.",
+  "mcp_server_annotation": "Annotation MCP",
+  "mcp_server_annotation_description": "For agents that annotate images: view each region, draw boxes and submit AI proposals.",
+  "mcp_server_annotation_disabled": "An administrator has turned off annotation by personal agents; connections are refused.",
+  "mcp_column_servers": "Access"
 }

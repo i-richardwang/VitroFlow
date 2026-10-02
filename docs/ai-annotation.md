@@ -1,9 +1,17 @@
 # AI annotation
 
-VitroFlow serves visual annotation through one authenticated MCP endpoint,
-`/api/mcp`. Interactive clients and Worker-launched agents use the same image,
-preview, submission, geometry and persistence implementation. VitroFlow supplies
-tasks and validates proposals; the connected agent supplies visual reasoning.
+VitroFlow serves visual annotation through its own MCP server,
+`/api/annotation/mcp`, separate from the experiment MCP server at `/api/experiments/mcp`
+(see [Agent API](agent-api.md)). An agent is configured with the server its job
+needs: one that annotates images connects here, one that maintains experiments
+connects there, and each is authorized on its own. A person's own agents and
+Worker-launched agents use the same image, preview, submission, geometry and
+persistence implementation. VitroFlow supplies tasks and validates proposals;
+the connected agent supplies visual reasoning.
+
+```bash
+claude mcp add --transport http vitroflow-annotation https://<workbench>/api/annotation/mcp
+```
 
 ## Product workflow
 
@@ -24,7 +32,8 @@ observation batch actions queue one run per eligible image. The actions appear
 only while some online Worker runs an annotation agent, and a request never
 names one: any such Worker claims the oldest queued run.
 
-An agent a person connects over MCP, such as ChatGPT, can create the same kind of
+An agent a person connects to the annotation server, such as Claude or ChatGPT,
+can create the same kind of
 proposal from its own conversation, without an online Worker. The run is recorded
 as `interactive`. Pages show both as the same AI proposal and AI activity, and
 neither writes an accepted human review automatically.
@@ -42,21 +51,29 @@ run fails only when its agent reports an error.
 
 Each Worker runs at most one annotation agent, chosen in its profile (see
 [Worker responsibilities](#worker-responsibilities)). Administrators decide on the
-Integrations page whether connected agents may annotate. Turned off, OAuth clients
-no longer see the annotation tools and open interactive runs are cancelled; their
-other MCP tools are unaffected.
+Integrations page whether people's own agents may use the annotation server.
+Turned off, the server refuses their requests with 403 and an explanation, and
+open interactive runs are cancelled. Worker-launched agents and the experiment
+server are unaffected.
 
-## One service, two principals
+## One server, two principals
 
-| Principal | Authentication | Tools | Scope |
-| --- | --- | --- | --- |
-| Interactive client | User OAuth at the existing MCP resource, while interactive annotation is enabled | `annotation_read`, `annotation_start`, `annotation_next`, `annotation_cancel`, and the three core tools | The user's own interactive runs |
-| Worker-launched agent | Signed, short-lived task bearer token | The three core tools only | One run, region and attempt |
+| Principal             | Authentication                                                                  | Tools                                                                                                   | Scope                           |
+| --------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| A person's agent      | User OAuth for the annotation resource, while interactive annotation is enabled | `annotation_read`, `annotation_start`, `annotation_next`, `annotation_cancel`, and the three core tools | The user's own interactive runs |
+| Worker-launched agent | Signed, short-lived task bearer token                                           | The three core tools only                                                                               | One run, region and attempt     |
 
 The authenticated per-request MCP factory constructs the tool list. Every core
 operation independently checks task ownership and state, so hiding tools is not
-the authorization boundary. Task credentials cannot call ordinary experiment or
-model tools. User clients retain the existing business tools.
+the authorization boundary. The annotation server carries no experiment or model
+tools, and the experiment server accepts neither task credentials nor OAuth
+tokens bound to the annotation resource.
+
+OAuth discovery follows RFC 9728: an unauthenticated request is challenged
+toward `/.well-known/oauth-protected-resource/api/annotation/mcp`, which names
+the workbench as authorization server, and tokens are bound to
+`<BETTER_AUTH_URL>/api/annotation/mcp`. A client authorized for the experiment
+server is asked for consent again before it can annotate.
 
 Task credentials have a distinct token prefix, signed audience, two-hour expiry,
 and run/task/attempt binding. They are valid only while the Worker session and run
@@ -145,7 +162,7 @@ list, and schedules up to two independent sessions concurrently. Before each
 session it requests a task-bound credential.
 
 Pi's native extension and Antigravity's stdio entry are thin transports to the
-same remote MCP endpoint. The bridge fetches tool definitions from that endpoint
+same remote annotation server. The bridge fetches tool definitions from that server
 and forwards calls and image replies. It does not render, validate geometry,
 checkpoint results or upload a whole-image document. Server acceptance determines
 completion, including when an agent loses the submission reply or keeps talking.

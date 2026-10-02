@@ -2,7 +2,7 @@ import { EmptyState } from "@heroui-pro/react/empty-state";
 import { Table, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
-import { API_SCOPE_LABELS } from "./scope-labels";
+import { API_SCOPE_LABELS } from "./labels";
 import type { ApiKey } from "../../domain/auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";

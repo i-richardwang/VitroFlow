@@ -28,6 +28,8 @@ import { assignObservationImages } from "../experiments/observation-images";
 import { addObservation } from "../experiments/observations";
 import { listUnits } from "../experiments/records";
 import { auth } from "../auth/service";
+import { deploymentEndpoint } from "../infra/deployment";
+import type { McpServerName } from "../../domain/auth/integrations";
 import { storeImage } from "../images/store";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "./inference";
@@ -466,40 +468,27 @@ function base64Url(bytes: Uint8Array): string {
 export interface McpAuthorization {
   clientId: string;
   accessToken: string;
+  refreshToken: string | undefined;
 }
 
 /**
  * Runs the authorization flow an MCP client runs against the loopback auth
- * server: registers a public client, sends the signed-in browser through
- * authorize and consent, and exchanges the code with PKCE for an access
- * token bound to the MCP resource.
+ * server: registers a public client unless one is given, sends the signed-in
+ * browser through authorize and consent, and exchanges the code with PKCE
+ * for an access token bound to one MCP server.
  */
 export async function authorizeMcpClient(
   session: Headers,
-  clientName = "Test MCP client",
+  {
+    name = "Test MCP client",
+    server = "experiments",
+    clientId: registered,
+  }: { name?: string; server?: McpServerName; clientId?: string } = {},
 ): Promise<McpAuthorization> {
   const base = `${process.env.BETTER_AUTH_URL}/api/auth`;
   const redirectUri = "http://127.0.0.1/callback";
-  const registration = await fetch(`${base}/oauth2/register`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_name: clientName,
-      redirect_uris: [redirectUri],
-      application_type: "native",
-      token_endpoint_auth_method: "none",
-      grant_types: ["authorization_code", "refresh_token"],
-      response_types: ["code"],
-    }),
-  });
-  if (!registration.ok) {
-    throw new Error(
-      `Client registration refused: ${registration.status} ${await registration.text()}`,
-    );
-  }
-  const { client_id: clientId } = (await registration.json()) as {
-    client_id: string;
-  };
+  const clientId =
+    registered ?? (await registerMcpClient(base, name, redirectUri));
 
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = base64Url(
@@ -507,7 +496,7 @@ export async function authorizeMcpClient(
       await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
     ),
   );
-  const resource = `${process.env.BETTER_AUTH_URL}/api/mcp`;
+  const resource = deploymentEndpoint().mcpResources[server];
   const authorize = await fetch(
     `${base}/oauth2/authorize?${new URLSearchParams({
       response_type: "code",
@@ -564,10 +553,34 @@ export async function authorizeMcpClient(
       `Token exchange refused: ${token.status} ${await token.text()}`,
     );
   }
-  const { access_token: accessToken } = (await token.json()) as {
-    access_token: string;
-  };
-  return { clientId, accessToken };
+  const { access_token: accessToken, refresh_token: refreshToken } =
+    (await token.json()) as { access_token: string; refresh_token?: string };
+  return { clientId, accessToken, refreshToken };
+}
+
+async function registerMcpClient(
+  base: string,
+  name: string,
+  redirectUri: string,
+): Promise<string> {
+  const registration = await fetch(`${base}/oauth2/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      client_name: name,
+      redirect_uris: [redirectUri],
+      application_type: "native",
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+    }),
+  });
+  if (!registration.ok) {
+    throw new Error(
+      `Client registration refused: ${registration.status} ${await registration.text()}`,
+    );
+  }
+  return ((await registration.json()) as { client_id: string }).client_id;
 }
 
 /** Observation-image references by source filename stem. */

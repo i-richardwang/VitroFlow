@@ -1,6 +1,6 @@
 import { issueTaskToken } from "../../web/src/server/transport/mcp/task-credentials";
 import "../../web/test/setup";
-import { serveMcp } from "../../web/src/server/transport/mcp/agent";
+import { serveAnnotationMcp } from "../../web/src/server/transport/mcp/annotation";
 import {
   observeImages,
   signInAs,
@@ -42,10 +42,14 @@ const binding = await assignWorkerTask(
   crypto.randomUUID(),
 );
 if (binding.accepted) throw new Error("Unexpected acceptance");
-const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: serveMcp });
+const server = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  fetch: serveAnnotationMcp,
+});
 console.log(
   JSON.stringify({
-    endpoint: `http://127.0.0.1:${server.port}/api/mcp`,
+    endpoint: `http://127.0.0.1:${server.port}/api/annotation/mcp`,
     token: issueTaskToken(binding.principal),
     taskId: binding.taskId,
   }),

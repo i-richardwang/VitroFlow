@@ -1,4 +1,10 @@
-import { Button, InputGroup, Label, TextField } from "@heroui/react";
+import {
+  Button,
+  Description,
+  InputGroup,
+  Label,
+  TextField,
+} from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
 
 import { Hint } from "../../ui/Hint";
@@ -8,10 +14,12 @@ import { m } from "../../paraglide/messages";
 export function CopyableCode({
   value,
   label,
+  description,
   variant = "primary",
 }: {
   value: string;
   label: string;
+  description?: string;
   variant?: "primary" | "secondary";
 }) {
   const [copied, setCopied] = useState(false);
@@ -69,6 +77,7 @@ export function CopyableCode({
             </Hint>
           </InputGroup.Suffix>
         </InputGroup>
+        {description ? <Description>{description}</Description> : null}
       </TextField>
     </div>
   );

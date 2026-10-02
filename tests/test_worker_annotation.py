@@ -48,7 +48,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
                 json={
                     "accepted": False,
                     "taskId": body["taskId"],
-                    "endpoint": "https://lab.example/api/mcp",
+                    "endpoint": "https://lab.example/api/annotation/mcp",
                     "token": "task-" + body["taskId"],
                 },
             )
@@ -67,7 +67,7 @@ def test_worker_uses_remote_tools_without_downloading_or_uploading_images(
         return httpx.Response(200, json={"ok": True})
 
     def remote_post(url, *, headers, json, **kwargs):
-        assert url == "https://lab.example/api/mcp"
+        assert url == "https://lab.example/api/annotation/mcp"
         assert "worker-secret" not in str(headers)
         assert kwargs["follow_redirects"] is False
         task_id = headers["Authorization"].removeprefix("Bearer task-")
@@ -167,7 +167,7 @@ def test_remote_bridge_handles_protocol_errors_and_sse(monkeypatch):
         )
 
     monkeypatch.setattr(httpx, "post", post)
-    assert AnnotationMcpClient("https://lab.example/api/mcp", "task").request(
+    assert AnnotationMcpClient("https://lab.example/api/annotation/mcp", "task").request(
         "tools/list"
     ) == {"tools": []}
 

@@ -61,7 +61,7 @@ export const Route = createFileRoute(
                       accepted: false,
                       taskId: grant.taskId,
                       token: issueTaskToken(grant.principal),
-                      endpoint: deploymentEndpoint().mcpResource,
+                      endpoint: deploymentEndpoint().mcpResources.annotation,
                     },
               );
             }

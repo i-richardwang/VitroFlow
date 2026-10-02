@@ -8,7 +8,6 @@ import {
   sessions,
   users,
 } from "../infra/db/schema";
-import { deploymentEndpoint } from "../infra/deployment";
 
 function stringClaim(claims: JWTPayload, name: string): string | null {
   const value = claims[name];
@@ -20,7 +19,11 @@ export function mcpClientId(claims: JWTPayload): string | null {
   return stringClaim(claims, "client_id") ?? stringClaim(claims, "azp");
 }
 
-/** Whether a verified MCP JWT still stands for a live authorization. */
+/**
+ * Whether a verified MCP JWT still stands for a live authorization. The
+ * token's audience already names the server it opens; what can lapse is the
+ * account, the client, the consent and the browser session behind it.
+ */
 export async function mcpAuthorizationIsLive(
   claims: JWTPayload,
 ): Promise<boolean> {
@@ -31,7 +34,6 @@ export async function mcpAuthorizationIsLive(
   const db = await database();
   const [authorization] = await db
     .select({
-      resources: oauthConsents.resources,
       banned: users.banned,
       clientDisabled: oauthClients.disabled,
     })
@@ -44,12 +46,7 @@ export async function mcpAuthorizationIsLive(
         eq(oauthConsents.clientId, clientId),
       ),
     );
-  if (
-    !authorization ||
-    authorization.banned ||
-    authorization.clientDisabled ||
-    !authorization.resources?.includes(deploymentEndpoint().mcpResource)
-  ) {
+  if (!authorization || authorization.banned || authorization.clientDisabled) {
     return false;
   }
 

@@ -5,6 +5,7 @@ import { APIError } from "better-auth/api";
 import { z } from "zod";
 
 import {
+  MCP_SERVERS,
   apiKeyCreateSchema,
   apiKeyRefSchema,
   mcpClientRefSchema,
@@ -46,7 +47,7 @@ export const getIntegrations = createServerFn({ method: "GET" }).handler(
     return {
       apiKeys,
       mcpClients,
-      mcpUrl: deploymentEndpoint().mcpResource,
+      mcpUrls: deploymentEndpoint().mcpResources,
       interactiveAnnotation,
     };
   },
@@ -72,10 +73,14 @@ export const removeMcpClient = createServerFn({ method: "POST" })
   .validator(mcpClientRefSchema)
   .handler(async ({ data }) => disconnectMcpClient(await actor(), data.client));
 
-/** The client named by an authorization request, as the consent page shows it. */
+/**
+ * The client named by an authorization request and the MCP servers it asks
+ * for, as the consent page shows them.
+ */
 export const describeOAuthClient = createServerFn({ method: "GET" })
-  .validator(z.object({ clientId: z.string() }))
+  .validator(z.object({ clientId: z.string(), resources: z.array(z.string()) }))
   .handler(async ({ data }) => {
+    const { mcpResources } = deploymentEndpoint();
     const client = await (
       await auth()
     ).api
@@ -92,5 +97,8 @@ export const describeOAuthClient = createServerFn({ method: "GET" })
     return {
       name: client.client_name ?? data.clientId,
       uri: client.client_uri ?? null,
+      servers: MCP_SERVERS.filter((server) =>
+        data.resources.includes(mcpResources[server]),
+      ),
     };
   });

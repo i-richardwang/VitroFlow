@@ -65,7 +65,7 @@ The blob driver only knows object keys and immutable bytes. `images/keys.ts` and
 
 ## Security boundary
 
-API keys, MCP OAuth, browser sessions, and worker tokens authenticate different principals. MCP access is rechecked against the account, client, consent, protected resource, and originating browser session on every request so revocation is immediate. Authorization is decided at the adapter and answers only whether the request may proceed; the operation catalog runs without an identity.
+API keys, MCP OAuth, browser sessions, and worker tokens authenticate different principals. The experiment and annotation MCP servers are separate OAuth protected resources: a token's audience names the one server it opens. MCP access is rechecked against the account, client, consent, and originating browser session on every request so revocation is immediate. Authorization is decided at the adapter and answers only whether the request may proceed; the operation catalog runs without an identity.
 
 ## Module rule
 

@@ -13,14 +13,16 @@ import { readSession, redirect } from "./server/transport/http/session";
 /**
  * Paths that answer without a browser session: readiness, sign-in, the auth
  * API with its OAuth discovery documents, the agent API, which resolves the
- * account behind the API key it is given, and the MCP endpoint, which verifies
- * OAuth access tokens itself so it can issue the discovery challenge.
+ * account behind the API key it is given, and the two MCP servers, which
+ * verify their credentials themselves so they can issue the discovery
+ * challenge.
  */
 function answersForItself(pathname: string): boolean {
   return (
     pathname === "/healthz" ||
     pathname === "/login" ||
-    pathname === "/api/mcp" ||
+    pathname === "/api/experiments/mcp" ||
+    pathname === "/api/annotation/mcp" ||
     pathname.startsWith("/api/agent/") ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/.well-known/")

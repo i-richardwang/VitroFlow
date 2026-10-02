@@ -28,7 +28,7 @@ export function issueTaskToken(
   const payload = Buffer.from(
     JSON.stringify({
       ...principal,
-      audience: deploymentEndpoint().mcpResource,
+      audience: deploymentEndpoint().mcpResources.annotation,
     }),
   ).toString("base64url");
   return `${PREFIX}${payload}.${signature(payload).toString("base64url")}`;
@@ -49,7 +49,7 @@ export function verifyTaskToken(
       JSON.parse(Buffer.from(payload, "base64url").toString()),
     );
     if (
-      audience !== deploymentEndpoint().mcpResource ||
+      audience !== deploymentEndpoint().mcpResources.annotation ||
       claims.expiresAt <= Date.now()
     )
       return null;

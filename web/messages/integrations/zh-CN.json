@@ -4,6 +4,7 @@
   "integrations_new_key": "新建密钥",
   "integrations_api_keys": "API 密钥",
   "integrations_mcp_clients": "MCP 客户端",
+  "integrations_mcp_servers": "MCP 服务器",
   "integrations_copy": "复制",
   "integrations_copied": "已复制",
   "api_key_scope_agent": "Agent 接口",
@@ -32,7 +33,6 @@
   "api_key_dialog_create": "创建",
   "api_key_dialog_creating": "创建中…",
   "api_key_not_created": "API 密钥未创建",
-  "mcp_endpoint": "端点",
   "mcp_column_client": "客户端",
   "mcp_column_approved": "授权时间",
   "mcp_column_actions": "操作",
@@ -40,7 +40,13 @@
   "mcp_disconnect": "断开",
   "mcp_disconnect_title": "断开 {name}？",
   "mcp_disconnected": "已断开 {name}",
-  "interactive_annotation": "外部 AI 标注",
-  "interactive_annotation_description": "允许通过 MCP 连接的智能体（如 ChatGPT）为图片生成 AI 建议。关闭后，进行中的外部标注会被取消。",
-  "interactive_annotation_not_changed": "设置未更改"
+  "interactive_annotation": "允许个人智能体标注",
+  "interactive_annotation_description": "允许用户自己的智能体（如 Claude、ChatGPT）连接标注 MCP，为图片生成 AI 建议。关闭后这些连接会被拒绝，进行中的标注会被取消；Worker 不受影响。",
+  "interactive_annotation_not_changed": "设置未更改",
+  "mcp_server_experiments": "实验 MCP",
+  "mcp_server_experiments_description": "供维护实验的智能体连接：实验设计、处理、观测日与图片归档。",
+  "mcp_server_annotation": "标注 MCP",
+  "mcp_server_annotation_description": "供标注图片的智能体连接：逐块查看图片、画框并提交 AI 建议。",
+  "mcp_server_annotation_disabled": "管理员已关闭个人智能体标注，连接会被拒绝。",
+  "mcp_column_servers": "可访问"
 }

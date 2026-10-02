@@ -1,7 +1,10 @@
+import type { McpServerName } from "../../domain/auth/integrations";
+
 interface DeploymentEndpoint {
   origin: string;
   hostname: string;
-  mcpResource: string;
+  /** Each MCP server's canonical URL, which its access tokens are bound to. */
+  mcpResources: Record<McpServerName, string>;
 }
 
 function isLoopback(hostname: string): boolean {
@@ -39,6 +42,9 @@ export function deploymentEndpoint(): DeploymentEndpoint {
   return {
     origin: url.origin,
     hostname: url.hostname,
-    mcpResource: `${url.origin}/api/mcp`,
+    mcpResources: {
+      experiments: `${url.origin}/api/experiments/mcp`,
+      annotation: `${url.origin}/api/annotation/mcp`,
+    },
   };
 }

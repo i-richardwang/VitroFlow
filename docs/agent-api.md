@@ -46,14 +46,14 @@ Image upload posts the raw source bytes as the request body with an exact `Conte
 
 ## MCP surface
 
-`POST /api/mcp` serves MCP 2026-07-28. Each tool carries the operation's input and output schemas and its behavior annotations, and a successful call returns the result as structured content. Older MCP transports are not accepted. The MCP server validates arguments against the tool's input schema itself, so a call whose arguments do not fit is refused before the operation runs.
+`POST /api/experiments/mcp` is the experiment MCP server, serving MCP 2026-07-28. Its tools are exactly the operations of the registry. Drawing boxes on images is the job of the [annotation MCP server](ai-annotation.md), which an agent connects to and is authorized for on its own. Each tool carries the operation's input and output schemas and its behavior annotations, and a successful call returns the result as structured content. Older MCP transports are not accepted. The MCP server validates arguments against the tool's input schema itself, so a call whose arguments do not fit is refused before the operation runs.
 
-The workbench is the OAuth 2.1 authorization server for its own MCP endpoint. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/mcp`. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
+The workbench is the OAuth 2.1 authorization server for its MCP servers. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/experiments/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/experiments/mcp`, so a token issued for the annotation server does not open this one. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call to either server. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
 
 Connect with:
 
 ```bash
-claude mcp add --transport http vitroflow https://<workbench>/api/mcp
+claude mcp add --transport http vitroflow-experiments https://<workbench>/api/experiments/mcp
 ```
 
 Image bytes do not travel through MCP. Upload them to `POST /api/agent/images` and pass the returned digest to `assign-images-to-observation`.
@@ -73,19 +73,3 @@ Analysis needs no request: assigned images are queued for the newest version of 
 ## Transactions
 
 A command runs in one database transaction: it either changes the record as a whole or leaves it untouched. Image upload only stages immutable content by digest; assigning that content to an observation is the command that changes the record.
-
-## Visual annotation
-
-The same `/api/mcp` endpoint exposes interactive annotation tools to OAuth users
-while an administrator allows interactive annotation: `annotation_read`,
-`annotation_start`, `annotation_next`, `annotation_cancel`, `annotation_view`,
-`annotation_preview`, and `annotation_submit`. Runs are addressed by image, so any
-conversation continues the run in progress. A run can be scoped to part of the
-image, so an agent reads the current boxes, redraws the regions it means to
-change, and leaves the rest as they were. Image replies use MCP image content.
-These tools use the annotation service rather than the business-operation JSON
-registry. Worker task credentials expose only view/preview/submit and cannot
-access business operations. See [AI annotation](ai-annotation.md) for the task
-lifecycle, authentication and coordinates. The Worker schedules regional sessions;
-the annotation service owns image delivery, regional acceptance and final result
-collection.
