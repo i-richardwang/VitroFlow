@@ -268,6 +268,19 @@ test("people's agents and Worker agents annotate through the same annotation ser
   );
   if (binding.accepted) throw new Error("Unexpected acceptance");
   const task = issueTaskToken(binding.principal);
+  for (const method of ["GET", "DELETE"]) {
+    const response = await serveAnnotationMcp(
+      new Request(annotationEndpoint(), {
+        method,
+        headers: {
+          host: new URL(annotationEndpoint()).host,
+          authorization: `Bearer ${task}`,
+        },
+      }),
+    );
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("POST");
+  }
   expect(await toolNames(await annotation(task, "tools/list"))).toEqual([
     "annotation_preview",
     "annotation_submit",

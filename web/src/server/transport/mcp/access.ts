@@ -34,6 +34,20 @@ export function guardMcpRequest(request: Request): Response | null {
   );
 }
 
+/**
+ * MCP 2026-07-28 exchanges use POST only. Apply this after authentication:
+ * unauthenticated clients still receive the protected-resource challenge,
+ * while authorized GET/DELETE requests cannot open legacy streams or sessions.
+ */
+export function rejectUnsupportedMcpMethod(request: Request): Response | null {
+  return request.method === "POST"
+    ? null
+    : new Response(null, {
+        status: 405,
+        headers: { Allow: "POST", "Cache-Control": "no-store" },
+      });
+}
+
 /** The account and client behind a live OAuth access token. */
 interface McpGrant {
   userId: string;
@@ -77,6 +91,8 @@ export async function serveWithOAuth(
           },
         );
       }
+      const methodRefusal = rejectUnsupportedMcpMethod(accepted);
+      if (methodRefusal) return methodRefusal;
       const token = parseAccessTokenAuthorization(
         accepted.headers.get("authorization"),
       )?.token;

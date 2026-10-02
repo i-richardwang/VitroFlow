@@ -34,7 +34,11 @@ import {
   validateTaskPrincipal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
-import { guardMcpRequest, serveWithOAuth } from "./access";
+import {
+  guardMcpRequest,
+  rejectUnsupportedMcpMethod,
+  serveWithOAuth,
+} from "./access";
 import { isTaskToken, verifyTaskToken } from "./task-credentials";
 import { bearerToken } from "../../auth/public";
 
@@ -240,6 +244,8 @@ export async function serveAnnotationMcp(request: Request): Promise<Response> {
     } catch {
       return refused("Inactive annotation credential", 401);
     }
+    const methodRefusal = rejectUnsupportedMcpMethod(request);
+    if (methodRefusal) return methodRefusal;
     return annotationMcpHandler.fetch(request, {
       authInfo: {
         token: credential,

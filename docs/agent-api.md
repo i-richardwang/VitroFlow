@@ -50,6 +50,31 @@ Image upload posts the raw source bytes as the request body with an exact `Conte
 
 The workbench is the OAuth 2.1 authorization server for its MCP servers. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/experiments/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/experiments/mcp`, so a token issued for the annotation server does not open this one. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call to either server. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
 
+Both routes forward all HTTP methods to the MCP adapter instead of allowing
+unhandled requests to fall through to page rendering. Host/Origin validation
+and authentication run first: missing, invalid or revoked credentials receive
+the OAuth challenge, including on GET probes. After authentication, only POST
+is admitted; other methods receive `405 Method Not Allowed` with `Allow: POST`.
+Task credentials follow the same method contract. GET streams and DELETE
+sessions are not implemented.
+
+This follows the [MCP 2026-07-28 transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)
+and [authorization discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery)
+contracts. [Better Auth](https://better-auth.com/docs/plugins/mcp) owns OAuth
+verification and challenges; the SDK owns POST exchanges. Its Next.js example
+lets the framework reject unsupported methods before authentication. Here,
+authentication precedes method rejection so login probes receive discovery
+information through the same protected-resource boundary.
+
+For Codex, configure each URL and log in separately:
+
+```bash
+codex mcp add vitroflow-experiments --url https://<workbench>/api/experiments/mcp
+codex mcp add vitroflow-annotation --url https://<workbench>/api/annotation/mcp
+codex mcp login vitroflow-experiments
+codex mcp login vitroflow-annotation
+```
+
 Connect with:
 
 ```bash
