@@ -65,22 +65,38 @@ class AnnotationMcpClient:
 
 
 async def serve(client: AnnotationMcpClient, definitions: list[dict]) -> None:
-    from mcp.server import Server
+    from mcp.server import Server, ServerRequestContext
     from mcp.server.stdio import stdio_server
-    from mcp.types import CallToolResult, Tool
+    from mcp.types import (
+        CallToolRequestParams,
+        CallToolResult,
+        ListToolsResult,
+        PaginatedRequestParams,
+        TextContent,
+        Tool,
+    )
 
-    server = Server("vitroflow-annotation")
-
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        return [Tool(**definition) for definition in definitions]
-
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict) -> CallToolResult:
-        return CallToolResult.model_validate(
-            await asyncio.to_thread(client.call, name, arguments)
+    async def list_tools(
+        ctx: ServerRequestContext, params: PaginatedRequestParams | None
+    ) -> ListToolsResult:
+        return ListToolsResult(
+            tools=[Tool.model_validate(value) for value in definitions]
         )
 
+    async def call_tool(
+        ctx: ServerRequestContext, params: CallToolRequestParams
+    ) -> CallToolResult:
+        try:
+            result = await asyncio.to_thread(
+                client.call, params.name, params.arguments or {}
+            )
+        except (httpx.HTTPError, ValueError, RuntimeError) as error:
+            return CallToolResult(is_error=True, content=[TextContent(text=str(error))])
+        return CallToolResult.model_validate(result)
+
+    server = Server(
+        "vitroflow-annotation", on_list_tools=list_tools, on_call_tool=call_tool
+    )
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 

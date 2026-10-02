@@ -1,4 +1,5 @@
 import { requireMcpAuth } from "@better-auth/mcp";
+import { parseAccessTokenAuthorization } from "better-auth/oauth2";
 import {
   bearerAuthChallengeResponse,
   hostHeaderValidationResponse,
@@ -10,12 +11,7 @@ import {
 } from "@modelcontextprotocol/server";
 
 import type { McpServerName } from "../../../domain/auth/integrations";
-import {
-  auth,
-  bearerToken,
-  mcpAuthorizationIsLive,
-  mcpClientId,
-} from "../../auth/public";
+import { auth, mcpAuthorizationIsLive, mcpClientId } from "../../auth/public";
 import { deploymentEndpoint } from "../../infra/deployment";
 
 /**
@@ -51,9 +47,6 @@ interface McpGrant {
 const METADATA_PATH = "/.well-known/oauth-protected-resource";
 
 type GrantHandler = (request: Request, grant: McpGrant) => Promise<Response>;
-type RequestHandler = (request: Request) => Promise<Response>;
-
-const gates = new Map<McpServerName, Promise<RequestHandler>>();
 
 /**
  * One MCP server behind OAuth: a request without a valid access token for
@@ -65,48 +58,43 @@ export async function serveWithOAuth(
   request: Request,
   handle: GrantHandler,
 ): Promise<Response> {
-  let gate = gates.get(server);
-  if (!gate) {
-    gate = auth().then((instance) => {
-      const deployment = deploymentEndpoint();
-      const resource = deployment.mcpResources[server];
-      return requireMcpAuth(
-        instance,
-        async (accepted, claims) => {
-          const clientId = mcpClientId(claims);
-          const userId = claims.sub;
-          if (!clientId || !userId || !(await mcpAuthorizationIsLive(claims))) {
-            return bearerAuthChallengeResponse(
-              new OAuthError(
-                OAuthErrorCode.InvalidToken,
-                "The account or MCP authorization is no longer active",
-              ),
-              {
-                resourceMetadataUrl: `${deployment.origin}${METADATA_PATH}${new URL(resource).pathname}`,
-              },
-            );
-          }
-          const token = bearerToken(accepted);
-          if (!token)
-            throw new Error("Verified MCP request has no bearer token");
-          return handle(accepted, {
-            userId,
-            clientId,
-            token,
-            scopes:
-              typeof claims.scope === "string"
-                ? claims.scope.split(" ").filter(Boolean)
-                : [],
-            expiresAt: claims.exp,
-            resource: new URL(resource),
-          });
-        },
-        { resource },
-      );
-    });
-    gates.set(server, gate);
-  }
-  return (await gate)(request);
+  const instance = await auth();
+  const deployment = deploymentEndpoint();
+  const resource = deployment.mcpResources[server];
+  return requireMcpAuth(
+    instance,
+    async (accepted, claims) => {
+      const clientId = mcpClientId(claims);
+      const userId = claims.sub;
+      if (!clientId || !userId || !(await mcpAuthorizationIsLive(claims))) {
+        return bearerAuthChallengeResponse(
+          new OAuthError(
+            OAuthErrorCode.InvalidToken,
+            "The account or MCP authorization is no longer active",
+          ),
+          {
+            resourceMetadataUrl: `${deployment.origin}${METADATA_PATH}${new URL(resource).pathname}`,
+          },
+        );
+      }
+      const token = parseAccessTokenAuthorization(
+        accepted.headers.get("authorization"),
+      )?.token;
+      if (!token) throw new Error("Verified MCP request has no access token");
+      return handle(accepted, {
+        userId,
+        clientId,
+        token,
+        scopes:
+          typeof claims.scope === "string"
+            ? claims.scope.split(" ").filter(Boolean)
+            : [],
+        expiresAt: claims.exp,
+        resource: new URL(resource),
+      });
+    },
+    { resource },
+  )(request);
 }
 
 /**

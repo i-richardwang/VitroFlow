@@ -19,7 +19,7 @@ const updateSchema = z.discriminatedUnion("operation", [
   workerIdentitySchema.extend({
     operation: z.literal("assign"),
     taskId: z.string().min(1),
-    attemptId: z.string().uuid(),
+    attemptId: z.uuid(),
   }),
   workerIdentitySchema.extend({
     operation: z.literal("fail"),

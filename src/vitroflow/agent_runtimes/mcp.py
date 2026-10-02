@@ -10,16 +10,16 @@ TOOL_COMMAND_ENV = "VITROFLOW_AGENT_TOOL_COMMAND"
 
 
 async def serve_unbound() -> None:
-    from mcp.server import Server
+    from mcp.server import Server, ServerRequestContext
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool
+    from mcp.types import ListToolsResult, PaginatedRequestParams
 
-    server = Server("vitroflow-annotation")
+    async def list_tools(
+        ctx: ServerRequestContext, params: PaginatedRequestParams | None
+    ) -> ListToolsResult:
+        return ListToolsResult(tools=[])
 
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        return []
-
+    server = Server("vitroflow-annotation", on_list_tools=list_tools)
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 

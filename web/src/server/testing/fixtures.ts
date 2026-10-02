@@ -33,6 +33,7 @@ import type { McpServerName } from "../../domain/auth/integrations";
 import { storeImage } from "../images/store";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "./inference";
+import type { DpopKey } from "./dpop";
 import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../domain/models/builtins";
 import {
   readModel,
@@ -483,7 +484,13 @@ export async function authorizeMcpClient(
     name = "Test MCP client",
     server = "experiments",
     clientId: registered,
-  }: { name?: string; server?: McpServerName; clientId?: string } = {},
+    dpop,
+  }: {
+    name?: string;
+    server?: McpServerName;
+    clientId?: string;
+    dpop?: DpopKey;
+  } = {},
 ): Promise<McpAuthorization> {
   const base = `${process.env.BETTER_AUTH_URL}/api/auth`;
   const redirectUri = "http://127.0.0.1/callback";
@@ -506,6 +513,7 @@ export async function authorizeMcpClient(
       code_challenge: challenge,
       code_challenge_method: "S256",
       resource,
+      ...(dpop ? { dpop_jkt: dpop.jkt } : {}),
     })}`,
     { headers: session, redirect: "manual" },
   );
@@ -538,7 +546,10 @@ export async function authorizeMcpClient(
 
   const token = await fetch(`${base}/oauth2/token`, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      ...(dpop ? { dpop: await dpop.proof(`${base}/oauth2/token`) } : {}),
+    },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,

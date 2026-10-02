@@ -1,10 +1,13 @@
+import asyncio
 import json
+import sys
 import threading
 from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 import pytest
+from mcp import Client, StdioServerParameters
 
 from vitroflow.agent_annotation.remote import AnnotationMcpClient
 from vitroflow.worker.annotation import AnnotationClient, process_annotation_job
@@ -167,9 +170,9 @@ def test_remote_bridge_handles_protocol_errors_and_sse(monkeypatch):
         )
 
     monkeypatch.setattr(httpx, "post", post)
-    assert AnnotationMcpClient("https://lab.example/api/annotation/mcp", "task").request(
-        "tools/list"
-    ) == {"tools": []}
+    assert AnnotationMcpClient(
+        "https://lab.example/api/annotation/mcp", "task"
+    ).request("tools/list") == {"tools": []}
 
 
 def test_python_bridge_against_real_product_mcp_service(tmp_path):
@@ -228,6 +231,43 @@ def test_python_bridge_against_real_product_mcp_service(tmp_path):
                 {"taskId": binding["taskId"].replace("tile-000-000", "tile-999-999")},
             )
             assert denied["isError"] is True
+
+            config = tmp_path / "bridge.json"
+            config.write_text(json.dumps({**binding, "definitions": definitions}))
+
+            async def check_stdio():
+                parameters = StdioServerParameters(
+                    command=sys.executable,
+                    args=[
+                        "-m",
+                        "vitroflow.agent_annotation.remote",
+                        "--config",
+                        str(config),
+                        "stdio",
+                    ],
+                )
+                for mode in ("auto", "legacy"):
+                    async with Client(parameters, mode=mode) as bridge:
+                        listed = await bridge.list_tools()
+                        assert sorted(tool.name for tool in listed.tools) == sorted(
+                            tool["name"] for tool in definitions
+                        )
+                        repeated = await bridge.call_tool(
+                            "annotation_submit", {**identity, "proposalId": proposal_id}
+                        )
+                        assert not repeated.is_error
+                        assert (
+                            json.loads(repeated.content[0].text)["status"]
+                            == "succeeded"
+                        )
+                        refused = await bridge.call_tool(
+                            "annotation_view", {"taskId": "tile-999-999"}
+                        )
+                        assert refused.is_error
+                        unknown = await bridge.call_tool("unknown_tool", {})
+                        assert unknown.is_error
+
+            asyncio.run(check_stdio())
         finally:
             process.terminate()
             process.wait(timeout=10)

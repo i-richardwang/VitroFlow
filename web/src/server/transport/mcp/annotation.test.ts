@@ -57,6 +57,29 @@ const USER_TOOLS = [
 ];
 
 describe("annotation MCP authorization", () => {
+  test("tool hints warn that cancellation discards progress and submission is idempotent", async () => {
+    const { headers } = await signInAs("member");
+    const { accessToken } = await authorizeMcpClient(headers, {
+      server: "annotation",
+    });
+    const response = await annotation(accessToken, "tools/list");
+    expect(response.status).toBe(200);
+    const { tools } = (await rpcMessage(response)).result;
+    const tool = (name: string) =>
+      tools.find((item: { name: string }) => item.name === name);
+    expect(tool("annotation_cancel").annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+    expect(tool("annotation_submit").annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+    expect(tool("annotation_read").annotations.readOnlyHint).toBe(true);
+    expect(tool("annotation_view").annotations.readOnlyHint).toBe(true);
+  });
+
   test("a request without a token is challenged toward the annotation resource metadata", async () => {
     const response = await serveAnnotationMcp(
       modernRequest(annotationEndpoint(), "tools/list"),

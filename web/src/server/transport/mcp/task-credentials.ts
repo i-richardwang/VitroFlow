@@ -8,7 +8,7 @@ const claimsSchema = z.strictObject({
   kind: z.literal("task"),
   runId: z.string().min(1),
   taskId: z.string().min(1),
-  attemptId: z.string().uuid(),
+  attemptId: z.uuid(),
   expiresAt: z.number().int().positive(),
   audience: z.string(),
 });

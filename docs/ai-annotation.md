@@ -75,6 +75,13 @@ the workbench as authorization server, and tokens are bound to
 `<BETTER_AUTH_URL>/api/annotation/mcp`. A client authorized for the experiment
 server is asked for consent again before it can annotate.
 
+OAuth resource requests use Better Auth's verifier for both Bearer and DPoP
+access tokens. A DPoP-bound token requires the client's signed proof for the
+request URL, method and access token; a reused proof is refused. The account and
+client authorization are checked on every request, including after a valid proof.
+Initialization uses the shared, retryable auth service rather than caching a
+second MCP-specific initialization promise.
+
 Task credentials have a distinct token prefix, signed audience, two-hour expiry,
 and run/task/attempt binding. They are valid only while the Worker session and run
 lease remain current. Replacing an attempt, releasing the lease or cancelling the
@@ -191,8 +198,10 @@ Pi reaches other providers' models through `model`. The agent and its model belo
 to the Worker's profile.
 
 Run `vitroflow worker doctor annotator` and restart after changing settings.
-Antigravity setup registers the task-bound stdio bridge in its global MCP config;
-it opens no listening port. An unrelated session without a binding has no tools.
+Antigravity setup registers the task-bound stdio bridge in its global MCP config.
+The bridge uses the Python MCP SDK v2 request handlers and supports both modern
+discovery and the legacy initialization handshake used by existing stdio clients.
+It opens no listening port. An unrelated session without a binding has no tools.
 Pi exposes only the annotation tools. Antigravity retains its native permissions
 and viewer. The bridge is a transport adapter, not another annotation service.
 

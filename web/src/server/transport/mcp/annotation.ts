@@ -2,6 +2,7 @@ import {
   createMcpHandler,
   McpServer,
   type McpRequestContext,
+  type ToolAnnotations,
 } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
@@ -61,7 +62,7 @@ function registerAnnotationTools(
     name: string,
     description: string,
     inputSchema: S,
-    readOnly: boolean,
+    annotations: ToolAnnotations,
     call: (args: z.infer<S>) => Promise<{
       content: (
         | ReturnType<typeof textContent>
@@ -76,9 +77,9 @@ function registerAnnotationTools(
         description,
         inputSchema: schema,
         annotations: {
-          readOnlyHint: readOnly,
           destructiveHint: false,
           openWorldHint: false,
+          ...annotations,
         },
       },
       async (args) => {
@@ -107,7 +108,7 @@ function registerAnnotationTools(
       "annotation_read",
       "Read how an image is currently annotated for a model: the reviewer's boxes, the AI proposal and the detection, in source pixels, which of them the image reads by, and the run in progress with its progress. Start here before starting or continuing a run.",
       z.strictObject({ ref: annotationRefSchema }),
-      true,
+      { readOnlyHint: true },
       async (args) => ({
         content: [textContent(await readAnnotationReading(args.ref))],
       }),
@@ -120,7 +121,7 @@ function registerAnnotationTools(
         input: annotationInputSchema.default(null),
         scope: annotationScopeSchema.default(null),
       }),
-      false,
+      { readOnlyHint: false },
       async (args) => {
         const run = await createAnnotationRun(
           args,
@@ -134,7 +135,7 @@ function registerAnnotationTools(
       "annotation_next",
       "Get the next region of the image's run in progress, with progress. It returns the same region until that region is accepted, so the run continues from any conversation. Then view, preview and submit it, and repeat until annotation_submit reports the run succeeded.",
       z.strictObject({ ref: annotationRefSchema }),
-      false,
+      { readOnlyHint: false },
       async (args) => ({
         content: [textContent(await nextAnnotationTask(principal, args.ref))],
       }),
@@ -143,7 +144,7 @@ function registerAnnotationTools(
       "annotation_cancel",
       "Cancel your run in progress on the image, discarding its accepted regions, to start again with another input or scope.",
       z.strictObject({ ref: annotationRefSchema }),
-      false,
+      { readOnlyHint: false, destructiveHint: true },
       async (args) => {
         await cancelOwnAnnotationRun(principal, args.ref);
         return { content: [textContent({ cancelled: true })] };
@@ -154,7 +155,7 @@ function registerAnnotationTools(
     "annotation_view",
     "View the assigned region: image evidence, full-image locator and optional reference boxes. Follow the returned annotation rules.",
     annotationViewInput,
-    true,
+    { readOnlyHint: true },
     async (args) => {
       return {
         content: content(await viewAnnotationTask(principal, args.taskId)),
@@ -165,7 +166,7 @@ function registerAnnotationTools(
     "annotation_preview",
     "Preview a complete proposal with normalized box_2d edges. Returns CLEAN, PROPOSED and proposalId. Inspect the images before submitting.",
     annotationPreviewInput,
-    false,
+    { readOnlyHint: false },
     async (args) => {
       const { panels, proposalId } = await previewAnnotationTask(
         principal,
@@ -181,7 +182,7 @@ function registerAnnotationTools(
     "annotation_submit",
     "Accept exactly the previewed proposal. Idempotent for the same proposalId. The server merges the final region automatically; do not upload a separate whole-image result.",
     annotationSubmitInput,
-    false,
+    { readOnlyHint: false, idempotentHint: true },
     async (args) => ({
       content: [
         textContent(

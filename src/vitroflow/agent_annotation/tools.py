@@ -11,7 +11,7 @@ from importlib.resources import files
 from pathlib import Path
 from uuid import uuid4
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 
 from vitroflow.agent_annotation.coordinator import request
 from vitroflow.autoannotation import tasks
@@ -31,6 +31,12 @@ DEFINITIONS = tuple(
     {
         "name": f"annotation_{name}",
         "description": description,
+        "annotations": {
+            "readOnlyHint": name == "view",
+            "destructiveHint": False,
+            "idempotentHint": name == "submit",
+            "openWorldHint": False,
+        },
         "inputSchema": json.loads(
             files("vitroflow.contracts")
             .joinpath(f"annotation-tool-{name}.schema.json")
@@ -193,26 +199,38 @@ class AnnotationTools:
 
 
 async def serve(tools: AnnotationTools) -> None:
-    from mcp.server import Server
+    from mcp.server import Server, ServerRequestContext
     from mcp.server.stdio import stdio_server
-    from mcp.types import CallToolResult, ImageContent, TextContent, Tool
+    from mcp.types import (
+        CallToolRequestParams,
+        CallToolResult,
+        ListToolsResult,
+        PaginatedRequestParams,
+        TextContent,
+        Tool,
+    )
 
-    server = Server("vitroflow-annotation")
-
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        return [Tool(**definition) for definition in DEFINITIONS]
-
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict) -> CallToolResult:
-        result = await asyncio.to_thread(tools.call, name, arguments)
-        return CallToolResult(
-            content=[
-                ImageContent(**item) if item["type"] == "image" else TextContent(**item)
-                for item in result["content"]
-            ]
+    async def list_tools(
+        ctx: ServerRequestContext, params: PaginatedRequestParams | None
+    ) -> ListToolsResult:
+        return ListToolsResult(
+            tools=[Tool.model_validate(value) for value in DEFINITIONS]
         )
 
+    async def call_tool(
+        ctx: ServerRequestContext, params: CallToolRequestParams
+    ) -> CallToolResult:
+        try:
+            result = await asyncio.to_thread(
+                tools.call, params.name, params.arguments or {}
+            )
+        except (ValueError, ValidationError, OSError, RuntimeError) as error:
+            return CallToolResult(is_error=True, content=[TextContent(text=str(error))])
+        return CallToolResult.model_validate({"content": result["content"]})
+
+    server = Server(
+        "vitroflow-annotation", on_list_tools=list_tools, on_call_tool=call_tool
+    )
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 

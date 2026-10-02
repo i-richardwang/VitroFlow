@@ -10,8 +10,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import Client, StdioServerParameters
 
 from vitroflow.agent_annotation.runner import run_annotation
 from vitroflow.agent_annotation.tools import AnnotationTools
@@ -101,7 +100,10 @@ def test_antigravity_timeout_and_cancellation(agy, tmp_path, cancel):
         os.kill(int((directory / "pid").read_text()), 0)
 
 
-def test_native_mcp_images_and_normalized_geometry(photo, tmp_path, annotation_attempt):
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+def test_native_mcp_images_and_normalized_geometry(
+    photo, tmp_path, annotation_attempt, mode
+):
     package = tmp_path / "package"
     candidates = tmp_path / "candidates.json"
     write_json(
@@ -140,11 +142,7 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path, annotation_a
     )
 
     async def check():
-        async with (
-            stdio_client(parameters) as (reader, writer),
-            ClientSession(reader, writer) as client,
-        ):
-            await client.initialize()
+        async with Client(parameters, mode=mode) as client:
             assert {t.name for t in (await client.list_tools()).tools} == {
                 "annotation_view",
                 "annotation_preview",
@@ -153,7 +151,7 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path, annotation_a
             viewed = await client.call_tool(
                 "annotation_view", {"taskId": "tile-000-000"}
             )
-            assert not viewed.isError
+            assert not viewed.is_error
             assert sum(v.type == "image" for v in viewed.content) == 3
             metadata = json.loads(viewed.content[0].text)
             assert metadata["mode"] == "refit"
@@ -166,7 +164,7 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path, annotation_a
                 "issues": [],
             }
             preview = await client.call_tool("annotation_preview", value)
-            assert not preview.isError
+            assert not preview.is_error
             assert sum(v.type == "image" for v in preview.content) == 2
             rejected = await client.call_tool(
                 "annotation_submit",
@@ -177,15 +175,22 @@ def test_native_mcp_images_and_normalized_geometry(photo, tmp_path, annotation_a
                     ],
                 },
             )
-            assert rejected.isError
+            assert rejected.is_error
             assert not coordinator.events["tile-000-000"].is_set()
             proposal_id = json.loads(preview.content[0].text)["proposalId"]
             accepted = await client.call_tool(
                 "annotation_submit",
                 {"taskId": value["taskId"], "proposalId": proposal_id},
             )
-            assert not accepted.isError
+            assert not accepted.is_error
             assert coordinator.events["tile-000-000"].is_set()
+            assert (
+                await client.call_tool(
+                    "annotation_submit",
+                    {"taskId": value["taskId"], "proposalId": proposal_id},
+                )
+                == accepted
+            )
 
     asyncio.run(check())
     direct = AnnotationTools(config).call("annotation_view", {"taskId": "tile-000-000"})
@@ -237,11 +242,7 @@ def test_unbound_mcp_session_exposes_no_task_tools(monkeypatch):
         parameters = StdioServerParameters(
             command=sys.executable, args=["-m", "vitroflow.agent_runtimes.mcp"]
         )
-        async with (
-            stdio_client(parameters) as (reader, writer),
-            ClientSession(reader, writer) as client,
-        ):
-            await client.initialize()
+        async with Client(parameters) as client:
             assert (await client.list_tools()).tools == []
 
     asyncio.run(check())
