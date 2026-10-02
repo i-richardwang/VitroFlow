@@ -35,7 +35,7 @@ export function guardMcpRequest(request: Request): Response | null {
 }
 
 /**
- * MCP 2026-07-28 exchanges use POST only. Apply this after authentication:
+ * Both MCP eras use POST only in this stateless deployment. Apply this after authentication:
  * unauthenticated clients still receive the protected-resource challenge,
  * while authorized GET/DELETE requests cannot open legacy streams or sessions.
  */

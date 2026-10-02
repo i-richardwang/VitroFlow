@@ -5,7 +5,7 @@ import { serveAnnotationMcp } from "./annotation";
 import { serveExperimentsMcp } from "./experiments";
 import { authorizeMcpClient, signInAs } from "../../testing/fixtures";
 import { createDpopKey } from "../../testing/dpop";
-import { modernRequest } from "../../testing/mcp";
+import { modernRequest, requestEras } from "../../testing/mcp";
 import { disconnectMcpClient, listMcpClients } from "../../auth/mcp-clients";
 
 describe("MCP request guard", () => {
@@ -58,63 +58,67 @@ describe("MCP request guard", () => {
 
 describe("MCP OAuth request lifecycle", () => {
   for (const server of ["experiments", "annotation"] as const) {
-    test(`${server} accepts bound DPoP tokens and rejects invalid or replayed proofs`, async () => {
-      const { user, headers } = await signInAs("member");
-      const key = await createDpopKey();
-      const otherKey = await createDpopKey();
-      const { accessToken } = await authorizeMcpClient(headers, {
-        server,
-        dpop: key,
-      });
-      const endpoint = `${process.env.BETTER_AUTH_URL}/api/${server}/mcp`;
-      const serve =
-        server === "experiments" ? serveExperimentsMcp : serveAnnotationMcp;
-      const call = async (proof?: string) => {
-        const request = modernRequest(endpoint, "tools/list");
-        request.headers.set("authorization", `DPoP ${accessToken}`);
-        if (proof) request.headers.set("dpop", proof);
-        return serve(request);
-      };
+    test.each(requestEras)(
+      `${server} accepts bound DPoP tokens and rejects invalid or replayed proofs (%s)`,
+      async (_, makeRequest) => {
+        const { user, headers } = await signInAs("member");
+        const key = await createDpopKey();
+        const otherKey = await createDpopKey();
+        const { accessToken } = await authorizeMcpClient(headers, {
+          server,
+          dpop: key,
+        });
+        const endpoint = `${process.env.BETTER_AUTH_URL}/api/${server}/mcp`;
+        const serve =
+          server === "experiments" ? serveExperimentsMcp : serveAnnotationMcp;
+        const call = async (proof?: string) => {
+          const request = makeRequest(endpoint, "tools/list");
+          request.headers.set("authorization", `DPoP ${accessToken}`);
+          if (proof) request.headers.set("dpop", proof);
+          return serve(request);
+        };
 
-      expect((await call()).status).toBe(401);
-      expect(
-        (await call(await otherKey.proof(endpoint, accessToken))).status,
-      ).toBe(401);
-      expect(
-        (await call(await key.proof(endpoint, "different-token"))).status,
-      ).toBe(401);
-      expect(
-        (await call(await key.proof(`${endpoint}/other`, accessToken))).status,
-      ).toBe(401);
-      expect(
-        (
-          await serve(
-            modernRequest(endpoint, "tools/list", undefined, accessToken),
-          )
-        ).status,
-      ).toBe(401);
+        expect((await call()).status).toBe(401);
+        expect(
+          (await call(await otherKey.proof(endpoint, accessToken))).status,
+        ).toBe(401);
+        expect(
+          (await call(await key.proof(endpoint, "different-token"))).status,
+        ).toBe(401);
+        expect(
+          (await call(await key.proof(`${endpoint}/other`, accessToken)))
+            .status,
+        ).toBe(401);
+        expect(
+          (
+            await serve(
+              makeRequest(endpoint, "tools/list", undefined, accessToken),
+            )
+          ).status,
+        ).toBe(401);
 
-      const proof = await key.proof(endpoint, accessToken);
-      expect((await call(proof)).status).toBe(200);
-      expect((await call(proof)).status).toBe(401);
+        const proof = await key.proof(endpoint, accessToken);
+        expect((await call(proof)).status).toBe(200);
+        expect((await call(proof)).status).toBe(401);
 
-      const otherEndpoint = `${process.env.BETTER_AUTH_URL}/api/${server === "experiments" ? "annotation" : "experiments"}/mcp`;
-      const otherRequest = modernRequest(otherEndpoint, "tools/list");
-      otherRequest.headers.set("authorization", `DPoP ${accessToken}`);
-      otherRequest.headers.set(
-        "dpop",
-        await key.proof(otherEndpoint, accessToken),
-      );
-      const otherServe =
-        server === "experiments" ? serveAnnotationMcp : serveExperimentsMcp;
-      expect((await otherServe(otherRequest)).status).toBe(401);
+        const otherEndpoint = `${process.env.BETTER_AUTH_URL}/api/${server === "experiments" ? "annotation" : "experiments"}/mcp`;
+        const otherRequest = makeRequest(otherEndpoint, "tools/list");
+        otherRequest.headers.set("authorization", `DPoP ${accessToken}`);
+        otherRequest.headers.set(
+          "dpop",
+          await key.proof(otherEndpoint, accessToken),
+        );
+        const otherServe =
+          server === "experiments" ? serveAnnotationMcp : serveExperimentsMcp;
+        expect((await otherServe(otherRequest)).status).toBe(401);
 
-      const [client] = await listMcpClients(user.id);
-      await disconnectMcpClient(user.id, client!.id);
-      expect((await call(await key.proof(endpoint, accessToken))).status).toBe(
-        401,
-      );
-    });
+        const [client] = await listMcpClients(user.id);
+        await disconnectMcpClient(user.id, client!.id);
+        expect(
+          (await call(await key.proof(endpoint, accessToken))).status,
+        ).toBe(401);
+      },
+    );
   }
 
   test("each accepted request uses the handler supplied by its caller", async () => {

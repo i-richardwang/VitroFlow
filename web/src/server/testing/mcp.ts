@@ -31,6 +31,38 @@ export function modernRequest(
   });
 }
 
+/** A stateless Streamable HTTP request using the 2025-06-18 lifecycle. */
+export function legacyRequest(
+  url: string,
+  method: string,
+  params?: Record<string, unknown>,
+  token?: string,
+): Request {
+  return new Request(url, {
+    method: "POST",
+    headers: {
+      host: new URL(url).host,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      ...(method === "initialize"
+        ? {}
+        : { "mcp-protocol-version": "2025-06-18" }),
+      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      ...(method.startsWith("notifications/") ? {} : { id: 1 }),
+      method,
+      ...(params === undefined ? {} : { params }),
+    }),
+  });
+}
+
+export const requestEras = [
+  ["2026-07-28", modernRequest],
+  ["2025-06-18", legacyRequest],
+] as const;
+
 /** The last JSON-RPC message of a JSON or event-stream response. */
 export async function rpcMessage(response: Response): Promise<{
   result?: any;

@@ -46,7 +46,19 @@ Image upload posts the raw source bytes as the request body with an exact `Conte
 
 ## MCP surface
 
-`POST /api/experiments/mcp` is the experiment MCP server, serving MCP 2026-07-28. Its tools are exactly the operations of the registry. Drawing boxes on images is the job of the [annotation MCP server](ai-annotation.md), which an agent connects to and is authorized for on its own. Each tool carries the operation's input and output schemas and its behavior annotations, and a successful call returns the result as structured content. Older MCP transports are not accepted. The MCP server validates arguments against the tool's input schema itself, so a call whose arguments do not fit is refused before the operation runs.
+`POST /api/experiments/mcp` is the experiment MCP server, serving MCP 2026-07-28 and 2025-06-18 Streamable HTTP clients. Its tools are exactly the operations of the registry. Drawing boxes on images is the job of the [annotation MCP server](ai-annotation.md), which an agent connects to and is authorized for on its own. Each tool carries the operation's input and output schemas and its behavior annotations, and a successful call returns the result as structured content. The MCP server validates arguments against the tool's input schema itself, so a call whose arguments do not fit is refused before the operation runs.
+
+Both MCP servers use the official TypeScript SDK's `createMcpHandler` with
+`legacy: "stateless"`, following its [legacy-client guidance](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/serving/legacy-clients.md)
+and the specification's [dual-era versioning rules](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning).
+Clients such as Codex that negotiate 2025-06-18 use `initialize`,
+`notifications/initialized`, then tool requests with `MCP-Protocol-Version`.
+2026-07-28 clients send protocol metadata on each request. The SDK handles
+both lifecycles through the same per-request server factory; authentication
+runs before either lifecycle, and the annotation factory receives that
+request's user or Worker principal. No session identifier or server-side
+session store is created. This compatibility mode does not enable the old
+HTTP+SSE transport.
 
 The workbench is the OAuth 2.1 authorization server for its MCP servers. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/experiments/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/experiments/mcp`, so a token issued for the annotation server does not open this one. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call to either server. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
 

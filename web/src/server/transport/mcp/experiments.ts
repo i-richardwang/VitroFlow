@@ -63,7 +63,7 @@ function buildServer(): McpServer {
 }
 
 export const experimentsMcpHandler = createMcpHandler(buildServer, {
-  legacy: "reject",
+  legacy: "stateless",
 });
 
 /** The experiment server opens to the accounts' authorized MCP clients. */

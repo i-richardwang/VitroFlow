@@ -218,7 +218,7 @@ function buildServer({ authInfo }: McpRequestContext): McpServer {
 }
 
 export const annotationMcpHandler = createMcpHandler(buildServer, {
-  legacy: "reject",
+  legacy: "stateless",
 });
 
 const refused = (message: string, status: number) =>

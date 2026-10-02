@@ -5,7 +5,12 @@ import { agentOperations } from "../../agent/operations";
 import { disconnectMcpClient, listMcpClients } from "../../auth/mcp-clients";
 import { authorizeMcpClient, signInAs } from "../../testing/fixtures";
 import { banUser, revokeUserSessions } from "../../auth/users";
-import { modernRequest, rpcMessage } from "../../testing/mcp";
+import {
+  legacyRequest,
+  modernRequest,
+  requestEras,
+  rpcMessage,
+} from "../../testing/mcp";
 
 async function rpc(method: string, params?: unknown): Promise<unknown> {
   const response = await experimentsMcpHandler.fetch(
@@ -105,102 +110,150 @@ describe("experiment MCP surface", () => {
   });
 });
 
-describe("experiment MCP authorization", () => {
+describe.each(requestEras)(
+  "experiment MCP authorization (%s)",
+  (_, request) => {
+    const endpoint = () => `${process.env.BETTER_AUTH_URL}/api/experiments/mcp`;
+
+    const call = (token?: string): Promise<Response> =>
+      serveExperimentsMcp(request(endpoint(), "tools/list", undefined, token));
+
+    test("a request without a token is challenged toward the resource metadata", async () => {
+      const response = await call();
+      expect(response.status).toBe(401);
+      const challenge = response.headers.get("www-authenticate") ?? "";
+      expect(challenge).toContain("Bearer");
+      expect(challenge).toContain(
+        `${process.env.BETTER_AUTH_URL}/.well-known/oauth-protected-resource/api/experiments/mcp`,
+      );
+    });
+
+    test("the resource metadata names this workbench as the authorization server", async () => {
+      const response = await fetch(
+        `${process.env.BETTER_AUTH_URL}/.well-known/oauth-protected-resource/api/experiments/mcp`,
+      );
+      expect(response.status).toBe(200);
+      const metadata = (await response.json()) as {
+        resource: string;
+        authorization_servers: string[];
+      };
+      expect(metadata.resource).toBe(endpoint());
+      expect(metadata.authorization_servers).toEqual([
+        `${process.env.BETTER_AUTH_URL}/api/auth`,
+      ]);
+    });
+
+    test("a client the account authorized reaches the tools until it is disconnected", async () => {
+      const { user, headers } = await signInAs("member");
+      const { clientId, accessToken } = await authorizeMcpClient(headers, {
+        name: "Claude on the bench",
+      });
+
+      const accepted = await call(accessToken);
+      expect(accepted.status).toBe(200);
+      expect(await accepted.text()).toContain("list-experiments");
+
+      const [client] = await listMcpClients(user.id);
+      expect(client).toMatchObject({
+        clientId,
+        name: "Claude on the bench",
+        servers: ["experiments"],
+      });
+
+      const other = await signInAs("member");
+      expect(await listMcpClients(other.user.id)).toEqual([]);
+      await expect(
+        disconnectMcpClient(other.user.id, client!.id),
+      ).rejects.toBeInstanceOf(McpClientNotFoundError);
+
+      await disconnectMcpClient(user.id, client!.id);
+      expect(await listMcpClients(user.id)).toEqual([]);
+      expect((await call(accessToken)).status).toBe(401);
+    });
+
+    test("suspending the account invalidates an issued access token", async () => {
+      const admin = await signInAs("admin");
+      const member = await signInAs("member");
+      const { accessToken } = await authorizeMcpClient(member.headers);
+      expect((await call(accessToken)).status).toBe(200);
+      await banUser(admin.headers, { user: member.user.id });
+      expect((await call(accessToken)).status).toBe(401);
+    });
+
+    test("revoking the account's sessions invalidates an issued access token", async () => {
+      const admin = await signInAs("admin");
+      const member = await signInAs("member");
+      const { accessToken } = await authorizeMcpClient(member.headers);
+      expect((await call(accessToken)).status).toBe(200);
+      await revokeUserSessions(admin.headers, { user: member.user.id });
+      expect((await call(accessToken)).status).toBe(401);
+    });
+
+    test("a forged token is refused", async () => {
+      const response = await call("not-a-token");
+      expect(response.status).toBe(401);
+    });
+  },
+);
+
+test("legacy initialization negotiates tools without creating a session", async () => {
   const endpoint = () => `${process.env.BETTER_AUTH_URL}/api/experiments/mcp`;
-
-  const call = (token?: string): Promise<Response> =>
-    serveExperimentsMcp(
-      modernRequest(endpoint(), "tools/list", undefined, token),
-    );
-
-  test("a request without a token is challenged toward the resource metadata", async () => {
-    const response = await call();
-    expect(response.status).toBe(401);
-    const challenge = response.headers.get("www-authenticate") ?? "";
-    expect(challenge).toContain("Bearer");
-    expect(challenge).toContain(
-      `${process.env.BETTER_AUTH_URL}/.well-known/oauth-protected-resource/api/experiments/mcp`,
-    );
-  });
-
-  test("the resource metadata names this workbench as the authorization server", async () => {
-    const response = await fetch(
-      `${process.env.BETTER_AUTH_URL}/.well-known/oauth-protected-resource/api/experiments/mcp`,
-    );
-    expect(response.status).toBe(200);
-    const metadata = (await response.json()) as {
-      resource: string;
-      authorization_servers: string[];
-    };
-    expect(metadata.resource).toBe(endpoint());
-    expect(metadata.authorization_servers).toEqual([
-      `${process.env.BETTER_AUTH_URL}/api/auth`,
-    ]);
-  });
-
-  test("a client the account authorized reaches the tools until it is disconnected", async () => {
-    const { user, headers } = await signInAs("member");
-    const { clientId, accessToken } = await authorizeMcpClient(headers, {
-      name: "Claude on the bench",
-    });
-
-    const accepted = await call(accessToken);
-    expect(accepted.status).toBe(200);
-    expect(await accepted.text()).toContain("list-experiments");
-
-    const [client] = await listMcpClients(user.id);
-    expect(client).toMatchObject({
-      clientId,
-      name: "Claude on the bench",
-      servers: ["experiments"],
-    });
-
-    const other = await signInAs("member");
-    expect(await listMcpClients(other.user.id)).toEqual([]);
-    await expect(
-      disconnectMcpClient(other.user.id, client!.id),
-    ).rejects.toBeInstanceOf(McpClientNotFoundError);
-
-    await disconnectMcpClient(user.id, client!.id);
-    expect(await listMcpClients(user.id)).toEqual([]);
-    expect((await call(accessToken)).status).toBe(401);
-  });
-
-  test("suspending the account invalidates an issued access token", async () => {
-    const admin = await signInAs("admin");
-    const member = await signInAs("member");
-    const { accessToken } = await authorizeMcpClient(member.headers);
-    expect((await call(accessToken)).status).toBe(200);
-    await banUser(admin.headers, { user: member.user.id });
-    expect((await call(accessToken)).status).toBe(401);
-  });
-
-  test("revoking the account's sessions invalidates an issued access token", async () => {
-    const admin = await signInAs("admin");
-    const member = await signInAs("member");
-    const { accessToken } = await authorizeMcpClient(member.headers);
-    expect((await call(accessToken)).status).toBe(200);
-    await revokeUserSessions(admin.headers, { user: member.user.id });
-    expect((await call(accessToken)).status).toBe(401);
-  });
-
-  test("legacy MCP requests are rejected", async () => {
-    const { headers } = await signInAs("member");
-    const { accessToken } = await authorizeMcpClient(headers);
-    const request = new Request(endpoint(), {
-      method: "POST",
-      headers: {
-        host: new URL(endpoint()).host,
-        "content-type": "application/json",
-        authorization: `Bearer ${accessToken}`,
+  const { headers } = await signInAs("member");
+  const { accessToken } = await authorizeMcpClient(headers);
+  const initialized = await serveExperimentsMcp(
+    legacyRequest(
+      endpoint(),
+      "initialize",
+      {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "compatibility-test", version: "1" },
       },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-    });
-    expect((await serveExperimentsMcp(request)).status).toBe(400);
+      accessToken,
+    ),
+  );
+  expect(initialized.status).toBe(200);
+  expect(initialized.headers.has("mcp-session-id")).toBe(false);
+  expect((await rpcMessage(initialized)).result).toMatchObject({
+    protocolVersion: "2025-06-18",
+    capabilities: { tools: {} },
   });
-
-  test("a forged token is refused", async () => {
-    const response = await call("not-a-token");
-    expect(response.status).toBe(401);
-  });
+  const notified = await serveExperimentsMcp(
+    legacyRequest(
+      endpoint(),
+      "notifications/initialized",
+      undefined,
+      accessToken,
+    ),
+  );
+  expect(notified.status).toBe(202);
+  const listed = await serveExperimentsMcp(
+    legacyRequest(endpoint(), "tools/list", undefined, accessToken),
+  );
+  expect(listed.status).toBe(200);
+  expect(
+    (await rpcMessage(listed)).result.tools
+      .map((tool: { name: string }) => tool.name)
+      .sort(),
+  ).toEqual([...agentOperations.keys()].sort());
+  const called = await serveExperimentsMcp(
+    legacyRequest(
+      endpoint(),
+      "tools/call",
+      { name: "list-experiments", arguments: {} },
+      accessToken,
+    ),
+  );
+  expect(called.status).toBe(200);
+  const result = (await rpcMessage(called)).result;
+  expect(result.isError).toBeFalsy();
+  expect(result.structuredContent).toBeDefined();
+  const unauthenticated = await serveExperimentsMcp(
+    legacyRequest(endpoint(), "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "unauthorized", version: "1" },
+    }),
+  );
+  expect(unauthenticated.status).toBe(401);
 });
