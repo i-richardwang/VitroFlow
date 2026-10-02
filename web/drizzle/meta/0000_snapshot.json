@@ -24,7 +24,7 @@
           "name": "issuer",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "account_id": {
           "name": "account_id",
@@ -109,11 +109,11 @@
           "method": "btree",
           "with": {}
         },
-        "accounts_issuer_account_idx": {
-          "name": "accounts_issuer_account_idx",
+        "accounts_provider_account_idx": {
+          "name": "accounts_provider_account_idx",
           "columns": [
             {
-              "expression": "issuer",
+              "expression": "provider_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

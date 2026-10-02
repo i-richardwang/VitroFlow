@@ -1,7 +1,7 @@
 CREATE TABLE "accounts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
-	"issuer" text NOT NULL,
+	"issuer" text,
 	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
 	"password" text,
@@ -580,7 +580,7 @@ ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_model
 ALTER TABLE "training_runs" ADD CONSTRAINT "training_runs_model_version_id_id_attempt_dataset_snapshot_id_model_id_model_versions_id_source_training_run_id_source_training_attempt_source_dataset_snapshot_id_model_id_fk" FOREIGN KEY ("model_version_id","id","attempt","dataset_snapshot_id","model_id") REFERENCES "public"."model_versions"("id","source_training_run_id","source_training_attempt","source_dataset_snapshot_id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "worker_sessions" ADD CONSTRAINT "worker_sessions_worker_id_workers_id_fk" FOREIGN KEY ("worker_id") REFERENCES "public"."workers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_user_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "accounts_issuer_account_idx" ON "accounts" USING btree ("issuer","account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "accounts_provider_account_idx" ON "accounts" USING btree ("provider_id","account_id");--> statement-breakpoint
 CREATE INDEX "annotation_runs_image_model_idx" ON "annotation_runs" USING btree ("image_id","model_id","created_at");--> statement-breakpoint
 CREATE INDEX "annotation_runs_queue_idx" ON "annotation_runs" USING btree ("status","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "annotation_runs_active_idx" ON "annotation_runs" USING btree ("image_id","model_id") WHERE "annotation_runs"."status" in ('queued', 'running');--> statement-breakpoint

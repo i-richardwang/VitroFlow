@@ -118,7 +118,9 @@ export const accounts = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    issuer: text("issuer").notNull(),
+    // Preserve legacy 1.7.0–1.7.2 values; current Better Auth identifies an
+    // account by providerId and accountId and no longer writes issuer.
+    issuer: text("issuer"),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
     password: text("password"),
@@ -139,8 +141,8 @@ export const accounts = pgTable(
   },
   (table) => [
     index("accounts_user_idx").on(table.userId),
-    uniqueIndex("accounts_issuer_account_idx").on(
-      table.issuer,
+    uniqueIndex("accounts_provider_account_idx").on(
+      table.providerId,
       table.accountId,
     ),
   ],

@@ -552,6 +552,7 @@ export async function authorizeMcpClient(
       ...Object.fromEntries(session),
       "content-type": "application/json",
       accept: "application/json",
+      origin: process.env.BETTER_AUTH_URL!,
     },
     body: JSON.stringify({
       accept: true,
