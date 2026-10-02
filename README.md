@@ -118,6 +118,8 @@ vitroflow worker restart mac-studio
 vitroflow worker stop mac-studio
 ```
 
+`launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Status page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
+
 Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. For inference they atomically claim one image/version pair, renew that lease while loading and predicting, download its canonical image and verified model artifact, and upload a succeeded or failed outcome. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
 
 For training they claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.

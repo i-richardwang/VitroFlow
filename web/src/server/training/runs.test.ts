@@ -22,6 +22,7 @@ import {
   renewTrainingLease,
 } from "./runs";
 import { publishTrainingArtifact } from "./publication";
+import { removeWorker } from "../workers/public";
 import {
   imageDigest,
   recordTestHeartbeat,
@@ -514,4 +515,21 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
     recordTestHeartbeat(heartbeat(oldSession, started), restarted),
   ).rejects.toThrow(/newer active session/);
   await failTrainingRun(run.id, newSession, "stopped");
+});
+
+test("removing a worker frees its run for another worker at once", async () => {
+  await reviewedDataset("removed-worker");
+  const run = await createTrainingRun("removed-worker", recipe);
+  await trainer("removed-trainer");
+  await trainer("remaining-trainer");
+  const at = new Date();
+  expect((await claimTrainingRun(owner("removed-trainer"), at))?.id).toBe(
+    run.id,
+  );
+  await removeWorker("removed-trainer");
+  expect(await claimTrainingRun(owner("remaining-trainer"), at)).toMatchObject({
+    id: run.id,
+    attempt: 2,
+  });
+  await failTrainingRun(run.id, owner("remaining-trainer"), "stopped");
 });

@@ -10,11 +10,15 @@ import { workerReportSchema } from "../domain/workers/schema";
 export const Route = createFileRoute("/api/worker/heartbeat")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: async ({ request, context }) => {
         try {
           return Response.json(
             await recordWorkerHeartbeat(
-              await parseWorkerSessionJson(request, workerReportSchema),
+              await parseWorkerSessionJson(
+                request,
+                workerReportSchema,
+                context.workerId,
+              ),
             ),
           );
         } catch (error) {

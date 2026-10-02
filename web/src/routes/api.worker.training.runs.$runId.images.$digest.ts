@@ -12,9 +12,9 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      GET: async ({ params, request }) => {
+      GET: async ({ params, request, context }) => {
         try {
-          const owner = await parseWorkerQuery(request);
+          const owner = parseWorkerQuery(request, context.workerId);
           const snapshot = await snapshotForRun(params.runId, owner);
           if (!snapshot.images.some((image) => image.digest === params.digest))
             return new Response("Not found", { status: 404 });

@@ -8,8 +8,7 @@ import {
   eq,
   gt,
   inArray,
-  lte,
-  ne,
+  not,
   or,
   sql,
 } from "drizzle-orm";
@@ -42,6 +41,7 @@ import { createDatasetSnapshot, readDatasetSnapshot } from "./snapshots";
 import { readDataset } from "../datasets/public";
 import {
   currentWorkerSession,
+  leaseIsHeld,
   lockWorkerSession,
   sessionIsCurrent,
 } from "../workers/public";
@@ -403,7 +403,8 @@ export async function createTrainingRun(
 
 /**
  * Leases the oldest claimable run to a worker session. A live session gets its
- * run back idempotently; a newer session of that worker starts a fresh attempt.
+ * run back idempotently; a run whose lease no longer holds starts a fresh
+ * attempt under whichever session claims it first.
  */
 export async function claimTrainingRun(
   owner: WorkerIdentity,
@@ -431,12 +432,7 @@ export async function claimTrainingRun(
           eq(trainingRuns.status, "queued"),
           and(
             eq(trainingRuns.status, "running"),
-            lte(trainingRuns.leaseExpiresAt, at),
-          ),
-          and(
-            eq(trainingRuns.status, "running"),
-            eq(trainingRuns.workerId, owner.workerId),
-            ne(trainingRuns.sessionId, owner.sessionId),
+            not(leaseIsHeld(trainingRuns, at)),
           ),
         ),
       )

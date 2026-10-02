@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { database } from "../infra/db/client";
 import {
@@ -8,48 +8,44 @@ import {
   trainingRuns,
 } from "../infra/db/schema";
 import { workerPresence } from "../../domain/workers/presence";
-import type {
-  WorkerActivity,
-  WorkerIdentity,
-} from "../../domain/workers/schema";
+import type { WorkerActivity } from "../../domain/workers/schema";
 import { imageFilenames } from "./image-names";
-import { listEnrolledWorkers, listWorkers } from "../workers/public";
+import {
+  leaseIsHeld,
+  listEnrolledWorkers,
+  listWorkers,
+} from "../workers/public";
 
-function sessionKey({ workerId, sessionId }: WorkerIdentity): string {
-  return `${workerId}/${sessionId}`;
-}
-
-/** The inference image each live session is working on, by session. */
+/**
+ * A held lease belongs to its worker's current session, so each worker's
+ * activity is keyed by the worker alone.
+ */
 async function inferenceActivity(
   at: Date,
 ): Promise<Map<string, WorkerActivity>> {
-  const db = await database();
-  const rows = await db
-    .select({
-      workerId: inferenceJobs.workerId,
-      sessionId: inferenceJobs.sessionId,
-      digest: inferenceJobs.imageId,
-    })
+  const rows = await (
+    await database()
+  )
+    .select({ workerId: inferenceJobs.workerId, digest: inferenceJobs.imageId })
     .from(inferenceJobs)
-    .where(gt(inferenceJobs.leaseExpiresAt, at));
+    .where(leaseIsHeld(inferenceJobs, at));
   const filenames = await imageFilenames(rows.map((row) => row.digest));
   return new Map(
     rows.map((row) => [
-      sessionKey(row),
+      row.workerId,
       { kind: "inference", image: filenames.get(row.digest) ?? "an image" },
     ]),
   );
 }
 
-/** The training run each live session holds, by session. */
 async function trainingActivity(
   at: Date,
 ): Promise<Map<string, WorkerActivity>> {
-  const db = await database();
-  const rows = await db
+  const rows = await (
+    await database()
+  )
     .select({
       workerId: trainingRuns.workerId,
-      sessionId: trainingRuns.sessionId,
       runId: trainingRuns.id,
       dataset: datasetSnapshots.datasetId,
     })
@@ -58,13 +54,13 @@ async function trainingActivity(
       datasetSnapshots,
       eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
     )
-    .where(gt(trainingRuns.leaseExpiresAt, at));
+    .where(leaseIsHeld(trainingRuns, at));
   return new Map(
     rows.flatMap((row) =>
-      row.workerId && row.sessionId
+      row.workerId
         ? [
             [
-              sessionKey({ workerId: row.workerId, sessionId: row.sessionId }),
+              row.workerId,
               { kind: "training", runId: row.runId, dataset: row.dataset },
             ] as const,
           ]
@@ -79,24 +75,23 @@ async function annotationActivity(
   const rows = await (
     await database()
   )
-    .select()
+    .select({
+      workerId: annotationRuns.workerId,
+      runId: annotationRuns.id,
+      imageId: annotationRuns.imageId,
+    })
     .from(annotationRuns)
-    .where(
-      and(
-        eq(annotationRuns.status, "running"),
-        gt(annotationRuns.leaseExpiresAt, at),
-      ),
-    );
+    .where(leaseIsHeld(annotationRuns, at));
   const filenames = await imageFilenames(rows.map((row) => row.imageId));
   return new Map(
     rows.flatMap((row) =>
-      row.workerId && row.sessionId
+      row.workerId
         ? [
             [
-              `${row.workerId}/${row.sessionId}`,
+              row.workerId,
               {
                 kind: "annotation",
-                runId: row.id,
+                runId: row.runId,
                 image: filenames.get(row.imageId) ?? row.imageId,
               },
             ] as const,
@@ -141,9 +136,9 @@ export async function getSystemStatus() {
         presence: workerPresence(session.lastSeenAt, at),
         lastSeenSeconds: age(session.lastSeenAt),
         activity:
-          annotation.get(sessionKey(session)) ??
-          inference.get(sessionKey(session)) ??
-          training.get(sessionKey(session)) ??
+          annotation.get(workerId) ??
+          inference.get(workerId) ??
+          training.get(workerId) ??
           null,
       };
     }),

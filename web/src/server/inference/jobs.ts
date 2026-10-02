@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, not, or, sql } from "drizzle-orm";
 import { database, transaction, type Executor } from "../infra/db/client";
 import {
   experimentObservationImages,
@@ -19,7 +19,11 @@ import {
 } from "../../domain/models/schema";
 import type { Worker, WorkerIdentity } from "../../domain/workers/schema";
 import { readModel, toModelVersion } from "../models/public";
-import { lockWorkerSession, sessionIsCurrent } from "../workers/public";
+import {
+  leaseIsHeld,
+  lockWorkerSession,
+  sessionIsCurrent,
+} from "../workers/public";
 import { storeInferenceOutcome, type DetectionTarget } from "./outcomes";
 import { newestVersion } from "./queries";
 
@@ -144,10 +148,7 @@ function claimableExperimentDemand(
       and(
         isNull(inferenceOutcomes.imageId),
         inArray(sql`${modelVersions.artifact}->>'kind'`, artifactKinds),
-        or(
-          isNull(inferenceJobs.imageId),
-          lte(inferenceJobs.leaseExpiresAt, at),
-        ),
+        or(isNull(inferenceJobs.imageId), not(leaseIsHeld(inferenceJobs, at))),
       ),
     )
     .orderBy(asc(modelVersions.id), asc(experimentObservationImages.imageId))
@@ -212,7 +213,7 @@ export async function claimInferenceAssignment(
             and(
               eq(inferenceJobs.imageId, pair.digest),
               eq(inferenceJobs.modelVersionId, pair.versionId),
-              lte(inferenceJobs.leaseExpiresAt, at),
+              not(leaseIsHeld(inferenceJobs, at)),
             ),
           )
           .returning({ imageId: inferenceJobs.imageId });

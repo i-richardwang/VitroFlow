@@ -11,9 +11,9 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      GET: async ({ params, request }) => {
+      GET: async ({ params, request, context }) => {
         try {
-          const owner = await parseWorkerQuery(request);
+          const owner = parseWorkerQuery(request, context.workerId);
           return Response.json(await snapshotForRun(params.runId, owner));
         } catch (error) {
           return workerErrorResponse(error, "Training snapshot request failed");

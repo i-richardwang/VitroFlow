@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from vitroflow.worker.connection import WorkerHttpClient, WorkerNotEnrolledError
 from vitroflow.worker.host import operations as worker_host
 from vitroflow.worker.host.profiles import (
     WorkerProfile,
@@ -15,18 +16,30 @@ from vitroflow.worker.host.profiles import (
 from vitroflow.worker.session import WorkerSettings
 
 
+def _serve_ready(monkeypatch, respond) -> list[httpx.Request]:
+    """Answers the readiness check through the client the host builds."""
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return respond(request)
+
+    def client(connection, **kwargs):
+        return WorkerHttpClient(
+            connection, transport=httpx.MockTransport(handle), **kwargs
+        )
+
+    monkeypatch.setattr(worker_host, "WorkerHttpClient", client)
+    return requests
+
+
 def test_preflight_checks_the_authenticated_server_and_runtimes(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
-    requests: list[httpx.Request] = []
-
-    def ready(url: str, **kwargs: object) -> httpx.Response:
-        request = httpx.Request("GET", url, headers=kwargs["headers"])
-        requests.append(request)
-        return httpx.Response(200, json={"workerId": "trainer"}, request=request)
-
-    monkeypatch.setattr(worker_host.httpx, "get", ready)
+    requests = _serve_ready(
+        monkeypatch, lambda _: httpx.Response(200, json={"workerId": "trainer"})
+    )
     monkeypatch.setattr(
         worker_host,
         "available_runtimes",
@@ -53,14 +66,9 @@ def test_preflight_reports_the_runtimes_it_will_advertise(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
-    requests: list[httpx.Request] = []
-
-    def ready(url: str, **kwargs: object) -> httpx.Response:
-        request = httpx.Request("GET", url, headers=kwargs["headers"])
-        requests.append(request)
-        return httpx.Response(200, json={"workerId": "trainer"}, request=request)
-
-    monkeypatch.setattr(worker_host.httpx, "get", ready)
+    requests = _serve_ready(
+        monkeypatch, lambda _: httpx.Response(200, json={"workerId": "trainer"})
+    )
     monkeypatch.setattr(
         worker_host,
         "available_runtimes",
@@ -82,12 +90,8 @@ def test_preflight_surfaces_an_installed_but_broken_runtime(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
-    monkeypatch.setattr(
-        worker_host.httpx,
-        "get",
-        lambda url, **_kwargs: httpx.Response(
-            200, json={"workerId": "mac-mps"}, request=httpx.Request("GET", url)
-        ),
+    _serve_ready(
+        monkeypatch, lambda _: httpx.Response(200, json={"workerId": "mac-mps"})
     )
 
     def broken_runtime():
@@ -101,6 +105,17 @@ def test_preflight_surfaces_an_installed_but_broken_runtime(
 
     with pytest.raises(RuntimeError, match="installed but cannot be imported"):
         worker_host.preflight_profile("mac-mps", profile)
+
+
+def test_preflight_refuses_a_token_the_workbench_does_not_know(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    _serve_ready(monkeypatch, lambda _: httpx.Response(401))
+    profile = WorkerProfile(server_url="https://example.test", token="removed")
+
+    with pytest.raises(WorkerNotEnrolledError, match="Status page"):
+        worker_host.preflight_profile("trainer", profile)
 
 
 def test_profile_host_passes_typed_settings_and_marks_readiness(
@@ -159,6 +174,27 @@ def test_profile_host_records_startup_failures_in_status_and_log(
     assert status["state"] == "failed"
     assert status["detail"] == "startup failed"
     assert "startup failed" in (directory / "worker.log").read_text(encoding="utf-8")
+
+
+def test_an_unenrolled_worker_stops_cleanly_and_says_why(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VITROFLOW_HOME", str(tmp_path))
+    save_profile(
+        "trainer",
+        WorkerProfile(server_url="https://example.test", token="removed"),
+    )
+
+    def refused(_settings, *, on_ready):
+        raise WorkerNotEnrolledError
+
+    monkeypatch.setattr(worker_host, "run_worker", refused)
+
+    assert worker_host.run_profile("trainer") == 0
+
+    status = json.loads(
+        (profile_directory("trainer") / "status.json").read_text(encoding="utf-8")
+    )
+    assert status["state"] == "unenrolled"
+    assert "Status page" in status["detail"]
 
 
 def _status_profile(name: str, state: str, **document: object) -> None:

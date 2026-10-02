@@ -15,9 +15,13 @@ const bodySchema = workerSessionSchema.extend({
 export const Route = createFileRoute("/api/worker/training/runs/$runId/fail")({
   server: {
     handlers: {
-      POST: async ({ params, request }) => {
+      POST: async ({ params, request, context }) => {
         try {
-          const body = await parseWorkerSessionJson(request, bodySchema);
+          const body = await parseWorkerSessionJson(
+            request,
+            bodySchema,
+            context.workerId,
+          );
           return Response.json(
             await failTrainingRun(
               params.runId,

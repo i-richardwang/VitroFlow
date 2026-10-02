@@ -21,10 +21,10 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      PUT: async ({ params, request }) => {
+      PUT: async ({ params, request, context }) => {
         try {
           const worker = await currentWorkerSession(
-            await parseWorkerQuery(request),
+            parseWorkerQuery(request, context.workerId),
           );
           const target = parseWorkerValue(
             params,

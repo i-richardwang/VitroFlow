@@ -9,11 +9,12 @@ import { workerSessionSchema } from "../domain/workers/schema";
 export const Route = createFileRoute("/api/worker/training/runs/$runId/lease")({
   server: {
     handlers: {
-      POST: async ({ params, request }) => {
+      POST: async ({ params, request, context }) => {
         try {
           const owner = await parseWorkerSessionJson(
             request,
             workerSessionSchema,
+            context.workerId,
           );
           return Response.json(await renewTrainingLease(params.runId, owner));
         } catch (error) {

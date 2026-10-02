@@ -16,11 +16,12 @@ const bodySchema = workerSessionSchema.extend({
 export const Route = createFileRoute("/api/worker/training/runs/$runId/phase")({
   server: {
     handlers: {
-      POST: async ({ params, request }) => {
+      POST: async ({ params, request, context }) => {
         try {
           const { phase, ...owner } = await parseWorkerSessionJson(
             request,
             bodySchema,
+            context.workerId,
           );
           return Response.json(
             await enterTrainingPhase(params.runId, owner, phase),

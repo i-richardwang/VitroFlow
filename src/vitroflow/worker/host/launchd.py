@@ -35,7 +35,9 @@ def launch_agent_document(name: str, executable: str | None = None) -> dict[str,
         "Label": service_label(name),
         "ProgramArguments": [command, "worker", "run", name],
         "RunAtLoad": True,
-        "KeepAlive": True,
+        # Restarted after a crash; a worker that stopped on purpose, because
+        # it was shut down or is no longer enrolled, stays down.
+        "KeepAlive": {"SuccessfulExit": False},
         "ThrottleInterval": 10,
         "WorkingDirectory": str(directory),
         "EnvironmentVariables": {

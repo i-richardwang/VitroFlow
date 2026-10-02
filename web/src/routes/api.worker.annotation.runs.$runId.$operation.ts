@@ -31,9 +31,13 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      POST: async ({ request, params }) => {
+      POST: async ({ request, params, context }) => {
         try {
-          const body = await parseWorkerSessionJson(request, updateSchema);
+          const body = await parseWorkerSessionJson(
+            request,
+            updateSchema,
+            context.workerId,
+          );
           if (body.operation !== params.operation)
             return new Response("Operation mismatch", { status: 400 });
           switch (body.operation) {

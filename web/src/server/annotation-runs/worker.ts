@@ -1,9 +1,13 @@
-import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, not } from "drizzle-orm";
 import type { WorkerIdentity } from "../../domain/workers/schema";
 import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors";
 import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks } from "../infra/db/schema";
-import { lockWorkerSession, currentWorkerSession } from "../workers/public";
+import {
+  currentWorkerSession,
+  leaseIsHeld,
+  lockWorkerSession,
+} from "../workers/public";
 import { lockRun, requireWorkerLease, taskWhere, type RunRow } from "./access";
 
 const LEASE_MS = 5 * 60 * 1000;
@@ -13,9 +17,9 @@ function conflict(message: string): never {
 const job = (run: RunRow) => ({ id: run.id });
 
 /**
- * A Worker that stopped renewing its lease lets go of its run: the run
- * returns to the queue with every accepted region, and the regions still
- * open lose their attempts, fencing the credentials issued for them.
+ * A Worker run whose lease no longer holds returns to the queue with every
+ * accepted region, and the regions still open lose their attempts, fencing
+ * the credentials issued for them.
  */
 async function releaseLapsedClaims(at: Date, db: Executor) {
   const released = await db
@@ -29,8 +33,9 @@ async function releaseLapsedClaims(at: Date, db: Executor) {
     })
     .where(
       and(
+        eq(annotationRuns.executor, "worker"),
         eq(annotationRuns.status, "running"),
-        lte(annotationRuns.leaseExpiresAt, at),
+        not(leaseIsHeld(annotationRuns, at)),
       ),
     )
     .returning({ id: annotationRuns.id });

@@ -43,8 +43,9 @@ image is the run's address. Accepted regions are durable; who is working on a ru
 only decides who continues it. An interactive run stays open to the person who
 started it until every region is accepted or it is cancelled, and any agent that
 person connects, in any conversation, continues it. A Worker holds the run it
-claims under a lease it renews; when the lease lapses, the run returns to the
-queue with its accepted regions and the next Worker annotates only the rest. A
+claims under a lease it renews; when the lease lapses, or the Worker restarts or
+is removed, the run returns to the queue with its accepted regions and the next
+Worker annotates only the rest. A
 run fails only when its agent reports an error.
 
 ## Administration

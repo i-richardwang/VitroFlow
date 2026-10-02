@@ -7,7 +7,6 @@ import {
   parseWorkerForm,
   parseWorkerJsonText,
   parseWorkerValue,
-  requestingWorker,
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import {
@@ -25,7 +24,7 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      PUT: async ({ params, request }) => {
+      PUT: async ({ params, request, context }) => {
         const declaredLength = Number(request.headers.get("content-length"));
         if (!Number.isSafeInteger(declaredLength) || declaredLength <= 0) {
           return new Response("Content-Length is required", { status: 411 });
@@ -56,7 +55,7 @@ export const Route = createFileRoute(
             return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
           owner = {
-            workerId: await requestingWorker(request),
+            workerId: context.workerId,
             sessionId: parseWorkerValue(session, resourceIdSchema, "sessionId"),
           };
           weights = new Uint8Array(await weightsFile.arrayBuffer());

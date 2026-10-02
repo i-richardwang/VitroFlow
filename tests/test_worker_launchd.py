@@ -29,7 +29,7 @@ def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> N
         "mps-trainer",
     ]
     assert document["RunAtLoad"] is True
-    assert document["KeepAlive"] is True
+    assert document["KeepAlive"] == {"SuccessfulExit": False}
     assert document["EnvironmentVariables"] == {
         "VITROFLOW_HOME": str(tmp_path),
         "PATH": "/opt/pi/bin:/opt/node/bin:/usr/bin:/bin",

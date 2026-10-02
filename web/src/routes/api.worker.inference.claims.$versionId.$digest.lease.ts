@@ -14,7 +14,7 @@ export const Route = createFileRoute(
 )({
   server: {
     handlers: {
-      POST: async ({ params, request }) => {
+      POST: async ({ params, request, context }) => {
         try {
           const target = parseWorkerValue(
             params,
@@ -24,6 +24,7 @@ export const Route = createFileRoute(
           const owner = await parseWorkerSessionJson(
             request,
             workerSessionSchema,
+            context.workerId,
           );
           return Response.json(await renewInferenceClaim(target, owner));
         } catch (error) {

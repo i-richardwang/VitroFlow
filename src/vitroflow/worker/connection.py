@@ -34,6 +34,20 @@ def validate_worker_process(poll_seconds: float, device: str | None) -> None:
         raise ValueError("device must be cpu, mps, cuda, or cuda:<index>")
 
 
+class WorkerNotEnrolledError(Exception):
+    """
+    The workbench refused the token: the worker was removed or never
+    enrolled. Retrying cannot help, so this ends the process rather than
+    joining the errors a worker loop recovers from.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "the workbench does not recognize this worker's token; enroll the "
+            "worker on the Status page and set it up again with the token it shows"
+        )
+
+
 class WorkerHttpClient:
     def __init__(
         self,
@@ -60,6 +74,9 @@ class WorkerHttpClient:
                 if attempt == 2:
                     raise
             else:
+                if response.status_code == 401:
+                    response.close()
+                    raise WorkerNotEnrolledError
                 if response.status_code not in RETRYABLE_STATUS_CODES or attempt == 2:
                     return response
                 response.close()

@@ -16,6 +16,7 @@ import { contentDigest } from "../../infra/digest";
 import { ULTRALYTICS_RUNTIME, reviewedDataset } from "../../testing/fixtures";
 import { createTrainingRun } from "../../training/runs";
 import { enrollWorker } from "../../workers/public";
+import { workerRoute } from "./testing";
 
 const SESSION = { sessionId: "api-trainer-session" };
 
@@ -29,19 +30,6 @@ test("the shared training claim fixture is the Web training contract", async () 
   expect(trainingRunSchema.parse(fixture.run)).toEqual(fixture.run);
 });
 
-type Handler = (context: never) => Response | Promise<Response>;
-
-function handler(
-  route: { options: { server?: { handlers?: unknown } } },
-  method: "GET" | "POST" | "PUT",
-): Handler {
-  const handlers = route.options.server?.handlers as
-    Partial<Record<"GET" | "POST" | "PUT", Handler>> | undefined;
-  const selected = handlers?.[method];
-  if (!selected) throw new Error(`Missing ${method} route handler`);
-  return selected;
-}
-
 test("training HTTP routes publish a version and serve its weights idempotently", async () => {
   const datasetId = "training-api";
   const { version: sourceVersion } = await reviewedDataset(datasetId, [
@@ -53,7 +41,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   const { token } = await enrollWorker("api-trainer");
   const authorization = `Bearer ${token}`;
 
-  const heartbeat = await handler(
+  const heartbeat = await workerRoute(
     HeartbeatRoute,
     "POST",
   )({
@@ -71,7 +59,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   } as never);
   expect(heartbeat.status).toBe(200);
 
-  const claim = await handler(
+  const claim = await workerRoute(
     ClaimRoute,
     "POST",
   )({
@@ -85,7 +73,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   expect(job.run.id).toBe(created.id);
   expect(Object.keys(job)).toEqual(["run"]);
 
-  const snapshot = await handler(
+  const snapshot = await workerRoute(
     SnapshotRoute,
     "GET",
   )({
@@ -99,7 +87,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   expect(snapshotImages).toHaveLength(2);
   const digest = snapshotImages[0].digest;
 
-  const image = await handler(
+  const image = await workerRoute(
     ImageRoute,
     "GET",
   )({
@@ -112,7 +100,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   expect(image.status).toBe(200);
   expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(digest);
 
-  const trainingPhase = await handler(
+  const trainingPhase = await workerRoute(
     PhaseRoute,
     "POST",
   )({
@@ -125,7 +113,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   } as never);
   expect(trainingPhase.status).toBe(200);
 
-  const epoch = await handler(
+  const epoch = await workerRoute(
     EpochsRoute,
     "POST",
   )({
@@ -154,7 +142,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     0.05 + 0.85 / YOLO26_SEED_SMALL_RECIPE.parameters.epochs,
   );
 
-  const lease = await handler(
+  const lease = await workerRoute(
     LeaseRoute,
     "POST",
   )({
@@ -168,7 +156,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   expect(lease.status).toBe(200);
   expect((await lease.json()).state.progress).toBeCloseTo(reported.progress);
 
-  const validationPhase = await handler(
+  const validationPhase = await workerRoute(
     PhaseRoute,
     "POST",
   )({
@@ -214,7 +202,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
       type: "application/json",
     }),
   );
-  const artifact = await handler(
+  const artifact = await workerRoute(
     ArtifactRoute,
     "PUT",
   )({
@@ -229,7 +217,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   const published = await artifact.json();
   expect(published.state.status).toBe("succeeded");
 
-  const repeated = await handler(
+  const repeated = await workerRoute(
     ArtifactRoute,
     "PUT",
   )({
@@ -244,19 +232,22 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   expect(published.modelId).toBe(sourceVersion.modelId);
 
   const versionId = published.state.modelVersionId;
-  const weights = await handler(
+  const weights = await workerRoute(
     WeightsRoute,
     "GET",
   )({
     params: { versionId },
-  } as never);
+    request: new Request("http://localhost/weights", {
+      headers: { authorization },
+    }),
+  });
   expect(await weights.text()).toBe("weights");
 });
 
 test("training HTTP routes distinguish invalid requests from lease conflicts", async () => {
   const { token } = await enrollWorker("api-conflict-trainer");
   const authorization = `Bearer ${token}`;
-  const invalid = await handler(
+  const invalid = await workerRoute(
     PhaseRoute,
     "POST",
   )({
@@ -272,7 +263,7 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
   } as never);
   expect(invalid.status).toBe(400);
 
-  const conflict = await handler(
+  const conflict = await workerRoute(
     LeaseRoute,
     "POST",
   )({
@@ -287,14 +278,19 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
 });
 
 test("training artifact admission rejects unknown and excessive request sizes", async () => {
+  const { token } = await enrollWorker("api-boundary-trainer");
+  const authorization = `Bearer ${token}`;
   const put = (request: Request) =>
-    handler(
+    workerRoute(
       ArtifactRoute,
       "PUT",
     )({ params: { runId: "train-boundary" }, request } as never);
 
   const unknown = await put(
-    new Request("http://localhost/artifact", { method: "PUT" }),
+    new Request("http://localhost/artifact", {
+      method: "PUT",
+      headers: { authorization },
+    }),
   );
   expect(unknown.status).toBe(411);
 
@@ -302,6 +298,7 @@ test("training artifact admission rejects unknown and excessive request sizes", 
     new Request("http://localhost/artifact", {
       method: "PUT",
       headers: {
+        authorization,
         "content-length": String(MAX_TRAINING_ARTIFACT_REQUEST_BYTES + 1),
       },
       body: new Uint8Array([1]),

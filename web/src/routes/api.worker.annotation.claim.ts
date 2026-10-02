@@ -8,11 +8,15 @@ import {
 export const Route = createFileRoute("/api/worker/annotation/claim")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: async ({ request, context }) => {
         try {
           return Response.json({
             run: await claimAnnotationRun(
-              await parseWorkerSessionJson(request, workerSessionSchema),
+              await parseWorkerSessionJson(
+                request,
+                workerSessionSchema,
+                context.workerId,
+              ),
             ),
           });
         } catch (error) {

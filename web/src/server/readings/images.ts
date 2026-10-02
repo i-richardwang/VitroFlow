@@ -21,20 +21,18 @@ import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { AnnotationRunNotFoundError } from "../../domain/annotation-runs/errors";
 import { newestDetectingVersion } from "../inference/public";
+import { leaseIsHeld } from "../workers/public";
 
 type Row = typeof annotationRuns.$inferSelect;
 
-/** A run whose Worker stopped renewing its lease is back in the queue, whatever the row says. */
-function effectiveStatus(row: Row, at = new Date()) {
-  return row.status === "running" && leaseLapsed(row, at)
+/**
+ * A Worker run whose lease no longer holds is back in the queue, whatever the
+ * row says. An interactive run holds no lease.
+ */
+function effectiveStatus(row: Row, leaseHeld: boolean) {
+  return row.status === "running" && row.executor === "worker" && !leaseHeld
     ? ("queued" as const)
     : row.status;
-}
-
-function leaseLapsed(row: Row, at: Date) {
-  return (
-    row.leaseExpiresAt !== null && row.leaseExpiresAt.getTime() <= at.getTime()
-  );
 }
 
 export const proposalRuns = alias(annotationRuns, "proposal_runs");
@@ -75,9 +73,12 @@ function toProposal(row: Row | null): AnnotationProposal | null {
   };
 }
 
-function toActivity(row: Row | null): AnnotationActivity | null {
+function toActivity(
+  row: Row | null,
+  leaseHeld: boolean,
+): AnnotationActivity | null {
   if (!row) return null;
-  const status = effectiveStatus(row);
+  const status = effectiveStatus(row, leaseHeld);
   if (status === "succeeded" || status === "cancelled") return null;
   return {
     status,
@@ -110,6 +111,7 @@ export async function readReadings(
       annotation: annotations.document,
       proposal: proposalRuns,
       latest: latestRuns,
+      latestLeaseHeld: leaseIsHeld(latestRuns, new Date()),
     })
     .from(images)
     .leftJoin(
@@ -144,7 +146,7 @@ export async function readReadings(
     detection: row.detection,
     proposal: toProposal(row.proposal),
     annotation: row.annotation,
-    activity: toActivity(row.latest),
+    activity: toActivity(row.latest, row.latestLeaseHeld),
   };
 }
 

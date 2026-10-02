@@ -33,6 +33,8 @@ vitroflow worker restart mac-studio
 vitroflow worker stop mac-studio
 ```
 
+`launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Status page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
+
 `vitroflow worker run <profile>` runs a Worker in the foreground without `launchd`.
 
 ## AI annotation

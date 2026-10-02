@@ -6,8 +6,11 @@ import os
 import time
 from collections import deque
 
-import httpx
-
+from vitroflow.worker.connection import (
+    WorkerConnection,
+    WorkerHttpClient,
+    WorkerNotEnrolledError,
+)
 from vitroflow.worker.host.launchd import service_loaded
 from vitroflow.worker.host.logging import profile_logging
 from vitroflow.worker.host.profiles import (
@@ -51,18 +54,16 @@ def _check_device(device: str | None) -> None:
 
 def _enrolled_worker(profile: WorkerProfile) -> str:
     """The worker the workbench enrolled this profile's token for."""
-    response = httpx.get(
-        f"{profile.server_url.rstrip('/')}/api/worker/ready",
-        headers={"Authorization": f"Bearer {profile.token}"},
+    client = WorkerHttpClient(
+        WorkerConnection(server_url=profile.server_url, token=profile.token),
         timeout=30,
     )
-    if response.status_code == 401:
-        raise RuntimeError(
-            "the workbench does not recognize this token; enroll the worker "
-            "on the Status page and use the token it shows"
-        )
-    response.raise_for_status()
-    return str(response.json()["workerId"])
+    try:
+        response = client.request("GET", "api/worker/ready")
+        response.raise_for_status()
+        return str(response.json()["workerId"])
+    finally:
+        client.close()
 
 
 def preflight_profile(name: str, profile: WorkerProfile) -> tuple[str, ...]:
@@ -124,6 +125,12 @@ def run_profile(name: str) -> int:
                 _write_status(name, "running")
 
             result = run_worker(_settings(name, profile), on_ready=ready)
+        except WorkerNotEnrolledError as error:
+            # Exiting cleanly keeps launchd from restarting a worker that can
+            # only be refused again.
+            LOGGER.error("worker stopped: %s", error)
+            _write_status(name, "unenrolled", detail=str(error))
+            return 0
         except Exception as error:
             LOGGER.exception("worker stopped after an error")
             _write_status(name, "failed", detail=str(error))

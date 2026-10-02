@@ -29,6 +29,7 @@ import {
   submitProposal,
 } from "./tasks";
 import { setInteractiveAnnotation } from "./interactive";
+import { removeWorker } from "../workers/public";
 
 async function finish(runId: string, owner: WorkerIdentity) {
   for (const task of (await workerAnnotationStatus(runId, owner)).tasks) {
@@ -181,6 +182,28 @@ test("a Worker that stops renewing lets go of its run, which another Worker fini
   const row = await stored(run.id);
   expect(row.status).toBe("succeeded");
   expect(row.workerId).toBe(other.workerId);
+});
+
+test("a removed Worker's run goes to the next Worker at once", async () => {
+  const { user, owner, request } = await setup("ai-removed");
+  const run = await createAnnotationRun(request, "worker", user.id);
+  expect(await claimAnnotationRun(owner)).toEqual({ id: run.id });
+  await removeWorker(owner.workerId);
+  expect(
+    (await readReview(request.ref, "removed.jpg", await database()))?.activity
+      ?.status,
+  ).toBe("queued");
+
+  const other = {
+    workerId: "ai-removed-other",
+    sessionId: "session-ai-removed-other",
+  };
+  await recordTestHeartbeat({
+    ...testHeartbeat(other.workerId),
+    annotationRuntime: pi,
+  });
+  expect(await claimAnnotationRun(other)).toEqual({ id: run.id });
+  await finish(run.id, other);
 });
 
 test("any Worker with an agent claims the oldest run", async () => {

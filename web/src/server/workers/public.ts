@@ -7,6 +7,7 @@ export {
 export {
   WorkerSessionConflictError,
   currentWorkerSession,
+  leaseIsHeld,
   listOnlineTrainers,
   listWorkers,
   lockWorkerSession,

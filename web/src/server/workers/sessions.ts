@@ -1,4 +1,5 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, lt, or, sql, type SQLWrapper } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { database, type Executor } from "../infra/db/client";
 import { workerSessions } from "../infra/db/schema";
@@ -115,16 +116,35 @@ export async function lockWorkerSession(
   return sessionOf(identity, row);
 }
 
+/** A session named by values, or by the columns of a row that holds work. */
+interface SessionRef {
+  workerId: string | SQLWrapper;
+  sessionId: string | SQLWrapper;
+}
+
 /**
  * A session is a fencing token: a predicate that holds only while the roster
- * still names it, so a write from a replaced process never lands.
+ * still names it, so a write from a replaced process never lands. A session
+ * ends when a newer process of its worker heartbeats or the worker is
+ * removed.
  */
-export function sessionIsCurrent(owner: WorkerIdentity) {
+export function sessionIsCurrent(session: SessionRef) {
   return sql`exists (
     select 1 from ${workerSessions}
-    where ${workerSessions.workerId} = ${owner.workerId}
-      and ${workerSessions.sessionId} = ${owner.sessionId}
+    where ${workerSessions.workerId} = ${session.workerId}
+      and ${workerSessions.sessionId} = ${session.sessionId}
   )`;
+}
+
+/**
+ * A lease holds while it is unexpired and its session is still current.
+ * Work whose lease no longer holds is free for any session to take.
+ */
+export function leaseIsHeld(
+  lease: SessionRef & { leaseExpiresAt: AnyPgColumn },
+  at: Date,
+) {
+  return sql<boolean>`(${gt(lease.leaseExpiresAt, at)} and ${sessionIsCurrent(lease)})`;
 }
 
 /** The latest session of every worker that has connected, newest first. */

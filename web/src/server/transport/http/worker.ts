@@ -1,8 +1,10 @@
+import { createMiddleware } from "@tanstack/react-start";
+import type { ZodType } from "zod";
+
 import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../annotation-runs/public";
-import type { ZodType } from "zod";
 
 import {
   TrainingArtifactValidationError,
@@ -31,19 +33,24 @@ import {
 export class WorkerRequestError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 401 | 404 | 409 | 422 = 400,
+    readonly status: 400 | 404 | 409 | 422 = 400,
   ) {
     super(message);
   }
 }
 
-/** The enrolled worker the request's token proves it is. */
-export async function requestingWorker(request: Request): Promise<string> {
-  const token = bearerToken(request);
-  const workerId = token ? await authenticateWorker(token) : null;
-  if (!workerId) throw new WorkerRequestError("Unknown worker token", 401);
-  return workerId;
-}
+/**
+ * The worker API answers only to an enrolled worker's token, and hands the
+ * worker it proves to the route.
+ */
+export const requireEnrolledWorker = createMiddleware().server(
+  async ({ request, next }) => {
+    const token = bearerToken(request);
+    const workerId = token ? await authenticateWorker(token) : null;
+    if (!workerId) return new Response("Unknown worker token", { status: 401 });
+    return next({ context: { workerId } });
+  },
+);
 
 export async function parseWorkerJson<T>(
   request: Request,
@@ -60,14 +67,14 @@ export async function parseWorkerJson<T>(
 
 /**
  * A JSON request a worker session makes: the body names the session, and
- * the worker is the one the token proves.
+ * the worker is the one the token proved.
  */
 export async function parseWorkerSessionJson<T extends { sessionId: string }>(
   request: Request,
   schema: ZodType<T>,
+  workerId: string,
 ): Promise<T & { workerId: string }> {
-  const body = await parseWorkerJson(request, schema);
-  return { ...body, workerId: await requestingWorker(request) };
+  return { ...(await parseWorkerJson(request, schema)), workerId };
 }
 
 export function parseWorkerJsonText(text: string): unknown {
@@ -98,15 +105,16 @@ export function parseWorkerValue<T>(
   return parsed.data;
 }
 
-/** The worker session a GET names in its query string. */
-export async function parseWorkerQuery(
+/** The worker session a request names in its query string. */
+export function parseWorkerQuery(
   request: Request,
-): Promise<WorkerIdentity> {
+  workerId: string,
+): WorkerIdentity {
   const parsed = workerSessionSchema.safeParse({
     sessionId: new URL(request.url).searchParams.get("sessionId"),
   });
   if (!parsed.success) throw new WorkerRequestError("sessionId is required");
-  return { workerId: await requestingWorker(request), ...parsed.data };
+  return { workerId, ...parsed.data };
 }
 
 function statusOf(error: unknown): number | null {

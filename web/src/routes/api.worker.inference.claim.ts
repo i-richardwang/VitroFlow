@@ -10,11 +10,12 @@ import { workerSessionSchema } from "../domain/workers/schema";
 export const Route = createFileRoute("/api/worker/inference/claim")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: async ({ request, context }) => {
         try {
           const owner = await parseWorkerSessionJson(
             request,
             workerSessionSchema,
+            context.workerId,
           );
           return Response.json({
             assignment: await claimInferenceAssignment(owner),

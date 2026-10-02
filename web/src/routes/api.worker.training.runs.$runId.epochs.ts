@@ -14,10 +14,14 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/epochs")(
   {
     server: {
       handlers: {
-        POST: async ({ params, request }) => {
+        POST: async ({ params, request, context }) => {
           try {
             const { workerId, sessionId, ...report } =
-              await parseWorkerSessionJson(request, bodySchema);
+              await parseWorkerSessionJson(
+                request,
+                bodySchema,
+                context.workerId,
+              );
             return Response.json(
               await recordTrainingEpoch(
                 params.runId,

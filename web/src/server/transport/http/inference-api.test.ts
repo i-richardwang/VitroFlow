@@ -23,25 +23,13 @@ import {
   imageDigest,
 } from "../../testing/fixtures";
 import { enrollWorker } from "../../workers/public";
-
-type Handler = (context: never) => Response | Promise<Response>;
-
-function handler(
-  route: { options: { server?: { handlers?: unknown } } },
-  method: "GET" | "POST" | "PUT",
-): Handler {
-  const handlers = route.options.server?.handlers as
-    Partial<Record<"GET" | "POST" | "PUT", Handler>> | undefined;
-  const selected = handlers?.[method];
-  if (!selected) throw new Error(`Missing ${method} route handler`);
-  return selected;
-}
+import { routeHandler, workerRoute } from "./testing";
 
 const digest = await imageDigest("image");
 
 test("inference HTTP routes carry an image from upload to detection", async () => {
   const upload = await imageBytes("image");
-  const stored = await handler(
+  const stored = await routeHandler(
     StoreRoute,
     "POST",
   )({
@@ -82,7 +70,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     adapter: "traditional" as const,
     fingerprint: "b".repeat(64),
   };
-  const heartbeatResponse = await handler(
+  const heartbeatResponse = await workerRoute(
     HeartbeatRoute,
     "POST",
   )({
@@ -106,7 +94,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   });
 
   const claim = () =>
-    handler(
+    workerRoute(
       ClaimRoute,
       "POST",
     )({
@@ -139,7 +127,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     artifact: version.artifact,
   });
   expect(assignment.image).toBe(digest);
-  const renewed = await handler(
+  const renewed = await workerRoute(
     LeaseRoute,
     "POST",
   )({
@@ -159,7 +147,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   ).toBeGreaterThan(Date.now());
   expect(
     (
-      await handler(
+      await workerRoute(
         ClaimRoute,
         "POST",
       )({
@@ -172,10 +160,16 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     ).status,
   ).toBe(400);
 
-  const imageResponse = await handler(
+  const imageResponse = await workerRoute(
     ImageRoute,
     "GET",
-  )({ params: { digest } } as never);
+  )({
+    params: { digest },
+    request: new Request(
+      `http://localhost/api/worker/inference/images/${digest}`,
+      { headers: { authorization } },
+    ),
+  });
   expect(imageResponse.headers.get("Content-Type")).toBe("image/avif");
   expect(imageResponse.headers.get("Cache-Control")).toContain("immutable");
   expect(contentDigest(new Uint8Array(await imageResponse.arrayBuffer()))).toBe(
@@ -197,7 +191,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
   };
   const target = { versionId: version.id, digest };
   const put = (body: unknown, sessionId = "api-session") =>
-    handler(
+    workerRoute(
       ResultRoute,
       "PUT",
     )({
@@ -212,7 +206,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       ),
     } as never);
   const rawPut = (params: typeof target, body: string) =>
-    handler(
+    workerRoute(
       ResultRoute,
       "PUT",
     )({
@@ -272,7 +266,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
 test("readiness names the enrolled worker a token belongs to", async () => {
   const { token } = await enrollWorker("ready-worker");
   const ready = (authorization: string) =>
-    handler(
+    workerRoute(
       ReadyRoute,
       "GET",
     )({
@@ -288,7 +282,7 @@ test("readiness names the enrolled worker a token belongs to", async () => {
 
 test("storing an image rejects an absent or excessive body before reading it", async () => {
   const post = (request: Request) =>
-    handler(StoreRoute, "POST")({ request } as never);
+    routeHandler(StoreRoute, "POST")({ request } as never);
 
   const absent = await post(
     new Request("http://localhost/api/images", { method: "POST" }),

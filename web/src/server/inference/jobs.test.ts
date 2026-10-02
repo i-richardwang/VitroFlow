@@ -73,6 +73,37 @@ test("inference claims are exclusive and expired ownership is fenced", async () 
   ).rejects.toBeInstanceOf(InferenceClaimRejectedError);
 });
 
+test("a restarted worker's claims are free at once, and fenced", async () => {
+  await observeImages("claim-restart", ["claim-restart"]);
+  const before = await recordTestHeartbeat(
+    testHeartbeat("claim-restart-worker"),
+  );
+  const claimedAt = new Date("2026-09-03T12:00:00.000Z");
+  const held = await claimInferenceAssignment(before, claimedAt);
+  expect(held).not.toBeNull();
+  const after = await recordTestHeartbeat({
+    ...testHeartbeat("claim-restart-worker"),
+    sessionId: "session-claim-restart-worker-new",
+    startedAt: "2026-08-28T00:00:00.000Z",
+  });
+  let reclaimed = null;
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const candidate = await claimInferenceAssignment(after, claimedAt);
+    if (!candidate) break;
+    if (
+      candidate.image === held!.image &&
+      candidate.manifest.modelVersionId === held!.manifest.modelVersionId
+    ) {
+      reclaimed = candidate;
+      break;
+    }
+  }
+  expect(reclaimed).not.toBeNull();
+  await expect(
+    renewInferenceClaim(targetOf(held!), before, claimedAt),
+  ).rejects.toBeInstanceOf(InferenceClaimRejectedError);
+});
+
 test("only a live owner can renew an inference claim", async () => {
   await observeImages("claim-renew", ["claim-renew"]);
   const worker = await recordTestHeartbeat(testHeartbeat("claim-renew-worker"));
