@@ -22,11 +22,10 @@ import { processImage } from "./processing";
 export interface ImageRegionEvidence {
   key: string;
   clean: Buffer;
-  overview: { bytes: Buffer; width: number; height: number; scale: number };
 }
 
 /** Persistent image evidence, shared across runs, models and connected clients. */
-export function createImageRegionReader(
+export function createImageEvidenceReader(
   store: Pick<BlobStore, "read" | "putImmutable">,
 ) {
   const cache = new ByteCache<Buffer>(32 * 1024 * 1024);
@@ -49,14 +48,14 @@ export function createImageRegionReader(
     cache.set(key, bytes);
   }
 
-  return async function readImageRegion(
+  async function evidence(
     image: ImageFrame,
     layout: ImageRegionLayout,
-    regionId: string,
-    scope: readonly ImageRectangle[] | null = null,
-  ): Promise<ImageRegionEvidence> {
+    scope: readonly ImageRectangle[] | null,
+    regionId: string | null,
+  ): Promise<{ key: string; bytes: Buffer }> {
     const regions = imageRegions(image, layout, scope);
-    if (!regions.some((region) => region.id === regionId))
+    if (regionId !== null && !regions.some((region) => region.id === regionId))
       throw new Error("Image region does not exist");
     const { coreSize, halo, displayScale } = layout;
     const recipe = contentDigest(
@@ -69,25 +68,16 @@ export function createImageRegionReader(
       }),
     );
     const prefix = `${imageRegionsPrefix(image.digest)}${recipe}/`;
-    const cleanKey = `${prefix}${regionId}.png`;
+    const key = `${prefix}${regionId ?? "overview"}.png`;
     const overviewKey = `${prefix}overview.png`;
     const overview = imageOverview(image);
-    const evidence = async (): Promise<ImageRegionEvidence | null> => {
-      const [clean, bytes] = await Promise.all([
-        read(cleanKey),
-        read(overviewKey),
-      ]);
-      return clean && bytes
-        ? { key: cleanKey, clean, overview: { ...overview, bytes } }
-        : null;
-    };
-    const existing = await evidence();
-    if (existing) return existing;
+    const existing = await read(key);
+    if (existing) return { key, bytes: existing };
 
     const preparation = `${prefix}${contentDigest(canonicalJson(regions.map(({ id }) => id)))}`;
     await preparing(preparation, () =>
       processImage(async () => {
-        if (await evidence()) return;
+        if (await read(key)) return;
         const source = await store.read(imageBlobKey(image.digest));
         if (!source) throw new Error(`Missing image: ${image.digest}`);
         const { data, info } = await sharp(source, {
@@ -129,13 +119,35 @@ export function createImageRegionReader(
         }
       }),
     );
-    const prepared = await evidence();
+    const prepared = await read(key);
     if (!prepared) throw new Error("Prepared image region is missing");
-    return prepared;
+    return { key, bytes: prepared };
+  }
+
+  return {
+    async readRegion(
+      image: ImageFrame,
+      layout: ImageRegionLayout,
+      regionId: string,
+      scope: readonly ImageRectangle[] | null = null,
+    ): Promise<ImageRegionEvidence> {
+      const { key, bytes } = await evidence(image, layout, scope, regionId);
+      return { key, clean: bytes };
+    },
+    async readOverview(
+      image: ImageFrame,
+      layout: ImageRegionLayout,
+      scope: readonly ImageRectangle[] | null = null,
+    ) {
+      const { bytes } = await evidence(image, layout, scope, null);
+      return { ...imageOverview(image), bytes };
+    },
   };
 }
 
-export const readImageRegion = createImageRegionReader({
+const evidence = createImageEvidenceReader({
   read: readBlob,
   putImmutable: putImmutableBlob,
 });
+export const readImageRegion = evidence.readRegion;
+export const readImageOverview = evidence.readOverview;

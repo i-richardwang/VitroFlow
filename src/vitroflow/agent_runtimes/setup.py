@@ -9,7 +9,12 @@ import tempfile
 from pathlib import Path
 
 MCP_SERVER = "vitroflow-annotation"
-MCP_TOOLS = ("annotation_view", "annotation_preview", "annotation_submit")
+MCP_TOOLS = (
+    "annotation_context",
+    "annotation_view",
+    "annotation_preview",
+    "annotation_submit",
+)
 
 
 def register_antigravity() -> tuple[Path, Path]:

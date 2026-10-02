@@ -49,22 +49,30 @@ def test_visual_inputs_and_refitted_geometry(
     )
     coordinator, config = annotation_attempt(package)
     tools = AnnotationTools(config)
+    context = tools.call("annotation_context", {"taskId": "tile-000-000"})
+    context_metadata = json.loads(context["content"][0]["text"])
+    assert context_metadata["contextId"] == tools.manifest["packageId"]
+    assert context_metadata["classes"] == ["seed"]
+    assert len([item for item in context["content"] if item["type"] == "image"]) == 1
+    assert not list(package.glob("tasks/*/overview.png"))
     viewed = tools.call("annotation_view", {"taskId": "tile-000-000"})
     metadata = json.loads(viewed["content"][0]["text"])
     images = [
         base64.b64decode(v["data"]) for v in viewed["content"] if v["type"] == "image"
     ]
+    assert metadata["task"]["contextId"] == context_metadata["contextId"]
+    assert "rules" not in metadata and "classes" not in metadata
     assert metadata["task"]["displaySize"] == [256 * scale, 128 * scale]
-    assert images[1] == (package / "tasks/tile-000-000/clean.png").read_bytes()
-    assert len(images) == (3 if with_references else 2)
+    assert images[0] == (package / "tasks/tile-000-000/clean.png").read_bytes()
+    assert len(images) == (2 if with_references else 1)
     assert metadata["mode"] == ("refit" if with_references else "annotate")
     assert metadata["references"] == (
         [{"id": "r001", "class": "seed"}] if with_references else []
     )
     assert "candidates" not in metadata
     if with_references:
-        assert images[2] == (package / "tasks/tile-000-000/before.png").read_bytes()
-        assert images[2] != images[1]
+        assert images[1] == (package / "tasks/tile-000-000/before.png").read_bytes()
+        assert images[1] != images[0]
         assert "zero,\none, or multiple" in metadata["instructions"]
     else:
         assert "INITIAL" not in metadata["instructions"]
@@ -80,8 +88,8 @@ def test_visual_inputs_and_refitted_geometry(
         base64.b64decode(v["data"]) for v in preview["content"] if v["type"] == "image"
     ]
     assert len(preview_images) == 2
-    assert preview_images[0] == images[1]
-    assert preview_images[1] != images[1]
+    assert preview_images[0] == images[0]
+    assert preview_images[1] != images[0]
     assert cv2.imdecode(
         np.frombuffer(preview_images[1], np.uint8), cv2.IMREAD_COLOR
     ).shape[:2] == (128 * scale, 256 * scale)

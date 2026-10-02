@@ -144,15 +144,21 @@ def test_native_mcp_images_and_normalized_geometry(
     async def check():
         async with Client(parameters, mode=mode) as client:
             assert {t.name for t in (await client.list_tools()).tools} == {
+                "annotation_context",
                 "annotation_view",
                 "annotation_preview",
                 "annotation_submit",
             }
+            context = await client.call_tool(
+                "annotation_context", {"taskId": "tile-000-000"}
+            )
+            assert not context.is_error
+            assert sum(v.type == "image" for v in context.content) == 1
             viewed = await client.call_tool(
                 "annotation_view", {"taskId": "tile-000-000"}
             )
             assert not viewed.is_error
-            assert sum(v.type == "image" for v in viewed.content) == 3
+            assert sum(v.type == "image" for v in viewed.content) == 2
             metadata = json.loads(viewed.content[0].text)
             assert metadata["mode"] == "refit"
             assert metadata["references"] == [{"id": "r001", "class": "seed"}]
@@ -231,7 +237,7 @@ def test_registration_is_explicit_idempotent_and_preserves_other_settings(
     assert document["model"] == "my-default"
     assert document["permissions"]["ask"] == ["command(*)"]
     assert document["permissions"]["deny"] == ["read_url(*)"]
-    assert len(document["permissions"]["allow"]) == 4
+    assert len(document["permissions"]["allow"]) == 5
     assert settings.stat().st_mode & 0o077 == 0
 
 

@@ -67,7 +67,7 @@ def test_supervised_collection_and_private_environment(
     assert "--no-extensions" in arguments and "--no-context-files" in arguments
     assert (
         arguments[arguments.index("--tools") + 1]
-        == "annotation_view,annotation_preview,annotation_submit"
+        == "annotation_context,annotation_view,annotation_preview,annotation_submit"
     )
     assert "--extension" in arguments
     with pytest.raises(FileExistsError):

@@ -68,6 +68,7 @@ if model != "test/incomplete":
     command = json.loads(Path("tools.json").read_text())["command"]
     tools = AnnotationTools(Path(command[command.index("--config") + 1]))
     task = tools.task
+    tools.call("annotation_context", {"taskId": task["id"]})
     tools.call("annotation_view", {"taskId": task["id"]})
     preview = tools.call("annotation_preview", {"taskId": task["id"], "instances": []})
     proposal = json.loads(preview["content"][0]["text"])["proposalId"]

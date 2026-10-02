@@ -40,6 +40,7 @@ if model != "test/incomplete":
     args = json.loads(os.environ["VITROFLOW_AGENT_TOOL_COMMAND"])
     tools = AnnotationTools(Path(args[args.index("--config") + 1]))
     task = tools.task["id"]
+    tools.call("annotation_context", {"taskId": task})
     tools.call("annotation_view", {"taskId": task})
     preview = tools.call("annotation_preview", {"taskId": task, "instances": []})
     proposal_id = json.loads(preview["content"][0]["text"])["proposalId"]

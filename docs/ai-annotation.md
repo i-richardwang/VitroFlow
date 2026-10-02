@@ -61,8 +61,8 @@ server are unaffected.
 
 | Principal             | Authentication                                                                  | Tools                                                                                                   | Scope                           |
 | --------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| A person's agent      | User OAuth for the annotation resource, while interactive annotation is enabled | `annotation_read`, `annotation_start`, `annotation_next`, `annotation_cancel`, and the three core tools | The user's own interactive runs |
-| Worker-launched agent | Signed, short-lived task bearer token                                           | The three core tools only                                                                               | One run, region and attempt     |
+| A person's agent      | User OAuth for the annotation resource, while interactive annotation is enabled | `annotation_read`, `annotation_start`, `annotation_next`, `annotation_cancel`, and the four core tools | The user's own interactive runs |
+| Worker-launched agent | Signed, short-lived task bearer token                                           | The four core tools only                                                                               | One run, region and attempt     |
 
 The authenticated per-request MCP factory constructs the tool list. Every core
 operation independently checks task ownership and state, so hiding tools is not
@@ -124,8 +124,16 @@ discards its accepted regions, so a new run can start with another input or scop
 The core schemas are identical for both principals and are also generated into
 Python's standalone tool contracts:
 
-- `annotation_view({taskId})` returns rules, classes, a full-image location overview,
-  CLEAN, and optional numbered INITIAL references. Task identifiers are
+- `annotation_context({taskId})` returns a stable `contextId`, the frozen image,
+  classes, rules, layout and scope, and one unmarked whole-image OVERVIEW.
+  `contextId` is the run identity: its definition is frozen, so every region of
+  that run uses the same context. Load it at conversation start, when the context
+  changes, and after context loss or compaction. A client may explicitly reload
+  it at any time; the server does not track which conversations have seen it.
+- `annotation_view({taskId})` returns `contextId`, regional source geometry,
+  CLEAN, and optional numbered INITIAL references. It does not repeat the
+  overview or shared rules. Core and patch rectangles are original image pixels;
+  proposal coordinates remain normalized to CLEAN. Task identifiers are
   server-issued and must be used verbatim.
 - `annotation_preview({taskId, instances, issues?})` validates the complete proposal,
   stores an immutable version, and returns `proposalId`, CLEAN and PROPOSED images.
@@ -143,7 +151,7 @@ Python's standalone tool contracts:
 Images are MCP image content containing PNG bytes, not authenticated download URLs.
 Only the service reads canonical AVIFs from the existing blob store. The default
 512-pixel core, 32-pixel halo and 1× display preserve native region detail; the
-location overview is limited to a 1024-pixel longest side. Display magnification
+shared overview is limited to a 1024-pixel longest side. Display magnification
 changes presentation, not final coordinates. Runs are limited to 4096 regions;
 increase core size for larger images.
 
@@ -151,9 +159,9 @@ The image asset module prepares evidence on first access. It reads and decodes
 the canonical AVIF once, then uses those same decoded pixels to produce lossless
 PNG regions and a base overview. A scoped run prepares only the regions it
 touches; their assets are shared with whole-image runs. Region geometry is shared
-with task planning;
-rules, initial boxes and proposals are not part of the image assets. The source
-digest, core size, halo, display scale and renderer version identify a reusable
+with task planning; rules, initial boxes and proposals are not part of the image
+assets. The source digest, core size, halo, display scale and renderer version
+identify a reusable
 set of assets in the existing blob store. Runs and clients share them, including
 after a server restart. Partial preparations contain independently usable images;
 a later missing-region request can finish preparation without changing any
@@ -162,12 +170,27 @@ accepted annotation.
 Ingestion and image preparation share one process-wide slot, acquired before
 loading an original for preparation. Concurrent requests for the same asset set
 share its preparation. A 32 MiB LRU retains encoded evidence, not decoded original
-images. Views use prepared CLEAN and overview; preview composites only CLEAN.
-Location, reference and proposal overlays use a separate 16 MiB LRU and at most
+images. Context reads only the overview; views and previews read only CLEAN.
+Reference and proposal overlays use a separate 16 MiB LRU and at most
 two concurrent renders. These budgets bound retained cache bytes; decoder and
 render working memory are additional. Authorization and task state are checked
 on every operation, including cache hits. Collection removes derived assets when
 their source Image is no longer rooted.
+
+A conversation handling multiple regions loads shared context once, then loops
+through next, view, preview and submit. It reloads context whenever the region's
+`contextId` changes or the previous context is no longer available. A newly
+launched agent always loads it, including an agent resuming a partially completed
+run. Task credentials authorize context through their assigned region, without
+opening other regions. Context access performs the same ownership, attempt,
+expiry and lease checks as region access, including cached asset reads. Context
+loading is read-only and does not advance the run. No server-side seen-context
+flag can describe what remains in a model's conversation.
+
+For 20 fresh regions with one preview each, this flow delivers one overview,
+20 CLEAN views and 40 preview images, instead of 20 overviews and 60 regional
+images. This counts image messages, not model tokens. Worker scheduling still
+launches one independent conversation per region; each loads its own context.
 
 A connected client must actually deliver MCP image content to its vision model.
 Displaying an image in the chat UI alone does not verify that behavior. Real
@@ -178,10 +201,13 @@ will process an entire dataset without interruption.
 Example instruction after connecting a client:
 
 > Use VitroFlow to annotate image DIGEST for model MODEL. Start an annotation run
-> unless one is already in progress, get its next region, view every returned image,
-> follow the model's rules, preview the complete boxes, inspect and correct them, and
-> submit the previewed proposal. Continue until annotation_submit reports the run
-> succeeded. Save the result as an AI proposal.
+> unless one is already in progress and get its next region. Call annotation_context
+> at conversation start and follow its classes and rules. Reuse that context across
+> regions with the same contextId; reload after switching contexts or context loss.
+> For each region, call annotation_view and inspect every returned image, preview
+> the complete boxes, inspect and correct them, and submit the previewed proposal.
+> Continue until annotation_submit reports the run succeeded. Save the result as
+> an AI proposal.
 
 ## Worker responsibilities
 

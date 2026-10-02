@@ -19,7 +19,7 @@ import {
   annotationScopeSchema,
 } from "../../../domain/annotation-runs/schema";
 import {
-  annotationViewInput,
+  annotationTaskInput,
   annotationPreviewInput,
   annotationSubmitInput,
 } from "../../../domain/annotation-runs/tasks";
@@ -27,6 +27,7 @@ import {
   createAnnotationRun,
   cancelOwnAnnotationRun,
   nextAnnotationTask,
+  readAnnotationContext,
   viewAnnotationTask,
   previewAnnotationTask,
   submitProposal,
@@ -156,9 +157,18 @@ function registerAnnotationTools(
     );
   }
   register(
+    "annotation_context",
+    "Load the assigned task's shared image overview, classes and rules. Reuse them for regions with the same contextId. Call at conversation start, when contextId changes, or after context loss.",
+    annotationTaskInput,
+    { readOnlyHint: true },
+    async (args) => ({
+      content: content(await readAnnotationContext(principal, args.taskId)),
+    }),
+  );
+  register(
     "annotation_view",
-    "View the assigned region: image evidence, full-image locator and optional reference boxes. Follow the returned annotation rules.",
-    annotationViewInput,
+    "View only the assigned region: CLEAN, optional INITIAL reference boxes, source geometry and contextId. Load annotation_context if its context is not already available. Follow that context's classes and rules.",
+    annotationTaskInput,
     { readOnlyHint: true },
     async (args) => {
       return {
@@ -209,8 +219,8 @@ function buildServer({ authInfo }: McpRequestContext): McpServer {
     {
       instructions:
         principal.kind === "user"
-          ? "Annotate images for a model by drawing boxes region by region. Read the image with annotation_read, start or continue its run with annotation_start and annotation_next, then view, preview and submit each region until the run succeeds. Results are AI proposals a person reviews."
-          : "Annotate the one region this credential names: view it, preview a complete proposal, and submit exactly what you previewed.",
+          ? "Annotate images for a model by drawing boxes region by region. Read the image with annotation_read, start or continue its run with annotation_start and annotation_next, then load annotation_context once per conversation and view, preview and submit each region until the run succeeds. Reuse context only while its contextId is unchanged and available; reload after context loss. Results are AI proposals a person reviews."
+          : "Annotate the one region this credential names: load annotation_context, view the region, preview a complete proposal, and submit exactly what you previewed. Reload context after context loss.",
     },
   );
   registerAnnotationTools(server, principal);

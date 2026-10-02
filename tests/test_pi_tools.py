@@ -84,6 +84,7 @@ export default async function(pi) {
     let result;
     try {
       const invoke = (name, args) => definitions.get(name).execute("test", args, undefined, undefined, context);
+      const shared = await invoke("annotation_context", { taskId: "tile-000-000" });
       const view = await invoke("annotation_view", { taskId: "tile-000-000" });
       const metadata = JSON.parse(view.content.find(v => v.type === "text").text);
       const value = { taskId: "tile-000-000", instances: [{ id: "one", class: "seed", box_2d: [125.5, 250.25, 625.5, 750.25] }], issues: [{ box_2d: [0, 0, 1000, 1000], reason: "Boundary test" }] };
@@ -96,7 +97,7 @@ export default async function(pi) {
       const preview = await invoke("annotation_preview", value);
       const proposalId = JSON.parse(preview.content.find(v => v.type === "text").text).proposalId;
       const accepted = await invoke("annotation_submit", { taskId: value.taskId, proposalId });
-      result = { metadata, previewMetadata: JSON.parse(preview.content.find(v => v.type === "text").text), tools: pi.getActiveTools(), viewImages: view.content.filter(v => v.type === "image").length, previewImages: preview.content.filter(v => v.type === "image").length, rejected, terminate: accepted.terminate };
+      result = { contextImages: shared.content.filter(v => v.type === "image").length, metadata, previewMetadata: JSON.parse(preview.content.find(v => v.type === "text").text), tools: pi.getActiveTools(), viewImages: view.content.filter(v => v.type === "image").length, previewImages: preview.content.filter(v => v.type === "image").length, rejected, terminate: accepted.terminate };
     } catch(error) { result = { error: String(error) }; }
     writeFileSync(RESULT_PATH, JSON.stringify(result));
   });
@@ -113,7 +114,7 @@ export default async function(pi) {
             "--no-skills",
             "--no-context-files",
             "--tools",
-            "annotation_view,annotation_preview,annotation_submit",
+            "annotation_context,annotation_view,annotation_preview,annotation_submit",
             "--extension",
             str(probe),
         ],
@@ -142,6 +143,10 @@ export default async function(pi) {
     observed = read_json(result)
     metadata = observed.pop("metadata")
     assert metadata["task"] == {
+        "contextId": coordinator.manifest["packageId"],
+        "core": [16, 8, 80, 40],
+        "patch": [16, 8, 80, 40],
+        "sourceCoordinateSpace": "core and patch: [left, top, right, bottom] in original image pixels",
         "id": "tile-000-000",
         "displaySize": [192, 96],
         "coordinateSpace": "box_2d: [ymin, xmin, ymax, xmax], normalized 0–1000",
@@ -153,8 +158,14 @@ export default async function(pi) {
     assert len(preview_metadata.pop("proposalId")) == 64
     assert preview_metadata == metadata["task"]
     assert observed == {
-        "tools": ["annotation_view", "annotation_preview", "annotation_submit"],
-        "viewImages": 3,
+        "tools": [
+            "annotation_context",
+            "annotation_view",
+            "annotation_preview",
+            "annotation_submit",
+        ],
+        "contextImages": 1,
+        "viewImages": 2,
         "previewImages": 2,
         "rejected": 7,
         "terminate": True,

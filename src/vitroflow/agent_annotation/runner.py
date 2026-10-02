@@ -208,7 +208,7 @@ def session(
     that is only a record.
     """
     folder = Path(attempt["directory"])
-    prompt = runtime_prompt(coordinator.package, coordinator.manifest, key)
+    prompt = runtime_prompt(key)
     (folder / "prompt.txt").write_text(prompt, encoding="utf-8")
     tools = ToolSet(
         (

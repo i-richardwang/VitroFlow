@@ -35,7 +35,7 @@ vitroflow annotate run --runtime antigravity --image photo.jpg \
   --core-size 256 --halo 32 --display-scale 4 --output output/agy-small-regions
 ```
 
-`--runtime` defaults to `pi`; `--executable` selects its executable and `--model` optionally overrides its default. `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the runtime descriptor, then launches one independent session per region. `--parallel` bounds concurrent sessions (default 2, range 1–16); `--timeout` applies to each session. Both runtimes use the same normalized view, preview, and submit operations. Each tool is bound to that session's task and attempt; it cannot operate on another region. The first view supplies a full-image overview (longest side at most 1024 pixels) with the current patch outlined, the native-scale CLEAN patch, and optional INITIAL references. Subsequent previews pair CLEAN and PROPOSED.
+`--runtime` defaults to `pi`; `--executable` selects its executable and `--model` optionally overrides its default. `--config` supplies tile settings, classes, and instructions. The runner resolves and freezes the runtime descriptor, then launches one independent session per region. `--parallel` bounds concurrent sessions (default 2, range 1–16); `--timeout` applies to each session. Both runtimes use the same context, normalized view, preview, and submit operations. Each tool is bound to that session's task and attempt; it cannot operate on another region. At conversation start, `annotation_context` supplies shared rules, classes and a full-image overview (longest side at most 1024 pixels). Its `contextId` is the frozen package identity. `annotation_view` supplies only the native-scale CLEAN patch, source core/patch geometry, contextId and optional INITIAL references. Reuse shared context while its identity is unchanged and its contents remain available; reload it after context loss or compaction. Subsequent previews pair CLEAN and PROPOSED.
 
 Configuration defaults and field constraints come from the shared annotation contract generated from `web/src/domain/models/annotation.ts`. Class names use unique lowercase snake_case identifiers. Custom classes require explicit instructions; context cannot exceed the core size.
 
@@ -45,7 +45,7 @@ The run directory contains:
 
 ```text
 ai-round-1/
-├── tasks/                 Frozen shared input, including per-patch overview.png
+├── tasks/                 Frozen shared input, including one package-level overview.png
 ├── request.json           Original image/input/settings identity for explicit resume
 ├── descriptor.json        Frozen runtime identity
 ├── state.json             Coordinator-owned attempts and accepted responses
@@ -144,7 +144,7 @@ Save responses outside the checkpoint directory. Bounding boxes use display pixe
 
 ```json
 {
-  "schemaVersion": "vitroflow.autoannotation/v5",
+  "schemaVersion": "vitroflow.autoannotation/v6",
   "packageId": "packageId from manifest.json",
   "taskId": "tile-000-000",
   "producer": "actual agent/model/runtime",

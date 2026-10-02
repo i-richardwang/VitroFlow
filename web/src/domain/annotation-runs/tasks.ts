@@ -127,13 +127,13 @@ export function projectProposal(
   };
 }
 
-export const annotationViewInput = z.strictObject({
+export const annotationTaskInput = z.strictObject({
   taskId: z.string().min(1),
 });
-export const annotationPreviewInput = annotationViewInput.extend(
+export const annotationPreviewInput = annotationTaskInput.extend(
   regionProposalSchema.shape,
 );
-export const annotationSubmitInput = annotationViewInput.extend({
+export const annotationSubmitInput = annotationTaskInput.extend({
   proposalId: z.string().regex(/^[a-f0-9]{64}$/),
 });
 

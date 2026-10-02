@@ -203,15 +203,25 @@ def test_python_bridge_against_real_product_mcp_service(tmp_path):
             client = AnnotationMcpClient(binding["endpoint"], binding["token"])
             definitions = client.request("tools/list")["tools"]
             assert sorted(tool["name"] for tool in definitions) == [
+                "annotation_context",
                 "annotation_preview",
                 "annotation_submit",
                 "annotation_view",
             ]
             identity = {"taskId": binding["taskId"]}
+            context = client.call("annotation_context", identity)
+            assert (
+                len([item for item in context["content"] if item["type"] == "image"])
+                == 1
+            )
             viewed = client.call("annotation_view", identity)
             assert (
+                json.loads(viewed["content"][0]["text"])["contextId"]
+                == json.loads(context["content"][0]["text"])["contextId"]
+            )
+            assert (
                 len([item for item in viewed["content"] if item["type"] == "image"])
-                == 2
+                == 1
             )
             preview = client.call("annotation_preview", {**identity, "instances": []})
             proposal_id = json.loads(preview["content"][0]["text"])["proposalId"]

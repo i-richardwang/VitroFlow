@@ -7,6 +7,7 @@ import {
   signInAs,
   testHeartbeat,
 } from "../testing/fixtures";
+import { storeImage } from "../images/public";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { readAnnotationReading } from "../readings/public";
 import { database } from "../infra/db/client";
@@ -16,7 +17,11 @@ import { createAnnotationRun, cancelAnnotationRun } from "./runs";
 import { nextAnnotationTask, savePreview, submitProposal } from "./tasks";
 import { readTask, validateTaskPrincipal } from "./access";
 import { claimAnnotationRun, assignWorkerTask } from "./worker";
-import { viewAnnotationTask, previewAnnotationTask } from "./views";
+import {
+  readAnnotationContext,
+  viewAnnotationTask,
+  previewAnnotationTask,
+} from "./views";
 import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
 
 async function setup(name: string, scheduled = false) {
@@ -59,10 +64,28 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
   expect(await nextAnnotationTask(principal, ref)).toEqual(next);
   const taskId = next.taskId;
   const access = await readTask(principal, taskId);
+  const context = await readAnnotationContext(principal, taskId);
+  expect(context.filter((item) => item.kind === "image")).toHaveLength(1);
+  expect(context[0]).toMatchObject({
+    kind: "description",
+    value: {
+      contextId: run.id,
+      classes: access.run.definition.config.classes,
+      rules: access.run.definition.config.rules,
+    },
+  });
   const content = await viewAnnotationTask(principal, taskId);
+  expect(content[0]).toMatchObject({
+    kind: "description",
+    value: {
+      contextId: run.id,
+      core: access.task.region.core,
+      patch: access.task.region.patch,
+    },
+  });
   const pictures = content.filter((i) => i.kind === "image");
-  expect(pictures).toHaveLength(2);
-  const dimensions = await sharp(pictures[1]!.bytes).metadata();
+  expect(pictures).toHaveLength(1);
+  const dimensions = await sharp(pictures[0]!.bytes).metadata();
   expect(dimensions.width).toBe(
     access.task.region.patch.width * access.run.definition.config.displayScale,
   );
@@ -74,6 +97,9 @@ test("interactive image-to-preview-to-submit is durable, idempotent and remains 
   expect(repeated.panels.filter((i) => i.kind === "image")[1]!.bytes).toBe(
     preview.panels.filter((i) => i.kind === "image")[1]!.bytes,
   );
+  await expect(
+    readAnnotationContext({ ...principal, userId: "other" }, taskId),
+  ).rejects.toThrow("not owned");
   await expect(
     viewAnnotationTask({ ...principal, userId: "other" }, taskId),
   ).rejects.toThrow("not owned");
@@ -145,6 +171,10 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
   if (binding.accepted) throw new Error("Unexpected acceptance");
   const principal = binding.principal;
   await validateTaskPrincipal(principal);
+  await readAnnotationContext(principal, principal.taskId);
+  await expect(
+    readAnnotationContext(principal, `${run.id}/tile-999-999`),
+  ).rejects.toThrow();
   await expect(nextAnnotationTask(principal, ref)).rejects.toThrow("Only user");
   await expect(readTask(principal, "other")).rejects.toThrow();
   const preview = await savePreview(principal, principal.taskId, proposal);
@@ -157,6 +187,9 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
   if (newer.accepted) throw new Error("Unexpected acceptance");
   await expect(
     submitProposal(principal, principal.taskId, preview.proposalId),
+  ).rejects.toThrow("different region or attempt");
+  await expect(
+    readAnnotationContext(principal, principal.taskId),
   ).rejects.toThrow("different region or attempt");
   const newPrincipal = newer.principal;
   await expect(
@@ -173,15 +206,24 @@ test("task credentials fence other regions, replaced attempts, cancellation, exp
     },
   });
   await expect(validateTaskPrincipal(newPrincipal)).rejects.toThrow();
+  await expect(
+    readAnnotationContext(newPrincipal, newPrincipal.taskId),
+  ).rejects.toThrow();
   await cancelAnnotationRun(ref);
   await expect(validateTaskPrincipal(newPrincipal)).rejects.toThrow(
     "not active",
   );
 });
 
-test("all regions, including empty ones, must be accepted before finalization", async () => {
+test("twenty regions reuse frozen context across views and reconnects before finalization", async () => {
   const { principal, ref } = await setup("remote-multiregion");
   await cancelAnnotationRun(ref);
+  const source = await sharp({
+    create: { width: 320, height: 16, channels: 3, background: "#aaa" },
+  })
+    .png()
+    .toBuffer();
+  ref.digest = (await storeImage(source)).digest;
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Regional annotation test",
@@ -202,13 +244,38 @@ test("all regions, including empty ones, must be accepted before finalization", 
     "interactive",
     principal.kind === "user" ? principal.userId : "",
   );
-  expect(second.progress.total).toBeGreaterThan(1);
+  expect(second.progress.total).toBe(20);
+  const firstTask = (await nextAnnotationTask(principal, ref)).taskId;
+  const context = await readAnnotationContext(principal, firstTask);
+  await setModelAnnotation({
+    model: ref.modelId,
+    annotation: {
+      instructions: "Changed future rules",
+      coreSize: 32,
+      halo: 4,
+      displayScale: 1,
+    },
+  });
+  const reconnected = { ...principal, clientId: "another-conversation" };
   let completed = 0;
+  let deliveredImages = context.filter((item) => item.kind === "image").length;
   for (let status = second.status; status === "running";) {
     const next = await nextAnnotationTask(principal, ref);
-    const preview = await savePreview(principal, next.taskId, {
+    const view = await viewAnnotationTask(principal, next.taskId);
+    expect(view.filter((item) => item.kind === "image")).toHaveLength(1);
+    expect(view[0]).toMatchObject({
+      kind: "description",
+      value: { contextId: second.id },
+    });
+    expect(
+      JSON.stringify(view.filter((item) => item.kind === "description")),
+    ).not.toContain("Box all seeds");
+    const preview = await previewAnnotationTask(principal, next.taskId, {
       instances: [],
     });
+    deliveredImages +=
+      view.filter((item) => item.kind === "image").length +
+      preview.panels.filter((item) => item.kind === "image").length;
     const receipt = await submitProposal(
       principal,
       next.taskId,
@@ -221,6 +288,22 @@ test("all regions, including empty ones, must be accepted before finalization", 
     );
   }
   expect(completed).toBe(second.progress.total);
+  expect(deliveredImages).toBe(61);
+  expect(await readAnnotationContext(reconnected, firstTask)).toEqual(context);
+  const later = await createAnnotationRun(
+    { ref, input: null, scope: null },
+    "interactive",
+    principal.kind === "user" ? principal.userId : "",
+  );
+  const laterTask = (await nextAnnotationTask(principal, ref)).taskId;
+  expect(later.id).not.toBe(second.id);
+  expect(
+    (await readAnnotationContext(reconnected, laterTask))[0],
+  ).toMatchObject({
+    kind: "description",
+    value: { contextId: later.id, rules: "Changed future rules" },
+  });
+  await cancelAnnotationRun(ref);
 });
 
 test("a run scoped to part of the image redraws only the regions it touches and keeps the boxes of the reading it begins from elsewhere", async () => {

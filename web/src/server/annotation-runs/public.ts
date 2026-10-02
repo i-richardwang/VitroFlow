@@ -13,7 +13,11 @@ export {
   nextAnnotationTask,
   submitProposal,
 } from "./tasks";
-export { viewAnnotationTask, previewAnnotationTask } from "./views";
+export {
+  readAnnotationContext,
+  viewAnnotationTask,
+  previewAnnotationTask,
+} from "./views";
 export type { AnnotationPanel } from "./rendering";
 export { validateTaskPrincipal } from "./access";
 export {

@@ -130,7 +130,11 @@ def test_only_one_owner_and_task_scoped_tools(tmp_path):
         ):
             pytest.fail("two writers acquired the same run")
         _, tools = tool_for(owner, "tile-000-000")
-        for operation in ("annotation_view", "annotation_preview"):
+        for operation in (
+            "annotation_context",
+            "annotation_view",
+            "annotation_preview",
+        ):
             args = {"taskId": "tile-000-001"}
             if operation.endswith("preview"):
                 args["instances"] = []
@@ -190,6 +194,7 @@ class FakeRuntime:
         self.calls.append((task_id, tool.settings["attemptId"]))
         assert json.loads(prompt.split("Assigned task: ")[1].split(".\n")[0]) == task_id
         assert {t["name"] for t in tools.definitions} == {
+            "annotation_context",
             "annotation_view",
             "annotation_preview",
             "annotation_submit",
@@ -200,6 +205,7 @@ class FakeRuntime:
             raise RuntimeError("simulated task failure")
         if cancelled():
             raise RuntimeError("cancelled")
+        tool.call("annotation_context", {"taskId": task_id})
         tool.call("annotation_view", {"taskId": task_id})
         tool.call("annotation_submit", proposal(tool))
         assert completed()
@@ -288,7 +294,7 @@ def test_cancellation_fences_publication_and_does_not_export(tmp_path):
     )
 
 
-def test_overview_is_full_image_and_locator_matches_halo_without_changing_clean(
+def test_context_overview_is_shared_and_regions_keep_exact_halo_pixels(
     tmp_path, annotation_attempt
 ):
     image = fixture_image(tmp_path, 1200, 800)
@@ -298,6 +304,7 @@ def test_overview_is_full_image_and_locator_matches_halo_without_changing_clean(
     )
     owner, config = annotation_attempt(package, task_id="tile-001-001")
     tools = AnnotationTools(config)
+    context = tools.call("annotation_context", {"taskId": tools.task["id"]})
     viewed = tools.call("annotation_view", {"taskId": tools.task["id"]})
     images = [
         cv2.imdecode(np.frombuffer(base64.b64decode(v["data"]), np.uint8), 1)
@@ -305,16 +312,21 @@ def test_overview_is_full_image_and_locator_matches_halo_without_changing_clean(
         if v["type"] == "image"
     ]
     original = cv2.imread(str(image))
-    assert np.array_equal(images[1], original[496:656, 696:856])
+    assert len(images) == 1
+    assert np.array_equal(images[0], original[496:656, 696:856])
     expected = cv2.resize(original, (1024, 683), interpolation=cv2.INTER_AREA)
-    cv2.rectangle(
-        expected,
-        (round(696 * 1024 / 1200), round(496 * 1024 / 1200)),
-        (round(856 * 1024 / 1200), round(656 * 1024 / 1200)),
-        (20, 50, 255),
-        3,
+    overview = next(item for item in context["content"] if item["type"] == "image")
+    decoded = cv2.imdecode(
+        np.frombuffer(base64.b64decode(overview["data"]), np.uint8), 1
     )
-    assert np.array_equal(images[0], expected)
+    assert np.array_equal(decoded, expected)
+    _, other = tool_for(owner, "tile-000-000")
+    assert other.call("annotation_context", {"taskId": other.task["id"]}) == context
+    assert (
+        AnnotationTools(config).call("annotation_context", {"taskId": tools.task["id"]})
+        == context
+    )
+    assert not list(package.glob("tasks/*/overview.png"))
     assert len(owner.events) == 4
 
 

@@ -1,14 +1,30 @@
 import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
-import { readImageRegion } from "../images/public";
+import { readImageRegion, readImageOverview } from "../images/public";
 import { readTask } from "./access";
 import { savePreview } from "./tasks";
-import { renderTask } from "./rendering";
+import { renderContext, renderTask } from "./rendering";
+export async function readAnnotationContext(
+  principal: AnnotationPrincipal,
+  taskId: string,
+) {
+  const { run } = await readTask(principal, taskId);
+  return renderContext(
+    run.id,
+    run.definition,
+    await readImageOverview(
+      run.definition.image,
+      run.definition.config,
+      run.definition.scope,
+    ),
+  );
+}
 export async function viewAnnotationTask(
   principal: AnnotationPrincipal,
   taskId: string,
 ) {
   const { run, task } = await readTask(principal, taskId);
   return renderTask(
+    run.id,
     run.definition,
     task.region,
     await readImageRegion(
@@ -32,6 +48,7 @@ export async function previewAnnotationTask(
   return {
     proposalId,
     panels: await renderTask(
+      run.id,
       run.definition,
       task.region,
       await readImageRegion(

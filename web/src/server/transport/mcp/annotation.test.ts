@@ -35,6 +35,7 @@ async function toolNames(response: Response): Promise<string[]> {
 
 const USER_TOOLS = [
   "annotation_cancel",
+  "annotation_context",
   "annotation_next",
   "annotation_preview",
   "annotation_read",
@@ -76,6 +77,7 @@ describe.each(requestEras)(
         idempotentHint: true,
       });
       expect(tool("annotation_read").annotations.readOnlyHint).toBe(true);
+      expect(tool("annotation_context").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_view").annotations.readOnlyHint).toBe(true);
     });
 
@@ -239,7 +241,21 @@ describe.each(requestEras)(
       expect(started.isError).toBeUndefined();
       const next = await call("annotation_next", { ref });
       const { taskId } = JSON.parse(next.content[0].text);
+      const context = await call("annotation_context", { taskId });
+      expect(
+        context.content.filter(
+          (item: { type: string }) => item.type === "image",
+        ),
+      ).toHaveLength(1);
       const viewed = await call("annotation_view", { taskId });
+      expect(JSON.parse(viewed.content[0].text).contextId).toBe(
+        JSON.parse(context.content[0].text).contextId,
+      );
+      expect(
+        viewed.content.filter(
+          (item: { type: string }) => item.type === "image",
+        ),
+      ).toHaveLength(1);
       expect(
         viewed.content.some((item: { type: string }) => item.type === "image"),
       ).toBe(true);
@@ -307,6 +323,7 @@ describe.each(requestEras)(
         expect(response.headers.get("allow")).toBe("POST");
       }
       expect(await toolNames(await annotation(task, "tools/list"))).toEqual([
+        "annotation_context",
         "annotation_preview",
         "annotation_submit",
         "annotation_view",
@@ -316,7 +333,7 @@ describe.each(requestEras)(
         await toolNames(await annotation(accessToken, "tools/list")),
       ).toEqual(USER_TOOLS);
       const wrongTask = await annotation(task, "tools/call", {
-        name: "annotation_view",
+        name: "annotation_context",
         arguments: { taskId: "another-run/tile-000-000" },
       });
       expect((await rpcMessage(wrongTask)).result.isError).toBe(true);

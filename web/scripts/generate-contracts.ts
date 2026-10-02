@@ -1,5 +1,5 @@
 import {
-  annotationViewInput,
+  annotationTaskInput,
   annotationPreviewInput,
   annotationSubmitInput,
 } from "../src/domain/annotation-runs/tasks";
@@ -27,7 +27,8 @@ const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["annotation", annotationSchema],
-  ["annotation-tool-view", annotationViewInput],
+  ["annotation-tool-context", annotationTaskInput],
+  ["annotation-tool-view", annotationTaskInput],
   ["annotation-tool-preview", annotationPreviewInput],
   ["annotation-tool-submit", annotationSubmitInput],
   ["annotation-config", annotationConfigSchema],
