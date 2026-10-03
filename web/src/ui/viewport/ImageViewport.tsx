@@ -12,7 +12,7 @@ import {
 } from "react";
 
 import type { Point } from "../../domain/annotation/geometry";
-import type { ImageSize } from "../../domain/annotation/schema";
+import type { BoundingBox, ImageSize } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
 import {
   FILL,
@@ -111,15 +111,23 @@ export function usePanGesture(
 export function ImageViewport({
   image,
   filename,
+  focus = null,
   children,
 }: {
   image: ImageSize & { digest: string };
   filename: string;
+  /** A request to center an area; each new request moves the view once. */
+  focus?: { area: BoundingBox } | null;
   children?: ReactNode;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState<Size | null>(null);
   const [intent, setIntent] = useState<ViewIntent>(FILL);
+  const [focused, setFocused] = useState(focus);
+  if (focus !== focused) {
+    setFocused(focus);
+    if (focus) setIntent({ kind: "focus", area: focus.area });
+  }
   const { width, height } = image;
   const size = useMemo(() => ({ width, height }), [width, height]);
   const view = useMemo(

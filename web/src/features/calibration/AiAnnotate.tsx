@@ -2,15 +2,17 @@ import type { AnnotationBatchResult } from "../../domain/annotation-runs/schema"
 import {
   Alert,
   Button,
-  Disclosure,
+  Description,
   Dropdown,
   Label,
+  ListBox,
   Modal,
   ProgressBar,
   toast,
 } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 
+import type { Check } from "../../domain/annotation/checks";
 import { agentBusy, type Review } from "../../domain/annotation/review";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
@@ -98,21 +100,31 @@ export function AiAnnotateMenu({
   );
 }
 
+const CHECK_LABELS: Record<Check["kind"], () => string> = {
+  uncertain: m.ai_check_uncertain,
+  issue: m.ai_check_issue,
+};
+
 /**
  * The agent's reading of this image: the one at work, the last that failed,
- * or the proposal it left. A model without instructions says why no agent
- * can be asked.
+ * or the proposal it left with the places it asks a person to look at. A
+ * model without instructions says why no agent can be asked.
  */
 export function AiSection({
   review,
   model,
   canAnnotate,
   disabled,
+  checks,
+  onCheck,
 }: {
   review: Review;
   model: Model;
   canAnnotate: boolean;
   disabled: boolean;
+  /** The proposal's open checks against the boxes in view. */
+  checks: Check[];
+  onCheck: (check: Check) => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
@@ -162,38 +174,33 @@ export function AiSection({
         </Alert>
       ) : null}
       {proposal ? (
-        <>
-          <p className="text-sm">
-            <Timestamp value={proposal.createdAt} />
-          </p>
-          <p className="text-xs text-muted">
-            {m.ai_result_summary({
-              count: proposal.document.instances.length,
-              issues: proposal.issues.length,
-              uncertain: proposal.uncertainIds.length,
-            })}
-          </p>
-          {proposal.issues.length > 0 ? (
-            <Disclosure>
-              <Disclosure.Heading>
-                <Button slot="trigger" variant="ghost" size="sm">
-                  {m.ai_issues()}
-                  <Disclosure.Indicator />
-                </Button>
-              </Disclosure.Heading>
-              <Disclosure.Content>
-                <ul className="space-y-1 text-xs">
-                  {proposal.issues.map((issue, index) => (
-                    <li key={index}>{issue.reason}</li>
-                  ))}
-                </ul>
-              </Disclosure.Content>
-            </Disclosure>
-          ) : null}
-          {proposal.warnings.length > 0 ? (
-            <p className="text-xs text-warning">{m.ai_seam_warning()}</p>
-          ) : null}
-        </>
+        <p className="text-sm">
+          <Timestamp value={proposal.createdAt} />
+        </p>
+      ) : null}
+      {checks.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <h3 className="text-xs text-muted">
+            {m.ai_checks()} · {checks.length}
+          </h3>
+          <ListBox
+            aria-label={m.ai_checks()}
+            onAction={(key) => onCheck(checks[Number(key)]!)}
+          >
+            {checks.map((check, index) => (
+              <ListBox.Item
+                key={index}
+                id={index}
+                textValue={CHECK_LABELS[check.kind]()}
+              >
+                <Label>{CHECK_LABELS[check.kind]()}</Label>
+                {check.kind === "issue" ? (
+                  <Description>{check.reason}</Description>
+                ) : null}
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </div>
       ) : null}
       {uninstructed ? (
         <p className="text-sm text-muted">{m.ai_no_instructions()}</p>

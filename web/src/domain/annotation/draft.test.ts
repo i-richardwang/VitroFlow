@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 
 import { openDraft, reduceDraft, type DraftAction } from "./draft";
-import type { AnnotationInstance } from "./schema";
+import type { AnnotationInstance, ReviewSource } from "./schema";
+
+const from = (origin: ReviewSource, instances: AnnotationInstance[]) => ({
+  instances,
+  origin,
+});
 
 const box: AnnotationInstance = {
   id: "one",
@@ -16,7 +21,7 @@ const other: AnnotationInstance = {
 };
 
 test("submission preserves one snapshot across queued replacements, undo and redo", () => {
-  const initial = openDraft(null, []);
+  const initial = openDraft(null, from("review", []));
   const replaced = reduceDraft(initial, { type: "replace", instances: [box] });
   const saving = reduceDraft(replaced, { type: "submit" });
   for (const action of [
@@ -35,7 +40,7 @@ test("submission preserves one snapshot across queued replacements, undo and red
 });
 
 test("undo and redo change the draft without changing its save base", () => {
-  const initial = openDraft([box], [box]);
+  const initial = openDraft([box], from("review", [box]));
   const replaced = reduceDraft(initial, { type: "replace", instances: [] });
   const undone = reduceDraft(replaced, { type: "undo" });
   expect(undone.instances).toEqual([box]);
@@ -48,7 +53,7 @@ test("undo and redo change the draft without changing its save base", () => {
 });
 
 test("the draft begins from the boxes shown; the fetched annotation is the save base", () => {
-  const draft = openDraft([other], [box]);
+  const draft = openDraft([other], from("review", [box]));
   expect(draft.base).toEqual([other]);
   expect(draft.instances).toEqual([box]);
   expect(draft.past).toEqual([]);
@@ -56,6 +61,23 @@ test("the draft begins from the boxes shown; the fetched annotation is the save 
 });
 
 test("a first review has no base, and an empty saved review stays empty", () => {
-  expect(openDraft(null, [box]).base).toBeNull();
-  expect(openDraft([], []).instances).toEqual([]);
+  expect(openDraft(null, from("detection", [box])).base).toBeNull();
+  expect(openDraft([], from("review", [])).instances).toEqual([]);
+});
+
+test("restarting from a reading changes the lineage; edits keep it; undo restores both", () => {
+  const initial = openDraft([box], from("review", [box]));
+  const restarted = reduceDraft(initial, {
+    type: "restart",
+    instances: [other],
+    origin: "proposal",
+  });
+  expect(restarted.origin).toBe("proposal");
+  const edited = reduceDraft(restarted, { type: "replace", instances: [] });
+  expect(edited.origin).toBe("proposal");
+  const undone = reduceDraft(reduceDraft(edited, { type: "undo" }), {
+    type: "undo",
+  });
+  expect(undone).toMatchObject({ instances: [box], origin: "review" });
+  expect(reduceDraft(undone, { type: "redo" }).origin).toBe("proposal");
 });

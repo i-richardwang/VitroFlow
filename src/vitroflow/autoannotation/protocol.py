@@ -7,7 +7,7 @@ import json
 import math
 from typing import Any
 
-from vitroflow.autoannotation.geometry import owned, rectangle, source_edges
+from vitroflow.autoannotation.geometry import cut, owned, rectangle, source_edges
 
 SCHEMA_VERSION = "vitroflow.autoannotation/v7"
 
@@ -140,10 +140,7 @@ def validate_edges(value: dict, manifest: dict, task: dict) -> None:
     coverage = rectangle(manifest["coverage"]["bbox"])
     for item in value["instances"]:
         edges = source_edges(item, task)
-        if owned(edges, task["core"]) and any(
-            abs(edges[i] - task["patch"][i]) < 1e-6 and task["patch"][i] != coverage[i]
-            for i in range(4)
-        ):
+        if owned(edges, task["core"]) and cut(edges, task["patch"], coverage):
             raise ValueError(
                 "Owned box touches internal patch edge; prepare more halo/larger tiles"
             )

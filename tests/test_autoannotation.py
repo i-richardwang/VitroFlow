@@ -247,7 +247,7 @@ def test_multitile_roundtrip_preserves_geometry_and_requires_empty_tiles(
         out = tmp_path / f"result{index}"
         results.collect(run, out)
         result = read_json(out / "result.json")
-        assert len(result["instances"]) == 3 and result["warnings"] == []
+        assert len(result["instances"]) == 3
         assert sorted(
             (v["bbox"]["x"], v["bbox"]["width"]) for v in result["instances"]
         ) == [(20, 8), (58, 12), (88, 9)]
@@ -268,7 +268,7 @@ def test_issues_and_overlap_are_not_silently_approved_or_suppressed(photo, tmp_p
     tasks.submit(run, t["id"], a)
     results.collect(run, tmp_path / "result")
     result = read_json(tmp_path / "result/result.json")
-    assert len(result["instances"]) == 2 and result["warnings"] == []
+    assert len(result["instances"]) == 2
     assert result["qualityStatus"] == "needs-review"
     assert result["issues"][0]["bbox"] == {"x": 40, "y": 50, "width": 10, "height": 20}
 
@@ -356,7 +356,14 @@ def test_patch_edge_rejection_and_source_coverage_clipping(photo, tmp_path):
     assert result["qualityStatus"] == "needs-review"
 
 
-def test_seam_warning_keeps_both_outputs(photo, tmp_path):
+@pytest.mark.parametrize(
+    ("left_x", "right_x"),
+    [(22, 8), (25, 5)],
+    ids=["both-own", "neither-owns"],
+)
+def test_seam_object_read_by_both_neighbors_is_kept_once(
+    photo, tmp_path, left_x, right_x
+):
     run = tmp_path / "run"
     preparation.prepare(
         photo,
@@ -366,15 +373,16 @@ def test_seam_warning_keeps_both_outputs(photo, tmp_path):
     )
     manifest = tasks.load_package(run)
     left, right = manifest["tasks"]
-    tasks.submit(run, left["id"], response(manifest, left, [item("a", 22, 10, 18, 10)]))
     tasks.submit(
-        run, right["id"], response(manifest, right, [item("b", 8, 10, 18, 10)])
+        run, left["id"], response(manifest, left, [item("a", left_x, 10, 18, 10)])
+    )
+    tasks.submit(
+        run, right["id"], response(manifest, right, [item("b", right_x, 10, 18, 10)])
     )
     results.collect(run, tmp_path / "out")
     result = read_json(tmp_path / "out/result.json")
-    assert len(result["instances"]) == 2
-    assert result["warnings"][0]["code"] == "possible-seam-duplicate"
-    assert result["qualityStatus"] == "needs-review"
+    assert [v["id"] for v in result["instances"]] == [f"{left['id']}:a"]
+    assert result["qualityStatus"] == "unverified"
 
 
 def test_portability_integrity_and_checkpoint_recovery(photo, tmp_path):

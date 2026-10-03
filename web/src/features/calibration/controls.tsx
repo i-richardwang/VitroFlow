@@ -6,6 +6,7 @@ export const CANVAS_COLORS = {
   box: "var(--success)",
   selected: "var(--accent)",
   handle: "var(--background)",
+  check: "var(--warning)",
 } as const;
 
 export const TOOLS = ["select", "add"] as const;
@@ -45,5 +46,10 @@ export function toolForShortcut(key: string): Tool | null {
 export const LAYERS = [
   { key: "boxes", label: m.workbench_layer_boxes, color: CANVAS_COLORS.box },
   { key: "ids", label: m.workbench_layer_ids, color: CANVAS_COLORS.box },
+  {
+    key: "checks",
+    label: m.workbench_layer_checks,
+    color: CANVAS_COLORS.check,
+  },
 ] as const;
 export type LayerKey = (typeof LAYERS)[number]["key"];

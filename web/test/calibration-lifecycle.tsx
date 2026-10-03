@@ -142,11 +142,11 @@ mock.module("@heroui/react", () => ({
   Chip: widget,
   Alert: widget,
   AlertDialog: widget,
-  Disclosure: widget,
+  Description: widget,
   Button,
   ButtonGroup: widget,
   Kbd: widget,
-  ListBox: widget,
+  ListBox: Object.assign(DropdownMenu, { ...widget, Item: DropdownItem }),
   Select: selectWidget,
   Label: widget,
   TextField: widget,
@@ -223,9 +223,10 @@ const proposal = {
       bbox: { x: 100 * index, y: 100, width: 40, height: 40 },
     })),
   },
-  issues: [],
-  uncertainIds: [],
-  warnings: [],
+  issues: [
+    { bbox: { x: 600, y: 500, width: 30, height: 30 }, reason: "Faint streak" },
+  ],
+  uncertainIds: ["ai-2"],
 };
 const review = {
   ref: { digest: imageSize.digest, modelId: SEED_DETECTOR.id },
@@ -271,14 +272,26 @@ await render(false);
 const image = mount.querySelector("img")!;
 const surface = image.parentElement! as import("happy-dom").HTMLElement;
 const frame = surface.parentElement!;
-const boxes = () => surface.querySelectorAll("rect[vector-effect]").length;
+const boxes = () =>
+  surface.querySelectorAll("rect[vector-effect]:not([stroke-dasharray])")
+    .length;
+const checks = () => surface.querySelectorAll("rect[stroke-dasharray]").length;
 assert.equal(boxes(), 1, "the reviewer's boxes outrank the agent's");
 await act(async () => selections.get("review")!("proposal"));
 await render(false);
 assert.equal(boxes(), 3, "the page can show the agent's reading instead");
+assert.equal(checks(), 2, "the agent's reading outlines what it asks to check");
+const unfocused = surface.style.transform;
+await act(async () => item("0")!.click());
+assert.notEqual(
+  surface.style.transform,
+  unfocused,
+  "a chosen check is centered",
+);
 source = undefined;
 await render(false);
 assert.equal(boxes(), 1);
+assert.equal(checks(), 0, "the review outranks the agent's questions");
 const initial = surface.style.transform;
 await act(async () => {
   frame.dispatchEvent(
@@ -327,8 +340,9 @@ await act(async () => {
     }),
   );
 });
-const manual = surface.style.transform;
-assert.notEqual(manual, zoomed, "the pointer must establish a manual pan");
+/** The view the person last chose, which calibration must hold. */
+let held = surface.style.transform;
+assert.notEqual(held, zoomed, "the pointer must establish a manual pan");
 await render(true);
 assert.ok(
   mount.querySelector("aside"),
@@ -337,7 +351,7 @@ assert.ok(
 assert.ok(labeled(m.workbench_save())?.disabled, "loading must pending Save");
 assert.equal(labeled(m.workbench_calibrate()), undefined);
 assert.strictEqual(mount.querySelector("img"), image);
-assert.equal(surface.style.transform, manual);
+assert.equal(surface.style.transform, held);
 assert.equal(boxes(), 1);
 await act(async () => {
   browser.document.dispatchEvent(
@@ -371,8 +385,22 @@ assert.deepEqual(
 assert.equal(boxes(), 2, "a server refusal leaves the draft alone");
 await act(async () => item("proposal")!.click());
 assert.equal(boxes(), 3, "resetting to the proposal replaces the draft");
+assert.equal(checks(), 2, "a draft from the proposal keeps its checks");
+await act(async () => item("0")!.click());
+assert.equal(
+  surface.querySelectorAll("rect[data-handle]").length,
+  8,
+  "choosing an unsure box selects it for editing",
+);
+assert.notEqual(
+  surface.style.transform,
+  held,
+  "choosing a check centers it while editing",
+);
+held = surface.style.transform;
 await act(async () => item("review")!.click());
 assert.equal(boxes(), 2, "resetting to the review restores the stored boxes");
+assert.equal(checks(), 0);
 await act(async () => item("proposal")!.click());
 assert.equal(boxes(), 3);
 await act(async () => {
@@ -385,8 +413,9 @@ await act(async () => {
   );
 });
 assert.equal(boxes(), 2, "Undo restores the draft before the AI result");
+assert.equal(checks(), 0, "Undo restores the draft's lineage with its boxes");
 assert.strictEqual(mount.querySelector("img"), image);
-assert.equal(surface.style.transform, manual);
+assert.equal(surface.style.transform, held);
 
 const save = labeled(m.workbench_save());
 assert.ok(save);
@@ -407,7 +436,7 @@ assert.strictEqual(
 );
 assert.strictEqual(
   surface.style.transform,
-  manual,
+  held,
   "calibration must preserve scale and pan",
 );
 assert.equal(observed, 1, "calibration must not remount the viewport");
@@ -417,7 +446,7 @@ assert.ok(labeled(m.workbench_calibrate()));
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(
   surface.style.transform,
-  manual,
+  held,
   "leaving calibration must preserve scale and pan",
 );
 assert.equal(observed, 1);
@@ -433,7 +462,7 @@ assert.ok(
 );
 assert.equal(boxes(), 1);
 assert.strictEqual(mount.querySelector("img"), image);
-assert.equal(surface.style.transform, manual);
+assert.equal(surface.style.transform, held);
 await render(true);
 await act(async () => {
   resolveAnnotation?.(latest);
@@ -451,7 +480,7 @@ assert.ok(
 );
 assert.equal(boxes(), 1);
 assert.strictEqual(mount.querySelector("img"), image);
-assert.equal(surface.style.transform, manual);
+assert.equal(surface.style.transform, held);
 await act(async () => {
   resolveAnnotation?.(null);
 });

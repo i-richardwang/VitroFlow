@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { regions, owns, prepareProposal, seamWarnings, tiles } from "./tasks";
+import { regions, owns, prepareProposal, tiles, type Region } from "./tasks";
 import { collectRegions } from "./results";
 import type { AnnotationDefinition } from "./schema";
 const definition: AnnotationDefinition = {
@@ -59,24 +59,83 @@ test("internal clipping is rejected for owned objects; context and source bounda
   ).toThrow();
 });
 
-test("seam checks flag strong cross-region overlap and preserve same-region overlaps", () => {
-  const first = {
-    id: "a",
+/** The patch edges of a source box, as a region's proposal states them. */
+function drawn(region: Region, id: string, x: number, width: number) {
+  const p = region.patch;
+  const y = 20,
+    height = 8;
+  return {
+    id,
     class: "seed",
-    taskId: "left",
-    bbox: { x: 50, y: 10, width: 20, height: 10 },
+    box_2d: [
+      ((y - p.y) * 1000) / p.height,
+      ((x - p.x) * 1000) / p.width,
+      ((y + height - p.y) * 1000) / p.height,
+      ((x + width - p.x) * 1000) / p.width,
+    ],
+    uncertain: false,
+    truncated: false,
   };
-  const second = {
-    ...first,
-    id: "b",
-    taskId: "right",
-    bbox: { ...first.bbox, x: 55 },
+}
+
+test("neighbors that read one seam object yield one box, whichever side they place its center", () => {
+  const [left, right] = regions(definition) as [Region, Region];
+  const collect = (fromLeft: number[], fromRight: number[]) =>
+    collectRegions(definition, [
+      {
+        taskId: "run/left",
+        region: left,
+        response: {
+          instances: fromLeft.map((x, i) => drawn(left, `l${i}`, x, 14)),
+          issues: [],
+        },
+      },
+      {
+        taskId: "run/right",
+        region: right,
+        response: {
+          instances: fromRight.map((x, i) => drawn(right, `r${i}`, x, 14)),
+          issues: [],
+        },
+      },
+    ]).document.instances.map((item) => item.id);
+  // Both centers on their own side: each region owns a copy.
+  expect(collect([56], [59])).toEqual(["run/left/l0"]);
+  // Both centers on the other side: neither region owns it.
+  expect(collect([58], [55])).toEqual(["run/left/l0"]);
+  // One owner and one halo reading agree.
+  expect(collect([59], [59])).toEqual(["run/right/r0"]);
+  // Touching neighbors and overlaps within one region stay apart.
+  expect(collect([44, 52], [64])).toEqual([
+    "run/left/l0",
+    "run/left/l1",
+    "run/right/r0",
+  ]);
+  // A halo reading its owner did not confirm is dropped.
+  expect(collect([66], [])).toEqual([]);
+});
+
+test("a redrawn region's reading of a retained neighbor's object keeps the retained box", () => {
+  const retained = {
+    id: "kept",
+    class: "seed",
+    bbox: { x: 58, y: 20, width: 14, height: 8 },
   };
-  expect(seamWarnings([first, second])).toHaveLength(1);
-  expect(seamWarnings([first, { ...second, taskId: "left" }])).toEqual([]);
-  expect(
-    seamWarnings([first, { ...second, bbox: { ...second.bbox, y: 20 } }]),
-  ).toEqual([]);
+  const scoped: AnnotationDefinition = {
+    ...definition,
+    input: [retained],
+    inputNotes: { uncertainIds: [], issues: [] },
+    scope: [{ x: 0, y: 0, width: 10, height: 10 }],
+  };
+  const [left] = regions(scoped) as [Region];
+  const result = collectRegions(scoped, [
+    {
+      taskId: "run/left",
+      region: left,
+      response: { instances: [drawn(left, "s", 56, 14)], issues: [] },
+    },
+  ]);
+  expect(result.document.instances).toEqual([retained]);
 });
 
 test("decimal source-edge boxes preview and collect identically, with halo-only boxes excluded", () => {

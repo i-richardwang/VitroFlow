@@ -98,6 +98,7 @@
   "workbench_delete": "删除",
   "workbench_layer_boxes": "标记",
   "workbench_layer_ids": "序号",
+  "workbench_layer_checks": "待确认",
   "workbench_zoom": "缩放",
   "workbench_fill": "铺满画面",
   "workbench_save_conflict": "这份复核已在其他页面修改。当前校准仍保留；请取消后再次校准，读取最新复核。",

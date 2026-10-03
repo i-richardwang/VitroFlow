@@ -13,6 +13,7 @@ import {
   openDraft,
   reduceDraft,
   type AnnotationDraft,
+  type DraftState,
   type DraftAction,
 } from "../../domain/annotation/draft";
 import {
@@ -43,10 +44,9 @@ type SessionAction =
   | {
       type: "start";
       base: AnnotationInstance[] | null;
-      start: AnnotationInstance[];
+      start: DraftState;
       activeClass: string;
     }
-  | { type: "load-instances"; instances: AnnotationInstance[] }
   | { type: "stop" }
   | { type: "tool"; tool: Tool }
   | { type: "panning"; panning: boolean }
@@ -69,17 +69,12 @@ function reduceSession(
   }
   if (action.type === "stop" || state === null) return null;
   switch (action.type) {
-    case "load-instances":
-      return state.draft.saving
-        ? state
-        : {
-            ...state,
-            selectedId: null,
-            draft: reduceDraft(state.draft, {
-              type: "replace",
-              instances: action.instances,
-            }),
-          };
+    case "restart":
+      return {
+        ...state,
+        selectedId: null,
+        draft: reduceDraft(state.draft, action),
+      };
     case "tool":
       return { ...state, tool: action.tool };
     case "panning":
@@ -103,6 +98,8 @@ export type Calibration =
       saving: boolean;
       base: AnnotationInstance[] | null;
       instances: AnnotationInstance[];
+      /** The reading the draft descends from. */
+      origin: ReviewSource | null;
       tool: Tool;
       panning: boolean;
       selectedId: string | null;
@@ -182,10 +179,13 @@ export function useCalibrationSession({
     dispatch({
       type: "start",
       base: loaded.base,
-      start:
-        source === "review"
-          ? (loaded.base ?? [])
-          : shownInstances(review, source),
+      start: {
+        instances:
+          source === "review"
+            ? (loaded.base ?? [])
+            : shownInstances(review, source),
+        origin: source ?? null,
+      },
       activeClass: model.classes[0]!,
     });
   } else if (!ready && session !== null) {
@@ -268,19 +268,13 @@ export function useCalibrationSession({
     [instances, replaceInstances, selected],
   );
 
-  const loadInstances = useCallback(
-    (next: AnnotationInstance[]) =>
-      dispatch({ type: "load-instances", instances: next }),
-    [],
-  );
-
   const base = session?.draft.base ?? null;
   const restartFrom = useCallback(
     (from: ReviewSource) => {
       const next = from === "review" ? base : sourceInstances(review, from);
-      if (next) loadInstances(next);
+      if (next) dispatch({ type: "restart", instances: next, origin: from });
     },
-    [base, review, loadInstances],
+    [base, review],
   );
 
   const clearSelection = useCallback(() => {
@@ -332,6 +326,7 @@ export function useCalibrationSession({
     save,
     saving,
     instances,
+    origin: session.draft.origin,
     base: session.draft.base,
     tool: session.tool,
     panning: session.panning,

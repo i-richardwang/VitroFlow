@@ -80,9 +80,9 @@ Use configured classes and distinct local IDs (s01, s02, ...). issues=[] when no
 remain. Assess uncertainty from pixels. Set truncated when a body is cut by the
 local image boundary. Candidate clipped flags describe the supplied crop.
 
-The collector owns each final box by its center in the half-open core rectangle.
-Include halo bodies as context. An owned box touching an INTERNAL patch edge
-cannot be finalized: report failure and prepare sufficient halo/larger tiles.
+Include visible halo bodies: neighboring tiles read seam objects together, and
+the collector keeps one box per object. An owned box touching an INTERNAL patch
+edge cannot be finalized: report failure and prepare sufficient halo/larger tiles.
 Source and coverage clipping are reported separately. Do not merge tiles yourself.
 
 `annotate fail --run RUN --task TASK --message REASON` records execution failure.

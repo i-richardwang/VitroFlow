@@ -9,6 +9,7 @@ import {
   type Handle,
   type Point,
 } from "../../domain/annotation/geometry";
+import type { Check } from "../../domain/annotation/checks";
 import {
   initialBoxSide,
   instanceFromBox,
@@ -122,6 +123,54 @@ export function BoxLayer({
           box={instance.bbox}
           ordinal={layers.has("ids") ? index + 1 : undefined}
         />
+      ))}
+    </Layer>
+  );
+}
+
+/**
+ * The places a proposal asks a person to look at, outlined over the boxes:
+ * an unsure box is ringed, a questioned area is ringed and marked "?".
+ */
+export function ChecksLayer({
+  image,
+  checks,
+  layers,
+}: {
+  image: ImageSize;
+  checks: Check[];
+  layers: ReadonlySet<LayerKey>;
+}) {
+  const { scale } = useViewport();
+  if (!layers.has("checks") || checks.length === 0) return null;
+  const gap = 3 / scale;
+  return (
+    <Layer image={image} pointerEvents="none">
+      {checks.map(({ kind, bbox }, index) => (
+        <g key={index}>
+          <rect
+            x={bbox.x - gap}
+            y={bbox.y - gap}
+            width={bbox.width + 2 * gap}
+            height={bbox.height + 2 * gap}
+            fill="none"
+            stroke={CANVAS_COLORS.check}
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke"
+          />
+          {kind === "issue" ? (
+            <text
+              x={bbox.x + bbox.width + gap}
+              y={bbox.y - gap}
+              fontSize={13 / scale}
+              fontWeight={600}
+              fill={CANVAS_COLORS.check}
+            >
+              ?
+            </text>
+          ) : null}
+        </g>
       ))}
     </Layer>
   );

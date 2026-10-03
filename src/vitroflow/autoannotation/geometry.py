@@ -58,6 +58,13 @@ def owned(edges: list, core: list) -> bool:
     return core[0] <= x < core[2] and core[1] <= y < core[3]
 
 
+def cut(edges: list, patch: list, coverage: list) -> bool:
+    """A box reaching a patch side inside the coverage is only partly visible."""
+    return any(
+        abs(edges[i] - patch[i]) < 1e-6 and patch[i] != coverage[i] for i in range(4)
+    )
+
+
 def source_edges(item: dict, task: dict) -> list:
     return [
         n / task["displayScale"] + task["patch"][i % 2]

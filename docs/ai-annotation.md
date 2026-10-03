@@ -353,14 +353,18 @@ Rendering happens outside acceptance transactions. Short transactions serialize
 run changes, validate authorization and geometry, accept a region and update
 progress. Concurrent final submissions cannot complete a run twice. Worker/session
 locks follow the same order as claiming. Source-coordinate boxes are owned by the
-half-open core containing their centers; halo context is not duplicated into
-neighboring results. The same ownership decides which frozen input boxes a scoped
-run carries into its result: those whose centers fall in a region it did not
-redraw. Owned boxes touching internal patch edges are rejected.
-Uncertainty, boundary truncation and seam-review warnings remain in the proposal.
-Seam warnings are recomputed from the resulting boxes and exposed to both MCP
-clients and the workbench. They ask for human review, never merge or delete boxes:
-real objects can overlap. Frozen input notes, when present, describe the input
+half-open core containing their centers. Neighbors read the same seam object
+independently, so their centers can disagree; collection therefore reads every
+region's boxes, halo context included, and treats boxes of one class from
+different regions overlapping by IoU ≥ 0.5 as one object, at most one box per
+region, strongest overlaps first. Each object yields one box: a retained input box
+first, then a box its region owns, then a whole halo reading over a cut one. A
+halo reading its owning region did not confirm is dropped. Issues follow the same
+rule without classes. A scoped run reads the frozen input boxes of regions it did
+not redraw (those whose centers fall there) as retained readings, so its seams
+behave the same way. Overlaps within one region are never merged. Owned boxes
+touching internal patch edges are rejected. Uncertainty and boundary truncation
+remain in the proposal. Frozen input notes, when present, describe the input
 proposal; bare boxes carry no such assessment.
 Geometry validation does not establish visual accuracy.
 

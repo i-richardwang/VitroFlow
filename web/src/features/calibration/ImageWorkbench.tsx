@@ -2,13 +2,14 @@ import { Segment } from "@heroui-pro/react/segment";
 import { Button, Separator } from "@heroui/react";
 import { useState } from "react";
 
+import { openChecks, type Check } from "../../domain/annotation/checks";
 import {
   availableSources,
   reviewInstances,
   sourceInstances,
   type Review,
 } from "../../domain/annotation/review";
-import type { ReviewSource } from "../../domain/annotation/schema";
+import type { BoundingBox, ReviewSource } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import {
@@ -19,7 +20,7 @@ import {
 } from "../../ui/shell/Workbench";
 import { ImageViewport } from "../../ui/viewport/ImageViewport";
 import { AiAnnotateMenu, AiSection } from "./AiAnnotate";
-import { BoxLayer, EditableBoxLayer } from "./BoxLayer";
+import { BoxLayer, ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import { ReviewInspector } from "./ReviewInspector";
 import { sourceLabels } from "./labels";
 import { useCalibrationSession } from "./session";
@@ -30,6 +31,8 @@ import type { ImageWorkbenchContext } from "./types";
 /**
  * One frame. It shows one of the image's readings, best by default, and
  * calibration is session state on it that begins from the reading shown.
+ * While the AI proposal is in view, or a draft begun from it, the places it
+ * asks a person to check are outlined and listed; choosing one centers it.
  */
 export function ImageWorkbench({
   title,
@@ -54,8 +57,9 @@ export function ImageWorkbench({
   context?: ImageWorkbenchContext;
 }) {
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
-    () => new Set(["boxes"]),
+    () => new Set(["boxes", "checks"]),
   );
+  const [focus, setFocus] = useState<{ area: BoundingBox } | null>(null);
   const display = { layers, onLayersChange: setLayers };
   const sources = availableSources(review);
   const shown = source && sources.includes(source) ? source : sources[0];
@@ -73,6 +77,14 @@ export function ImageWorkbench({
     (calibration.status === "loading"
       ? reviewInstances(review)
       : ((shown && sourceInstances(review, shown)) ?? []));
+  const checks =
+    review.proposal && (ready ? ready.origin : shown) === "proposal"
+      ? openChecks(review.proposal, instances)
+      : [];
+  const inspect = (check: Check) => {
+    setFocus({ area: check.bbox });
+    if (ready && check.kind === "uncertain") ready.setSelectedId(check.id);
+  };
   const ai = canAnnotate ? (
     <AiAnnotateMenu
       review={review}
@@ -168,6 +180,8 @@ export function ImageWorkbench({
           model={model}
           canAnnotate={canAnnotate}
           disabled={saving}
+          checks={checks}
+          onCheck={inspect}
         />
         <ReviewInspector
           model={model}
@@ -184,6 +198,7 @@ export function ImageWorkbench({
           height: review.height,
         }}
         filename={review.filename}
+        focus={focus}
       >
         {ready && !saving ? (
           <EditableBoxLayer
@@ -204,6 +219,7 @@ export function ImageWorkbench({
             layers={display.layers}
           />
         )}
+        <ChecksLayer image={review} checks={checks} layers={display.layers} />
       </ImageViewport>
       {ready?.discard ? (
         <DiscardDraftDialog

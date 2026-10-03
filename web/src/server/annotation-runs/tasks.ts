@@ -158,12 +158,16 @@ export async function submitProposal(
         .update(annotationTasks)
         .set({ response: preview.response, acceptedProposalId: proposalId })
         .where(taskWhere(runId, taskId));
-      const tasks = await tx
-        .select()
-        .from(annotationTasks)
-        .where(eq(annotationTasks.runId, runId))
-        .orderBy(asc(annotationTasks.taskId));
-      run.completed = tasks.filter((t) => t.response !== null).length;
+      const answered = (
+        await tx
+          .select()
+          .from(annotationTasks)
+          .where(eq(annotationTasks.runId, runId))
+          .orderBy(asc(annotationTasks.taskId))
+      ).flatMap(({ response, ...task }) =>
+        response ? [{ ...task, response }] : [],
+      );
+      run.completed = answered.length;
       const complete = run.completed === run.total;
       run.status = complete ? "succeeded" : "running";
       await tx
@@ -171,7 +175,7 @@ export async function submitProposal(
         .set({
           completed: run.completed,
           status: run.status,
-          result: complete ? collectRegions(run.definition, tasks) : null,
+          result: complete ? collectRegions(run.definition, answered) : null,
           updatedAt: new Date(),
         })
         .where(eq(annotationRuns.id, runId));

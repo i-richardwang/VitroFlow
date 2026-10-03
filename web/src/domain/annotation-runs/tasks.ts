@@ -83,53 +83,86 @@ export function prepareProposal(
   return { response, content: projectProposal(response, region, definition) };
 }
 
-/** Preview and collection use the same owned boxes and the same source geometry. */
-export function projectProposal(
+/** A box one region drew, in source pixels, and how the region saw it. */
+export interface RegionBox extends AnnotationInstance {
+  /** Its center lies in the region's core. */
+  owned: boolean;
+  /** It touches a patch edge inside the image, so the region saw only part of it. */
+  cut: boolean;
+  uncertain: boolean;
+}
+
+/** Every box a region drew, its halo context included. */
+export function regionBoxes(
   proposal: RegionProposal,
   region: Region,
   definition: AnnotationDefinition,
-): AnnotationContent {
-  const instances: AnnotationInstance[] = [];
-  const uncertainIds: string[] = [];
+): RegionBox[] {
   const ids = new Set<string>();
-  for (const item of proposal.instances) {
+  const p = region.patch;
+  return proposal.instances.map((item) => {
     if (ids.has(item.id))
       throw new AnnotationRunConflictError("Duplicate instance ID");
     ids.add(item.id);
     if (!definition.config.classes.includes(item.class))
       throw new AnnotationRunConflictError("Unknown annotation class");
-    const bbox = sourceBox(item.box_2d, region.patch);
-    if (!owns(region.core, bbox)) continue;
+    const bbox = sourceBox(item.box_2d, p);
+    const owned = owns(region.core, bbox);
     const [top, left, bottom, right] = item.box_2d;
-    const p = region.patch;
-    if (
+    const cut =
       (left === 0 && p.x > 0) ||
       (top === 0 && p.y > 0) ||
       (right === 1000 && p.x + p.width < definition.image.width) ||
-      (bottom === 1000 && p.y + p.height < definition.image.height)
-    )
+      (bottom === 1000 && p.y + p.height < definition.image.height);
+    if (owned && cut)
       throw new AnnotationRunConflictError(
         "Owned box touches an internal patch boundary; use a larger halo in a new run",
       );
-    instances.push({ id: item.id, class: item.class, bbox });
-    if (
-      item.uncertain ||
-      item.truncated ||
-      item.box_2d.some((edge) => edge === 0 || edge === 1000)
-    )
-      uncertainIds.push(item.id);
-  }
+    return {
+      id: item.id,
+      class: item.class,
+      bbox,
+      owned,
+      cut,
+      uncertain:
+        item.uncertain ||
+        item.truncated ||
+        item.box_2d.some((edge) => edge === 0 || edge === 1000),
+    };
+  });
+}
+
+/** Every area a region questioned, in source pixels, owned like boxes. */
+export function regionIssues(proposal: RegionProposal, region: Region) {
+  return proposal.issues.map((issue) => {
+    const bbox = sourceBox(issue.box_2d, region.patch);
+    return { bbox, reason: issue.reason, owned: owns(region.core, bbox) };
+  });
+}
+
+/** What one region saves on its own: the boxes and issues its core owns. */
+export function projectProposal(
+  proposal: RegionProposal,
+  region: Region,
+  definition: AnnotationDefinition,
+): AnnotationContent {
+  const boxes = regionBoxes(proposal, region, definition).filter(
+    (box) => box.owned,
+  );
   return {
     document: annotationSchema.parse({
       schemaVersion: 1,
       image: definition.image,
-      instances,
+      instances: boxes.map(({ id, class: name, bbox }) => ({
+        id,
+        class: name,
+        bbox,
+      })),
     }),
-    issues: proposal.issues.flatMap((issue) => {
-      const bbox = sourceBox(issue.box_2d, region.patch);
-      return owns(region.core, bbox) ? [{ bbox, reason: issue.reason }] : [];
-    }),
-    uncertainIds,
+    issues: regionIssues(proposal, region).flatMap(({ bbox, reason, owned }) =>
+      owned ? [{ bbox, reason }] : [],
+    ),
+    uncertainIds: boxes.filter((box) => box.uncertain).map((box) => box.id),
   };
 }
 
@@ -142,44 +175,3 @@ export const annotationPreviewInput = annotationTaskInput.extend(
 export const annotationSubmitInput = annotationTaskInput.extend({
   proposalId: z.string().regex(/^[a-f0-9]{64}$/),
 });
-
-/** Flag strong cross-region overlap without merging naturally touching objects. */
-export function seamWarnings(
-  instances: (AnnotationInstance & { taskId: string })[],
-): string[] {
-  const ordered = [...instances].sort((a, b) => a.bbox.x - b.bbox.x);
-  let active: typeof ordered = [];
-  const warnings: string[] = [];
-  for (const current of ordered) {
-    const b = current.bbox;
-    active = active.filter((item) => item.bbox.x + item.bbox.width > b.x);
-    for (const previous of active) {
-      if (
-        previous.taskId === current.taskId ||
-        previous.class !== current.class
-      )
-        continue;
-      const a = previous.bbox;
-      const width = Math.min(a.x + a.width, b.x + b.width) - b.x;
-      const height = Math.max(
-        0,
-        Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y),
-      );
-      if (
-        (width * height) / Math.min(a.width * a.height, b.width * b.height) >
-        0.5
-      ) {
-        warnings.push(
-          JSON.stringify({
-            code: "possible-seam-duplicate",
-            instanceIds: [previous.id, current.id],
-          }),
-        );
-        if (warnings.length === 9999)
-          return [...warnings, "Further seam duplicate warnings omitted"];
-      }
-    }
-    active.push(current);
-  }
-  return warnings;
-}

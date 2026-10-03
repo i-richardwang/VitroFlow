@@ -30,7 +30,7 @@ import {
   ANNOTATION_EXECUTORS,
   ANNOTATION_RUN_STATUSES,
   type AnnotationRuntime,
-  type AnnotationRunResult,
+  type AnnotationContent,
   type AnnotationDefinition,
 } from "../../../domain/annotation-runs/schema";
 import { USER_ROLES } from "../../../domain/auth/schema";
@@ -1161,7 +1161,7 @@ export const annotationRuns = pgTable(
     createdAt: instant("created_at"),
     updatedAt: instant("updated_at"),
     error: text("error"),
-    result: jsonb("result").$type<AnnotationRunResult>(),
+    result: jsonb("result").$type<AnnotationContent>(),
   },
   (table) => [
     index("annotation_runs_image_model_idx").on(

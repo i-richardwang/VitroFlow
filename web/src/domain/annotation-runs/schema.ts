@@ -93,23 +93,20 @@ export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
 export const annotationJobSchema = z.strictObject({ id: resourceIdSchema });
 
-const annotationContentSchema = z.strictObject({
+/** Boxes with their notes: what a region saves and what a run leaves. */
+export const annotationContentSchema = z.strictObject({
   document: annotationSchema,
   ...annotationNotesSchema.shape,
 });
 export type AnnotationContent = z.infer<typeof annotationContentSchema>;
 
-export const annotationRunResultSchema = annotationContentSchema.extend({
-  warnings: z.array(z.string().max(2000)),
-});
-export type AnnotationRunResult = z.infer<typeof annotationRunResultSchema>;
 export type AnnotationRun = {
   id: string;
   status: (typeof ANNOTATION_RUN_STATUSES)[number];
   progress: z.infer<typeof annotationProgressSchema>;
 };
 
-export const annotationProposalSchema = annotationRunResultSchema.extend({
+export const annotationProposalSchema = annotationContentSchema.extend({
   createdAt: z.string(),
 });
 export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;

@@ -401,7 +401,7 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   expect((await readAnnotation(ref))!.instances).toEqual([kept, stale]);
 });
 
-test("partial redraw preserves untouched proposal notes, replaces redrawn notes and exposes seam warnings", async () => {
+test("partial redraw preserves untouched proposal notes, replaces redrawn notes and reads seam objects once", async () => {
   const { principal, ref } = await setup("remote-partial-notes");
   await cancelAnnotationRun(ref);
   const model = await createModel({
@@ -456,7 +456,7 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   const before = (await readAnnotationReading(ref)).proposal!;
   expect(before.uncertainIds).toHaveLength(2);
   expect(before.issues).toHaveLength(2);
-  expect(before.warnings).toHaveLength(1);
+  expect(before.document.instances).toHaveLength(2);
 
   const partial = await createAnnotationRun(
     {
@@ -491,7 +491,6 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   expect(after.issues).toEqual(
     before.issues.filter((issue) => issue.reason === "Check retained area"),
   );
-  expect(after.warnings).toEqual(before.warnings);
   expect(await readAnnotation(ref)).toBeNull();
 
   const redraw = await createAnnotationRun(
@@ -508,5 +507,4 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   expect(final.document.instances).toEqual([]);
   expect(final.issues).toEqual([]);
   expect(final.uncertainIds).toEqual([]);
-  expect(final.warnings).toEqual([]);
 });

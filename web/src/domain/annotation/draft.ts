@@ -1,36 +1,53 @@
 import { canonicalJson } from "../../lib/json/canonical";
-import type { AnnotationInstance } from "./schema";
+import type { AnnotationInstance, ReviewSource } from "./schema";
+
+/** The boxes of a draft and the reading they descend from. */
+export interface DraftState {
+  instances: AnnotationInstance[];
+  origin: ReviewSource | null;
+}
 
 /** The unsaved calibration of an image's annotation. */
-export interface AnnotationDraft {
+export interface AnnotationDraft extends DraftState {
   base: AnnotationInstance[] | null;
-  instances: AnnotationInstance[];
-  past: AnnotationInstance[][];
-  future: AnnotationInstance[][];
+  past: DraftState[];
+  future: DraftState[];
   saving: boolean;
 }
 
 export type DraftAction =
+  /** An edit: the boxes change, their lineage does not. */
   | { type: "replace"; instances: AnnotationInstance[] }
+  /** Beginning again from one of the image's readings. */
+  | { type: "restart"; instances: AnnotationInstance[]; origin: ReviewSource }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "submit" }
   | { type: "failed" };
 
 /**
- * A draft begins from the boxes the page was showing; the stored review is
- * kept apart as the base a save is checked against.
+ * A draft begins from the boxes the page was showing and the reading they
+ * came from; the stored review is kept apart as the base a save is checked
+ * against. Undo and redo restore boxes and lineage together.
  */
 export function openDraft(
   base: AnnotationInstance[] | null,
-  start: AnnotationInstance[],
+  start: DraftState,
 ): AnnotationDraft {
+  return { ...start, base, past: [], future: [], saving: false };
+}
+
+function snapshot({ instances, origin }: DraftState): DraftState {
+  return { instances, origin };
+}
+
+function commit(state: AnnotationDraft, next: DraftState): AnnotationDraft {
+  if (canonicalJson(next) === canonicalJson(snapshot(state))) return state;
   return {
-    base,
-    instances: start,
-    past: [],
+    ...state,
+    ...next,
+    past: [...state.past, snapshot(state)],
     future: [],
-    saving: false,
   };
 }
 
@@ -45,22 +62,23 @@ export function reduceDraft(
     case "submit":
       return { ...state, saving: true };
     case "replace":
-      if (canonicalJson(action.instances) === canonicalJson(state.instances))
-        return state;
-      return {
-        ...state,
+      return commit(state, {
         instances: action.instances,
-        past: [...state.past, state.instances],
-        future: [],
-      };
+        origin: state.origin,
+      });
+    case "restart":
+      return commit(state, {
+        instances: action.instances,
+        origin: action.origin,
+      });
     case "undo": {
       const previous = state.past.at(-1);
       return previous
         ? {
             ...state,
-            instances: previous,
+            ...previous,
             past: state.past.slice(0, -1),
-            future: [...state.future, state.instances],
+            future: [...state.future, snapshot(state)],
           }
         : state;
     }
@@ -69,8 +87,8 @@ export function reduceDraft(
       return next
         ? {
             ...state,
-            instances: next,
-            past: [...state.past, state.instances],
+            ...next,
+            past: [...state.past, snapshot(state)],
             future: state.future.slice(0, -1),
           }
         : state;

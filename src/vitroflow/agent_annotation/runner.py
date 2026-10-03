@@ -304,7 +304,6 @@ def export(coordinator: Coordinator, descriptor: dict, started: float) -> dict:
             raise ValueError("Existing export does not match accepted results")
         result = {
             "count": len(document["instances"]),
-            "warnings": len(document["warnings"]),
             "output": str(destination),
             "packageId": manifest["packageId"],
         }
