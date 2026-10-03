@@ -21,8 +21,8 @@ import {
  * decided, `proposal` is what an AI agent drew, `detection` is what the
  * model's newest version found. A reviewer's decision outranks the agent,
  * and the agent outranks the detector. Each is looked up on its own; the
- * ranking decides which one an image reads by. `activity` is the progress
- * of an agent still at work on the image.
+ * ranking decides which one an image reads by. `progress` is that of the
+ * run an agent is still at work on.
  */
 export const readingsSchema = z.strictObject({
   ref: annotationRefSchema,
@@ -31,7 +31,7 @@ export const readingsSchema = z.strictObject({
   detection: detectionResultSchema.nullable(),
   proposal: annotationProposalSchema.nullable(),
   annotation: annotationSchema.nullable(),
-  activity: annotationProgressSchema.nullable(),
+  progress: annotationProgressSchema.nullable(),
 });
 
 export type Readings = z.infer<typeof readingsSchema>;
@@ -86,10 +86,6 @@ export function shownInstances(
   );
 }
 
-export function agentBusy(readings: Readings): boolean {
-  return readings.activity !== null;
-}
-
 /**
  * The readings as an agent reads them: every reading as boxes in source
  * pixels, and which one the image reads by. A run names one of these
@@ -104,6 +100,6 @@ export function annotationReading(readings: Readings) {
     review: sourceInstances(readings, "review"),
     proposal: readings.proposal,
     detection: sourceInstances(readings, "detection"),
-    activity: readings.activity,
+    progress: readings.progress,
   };
 }

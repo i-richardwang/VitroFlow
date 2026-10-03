@@ -25,17 +25,17 @@ export function AiSection({
   checks: Check[];
   onCheck: (check: Check) => void;
 }) {
-  const { activity, proposal } = review;
-  if (!activity && !proposal) return null;
+  const { progress, proposal } = review;
+  if (!progress && !proposal) return null;
   return (
     <Section title={m.ai_section()}>
-      {activity ? (
+      {progress ? (
         <div className="flex flex-col gap-2" role="status">
           <span className="text-sm">{m.ai_running()}</span>
           <ProgressBar
             className="w-full"
-            value={activity.completed}
-            maxValue={activity.total}
+            value={progress.completed}
+            maxValue={progress.total}
             aria-label={m.ai_progress()}
           >
             <ProgressBar.Track>

@@ -49,6 +49,7 @@ export const annotationProgressSchema = z
     total: z.number().int().positive(),
   })
   .refine((v) => v.completed <= v.total, "Completed exceeds total");
+export type AnnotationProgress = z.infer<typeof annotationProgressSchema>;
 
 /** Questions that remain attached to the boxes and areas an agent has read. */
 const annotationNotesSchema = z.strictObject({
@@ -85,7 +86,7 @@ export type AnnotationContent = z.infer<typeof annotationContentSchema>;
 export type AnnotationRun = {
   id: string;
   status: (typeof ANNOTATION_RUN_STATUSES)[number];
-  progress: z.infer<typeof annotationProgressSchema>;
+  progress: AnnotationProgress;
 };
 
 export const annotationProposalSchema = annotationContentSchema.extend({

@@ -72,7 +72,7 @@ export async function readReadings(
       detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
       annotation: annotations.document,
       proposal: proposalRuns,
-      activity: {
+      progress: {
         completed: activeRuns.completed,
         total: activeRuns.total,
       },
@@ -114,7 +114,7 @@ export async function readReadings(
     detection: row.detection,
     proposal: toProposal(row.proposal),
     annotation: row.annotation,
-    activity: row.activity,
+    progress: row.progress,
   };
 }
 

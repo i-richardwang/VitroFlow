@@ -2,6 +2,7 @@ import { and, eq, notExists, sql, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { AnnotationRef } from "../../domain/annotation/schema";
+import type { AnnotationProgress } from "../../domain/annotation-runs/schema";
 import { database } from "../infra/db/client";
 import {
   annotationRuns,
@@ -22,7 +23,7 @@ export interface PendingAnnotation {
   ref: AnnotationRef;
   filename: string;
   /** The progress of the run already at work on it, which an agent continues. */
-  progress: { completed: number; total: number } | null;
+  progress: AnnotationProgress | null;
 }
 
 /**

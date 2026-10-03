@@ -1,40 +1,33 @@
+import { and, eq } from "drizzle-orm";
+
+import {
+  AnnotationRunConflictError,
+  AnnotationRunNotFoundError,
+} from "../../domain/annotation-runs/errors";
+import {
+  annotationDefinitionSchema,
+  type AnnotationRun,
+  type StartAnnotationRun,
+} from "../../domain/annotation-runs/schema";
 import { regions } from "../../domain/annotation-runs/tasks";
 import { sourceInstances } from "../../domain/annotation/review";
-import { and, eq } from "drizzle-orm";
 import {
   annotationSchema,
   type AnnotationRef,
   type BoundingBox,
   type ReviewSource,
 } from "../../domain/annotation/schema";
-import {
-  annotationDefinitionSchema,
-  type AnnotationRun,
-  type StartAnnotationRun,
-} from "../../domain/annotation-runs/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
+import { lockImage, resolveDishCoverage } from "../images/public";
 import { transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
-import { lockImage, resolveDishCoverage } from "../images/public";
 import { readModel } from "../models/public";
-
-import {
-  AnnotationRunConflictError,
-  AnnotationRunNotFoundError,
-} from "../../domain/annotation-runs/errors";
 import { readReadings } from "../readings/public";
 
-function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
-  return {
-    id: row.id,
-    status: row.status,
-    progress: { completed: row.completed, total: row.total },
-  };
-}
-
 /**
- * Starts the image's run. It stays open until every region is accepted or it
- * is cancelled, and any connected agent continues it.
+ * Starts the image's run with its definition and regions frozen. It stays
+ * open until every region is accepted or it is cancelled, and any connected
+ * agent continues it.
  */
 export async function createAnnotationRun(
   request: StartAnnotationRun,
@@ -46,7 +39,49 @@ export async function createAnnotationRun(
       throw new AnnotationRunConflictError(
         `This image already has an AI annotation run in progress (${active.completed}/${active.total} regions); continue it with annotation_next`,
       );
-    return admitRun(request, tx);
+    const { definition, fallback } = await freezeDefinition(request, tx);
+    const tasks = regions(definition);
+    if (!tasks.length)
+      throw new AnnotationRunConflictError("The scope touches no region");
+    if (tasks.length > 4096)
+      throw new AnnotationRunConflictError(
+        "Annotation requires too many regions; increase the model's core size",
+      );
+    const id = crypto.randomUUID();
+    const now = new Date();
+    await tx.insert(annotationRuns).values({
+      id,
+      imageId: request.ref.digest,
+      modelId: request.ref.modelId,
+      definition,
+      status: "running",
+      total: tasks.length,
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (let i = 0; i < tasks.length; i += 1000) {
+      await tx.insert(annotationTasks).values(
+        tasks.slice(i, i + 1000).map((region) => ({
+          runId: id,
+          taskId: `${id}/${region.id}`,
+          region,
+        })),
+      );
+    }
+    if (fallback)
+      process.stderr.write(
+        `${JSON.stringify({
+          event: "annotation-run.full-image-coverage",
+          runId: id,
+          imageId: request.ref.digest,
+          reason: fallback,
+        })}\n`,
+      );
+    return {
+      id,
+      status: "running",
+      progress: { completed: 0, total: tasks.length },
+    };
   });
 }
 
@@ -75,11 +110,11 @@ async function readingInput(
   };
 }
 
-/** Freezes the request's definition and plans its regions, under the image lock. */
-async function admitRun(
-  request: StartAnnotationRun,
-  tx: Executor,
-): Promise<AnnotationRun> {
+/**
+ * The request's definition as the image, its readings and its model stand
+ * now, with why a dish run covers the whole image when it does.
+ */
+async function freezeDefinition(request: StartAnnotationRun, tx: Executor) {
   const [image] = await tx
     .select()
     .from(images)
@@ -127,47 +162,7 @@ async function admitRun(
     scope: request.scope,
     config: { classes: model.classes, rules: instructions, ...region },
   });
-  const tasks = regions(definition);
-  if (!tasks.length)
-    throw new AnnotationRunConflictError("The scope touches no region");
-  if (tasks.length > 4096)
-    throw new AnnotationRunConflictError(
-      "Annotation requires too many regions; increase the model's core size",
-    );
-  const id = crypto.randomUUID();
-  const now = new Date();
-  const [row] = await tx
-    .insert(annotationRuns)
-    .values({
-      id,
-      imageId: image.id,
-      modelId: model.id,
-      definition,
-      status: "running",
-      total: tasks.length,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-  for (let i = 0; i < tasks.length; i += 1000) {
-    await tx.insert(annotationTasks).values(
-      tasks.slice(i, i + 1000).map((region) => ({
-        runId: id,
-        taskId: `${id}/${region.id}`,
-        region,
-      })),
-    );
-  }
-  if (dish?.fallback)
-    process.stderr.write(
-      `${JSON.stringify({
-        event: "annotation-run.full-image-coverage",
-        runId: id,
-        imageId: image.id,
-        reason: dish.fallback,
-      })}\n`,
-    );
-  return present(row!);
+  return { definition, fallback: dish?.fallback ?? null };
 }
 
 /** The image's run in progress for the model. */

@@ -227,7 +227,7 @@ const review = {
   detection: null,
   proposal,
   annotation,
-  activity: null,
+  progress: null,
 };
 const mount = browser.document.createElement("div");
 browser.document.body.append(mount);

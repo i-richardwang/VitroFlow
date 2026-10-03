@@ -87,7 +87,7 @@ test("a run stays open between conversations, and any agent continues it by its 
   const run = await createAnnotationRun(request);
   expect(run.status).toBe("running");
   const shown = async () =>
-    (await readReview(request.ref, "open.jpg", await database()))?.activity;
+    (await readReview(request.ref, "open.jpg", await database()))?.progress;
   expect(await shown()).toEqual({ completed: 0, total: run.progress.total });
   const next = await nextAnnotationTask(request.ref);
   expect(next.taskId).toStartWith(`${run.id}/`);

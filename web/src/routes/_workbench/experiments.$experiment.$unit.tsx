@@ -1,7 +1,6 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { agentBusy } from "../../domain/annotation/review";
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
 import { UnitWorkbench } from "../../features/experiments/UnitWorkbench";
 import {
@@ -76,7 +75,7 @@ function UnitPage() {
     5000,
     shown !== null &&
       ((shown.review.detection === null && shown.failure === null) ||
-        agentBusy(shown.review)),
+        shown.review.progress !== null),
   );
 
   return (

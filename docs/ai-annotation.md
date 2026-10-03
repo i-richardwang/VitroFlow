@@ -56,8 +56,7 @@ OAuth resource requests use Better Auth's verifier for both Bearer and DPoP
 access tokens. A DPoP-bound token requires the client's signed proof for the
 request URL, method and access token; a reused proof is refused. The account and
 client authorization are checked on every request, including after a valid proof.
-Initialization uses the shared, retryable auth service rather than caching a
-second MCP-specific initialization promise.
+Initialization uses the shared, retryable auth service.
 
 ## Tool contract
 
@@ -77,7 +76,7 @@ still at work. It is the view to consult before redrawing part of an image.
 run. `input` is the boxes the run begins from: a complete
 source-coordinate list, the name of one of the image's readings (`"review"`,
 `"proposal"` or `"detection"`, as `annotation_read` lists them) taken as it stands
-when the run is admitted, or nothing to start from the image alone. Naming a
+when the run starts, or nothing to start from the image alone. Naming a
 reading the image lacks is refused. `scope` is an optional list of
 source-coordinate boxes `{x, y, width, height}`; the run then covers only the
 regions those boxes touch, and every other region keeps its `input` boxes in the
@@ -144,7 +143,7 @@ before loading an original for regional preparation. A 32 MiB LRU retains encode
 evidence, not decoded originals. Context reads the overview; views and previews
 read CLEAN. Reference and proposal overlays use a separate 16 MiB LRU and at most
 two concurrent renders. Decoder and render working memory are additional to these
-cache budgets. Authorization and task state are checked even on cache hits.
+cache budgets. The run's state is checked even on cache hits.
 Collection removes derived assets when their source Image is no longer rooted.
 
 Dish detection runs in one lazy compute thread per process using pinned OpenCV.js
@@ -153,7 +152,7 @@ imports, and records completed analysis in `images.dish_analysis`. Only an RGB
 thumbnail with longest edge at most 1200 pixels crosses the thread boundary.
 Image encoding, digest and source coordinates remain unchanged. Canonicalization
 and analysis are separate bounded operations; analysis intentionally reads the
-pixels of the stored encoding. No remote Worker is required.
+pixels of the stored encoding.
 
 One shared `image_geometry/dish-recipe.json` supplies Hough parameters and coverage
 policy to both runtimes, validated against the generated `dish-recipe` contract.
@@ -178,10 +177,10 @@ human reviews are never overwritten. Progress counts assigned tasks.
 
 Completed analysis stores its recipe identity and circle. A null circle means
 successful analysis with no candidate; null analysis means unavailable. Repeated
-uploads reuse current completed results. Run admission reads metadata in one
+uploads reuse current completed results. Starting a run reads metadata in one
 transaction, freezes coverage and tasks, and performs no image I/O, detection or
 PNG preparation. Missing, obsolete, no-candidate or invalid-circle analysis keeps
-full-image coverage; admission logs its reason with the image and run IDs.
+full-image coverage, and the start logs its reason with the image and run IDs.
 Analysis refreshes and model settings never alter an existing frozen run.
 
 The maintenance process automatically refreshes unavailable or obsolete analysis.
@@ -229,9 +228,7 @@ A conversation handling multiple regions loads shared context once, then loops
 through next, view, preview and submit. It reloads context whenever the region's
 `contextId` changes or the previous context is no longer available. A newly
 launched agent always loads it, including an agent resuming a partially completed
-run. Context access checks the run's state as region access does, including on
-cached asset reads. Context loading is read-only and does not advance the run. No server-side seen-context
-flag can describe what remains in a model's conversation.
+run. Context loading is read-only and does not advance the run.
 
 For 20 fresh regions with one preview each, this flow delivers one overview,
 20 CLEAN views and 40 preview images, instead of 20 overviews and 60 regional
@@ -265,8 +262,7 @@ Postgres is the single authority:
 - `annotation_previews`: immutable proposal versions of a region.
 
 Rendering happens outside acceptance transactions. Short transactions serialize
-run changes, validate authorization and geometry, accept a region and update
-progress. Concurrent final submissions cannot complete a run twice. Source-coordinate boxes are owned by the
+run changes, validate geometry, accept a region and update progress. Concurrent final submissions cannot complete a run twice. Source-coordinate boxes are owned by the
 half-open core containing their centers. Neighbors read the same seam object
 independently, so their centers can disagree; collection therefore reads every
 region's boxes, halo context included, and treats boxes of one class from

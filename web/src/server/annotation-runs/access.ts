@@ -9,19 +9,10 @@ const conflict = (message: string): never => {
 export const taskWhere = (runId: string, taskId: string) =>
   and(eq(annotationTasks.runId, runId), eq(annotationTasks.taskId, taskId));
 
-export async function lockRun(tx: Executor, runId: string) {
-  const [row] = await tx
-    .select()
-    .from(annotationRuns)
-    .where(eq(annotationRuns.id, runId))
-    .for("update");
-  return row ?? conflict("Annotation run not found");
-}
-
 /**
- * A region by its opaque task identifier, with its run. A finished run still
- * answers, so a repeated submission learns it was accepted; a cancelled one
- * does not.
+ * A region by its opaque task identifier, with its run. Within a transaction
+ * the run stays locked until it ends. A finished run still answers, so a
+ * repeated submission learns it was accepted; a cancelled one does not.
  */
 export async function readTask(taskId: string, tx?: Executor) {
   const parts = taskId.split("/");
@@ -29,14 +20,11 @@ export async function readTask(taskId: string, tx?: Executor) {
     return conflict("Invalid task identifier");
   const runId = parts[0];
   const db = tx ?? (await database());
-  const run = tx
-    ? await lockRun(tx, runId)
-    : (
-        await db
-          .select()
-          .from(annotationRuns)
-          .where(eq(annotationRuns.id, runId))
-      )[0];
+  const query = db
+    .select()
+    .from(annotationRuns)
+    .where(eq(annotationRuns.id, runId));
+  const [run] = await (tx ? query.for("update") : query);
   if (!run) return conflict("Annotation run not found");
   if (run.status === "cancelled")
     return conflict("Annotation run is not active");

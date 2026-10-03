@@ -2,7 +2,6 @@ import { ButtonGroup } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { agentBusy } from "../../domain/annotation/review";
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../ui/icons";
 import { ImageWorkbench } from "../../features/calibration/ImageWorkbench";
@@ -64,7 +63,8 @@ function DatasetImagePage() {
   useRouteRefresh(
     router,
     5000,
-    (detection === null && review.annotation === null) || agentBusy(review),
+    (detection === null && review.annotation === null) ||
+      review.progress !== null,
   );
 
   const stepTo = (step: DatasetImageStep) =>
