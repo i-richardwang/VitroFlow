@@ -41,8 +41,6 @@
   "mcp_disconnect_title": "Disconnect {name}?",
   "mcp_disconnected": "{name} disconnected",
   "mcp_server_experiments": "Experiments MCP",
-  "mcp_server_experiments_description": "For agents that maintain experiments: design, treatments, observation dates and image filing.",
   "mcp_server_annotation": "Annotation MCP",
-  "mcp_server_annotation_description": "For agents that annotate images: view each region, mark objects and submit AI proposals.",
   "mcp_column_servers": "Access"
 }

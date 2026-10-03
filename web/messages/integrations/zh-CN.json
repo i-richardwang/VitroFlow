@@ -41,8 +41,6 @@
   "mcp_disconnect_title": "断开 {name}？",
   "mcp_disconnected": "已断开 {name}",
   "mcp_server_experiments": "实验 MCP",
-  "mcp_server_experiments_description": "供维护实验的智能体连接：实验设计、处理、观测日与图片归档。",
   "mcp_server_annotation": "标注 MCP",
-  "mcp_server_annotation_description": "供标注图片的智能体连接：逐块查看图片、圈出对象并提交 AI 建议。",
   "mcp_column_servers": "可访问"
 }

@@ -3,9 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ApiKeysTable } from "../../features/integrations/ApiKeysTable";
+import { MCP_SERVER_LABELS } from "../../features/integrations/labels";
 import { CopyableCode } from "../../ui/CopyableCode";
 import { McpClientsTable } from "../../features/integrations/McpClientsTable";
 import { NewApiKeyDialog } from "../../features/integrations/NewApiKeyDialog";
+import { MCP_SERVERS } from "../../domain/auth/integrations";
 import { Page, PageSection } from "../../ui/Page";
 import { getIntegrations } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
@@ -36,16 +38,13 @@ function IntegrationsPage() {
         <ApiKeysTable apiKeys={apiKeys} />
       </PageSection>
       <PageSection title={m.integrations_mcp_servers()}>
-        <CopyableCode
-          value={mcpUrls.experiments}
-          label={m.mcp_server_experiments()}
-          description={m.mcp_server_experiments_description()}
-        />
-        <CopyableCode
-          value={mcpUrls.annotation}
-          label={m.mcp_server_annotation()}
-          description={m.mcp_server_annotation_description()}
-        />
+        {MCP_SERVERS.map((server) => (
+          <CopyableCode
+            key={server}
+            value={mcpUrls[server]}
+            label={MCP_SERVER_LABELS[server]()}
+          />
+        ))}
       </PageSection>
       <PageSection title={m.integrations_mcp_clients()}>
         <McpClientsTable mcpClients={mcpClients} />
