@@ -141,7 +141,7 @@ export function regionIssues(proposal: RegionProposal, region: Region) {
 }
 
 /** What one region saves on its own: the boxes and issues its core owns. */
-export function projectProposal(
+function projectProposal(
   proposal: RegionProposal,
   region: Region,
   definition: AnnotationDefinition,

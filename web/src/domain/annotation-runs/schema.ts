@@ -19,7 +19,7 @@ export const ANNOTATION_RUN_STATUSES = [
  * The boxes a run begins from: none, a complete list the caller supplies, or
  * one of the image's readings as it stands when the run is admitted.
  */
-export const annotationInputSchema = z.union([
+const annotationInputSchema = z.union([
   z.array(annotationInstanceSchema).max(10000),
   z.enum(REVIEW_SOURCES),
   z.null(),
@@ -30,7 +30,7 @@ export const annotationInputSchema = z.union([
  * scoped to the regions those boxes touch; the regions outside keep the
  * boxes the run began from. Null redraws the whole image.
  */
-export const annotationScopeSchema = z
+const annotationScopeSchema = z
   .array(boundingBoxSchema)
   .min(1)
   .max(64)

@@ -205,7 +205,7 @@ function buildServer(): McpServer {
   return server;
 }
 
-export const annotationMcpHandler = createMcpHandler(buildServer, {
+const annotationMcpHandler = createMcpHandler(buildServer, {
   legacy: "stateless",
 });
 

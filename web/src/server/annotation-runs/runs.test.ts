@@ -160,7 +160,7 @@ test("dish runs freeze coverage and actual task totals while later model edits l
   await cancelAnnotationRun(ref);
 });
 
-test("run admission never waits for image processing or creates regional evidence", async () => {
+test("starting a run never waits for image processing or creates regional evidence", async () => {
   const { request } = await setup("admission-no-images");
   const { processImage } = await import("../images/processing");
   const { listBlobs } = await import("../infra/blobs/store");
