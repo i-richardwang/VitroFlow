@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import {
   AnnotationRunConflictError,
@@ -23,7 +23,14 @@ import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
 import { readModel } from "../models/public";
 import { readReadings } from "../readings/public";
-import { inProgress } from "./access";
+
+/** The image's run in progress for the model, of which there is at most one. */
+export const inProgress = (ref: AnnotationRef) =>
+  and(
+    eq(annotationRuns.imageId, ref.digest),
+    eq(annotationRuns.modelId, ref.modelId),
+    eq(annotationRuns.status, "running"),
+  );
 
 /**
  * Starts the image's run with its definition and regions frozen. It stays

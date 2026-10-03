@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
+import {
+  AnnotationRunConflictError,
+  AnnotationRunNotFoundError,
+} from "../../domain/annotation-runs/errors";
 import { observeImages } from "../testing/fixtures";
 import { storeImage } from "../images/public";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
@@ -10,10 +14,6 @@ import { annotationRuns } from "../infra/db/schema";
 import { createModel, setModelAnnotation } from "../models/public";
 import { createAnnotationRun, cancelAnnotationRun } from "./runs";
 import { nextAnnotationTask, savePreview, submitProposal } from "./tasks";
-import {
-  AnnotationRunConflictError,
-  AnnotationRunNotFoundError,
-} from "../../domain/annotation-runs/errors";
 import { readTask } from "./access";
 import {
   readAnnotationContext,

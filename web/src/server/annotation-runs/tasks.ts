@@ -11,7 +11,8 @@ import {
   annotationTasks,
   annotationPreviews,
 } from "../infra/db/schema";
-import { inProgress, lockTask, readTask } from "./access";
+import { lockTask, readTask } from "./access";
+import { inProgress } from "./runs";
 const conflict = (message: string): never => {
   throw new AnnotationRunConflictError(message);
 };

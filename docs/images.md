@@ -68,4 +68,5 @@ analysis was persisted; skipped means a newer result or image deletion made the
 write unnecessary. Every attempt satisfies
 `examined = completed + failed + skipped`. Image failures or interruption produce
 a nonzero exit status; skipped results do not. It uses the same canonical pixels
-and detector as ingestion.
+and detector as ingestion. Maintenance keeps the corpus current on its own; a
+manual sweep is for refreshing it at once.

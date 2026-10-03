@@ -155,9 +155,10 @@ redraw semantics. Unassigned cores keep the input boxes, uncertainty and issues;
 human reviews are never overwritten. Progress counts assigned tasks.
 
 Starting a run reads metadata in one transaction, freezes coverage and tasks, and
-performs no image I/O, detection or PNG preparation. Missing, obsolete, no-candidate or invalid-circle analysis keeps
-full-image coverage, and the start logs its reason with the image and run IDs.
-Analysis refreshes and model settings never alter an existing frozen run.
+performs no image I/O, detection or PNG preparation. Missing, obsolete,
+no-candidate or invalid-circle analysis keeps full-image coverage, and the start
+logs its reason with the image and run IDs. Analysis refreshes and model settings
+never alter an existing frozen run.
 
 A conversation handling multiple regions loads shared context once, then loops
 through next, view, preview and submit. It reloads context whenever the region's
