@@ -1240,16 +1240,3 @@ export const annotationPreviews = pgTable(
     }).onDelete("cascade"),
   ],
 );
-
-/**
- * The choices an administrator makes for the whole workbench, in its single
- * row. Without the row every choice holds its default.
- */
-export const workspaceSettings = pgTable(
-  "workspace_settings",
-  {
-    id: boolean("id").primaryKey().default(true),
-    interactiveAnnotation: boolean("interactive_annotation").notNull(),
-  },
-  (table) => [check("workspace_settings_singleton_check", sql`${table.id}`)],
-);

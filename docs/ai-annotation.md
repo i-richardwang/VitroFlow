@@ -50,21 +50,12 @@ is removed, the run returns to the queue with its accepted regions and the next
 Worker annotates only the rest. A
 run fails only when its agent reports an error.
 
-## Administration
-
-Each Worker runs at most one annotation agent, chosen in its profile (see
-[Worker responsibilities](#worker-responsibilities)). Administrators decide on the
-Integrations page whether people's own agents may use the annotation server.
-Turned off, the server refuses their requests with 403 and an explanation, and
-open interactive runs are cancelled. Worker-launched agents and the experiment
-server are unaffected.
-
 ## One server, two principals
 
-| Principal             | Authentication                                                                  | Tools                                                                                                   | Scope                           |
-| --------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| A person's agent      | User OAuth for the annotation resource, while interactive annotation is enabled | `annotation_read`, `annotation_start`, `annotation_next`, `annotation_cancel`, and the four core tools | The user's own interactive runs |
-| Worker-launched agent | Signed, short-lived task bearer token                                           | The four core tools only                                                                               | One run, region and attempt     |
+| Principal             | Authentication                         | Tools                                                                                                  | Scope                           |
+| --------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| A person's agent      | User OAuth for the annotation resource | `annotation_read`, `annotation_start`, `annotation_next`, `annotation_cancel`, and the four core tools | The user's own interactive runs |
+| Worker-launched agent | Signed, short-lived task bearer token  | The four core tools only                                                                               | One run, region and attempt     |
 
 The authenticated per-request MCP factory constructs the tool list. Every core
 operation independently checks task ownership and state, so hiding tools is not
@@ -320,8 +311,8 @@ runtime = "pi"                          # or "antigravity"
 # timeout_seconds = 1800
 ```
 
-Pi reaches other providers' models through `model`. The agent and its model belong
-to the Worker's profile.
+Pi reaches other providers' models through `model`. Each Worker runs at most one annotation
+agent, and the agent and its model belong to the Worker's profile.
 
 Run `vitroflow worker doctor annotator` and restart after changing settings.
 Antigravity setup registers the task-bound stdio bridge in its global MCP config.
@@ -344,7 +335,6 @@ Postgres is the single authority:
 - `annotation_runs`: frozen input and scope, creator, executor (`worker` or
   `interactive`), the claiming Worker's lease, aggregate progress and final
   proposal.
-- `workspace_settings`: whether connected agents may annotate.
 - `annotation_tasks`: frozen core/patch geometry, current attempt and accepted
   regional response.
 - `annotation_previews`: immutable proposal versions bound to a regional attempt.

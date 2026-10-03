@@ -21,10 +21,6 @@ export {
 export type { AnnotationPanel } from "./rendering";
 export { validateTaskPrincipal } from "./access";
 export {
-  interactiveAnnotationEnabled,
-  setInteractiveAnnotation,
-} from "./interactive";
-export {
   claimAnnotationRun,
   renewAnnotationRun,
   failAnnotationRun,

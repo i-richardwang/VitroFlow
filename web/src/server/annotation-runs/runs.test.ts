@@ -28,7 +28,6 @@ import {
   savePreview,
   submitProposal,
 } from "./tasks";
-import { setInteractiveAnnotation } from "./interactive";
 import { removeWorker } from "../workers/public";
 
 async function finish(runId: string, owner: WorkerIdentity) {
@@ -282,33 +281,6 @@ test("an interactive run stays open without its agent, and any agent of the same
     "A Worker agent",
   );
   await cancelAnnotationRun(request.ref);
-});
-
-test("turning interactive annotation off ends the runs connected agents hold, and only those", async () => {
-  const { user, request, digests } = await setup("ai-interactive-off");
-  const interactive = await createAnnotationRun(
-    request,
-    "interactive",
-    user.id,
-  );
-  const other = { ...request.ref, digest: digests[1]! };
-  const scheduled = await createAnnotationRun(
-    {
-      ref: other,
-      input: null,
-      scope: null,
-    },
-    "worker",
-    user.id,
-  );
-  await setInteractiveAnnotation(false);
-  try {
-    expect((await stored(interactive.id)).status).toBe("cancelled");
-    expect((await stored(scheduled.id)).status).toBe("queued");
-  } finally {
-    await setInteractiveAnnotation(true);
-    await cancelAnnotationRun(other);
-  }
 });
 
 test("a batch draws each image once, leaving images an agent is already reading", async () => {

@@ -540,12 +540,6 @@ CREATE TABLE "workers" (
 	CONSTRAINT "workers_token_hash_unique" UNIQUE("token_hash")
 );
 --> statement-breakpoint
-CREATE TABLE "workspace_settings" (
-	"id" boolean PRIMARY KEY DEFAULT true NOT NULL,
-	"interactive_annotation" boolean NOT NULL,
-	CONSTRAINT "workspace_settings_singleton_check" CHECK ("workspace_settings"."id")
-);
---> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotation_previews" ADD CONSTRAINT "annotation_previews_run_id_annotation_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."annotation_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "annotation_previews" ADD CONSTRAINT "annotation_previews_run_id_task_id_annotation_tasks_run_id_task_id_fk" FOREIGN KEY ("run_id","task_id") REFERENCES "public"."annotation_tasks"("run_id","task_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

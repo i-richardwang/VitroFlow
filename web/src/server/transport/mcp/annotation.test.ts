@@ -18,7 +18,6 @@ import {
   claimAnnotationRun,
   assignWorkerTask,
   cancelAnnotationRun,
-  setInteractiveAnnotation,
 } from "../../annotation-runs/public";
 
 const annotationEndpoint = () =>
@@ -182,26 +181,6 @@ describe.each(requestEras)(
       );
     });
 
-    test("an administrator's switch refuses people's agents but not Workers", async () => {
-      const { headers } = await signInAs("member");
-      const { accessToken } = await authorizeMcpClient(headers, {
-        server: "annotation",
-      });
-      await setInteractiveAnnotation(false);
-      try {
-        const refused = await annotation(accessToken, "tools/list");
-        expect(refused.status).toBe(403);
-        expect((await rpcMessage(refused)).error?.message).toContain(
-          "turned off",
-        );
-      } finally {
-        await setInteractiveAnnotation(true);
-      }
-      expect(
-        await toolNames(await annotation(accessToken, "tools/list")),
-      ).toEqual(USER_TOOLS);
-    });
-
     test("people's agents and Worker agents annotate through the same annotation server", async () => {
       const { user, headers } = await signInAs("member");
       const { accessToken } = await authorizeMcpClient(headers, {
@@ -338,20 +317,6 @@ describe.each(requestEras)(
       });
       expect((await rpcMessage(wrongTask)).result.isError).toBe(true);
       expect((await experiments(task)).status).toBe(401);
-      await setInteractiveAnnotation(false);
-      try {
-        const scoped = await annotation(task, "tools/call", {
-          name: "annotation_view",
-          arguments: { taskId: `${run.id}/tile-000-000` },
-        });
-        expect(
-          (await rpcMessage(scoped)).result.content.some(
-            (item: { type: string }) => item.type === "image",
-          ),
-        ).toBe(true);
-      } finally {
-        await setInteractiveAnnotation(true);
-      }
       await cancelAnnotationRun(ref);
       expect((await annotation(task, "tools/list")).status).toBe(401);
     });

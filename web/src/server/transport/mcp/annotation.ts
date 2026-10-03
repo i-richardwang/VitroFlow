@@ -31,7 +31,6 @@ import {
   viewAnnotationTask,
   previewAnnotationTask,
   submitProposal,
-  interactiveAnnotationEnabled,
   validateTaskPrincipal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
@@ -210,7 +209,7 @@ function registerAnnotationTools(
 /**
  * The annotation MCP server: drawing boxes on images, region by region. A
  * Worker's agent holds a task credential for one region; a person's own agent
- * holds an OAuth grant and drives whole runs while an administrator allows it.
+ * holds an OAuth grant and drives whole runs.
  */
 function buildServer({ authInfo }: McpRequestContext): McpServer {
   const principal = authInfo?.extra?.annotationPrincipal as AnnotationPrincipal;
@@ -231,16 +230,15 @@ export const annotationMcpHandler = createMcpHandler(buildServer, {
   legacy: "stateless",
 });
 
-const refused = (message: string, status: number) =>
+const unauthorized = (message: string) =>
   Response.json(
     { jsonrpc: "2.0", id: null, error: { code: -32001, message } },
-    { status },
+    { status: 401 },
   );
 
 /**
  * A task credential opens the server for its region while the Worker's
- * attempt stands; an OAuth grant opens it for the account while interactive
- * annotation is allowed.
+ * attempt stands; an OAuth grant opens it for the account.
  */
 export async function serveAnnotationMcp(request: Request): Promise<Response> {
   const guarded = guardMcpRequest(request);
@@ -248,11 +246,11 @@ export async function serveAnnotationMcp(request: Request): Promise<Response> {
   const credential = bearerToken(request);
   if (credential && isTaskToken(credential)) {
     const principal = verifyTaskToken(credential);
-    if (!principal) return refused("Invalid annotation credential", 401);
+    if (!principal) return unauthorized("Invalid annotation credential");
     try {
       await validateTaskPrincipal(principal);
     } catch {
-      return refused("Inactive annotation credential", 401);
+      return unauthorized("Inactive annotation credential");
     }
     const methodRefusal = rejectUnsupportedMcpMethod(request);
     if (methodRefusal) return methodRefusal;
@@ -266,11 +264,6 @@ export async function serveAnnotationMcp(request: Request): Promise<Response> {
     });
   }
   return serveWithOAuth("annotation", request, async (accepted, grant) => {
-    if (!(await interactiveAnnotationEnabled()))
-      return refused(
-        "An administrator has turned off annotation by personal agents",
-        403,
-      );
     const principal: AnnotationPrincipal = {
       kind: "user",
       userId: grant.userId,
