@@ -242,7 +242,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped. Maintenance collects unreferenced blobs and automatically refreshes missing or obsolete dish analysis in small serial batches; see [AI annotation](docs/ai-annotation.md) for retry and resource budgets.
+Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped. Maintenance collects unreferenced blobs and automatically refreshes missing or obsolete dish analysis in small serial batches; see [Images](docs/images.md) for retry and resource budgets.
 
 `HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 

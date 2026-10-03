@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import {
   AnnotationRunConflictError,
@@ -23,6 +23,7 @@ import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
 import { readModel } from "../models/public";
 import { readReadings } from "../readings/public";
+import { inProgress } from "./access";
 
 /**
  * Starts the image's run with its definition and regions frozen. It stays
@@ -34,7 +35,10 @@ export async function createAnnotationRun(
 ): Promise<{ id: string; progress: AnnotationProgress }> {
   return transaction(async (tx) => {
     await lockImage(request.ref.digest, tx);
-    const active = await activeRun(request.ref, tx);
+    const [active] = await tx
+      .select()
+      .from(annotationRuns)
+      .where(inProgress(request.ref));
     if (active)
       throw new AnnotationRunConflictError(
         `This image already has an AI annotation run in progress (${active.completed}/${active.total} regions); continue it with annotation_next`,
@@ -159,19 +163,6 @@ async function freezeDefinition(request: StartAnnotationRun, tx: Executor) {
     config: { classes: model.classes, rules: instructions, ...region },
   });
   return { definition, fallback: dish?.fallback ?? null };
-}
-
-const inProgress = (ref: AnnotationRef) =>
-  and(
-    eq(annotationRuns.imageId, ref.digest),
-    eq(annotationRuns.modelId, ref.modelId),
-    eq(annotationRuns.status, "running"),
-  );
-
-/** The image's run in progress for the model. */
-export async function activeRun(ref: AnnotationRef, db: Executor) {
-  const [row] = await db.select().from(annotationRuns).where(inProgress(ref));
-  return row ?? null;
 }
 
 /**

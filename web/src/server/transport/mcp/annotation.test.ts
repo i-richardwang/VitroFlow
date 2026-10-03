@@ -24,7 +24,7 @@ async function toolNames(response: Response): Promise<string[]> {
     .sort();
 }
 
-const USER_TOOLS = [
+const ANNOTATION_TOOLS = [
   "annotation_cancel",
   "annotation_context",
   "annotation_next",
@@ -121,7 +121,7 @@ describe.each(requestEras)(
         await toolNames(
           await annotation(forAnnotation.accessToken, "tools/list"),
         ),
-      ).toEqual(USER_TOOLS);
+      ).toEqual(ANNOTATION_TOOLS);
       expect((await experiments(forAnnotation.accessToken)).status).toBe(401);
       const experimentTools = await toolNames(
         await experiments(forExperiments.accessToken),

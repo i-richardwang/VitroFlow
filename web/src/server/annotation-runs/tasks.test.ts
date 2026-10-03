@@ -10,6 +10,10 @@ import { annotationRuns } from "../infra/db/schema";
 import { createModel, setModelAnnotation } from "../models/public";
 import { createAnnotationRun, cancelAnnotationRun } from "./runs";
 import { nextAnnotationTask, savePreview, submitProposal } from "./tasks";
+import {
+  AnnotationRunConflictError,
+  AnnotationRunNotFoundError,
+} from "../../domain/annotation-runs/errors";
 import { readTask } from "./access";
 import {
   readAnnotationContext,
@@ -93,7 +97,7 @@ test("image-to-preview-to-submit is durable, idempotent and remains an unreviewe
   );
 });
 
-test("classes, finite geometry and preview identity are enforced", async () => {
+test("classes, finite geometry, preview identity and task identity are enforced", async () => {
   const { ref } = await setup("remote-validation");
   const taskId = (await nextAnnotationTask(ref)).taskId;
   await expect(
@@ -114,8 +118,13 @@ test("classes, finite geometry and preview identity are enforced", async () => {
   await expect(submitProposal(taskId, "a".repeat(64))).rejects.toThrow(
     "preview first",
   );
+  await expect(readTask(`${taskId}-unknown`)).rejects.toBeInstanceOf(
+    AnnotationRunNotFoundError,
+  );
   await cancelAnnotationRun(ref);
-  await expect(readTask(taskId)).rejects.toThrow("not active");
+  await expect(readTask(taskId)).rejects.toBeInstanceOf(
+    AnnotationRunConflictError,
+  );
 });
 
 test("twenty regions reuse frozen context across views and reconnects before finalization", async () => {

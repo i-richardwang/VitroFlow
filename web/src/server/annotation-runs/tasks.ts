@@ -11,8 +11,7 @@ import {
   annotationTasks,
   annotationPreviews,
 } from "../infra/db/schema";
-import { readTask, taskWhere } from "./access";
-import { activeRun } from "./runs";
+import { inProgress, lockTask, readTask } from "./access";
 const conflict = (message: string): never => {
   throw new AnnotationRunConflictError(message);
 };
@@ -35,50 +34,54 @@ const acceptance = (
  * where the last one stopped.
  */
 export async function nextAnnotationTask(ref: AnnotationRef) {
-  const db = await database();
-  const run = await activeRun(ref, db);
-  if (!run)
-    return conflict(
-      "No AI annotation run is in progress for this image; start one with annotation_start",
-    );
-  const [task] = await db
-    .select({ taskId: annotationTasks.taskId })
-    .from(annotationTasks)
-    .where(
-      and(eq(annotationTasks.runId, run.id), isNull(annotationTasks.response)),
+  const [next] = await (
+    await database()
+  )
+    .select({
+      taskId: annotationTasks.taskId,
+      completed: annotationRuns.completed,
+      total: annotationRuns.total,
+    })
+    .from(annotationRuns)
+    .innerJoin(
+      annotationTasks,
+      and(
+        eq(annotationTasks.runId, annotationRuns.id),
+        isNull(annotationTasks.response),
+      ),
     )
+    .where(inProgress(ref))
     .orderBy(asc(annotationTasks.taskId))
     .limit(1);
-  return { taskId: task!.taskId, completed: run.completed, total: run.total };
+  return (
+    next ??
+    conflict(
+      "No AI annotation run is in progress for this image; start one with annotation_start",
+    )
+  );
 }
 
 export async function savePreview(taskId: string, value: unknown) {
-  return transaction(async (tx) => {
-    const { run, task } = await readTask(taskId, tx);
-    const runId = run.id;
-    if (task.response) return conflict("Region has already been accepted");
-    const { response, content } = prepareProposal(
-      value,
-      task.region,
-      run.definition,
-    );
-    const proposalId = contentDigest({ taskId, response });
-    await tx
-      .insert(annotationPreviews)
-      .values({
-        runId,
-        taskId,
-        proposalId,
-        response,
-      })
-      .onConflictDoNothing();
-    return { run, task, content, proposalId };
-  });
+  const { run, task } = await readTask(taskId);
+  if (task.response) return conflict("Region has already been accepted");
+  const { response, content } = prepareProposal(
+    value,
+    task.region,
+    run.definition,
+  );
+  const proposalId = contentDigest({ taskId, response });
+  await (
+    await database()
+  )
+    .insert(annotationPreviews)
+    .values({ runId: run.id, taskId, proposalId, response })
+    .onConflictDoNothing();
+  return { run, task, content, proposalId };
 }
 
 export async function submitProposal(taskId: string, proposalId: string) {
   return transaction(async (tx) => {
-    const { run, task } = await readTask(taskId, tx);
+    const { run, task } = await lockTask(taskId, tx);
     const runId = run.id;
     if (task.response) {
       if (task.acceptedProposalId !== proposalId)
@@ -100,7 +103,7 @@ export async function submitProposal(taskId: string, proposalId: string) {
     await tx
       .update(annotationTasks)
       .set({ response: preview.response, acceptedProposalId: proposalId })
-      .where(taskWhere(runId, taskId));
+      .where(eq(annotationTasks.taskId, taskId));
     const completed = run.completed + 1;
     const succeeded = completed === run.total;
     const answered = succeeded

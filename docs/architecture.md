@@ -26,7 +26,7 @@ Domain exceptions inherit shared categories from `domain/errors.ts` and carry st
 
 ## Python boundaries
 
-`image_geometry` owns dish circle detection without model or annotation dependencies; traditional detection uses it, and the workbench reads the same recipe to bound AI annotation to the dish. AI annotation itself runs on the workbench and the agents people connect to it; see [AI annotation](ai-annotation.md).
+`image_geometry` owns dish circle detection without model or annotation dependencies; traditional detection uses it, and the workbench reads the same [recipe](images.md) to bound AI annotation to the dish. AI annotation itself runs on the workbench and the agents people connect to it; see [AI annotation](ai-annotation.md).
 
 Worker execution can use algorithms and data documents. Algorithm families do not import workers or host operations. Dataset manifests depend on the detector contract, not an algorithm implementation; loading reviewed dataset entries belongs to `datasets/annotations.py`. Core annotation documents do not load datasets. The top-level package and detector namespace do not eagerly initialize algorithms.
 
