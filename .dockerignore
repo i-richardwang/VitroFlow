@@ -2,6 +2,10 @@
 !Dockerfile.web
 !configs/
 !configs/**
+!src/
+!src/vitroflow/
+!src/vitroflow/image_geometry/
+!src/vitroflow/image_geometry/dish-recipe.json
 !web/
 !web/**
 web/node_modules/
