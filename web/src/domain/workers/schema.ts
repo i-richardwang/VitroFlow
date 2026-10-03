@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { annotationRuntimeSchema } from "../annotation-runs/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
 
@@ -27,7 +26,6 @@ export const workerReportSchema = workerSessionSchema
   .extend({
     startedAt: z.string().datetime({ offset: true }),
     runtimes: runtimesSchema,
-    annotationRuntime: annotationRuntimeSchema.nullable(),
     memoryBytes: z.number().int().positive(),
   })
   .strict();
@@ -44,8 +42,7 @@ export const workerRefSchema = z.strictObject({ workerId: resourceIdSchema });
 
 export type WorkerActivity =
   | { kind: "inference"; image: string }
-  | { kind: "training"; runId: string; dataset: string }
-  | { kind: "annotation"; runId: string; image: string };
+  | { kind: "training"; runId: string; dataset: string };
 
 /** A worker session as the server knows it: the enrolled worker and its process. */
 export interface WorkerIdentity {

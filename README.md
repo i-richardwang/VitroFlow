@@ -55,8 +55,6 @@ A Dataset travels as a manifest and the canonical images it names. The manifest 
 
 The current workbench covers one standardized image per unit and observation, read for one model. A reading counts every instance found, whatever class it carries, so a rate separating a response from its population is read as two counts under two models rather than from one image. Objects detected within a unit are subsamples, not independent biological replicates. A physical Petri-dish boundary remains an image-analysis diagnostic rather than the identity of the experimental unit.
 
-The standalone [visual annotation tool](docs/autoannotation.md) prepares image tasks for vision-capable agents and collects their boxes after one submission per region through a portable file protocol. Previous results can be supplied directly to another round when needed. For product annotation, [the shared MCP service](docs/ai-annotation.md) serves both interactive clients and Worker-launched agents; the standalone file workflow remains available for offline use.
-
 ## Source development
 
 Requirements are Python 3.11+, [uv](https://docs.astral.sh/uv/), Bun 1.4.0, and Docker for the local Postgres and S3-compatible services.

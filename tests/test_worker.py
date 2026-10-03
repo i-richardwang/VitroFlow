@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -133,50 +132,3 @@ def test_training_releases_the_inference_model_and_its_own_allocations(
         assert events[-2:] == ["unload", "release"]
     finally:
         served.close()
-
-
-def test_worker_runs_claimed_annotation_with_its_probed_agent(tmp_path, monkeypatch):
-    from vitroflow.worker import service
-    from vitroflow.worker.annotation import AnnotationClient
-
-    descriptor = {"runtime": "antigravity", "version": "test", "model": "default"}
-    runtime = SimpleNamespace(probe=lambda: descriptor)
-    monkeypatch.setattr(worker_session, "available_runtimes", lambda: (TRADITIONAL,))
-    monkeypatch.setattr(worker_session, "device_memory_bytes", lambda _: 1)
-    monkeypatch.setattr(AnnotationClient, "claim", lambda _: {"id": "run"})
-    agents = []
-    monkeypatch.setattr(
-        service,
-        "process_annotation_job",
-        lambda client, job, directory, agent, **kwargs: agents.append(agent),
-    )
-    worker = Worker(
-        WorkerSettings(
-            "https://example.test",
-            "secret",
-            tmp_path,
-            annotation_runtime=runtime,
-        ),
-        transport=httpx.MockTransport(Workbench()),
-    )
-    try:
-        assert worker.client.session.heartbeat()["annotationRuntime"] == descriptor
-        assert worker.serve_once(threading.Event())
-        assert agents == [worker_session.AnnotationAgent(runtime, descriptor)]
-    finally:
-        worker.close()
-
-
-def test_unavailable_annotation_runtime_does_not_stop_other_capabilities(
-    tmp_path, monkeypatch
-):
-    class Unavailable:
-        def probe(self):
-            raise ValueError("Not configured")
-
-    monkeypatch.setattr(worker_session, "available_runtimes", lambda: (TRADITIONAL,))
-    monkeypatch.setattr(worker_session, "device_memory_bytes", lambda _: 1)
-    state = worker_session.WorkerSession.create(None, Unavailable())
-    assert state.annotation_agent is None
-    assert state.heartbeat()["annotationRuntime"] is None
-    assert state.runtimes == (TRADITIONAL,)

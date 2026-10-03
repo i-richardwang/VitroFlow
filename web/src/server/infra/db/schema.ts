@@ -27,9 +27,7 @@ import {
 
 import type { AnnotationDocument } from "../../../domain/annotation/schema";
 import {
-  ANNOTATION_EXECUTORS,
   ANNOTATION_RUN_STATUSES,
-  type AnnotationRuntime,
   type AnnotationContent,
   type AnnotationDefinition,
 } from "../../../domain/annotation-runs/schema";
@@ -932,7 +930,6 @@ export const workerSessions = pgTable(
     sessionId: text("session_id").notNull(),
     startedAt: instant("started_at"),
     runtimes: jsonb("runtimes").$type<RuntimeDescriptor[]>().notNull(),
-    annotationRuntime: jsonb("annotation_runtime").$type<AnnotationRuntime>(),
     memoryBytes: bigint("memory_bytes", { mode: "number" }).notNull(),
     lastSeenAt: instant("last_seen_at"),
   },
@@ -1144,23 +1141,12 @@ export const annotationRuns = pgTable(
     modelId: text("model_id")
       .notNull()
       .references(() => models.id),
-    requestedBy: text("requested_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
     definition: jsonb("definition").$type<AnnotationDefinition>().notNull(),
-    executor: text("executor", { enum: ANNOTATION_EXECUTORS }).notNull(),
     status: text("status", { enum: ANNOTATION_RUN_STATUSES }).notNull(),
     completed: integer("completed").notNull().default(0),
     total: integer("total").notNull(),
-    workerId: text("worker_id"),
-    sessionId: text("session_id"),
-    leaseExpiresAt: timestamp("lease_expires_at", {
-      withTimezone: true,
-      mode: "date",
-    }),
     createdAt: instant("created_at"),
     updatedAt: instant("updated_at"),
-    error: text("error"),
     result: jsonb("result").$type<AnnotationContent>(),
   },
   (table) => [
@@ -1169,13 +1155,12 @@ export const annotationRuns = pgTable(
       table.modelId,
       table.createdAt,
     ),
-    index("annotation_runs_queue_idx").on(table.status, table.createdAt),
     uniqueIndex("annotation_runs_active_idx")
       .on(table.imageId, table.modelId)
-      .where(sql`${table.status} in ('queued', 'running')`),
+      .where(sql`${table.status} = 'running'`),
     check(
       "annotation_runs_status_check",
-      sql`${table.status} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`,
+      sql`${table.status} in ('running', 'succeeded', 'cancelled')`,
     ),
     check(
       "annotation_runs_progress_check",
@@ -1185,18 +1170,10 @@ export const annotationRuns = pgTable(
       "annotation_runs_result_check",
       sql`(${table.status} = 'succeeded') = (${table.result} is not null)`,
     ),
-    check(
-      "annotation_runs_executor_check",
-      sql`${table.executor} = 'worker' or (${table.executor} = 'interactive' and ${table.status} <> 'queued' and ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null)`,
-    ),
-    check(
-      "annotation_runs_lease_check",
-      sql`${table.executor} = 'interactive' or (${table.status} <> 'running' or (${table.leaseExpiresAt} is not null and ${table.workerId} is not null and ${table.sessionId} is not null)) and (${table.status} <> 'queued' or (${table.leaseExpiresAt} is null and ${table.workerId} is null and ${table.sessionId} is null))`,
-    ),
   ],
 );
 
-/** Server-owned regional checkpoints shared by interactive and scheduled agents. */
+/** Each region of a run, with the proposal accepted for it. */
 export const annotationTasks = pgTable(
   "annotation_tasks",
   {
@@ -1205,7 +1182,6 @@ export const annotationTasks = pgTable(
       .references(() => annotationRuns.id, { onDelete: "cascade" }),
     taskId: text("task_id").notNull(),
     region: jsonb("region").$type<Region>().notNull(),
-    attemptId: text("attempt_id"),
     response: jsonb("response").$type<RegionProposal>(),
     acceptedProposalId: text("accepted_proposal_id"),
   },
@@ -1214,11 +1190,12 @@ export const annotationTasks = pgTable(
     unique("annotation_tasks_identifier_unique").on(table.taskId),
     check(
       "annotation_tasks_acceptance_check",
-      sql`(${table.response} is null) = (${table.acceptedProposalId} is null) and (${table.response} is null or ${table.attemptId} is not null)`,
+      sql`(${table.response} is null) = (${table.acceptedProposalId} is null)`,
     ),
   ],
 );
 
+/** Immutable proposals previewed for a region; submission accepts one of them. */
 export const annotationPreviews = pgTable(
   "annotation_previews",
   {
@@ -1226,14 +1203,11 @@ export const annotationPreviews = pgTable(
       .notNull()
       .references(() => annotationRuns.id, { onDelete: "cascade" }),
     taskId: text("task_id").notNull(),
-    attemptId: text("attempt_id").notNull(),
     proposalId: text("proposal_id").notNull(),
     response: jsonb("response").$type<RegionProposal>().notNull(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.runId, table.taskId, table.attemptId, table.proposalId],
-    }),
+    primaryKey({ columns: [table.runId, table.taskId, table.proposalId] }),
     foreignKey({
       columns: [table.runId, table.taskId],
       foreignColumns: [annotationTasks.runId, annotationTasks.taskId],

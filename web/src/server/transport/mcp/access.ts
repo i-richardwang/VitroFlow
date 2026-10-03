@@ -39,7 +39,7 @@ export function guardMcpRequest(request: Request): Response | null {
  * unauthenticated clients still receive the protected-resource challenge,
  * while authorized GET/DELETE requests cannot open legacy streams or sessions.
  */
-export function rejectUnsupportedMcpMethod(request: Request): Response | null {
+function rejectUnsupportedMcpMethod(request: Request): Response | null {
   return request.method === "POST"
     ? null
     : new Response(null, {
@@ -48,9 +48,8 @@ export function rejectUnsupportedMcpMethod(request: Request): Response | null {
       });
 }
 
-/** The account and client behind a live OAuth access token. */
+/** The client behind a live OAuth access token, as the MCP SDK takes it. */
 interface McpGrant {
-  userId: string;
   clientId: string;
   token: string;
   scopes: string[];
@@ -79,8 +78,7 @@ export async function serveWithOAuth(
     instance,
     async (accepted, claims) => {
       const clientId = mcpClientId(claims);
-      const userId = claims.sub;
-      if (!clientId || !userId || !(await mcpAuthorizationIsLive(claims))) {
+      if (!clientId || !claims.sub || !(await mcpAuthorizationIsLive(claims))) {
         return bearerAuthChallengeResponse(
           new OAuthError(
             OAuthErrorCode.InvalidToken,
@@ -98,7 +96,6 @@ export async function serveWithOAuth(
       )?.token;
       if (!token) throw new Error("Verified MCP request has no access token");
       return handle(accepted, {
-        userId,
         clientId,
         token,
         scopes:

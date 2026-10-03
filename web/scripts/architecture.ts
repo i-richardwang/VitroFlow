@@ -9,10 +9,10 @@ const dependencies: Record<string, readonly string[]> = {
   workers: ["infra"],
   auth: ["infra"],
   inference: ["images", "models", "workers", "infra"],
-  "annotation-runs": ["readings", "images", "models", "workers", "infra"],
+  "annotation-runs": ["readings", "images", "models", "infra"],
   annotations: ["images", "models", "infra"],
   datasets: ["readings", "images", "inference", "models", "infra"],
-  readings: ["inference", "workers", "infra"],
+  readings: ["inference", "infra"],
   experiments: [
     "readings",
     "annotations",

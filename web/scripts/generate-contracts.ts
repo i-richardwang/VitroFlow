@@ -1,8 +1,3 @@
-import {
-  annotationTaskInput,
-  annotationPreviewInput,
-  annotationSubmitInput,
-} from "../src/domain/annotation-runs/tasks";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z, type ZodType } from "zod";
@@ -15,13 +10,10 @@ import {
   inferenceAssignmentSchema,
   inferenceModelManifestSchema,
 } from "../src/domain/inference/assignments";
-import { annotationConfigSchema } from "../src/domain/models/annotation";
 import {
   datasetSnapshotSchema,
   trainingRunSchema,
 } from "../src/domain/training/schema";
-
-import { annotationJobSchema } from "../src/domain/annotation-runs/schema";
 
 import { dishRecipeSchema } from "../src/domain/images/coverage";
 
@@ -30,12 +22,6 @@ const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["dish-recipe", dishRecipeSchema],
   ["annotation", annotationSchema],
-  ["annotation-tool-context", annotationTaskInput],
-  ["annotation-tool-view", annotationTaskInput],
-  ["annotation-tool-preview", annotationPreviewInput],
-  ["annotation-tool-submit", annotationSubmitInput],
-  ["annotation-config", annotationConfigSchema],
-  ["annotation-job", annotationJobSchema],
   ["training-parameters", trainingParametersSchema],
   ["dataset-manifest", datasetManifestSchema],
   ["inference-assignment", inferenceAssignmentSchema],

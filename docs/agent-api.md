@@ -67,8 +67,7 @@ unhandled requests to fall through to page rendering. Host/Origin validation
 and authentication run first: missing, invalid or revoked credentials receive
 the OAuth challenge, including on GET probes. After authentication, only POST
 is admitted; other methods receive `405 Method Not Allowed` with `Allow: POST`.
-Task credentials follow the same method contract. GET streams and DELETE
-sessions are not implemented.
+GET streams and DELETE sessions are not implemented.
 
 This follows the [MCP 2026-07-28 transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)
 and [authorization discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery)

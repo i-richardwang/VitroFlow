@@ -11,24 +11,15 @@ import {
   removeDatasetImage,
   summarizeDataset,
 } from "../server/datasets/public";
-import { annotationWorkerOnline } from "../server/annotation-runs/public";
 import { readDatasetImage, datasetOverview } from "../server/queries/public";
 
 export const getDatasetOverview = createServerFn({ method: "GET" })
   .validator(datasetRefSchema)
-  .handler(async ({ data }) => {
-    const overview = await datasetOverview(data.dataset);
-    if (!overview) return null;
-    return { ...overview, canAnnotate: await annotationWorkerOnline() };
-  });
+  .handler(({ data }) => datasetOverview(data.dataset));
 
 export const getDatasetImage = createServerFn({ method: "GET" })
   .validator(datasetImageRefSchema)
-  .handler(async ({ data }) => {
-    const view = await readDatasetImage(data);
-    if (!view) return null;
-    return { ...view, canAnnotate: await annotationWorkerOnline() };
-  });
+  .handler(({ data }) => readDatasetImage(data));
 
 export const getDatasets = createServerFn({ method: "GET" }).handler(async () =>
   Promise.all(

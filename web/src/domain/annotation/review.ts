@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import {
-  annotationActivitySchema,
+  annotationProgressSchema,
   annotationProposalSchema,
 } from "../annotation-runs/schema";
 import { detectionResultSchema } from "../detection/schema";
@@ -21,8 +21,8 @@ import {
  * decided, `proposal` is what an AI agent drew, `detection` is what the
  * model's newest version found. A reviewer's decision outranks the agent,
  * and the agent outranks the detector. Each is looked up on its own; the
- * ranking decides which one an image reads by. `activity` is the agent
- * still at work on the image, or its last failure.
+ * ranking decides which one an image reads by. `activity` is the progress
+ * of an agent still at work on the image.
  */
 export const readingsSchema = z.strictObject({
   ref: annotationRefSchema,
@@ -31,7 +31,7 @@ export const readingsSchema = z.strictObject({
   detection: detectionResultSchema.nullable(),
   proposal: annotationProposalSchema.nullable(),
   annotation: annotationSchema.nullable(),
-  activity: annotationActivitySchema.nullable(),
+  activity: annotationProgressSchema.nullable(),
 });
 
 export type Readings = z.infer<typeof readingsSchema>;
@@ -87,7 +87,7 @@ export function shownInstances(
 }
 
 export function agentBusy(readings: Readings): boolean {
-  return readings.activity !== null && readings.activity.status !== "failed";
+  return readings.activity !== null;
 }
 
 /**

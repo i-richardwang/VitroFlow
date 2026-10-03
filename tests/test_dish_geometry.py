@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import cv2
 import numpy as np
 
 from vitroflow.image_geometry.dish import detect_dish_circle
+from vitroflow.image_geometry.recipe import thumbnail_geometry
 
 
 def test_shared_dish_detector_locates_a_ring_without_using_a_fallback():
@@ -30,13 +34,7 @@ def test_traditional_fallback_is_local_to_seed_geometry():
     assert geometry.dish_mask.shape == (80, 120)
 
 
-def test_shared_boundary_cases_and_conservative_intersections():
-    import json
-    from pathlib import Path
-
-    from vitroflow.autoannotation.geometry import dish_coverage, intersects_coverage
-    from vitroflow.image_geometry.recipe import thumbnail_geometry
-
+def test_thumbnail_geometry_matches_the_shared_boundary_cases():
     cases = json.loads(
         (Path(__file__).parent / "fixtures/dish-geometry.json").read_text()
     )
@@ -44,10 +42,3 @@ def test_shared_boundary_cases_and_conservative_intersections():
         width, height = (sample["frame"][key] for key in ("width", "height"))
         _, thumbnail_width, thumbnail_height = thumbnail_geometry(width, height)
         assert [thumbnail_width, thumbnail_height] == sample["thumbnail"]
-        assert (dish_coverage(width, height, sample["circle"]) is not None) == sample[
-            "valid"
-        ]
-    coverage = dish_coverage(1000, 800, {"x": 500, "y": 400, "radius": 300})
-    assert intersects_coverage([845, 400, 855, 410], coverage)
-    assert not intersects_coverage([846, 400, 856, 410], coverage)
-    assert intersects_coverage([0, 0, 1, 1], None)

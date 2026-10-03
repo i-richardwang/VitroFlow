@@ -52,7 +52,6 @@ test("training HTTP routes publish a version and serve its weights idempotently"
         ...SESSION,
         startedAt: "2026-08-27T00:00:00.000Z",
         runtimes: [ULTRALYTICS_RUNTIME],
-        annotationRuntime: null,
         memoryBytes: 24 * 1024 ** 3,
       }),
     }),

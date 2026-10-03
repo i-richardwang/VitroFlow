@@ -4,7 +4,6 @@ import argparse
 import getpass
 from typing import Any, Protocol
 
-from vitroflow.agent_runtimes.config import RUNTIME_NAMES, RuntimeConfig
 from vitroflow.worker.host.launchd import (
     require_launchd,
     restart_service,
@@ -40,9 +39,6 @@ def _setup(args: argparse.Namespace) -> int:
         token=token,
         device=args.device,
         poll_seconds=args.poll_seconds,
-        annotation=(
-            RuntimeConfig(args.annotation_runtime) if args.annotation_runtime else None
-        ),
     )
     for check in preflight_profile(args.profile, profile):
         print(check)
@@ -115,11 +111,6 @@ def add_worker_commands(commands: SubparserCollection) -> None:
     setup.add_argument("profile")
     setup.add_argument("--server", required=True)
     setup.add_argument("--device")
-    setup.add_argument(
-        "--annotation-runtime",
-        choices=RUNTIME_NAMES,
-        help="Run this AI annotation agent with its default model",
-    )
     setup.add_argument("--poll-seconds", type=float, default=5.0)
     setup.add_argument(
         "--force", action="store_true", help="Replace an existing profile"

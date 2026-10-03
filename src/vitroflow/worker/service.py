@@ -1,7 +1,7 @@
 """One Worker process: it heartbeats, then serves whatever the workbench holds.
 
-Interactive AI annotation requests take priority, followed by training and
-inference. The process executes one assignment at a time.
+Training takes priority over inference. The process executes one assignment at
+a time.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ import httpx
 
 from vitroflow.detectors.ultralytics import YoloTrainingInterruptedError
 from vitroflow.detectors.ultralytics.runtime import release_accelerator
-from vitroflow.worker.annotation import AnnotationClient, process_annotation_job
 from vitroflow.worker.inference import WORKER_ERRORS, InferenceClient, run_pass
 from vitroflow.worker.model_store import ModelStore
 from vitroflow.worker.runtime import shutdown_signals
@@ -25,7 +24,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Worker:
-    """One session serves annotation, training and inference over one connection."""
+    """One session serves training and inference over one connection."""
 
     def __init__(
         self,
@@ -37,12 +36,11 @@ class Worker:
         self.client = WorkerClient(
             settings.server_url,
             settings.token,
-            WorkerSession.create(settings.device, settings.annotation_runtime),
+            WorkerSession.create(settings.device),
             transport=transport,
         )
         self.inference = InferenceClient(self.client)
         self.training = TrainingClient(self.client)
-        self.annotation = AnnotationClient(self.client)
         self.store = ModelStore(self.inference, settings.work_dir, settings.device)
 
     def close(self) -> None:
@@ -54,19 +52,6 @@ class Worker:
         self.client.heartbeat()
         if stopped.is_set():
             return False
-        agent = self.client.session.annotation_agent
-        if agent is not None:
-            annotation = self.annotation.claim()
-            if annotation is not None:
-                self.store.unload()
-                process_annotation_job(
-                    self.annotation,
-                    annotation,
-                    self.settings.work_dir,
-                    agent,
-                    stopped=stopped,
-                )
-                return True
         if self.client.session.can_train:
             job = self.training.claim()
             if job is not None:

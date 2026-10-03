@@ -3,19 +3,13 @@ import {
   asc,
   desc,
   eq,
-  isNull,
   max,
   sql,
   type AnyColumn,
   type SQL,
 } from "drizzle-orm";
 
-import {
-  database,
-  inSnapshot,
-  snapshot,
-  type Executor,
-} from "../infra/db/client";
+import { inSnapshot, snapshot, type Executor } from "../infra/db/client";
 import {
   annotations,
   experimentObservationImages,
@@ -41,7 +35,6 @@ import {
   type ObservationImageRef,
   type UnitRef,
 } from "../../domain/experiments/schema";
-import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { Tally } from "../../domain/models/classes";
 import {
   listObservations,
@@ -339,37 +332,6 @@ async function listExperimentSummaries(
       },
     };
   });
-}
-
-/** The images of an observation no reviewer has calibrated, as annotation refs. */
-export async function listUnreviewedObservationImages(
-  experimentId: string,
-  observationId: string,
-): Promise<AnnotationRef[]> {
-  const db = await database();
-  const rows = await db
-    .select({
-      digest: experimentObservationImages.imageId,
-      modelId: experimentObservations.modelId,
-    })
-    .from(experimentObservationImages)
-    .innerJoin(experimentObservations, atImageObservation())
-    .leftJoin(
-      annotations,
-      and(
-        eq(annotations.imageId, experimentObservationImages.imageId),
-        eq(annotations.modelId, experimentObservations.modelId),
-      ),
-    )
-    .where(
-      and(
-        eq(experimentObservationImages.experimentId, experimentId),
-        eq(experimentObservationImages.observationId, observationId),
-        isNull(annotations.imageId),
-      ),
-    )
-    .orderBy(asc(experimentObservationImages.id));
-  return rows;
 }
 
 function atObservationImage(experimentId: string, observationImageId: string) {

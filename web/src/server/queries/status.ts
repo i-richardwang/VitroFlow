@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 
 import { database } from "../infra/db/client";
 import {
-  annotationRuns,
   datasetSnapshots,
   inferenceJobs,
   trainingRuns,
@@ -69,38 +68,6 @@ async function trainingActivity(
   );
 }
 
-async function annotationActivity(
-  at: Date,
-): Promise<Map<string, WorkerActivity>> {
-  const rows = await (
-    await database()
-  )
-    .select({
-      workerId: annotationRuns.workerId,
-      runId: annotationRuns.id,
-      imageId: annotationRuns.imageId,
-    })
-    .from(annotationRuns)
-    .where(leaseIsHeld(annotationRuns, at));
-  const filenames = await imageFilenames(rows.map((row) => row.imageId));
-  return new Map(
-    rows.flatMap((row) =>
-      row.workerId
-        ? [
-            [
-              row.workerId,
-              {
-                kind: "annotation",
-                runId: row.runId,
-                image: filenames.get(row.imageId) ?? row.imageId,
-              },
-            ] as const,
-          ]
-        : [],
-    ),
-  );
-}
-
 /**
  * Every enrolled worker with its latest session: presence, what it is doing,
  * and how long ago it was heard from. A worker that never connected has none.
@@ -109,14 +76,12 @@ export async function getSystemStatus() {
   const at = new Date();
   const age = (timestamp: string) =>
     Math.max(0, Math.floor((at.getTime() - Date.parse(timestamp)) / 1000));
-  const [enrolled, sessions, inference, training, annotation] =
-    await Promise.all([
-      listEnrolledWorkers(),
-      listWorkers(),
-      inferenceActivity(at),
-      trainingActivity(at),
-      annotationActivity(at),
-    ]);
+  const [enrolled, sessions, inference, training] = await Promise.all([
+    listEnrolledWorkers(),
+    listWorkers(),
+    inferenceActivity(at),
+    trainingActivity(at),
+  ]);
   const sessionOf = new Map(
     sessions.map((session) => [session.workerId, session]),
   );
@@ -135,11 +100,7 @@ export async function getSystemStatus() {
         workerId,
         presence: workerPresence(session.lastSeenAt, at),
         lastSeenSeconds: age(session.lastSeenAt),
-        activity:
-          annotation.get(workerId) ??
-          inference.get(workerId) ??
-          training.get(workerId) ??
-          null,
+        activity: inference.get(workerId) ?? training.get(workerId) ?? null,
       };
     }),
   };

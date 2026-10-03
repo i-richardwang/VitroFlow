@@ -32,7 +32,6 @@ import { UnitMenu } from "./UnitMenu";
 export function UnitWorkbench({
   series,
   datasets,
-  canAnnotate,
   calibrating,
   source,
   onSourceChange,
@@ -40,7 +39,6 @@ export function UnitWorkbench({
 }: {
   series: UnitSeries;
   datasets: string[];
-  canAnnotate: boolean;
   calibrating: boolean;
   source?: ReviewSource;
   onSourceChange: (source: ReviewSource) => void;
@@ -114,7 +112,6 @@ export function UnitWorkbench({
       title={title}
       model={shown.model}
       review={shown.review}
-      canAnnotate={canAnnotate}
       calibrating={calibrating}
       source={source}
       onSourceChange={onSourceChange}

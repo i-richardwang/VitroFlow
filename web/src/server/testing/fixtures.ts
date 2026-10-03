@@ -175,7 +175,6 @@ export function testHeartbeat(workerId: string): WorkerHeartbeat {
     sessionId: `session-${workerId}`,
     startedAt: "2026-08-27T00:00:00.000Z",
     runtimes: [TEST_RUNTIME],
-    annotationRuntime: null,
     memoryBytes: 8 * 1024 ** 3,
   };
 }

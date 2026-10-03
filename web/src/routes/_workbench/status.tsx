@@ -139,8 +139,6 @@ function Activity({ activity }: { activity: WorkerActivity | null }) {
   if (!activity) {
     return <span className="text-muted">{m.worker_activity_idle()}</span>;
   }
-  if (activity.kind === "annotation")
-    return m.worker_activity_annotation({ image: activity.image });
   if (activity.kind === "inference") {
     return m.worker_activity_inference({ image: activity.image });
   }

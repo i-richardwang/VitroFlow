@@ -9,8 +9,6 @@ from pathlib import Path
 
 import httpx
 
-from vitroflow.agent_annotation.command import add_agent_annotation_commands
-from vitroflow.autoannotation.command import add_annotation_commands
 from vitroflow.datasets.annotations import load_annotations
 from vitroflow.datasets.manifest import (
     DatasetManifest,
@@ -291,14 +289,6 @@ def _parser() -> argparse.ArgumentParser:
     export_yolo.add_argument("--seed", type=int, default=0)
     export_yolo.set_defaults(handler=_export_yolo)
 
-    annotation = commands.add_parser(
-        "annotate", help="Annotate images with visual agents"
-    )
-    annotation_commands = annotation.add_subparsers(
-        dest="annotation_command", required=True
-    )
-    add_annotation_commands(annotation_commands)
-    add_agent_annotation_commands(annotation_commands)
     add_worker_commands(commands)
     return parser
 

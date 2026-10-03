@@ -62,7 +62,6 @@ export function ExperimentGridView({
     images,
     models,
     datasets,
-    canAnnotate,
   } = data;
   const router = useRouter();
   const [open, setOpen] = useState<Dialog | null>(null);
@@ -124,7 +123,6 @@ export function ExperimentGridView({
             )}
             placed={placed}
             models={models}
-            canAnnotate={canAnnotate}
             datasets={datasets
               .filter((dataset) => dataset.modelId === observation.modelId)
               .map((dataset) => dataset.id)}

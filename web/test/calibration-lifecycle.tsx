@@ -138,7 +138,6 @@ const dropdownWidget = Object.assign(Widget, {
 });
 mock.module("@heroui/react", () => ({
   Dropdown: dropdownWidget,
-  Modal: widget,
   Chip: widget,
   Alert: widget,
   AlertDialog: widget,
@@ -188,14 +187,6 @@ mock.module("../src/functions/review", () => ({
     saved = request;
     return { status: "saved" };
   },
-}));
-let startRequests: { input: unknown }[] = [];
-mock.module("../src/functions/annotation-runs", () => ({
-  startAnnotationRun: async ({ data }: { data: { input: unknown } }) => {
-    startRequests.push(data);
-    throw new Error("No AI annotation agent is online");
-  },
-  stopAnnotationRun: async () => {},
 }));
 const { ImageWorkbench } =
   await import("../src/features/calibration/ImageWorkbench");
@@ -249,7 +240,6 @@ const render = async (calibrating: boolean, model = SEED_DETECTOR) => {
         title: "Seed",
         model,
         review: { ...review, ref: { ...review.ref, modelId: model.id } },
-        canAnnotate: true,
         calibrating,
         source,
         onSourceChange(next) {
@@ -375,14 +365,6 @@ await act(async () => {
 });
 assert.equal(boxes(), 2, "calibration must display the fetched annotation");
 assert.equal(boxes(), 2, "an available proposal must not replace the draft");
-await act(async () => item("refit")!.click());
-assert.equal(startRequests.length, 1, "refitting asks the server once");
-assert.deepEqual(
-  startRequests[0]?.input,
-  latest.instances,
-  "refitting sends the draft as the agent's starting point",
-);
-assert.equal(boxes(), 2, "a server refusal leaves the draft alone");
 await act(async () => item("proposal")!.click());
 assert.equal(boxes(), 3, "resetting to the proposal replaces the draft");
 assert.equal(checks(), 2, "a draft from the proposal keeps its checks");

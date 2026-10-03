@@ -1,5 +1,5 @@
 {
-  "id": "c5254901-8bb5-402d-bf8b-de1f83237b37",
+  "id": "deb43cff-05cc-485b-837c-04135a0b5295",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -168,12 +168,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "attempt_id": {
-          "name": "attempt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "proposal_id": {
           "name": "proposal_id",
           "type": "text",
@@ -219,12 +213,11 @@
         }
       },
       "compositePrimaryKeys": {
-        "annotation_previews_run_id_task_id_attempt_id_proposal_id_pk": {
-          "name": "annotation_previews_run_id_task_id_attempt_id_proposal_id_pk",
+        "annotation_previews_run_id_task_id_proposal_id_pk": {
+          "name": "annotation_previews_run_id_task_id_proposal_id_pk",
           "columns": [
             "run_id",
             "task_id",
-            "attempt_id",
             "proposal_id"
           ]
         }
@@ -256,21 +249,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "requested_by": {
-          "name": "requested_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "definition": {
           "name": "definition",
           "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "executor": {
-          "name": "executor",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -293,24 +274,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "worker_id": {
-          "name": "worker_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lease_expires_at": {
-          "name": "lease_expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -322,12 +285,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "result": {
           "name": "result",
@@ -364,27 +321,6 @@
           "method": "btree",
           "with": {}
         },
-        "annotation_runs_queue_idx": {
-          "name": "annotation_runs_queue_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "annotation_runs_active_idx": {
           "name": "annotation_runs_active_idx",
           "columns": [
@@ -402,7 +338,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"annotation_runs\".\"status\" in ('queued', 'running')",
+          "where": "\"annotation_runs\".\"status\" = 'running'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -434,19 +370,6 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "annotation_runs_requested_by_users_id_fk": {
-          "name": "annotation_runs_requested_by_users_id_fk",
-          "tableFrom": "annotation_runs",
-          "tableTo": "users",
-          "columnsFrom": [
-            "requested_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -455,7 +378,7 @@
       "checkConstraints": {
         "annotation_runs_status_check": {
           "name": "annotation_runs_status_check",
-          "value": "\"annotation_runs\".\"status\" in ('queued', 'running', 'succeeded', 'failed', 'cancelled')"
+          "value": "\"annotation_runs\".\"status\" in ('running', 'succeeded', 'cancelled')"
         },
         "annotation_runs_progress_check": {
           "name": "annotation_runs_progress_check",
@@ -464,14 +387,6 @@
         "annotation_runs_result_check": {
           "name": "annotation_runs_result_check",
           "value": "(\"annotation_runs\".\"status\" = 'succeeded') = (\"annotation_runs\".\"result\" is not null)"
-        },
-        "annotation_runs_executor_check": {
-          "name": "annotation_runs_executor_check",
-          "value": "\"annotation_runs\".\"executor\" = 'worker' or (\"annotation_runs\".\"executor\" = 'interactive' and \"annotation_runs\".\"status\" <> 'queued' and \"annotation_runs\".\"worker_id\" is null and \"annotation_runs\".\"session_id\" is null and \"annotation_runs\".\"lease_expires_at\" is null)"
-        },
-        "annotation_runs_lease_check": {
-          "name": "annotation_runs_lease_check",
-          "value": "\"annotation_runs\".\"executor\" = 'interactive' or (\"annotation_runs\".\"status\" <> 'running' or (\"annotation_runs\".\"lease_expires_at\" is not null and \"annotation_runs\".\"worker_id\" is not null and \"annotation_runs\".\"session_id\" is not null)) and (\"annotation_runs\".\"status\" <> 'queued' or (\"annotation_runs\".\"lease_expires_at\" is null and \"annotation_runs\".\"worker_id\" is null and \"annotation_runs\".\"session_id\" is null))"
         }
       },
       "isRLSEnabled": false
@@ -497,12 +412,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "attempt_id": {
-          "name": "attempt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "response": {
           "name": "response",
@@ -555,7 +464,7 @@
       "checkConstraints": {
         "annotation_tasks_acceptance_check": {
           "name": "annotation_tasks_acceptance_check",
-          "value": "(\"annotation_tasks\".\"response\" is null) = (\"annotation_tasks\".\"accepted_proposal_id\" is null) and (\"annotation_tasks\".\"response\" is null or \"annotation_tasks\".\"attempt_id\" is not null)"
+          "value": "(\"annotation_tasks\".\"response\" is null) = (\"annotation_tasks\".\"accepted_proposal_id\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -1979,17 +1888,17 @@
           "primaryKey": false,
           "notNull": false
         },
-        "received_at": {
-          "name": "received_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
         "dish_analysis_attempted_at": {
           "name": "dish_analysis_attempted_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -4326,12 +4235,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "annotation_runtime": {
-          "name": "annotation_runtime",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
         },
         "memory_bytes": {
           "name": "memory_bytes",

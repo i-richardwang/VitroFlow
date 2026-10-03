@@ -6,30 +6,13 @@ import {
   boundingBoxSchema,
   REVIEW_SOURCES,
 } from "../annotation/schema";
-import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
+import { sha256Schema } from "../identifiers/schema";
 import { annotationConfigSchema } from "../models/annotation";
 import { imageCoverageSchema } from "../images/coverage";
 
-/** The agent a Worker runs, as it reported itself when the Worker started. */
-export const annotationRuntimeSchema = z.strictObject({
-  runtime: z.enum(["pi", "antigravity"]),
-  version: z.string().min(1).max(128),
-  model: z.string().min(1).max(256),
-});
-export type AnnotationRuntime = z.infer<typeof annotationRuntimeSchema>;
-
-/**
- * Who drives a run: a Worker the workbench dispatches it to, or an agent the
- * person connected over MCP that drives it from its own conversation.
- */
-export const ANNOTATION_EXECUTORS = ["worker", "interactive"] as const;
-export type AnnotationExecutor = (typeof ANNOTATION_EXECUTORS)[number];
-
 export const ANNOTATION_RUN_STATUSES = [
-  "queued",
   "running",
   "succeeded",
-  "failed",
   "cancelled",
 ] as const;
 /**
@@ -55,11 +38,12 @@ export const annotationScopeSchema = z
 
 export const startAnnotationRunSchema = z.strictObject({
   ref: annotationRefSchema,
-  input: annotationInputSchema,
-  scope: annotationScopeSchema,
+  input: annotationInputSchema.default(null),
+  scope: annotationScopeSchema.default(null),
 });
 export type StartAnnotationRun = z.infer<typeof startAnnotationRunSchema>;
-const annotationProgressSchema = z
+/** How many of a run's regions have been accepted. */
+export const annotationProgressSchema = z
   .strictObject({
     completed: z.number().int().nonnegative(),
     total: z.number().int().positive(),
@@ -91,8 +75,6 @@ export const annotationDefinitionSchema = z.strictObject({
 });
 export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
-export const annotationJobSchema = z.strictObject({ id: resourceIdSchema });
-
 /** Boxes with their notes: what a region saves and what a run leaves. */
 export const annotationContentSchema = z.strictObject({
   document: annotationSchema,
@@ -110,14 +92,3 @@ export const annotationProposalSchema = annotationContentSchema.extend({
   createdAt: z.string(),
 });
 export type AnnotationProposal = z.infer<typeof annotationProposalSchema>;
-export const annotationActivitySchema = z.strictObject({
-  status: z.enum(["queued", "running", "failed"]),
-  progress: annotationProgressSchema,
-});
-export type AnnotationActivity = z.infer<typeof annotationActivitySchema>;
-
-export interface AnnotationBatchResult {
-  started: number;
-  skipped: number;
-  failed: Array<{ ref: z.infer<typeof annotationRefSchema>; message: string }>;
-}

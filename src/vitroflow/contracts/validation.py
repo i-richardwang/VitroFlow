@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 import math
-from copy import deepcopy
 from functools import cache
 from importlib.resources import files
-from typing import Any, cast
+from typing import Any
 
 from jsonschema import Draft202012Validator
 
@@ -18,11 +17,6 @@ def _validator(name: str) -> Draft202012Validator:
     schema = json.loads(resource.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
-
-
-def contract_defaults(name: str) -> dict:
-    """A fresh copy of the complete default document declared by a contract."""
-    return deepcopy(cast(dict, _validator(name).schema)["default"])
 
 
 def validate_wire_contract(name: str, value: Any, context: str) -> None:

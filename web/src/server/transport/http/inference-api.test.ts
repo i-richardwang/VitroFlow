@@ -81,7 +81,6 @@ test("inference HTTP routes carry an image from upload to detection", async () =
         sessionId: "api-session",
         startedAt: "2026-01-01T00:00:00Z",
         runtimes: [runtime],
-        annotationRuntime: null,
         memoryBytes: 8 * 1024 ** 3,
       }),
     }),

@@ -3,15 +3,12 @@ import { KPI } from "@heroui-pro/react/kpi";
 import { KPIGroup } from "@heroui-pro/react/kpi-group";
 import { Button, Link, Table, buttonVariants } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
 
 import { Count } from "../../ui/Count";
 import { QualityChips } from "../../ui/DetectionQuality";
 import { Page } from "../../ui/Page";
 import { archiveFilename } from "../../domain/datasets/archive-format";
-import { AnnotateImagesDialog } from "../../features/calibration/AiAnnotate";
 import { ImageMenu } from "../../features/datasets/ImageMenu";
-import { annotateDatasetImages } from "../../functions/annotation-runs";
 import { getDatasetOverview } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { m } from "../../paraglide/messages";
@@ -38,11 +35,8 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const { images, reviewedCount, training, canAnnotate } =
-    Route.useLoaderData();
+  const { images, reviewedCount, training } = Route.useLoaderData();
   const router = useRouter();
-  const [annotating, setAnnotating] = useState(false);
-  const unreviewed = images.filter((image) => image.instanceCount === null);
 
   useRouteRefresh(router, 10_000);
 
@@ -58,15 +52,6 @@ function DatasetPage() {
           >
             {m.dataset_download()}
           </Link>
-          {canAnnotate ? (
-            <Button
-              variant="secondary"
-              isDisabled={unreviewed.length === 0}
-              onPress={() => setAnnotating(true)}
-            >
-              {m.ai_annotation()}
-            </Button>
-          ) : null}
           <Button
             variant="primary"
             onPress={() => {
@@ -81,12 +66,6 @@ function DatasetPage() {
         </>
       }
     >
-      <AnnotateImagesDialog
-        isOpen={annotating}
-        count={unreviewed.length}
-        onConfirm={() => annotateDatasetImages({ data: { dataset } })}
-        onClose={() => setAnnotating(false)}
-      />
       <KPIGroup>
         <KPI>
           <KPI.Header>

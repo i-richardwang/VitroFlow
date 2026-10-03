@@ -65,7 +65,7 @@ export const Route = createFileRoute(
 });
 
 function UnitPage() {
-  const { datasets, canAnnotate, ...series } = Route.useLoaderData();
+  const { datasets, ...series } = Route.useLoaderData();
   const { show, calibrate } = Route.useSearch();
   const router = useRouter();
   const navigate = Route.useNavigate();
@@ -84,7 +84,6 @@ function UnitPage() {
       key={`${series.experiment.id}/${series.unit.id}`}
       series={series}
       datasets={datasets}
-      canAnnotate={canAnnotate}
       calibrating={calibrate === true}
       source={show}
       onSourceChange={(show) =>

@@ -1,10 +1,7 @@
 import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import type {
-  AnnotationActivity,
-  AnnotationProposal,
-} from "../../domain/annotation-runs/schema";
+import type { AnnotationProposal } from "../../domain/annotation-runs/schema";
 import {
   annotationRuns,
   images,
@@ -21,48 +18,26 @@ import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { AnnotationRunNotFoundError } from "../../domain/annotation-runs/errors";
 import { newestDetectingVersion } from "../inference/public";
-import { leaseIsHeld } from "../workers/public";
 
 type Row = typeof annotationRuns.$inferSelect;
 
-/**
- * A Worker run whose lease no longer holds is back in the queue, whatever the
- * row says. An interactive run holds no lease.
- */
-function effectiveStatus(row: Row, leaseHeld: boolean) {
-  return row.status === "running" && row.executor === "worker" && !leaseHeld
-    ? ("queued" as const)
-    : row.status;
-}
-
 export const proposalRuns = alias(annotationRuns, "proposal_runs");
-const latestRuns = alias(annotationRuns, "latest_runs");
+const activeRuns = alias(annotationRuns, "active_runs");
 
-function newestRun(
+/** The newest run that succeeded for the image and model: its AI proposal. */
+export function proposalRunId(
   imageId: SQLWrapper,
   modelId: SQLWrapper | string,
-  succeeded: boolean,
 ) {
   return sql`(
     select r.id
     from annotation_runs r
     where r.image_id = ${imageId}
       and r.model_id = ${modelId}
-      ${succeeded ? sql`and r.status = 'succeeded'` : sql``}
+      and r.status = 'succeeded'
     order by r.created_at desc, r.id desc
     limit 1
   )`;
-}
-
-export function proposalRunId(
-  imageId: SQLWrapper,
-  modelId: SQLWrapper | string,
-) {
-  return newestRun(imageId, modelId, true);
-}
-
-function latestRunId(imageId: SQLWrapper, modelId: SQLWrapper | string) {
-  return newestRun(imageId, modelId, false);
 }
 
 function toProposal(row: Row | null): AnnotationProposal | null {
@@ -70,19 +45,6 @@ function toProposal(row: Row | null): AnnotationProposal | null {
   return {
     ...row.result,
     createdAt: row.createdAt.toISOString(),
-  };
-}
-
-function toActivity(
-  row: Row | null,
-  leaseHeld: boolean,
-): AnnotationActivity | null {
-  if (!row) return null;
-  const status = effectiveStatus(row, leaseHeld);
-  if (status === "succeeded" || status === "cancelled") return null;
-  return {
-    status,
-    progress: { completed: row.completed, total: row.total },
   };
 }
 
@@ -96,7 +58,7 @@ export async function readAnnotationReading(ref: AnnotationRef) {
 /**
  * The review joins each reading on its own: the newest of the model's
  * versions that has detected the image, the newest agent run that succeeded,
- * and the stored annotation.
+ * and the stored annotation, with the progress of a run still at work.
  */
 export async function readReadings(
   ref: AnnotationRef,
@@ -110,8 +72,10 @@ export async function readReadings(
       detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
       annotation: annotations.document,
       proposal: proposalRuns,
-      latest: latestRuns,
-      latestLeaseHeld: leaseIsHeld(latestRuns, new Date()),
+      activity: {
+        completed: activeRuns.completed,
+        total: activeRuns.total,
+      },
     })
     .from(images)
     .leftJoin(
@@ -134,8 +98,12 @@ export async function readReadings(
       eq(proposalRuns.id, proposalRunId(images.id, ref.modelId)),
     )
     .leftJoin(
-      latestRuns,
-      eq(latestRuns.id, latestRunId(images.id, ref.modelId)),
+      activeRuns,
+      and(
+        eq(activeRuns.imageId, images.id),
+        eq(activeRuns.modelId, ref.modelId),
+        eq(activeRuns.status, "running"),
+      ),
     )
     .where(eq(images.id, ref.digest));
   if (!row) return null;
@@ -146,7 +114,7 @@ export async function readReadings(
     detection: row.detection,
     proposal: toProposal(row.proposal),
     annotation: row.annotation,
-    activity: toActivity(row.latest, row.latestLeaseHeld),
+    activity: row.activity,
   };
 }
 

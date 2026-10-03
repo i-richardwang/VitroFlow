@@ -1,23 +1,19 @@
 import {
   createMcpHandler,
   McpServer,
-  type McpRequestContext,
   type ToolAnnotations,
 } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import packageJson from "../../../../package.json";
 import { readAnnotationReading } from "../../readings/public";
-import type { AnnotationPrincipal } from "../../../domain/annotation-runs/access";
 import {
   AnnotationRunConflictError,
   AnnotationRunNotFoundError,
 } from "../../../domain/annotation-runs/errors";
 import { annotationRefSchema } from "../../../domain/annotation/schema";
-import {
-  annotationInputSchema,
-  annotationScopeSchema,
-} from "../../../domain/annotation-runs/schema";
+import { resourceIdSchema } from "../../../domain/identifiers/schema";
+import { startAnnotationRunSchema } from "../../../domain/annotation-runs/schema";
 import {
   annotationTaskInput,
   annotationPreviewInput,
@@ -25,22 +21,16 @@ import {
 } from "../../../domain/annotation-runs/tasks";
 import {
   createAnnotationRun,
-  cancelOwnAnnotationRun,
+  cancelAnnotationRun,
   nextAnnotationTask,
   readAnnotationContext,
   viewAnnotationTask,
   previewAnnotationTask,
   submitProposal,
-  validateTaskPrincipal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
-import {
-  guardMcpRequest,
-  rejectUnsupportedMcpMethod,
-  serveWithOAuth,
-} from "./access";
-import { isTaskToken, verifyTaskToken } from "./task-credentials";
-import { bearerToken } from "../../auth/public";
+import { listPendingAnnotations } from "../../queries/public";
+import { guardMcpRequest, serveWithOAuth } from "./access";
 
 const textContent = (value: unknown) => ({
   type: "text" as const,
@@ -58,10 +48,7 @@ const content = (panels: AnnotationPanel[]) =>
   );
 
 /** One schema and handler per operation, independent of the calling runtime. */
-function registerAnnotationTools(
-  server: McpServer,
-  principal: AnnotationPrincipal,
-) {
+function registerAnnotationTools(server: McpServer) {
   function register<S extends z.ZodObject>(
     name: string,
     description: string,
@@ -107,71 +94,70 @@ function registerAnnotationTools(
       },
     );
   }
-  if (principal.kind === "user") {
-    register(
-      "annotation_read",
-      "Read how an image is currently annotated for a model: the reviewer's boxes, the AI proposal and the detection, in source pixels, which of them the image reads by, and the run in progress with its progress. Start here before starting or continuing a run.",
-      z.strictObject({ ref: annotationRefSchema }),
-      { readOnlyHint: true },
-      async (args) => ({
-        content: [textContent(await readAnnotationReading(args.ref))],
-      }),
-    );
-    register(
-      "annotation_start",
-      "Start an annotation run for an image and model. input is the boxes to begin from: a complete list, the name of a reading annotation_read lists (review, proposal or detection), or null for none. scope limits the run to the regions touched by these source-pixel boxes; regions outside keep the input boxes, so scope needs input. An image has one run in progress at a time; when yours already is, continue it with annotation_next. Results remain unreviewed AI proposals.",
-      z.strictObject({
-        ref: annotationRefSchema,
-        input: annotationInputSchema.default(null),
-        scope: annotationScopeSchema.default(null),
-      }),
-      { readOnlyHint: false },
-      async (args) => {
-        const run = await createAnnotationRun(
-          args,
-          "interactive",
-          principal.userId,
-        );
-        return { content: [textContent({ progress: run.progress })] };
-      },
-    );
-    register(
-      "annotation_next",
-      "Get the next region of the image's run in progress, with progress. It returns the same region until that region is accepted, so the run continues from any conversation. Then view, preview and submit it, and repeat until annotation_submit reports the run succeeded.",
-      z.strictObject({ ref: annotationRefSchema }),
-      { readOnlyHint: false },
-      async (args) => ({
-        content: [textContent(await nextAnnotationTask(principal, args.ref))],
-      }),
-    );
-    register(
-      "annotation_cancel",
-      "Cancel your run in progress on the image, discarding its accepted regions, to start again with another input or scope.",
-      z.strictObject({ ref: annotationRefSchema }),
-      { readOnlyHint: false, destructiveHint: true },
-      async (args) => {
-        await cancelOwnAnnotationRun(principal, args.ref);
-        return { content: [textContent({ cancelled: true })] };
-      },
-    );
-  }
+  register(
+    "annotation_pending",
+    "List images waiting for AI annotation: in a dataset or experiment observation, with neither a reviewer's boxes nor an AI proposal for their model, and a model with annotation instructions. Runs already in progress come first with their progress; continue those with annotation_next. Pass modelId to list one model's images. Returns at most 100 images and the total.",
+    z.strictObject({ modelId: resourceIdSchema.optional() }),
+    { readOnlyHint: true },
+    async (args) => ({
+      content: [textContent(await listPendingAnnotations(args.modelId))],
+    }),
+  );
+  register(
+    "annotation_read",
+    "Read how an image is currently annotated for a model: the reviewer's boxes, the AI proposal and the detection, in source pixels, which of them the image reads by, and the run in progress with its progress. Start here before starting or continuing a run.",
+    z.strictObject({ ref: annotationRefSchema }),
+    { readOnlyHint: true },
+    async (args) => ({
+      content: [textContent(await readAnnotationReading(args.ref))],
+    }),
+  );
+  register(
+    "annotation_start",
+    "Start an annotation run for an image and model. input is the boxes to begin from: a complete list, the name of a reading annotation_read lists (review, proposal or detection), or null for none. scope limits the run to the regions touched by these source-pixel boxes; regions outside keep the input boxes, so scope needs input. An image has one run in progress at a time; when it already has one, continue it with annotation_next. Results remain unreviewed AI proposals.",
+    startAnnotationRunSchema,
+    { readOnlyHint: false },
+    async (args) => {
+      const run = await createAnnotationRun(args);
+      return { content: [textContent({ progress: run.progress })] };
+    },
+  );
+  register(
+    "annotation_next",
+    "Get the next region of the image's run in progress, with progress. It returns the same region until that region is accepted, so the run continues from any conversation. Then view, preview and submit it, and repeat until annotation_submit reports the run succeeded.",
+    z.strictObject({ ref: annotationRefSchema }),
+    { readOnlyHint: false },
+    async (args) => ({
+      content: [textContent(await nextAnnotationTask(args.ref))],
+    }),
+  );
+  register(
+    "annotation_cancel",
+    "Cancel the image's run in progress, discarding its accepted regions, to start again with another input or scope.",
+    z.strictObject({ ref: annotationRefSchema }),
+    { readOnlyHint: false, destructiveHint: true },
+    async (args) => {
+      await cancelAnnotationRun(args.ref);
+      return { content: [textContent({ cancelled: true })] };
+    },
+  );
   register(
     "annotation_context",
-    "Load the assigned task's shared image overview, classes and rules. Reuse them for regions with the same contextId. Call at conversation start, when contextId changes, or after context loss.",
+    "Load the run's shared image overview, classes and rules. Reuse them for regions with the same contextId. Call at conversation start, when contextId changes, or after context loss.",
     annotationTaskInput,
     { readOnlyHint: true },
     async (args) => ({
-      content: content(await readAnnotationContext(principal, args.taskId)),
+      content: content(await readAnnotationContext(args.taskId)),
     }),
   );
   register(
     "annotation_view",
-    "View only the assigned region: CLEAN, optional INITIAL reference boxes, source geometry and contextId. Load annotation_context if its context is not already available. Follow that context's classes and rules.",
+    "View one region: CLEAN, optional INITIAL reference boxes, source geometry and contextId. Load annotation_context if its context is not already available. Follow that context's classes and rules.",
     annotationTaskInput,
     { readOnlyHint: true },
     async (args) => {
       return {
-        content: content(await viewAnnotationTask(principal, args.taskId)),
+        content: content(await viewAnnotationTask(args.taskId)),
       };
     },
   );
@@ -181,11 +167,10 @@ function registerAnnotationTools(
     annotationPreviewInput,
     { readOnlyHint: false },
     async (args) => {
-      const { panels, proposalId } = await previewAnnotationTask(
-        principal,
-        args.taskId,
-        { instances: args.instances, issues: args.issues },
-      );
+      const { panels, proposalId } = await previewAnnotationTask(args.taskId, {
+        instances: args.instances,
+        issues: args.issues,
+      });
       return {
         content: [textContent({ proposalId }), ...content(panels)],
       };
@@ -198,31 +183,25 @@ function registerAnnotationTools(
     { readOnlyHint: false, idempotentHint: true },
     async (args) => ({
       content: [
-        textContent(
-          await submitProposal(principal, args.taskId, args.proposalId),
-        ),
+        textContent(await submitProposal(args.taskId, args.proposalId)),
       ],
     }),
   );
 }
 
 /**
- * The annotation MCP server: drawing boxes on images, region by region. A
- * Worker's agent holds a task credential for one region; a person's own agent
- * holds an OAuth grant and drives whole runs.
+ * The annotation MCP server: drawing boxes on images, region by region, for
+ * the agents people connect.
  */
-function buildServer({ authInfo }: McpRequestContext): McpServer {
-  const principal = authInfo?.extra?.annotationPrincipal as AnnotationPrincipal;
+function buildServer(): McpServer {
   const server = new McpServer(
     { name: "vitroflow-annotation", version: packageJson.version },
     {
       instructions:
-        principal.kind === "user"
-          ? "Annotate images for a model by drawing boxes region by region. Read the image with annotation_read, start or continue its run with annotation_start and annotation_next, then load annotation_context once per conversation and view, preview and submit each region until the run succeeds. Reuse context only while its contextId is unchanged and available; reload after context loss. Results are AI proposals a person reviews."
-          : "Annotate the one region this credential names: load annotation_context, view the region, preview a complete proposal, and submit exactly what you previewed. Reload context after context loss.",
+        "Annotate images for a model by drawing boxes region by region. Find images with annotation_pending, read one with annotation_read, start or continue its run with annotation_start and annotation_next, then load annotation_context once per conversation and view, preview and submit each region until the run succeeds. Reuse context only while its contextId is unchanged and available; reload after context loss. Results are AI proposals a person reviews.",
     },
   );
-  registerAnnotationTools(server, principal);
+  registerAnnotationTools(server);
   return server;
 }
 
@@ -230,54 +209,20 @@ export const annotationMcpHandler = createMcpHandler(buildServer, {
   legacy: "stateless",
 });
 
-const unauthorized = (message: string) =>
-  Response.json(
-    { jsonrpc: "2.0", id: null, error: { code: -32001, message } },
-    { status: 401 },
-  );
-
-/**
- * A task credential opens the server for its region while the Worker's
- * attempt stands; an OAuth grant opens it for the account.
- */
+/** The annotation server opens to the accounts' authorized MCP clients. */
 export async function serveAnnotationMcp(request: Request): Promise<Response> {
-  const guarded = guardMcpRequest(request);
-  if (guarded) return guarded;
-  const credential = bearerToken(request);
-  if (credential && isTaskToken(credential)) {
-    const principal = verifyTaskToken(credential);
-    if (!principal) return unauthorized("Invalid annotation credential");
-    try {
-      await validateTaskPrincipal(principal);
-    } catch {
-      return unauthorized("Inactive annotation credential");
-    }
-    const methodRefusal = rejectUnsupportedMcpMethod(request);
-    if (methodRefusal) return methodRefusal;
-    return annotationMcpHandler.fetch(request, {
-      authInfo: {
-        token: credential,
-        clientId: "annotation-task",
-        scopes: ["annotation:task"],
-        extra: { annotationPrincipal: principal },
-      },
-    });
-  }
-  return serveWithOAuth("annotation", request, async (accepted, grant) => {
-    const principal: AnnotationPrincipal = {
-      kind: "user",
-      userId: grant.userId,
-      clientId: grant.clientId,
-    };
-    return annotationMcpHandler.fetch(accepted, {
-      authInfo: {
-        token: grant.token,
-        clientId: grant.clientId,
-        scopes: grant.scopes,
-        expiresAt: grant.expiresAt,
-        resource: grant.resource,
-        extra: { annotationPrincipal: principal },
-      },
-    });
-  });
+  return (
+    guardMcpRequest(request) ??
+    serveWithOAuth("annotation", request, (accepted, grant) =>
+      annotationMcpHandler.fetch(accepted, {
+        authInfo: {
+          token: grant.token,
+          clientId: grant.clientId,
+          scopes: grant.scopes,
+          expiresAt: grant.expiresAt,
+          resource: grant.resource,
+        },
+      }),
+    )
+  );
 }

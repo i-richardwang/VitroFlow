@@ -19,7 +19,7 @@ import {
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
 import { ImageViewport } from "../../ui/viewport/ImageViewport";
-import { AiAnnotateMenu, AiSection } from "./AiAnnotate";
+import { AiSection } from "./AiSection";
 import { BoxLayer, ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import { ReviewInspector } from "./ReviewInspector";
 import { sourceLabels } from "./labels";
@@ -38,7 +38,6 @@ export function ImageWorkbench({
   title,
   model,
   review,
-  canAnnotate,
   calibrating,
   source,
   onSourceChange,
@@ -48,8 +47,6 @@ export function ImageWorkbench({
   title: string;
   model: Model;
   review: Review;
-  /** Whether an agent is online to be asked; without one the page offers none. */
-  canAnnotate: boolean;
   calibrating: boolean;
   source?: ReviewSource;
   onSourceChange: (source: ReviewSource) => void;
@@ -85,15 +82,6 @@ export function ImageWorkbench({
     setFocus({ area: check.bbox });
     if (ready && check.kind === "uncertain") ready.setSelectedId(check.id);
   };
-  const ai = canAnnotate ? (
-    <AiAnnotateMenu
-      review={review}
-      model={model}
-      current={ready ? ready.instances : instances.length ? instances : null}
-      calibrating={ready !== null}
-      disabled={calibration.status === "loading" || saving}
-    />
-  ) : null;
 
   return (
     <Workbench title={title}>
@@ -103,7 +91,6 @@ export function ImageWorkbench({
             <Button variant="primary" onPress={() => onCalibratingChange(true)}>
               {m.workbench_calibrate()}
             </Button>
-            {ai}
             {context.actions}
             {context.menu}
           </>
@@ -124,7 +111,6 @@ export function ImageWorkbench({
               {saving ? m.workbench_saving() : m.workbench_save()}
             </Button>
             <div inert={saving || undefined} className="contents">
-              {ai}
               {context.menu}
             </div>
           </>
@@ -175,14 +161,7 @@ export function ImageWorkbench({
         </WorkbenchToolbar>
       ) : null}
       <WorkbenchInspector>
-        <AiSection
-          review={review}
-          model={model}
-          canAnnotate={canAnnotate}
-          disabled={saving}
-          checks={checks}
-          onCheck={inspect}
-        />
+        <AiSection review={review} checks={checks} onCheck={inspect} />
         <ReviewInspector
           model={model}
           review={review}

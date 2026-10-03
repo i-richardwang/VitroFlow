@@ -1,6 +1,6 @@
 # vitroflow
 
-Command-line client and native Worker runtime for a [VitroFlow](https://github.com/i-richardwang/VitroFlow) workbench. The workbench owns experiments, datasets, review state, and training runs; this package runs the Workers that detect, annotate with external agents, and train for it and moves datasets between a workbench and a local data root.
+Command-line client and native Worker runtime for a [VitroFlow](https://github.com/i-richardwang/VitroFlow) workbench. The workbench owns experiments, datasets, review state, and training runs; this package runs the Workers that detect and train for it and moves datasets between a workbench and a local data root.
 
 Worker services run under `launchd` and therefore require macOS. The `dataset`, `recognize`, and `traditional` commands run wherever Python 3.11+ is available.
 
@@ -10,7 +10,7 @@ Worker services run under `launchd` and therefore require macOS. The `dataset`, 
 uv tool install 'vitroflow[yolo]'
 ```
 
-The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves the bundled traditional detector and takes no training runs. AI annotation through external agents is independent of this extra.
+The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise. Without it, a Worker serves the bundled traditional detector and takes no training runs.
 
 ## Workers
 
@@ -36,10 +36,6 @@ vitroflow worker stop mac-studio
 `launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Status page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
 
 `vitroflow worker run <profile>` runs a Worker in the foreground without `launchd`.
-
-## AI annotation
-
-`vitroflow annotate run --image photo.jpg --output output/ai-round` runs the selected agent (Pi by default) with its configured model and writes validated annotations and overlays locally. Give a Worker the same capability with `worker setup ... --annotation-runtime pi` (or `antigravity`). See [AI annotation](ai-annotation.md) and [portable annotation tasks](autoannotation.md).
 
 ## Datasets
 
@@ -73,28 +69,3 @@ vitroflow dataset export-yolo \
 ```
 
 `vitroflow recognize` runs the bundled traditional detector over a pulled dataset, and `vitroflow traditional evaluate` and `vitroflow traditional train` score and retrain its candidate scorer from reviewed annotations.
-
-## Standalone visual annotation
-
-`vitroflow annotate` prepares portable image tasks, validates a visual agent's
-complete annotation responses, and collects AI boxes, unresolved regions, overlays,
-and execution records. Each region needs one submission; a `result.json` can be
-passed directly as `--prelabels` to a new round. The file protocol supports
-any vision-capable external agent. `annotate run` supervises an installed Pi or
-Antigravity runtime through its own authentication and model configuration.
-It runs on macOS/Linux without the `yolo` extra or a workbench connection.
-
-```bash
-# Automatic execution through an installed runtime.
-vitroflow annotate run --runtime pi --image photo.jpg --output output/ai-run
-
-# Portable file workflow for other external agents.
-vitroflow annotate plan --image photo.jpg
-vitroflow annotate prepare --image photo.jpg --output output/annotation-task
-vitroflow annotate status --run output/annotation-task
-# Give the task directory and its INSTRUCTIONS.md to a vision-capable agent.
-vitroflow annotate collect --run output/annotation-task --output output/annotation-result
-```
-
-Source development instructions, input formats, checkpoint recovery and result
-semantics are in [the annotation guide](https://github.com/i-richardwang/VitroFlow/blob/main/docs/autoannotation.md).

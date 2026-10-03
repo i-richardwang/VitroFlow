@@ -1,6 +1,6 @@
 import { regions } from "../../domain/annotation-runs/tasks";
 import { sourceInstances } from "../../domain/annotation/review";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   annotationSchema,
   type AnnotationRef,
@@ -9,18 +9,14 @@ import {
 } from "../../domain/annotation/schema";
 import {
   annotationDefinitionSchema,
-  type AnnotationExecutor,
   type AnnotationRun,
   type StartAnnotationRun,
-  type AnnotationBatchResult,
 } from "../../domain/annotation-runs/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
-import { workerPresence } from "../../domain/workers/presence";
-import { database, transaction, type Executor } from "../infra/db/client";
+import { transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
 import { lockImage, resolveDishCoverage } from "../images/public";
 import { readModel } from "../models/public";
-import { listWorkers } from "../workers/public";
 
 import {
   AnnotationRunConflictError,
@@ -36,41 +32,22 @@ function present(row: typeof annotationRuns.$inferSelect): AnnotationRun {
   };
 }
 
-/** Whether some online Worker runs an annotation agent right now. */
-export async function annotationWorkerOnline(): Promise<boolean> {
-  return (await listWorkers()).some(
-    (worker) =>
-      worker.annotationRuntime !== null &&
-      workerPresence(worker.lastSeenAt) === "online",
-  );
-}
-
-async function requireAnnotationWorker() {
-  if (!(await annotationWorkerOnline()))
-    throw new AnnotationRunConflictError("No AI annotation agent is online");
-}
-
 /**
- * Starts one run. A Worker run waits in the queue for any Worker with an
- * agent; an interactive run stays open to the person who started it until
- * every region is accepted or it is cancelled.
+ * Starts the image's run. It stays open until every region is accepted or it
+ * is cancelled, and any connected agent continues it.
  */
 export async function createAnnotationRun(
   request: StartAnnotationRun,
-  executor: AnnotationExecutor,
-  requestedBy: string,
 ): Promise<AnnotationRun> {
-  if (executor === "worker") await requireAnnotationWorker();
-  const admitted = await transaction((tx) =>
-    admitRun(request, executor, requestedBy, tx),
-  );
-  if ("active" in admitted) {
-    const { completed, total } = admitted.active.progress;
-    throw new AnnotationRunConflictError(
-      `This image already has an AI annotation run in progress (${completed}/${total} regions)`,
-    );
-  }
-  return admitted.run;
+  return transaction(async (tx) => {
+    await lockImage(request.ref.digest, tx);
+    const active = await activeRun(request.ref, tx);
+    if (active)
+      throw new AnnotationRunConflictError(
+        `This image already has an AI annotation run in progress (${active.completed}/${active.total} regions); continue it with annotation_next`,
+      );
+    return admitRun(request, tx);
+  });
 }
 
 /** Freeze a reading's boxes and, for an AI proposal, its unresolved questions. */
@@ -98,16 +75,11 @@ async function readingInput(
   };
 }
 
-/** Under the image lock, either admit this request or leave its active run alone. */
+/** Freezes the request's definition and plans its regions, under the image lock. */
 async function admitRun(
   request: StartAnnotationRun,
-  executor: AnnotationExecutor,
-  requestedBy: string,
   tx: Executor,
-): Promise<{ run: AnnotationRun } | { active: AnnotationRun }> {
-  await lockImage(request.ref.digest, tx);
-  const active = await activeRun(request.ref, tx);
-  if (active) return { active: present(active) };
+): Promise<AnnotationRun> {
   const [image] = await tx
     .select()
     .from(images)
@@ -170,10 +142,8 @@ async function admitRun(
       id,
       imageId: image.id,
       modelId: model.id,
-      requestedBy,
       definition,
-      executor,
-      status: executor === "interactive" ? "running" : "queued",
+      status: "running",
       total: tasks.length,
       createdAt: now,
       updatedAt: now,
@@ -197,43 +167,10 @@ async function admitRun(
         reason: dish.fallback,
       })}\n`,
     );
-  return { run: present(row!) };
+  return present(row!);
 }
 
-/**
- * One Worker run per image, from the image alone, skipping images an agent
- * is already working on. Each image has an independent admission result.
- */
-export async function createAnnotationRuns(
-  refs: AnnotationRef[],
-  requestedBy: string,
-): Promise<AnnotationBatchResult> {
-  const result: AnnotationBatchResult = { started: 0, skipped: 0, failed: [] };
-  if (!refs.length) return result;
-  await requireAnnotationWorker();
-  for (const ref of refs) {
-    try {
-      const admitted = await transaction((tx) =>
-        admitRun({ ref, input: null, scope: null }, "worker", requestedBy, tx),
-      );
-      if ("run" in admitted) result.started++;
-      else result.skipped++;
-    } catch (error) {
-      const expected =
-        error instanceof AnnotationRunConflictError ||
-        error instanceof AnnotationRunNotFoundError;
-      if (!expected)
-        console.error("Annotation run admission failed", ref, error);
-      result.failed.push({
-        ref,
-        message: expected ? error.message : "Could not create annotation run",
-      });
-    }
-  }
-  return result;
-}
-
-/** The image's run still in progress for the model, whoever drives it. */
+/** The image's run in progress for the model. */
 export async function activeRun(ref: AnnotationRef, db: Executor) {
   const [row] = await db
     .select()
@@ -242,24 +179,27 @@ export async function activeRun(ref: AnnotationRef, db: Executor) {
       and(
         eq(annotationRuns.imageId, ref.digest),
         eq(annotationRuns.modelId, ref.modelId),
-        inArray(annotationRuns.status, ["queued", "running"]),
+        eq(annotationRuns.status, "running"),
       ),
     );
   return row ?? null;
 }
 
-/** Cancels the image's run in progress, whoever drives it. */
+/**
+ * Gives up the image's run in progress and its accepted regions, so another
+ * can start with different input or scope.
+ */
 export async function cancelAnnotationRun(ref: AnnotationRef): Promise<void> {
-  await (
-    await database()
-  )
-    .update(annotationRuns)
-    .set({ status: "cancelled", updatedAt: new Date() })
-    .where(
-      and(
-        eq(annotationRuns.imageId, ref.digest),
-        eq(annotationRuns.modelId, ref.modelId),
-        inArray(annotationRuns.status, ["queued", "running"]),
-      ),
-    );
+  await transaction(async (tx) => {
+    await lockImage(ref.digest, tx);
+    const active = await activeRun(ref, tx);
+    if (!active)
+      throw new AnnotationRunConflictError(
+        "No AI annotation run is in progress for this image",
+      );
+    await tx
+      .update(annotationRuns)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(annotationRuns.id, active.id));
+  });
 }

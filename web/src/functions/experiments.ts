@@ -45,7 +45,6 @@ import {
 import * as observationImages from "../server/experiments/public";
 
 import { listModels } from "../server/models/public";
-import { annotationWorkerOnline } from "../server/annotation-runs/public";
 
 async function datasetsTraining(modelId: string): Promise<string[]> {
   return (await listDatasetsForModel(modelId)).map((dataset) => dataset.id);
@@ -57,20 +56,18 @@ export const getExperiments = createServerFn({ method: "GET" }).handler(() =>
 
 /**
  * The grid with what its page edits it against: the models an observation may
- * be read for, the datasets its images may join, and whether an agent can
- * annotate them.
+ * be read for and the datasets its images may join.
  */
 export const getExperimentGrid = createServerFn({ method: "GET" })
   .validator(experimentRefSchema)
   .handler(async ({ data }) => {
     const grid = await readExperimentGrid(data.experiment);
     if (!grid) return null;
-    const [models, datasets, canAnnotate] = await Promise.all([
+    const [models, datasets] = await Promise.all([
       listModels(),
       listDatasets(),
-      annotationWorkerOnline(),
     ]);
-    return { ...grid, models, datasets, canAnnotate };
+    return { ...grid, models, datasets };
   });
 
 export const startExperiment = createServerFn({ method: "POST" })
@@ -106,11 +103,10 @@ export const getUnit = createServerFn({ method: "GET" })
   .handler(async ({ data: { observation, ...ref } }) => {
     const series = await readUnit(ref, observation);
     if (!series) return null;
-    const [datasets, canAnnotate] = await Promise.all([
-      series.shown ? datasetsTraining(series.shown.model.id) : [],
-      annotationWorkerOnline(),
-    ]);
-    return { ...series, datasets, canAnnotate };
+    const datasets = series.shown
+      ? await datasetsTraining(series.shown.model.id)
+      : [];
+    return { ...series, datasets };
   });
 
 export const editUnit = createServerFn({ method: "POST" })

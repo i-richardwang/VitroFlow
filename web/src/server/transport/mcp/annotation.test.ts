@@ -1,24 +1,16 @@
 import { describe, expect, test } from "bun:test";
 
-import { issueTaskToken } from "./task-credentials";
 import { serveAnnotationMcp } from "./annotation";
 import { serveExperimentsMcp } from "./experiments";
 import { annotationResourceMetadata } from "./access";
 import { disconnectMcpClient, listMcpClients } from "../../auth/mcp-clients";
 import {
   authorizeMcpClient,
-  observeImages,
-  recordTestHeartbeat,
+  observeImagesForModel,
   signInAs,
-  testHeartbeat,
 } from "../../testing/fixtures";
 import { legacyRequest, requestEras, rpcMessage } from "../../testing/mcp";
-import {
-  createAnnotationRun,
-  claimAnnotationRun,
-  assignWorkerTask,
-  cancelAnnotationRun,
-} from "../../annotation-runs/public";
+import { createModel } from "../../models/public";
 
 const annotationEndpoint = () =>
   `${process.env.BETTER_AUTH_URL}/api/annotation/mcp`;
@@ -36,6 +28,7 @@ const USER_TOOLS = [
   "annotation_cancel",
   "annotation_context",
   "annotation_next",
+  "annotation_pending",
   "annotation_preview",
   "annotation_read",
   "annotation_start",
@@ -75,6 +68,7 @@ describe.each(requestEras)(
         destructiveHint: false,
         idempotentHint: true,
       });
+      expect(tool("annotation_pending").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_read").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_context").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_view").annotations.readOnlyHint).toBe(true);
@@ -181,8 +175,8 @@ describe.each(requestEras)(
       );
     });
 
-    test("people's agents and Worker agents annotate through the same annotation server", async () => {
-      const { user, headers } = await signInAs("member");
+    test("an agent finds the images waiting for it and annotates them region by region", async () => {
+      const { headers } = await signInAs("member");
       const { accessToken } = await authorizeMcpClient(headers, {
         server: "annotation",
       });
@@ -201,13 +195,24 @@ describe.each(requestEras)(
           (await annotation(accessToken, "notifications/initialized")).status,
         ).toBe(202);
       }
-      const observed = await observeImages(`mcp-annotation-${era}`, [
+      const model = await createModel({
+        id: `mcp-annotation-${era}`,
+        name: `Annotation over MCP (${era})`,
+        classes: ["seed"],
+        annotation: {
+          area: "image",
+          instructions: "Box every seed.",
+          coreSize: 512,
+          halo: 32,
+          displayScale: 1,
+        },
+      });
+      const observed = await observeImagesForModel(
         `mcp-annotation-${era}`,
-      ]);
-      const ref = {
-        digest: observed.digests[0]!,
-        modelId: observed.version.modelId,
-      };
+        [`mcp-annotation-${era}`],
+        model.id,
+      );
+      const ref = { digest: observed.digests[0]!, modelId: model.id };
       const call = async (name: string, args: Record<string, unknown>) => {
         const response = await annotation(accessToken, "tools/call", {
           name,
@@ -216,8 +221,21 @@ describe.each(requestEras)(
         expect(response.status).toBe(200);
         return (await rpcMessage(response)).result;
       };
+      const pending = async () =>
+        JSON.parse(
+          (await call("annotation_pending", { modelId: model.id })).content[0]
+            .text,
+        );
+      expect(await pending()).toMatchObject({
+        total: 1,
+        images: [{ ref, progress: null }],
+      });
       const started = await call("annotation_start", { ref });
       expect(started.isError).toBeUndefined();
+      expect((await pending()).images[0].progress).toEqual({
+        completed: 0,
+        total: 1,
+      });
       const next = await call("annotation_next", { ref });
       const { taskId } = JSON.parse(next.content[0].text);
       const context = await call("annotation_context", { taskId });
@@ -246,6 +264,7 @@ describe.each(requestEras)(
       const { proposalId } = JSON.parse(preview.content[0].text);
       const submit = await call("annotation_submit", { taskId, proposalId });
       expect(JSON.parse(submit.content[0].text).status).toBe("succeeded");
+      expect(await pending()).toEqual({ total: 0, images: [] });
       const read = JSON.parse(
         (await call("annotation_read", { ref })).content[0].text,
       );
@@ -265,60 +284,19 @@ describe.each(requestEras)(
       ).toBeUndefined();
       expect((await call("annotation_next", { ref })).isError).toBe(true);
 
-      const heartbeat = {
-        ...testHeartbeat(`mcp-task-worker-${era}`),
-        annotationRuntime: {
-          runtime: "pi" as const,
-          version: "test",
-          model: "test/vision",
-        },
-      };
-      await recordTestHeartbeat(heartbeat);
-      const run = await createAnnotationRun(
-        { ref, input: null, scope: null },
-        "worker",
-        user.id,
-      );
-      await claimAnnotationRun(heartbeat);
-      const binding = await assignWorkerTask(
-        run.id,
-        heartbeat,
-        `${run.id}/tile-000-000`,
-        crypto.randomUUID(),
-      );
-      if (binding.accepted) throw new Error("Unexpected acceptance");
-      const task = issueTaskToken(binding.principal);
       for (const method of ["GET", "DELETE"]) {
         const response = await serveAnnotationMcp(
           new Request(annotationEndpoint(), {
             method,
             headers: {
               host: new URL(annotationEndpoint()).host,
-              authorization: `Bearer ${task}`,
+              authorization: `Bearer ${accessToken}`,
             },
           }),
         );
         expect(response.status).toBe(405);
         expect(response.headers.get("allow")).toBe("POST");
       }
-      expect(await toolNames(await annotation(task, "tools/list"))).toEqual([
-        "annotation_context",
-        "annotation_preview",
-        "annotation_submit",
-        "annotation_view",
-      ]);
-      // A request from a Worker must not change the next user's tool catalog.
-      expect(
-        await toolNames(await annotation(accessToken, "tools/list")),
-      ).toEqual(USER_TOOLS);
-      const wrongTask = await annotation(task, "tools/call", {
-        name: "annotation_context",
-        arguments: { taskId: "another-run/tile-000-000" },
-      });
-      expect((await rpcMessage(wrongTask)).result.isError).toBe(true);
-      expect((await experiments(task)).status).toBe(401);
-      await cancelAnnotationRun(ref);
-      expect((await annotation(task, "tools/list")).status).toBe(401);
     });
   },
 );

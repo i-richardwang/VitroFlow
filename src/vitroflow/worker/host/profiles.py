@@ -5,21 +5,13 @@ import os
 import re
 import tempfile
 import tomllib
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
-from vitroflow.agent_runtimes.config import RuntimeConfig
-from vitroflow.agent_runtimes.contract import AgentRuntime
 from vitroflow.worker.connection import WorkerConnection, validate_worker_process
 
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-PROFILE_FIELDS = {
-    "server_url",
-    "token",
-    "device",
-    "poll_seconds",
-    "annotation",
-}
+PROFILE_FIELDS = {"server_url", "token", "device", "poll_seconds"}
 
 
 @dataclass(frozen=True)
@@ -31,18 +23,10 @@ class WorkerProfile:
     token: str
     device: str | None = None
     poll_seconds: float = 5.0
-    annotation: RuntimeConfig | None = None
 
     def __post_init__(self) -> None:
         WorkerConnection(server_url=self.server_url, token=self.token)
         validate_worker_process(self.poll_seconds, self.device)
-        if self.annotation:
-            self.annotation.create()
-
-    @property
-    def annotation_runtime(self) -> AgentRuntime | None:
-        """The one AI annotation agent this Worker runs, if any."""
-        return self.annotation.create() if self.annotation else None
 
     @classmethod
     def from_toml(cls, path: Path) -> WorkerProfile:
@@ -52,8 +36,6 @@ class WorkerProfile:
             raise ValueError(
                 f"unknown worker profile fields: {', '.join(sorted(unknown))}"
             )
-        if "annotation" in document:
-            document["annotation"] = RuntimeConfig(**document["annotation"])
         return cls(**document)
 
     def to_toml(self) -> str:
@@ -64,13 +46,7 @@ class WorkerProfile:
         if self.device is not None:
             values.append(("device", self.device))
         values.append(("poll_seconds", self.poll_seconds))
-        result = "".join(f"{key} = {json.dumps(value)}\n" for key, value in values)
-        if self.annotation:
-            result += "\n[annotation]\n"
-            for key, value in asdict(self.annotation).items():
-                if value is not None:
-                    result += f"{key} = {json.dumps(value)}\n"
-        return result
+        return "".join(f"{key} = {json.dumps(value)}\n" for key, value in values)
 
 
 def worker_home() -> Path:

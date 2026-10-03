@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
 import type { AnnotationRef } from "../../domain/annotation/schema";
 import { prepareProposal } from "../../domain/annotation-runs/tasks";
 import { collectRegions } from "../../domain/annotation-runs/results";
 import { AnnotationRunConflictError } from "../../domain/annotation-runs/errors";
 import { canonicalJson } from "../../lib/json/canonical";
-import { transaction, type Executor } from "../infra/db/client";
+import { transaction } from "../infra/db/client";
 import {
   annotationRuns,
   annotationTasks,
@@ -21,40 +20,18 @@ const contentDigest = (value: unknown) =>
   createHash("sha256").update(canonicalJson(value)).digest("hex");
 
 /**
- * The run a person's connected agent drives on an image: the one in progress
- * for the model, provided that person started it from a connected agent.
- */
-async function ownActiveRun(
-  principal: AnnotationPrincipal,
-  ref: AnnotationRef,
-  tx: Executor,
-) {
-  if (principal.kind !== "user")
-    return conflict("Only user sessions may choose a run");
-  const active = await activeRun(ref, tx);
-  const run = active && (await lockRun(tx, active.id));
-  if (!run || (run.status !== "queued" && run.status !== "running"))
-    return conflict(
-      "No AI annotation run is in progress for this image; start one with annotation_start",
-    );
-  if (run.executor !== "interactive")
-    return conflict("A Worker agent is annotating this image");
-  if (run.requestedBy !== principal.userId)
-    return conflict("Another person is annotating this image");
-  return run;
-}
-
-/**
  * The first region of the image's run still waiting for an answer. It stays
- * the same until it is accepted, so any agent the person connects, in any
- * conversation, continues where the last one stopped.
+ * the same until it is accepted, so any agent, in any conversation, continues
+ * where the last one stopped.
  */
-export async function nextAnnotationTask(
-  principal: AnnotationPrincipal,
-  ref: AnnotationRef,
-) {
+export async function nextAnnotationTask(ref: AnnotationRef) {
   return transaction(async (tx) => {
-    const run = await ownActiveRun(principal, ref, tx);
+    const active = await activeRun(ref, tx);
+    if (!active)
+      return conflict(
+        "No AI annotation run is in progress for this image; start one with annotation_start",
+      );
+    const run = await lockRun(tx, active.id);
     const [task] = await tx
       .select()
       .from(annotationTasks)
@@ -67,11 +44,6 @@ export async function nextAnnotationTask(
       .orderBy(asc(annotationTasks.taskId))
       .limit(1);
     if (!task) return conflict("The run has no region left to annotate");
-    if (!task.attemptId)
-      await tx
-        .update(annotationTasks)
-        .set({ attemptId: crypto.randomUUID() })
-        .where(taskWhere(run.id, task.taskId));
     return {
       taskId: task.taskId,
       completed: run.completed,
@@ -80,27 +52,9 @@ export async function nextAnnotationTask(
   });
 }
 
-/** A person's agent may give up its own run, to start again differently. */
-export async function cancelOwnAnnotationRun(
-  principal: AnnotationPrincipal,
-  ref: AnnotationRef,
-) {
-  await transaction(async (tx) => {
-    const run = await ownActiveRun(principal, ref, tx);
-    await tx
-      .update(annotationRuns)
-      .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(annotationRuns.id, run.id));
-  });
-}
-
-export async function savePreview(
-  principal: AnnotationPrincipal,
-  taskId: string,
-  value: unknown,
-) {
+export async function savePreview(taskId: string, value: unknown) {
   return transaction(async (tx) => {
-    const { run, task } = await readTask(principal, taskId, tx);
+    const { run, task } = await readTask(taskId, tx);
     const runId = run.id;
     if (task.response || run.status !== "running")
       return conflict("Region has already been accepted");
@@ -109,18 +63,12 @@ export async function savePreview(
       task.region,
       run.definition,
     );
-    const proposalId = contentDigest({
-      runId,
-      taskId,
-      attemptId: task.attemptId,
-      response,
-    });
+    const proposalId = contentDigest({ runId, taskId, response });
     await tx
       .insert(annotationPreviews)
       .values({
         runId,
         taskId,
-        attemptId: task.attemptId,
         proposalId,
         response,
       })
@@ -129,13 +77,9 @@ export async function savePreview(
   });
 }
 
-export async function submitProposal(
-  principal: AnnotationPrincipal,
-  taskId: string,
-  proposalId: string,
-) {
+export async function submitProposal(taskId: string, proposalId: string) {
   return transaction(async (tx) => {
-    const { run, task } = await readTask(principal, taskId, tx);
+    const { run, task } = await readTask(taskId, tx);
     const runId = run.id;
     if (task.response) {
       if (task.acceptedProposalId !== proposalId)
@@ -148,12 +92,11 @@ export async function submitProposal(
           and(
             eq(annotationPreviews.runId, runId),
             eq(annotationPreviews.taskId, taskId),
-            eq(annotationPreviews.attemptId, task.attemptId),
             eq(annotationPreviews.proposalId, proposalId),
           ),
         );
       if (!preview)
-        return conflict("Unknown proposal for this attempt; preview first");
+        return conflict("Unknown proposal for this region; preview first");
       await tx
         .update(annotationTasks)
         .set({ response: preview.response, acceptedProposalId: proposalId })

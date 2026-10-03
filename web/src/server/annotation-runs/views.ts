@@ -1,13 +1,9 @@
-import type { AnnotationPrincipal } from "../../domain/annotation-runs/access";
 import { readImageRegion, readImageOverview } from "../images/public";
 import { readTask } from "./access";
 import { savePreview } from "./tasks";
 import { renderContext, renderTask } from "./rendering";
-export async function readAnnotationContext(
-  principal: AnnotationPrincipal,
-  taskId: string,
-) {
-  const { run } = await readTask(principal, taskId);
+export async function readAnnotationContext(taskId: string) {
+  const { run } = await readTask(taskId);
   return renderContext(
     run.id,
     run.definition,
@@ -19,11 +15,8 @@ export async function readAnnotationContext(
     ),
   );
 }
-export async function viewAnnotationTask(
-  principal: AnnotationPrincipal,
-  taskId: string,
-) {
-  const { run, task } = await readTask(principal, taskId);
+export async function viewAnnotationTask(taskId: string) {
+  const { run, task } = await readTask(taskId);
   return renderTask(
     run.id,
     run.definition,
@@ -37,13 +30,8 @@ export async function viewAnnotationTask(
     ),
   );
 }
-export async function previewAnnotationTask(
-  principal: AnnotationPrincipal,
-  taskId: string,
-  proposal: unknown,
-) {
+export async function previewAnnotationTask(taskId: string, proposal: unknown) {
   const { run, task, content, proposalId } = await savePreview(
-    principal,
     taskId,
     proposal,
   );
