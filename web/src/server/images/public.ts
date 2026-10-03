@@ -9,3 +9,8 @@ export {
 } from "./regions";
 export { lockImage } from "./lock";
 export { storeCanonicalImage, storeImage } from "./store";
+export {
+  refreshImageAnalysis,
+  IMAGE_ANALYSIS_RETRY_MS,
+} from "./analysis-maintenance";
+export { resolveDishCoverage } from "./analysis";

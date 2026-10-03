@@ -18,6 +18,13 @@
       "minimum": 1,
       "maximum": 4
     },
+    "area": {
+      "type": "string",
+      "enum": [
+        "image",
+        "dish"
+      ]
+    },
     "classes": {
       "minItems": 1,
       "type": "array",
@@ -36,6 +43,7 @@
     "coreSize",
     "halo",
     "displayScale",
+    "area",
     "classes",
     "rules"
   ],
@@ -44,6 +52,7 @@
     "coreSize": 512,
     "halo": 32,
     "displayScale": 1,
+    "area": "dish",
     "classes": [
       "seed"
     ],

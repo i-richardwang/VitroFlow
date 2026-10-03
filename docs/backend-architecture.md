@@ -45,7 +45,7 @@ Production inference results enter through lease completion. Tests seed outcomes
 
 Training and AI annotation share the roster and its ownership vocabulary—worker, session, lease, and attempt—but each keeps its own run state machine. Claims lock the worker row, and every owned write carries the predicate that the session is still the roster's. A lease holds while it is unexpired and its session is still current, so the work of a worker that restarts or is removed is free to the next claim at once rather than when its lease runs out. A worker process serves three queues, prioritizing annotation, then training, then inference, according to its advertised capabilities. The process owns the accelerator lifecycle: it releases the cached inference model before training and collects runtime allocations when training exits. Consecutive inference tasks may reuse the cached model.
 
-`annotation-runs/runs.ts` admits single-image and batch requests under the image lock: check for the image's run in progress, validate the request, and freeze its definition. A batch skips images with a run in progress; concurrent or repeated references cannot create duplicate active runs. `access.ts` owns authorization and lock order; `worker.ts` owns Worker claims, leases and task assignment, and returns a run whose lease no longer holds to the queue; `tasks.ts` finds a person's run by its image and owns regional previews and acceptance; `interactive.ts` owns whether connected agents may annotate. Pure domain operations validate geometry and collect final results. `views.ts` authorizes task-bound shared context and regional evidence through images; rendering formats a stable run context separately from regional CLEAN and overlays; MCP content encoding and task-token signing belong to `transport/mcp`. The Python Worker schedules sessions and observes server acceptance. The standalone Python runner separately owns offline file execution and export recovery.
+`annotation-runs/runs.ts` reads and validates the current image, model, input readings and stored dish analysis under one image lock, then admits the frozen definition and task plan in the same transaction. Admission performs no image I/O or computation. A batch admits images independently and reports started, skipped and failed results; concurrent or repeated references cannot create duplicate active runs. `access.ts` owns authorization and lock order; `worker.ts` owns Worker claims, leases and task assignment, and returns a run whose lease no longer holds to the queue; `tasks.ts` finds a person's run by its image and owns regional previews and acceptance; `interactive.ts` owns whether connected agents may annotate. Pure domain operations validate geometry and collect final results. `views.ts` authorizes task-bound shared context and regional evidence through images; rendering formats a stable run context separately from regional CLEAN and overlays; MCP content encoding and task-token signing belong to `transport/mcp`. The Python Worker schedules sessions and observes server acceptance. The standalone Python runner separately owns offline file execution and export recovery.
 
 The `readings` module owns the image's combined reading: stored human annotation, latest successful AI proposal, detection and current AI activity. Run admission, MCP and workbench pages use that same read model. It projects Worker runs whose lease no longer holds as queued without writing; a page review adds the filename known by that page. `annotations` owns the human-reviewed document, and `annotation-runs` owns execution and acceptance. The read model uses stored data and inference selectors.
 
@@ -57,13 +57,47 @@ Zod schemas in the Web package are authoritative for documents shared with Pytho
 
 `infra/db/connection.ts` knows drivers, pools, and raw connections. `infra/db/client.ts` owns the process connection and transaction helpers. `bootstrap.ts` supplies its initializer: it migrates a connection and installs builtin models before publishing the shared handle, closing the connection if preparation fails. Model reads and immutable registration live in `models/registry.ts`; operations accept an executor to join an existing transaction. Bootstrap calls the public `installBuiltinModels` operation with the connection being prepared.
 
-The framework server entry, both maintenance scripts, and the test preload call `bootstrap()`. Wiring is synchronous; the connection opens on first use, survives hot reload, and remains retryable after failure. A process entry point calls bootstrap before using application services. The one-shot collector closes the connection in `finally`; long-running server and maintenance processes keep it for their lifetime. Importing a business module or the migration schema does not open a connection.
+The framework server entry, maintenance tools, and the test preload call `bootstrap()`. Wiring is synchronous; the connection opens on first use, survives hot reload, and remains retryable after failure. A process entry point calls bootstrap before using application services. The one-shot collector closes the connection in `finally`; long-running server and maintenance processes keep it for their lifetime. Importing a business module or the migration schema does not open a connection.
 
 Database checks, foreign keys, uniqueness constraints, advisory locks, immutable blob keys, and digest verification are intentional last-line invariants. They protect alternate writers and concurrency and should not be replaced with request validation alone.
 
 The blob driver only knows object keys and immutable bytes. `images/keys.ts` and `training/keys.ts` own their respective key formats. `images/lock.ts` coordinates writes and references to each digest. `images/collection.ts` first expires unreferenced database rows, then sweeps objects under that lock; `training/collection.ts` checks the active attempt and published version under the run lock. `maintenance/collection.ts` invokes both collectors. Collection runs outside request handling and upload transactions.
 
-The images module owns regional evidence as well as canonical sources. Shared pure image geometry supplies both task planning and region preparation. `images/regions.ts` prepares a reusable set of lossless CLEAN regions and a base overview from one canonical decode, persists them under the source digest and renderer recipe, and bounds encoded cache storage. `images/processing.ts` admits one large-image operation at a time across ingestion and preparation. No annotation state or model rules live in these assets. Annotation context returns the unmarked shared overview and frozen rules under the run identity. Annotation rendering owns only reference and proposal overlays; its independent bounded cache and render admission avoid repeating identical overlays. Image collection roots source and derived objects on the same Image row. Preparation does not hold database transactions or introduce a separate service or job lifecycle.
+The images module owns canonical sources, dish analysis and regional evidence.
+`images/dish.ts` owns one lazy compute thread per process for bounded OpenCV.js
+thumbnail detection. Ordinary and canonical ingestion persist completed analysis
+on the Image row, independently of region layout and annotation state. The recipe
+identifies detection semantics and preprocessing; dependency inventories and
+coverage policy do not participate in that identity. Run admission only reads the
+result, freezes coverage and tasks, and logs full-image fallback reasons.
+
+`images/analysis-maintenance.ts` refreshes unavailable or obsolete results using
+the same analyzer. Short row claims, persistent attempt times and a retry interval
+keep failures from starving later images; result writes reject superseded
+attempts. Completion counts only persisted results; superseded attempts and deleted
+images count as skipped, separately from analysis failures. The maintenance entry
+analyzes at most two images serially per cycle using one
+Sharp processing thread. Analysis and blob collection have independent cadences
+and infrastructure backoff. Resource budgets belong to each process, not a shared
+cross-process processing gate. Compose and Zeabur declare both application roles
+from one build definition; maintenance has no public port. Shared detection
+parameters carry no manual version, while the server owns one implementation
+revision for behavior changes not expressed by parameters.
+
+Shared pure image geometry supplies task planning and evidence preparation.
+`images/regions.ts` prepares lossless CLEAN regions and a base overview from one
+canonical decode, persisting them under the source digest and renderer recipe.
+A receipt identifies a completed plan; incomplete preparation reuses finished
+assets. Dish coverage filters cores conservatively without clipping evidence.
+`images/processing.ts` admits one large-image operation at a time across ingestion,
+analysis and preparation within each process. Encoded caches are bounded; no
+annotation state or model rules live in these assets.
+
+Annotation context returns the unmarked overview and frozen rules under the run
+identity. Annotation rendering owns reference and proposal overlays, with its own
+bounded cache and render admission. Image collection roots source and derived
+objects on the same Image row. Preparation does not hold database transactions or
+introduce a separate service or job lifecycle.
 
 ## Security boundary
 

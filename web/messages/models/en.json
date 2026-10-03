@@ -33,5 +33,7 @@
   "model_annotation_title": "Annotation instructions for {name}",
   "model_annotation_save": "Save",
   "model_annotation_saved": "Instructions for {name} saved",
-  "model_annotation_not_saved": "Instructions not saved"
+  "model_annotation_not_saved": "Instructions not saved",
+  "model_annotation_dish_label": "Skip empty areas outside the dish",
+  "model_annotation_dish_description": "Detect the dish and retain its boundary regions. If detection fails, annotate the full image."
 }

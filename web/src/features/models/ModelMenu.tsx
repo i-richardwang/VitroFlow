@@ -11,9 +11,10 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { Model } from "../../domain/models/schema";
+import type { Model, ModelAnnotation } from "../../domain/models/schema";
 import { removeModel, updateModelAnnotation } from "../../functions/models";
 import { m } from "../../paraglide/messages";
+import { AnnotationAreaField } from "./AnnotationAreaField";
 import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { MoreIcon } from "../../ui/icons";
@@ -112,6 +113,9 @@ function AnnotationEditor({
   const [instructions, setInstructions] = useState(
     model.annotation.instructions,
   );
+  const [area, setArea] = useState<ModelAnnotation["area"]>(
+    model.annotation.area,
+  );
   const name = modelName(model);
   const submit = () => {
     void run(
@@ -119,7 +123,7 @@ function AnnotationEditor({
         updateModelAnnotation({
           data: {
             model: model.id,
-            annotation: { ...model.annotation, instructions },
+            annotation: { ...model.annotation, instructions, area },
           },
         }),
       m.model_annotation_not_saved(),
@@ -155,6 +159,11 @@ function AnnotationEditor({
               placeholder={m.model_annotation_placeholder()}
             />
           </TextField>
+          <AnnotationAreaField
+            value={area}
+            onChange={setArea}
+            isDisabled={busy}
+          />
         </Form>
       </Modal.Body>
       <Modal.Footer>

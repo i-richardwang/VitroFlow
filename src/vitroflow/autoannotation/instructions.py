@@ -18,6 +18,10 @@ edges directly from those outlines. Reuse the reference ID for the same body
 where possible; assign a new local ID to each additional body. Return a complete
 proposal, including additions, removals and splits where the image supports them."""
 
+COVERAGE_RULES = """Coverage selects tasks only. Inspect every assigned CLEAN fully,
+including halo pixels and bodies outside the detected dish circle. Never clip
+boxes to the circle; omitted cores retain their input annotations."""
+
 VISUAL_RULES = """Mark uncertain extents as uncertain and bodies cut by the image
 boundary as truncated. Report indeterminate identity in issues rather than
 fabricating instances. Empty regions are normal: return instances=[]."""
@@ -43,6 +47,7 @@ View overview.png once per conversation for whole-image spatial context. Reuse
 manifest rules and classes while they remain available; reload them and the
 overview after context loss or when switching packages. Estimate boxes from CLEAN,
 not the overview. Task core and patch coordinates locate each region in the source.
+$COVERAGE_RULES
 
 1. Read tasks/TASK/task.json and ACTUALLY VIEW tasks/TASK/clean.png at its supplied
    resolution. All response coordinates are display pixels of THAT image.
@@ -94,6 +99,7 @@ To request another round, prepare a NEW package with the SAME original image and
 when requested; another pass can improve or worsen boxes.
 """).substitute(
     SCHEMA_VERSION=SCHEMA_VERSION,
+    COVERAGE_RULES=COVERAGE_RULES,
     VISUAL_RULES=VISUAL_RULES,
     PREVIEW_TASK=PREVIEW_TASK,
     FRESH_TASK=FRESH_TASK,

@@ -2,6 +2,38 @@
 
 from __future__ import annotations
 
+import math
+
+from vitroflow.image_geometry.recipe import DISH_RECIPE as recipe
+from vitroflow.image_geometry.recipe import thumbnail_geometry
+
+
+def dish_coverage(width: int, height: int, circle: dict | None) -> dict | None:
+    """An invalid or absent dish circle always keeps full-image coverage."""
+    if circle is None:
+        return None
+    x, y, radius = (circle[key] for key in ("x", "y", "radius"))
+    if not all(math.isfinite(value) for value in (x, y, radius)):
+        return None
+    scale, thumbnail_width, thumbnail_height = thumbnail_geometry(width, height)
+    short = min(thumbnail_width, thumbnail_height)
+    minimum = (
+        math.floor(short * recipe["minRadiusFraction"])
+        - recipe["radiusTolerancePixels"]
+    ) / scale
+    maximum = (
+        math.floor(short * recipe["maxRadiusFraction"])
+        + recipe["radiusTolerancePixels"]
+    ) / scale
+    if not (
+        0 <= x < width
+        and 0 <= y < height
+        and 0 < radius
+        and minimum <= radius <= maximum
+    ):
+        return None
+    return {"kind": "dish", "circle": circle, "margin": recipe["coverageMargin"]}
+
 
 def rectangle(box: dict) -> list[float]:
     return [box["x"], box["y"], box["x"] + box["width"], box["y"] + box["height"]]
@@ -31,3 +63,54 @@ def source_edges(item: dict, task: dict) -> list:
         n / task["displayScale"] + task["patch"][i % 2]
         for i, n in enumerate(rectangle(item["bbox"]))
     ]
+
+
+def intersects_coverage(rectangle: list, coverage: dict | None) -> bool:
+    """Tangencies and crossing cores remain eligible; patches are never clipped."""
+    if coverage is None:
+        return True
+    circle = coverage["circle"]
+    x = max(rectangle[0], min(circle["x"], rectangle[2]))
+    y = max(rectangle[1], min(circle["y"], rectangle[3]))
+    return math.hypot(x - circle["x"], y - circle["y"]) <= circle["radius"] * (
+        1 + coverage["margin"]
+    )
+
+
+def planned_regions(
+    crop: list[int], settings: dict, coverage: dict | None
+) -> list[dict]:
+    """Select unchanged cores by conservative coverage; never clip their patches."""
+    x, y, width, height = crop
+    core_size, halo, scale = (settings[k] for k in ("coreSize", "halo", "displayScale"))
+    tasks = []
+    for row, top in enumerate(range(y, y + height, core_size)):
+        for col, left in enumerate(range(x, x + width, core_size)):
+            core = [
+                left,
+                top,
+                min(left + core_size, x + width),
+                min(top + core_size, y + height),
+            ]
+            if not intersects_coverage(core, coverage):
+                continue
+            patch = [
+                max(x, left - halo),
+                max(y, top - halo),
+                min(x + width, core[2] + halo),
+                min(y + height, core[3] + halo),
+            ]
+            tasks.append(
+                {
+                    "id": f"tile-{row:03d}-{col:03d}",
+                    "core": core,
+                    "patch": patch,
+                    "displaySize": [
+                        (patch[2] - patch[0]) * scale,
+                        (patch[3] - patch[1]) * scale,
+                    ],
+                    "displayScale": scale,
+                    "coordinateSpace": "clean.png display pixels",
+                }
+            )
+    return tasks

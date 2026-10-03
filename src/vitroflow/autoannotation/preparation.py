@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import math
+from dataclasses import asdict
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from vitroflow.autoannotation.geometry import box_from_edges, clip, rectangle
+from vitroflow.autoannotation.geometry import (
+    box_from_edges,
+    clip,
+    dish_coverage,
+    planned_regions,
+    rectangle,
+)
 from vitroflow.autoannotation.instructions import INSTRUCTIONS
 from vitroflow.autoannotation.protocol import (
     SCHEMA_VERSION,
@@ -20,6 +27,7 @@ from vitroflow.autoannotation.protocol import (
 from vitroflow.autoannotation.rendering import draw, references
 from vitroflow.autoannotation.storage import read_json, write_image, write_json
 from vitroflow.contracts.validation import contract_defaults, validate_wire_contract
+from vitroflow.image_geometry.dish import detect_dish_circle
 from vitroflow.io.files import atomic_directory
 from vitroflow.io.image_io import MAX_IMAGE_BYTES
 
@@ -62,6 +70,18 @@ def prepare(
     x, y, w, h = crop
     if x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > width or y + h > height:
         raise ValueError("Crop outside oriented source image")
+    coverage_filter = None
+    if settings["area"] == "dish":
+        try:
+            circle = detect_dish_circle(image)
+        except cv2.error:
+            circle = None
+        coverage_filter = dish_coverage(
+            width, height, asdict(circle) if circle else None
+        )
+    tasks = planned_regions(crop, settings, coverage_filter)
+    if not tasks:
+        raise ValueError("The crop touches no annotation region")
     source = {"sha256": digest(source_bytes), "width": width, "height": height}
     columns, rows = (
         math.ceil(w / settings["coreSize"]),
@@ -72,7 +92,8 @@ def prepare(
         "coverageBbox": {"x": x, "y": y, "width": w, "height": h},
         "coveragePercent": 100 * w * h / (width * height),
         "grid": [columns, rows],
-        "taskCount": columns * rows,
+        "taskCount": len(tasks),
+        "filter": coverage_filter,
         "coreSize": settings["coreSize"],
         "halo": settings["halo"],
         "displayScale": settings["displayScale"],
@@ -85,7 +106,7 @@ def prepare(
             * settings["displayScale"]
             for size in (w, h)
         ],
-        "minimumSubmissions": columns * rows,
+        "minimumSubmissions": len(tasks),
         "sessionsAndToolCalls": "Chosen by executor; task count is not session or API call count",
     }
     originals = []
@@ -115,64 +136,42 @@ def prepare(
         )
         overview = cv2.resize(image, overview_size, interpolation=cv2.INTER_AREA)
         write_image(root / "overview.png", overview)
-        tasks = []
-        core_size, halo, scale = (
-            settings[k] for k in ("coreSize", "halo", "displayScale")
-        )
-        for row, top in enumerate(range(y, y + h, core_size)):
-            for col, left in enumerate(range(x, x + w, core_size)):
-                core = [
-                    left,
-                    top,
-                    min(left + core_size, x + w),
-                    min(top + core_size, y + h),
-                ]
-                patch = [
-                    max(x, left - halo),
-                    max(y, top - halo),
-                    min(x + w, core[2] + halo),
-                    min(y + h, core[3] + halo),
-                ]
-                identifier = f"tile-{row:03d}-{col:03d}"
-                folder = root / "tasks" / identifier
-                folder.mkdir(parents=True)
-                display = [(patch[2] - patch[0]) * scale, (patch[3] - patch[1]) * scale]
-                task = {
-                    "id": identifier,
-                    "core": core,
-                    "patch": patch,
-                    "displaySize": display,
-                    "displayScale": scale,
-                    "coordinateSpace": "clean.png display pixels",
-                }
-                write_json(folder / "task.json", task)
-                patch_image = image[patch[1] : patch[3], patch[0] : patch[2]]
-                clean = (
-                    patch_image
-                    if scale == 1
-                    else cv2.resize(
-                        patch_image, tuple(display), interpolation=cv2.INTER_CUBIC
-                    )
+        for task in tasks:
+            identifier, patch, display, scale = (
+                task["id"],
+                task["patch"],
+                task["displaySize"],
+                task["displayScale"],
+            )
+            folder = root / "tasks" / identifier
+            folder.mkdir(parents=True)
+            write_json(folder / "task.json", task)
+            patch_image = image[patch[1] : patch[3], patch[0] : patch[2]]
+            clean = (
+                patch_image
+                if scale == 1
+                else cv2.resize(
+                    patch_image, tuple(display), interpolation=cv2.INTER_CUBIC
                 )
-                write_image(folder / "clean.png", clean)
-                local = []
-                for item in originals:
-                    edges = clip(rectangle(item["bbox"]), patch)
-                    if edges[2] <= edges[0] or edges[3] <= edges[1]:
-                        continue
-                    displayed = [(edges[i] - patch[i % 2]) * scale for i in range(4)]
-                    local.append(
-                        {
-                            "id": item["id"],
-                            "class": item["class"],
-                            "bbox": box_from_edges(displayed),
-                            "clipped": edges != rectangle(item["bbox"]),
-                        }
-                    )
-                write_json(folder / "prelabels.json", {"instances": local})
-                if local:
-                    write_image(folder / "before.png", draw(clean, references(local)))
-                tasks.append(task)
+            )
+            write_image(folder / "clean.png", clean)
+            local = []
+            for item in originals:
+                edges = clip(rectangle(item["bbox"]), patch)
+                if edges[2] <= edges[0] or edges[3] <= edges[1]:
+                    continue
+                displayed = [(edges[i] - patch[i % 2]) * scale for i in range(4)]
+                local.append(
+                    {
+                        "id": item["id"],
+                        "class": item["class"],
+                        "bbox": box_from_edges(displayed),
+                        "clipped": edges != rectangle(item["bbox"]),
+                    }
+                )
+            write_json(folder / "prelabels.json", {"instances": local})
+            if local:
+                write_image(folder / "before.png", draw(clean, references(local)))
         assets = {
             str(p.relative_to(root)): digest(p.read_bytes())
             for p in sorted(root.rglob("*"))
@@ -187,7 +186,8 @@ def prepare(
             },
             "coverage": {
                 "bbox": box_from_edges(roi),
-                "fullImage": crop == [0, 0, width, height],
+                "fullImage": crop == [0, 0, width, height] and coverage_filter is None,
+                "filter": coverage_filter,
             },
             "config": settings,
             "tasks": tasks,

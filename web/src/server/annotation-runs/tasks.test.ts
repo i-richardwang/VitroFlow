@@ -233,6 +233,7 @@ test("twenty regions reuse frozen context across views and reconnects before fin
   await setModelAnnotation({
     model: ref.modelId,
     annotation: {
+      area: "image",
       instructions: "Box all seeds",
       coreSize: 16,
       halo: 4,
@@ -250,6 +251,7 @@ test("twenty regions reuse frozen context across views and reconnects before fin
   await setModelAnnotation({
     model: ref.modelId,
     annotation: {
+      area: "image",
       instructions: "Changed future rules",
       coreSize: 32,
       halo: 4,
@@ -318,6 +320,7 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   await setModelAnnotation({
     model: ref.modelId,
     annotation: {
+      area: "image",
       instructions: "Box all seeds",
       coreSize: 16,
       halo: 4,
@@ -410,6 +413,7 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   await setModelAnnotation({
     model: ref.modelId,
     annotation: {
+      area: "image",
       instructions: "Box all seeds",
       coreSize: 16,
       halo: 4,

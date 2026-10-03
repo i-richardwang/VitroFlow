@@ -36,6 +36,7 @@ export const SEED_DETECTOR = modelSchema.parse({
   classes: ["seed"],
   annotation: {
     ...DEFAULT_MODEL_ANNOTATION,
+    area: SEED_ANNOTATION_CONFIG.area,
     instructions: SEED_ANNOTATION_CONFIG.rules,
   },
 });

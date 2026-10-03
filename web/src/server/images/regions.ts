@@ -1,11 +1,11 @@
 import sharp from "sharp";
-import {
-  imageOverview,
-  imageRegions,
-  type ImageFrame,
-  type ImageRegionLayout,
-  type ImageRectangle,
-} from "../../domain/images/regions";
+import { imageOverview, imageRegions } from "../../domain/images/regions";
+import type {
+  ImageFrame,
+  ImageRegionLayout,
+  ImageRectangle,
+} from "../../domain/images/geometry";
+import type { ImageCoverage } from "../../domain/images/coverage";
 import { MAX_SOURCE_IMAGE_PIXELS } from "../../domain/images/canonical";
 import { createSingleFlight } from "../../lib/async/work";
 import { ByteCache } from "../../lib/cache/bytes";
@@ -23,13 +23,12 @@ export interface ImageRegionEvidence {
   key: string;
   clean: Buffer;
 }
-
-/** Persistent image evidence, shared across runs, models and connected clients. */
-export function createImageEvidenceReader(
+/** Persistent image evidence shares one bounded decode per selected region plan. */
+export function createImageEvidence(
   store: Pick<BlobStore, "read" | "putImmutable">,
 ) {
   const cache = new ByteCache<Buffer>(32 * 1024 * 1024);
-  const preparing = createSingleFlight<void>();
+  const preparingRegions = createSingleFlight<void>();
   const reading = createSingleFlight<Buffer | null>();
 
   async function read(key: string): Promise<Buffer | null> {
@@ -47,16 +46,7 @@ export function createImageEvidenceReader(
     await store.putImmutable(key, bytes);
     cache.set(key, bytes);
   }
-
-  async function evidence(
-    image: ImageFrame,
-    layout: ImageRegionLayout,
-    scope: readonly ImageRectangle[] | null,
-    regionId: string | null,
-  ): Promise<{ key: string; bytes: Buffer }> {
-    const regions = imageRegions(image, layout, scope);
-    if (regionId !== null && !regions.some((region) => region.id === regionId))
-      throw new Error("Image region does not exist");
+  function prefix(image: ImageFrame, layout: ImageRegionLayout) {
     const { coreSize, halo, displayScale } = layout;
     const recipe = contentDigest(
       canonicalJson({
@@ -67,61 +57,114 @@ export function createImageEvidenceReader(
         renderer: sharp.versions,
       }),
     );
-    const prefix = `${imageRegionsPrefix(image.digest)}${recipe}/`;
-    const key = `${prefix}${regionId ?? "overview"}.png`;
-    const overviewKey = `${prefix}overview.png`;
+    return `${imageRegionsPrefix(image.digest)}${recipe}/`;
+  }
+  async function decode(image: ImageFrame) {
+    const source = await store.read(imageBlobKey(image.digest));
+    if (!source) throw new Error(`Missing image: ${image.digest}`);
+    const { data, info } = await sharp(source, {
+      limitInputPixels: MAX_SOURCE_IMAGE_PIXELS,
+    })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    if (
+      info.width !== image.width ||
+      info.height !== image.height ||
+      info.channels !== 3
+    )
+      throw new Error("Image pixels do not match the canonical frame");
+    return () =>
+      sharp(data, {
+        raw: { width: info.width, height: info.height, channels: 3 },
+      });
+  }
+  type Pixels = Awaited<ReturnType<typeof decode>>;
+  function evidencePlan(
+    image: ImageFrame,
+    layout: ImageRegionLayout,
+    scope: readonly ImageRectangle[] | null,
+    coverage: ImageCoverage | null,
+  ) {
+    const directory = prefix(image, layout);
+    const regions = imageRegions(image, layout, scope, coverage);
+    const receipt = Buffer.from(canonicalJson(regions.map(({ id }) => id)));
+    return {
+      image,
+      layout,
+      regions,
+      directory,
+      receipt,
+      receiptKey: `${directory}plans/${contentDigest(receipt)}.json`,
+    };
+  }
+  type EvidencePlan = ReturnType<typeof evidencePlan>;
+
+  async function prepare(
+    plan: EvidencePlan,
+    loadPixels: () => Promise<Pixels>,
+  ) {
+    if (await read(plan.receiptKey)) return;
+    let decoded: Pixels | undefined;
+    const sourcePixels = async () => (decoded ??= await loadPixels());
+    const { image, layout, directory, regions } = plan;
+    const overviewKey = `${directory}overview.png`;
     const overview = imageOverview(image);
+    if (!(await read(overviewKey))) {
+      const pixels = await sourcePixels();
+      await write(
+        overviewKey,
+        await pixels().resize(overview.width, overview.height).png().toBuffer(),
+      );
+    }
+    for (const { id, patch } of regions) {
+      const key = `${directory}${id}.png`;
+      if (await read(key)) continue;
+      const pixels = await sourcePixels();
+      const clean = await pixels()
+        .extract({
+          left: patch.x,
+          top: patch.y,
+          width: patch.width,
+          height: patch.height,
+        })
+        .resize(
+          patch.width * layout.displayScale,
+          patch.height * layout.displayScale,
+          { kernel: "nearest" },
+        )
+        .png()
+        .toBuffer();
+      await write(key, clean);
+    }
+    await write(plan.receiptKey, plan.receipt);
+  }
+
+  async function evidence(
+    image: ImageFrame,
+    layout: ImageRegionLayout,
+    scope: readonly ImageRectangle[] | null,
+    coverage: ImageCoverage | null,
+    regionId: string | null,
+  ): Promise<{ key: string; bytes: Buffer }> {
+    const plan = evidencePlan(image, layout, scope, coverage);
+    if (
+      regionId !== null &&
+      !plan.regions.some((region) => region.id === regionId)
+    )
+      throw new Error("Image region does not exist");
+    const key = `${plan.directory}${regionId ?? "overview"}.png`;
     const existing = await read(key);
     if (existing) return { key, bytes: existing };
-
-    const preparation = `${prefix}${contentDigest(canonicalJson(regions.map(({ id }) => id)))}`;
-    await preparing(preparation, () =>
+    const flight = plan.receiptKey;
+    await preparingRegions(flight, () =>
       processImage(async () => {
         if (await read(key)) return;
-        const source = await store.read(imageBlobKey(image.digest));
-        if (!source) throw new Error(`Missing image: ${image.digest}`);
-        const { data, info } = await sharp(source, {
-          limitInputPixels: MAX_SOURCE_IMAGE_PIXELS,
-        })
-          .raw()
-          .toBuffer({ resolveWithObject: true });
-        if (
-          info.width !== image.width ||
-          info.height !== image.height ||
-          info.channels !== 3
-        )
-          throw new Error("Image pixels do not match the canonical frame");
-        const pixels = () =>
-          sharp(data, {
-            raw: { width: info.width, height: info.height, channels: 3 },
-          });
-        await write(
-          overviewKey,
-          await pixels()
-            .resize(overview.width, overview.height)
-            .png()
-            .toBuffer(),
-        );
-        for (const { id, patch } of regions) {
-          const clean = await pixels()
-            .extract({
-              left: patch.x,
-              top: patch.y,
-              width: patch.width,
-              height: patch.height,
-            })
-            .resize(patch.width * displayScale, patch.height * displayScale, {
-              kernel: "nearest",
-            })
-            .png()
-            .toBuffer();
-          await write(`${prefix}${id}.png`, clean);
-        }
+        await prepare(plan, () => decode(image));
       }),
     );
-    const prepared = await read(key);
-    if (!prepared) throw new Error("Prepared image region is missing");
-    return { key, bytes: prepared };
+    const bytes = await read(key);
+    if (!bytes) throw new Error("Prepared image region is missing");
+    return { key, bytes };
   }
 
   return {
@@ -130,22 +173,30 @@ export function createImageEvidenceReader(
       layout: ImageRegionLayout,
       regionId: string,
       scope: readonly ImageRectangle[] | null = null,
+      coverage: ImageCoverage | null = null,
     ): Promise<ImageRegionEvidence> {
-      const { key, bytes } = await evidence(image, layout, scope, regionId);
+      const { key, bytes } = await evidence(
+        image,
+        layout,
+        scope,
+        coverage,
+        regionId,
+      );
       return { key, clean: bytes };
     },
     async readOverview(
       image: ImageFrame,
       layout: ImageRegionLayout,
       scope: readonly ImageRectangle[] | null = null,
+      coverage: ImageCoverage | null = null,
     ) {
-      const { bytes } = await evidence(image, layout, scope, null);
+      const { bytes } = await evidence(image, layout, scope, coverage, null);
       return { ...imageOverview(image), bytes };
     },
   };
 }
 
-const evidence = createImageEvidenceReader({
+const evidence = createImageEvidence({
   read: readBlob,
   putImmutable: putImmutableBlob,
 });

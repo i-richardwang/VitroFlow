@@ -544,3 +544,75 @@ def test_custom_rules_and_cli_overrides(photo, tmp_path, capsys):
         read_json(tmp_path / "result/result.json")["instances"][0]["class"] == "grain"
     )
     assert capsys.readouterr().err == ""
+
+
+def test_dish_coverage_filters_only_cores_and_keeps_input_notes(tmp_path, monkeypatch):
+    from vitroflow.image_geometry.dish import DishCircle
+
+    photo = tmp_path / "dish.png"
+    write_image(photo, np.full((800, 1200, 3), 200, np.uint8))
+    monkeypatch.setattr(
+        preparation, "detect_dish_circle", lambda image: DishCircle(600, 400, 330)
+    )
+    original = item("corner", 10, 10, 20, 20, uncertain=True)
+    supplied = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "ai-annotation-result",
+        "coordinateSpace": "oriented source pixels",
+        "image": {"sha256": digest(photo.read_bytes()), "width": 1200, "height": 800},
+        "instances": [original],
+        "issues": [{"bbox": original["bbox"], "reason": "Retain this question"}],
+    }
+    prelabels = tmp_path / "input.json"
+    write_json(prelabels, supplied)
+    settings = {"coreSize": 128, "halo": 32, "area": "dish"}
+    planned = preparation.prepare(photo, None, config=settings, plan_only=True)
+    root = tmp_path / "dish-run"
+    prepared = preparation.prepare(
+        photo, root, config=settings, prelabels_path=prelabels
+    )
+    manifest = tasks.load_package(root)
+    assert (
+        prepared["taskCount"] == planned["minimumSubmissions"] == planned["taskCount"]
+    )
+    assert len(manifest["tasks"]) < 70
+    assert manifest["coverage"]["filter"]["margin"] == 0.15
+    assert "tile-000-000" not in {task["id"] for task in manifest["tasks"]}
+    assert not (root / "tasks" / "tile-000-000").exists()
+    for task in manifest["tasks"]:
+        left, top, right, bottom = task["patch"]
+        clean = cv2.imread(str(root / "tasks" / task["id"] / "clean.png"))
+        assert np.array_equal(clean, cv2.imread(str(photo))[top:bottom, left:right])
+        tasks.submit(root, task["id"], response(manifest, task))
+    output = tmp_path / "dish-result"
+    results.collect(root, output)
+    collected = read_json(output / "result.json")
+    assert collected["instances"][0]["id"] == "corner"
+    assert collected["instances"][0]["uncertain"] is True
+    assert collected["instances"][0]["bbox"] == original["bbox"]
+    assert collected["issues"] == [
+        {"taskId": "input", "bbox": original["bbox"], "reason": "Retain this question"}
+    ]
+
+
+def test_dish_detection_failure_uses_the_full_grid_and_image_area_bypasses_detection(
+    photo, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(preparation, "detect_dish_circle", lambda image: None)
+    root = tmp_path / "no-circle"
+    preparation.prepare(photo, root, config={"coreSize": 32})
+    manifest = tasks.load_package(root)
+    assert manifest["coverage"]["filter"] is None
+    assert manifest["coverage"]["fullImage"] is True
+    assert len(manifest["tasks"]) == 12
+
+    def forbidden(image):
+        raise AssertionError("Full-image annotation must not detect dishes")
+
+    monkeypatch.setattr(preparation, "detect_dish_circle", forbidden)
+    assert (
+        preparation.prepare(
+            photo, None, config={"coreSize": 32, "area": "image"}, plan_only=True
+        )["taskCount"]
+        == 12
+    )

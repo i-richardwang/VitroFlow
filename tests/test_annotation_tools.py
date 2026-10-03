@@ -53,6 +53,7 @@ def test_visual_inputs_and_refitted_geometry(
     context_metadata = json.loads(context["content"][0]["text"])
     assert context_metadata["contextId"] == tools.manifest["packageId"]
     assert context_metadata["classes"] == ["seed"]
+    assert context_metadata["coverage"] == tools.manifest["coverage"]
     assert len([item for item in context["content"] if item["type"] == "image"]) == 1
     assert not list(package.glob("tasks/*/overview.png"))
     viewed = tools.call("annotation_view", {"taskId": "tile-000-000"})
@@ -62,6 +63,7 @@ def test_visual_inputs_and_refitted_geometry(
     ]
     assert metadata["task"]["contextId"] == context_metadata["contextId"]
     assert "rules" not in metadata and "classes" not in metadata
+    assert "coverage" not in metadata and "coverageInstructions" not in metadata
     assert metadata["task"]["displaySize"] == [256 * scale, 128 * scale]
     assert images[0] == (package / "tasks/tile-000-000/clean.png").read_bytes()
     assert len(images) == (2 if with_references else 1)

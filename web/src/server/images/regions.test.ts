@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
 import sharp from "sharp";
+import { dishCoverage } from "../../domain/images/coverage";
 import { imageOverview, imageRegions } from "../../domain/images/regions";
 import { createMemoryBlobStore } from "../infra/blobs/store";
 import { imageBlobKey } from "./keys";
 import { canonicalize } from "./ingest";
-import { createImageEvidenceReader } from "./regions";
+import { createImageEvidence } from "./regions";
 
 async function fixture() {
   const width = 1250,
@@ -33,7 +34,7 @@ async function fixture() {
 
 test("prepared evidence preserves source-pipeline pixels at edges, halos and display scales", async () => {
   const { image, tracked } = await fixture();
-  const { readRegion: read, readOverview } = createImageEvidenceReader(tracked);
+  const { readRegion: read, readOverview } = createImageEvidence(tracked);
   for (const displayScale of [1, 2, 4]) {
     const layout = { coreSize: 512, halo: 32, displayScale };
     const overview = imageOverview(image);
@@ -68,12 +69,12 @@ test("concurrent regions prepare the source once and a new reader reuses persist
   const { image, tracked, sourceReads } = await fixture();
   const layout = { coreSize: 512, halo: 32, displayScale: 1 };
   const regions = imageRegions(image, layout);
-  const { readRegion: read } = createImageEvidenceReader(tracked);
+  const { readRegion: read } = createImageEvidence(tracked);
   const evidence = await Promise.all(
     regions.map(({ id }) => read(image, layout, id)),
   );
   expect(sourceReads()).toBe(1);
-  const { readRegion: restarted } = createImageEvidenceReader(tracked);
+  const { readRegion: restarted } = createImageEvidence(tracked);
   expect((await restarted(image, layout, regions.at(-1)!.id)).clean).toEqual(
     evidence.at(-1)!.clean,
   );
@@ -86,7 +87,7 @@ test("partial preparation is reusable and failed work does not poison later requ
   const { image, tracked, store, sourceReads } = await fixture();
   const layout = { coreSize: 512, halo: 32, displayScale: 1 };
   let fail = true;
-  const { readRegion: read } = createImageEvidenceReader({
+  const { readRegion: read } = createImageEvidence({
     ...tracked,
     putImmutable: async (key, bytes) => {
       if (fail && key.endsWith("tile-000-001.png")) {
@@ -100,17 +101,13 @@ test("partial preparation is reusable and failed work does not poison later requ
     "storage unavailable",
   );
   expect(sourceReads()).toBe(1);
-  const { readRegion: restarted } = createImageEvidenceReader(tracked);
+  const { readRegion: restarted } = createImageEvidence(tracked);
   await restarted(image, layout, "tile-000-000");
   expect(sourceReads()).toBe(1);
   await read(image, layout, "tile-000-001");
   expect(sourceReads()).toBe(2);
   await store.remove(imageBlobKey(image.digest));
-  await createImageEvidenceReader(tracked).readRegion(
-    image,
-    layout,
-    "tile-001-002",
-  );
+  await createImageEvidence(tracked).readRegion(image, layout, "tile-001-002");
   expect(sourceReads()).toBe(2);
 });
 
@@ -118,9 +115,9 @@ test("scoped preparation produces only needed regions and can be reused or expan
   const { image, store, tracked, sourceReads } = await fixture();
   const layout = { coreSize: 512, halo: 32, displayScale: 1 };
   const scope = [{ x: 512, y: 0, width: 1, height: 1 }];
-  const { readRegion: read } = createImageEvidenceReader(tracked);
+  const { readRegion: read } = createImageEvidence(tracked);
   const first = await read(image, layout, "tile-000-001", scope);
-  expect((await store.list("image-regions/")).length).toBe(2);
+  expect((await store.list("image-regions/")).length).toBe(3);
   expect((await read(image, layout, "tile-000-001")).clean).toBe(first.clean);
   expect(sourceReads()).toBe(1);
   await expect(read(image, layout, "tile-000-000", scope)).rejects.toThrow(
@@ -138,14 +135,14 @@ test("scoped preparation produces only needed regions and can be reused or expan
 test("context and regional reads share preparation but fetch only their own persisted evidence", async () => {
   const { image, tracked, reads, sourceReads } = await fixture();
   const layout = { coreSize: 512, halo: 32, displayScale: 1 };
-  const reader = createImageEvidenceReader(tracked);
+  const reader = createImageEvidence(tracked);
   const [overview, region] = await Promise.all([
     reader.readOverview(image, layout),
     reader.readRegion(image, layout, "tile-000-000"),
   ]);
   expect(sourceReads()).toBe(1);
   reads.length = 0;
-  const restarted = createImageEvidenceReader(tracked);
+  const restarted = createImageEvidence(tracked);
   expect(await restarted.readRegion(image, layout, "tile-000-000")).toEqual(
     region,
   );
@@ -155,4 +152,38 @@ test("context and regional reads share preparation but fetch only their own pers
   expect(reads).toHaveLength(1);
   expect(reads[0]).toEndWith("/overview.png");
   expect(sourceReads()).toBe(1);
+});
+
+test("coverage selects evidence independently of analysis and preserves original patches", async () => {
+  const { image, store, tracked, sourceReads, reads } = await fixture();
+  const layout = { coreSize: 512, halo: 32, displayScale: 1 };
+  const coverage = dishCoverage(image, {
+    x: image.width / 2,
+    y: image.height / 2,
+    radius: image.height * 0.4,
+  })!;
+  const tasks = imageRegions(image, layout, null, coverage);
+  expect(tasks).toHaveLength(4);
+  const reader = createImageEvidence(tracked);
+  for (const { id } of tasks)
+    await reader.readRegion(image, layout, id, null, coverage);
+  expect(sourceReads()).toBe(1);
+  const keys = await store.list("image-regions/");
+  expect(keys.filter((key) => key.endsWith(".png"))).toHaveLength(5);
+  expect(keys.some((key) => key.endsWith("tile-000-002.png"))).toBe(false);
+  expect(keys.some((key) => key.includes("/dish/"))).toBe(false);
+  reads.length = 0;
+  const restarted = createImageEvidence(tracked);
+  await restarted.readRegion(
+    image,
+    layout,
+    "tile-000-001",
+    [{ x: 512, y: 0, width: 1, height: 1 }],
+    coverage,
+  );
+  expect(sourceReads()).toBe(1);
+  expect(reads).toHaveLength(1);
+  await expect(
+    restarted.readRegion(image, layout, "tile-000-002", null, coverage),
+  ).rejects.toThrow("does not exist");
 });

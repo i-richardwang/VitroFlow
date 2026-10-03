@@ -23,9 +23,12 @@ import {
 
 import { annotationJobSchema } from "../src/domain/annotation-runs/schema";
 
+import { dishRecipeSchema } from "../src/domain/images/coverage";
+
 const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
+  ["dish-recipe", dishRecipeSchema],
   ["annotation", annotationSchema],
   ["annotation-tool-context", annotationTaskInput],
   ["annotation-tool-view", annotationTaskInput],

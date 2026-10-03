@@ -14,8 +14,11 @@ export const DEFAULT_ANNOTATION_REGION = {
   displayScale: 1,
 } satisfies z.infer<typeof annotationRegionSchema>;
 
+export const annotationAreaSchema = z.enum(["image", "dish"]);
+
 export const SEED_ANNOTATION_CONFIG = {
   ...DEFAULT_ANNOTATION_REGION,
+  area: "dish" as const,
   classes: ["seed"],
   rules: `Annotate each seed body separately, including opaque brown/gold
 and pale yellow/translucent bodies with a coherent elongated outline. Enclose the
@@ -27,5 +30,9 @@ Do not force an expected count or mechanically shrink, expand or pad boxes.`,
 
 /** Complete visual task settings, shared by product assignments and standalone runs. */
 export const annotationConfigSchema = annotationRegionSchema
-  .extend({ classes: classListSchema, rules: z.string().trim().min(1) })
+  .extend({
+    area: annotationAreaSchema,
+    classes: classListSchema,
+    rules: z.string().trim().min(1),
+  })
   .meta({ default: SEED_ANNOTATION_CONFIG });

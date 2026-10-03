@@ -12,12 +12,13 @@ import {
   type AnnotationExecutor,
   type AnnotationRun,
   type StartAnnotationRun,
+  type AnnotationBatchResult,
 } from "../../domain/annotation-runs/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
 import { workerPresence } from "../../domain/workers/presence";
 import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
-import { lockImage } from "../images/public";
+import { lockImage, resolveDishCoverage } from "../images/public";
 import { readModel } from "../models/public";
 import { listWorkers } from "../workers/public";
 
@@ -146,8 +147,10 @@ async function admitRun(
     throw new AnnotationRunConflictError(
       "The model has no annotation instructions; add them on the Models page",
     );
+  const dish = region.area === "dish" ? resolveDishCoverage(image) : null;
   const definition = annotationDefinitionSchema.parse({
     image: frame,
+    coverage: dish?.coverage ?? null,
     ...initial,
     scope: request.scope,
     config: { classes: model.classes, rules: instructions, ...region },
@@ -185,27 +188,49 @@ async function admitRun(
       })),
     );
   }
+  if (dish?.fallback)
+    process.stderr.write(
+      `${JSON.stringify({
+        event: "annotation-run.full-image-coverage",
+        runId: id,
+        imageId: image.id,
+        reason: dish.fallback,
+      })}\n`,
+    );
   return { run: present(row!) };
 }
 
 /**
  * One Worker run per image, from the image alone, skipping images an agent
- * is already working on. The count is how many were started.
+ * is already working on. Each image has an independent admission result.
  */
 export async function createAnnotationRuns(
   refs: AnnotationRef[],
   requestedBy: string,
-): Promise<number> {
-  if (!refs.length) return 0;
+): Promise<AnnotationBatchResult> {
+  const result: AnnotationBatchResult = { started: 0, skipped: 0, failed: [] };
+  if (!refs.length) return result;
   await requireAnnotationWorker();
-  let started = 0;
   for (const ref of refs) {
-    const admitted = await transaction((tx) =>
-      admitRun({ ref, input: null, scope: null }, "worker", requestedBy, tx),
-    );
-    if ("run" in admitted) started++;
+    try {
+      const admitted = await transaction((tx) =>
+        admitRun({ ref, input: null, scope: null }, "worker", requestedBy, tx),
+      );
+      if ("run" in admitted) result.started++;
+      else result.skipped++;
+    } catch (error) {
+      const expected =
+        error instanceof AnnotationRunConflictError ||
+        error instanceof AnnotationRunNotFoundError;
+      if (!expected)
+        console.error("Annotation run admission failed", ref, error);
+      result.failed.push({
+        ref,
+        message: expected ? error.message : "Could not create annotation run",
+      });
+    }
   }
-  return started;
+  return result;
 }
 
 /** The image's run still in progress for the model, whoever drives it. */

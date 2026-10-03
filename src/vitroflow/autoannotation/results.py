@@ -104,6 +104,39 @@ def collect_responses(root: Path, destination: Path, accepted: dict[str, dict]) 
             }
             for v in response["issues"]
         )
+    # Automatically omitted cores keep the input bodies rather than deleting them.
+    originals = read_json(root / "prelabels.json")["instances"]
+
+    def retained(box: dict) -> bool:
+        edges = rectangle(box)
+        return owned(edges, coverage) and not any(
+            owned(edges, task["core"]) for task in manifest["tasks"]
+        )
+
+    for item in originals:
+        if retained(item["bbox"]):
+            instances.append(
+                {
+                    **item,
+                    "taskId": "input",
+                    "producer": "input",
+                    "uncertain": item.get("uncertain", False),
+                    "truncated": False,
+                    "coverageTruncated": False,
+                    "localTruncated": False,
+                }
+            )
+    if "input.json" in manifest["assets"]:
+        previous = read_json(root / "input.json")
+        for issue in previous.get("issues", []):
+            if retained(issue["bbox"]):
+                issues.append(
+                    {
+                        "taskId": "input",
+                        "bbox": issue["bbox"],
+                        "reason": issue["reason"],
+                    }
+                )
     warnings = seam_warnings(instances)
     output = {
         "schemaVersion": manifest["schemaVersion"],
@@ -128,7 +161,7 @@ def collect_responses(root: Path, destination: Path, accepted: dict[str, dict]) 
         "inputDigest": manifest["assets"].get("input.json"),
     }
     before = []
-    for item in read_json(root / "prelabels.json")["instances"]:
+    for item in originals:
         edges = clip(rectangle(item["bbox"]), coverage)
         if edges[2] > edges[0] and edges[3] > edges[1]:
             before.append({**item, "bbox": box_from_edges(edges)})

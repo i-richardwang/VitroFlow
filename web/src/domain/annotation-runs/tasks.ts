@@ -1,4 +1,5 @@
-import { imageRegions, type ImageRegion } from "../images/regions";
+import { imageRegions } from "../images/regions";
+import type { ImageRegion } from "../images/geometry";
 import { AnnotationRunConflictError } from "./errors";
 import { z } from "zod";
 import type { AnnotationContent, AnnotationDefinition } from "./schema";
@@ -41,9 +42,14 @@ export function tiles(definition: AnnotationDefinition): Region[] {
   return imageRegions(definition.image, definition.config);
 }
 
-/** The regions a run redraws: every tile, or those whose core its scope touches. */
+/** The frozen coverage and optional redraw scope select unchanged grid tiles. */
 export function regions(definition: AnnotationDefinition): Region[] {
-  return imageRegions(definition.image, definition.config, definition.scope);
+  return imageRegions(
+    definition.image,
+    definition.config,
+    definition.scope,
+    definition.coverage,
+  );
 }
 
 function sourceBox(edges: number[], patch: BoundingBox): BoundingBox {

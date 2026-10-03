@@ -2,6 +2,11 @@ import handler from "./dist/server/server.js";
 import { resolve } from "node:path";
 import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/domain/training/artifact";
 
+process.env.VITROFLOW_IMAGE_ANALYSIS_URL ??= new URL(
+  "./dish-thread.js",
+  import.meta.url,
+).href;
+
 const CLIENT_DIR = `${process.cwd()}/dist/client`;
 const port = Number(process.env.PORT ?? 3000);
 

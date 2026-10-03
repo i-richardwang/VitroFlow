@@ -1,3 +1,4 @@
+import type { AnnotationBatchResult } from "../../domain/annotation-runs/schema";
 import {
   Alert,
   Button,
@@ -213,7 +214,7 @@ export function AnnotateImagesDialog({
 }: {
   isOpen: boolean;
   count: number;
-  onConfirm: () => Promise<number>;
+  onConfirm: () => Promise<AnnotationBatchResult>;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -242,9 +243,19 @@ export function AnnotateImagesDialog({
                     async (result) => {
                       if (!result.ok) return;
                       onClose();
-                      toast.success(
-                        m.ai_batch_started({ count: result.value }),
-                      );
+                      if (result.value.failed.length) {
+                        toast.warning(
+                          m.ai_batch_partial({
+                            started: result.value.started,
+                            skipped: result.value.skipped,
+                            failed: result.value.failed.length,
+                          }),
+                        );
+                      } else {
+                        toast.success(
+                          m.ai_batch_started({ count: result.value.started }),
+                        );
+                      }
                       await router.invalidate();
                     },
                   )

@@ -9,6 +9,7 @@ import {
 import { classListSchema } from "./classes";
 import {
   annotationRegionSchema,
+  annotationAreaSchema,
   DEFAULT_ANNOTATION_REGION,
 } from "./annotation";
 
@@ -18,6 +19,7 @@ import {
  * task the way its classes do; a run reads them, never asks for them.
  */
 const modelAnnotationFields = annotationRegionSchema.extend({
+  area: annotationAreaSchema,
   instructions: z.string().trim(),
 });
 const modelAnnotationSchema = modelAnnotationFields.refine(
@@ -26,6 +28,7 @@ const modelAnnotationSchema = modelAnnotationFields.refine(
 );
 
 export const DEFAULT_MODEL_ANNOTATION = {
+  area: "image",
   instructions: "",
   ...DEFAULT_ANNOTATION_REGION,
 } satisfies ModelAnnotation;

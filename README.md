@@ -81,7 +81,7 @@ cd web
 bun run dev
 ```
 
-The workbench initializes the database from `web/drizzle/0000_init.sql` when it starts. During development, schema changes regenerate this single initial schema and its snapshot; the repository does not carry incremental migrations. An existing development database must be explicitly aligned or rebuilt before using a changed baseline. Its default source-development configuration connects to Postgres and RustFS on localhost and signs in with the administrator account from `web/.env`.
+The workbench initializes the database from `web/drizzle/0000_init.sql` when it starts. During development, schema changes regenerate this single initial schema and its snapshot; the repository does not carry incremental migrations. Align an existing database separately before using a changed baseline; preserve its data and frozen task plans. Startup does not upgrade an initialized database by reapplying the baseline. Its default source-development configuration connects to Postgres and RustFS on localhost and signs in with the administrator account from `web/.env`.
 
 ## Accounts
 
@@ -244,11 +244,13 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped.
+Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped. Maintenance collects unreferenced blobs and automatically refreshes missing or obsolete dish analysis in small serial batches; see [AI annotation](docs/ai-annotation.md) for retry and resource budgets.
 
 `HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 
-`zeabur-template.yaml` deploys the server side on Zeabur: the workbench built from `Dockerfile.web`, plus the marketplace PostgreSQL and MinIO services, which the dashboard maintains directly. Workers stay outside the platform. Zeabur has no one-shot service, so MinIO creates the bucket from its own start command.
+`zeabur-template.yaml` deploys workbench and maintenance from the same repository and `Dockerfile.web`, plus marketplace PostgreSQL and MinIO. Maintenance runs `bun dist/maintenance.js`, shares the storage environment, and has no public port. Deploy both application roles from the same commit; image-based deployments pin the same image digest. Workers stay outside the platform. MinIO creates its bucket from its own start command.
+
+Template updates do not change existing Zeabur projects. Add the maintenance service to an existing project using the source, Dockerfile and storage variables declared in the template, its explicit startup command, and a dependency on workbench. Align the database separately before deploying a changed schema, preserving records and frozen annotation plans. See [Zeabur template maintenance](https://zeabur.com/docs/en-US/template/maintain-template).
 
 The root `.env.example` defines only Compose inputs and immutable container manifests. `web/.env.example` defines the workbench environment for source development. Registry mirrors can replace the three image values without changing the Compose file.
 

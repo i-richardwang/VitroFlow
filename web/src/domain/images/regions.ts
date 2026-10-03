@@ -1,30 +1,17 @@
-export interface ImageFrame {
-  digest: string;
-  width: number;
-  height: number;
-}
-export interface ImageRegionLayout {
-  coreSize: number;
-  halo: number;
-  displayScale: number;
-}
-export interface ImageRectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-export interface ImageRegion {
-  id: string;
-  core: ImageRectangle;
-  patch: ImageRectangle;
-}
+import { intersectsCoverage, type ImageCoverage } from "./coverage";
 
+import type {
+  ImageFrame,
+  ImageRectangle,
+  ImageRegion,
+  ImageRegionLayout,
+} from "./geometry";
 /** Native image regions, with clipped halos and half-open ownership cores. */
 export function imageRegions(
   { width, height }: ImageFrame,
   { coreSize, halo }: ImageRegionLayout,
   scope: readonly ImageRectangle[] | null = null,
+  coverage: ImageCoverage | null = null,
 ): ImageRegion[] {
   const result: ImageRegion[] = [];
   for (let y = 0, row = 0; y < height; y += coreSize, row++) {
@@ -35,6 +22,7 @@ export function imageRegions(
         width: Math.min(coreSize, width - x),
         height: Math.min(coreSize, height - y),
       };
+      if (!intersectsCoverage(core, coverage)) continue;
       if (
         scope &&
         !scope.some(

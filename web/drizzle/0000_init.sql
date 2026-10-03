@@ -218,9 +218,29 @@ CREATE TABLE "images" (
 	"width" integer NOT NULL,
 	"height" integer NOT NULL,
 	"bytes" integer NOT NULL,
+	"dish_analysis" jsonb,
+	"dish_analysis_attempted_at" timestamp with time zone,
 	"received_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "images_id_check" CHECK ("images"."id" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "images_bytes_check" CHECK ("images"."bytes" > 0),
+	CONSTRAINT "images_analysis_check" CHECK ("images"."dish_analysis" is null or (
+      jsonb_typeof("images"."dish_analysis") = 'object'
+      and "images"."dish_analysis" ?& array['recipe', 'circle']
+      and jsonb_typeof("images"."dish_analysis"->'recipe') = 'string'
+      and ("images"."dish_analysis"->>'recipe') ~ '^[a-f0-9]{64}$'
+      and ("images"."dish_analysis"->'circle' = 'null'::jsonb or (
+        jsonb_typeof("images"."dish_analysis"->'circle') = 'object'
+        and "images"."dish_analysis"->'circle' ?& array['x', 'y', 'radius']
+        and jsonb_typeof("images"."dish_analysis"->'circle'->'x') = 'number'
+        and jsonb_typeof("images"."dish_analysis"->'circle'->'y') = 'number'
+        and jsonb_typeof("images"."dish_analysis"->'circle'->'radius') = 'number'
+        and ("images"."dish_analysis"->'circle'->>'x')::double precision >= 0
+        and ("images"."dish_analysis"->'circle'->>'x')::double precision < "images"."width"
+        and ("images"."dish_analysis"->'circle'->>'y')::double precision >= 0
+        and ("images"."dish_analysis"->'circle'->>'y')::double precision < "images"."height"
+        and ("images"."dish_analysis"->'circle'->>'radius')::double precision > 0
+      ))
+    )),
 	CONSTRAINT "images_size_check" CHECK ("images"."width" > 0 and "images"."height" > 0)
 );
 --> statement-breakpoint
@@ -599,6 +619,8 @@ CREATE UNIQUE INDEX "experiment_units_code" ON "experiment_units" USING btree ("
 CREATE INDEX "experiment_units_treatment_idx" ON "experiment_units" USING btree ("experiment_id","treatment_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "experiments_name" ON "experiments" USING btree (lower("name"));--> statement-breakpoint
 CREATE INDEX "images_received_idx" ON "images" USING btree ("received_at");--> statement-breakpoint
+CREATE INDEX "images_analysis_attempted_idx" ON "images" USING btree ("dish_analysis_attempted_at" ASC NULLS FIRST,"id");
+--> statement-breakpoint
 CREATE INDEX "inference_jobs_claimable_idx" ON "inference_jobs" USING btree ("lease_expires_at");--> statement-breakpoint
 CREATE INDEX "inference_jobs_worker_idx" ON "inference_jobs" USING btree ("worker_id","session_id");--> statement-breakpoint
 CREATE INDEX "inference_outcomes_version_idx" ON "inference_outcomes" USING btree ("model_version_id");--> statement-breakpoint

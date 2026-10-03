@@ -15,6 +15,7 @@ export async function readAnnotationContext(
       run.definition.image,
       run.definition.config,
       run.definition.scope,
+      run.definition.coverage,
     ),
   );
 }
@@ -32,6 +33,7 @@ export async function viewAnnotationTask(
       run.definition.config,
       task.region.id,
       run.definition.scope,
+      run.definition.coverage,
     ),
   );
 }
@@ -56,6 +58,7 @@ export async function previewAnnotationTask(
         run.definition.config,
         task.region.id,
         run.definition.scope,
+        run.definition.coverage,
       ),
       { content, proposalId },
     ),

@@ -87,6 +87,7 @@ test("the model's instructions and region are frozen into the run definition", a
     createAnnotationRun({ ...request, ref }, "worker", user.id),
   ).rejects.toThrow("no annotation instructions");
   const annotation = {
+    area: "image" as const,
     instructions: "Box every seed.",
     coreSize: 16,
     halo: 8,
@@ -103,6 +104,7 @@ test("the model's instructions and region are frozen into the run definition", a
   expect(await claimAnnotationRun(owner)).toEqual({ id: run.id });
   const { definition } = await stored(run.id);
   expect(definition.config).toEqual({
+    area: "image",
     classes: ["seed"],
     rules: annotation.instructions,
     coreSize: 16,
@@ -125,6 +127,7 @@ test("a Worker that stops renewing lets go of its run, which another Worker fini
   await setModelAnnotation({
     model: model.id,
     annotation: {
+      area: "image",
       instructions: "Box every seed.",
       coreSize: 16,
       halo: 4,
@@ -312,8 +315,16 @@ test("a batch draws each image once, leaving images an agent is already reading"
   const { user, request, digests } = await setup("ai-batch");
   const second = { digest: digests[1]!, modelId: request.ref.modelId };
   await createAnnotationRun(request, "worker", user.id);
-  expect(await createAnnotationRuns([request.ref, second], user.id)).toBe(1);
-  expect(await createAnnotationRuns([request.ref, second], user.id)).toBe(0);
+  expect(await createAnnotationRuns([request.ref, second], user.id)).toEqual({
+    started: 1,
+    skipped: 1,
+    failed: [],
+  });
+  expect(await createAnnotationRuns([request.ref, second], user.id)).toEqual({
+    started: 0,
+    skipped: 2,
+    failed: [],
+  });
   const db = await database();
   const queued = await db
     .select({ id: annotationRuns.id, imageId: annotationRuns.imageId })
@@ -338,7 +349,7 @@ test("a batch skips an image whose lapsed run waits for the next Worker and admi
     createAnnotationRuns([request.ref, second, second], user.id),
     createAnnotationRuns([second], user.id),
   ]);
-  expect(started.reduce((sum, count) => sum + count, 0)).toBe(1);
+  expect(started.reduce((sum, count) => sum + count.started, 0)).toBe(1);
   const db = await database();
   expect(
     (await readReview(request.ref, "lapsed.jpg", db))?.activity?.status,
@@ -350,5 +361,117 @@ test("a batch skips an image whose lapsed run waits for the next Worker and admi
       inArray(annotationRuns.imageId, [request.ref.digest, second.digest]),
     );
   expect(rows).toHaveLength(2);
+  for (const ref of [request.ref, second]) await cancelAnnotationRun(ref);
+});
+
+test("dish runs freeze coverage and actual task totals while later model edits leave them unchanged", async () => {
+  const { user, request } = await setup("dish-plan");
+  const { default: sharp } = await import("sharp");
+  const { storeImage } = await import("../images/public");
+  const { annotationTasks } = await import("../infra/db/schema");
+  const pixels = await sharp(
+    Buffer.from(
+      '<svg width="1000" height="1000" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/><circle cx="500" cy="500" r="350" stroke="black" stroke-width="8" fill="none"/></svg>',
+    ),
+  )
+    .png()
+    .toBuffer();
+  const model = await createModel({
+    id: crypto.randomUUID(),
+    name: "Dish plan",
+    classes: ["seed"],
+    annotation: {
+      instructions: "Box each seed",
+      area: "dish",
+      coreSize: 100,
+      halo: 32,
+      displayScale: 1,
+    },
+  });
+  const ref = { modelId: model.id, digest: (await storeImage(pixels)).digest };
+  const run = await createAnnotationRun(
+    { ...request, ref },
+    "interactive",
+    user.id,
+  );
+  const before = await stored(run.id);
+  expect(before.definition.coverage).not.toBeNull();
+  expect(run.progress.total).toBeLessThan(100);
+  const tasks = await (
+    await database()
+  )
+    .select()
+    .from(annotationTasks)
+    .where(eq(annotationTasks.runId, run.id));
+  expect(tasks).toHaveLength(run.progress.total);
+  expect(tasks.some((task) => task.region.id === "tile-000-000")).toBe(false);
+  await setModelAnnotation({
+    model: model.id,
+    annotation: { ...model.annotation, area: "image" },
+  });
+  expect((await stored(run.id)).definition).toEqual(before.definition);
+  await cancelAnnotationRun(ref);
+  const next = await createAnnotationRun(
+    { ...request, ref },
+    "interactive",
+    user.id,
+  );
+  expect(next.progress.total).toBe(100);
+  expect((await stored(next.id)).definition.coverage).toBeNull();
+  await cancelAnnotationRun(ref);
+});
+
+test("run admission never waits for image processing or creates regional evidence", async () => {
+  const { user, request } = await setup("admission-no-images");
+  const { processImage } = await import("../images/processing");
+  const { listBlobs } = await import("../infra/blobs/store");
+  const prefix = `image-regions/${request.ref.digest}/`;
+  expect(await listBlobs(prefix)).toEqual([]);
+  let release!: () => void;
+  let entered!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const blocked = processImage(async () => {
+    entered();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  });
+  await ready;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const run = await Promise.race([
+      createAnnotationRun(request, "interactive", user.id),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Admission waited for image processing")),
+          2000,
+        );
+      }),
+    ]);
+    expect(run.progress.total).toBeGreaterThan(0);
+    expect(await listBlobs(prefix)).toEqual([]);
+    await cancelAnnotationRun(request.ref);
+  } finally {
+    clearTimeout(timer);
+    release();
+    await blocked;
+  }
+});
+
+test("a batch reports an invalid image and admits the remaining images", async () => {
+  const { user, request, digests } = await setup("batch-independent");
+  const invalid = { ...request.ref, digest: "d".repeat(64) };
+  const second = { ...request.ref, digest: digests[1]! };
+  const result = await createAnnotationRuns(
+    [request.ref, invalid, second],
+    user.id,
+  );
+  expect(result.started).toBe(2);
+  expect(result.skipped).toBe(0);
+  expect(result.failed).toEqual([
+    { ref: invalid, message: "Image or labeling model not found" },
+  ]);
   for (const ref of [request.ref, second]) await cancelAnnotationRun(ref);
 });

@@ -12,9 +12,11 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import type { ModelAnnotation } from "../../domain/models/schema";
 import { addModel } from "../../functions/models";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
+import { AnnotationAreaField } from "./AnnotationAreaField";
 
 function classList(text: string): string[] {
   return text
@@ -54,6 +56,7 @@ function Editor({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [classes, setClasses] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [area, setArea] = useState<ModelAnnotation["area"]>("image");
 
   const submit = () => {
     void run(
@@ -63,7 +66,7 @@ function Editor({ onClose }: { onClose: () => void }) {
             id,
             name,
             classes: classList(classes),
-            annotation: { instructions },
+            annotation: { instructions, area },
           },
         }),
       m.model_not_created(),
@@ -143,6 +146,11 @@ function Editor({ onClose }: { onClose: () => void }) {
               placeholder={m.model_annotation_placeholder()}
             />
           </TextField>
+          <AnnotationAreaField
+            value={area}
+            onChange={setArea}
+            isDisabled={busy}
+          />
         </Form>
       </Modal.Body>
       <Modal.Footer>

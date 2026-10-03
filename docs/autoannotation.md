@@ -121,14 +121,28 @@ The tool preserves the decoded source resolution rather than resizing the image 
 
 By default, task images retain the source patch pixels without interpolation. Explicit magnification remains available for controlled experiments. Context adds source pixels around the core before display magnification. For example, an interior 256-pixel core with 32-pixel context is a 320×320 patch, displayed as 1280×1280 at 4×. Source/crop boundaries clip that context. Magnification changes presentation, not coverage or final source coordinates.
 
-A 3072×4096 image produces a 6×8 grid of 48 regions with the default settings, requiring 48 accepted submissions and 48 independent sessions on the initial supervised run. Each session can make several tool or model calls; explicit retries add sessions for unfinished regions. The default core size is configurable and has not been established as more accurate than other sizes.
+A 3072×4096 image has a 6×8 grid of 48 cores with the default region size. Full-image coverage assigns all 48; dish coverage assigns the cores intersecting its conservative circle. Each assigned region requires one accepted submission and one independent session on the initial supervised run. Each session can make several tool or model calls; explicit retries add sessions for unfinished regions. The default core size is configurable and has not been established as more accurate than other sizes.
 
 ```bash
 vitroflow annotate prepare --image photo.jpg --crop 512 1536 512 512 \
   --core-size 512 --halo 32 --display-scale 1 --output output/local-round
 ```
 
-`plan`, `prepare`, and `run` accept these same region flags. `--config FILE` supports `coreSize`, `halo`, `displayScale`, `classes`, and `rules`; explicit CLI options take precedence. Custom classes require corresponding rules. The tool does not automatically skip blank regions, select a region of interest, or subdivide tiles recursively. Equal tile dimensions do not guarantee equal object sizes across photographs taken at different distances.
+`plan`, `prepare`, and `run` accept these same region flags. `--config FILE` supports `coreSize`, `halo`, `displayScale`, `area`, `classes`, and `rules`; explicit CLI options take precedence. Custom classes require corresponding rules. Coverage selects the tasks before execution; agents return an empty proposal for assigned regions without objects. Equal tile dimensions do not guarantee equal object sizes across photographs taken at different distances.
+
+Annotation area is `"dish"` for the seed defaults or `"image"` for full-image
+coverage. Dish preparation detects one circle on a thumbnail with longest side
+at most 1200 pixels and freezes it in `coverage.filter`, expanded by a 15% radius
+margin. It omits only cores wholly outside that coverage, retaining crossing and
+tangent cores. Patches, halos and box projection keep their original geometry.
+Detection failure uses the full grid. The explicit crop and automatic filter
+intersect; a crop outside the retained cores has no annotation tasks. `plan` and
+the manifest report the actual task count.
+
+Automatically omitted cores keep their supplied boxes and unresolved notes when
+results are collected. Every assigned core is replaced by its complete response.
+The package freezes its coverage, settings and source assets under schema v7;
+prepare a new package whenever its settings or input change.
 
 ## Agent execution
 
@@ -144,7 +158,7 @@ Save responses outside the checkpoint directory. Bounding boxes use display pixe
 
 ```json
 {
-  "schemaVersion": "vitroflow.autoannotation/v6",
+  "schemaVersion": "vitroflow.autoannotation/v7",
   "packageId": "packageId from manifest.json",
   "taskId": "tile-000-000",
   "producer": "actual agent/model/runtime",

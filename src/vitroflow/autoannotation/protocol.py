@@ -9,7 +9,7 @@ from typing import Any
 
 from vitroflow.autoannotation.geometry import owned, rectangle, source_edges
 
-SCHEMA_VERSION = "vitroflow.autoannotation/v6"
+SCHEMA_VERSION = "vitroflow.autoannotation/v7"
 
 
 def encoded(value: Any) -> bytes:

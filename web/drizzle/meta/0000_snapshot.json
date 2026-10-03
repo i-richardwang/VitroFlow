@@ -1,5 +1,5 @@
 {
-  "id": "6e3ebacb-a8ba-4dcf-91ee-2c899daf6875",
+  "id": "c5254901-8bb5-402d-bf8b-de1f83237b37",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1973,11 +1973,23 @@
           "primaryKey": false,
           "notNull": true
         },
+        "dish_analysis": {
+          "name": "dish_analysis",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "received_at": {
           "name": "received_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "dish_analysis_attempted_at": {
+          "name": "dish_analysis_attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1986,6 +1998,27 @@
           "columns": [
             {
               "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "images_analysis_attempted_idx": {
+          "name": "images_analysis_attempted_idx",
+          "columns": [
+            {
+              "expression": "dish_analysis_attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "first"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2009,6 +2042,10 @@
         "images_bytes_check": {
           "name": "images_bytes_check",
           "value": "\"images\".\"bytes\" > 0"
+        },
+        "images_analysis_check": {
+          "name": "images_analysis_check",
+          "value": "\"images\".\"dish_analysis\" is null or (\n      jsonb_typeof(\"images\".\"dish_analysis\") = 'object'\n      and \"images\".\"dish_analysis\" ?& array['recipe', 'circle']\n      and jsonb_typeof(\"images\".\"dish_analysis\"->'recipe') = 'string'\n      and (\"images\".\"dish_analysis\"->>'recipe') ~ '^[a-f0-9]{64}$'\n      and (\"images\".\"dish_analysis\"->'circle' = 'null'::jsonb or (\n        jsonb_typeof(\"images\".\"dish_analysis\"->'circle') = 'object'\n        and \"images\".\"dish_analysis\"->'circle' ?& array['x', 'y', 'radius']\n        and jsonb_typeof(\"images\".\"dish_analysis\"->'circle'->'x') = 'number'\n        and jsonb_typeof(\"images\".\"dish_analysis\"->'circle'->'y') = 'number'\n        and jsonb_typeof(\"images\".\"dish_analysis\"->'circle'->'radius') = 'number'\n        and (\"images\".\"dish_analysis\"->'circle'->>'x')::double precision >= 0\n        and (\"images\".\"dish_analysis\"->'circle'->>'x')::double precision < \"images\".\"width\"\n        and (\"images\".\"dish_analysis\"->'circle'->>'y')::double precision >= 0\n        and (\"images\".\"dish_analysis\"->'circle'->>'y')::double precision < \"images\".\"height\"\n        and (\"images\".\"dish_analysis\"->'circle'->>'radius')::double precision > 0\n      ))\n    )"
         },
         "images_size_check": {
           "name": "images_size_check",

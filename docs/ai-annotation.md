@@ -25,9 +25,11 @@ Its **scope** is the part of the image it redraws: the whole image, or only the
 regions some source-pixel boxes touch, in which case every other region keeps
 its input boxes. When beginning from an AI proposal, untouched regions also keep
 their uncertainty and issues. The touched regions are replaced in full, including
-their associated notes. On an image, **AI annotation** redraws the whole image from
-clean pixels or from the boxes shown. Model settings own classes, instructions
-and region geometry. The server freezes all of these at creation. Dataset and
+their associated notes. On an image, **AI annotation** redraws the configured
+annotation area from clean pixels or from the boxes shown. Model settings own classes, instructions
+region geometry and the annotation area (`image` or `dish`). The server freezes
+these settings and the resulting coverage at creation. Seed detection defaults
+to `dish`; other models default to `image`. Dataset and
 observation batch actions queue one run per eligible image. The actions appear
 only while some online Worker runs an annotation agent, and a request never
 names one: any such Worker claims the oldest queued run.
@@ -125,7 +127,7 @@ The core schemas are identical for both principals and are also generated into
 Python's standalone tool contracts:
 
 - `annotation_context({taskId})` returns a stable `contextId`, the frozen image,
-  classes, rules, layout and scope, and one unmarked whole-image OVERVIEW.
+  classes, rules, layout, scope and frozen coverage, and one unmarked whole-image OVERVIEW.
   `contextId` is the run identity: its definition is frozen, so every region of
   that run uses the same context. Load it at conversation start, when the context
   changes, and after context loss or compaction. A client may explicitly reload
@@ -155,27 +157,102 @@ shared overview is limited to a 1024-pixel longest side. Display magnification
 changes presentation, not final coordinates. Runs are limited to 4096 regions;
 increase core size for larger images.
 
-The image asset module prepares evidence on first access. It reads and decodes
-the canonical AVIF once, then uses those same decoded pixels to produce lossless
-PNG regions and a base overview. A scoped run prepares only the regions it
-touches; their assets are shared with whole-image runs. Region geometry is shared
-with task planning; rules, initial boxes and proposals are not part of the image
-assets. The source digest, core size, halo, display scale and renderer version
-identify a reusable
-set of assets in the existing blob store. Runs and clients share them, including
-after a server restart. Partial preparations contain independently usable images;
-a later missing-region request can finish preparation without changing any
-accepted annotation.
+The image asset module prepares regional evidence on first access in both
+annotation area modes, outside database transactions. A cold preparation decodes
+the canonical AVIF once and uses those pixels for lossless PNG regions and an
+unmarked base overview. A scoped or dish run prepares only the regions it assigns;
+their assets are shared with whole-image runs. Region geometry is shared with task
+planning; rules, initial boxes and proposals are not part of the image assets.
+The source digest, core size, halo, display scale and renderer version identify
+reusable assets in the existing blob store, including after a server restart.
+A completion receipt identifies an asset plan. Incomplete preparations reuse
+finished images and resume the same preparation path.
 
-Ingestion and image preparation share one process-wide slot, acquired before
-loading an original for preparation. Concurrent requests for the same asset set
-share its preparation. A 32 MiB LRU retains encoded evidence, not decoded original
-images. Context reads only the overview; views and previews read only CLEAN.
-Reference and proposal overlays use a separate 16 MiB LRU and at most
-two concurrent renders. These budgets bound retained cache bytes; decoder and
-render working memory are additional. Authorization and task state are checked
-on every operation, including cache hits. Collection removes derived assets when
-their source Image is no longer rooted.
+Ingestion, analysis and image preparation share one process-wide slot, acquired
+before loading an original for regional preparation. A 32 MiB LRU retains encoded
+evidence, not decoded originals. Context reads the overview; views and previews
+read CLEAN. Reference and proposal overlays use a separate 16 MiB LRU and at most
+two concurrent renders. Decoder and render working memory are additional to these
+cache budgets. Authorization and task state are checked even on cache hits.
+Collection removes derived assets when their source Image is no longer rooted.
+
+Dish detection runs in one lazy compute thread per process using pinned OpenCV.js
+4.12 WASM. Ingestion analyzes the final canonical AVIF bytes, including canonical
+imports, and records completed analysis in `images.dish_analysis`. Only an RGB
+thumbnail with longest edge at most 1200 pixels crosses the thread boundary.
+Image encoding, digest and source coordinates remain unchanged. Canonicalization
+and analysis are separate bounded operations; analysis intentionally reads the
+pixels of the stored encoding. No remote Worker is required.
+
+One shared `image_geometry/dish-recipe.json` supplies Hough parameters and coverage
+policy to both runtimes, validated against the generated `dish-recipe` contract.
+The server uses Sharp Lanczos3 and OpenCV.js; native Python uses OpenCV INTER_AREA.
+They share parameters and half-up thumbnail dimensions, but can produce slightly
+different circles. The server's analysis identity contains detection parameters,
+preprocessing and one explicit implementation revision. The shared JSON stores
+parameters without a separate version number. Parameter changes alter the analysis
+identity automatically. Dependency version inventories and the task coverage
+margin are excluded. Advance the implementation revision for behavior changes
+not represented by detection parameters, including relevant changes found when
+reviewing dependency upgrades. Ordinary library upgrades alone do not invalidate
+the corpus. Radius validation allows
+one thumbnail pixel of tolerance around the integer Hough bounds.
+
+Coverage expands the detected radius by 15%. A core is omitted only when its
+rectangle is wholly outside that coverage; crossing and tangent cores remain.
+Grid IDs, patches, halos and box ownership stay unchanged. Evidence and boxes are
+never masked or clipped to the circle. `scope` intersects coverage and retains its
+redraw semantics. Unassigned cores keep the input boxes, uncertainty and issues;
+human reviews are never overwritten. Progress counts assigned tasks.
+
+Completed analysis stores its recipe identity and circle. A null circle means
+successful analysis with no candidate; null analysis means unavailable. Repeated
+uploads reuse current completed results. Run admission reads metadata in one
+transaction, freezes coverage and tasks, and performs no image I/O, detection or
+PNG preparation. Missing, obsolete, no-candidate or invalid-circle analysis keeps
+full-image coverage; admission logs its reason with the image and run IDs.
+Analysis refreshes and model settings never alter an existing frozen run.
+
+The maintenance process automatically refreshes unavailable or obsolete analysis.
+It analyzes up to two images serially, then waits 30 seconds. Blob collection runs
+on its own hourly cadence; infrastructure failures back off for one minute without
+stopping the other responsibility. Maintenance uses one Sharp processing thread
+and its own compute runtime: its resource budget is separate from the workbench,
+not a shared cross-process gate. Compose and the Zeabur template include this
+process as an application service, using `bun dist/maintenance.js` and the shared
+database and blob-store environment.
+Deploy workbench and maintenance from the same source commit; image-based
+deployments use the same image digest for both roles. Maintenance has no public
+port or browser authentication settings. Existing Zeabur projects must add this
+service explicitly: updating a template does not modify deployed projects.
+
+`images.dish_analysis_attempted_at` durably records each analysis attempt.
+Maintenance prioritizes never-attempted images, then the oldest eligible attempts,
+with a 15-minute retry interval. Each claim commits in a short transaction using
+[`FOR UPDATE SKIP LOCKED`](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE);
+decoding holds no database locks. Result writes are fenced by the attempt
+timestamp and cannot replace newer analysis. Missing or corrupt
+images fail individually and do not block later images. Database and object-store
+transport failures reach infrastructure backoff. Completed no-candidate results
+are not retried. Shutdown finishes the current image before stopping.
+
+From the built Web application, `bun run images:analyze [batch-size]` performs one
+finite sweep of eligible images, using batches of 100 by default (maximum 1000).
+A fixed attempt cutoff excludes every image tried during the sweep, even if a
+long sweep outlasts its retry interval. Recent attempts remain in cooldown. The
+command reports examined, completed, failed and skipped counts. Completed means
+analysis was persisted; skipped means a newer result or image deletion made the
+write unnecessary. Every attempt satisfies
+`examined = completed + failed + skipped`. Image failures or interruption produce
+a nonzero exit status; skipped results do not. It uses the same canonical pixels
+and detector as ingestion; routine corpus refresh does not require repeated
+manual batches.
+
+The repository maintains one current initial database schema. Existing
+installations require a separate database operation before deploying a changed
+schema; startup does not upgrade an initialized database by reapplying the
+baseline. Preserve task plans, progress and annotations during that operation.
+Analysis maintenance populates current results without modifying frozen runs.
 
 A conversation handling multiple regions loads shared context once, then loops
 through next, view, preview and submit. It reloads context whenever the region's

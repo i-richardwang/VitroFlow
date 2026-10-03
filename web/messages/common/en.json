@@ -65,5 +65,6 @@
   "ai_batch_count": "An agent will mark the {count} images nobody has calibrated.",
   "ai_batch_confirm": "Start",
   "ai_batch_started": "AI annotation started for {count} images",
-  "error_worker_name_taken": "A worker with this name is already enrolled."
+  "error_worker_name_taken": "A worker with this name is already enrolled.",
+  "ai_batch_partial": "Started {started} images, skipped {skipped} active images, and failed to start {failed} images"
 }

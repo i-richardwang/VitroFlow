@@ -5,8 +5,10 @@ import type { AnnotationDefinition } from "./schema";
 const definition: AnnotationDefinition = {
   input: null,
   scope: null,
+  coverage: null,
   image: { digest: "a".repeat(64), width: 120, height: 80 },
   config: {
+    area: "image",
     coreSize: 64,
     halo: 16,
     displayScale: 4,
@@ -190,4 +192,54 @@ test("a scope selects the regions it touches, and the result keeps the input box
   expect(
     regions({ ...scoped, scope: [{ x: 0, y: 0, width: 120, height: 80 }] }),
   ).toHaveLength(4);
+});
+
+test("dish-filtered cores retain their input boxes and notes; included boxes are not clipped to the circle", () => {
+  const outside = {
+    id: "keep",
+    class: "seed",
+    bbox: { x: 10, y: 10, width: 10, height: 10 },
+  };
+  const dish: AnnotationDefinition = {
+    ...definition,
+    image: { ...definition.image, width: 1000, height: 1000 },
+    config: {
+      ...definition.config,
+      coreSize: 100,
+      displayScale: 1,
+      area: "dish",
+    },
+    coverage: {
+      kind: "dish",
+      circle: { x: 500, y: 500, radius: 350 },
+      margin: 0.15,
+    },
+    input: [outside],
+    inputNotes: {
+      uncertainIds: [outside.id],
+      issues: [{ bbox: outside.bbox, reason: "Unresolved input" }],
+    },
+  };
+  const tasks = regions(dish).map((region) => ({
+    taskId: region.id,
+    region,
+    response: { instances: [], issues: [] },
+  }));
+  const result = collectRegions(dish, tasks);
+  expect(result.document.instances).toEqual([outside]);
+  expect(result.uncertainIds).toEqual([outside.id]);
+  expect(result.issues).toEqual(dish.inputNotes!.issues);
+  const boundary = regions(dish).find(
+    (region) => region.id === "tile-002-002",
+  )!;
+  const content = prepareProposal(
+    {
+      instances: [
+        { id: "outside-circle", class: "seed", box_2d: [200, 200, 260, 260] },
+      ],
+    },
+    boundary,
+    dish,
+  ).content;
+  expect(content.document.instances).toHaveLength(1);
 });

@@ -33,5 +33,7 @@
   "model_annotation_title": "{name}的标注说明",
   "model_annotation_save": "保存",
   "model_annotation_saved": "已保存{name}的标注说明",
-  "model_annotation_not_saved": "标注说明未保存"
+  "model_annotation_not_saved": "标注说明未保存",
+  "model_annotation_dish_label": "跳过培养皿之外的空白区域",
+  "model_annotation_dish_description": "自动识别培养皿并保留边缘区域，识别失败时标注整图。"
 }

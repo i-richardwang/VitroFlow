@@ -1,0 +1,62 @@
+[
+  {
+    "frame": {
+      "width": 6240,
+      "height": 4160
+    },
+    "thumbnail": [
+      1200,
+      800
+    ],
+    "circle": {
+      "x": 3120,
+      "y": 2080,
+      "radius": 1331.2
+    },
+    "valid": true
+  },
+  {
+    "frame": {
+      "width": 2400,
+      "height": 801
+    },
+    "thumbnail": [
+      1200,
+      401
+    ],
+    "circle": {
+      "x": 1200,
+      "y": 400.5,
+      "radius": 256
+    },
+    "valid": true
+  },
+  {
+    "frame": {
+      "width": 16384,
+      "height": 1
+    },
+    "thumbnail": [
+      1200,
+      1
+    ],
+    "circle": null,
+    "valid": false
+  },
+  {
+    "frame": {
+      "width": 1000,
+      "height": 800
+    },
+    "thumbnail": [
+      1000,
+      800
+    ],
+    "circle": {
+      "x": 500,
+      "y": 400,
+      "radius": 20
+    },
+    "valid": false
+  }
+]

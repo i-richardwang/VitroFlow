@@ -65,5 +65,6 @@
   "ai_batch_count": "将为 {count} 张未校准的图片生成 AI 建议。",
   "ai_batch_confirm": "开始",
   "ai_batch_started": "已为 {count} 张图片开始 AI 标注",
-  "error_worker_name_taken": "已有同名的工作节点。"
+  "error_worker_name_taken": "已有同名的工作节点。",
+  "ai_batch_partial": "已启动 {started} 张图片，跳过 {skipped} 张进行中的图片，{failed} 张启动失败"
 }

@@ -8,6 +8,7 @@ import {
 } from "../annotation/schema";
 import { resourceIdSchema, sha256Schema } from "../identifiers/schema";
 import { annotationConfigSchema } from "../models/annotation";
+import { imageCoverageSchema } from "../images/coverage";
 
 /** The agent a Worker runs, as it reported itself when the Worker started. */
 export const annotationRuntimeSchema = z.strictObject({
@@ -86,6 +87,7 @@ export const annotationDefinitionSchema = z.strictObject({
   inputNotes: annotationNotesSchema.optional(),
   scope: annotationScopeSchema,
   config: annotationConfigSchema,
+  coverage: imageCoverageSchema.nullable(),
 });
 export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
@@ -116,3 +118,9 @@ export const annotationActivitySchema = z.strictObject({
   progress: annotationProgressSchema,
 });
 export type AnnotationActivity = z.infer<typeof annotationActivitySchema>;
+
+export interface AnnotationBatchResult {
+  started: number;
+  skipped: number;
+  failed: Array<{ ref: z.infer<typeof annotationRefSchema>; message: string }>;
+}

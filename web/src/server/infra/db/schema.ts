@@ -1,3 +1,4 @@
+import type { DishAnalysis } from "../../../domain/images/coverage";
 import type {
   Region,
   RegionProposal,
@@ -498,7 +499,7 @@ export const datasets = pgTable(
 /**
  * An image, identified by the SHA-256 digest of its bytes. Images belong
  * to nothing; experiments, datasets, snapshots, and annotations refer to them.
- * Every column describes the bytes themselves.
+ * Geometry describes the bytes; analysis metadata records detection and retries.
  *
  * An image with no reference is unclaimed: bytes arrive before the observation they
  * join is submitted. `receivedAt` is when the bytes last arrived and bounds
@@ -511,14 +512,44 @@ export const images = pgTable(
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     bytes: integer("bytes").notNull(),
+    dishAnalysis: jsonb("dish_analysis").$type<DishAnalysis>(),
+    dishAnalysisAttemptedAt: timestamp("dish_analysis_attempted_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     receivedAt: instant("received_at"),
   },
   (table) => [
     check("images_id_check", sql`${table.id} ~ '^[0-9a-f]{64}$'`),
     check("images_bytes_check", sql`${table.bytes} > 0`),
+    check(
+      "images_analysis_check",
+      sql`${table.dishAnalysis} is null or (
+      jsonb_typeof(${table.dishAnalysis}) = 'object'
+      and ${table.dishAnalysis} ?& array['recipe', 'circle']
+      and jsonb_typeof(${table.dishAnalysis}->'recipe') = 'string'
+      and (${table.dishAnalysis}->>'recipe') ~ '^[a-f0-9]{64}$'
+      and (${table.dishAnalysis}->'circle' = 'null'::jsonb or (
+        jsonb_typeof(${table.dishAnalysis}->'circle') = 'object'
+        and ${table.dishAnalysis}->'circle' ?& array['x', 'y', 'radius']
+        and jsonb_typeof(${table.dishAnalysis}->'circle'->'x') = 'number'
+        and jsonb_typeof(${table.dishAnalysis}->'circle'->'y') = 'number'
+        and jsonb_typeof(${table.dishAnalysis}->'circle'->'radius') = 'number'
+        and (${table.dishAnalysis}->'circle'->>'x')::double precision >= 0
+        and (${table.dishAnalysis}->'circle'->>'x')::double precision < ${table.width}
+        and (${table.dishAnalysis}->'circle'->>'y')::double precision >= 0
+        and (${table.dishAnalysis}->'circle'->>'y')::double precision < ${table.height}
+        and (${table.dishAnalysis}->'circle'->>'radius')::double precision > 0
+      ))
+    )`,
+    ),
     check("images_size_check", sql`${table.width} > 0 and ${table.height} > 0`),
     /** The collector reads unreferenced images oldest first. */
     index("images_received_idx").on(table.receivedAt),
+    index("images_analysis_attempted_idx").on(
+      table.dishAnalysisAttemptedAt.asc().nullsFirst(),
+      table.id,
+    ),
   ],
 );
 

@@ -9,7 +9,11 @@ const paths = [
   (file) =>
     !file.startsWith("src/paraglide/") && file !== "src/routeTree.gen.ts",
 );
-paths.push("scripts/maintenance.ts", "scripts/collect-blobs.ts");
+paths.push(
+  "scripts/maintenance.ts",
+  "scripts/collect-blobs.ts",
+  "scripts/analyze-images.ts",
+);
 const sources = new Map(
   await Promise.all(
     paths
