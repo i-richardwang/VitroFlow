@@ -71,15 +71,7 @@ export async function serveExperimentsMcp(request: Request): Promise<Response> {
   return (
     guardMcpRequest(request) ??
     serveWithOAuth("experiments", request, (accepted, grant) =>
-      experimentsMcpHandler.fetch(accepted, {
-        authInfo: {
-          token: grant.token,
-          clientId: grant.clientId,
-          scopes: grant.scopes,
-          expiresAt: grant.expiresAt,
-          resource: grant.resource,
-        },
-      }),
+      experimentsMcpHandler.fetch(accepted, { authInfo: grant }),
     )
   );
 }

@@ -6,8 +6,8 @@ VitroFlow serves visual annotation through its own MCP server,
 needs: one that annotates images connects here, one that maintains experiments
 connects there, and each is authorized on its own. VitroFlow supplies images
 waiting for annotation, regional evidence and validation; the connected agent
-supplies visual reasoning. The workbench never starts an agent: it shows a run's
-progress while one works and the proposal it leaves.
+supplies visual reasoning. The workbench shows a run's progress while an agent
+works and the proposal it leaves.
 
 ```bash
 claude mcp add --transport http vitroflow-annotation https://<workbench>/api/annotation/mcp
@@ -42,9 +42,9 @@ agent, in any conversation, continues it from the first region still waiting.
 
 ## Authorization
 
-A person's agent authenticates with user OAuth for the annotation resource and
-sees every tool. The annotation server carries no experiment or model tools, and
-the experiment server accepts no OAuth tokens bound to the annotation resource.
+A person's agent authenticates with user OAuth for the annotation resource. The
+annotation server carries no experiment or model tools, and the experiment server
+accepts no OAuth tokens bound to the annotation resource.
 
 OAuth discovery follows RFC 9728: an unauthenticated request is challenged
 toward `/.well-known/oauth-protected-resource/api/annotation/mcp`, which names
@@ -60,11 +60,11 @@ Initialization uses the shared, retryable auth service.
 
 ## Tool contract
 
-`annotation_pending({modelId?})` lists the images waiting for an agent: those in
-a dataset or experiment observation that have neither a reviewer's boxes nor an
-AI proposal for their model, provided the model has annotation instructions.
-Images whose run is already in progress come first, with its progress, to be
-continued with `annotation_next`. `modelId` narrows the listing to one model; a
+`annotation_pending({modelId?})` lists the images in datasets and experiment
+observations waiting for an agent. Images with a run in progress come first, with
+its progress, to be continued with `annotation_next`. Then come those that have
+neither a reviewer's boxes nor an AI proposal for their model, provided the model
+has annotation instructions. `modelId` narrows the listing to one model; a
 listing names at most 100 images and reports how many wait in all.
 
 `annotation_read({ref: {digest, modelId}})` returns how the image is annotated
@@ -280,5 +280,4 @@ Geometry validation does not establish visual accuracy.
 
 A run stays open until completed or cancelled; an agent that stops leaves its
 accepted regions for the next one. A transport retry of an accepted proposal is
-idempotent and does not rerun inference. A cancelled run is not resumed; a new
-run starts over.
+idempotent. A cancelled run is not resumed; a new run starts over.

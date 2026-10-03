@@ -1,6 +1,7 @@
 import { requireMcpAuth } from "@better-auth/mcp";
 import { parseAccessTokenAuthorization } from "better-auth/oauth2";
 import {
+  type AuthInfo,
   bearerAuthChallengeResponse,
   hostHeaderValidationResponse,
   localhostAllowedHostnames,
@@ -48,18 +49,9 @@ function rejectUnsupportedMcpMethod(request: Request): Response | null {
       });
 }
 
-/** The client behind a live OAuth access token, as the MCP SDK takes it. */
-interface McpGrant {
-  clientId: string;
-  token: string;
-  scopes: string[];
-  expiresAt?: number;
-  resource: URL;
-}
-
 const METADATA_PATH = "/.well-known/oauth-protected-resource";
 
-type GrantHandler = (request: Request, grant: McpGrant) => Promise<Response>;
+type GrantHandler = (request: Request, grant: AuthInfo) => Promise<Response>;
 
 /**
  * One MCP server behind OAuth: a request without a valid access token for

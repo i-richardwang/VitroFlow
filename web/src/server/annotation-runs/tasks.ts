@@ -49,22 +49,20 @@ export async function nextAnnotationTask(ref: AnnotationRef) {
     )
     .orderBy(asc(annotationTasks.taskId))
     .limit(1);
-  if (!task) return conflict("The run has no region left to annotate");
-  return { taskId: task.taskId, completed: run.completed, total: run.total };
+  return { taskId: task!.taskId, completed: run.completed, total: run.total };
 }
 
 export async function savePreview(taskId: string, value: unknown) {
   return transaction(async (tx) => {
     const { run, task } = await readTask(taskId, tx);
     const runId = run.id;
-    if (task.response || run.status !== "running")
-      return conflict("Region has already been accepted");
+    if (task.response) return conflict("Region has already been accepted");
     const { response, content } = prepareProposal(
       value,
       task.region,
       run.definition,
     );
-    const proposalId = contentDigest({ runId, taskId, response });
+    const proposalId = contentDigest({ taskId, response });
     await tx
       .insert(annotationPreviews)
       .values({

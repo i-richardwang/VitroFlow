@@ -1,12 +1,16 @@
 import { expect, test } from "bun:test";
 
+import {
+  cancelAnnotationRun,
+  createAnnotationRun,
+} from "../annotation-runs/public";
 import { storeAnnotation } from "../annotations/documents";
 import { addExperimentObservationImages } from "../datasets/memberships";
 import { createModel, setModelAnnotation } from "../models/public";
 import { observeImagesForModel } from "../testing/fixtures";
 import { listPendingAnnotations } from "./pending-annotations";
 
-test("an image waits once per model until someone reads it, and only for a model with instructions", async () => {
+test("an image waits once per model until someone reads it or while a run on it is in progress, which comes first", async () => {
   const annotation = {
     area: "image" as const,
     instructions: "Box every seed.",
@@ -40,6 +44,20 @@ test("an image waits once per model until someone reads it, and only for a model
     [],
     null,
   );
+  expect(await listed()).toEqual([observed.digests[1]!]);
+
+  const redraw = { digest: observed.digests[0]!, modelId: model.id };
+  const run = await createAnnotationRun({
+    ref: redraw,
+    input: "review",
+    scope: null,
+  });
+  const { images } = await listPendingAnnotations(model.id);
+  expect(images.map((image) => [image.ref.digest, image.progress])).toEqual([
+    [observed.digests[0]!, run.progress],
+    [observed.digests[1]!, null],
+  ]);
+  await cancelAnnotationRun(redraw);
   expect(await listed()).toEqual([observed.digests[1]!]);
 
   await setModelAnnotation({

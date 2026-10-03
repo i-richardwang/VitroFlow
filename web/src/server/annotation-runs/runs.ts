@@ -6,7 +6,7 @@ import {
 } from "../../domain/annotation-runs/errors";
 import {
   annotationDefinitionSchema,
-  type AnnotationRun,
+  type AnnotationProgress,
   type StartAnnotationRun,
 } from "../../domain/annotation-runs/schema";
 import { regions } from "../../domain/annotation-runs/tasks";
@@ -19,7 +19,7 @@ import {
 } from "../../domain/annotation/schema";
 import { assertInstanceClasses } from "../../domain/models/classes";
 import { lockImage, resolveDishCoverage } from "../images/public";
-import { transaction, type Executor } from "../infra/db/client";
+import { database, transaction, type Executor } from "../infra/db/client";
 import { annotationRuns, annotationTasks, images } from "../infra/db/schema";
 import { readModel } from "../models/public";
 import { readReadings } from "../readings/public";
@@ -31,7 +31,7 @@ import { readReadings } from "../readings/public";
  */
 export async function createAnnotationRun(
   request: StartAnnotationRun,
-): Promise<AnnotationRun> {
+): Promise<{ id: string; progress: AnnotationProgress }> {
   return transaction(async (tx) => {
     await lockImage(request.ref.digest, tx);
     const active = await activeRun(request.ref, tx);
@@ -77,11 +77,7 @@ export async function createAnnotationRun(
           reason: fallback,
         })}\n`,
       );
-    return {
-      id,
-      status: "running",
-      progress: { completed: 0, total: tasks.length },
-    };
+    return { id, progress: { completed: 0, total: tasks.length } };
   });
 }
 
@@ -165,18 +161,16 @@ async function freezeDefinition(request: StartAnnotationRun, tx: Executor) {
   return { definition, fallback: dish?.fallback ?? null };
 }
 
+const inProgress = (ref: AnnotationRef) =>
+  and(
+    eq(annotationRuns.imageId, ref.digest),
+    eq(annotationRuns.modelId, ref.modelId),
+    eq(annotationRuns.status, "running"),
+  );
+
 /** The image's run in progress for the model. */
 export async function activeRun(ref: AnnotationRef, db: Executor) {
-  const [row] = await db
-    .select()
-    .from(annotationRuns)
-    .where(
-      and(
-        eq(annotationRuns.imageId, ref.digest),
-        eq(annotationRuns.modelId, ref.modelId),
-        eq(annotationRuns.status, "running"),
-      ),
-    );
+  const [row] = await db.select().from(annotationRuns).where(inProgress(ref));
   return row ?? null;
 }
 
@@ -185,16 +179,15 @@ export async function activeRun(ref: AnnotationRef, db: Executor) {
  * can start with different input or scope.
  */
 export async function cancelAnnotationRun(ref: AnnotationRef): Promise<void> {
-  await transaction(async (tx) => {
-    await lockImage(ref.digest, tx);
-    const active = await activeRun(ref, tx);
-    if (!active)
-      throw new AnnotationRunConflictError(
-        "No AI annotation run is in progress for this image",
-      );
-    await tx
-      .update(annotationRuns)
-      .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(annotationRuns.id, active.id));
-  });
+  const [cancelled] = await (
+    await database()
+  )
+    .update(annotationRuns)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(inProgress(ref))
+    .returning({ id: annotationRuns.id });
+  if (!cancelled)
+    throw new AnnotationRunConflictError(
+      "No AI annotation run is in progress for this image",
+    );
 }

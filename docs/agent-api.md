@@ -54,9 +54,8 @@ and the specification's [dual-era versioning rules](https://modelcontextprotocol
 Clients such as Codex that negotiate 2025-06-18 use `initialize`,
 `notifications/initialized`, then tool requests with `MCP-Protocol-Version`.
 2026-07-28 clients send protocol metadata on each request. The SDK handles
-both lifecycles through the same per-request server factory; authentication
-runs before either lifecycle, and the annotation factory receives that
-request's user or Worker principal. No session identifier or server-side
+both lifecycles through the same per-request server factory, and
+authentication runs before either lifecycle. No session identifier or server-side
 session store is created. This compatibility mode does not enable the old
 HTTP+SSE transport.
 

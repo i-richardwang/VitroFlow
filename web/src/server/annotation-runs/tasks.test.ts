@@ -159,7 +159,7 @@ test("twenty regions reuse frozen context across views and reconnects before fin
   });
   let completed = 0;
   let deliveredImages = context.filter((item) => item.kind === "image").length;
-  for (let status = second.status; status === "running";) {
+  for (let status = "running"; status === "running";) {
     const next = await nextAnnotationTask(ref);
     const view = await viewAnnotationTask(next.taskId);
     expect(view.filter((item) => item.kind === "image")).toHaveLength(1);

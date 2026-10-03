@@ -85,7 +85,6 @@ test("a run stays open between conversations, and any agent continues it by its 
   });
   const request = { ...base, ref: { ...base.ref, modelId: model.id } };
   const run = await createAnnotationRun(request);
-  expect(run.status).toBe("running");
   const shown = async () =>
     (await readReview(request.ref, "open.jpg", await database()))?.progress;
   expect(await shown()).toEqual({ completed: 0, total: run.progress.total });
@@ -161,7 +160,7 @@ test("dish runs freeze coverage and actual task totals while later model edits l
 });
 
 test("starting a run never waits for image processing or creates regional evidence", async () => {
-  const { request } = await setup("admission-no-images");
+  const { request } = await setup("start-no-images");
   const { processImage } = await import("../images/processing");
   const { listBlobs } = await import("../infra/blobs/store");
   const prefix = `image-regions/${request.ref.digest}/`;
@@ -184,7 +183,7 @@ test("starting a run never waits for image processing or creates regional eviden
       createAnnotationRun(request),
       new Promise<never>((_, reject) => {
         timer = setTimeout(
-          () => reject(new Error("Admission waited for image processing")),
+          () => reject(new Error("Starting a run waited for image processing")),
           2000,
         );
       }),

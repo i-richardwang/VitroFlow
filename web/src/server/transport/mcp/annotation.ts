@@ -47,7 +47,7 @@ const content = (panels: AnnotationPanel[]) =>
       : textContent(panel.value),
   );
 
-/** One schema and handler per operation, independent of the calling runtime. */
+/** One schema and handler per operation. */
 function registerAnnotationTools(server: McpServer) {
   function register<S extends z.ZodObject>(
     name: string,
@@ -96,7 +96,7 @@ function registerAnnotationTools(server: McpServer) {
   }
   register(
     "annotation_pending",
-    "List images waiting for AI annotation: in a dataset or experiment observation, with neither a reviewer's boxes nor an AI proposal for their model, and a model with annotation instructions. Runs already in progress come first with their progress; continue those with annotation_next. Pass modelId to list one model's images. Returns at most 100 images and the total.",
+    "List images in datasets and experiment observations waiting for AI annotation. Images with a run in progress come first with its progress; continue those with annotation_next. Then come images with neither a reviewer's boxes nor an AI proposal for their model, whose model has annotation instructions. Pass modelId to list one model's images. Returns at most 100 images and the total.",
     z.strictObject({ modelId: resourceIdSchema.optional() }),
     { readOnlyHint: true },
     async (args) => ({
@@ -126,7 +126,7 @@ function registerAnnotationTools(server: McpServer) {
     "annotation_next",
     "Get the next region of the image's run in progress, with progress. It returns the same region until that region is accepted, so the run continues from any conversation. Then view, preview and submit it, and repeat until annotation_submit reports the run succeeded.",
     z.strictObject({ ref: annotationRefSchema }),
-    { readOnlyHint: false },
+    { readOnlyHint: true },
     async (args) => ({
       content: [textContent(await nextAnnotationTask(args.ref))],
     }),
@@ -178,7 +178,7 @@ function registerAnnotationTools(server: McpServer) {
   );
   register(
     "annotation_submit",
-    "Accept exactly the previewed proposal. Idempotent for the same proposalId. The server merges the final region automatically; do not upload a separate whole-image result.",
+    "Accept exactly the previewed proposal. Idempotent for the same proposalId. Accepting the last region completes the run.",
     annotationSubmitInput,
     { readOnlyHint: false, idempotentHint: true },
     async (args) => ({
@@ -214,15 +214,7 @@ export async function serveAnnotationMcp(request: Request): Promise<Response> {
   return (
     guardMcpRequest(request) ??
     serveWithOAuth("annotation", request, (accepted, grant) =>
-      annotationMcpHandler.fetch(accepted, {
-        authInfo: {
-          token: grant.token,
-          clientId: grant.clientId,
-          scopes: grant.scopes,
-          expiresAt: grant.expiresAt,
-          resource: grant.resource,
-        },
-      }),
+      annotationMcpHandler.fetch(accepted, { authInfo: grant }),
     )
   );
 }

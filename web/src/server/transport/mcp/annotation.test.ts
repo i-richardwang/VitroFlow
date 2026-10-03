@@ -49,7 +49,7 @@ describe.each(requestEras)(
       serveExperimentsMcp(
         request(experimentsEndpoint(), "tools/list", undefined, token),
       );
-    test("tool hints warn that cancellation discards progress and submission is idempotent", async () => {
+    test("tool hints warn that cancellation discards progress, submission is idempotent and reads change nothing", async () => {
       const { headers } = await signInAs("member");
       const { accessToken } = await authorizeMcpClient(headers, {
         server: "annotation",
@@ -70,6 +70,7 @@ describe.each(requestEras)(
       });
       expect(tool("annotation_pending").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_read").annotations.readOnlyHint).toBe(true);
+      expect(tool("annotation_next").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_context").annotations.readOnlyHint).toBe(true);
       expect(tool("annotation_view").annotations.readOnlyHint).toBe(true);
     });
@@ -253,9 +254,6 @@ describe.each(requestEras)(
           (item: { type: string }) => item.type === "image",
         ),
       ).toHaveLength(1);
-      expect(
-        viewed.content.some((item: { type: string }) => item.type === "image"),
-      ).toBe(true);
       const preview = await call("annotation_preview", {
         taskId,
         instances: [],

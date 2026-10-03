@@ -1,4 +1,12 @@
-import { and, eq, notExists, sql, type SQLWrapper } from "drizzle-orm";
+import {
+  and,
+  eq,
+  isNotNull,
+  notExists,
+  or,
+  sql,
+  type SQLWrapper,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { AnnotationRef } from "../../domain/annotation/schema";
@@ -27,11 +35,12 @@ export interface PendingAnnotation {
 }
 
 /**
- * An image waits for an agent while nobody has reviewed it and no agent has
- * proposed boxes for it, provided its model says how to annotate.
+ * An image waits for an agent while a run on it is in progress, or while
+ * nobody has reviewed it and no agent has proposed boxes for it, provided its
+ * model says how to annotate.
  */
 function awaiting(imageId: SQLWrapper, modelId: SQLWrapper) {
-  return and(
+  const unread = and(
     sql`${models.annotation}->>'instructions' <> ''`,
     notExists(
       sql`(select 1 from ${annotations} where ${annotations.imageId} = ${imageId} and ${annotations.modelId} = ${modelId})`,
@@ -40,6 +49,7 @@ function awaiting(imageId: SQLWrapper, modelId: SQLWrapper) {
       sql`(select 1 from ${annotationRuns} where ${annotationRuns.imageId} = ${imageId} and ${annotationRuns.modelId} = ${modelId} and ${annotationRuns.status} = 'succeeded')`,
     ),
   );
+  return or(isNotNull(activeRuns.id), unread);
 }
 
 const atActiveRun = (imageId: SQLWrapper, modelId: SQLWrapper) =>
@@ -50,9 +60,8 @@ const atActiveRun = (imageId: SQLWrapper, modelId: SQLWrapper) =>
   );
 
 /**
- * The images in datasets and experiment observations that no one has read
- * yet for their model, runs already at work first. One model narrows the
- * listing to its images.
+ * The images in datasets and experiment observations waiting for an agent,
+ * runs already at work first. One model narrows the listing to its images.
  */
 export async function listPendingAnnotations(modelId?: string): Promise<{
   total: number;

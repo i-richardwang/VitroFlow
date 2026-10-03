@@ -17,7 +17,7 @@ export const ANNOTATION_RUN_STATUSES = [
 ] as const;
 /**
  * The boxes a run begins from: none, a complete list the caller supplies, or
- * one of the image's readings as it stands when the run is admitted.
+ * one of the image's readings as it stands when the run starts.
  */
 const annotationInputSchema = z.union([
   z.array(annotationInstanceSchema).max(10000),
@@ -82,12 +82,6 @@ export const annotationContentSchema = z.strictObject({
   ...annotationNotesSchema.shape,
 });
 export type AnnotationContent = z.infer<typeof annotationContentSchema>;
-
-export type AnnotationRun = {
-  id: string;
-  status: (typeof ANNOTATION_RUN_STATUSES)[number];
-  progress: AnnotationProgress;
-};
 
 export const annotationProposalSchema = annotationContentSchema.extend({
   createdAt: z.string(),
