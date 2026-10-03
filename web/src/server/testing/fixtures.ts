@@ -425,22 +425,20 @@ export async function reviewedDataset(
   return seeded;
 }
 
-let accountSequence = 0;
-
 export const TEST_PASSWORD = "correct-horse-battery";
 
 /** A fresh signed-in account with `role`; the headers carry its session cookie. */
 export async function signInAs(
   role: UserRole,
 ): Promise<{ user: UserAccount; headers: Headers }> {
-  accountSequence += 1;
-  const email = `${role}-${accountSequence}@test.invalid`;
+  const account = crypto.randomUUID();
+  const email = `${role}-${account}@test.invalid`;
   const instance = await auth();
   const { user } = await instance.api.createUser({
     body: {
       email,
       password: TEST_PASSWORD,
-      name: `${role} ${accountSequence}`,
+      name: `${role} ${account}`,
       role,
     },
   });
