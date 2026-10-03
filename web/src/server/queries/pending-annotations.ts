@@ -2,18 +2,17 @@ import {
   and,
   eq,
   isNotNull,
+  isNull,
   notExists,
   or,
   sql,
   type SQLWrapper,
 } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 
 import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { AnnotationProgress } from "../../domain/annotation-runs/schema";
 import { database } from "../infra/db/client";
 import {
-  annotationRuns,
   annotations,
   datasetImages,
   datasets,
@@ -21,11 +20,10 @@ import {
   experimentObservations,
   models,
 } from "../infra/db/schema";
+import { activeRuns, atActiveRun, proposalRunId } from "../readings/public";
 
 /** How many images one listing names; the total says how many remain. */
 const LISTED = 100;
-
-const activeRuns = alias(annotationRuns, "active_runs");
 
 export interface PendingAnnotation {
   ref: AnnotationRef;
@@ -45,19 +43,10 @@ function awaiting(imageId: SQLWrapper, modelId: SQLWrapper) {
     notExists(
       sql`(select 1 from ${annotations} where ${annotations.imageId} = ${imageId} and ${annotations.modelId} = ${modelId})`,
     ),
-    notExists(
-      sql`(select 1 from ${annotationRuns} where ${annotationRuns.imageId} = ${imageId} and ${annotationRuns.modelId} = ${modelId} and ${annotationRuns.status} = 'succeeded')`,
-    ),
+    isNull(proposalRunId(imageId, modelId)),
   );
   return or(isNotNull(activeRuns.id), unread);
 }
-
-const atActiveRun = (imageId: SQLWrapper, modelId: SQLWrapper) =>
-  and(
-    eq(activeRuns.imageId, imageId),
-    eq(activeRuns.modelId, modelId),
-    eq(activeRuns.status, "running"),
-  );
 
 /**
  * The images in datasets and experiment observations waiting for an agent,

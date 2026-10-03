@@ -231,6 +231,20 @@ describe.each(requestEras)(
         total: 1,
         images: [{ ref, progress: null }],
       });
+      const refused = await call("annotation_start", {
+        ref,
+        input: [
+          {
+            id: "weed",
+            class: "weed",
+            bbox: { x: 0, y: 0, width: 1, height: 1 },
+          },
+        ],
+      });
+      expect(refused).toMatchObject({
+        isError: true,
+        content: [{ text: "AI annotation input uses unknown class: weed" }],
+      });
       const started = await call("annotation_start", { ref });
       expect(started.isError).toBeUndefined();
       expect((await pending()).images[0].progress).toEqual({

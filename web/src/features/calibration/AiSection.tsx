@@ -12,8 +12,8 @@ const CHECK_LABELS: Record<Check["kind"], () => string> = {
 };
 
 /**
- * The agent's reading of this image: the one at work, or the proposal it
- * left with the places it asks a person to look at.
+ * The agent's reading of this image: the progress of a run at work, and the
+ * proposal last left with the places it asks a person to look at.
  */
 export function AiSection({
   review,

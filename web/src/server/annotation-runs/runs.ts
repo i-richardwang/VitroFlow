@@ -48,7 +48,7 @@ export async function createAnnotationRun(
       .where(inProgress(request.ref));
     if (active)
       throw new AnnotationRunConflictError(
-        `This image already has an AI annotation run in progress (${active.completed}/${active.total} regions); continue it with annotation_next`,
+        `This image already has an AI annotation run in progress (${active.completed}/${active.total} regions)`,
       );
     const { definition, fallback } = await freezeDefinition(request, tx);
     const tasks = regions(definition);

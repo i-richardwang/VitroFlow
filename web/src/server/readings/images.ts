@@ -22,7 +22,18 @@ import { newestDetectingVersion } from "../inference/public";
 type Row = typeof annotationRuns.$inferSelect;
 
 export const proposalRuns = alias(annotationRuns, "proposal_runs");
-const activeRuns = alias(annotationRuns, "active_runs");
+export const activeRuns = alias(annotationRuns, "active_runs");
+
+/** Joins the image's run in progress for the model, of which there is at most one. */
+export const atActiveRun = (
+  imageId: SQLWrapper,
+  modelId: SQLWrapper | string,
+) =>
+  and(
+    eq(activeRuns.imageId, imageId),
+    eq(activeRuns.modelId, modelId),
+    eq(activeRuns.status, "running"),
+  );
 
 /** The newest run that succeeded for the image and model: its AI proposal. */
 export function proposalRunId(
@@ -97,14 +108,7 @@ export async function readReadings(
       proposalRuns,
       eq(proposalRuns.id, proposalRunId(images.id, ref.modelId)),
     )
-    .leftJoin(
-      activeRuns,
-      and(
-        eq(activeRuns.imageId, images.id),
-        eq(activeRuns.modelId, ref.modelId),
-        eq(activeRuns.status, "running"),
-      ),
-    )
+    .leftJoin(activeRuns, atActiveRun(images.id, ref.modelId))
     .where(eq(images.id, ref.digest));
   if (!row) return null;
   return {

@@ -54,12 +54,7 @@ export async function nextAnnotationTask(ref: AnnotationRef) {
     .where(inProgress(ref))
     .orderBy(asc(annotationTasks.taskId))
     .limit(1);
-  return (
-    next ??
-    conflict(
-      "No AI annotation run is in progress for this image; start one with annotation_start",
-    )
-  );
+  return next ?? conflict("No AI annotation run is in progress for this image");
 }
 
 export async function savePreview(taskId: string, value: unknown) {

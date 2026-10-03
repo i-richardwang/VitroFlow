@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UnknownClassError } from "./errors";
 
 const identifierSchema = z
   .string()
@@ -51,7 +52,7 @@ export function assertInstanceClasses(
     ...new Set(instances.map((instance) => instance.class)),
   ].filter((name) => !known.has(name));
   if (unknown.length > 0) {
-    throw new Error(
+    throw new UnknownClassError(
       `${context} uses unknown ${unknown.length === 1 ? "class" : "classes"}: ${unknown.join(", ")}`,
     );
   }

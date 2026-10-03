@@ -7,10 +7,7 @@ import { z } from "zod";
 
 import packageJson from "../../../../package.json";
 import { readAnnotationReading } from "../../readings/public";
-import {
-  AnnotationRunConflictError,
-  AnnotationRunNotFoundError,
-} from "../../../domain/annotation-runs/errors";
+import { DomainError } from "../../../domain/errors";
 import { annotationRefSchema } from "../../../domain/annotation/schema";
 import { resourceIdSchema } from "../../../domain/identifiers/schema";
 import { startAnnotationRunSchema } from "../../../domain/annotation-runs/schema";
@@ -78,9 +75,7 @@ function registerAnnotationTools(server: McpServer) {
           return await call(inputSchema.parse(args));
         } catch (error) {
           const expected =
-            error instanceof AnnotationRunConflictError ||
-            error instanceof AnnotationRunNotFoundError ||
-            error instanceof z.ZodError;
+            error instanceof DomainError || error instanceof z.ZodError;
           if (!expected) console.error("Annotation tool failed", error);
           return {
             isError: true,

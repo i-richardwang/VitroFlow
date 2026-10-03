@@ -4,4 +4,6 @@ export {
   readAnnotationReading,
   proposalRunId,
   proposalRuns,
+  activeRuns,
+  atActiveRun,
 } from "./images";

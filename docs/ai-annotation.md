@@ -33,7 +33,7 @@ settings and the resulting coverage at creation. Seed detection defaults to
 An agent a person connects to the annotation server, such as Claude Code or
 Codex, finds the images waiting for it and annotates them from its own
 conversation, many regions per conversation. Pages show its run's progress and
-the AI proposal it leaves; neither writes an accepted human review.
+the AI proposal it leaves; only a person writes an accepted review.
 
 An image and model have at most one run in progress, so the image is the run's
 address. Accepted regions are durable, and the run stays open until every region
@@ -167,8 +167,8 @@ launched agent always loads it, including an agent resuming a partially complete
 run. Context loading is read-only and does not advance the run.
 
 For 20 fresh regions with one preview each, this flow delivers one overview,
-20 CLEAN views and 40 preview images, instead of 20 overviews and 60 regional
-images. This counts image messages, not model tokens.
+20 CLEAN views and 40 preview images. This counts image messages, not model
+tokens.
 
 A connected client must actually deliver MCP image content to its vision model.
 Displaying an image in the chat UI alone does not verify that behavior. Real
@@ -198,10 +198,11 @@ Postgres is the single authority:
 - `annotation_previews`: immutable proposal versions of a region.
 
 Rendering happens outside acceptance transactions. Short transactions serialize
-run changes, validate geometry, accept a region and update progress. Concurrent final submissions cannot complete a run twice. Source-coordinate boxes are owned by the
-half-open core containing their centers. Neighbors read the same seam object
-independently, so their centers can disagree; collection therefore reads every
-region's boxes, halo context included, and treats boxes of one class from
+run changes, validate geometry, accept a region and update progress. Concurrent
+final submissions cannot complete a run twice. Source-coordinate boxes are owned
+by the half-open core containing their centers. Neighbors read the same seam
+object independently, so their centers can disagree; collection therefore reads
+every region's boxes, halo context included, and treats boxes of one class from
 different regions overlapping by IoU ≥ 0.5 as one object, at most one box per
 region, strongest overlaps first. Each object yields one box: a retained input box
 first, then a box its region owns, then a whole halo reading over a cut one. A
@@ -211,8 +212,8 @@ not redraw (those whose centers fall there) as retained readings, so its seams
 behave the same way. Overlaps within one region are never merged. Owned boxes
 touching internal patch edges are rejected. Uncertainty and boundary truncation
 remain in the proposal. Frozen input notes, when present, describe the input
-proposal; bare boxes carry no such assessment.
-Geometry validation does not establish visual accuracy.
+proposal; bare boxes carry no such assessment. Geometry validation does not
+establish visual accuracy.
 
 A run stays open until completed or cancelled; an agent that stops leaves its
 accepted regions for the next one. A transport retry of an accepted proposal is

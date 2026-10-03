@@ -1,4 +1,4 @@
-import { ConflictError, NotFoundError } from "../errors";
+import { ConflictError, NotFoundError, ValidationError } from "../errors";
 
 export class ModelNotFoundError extends NotFoundError {
   readonly code = "model_not_found";
@@ -9,4 +9,8 @@ export class ModelIdTakenError extends ConflictError {
 }
 export class ModelInUseError extends ConflictError {
   readonly code = "model_in_use";
+}
+/** Boxes name a class the model does not declare. */
+export class UnknownClassError extends ValidationError {
+  readonly code = "unknown_class";
 }
