@@ -1,146 +1,129 @@
-import {
-  Button,
-  Description,
-  Form,
-  Input,
-  Label,
-  Modal,
-  TextField,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { EnrolledWorker } from "../../domain/workers/schema";
 import { addWorker } from "../../functions/status";
 import { m } from "../../paraglide/messages";
 import { CopyableCode } from "../../ui/CopyableCode";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  type AsyncAction,
+  useAsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import { Form } from "../../ui/kit/Form";
+import { Input } from "../../ui/kit/Input";
+import { RevealOnceDialog } from "../../ui/RevealOnceDialog";
+
+const FORM_ID = "enroll-worker";
+
+/** What the machine needs: its setup command and the token it connects with. */
+interface Enrollment {
+  command: string;
+  token: string;
+}
 
 /**
- * An administrator names a machine and receives the token it connects with,
- * together with the command that sets the machine up.
+ * An administrator names a machine. Once enrolled, the form closes and the
+ * setup command and token are shown, the only time the token is visible; the
+ * worker list refreshes when that closes.
  */
 export function EnrollWorkerDialog({
-  isOpen,
+  open,
   onClose,
 }: {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const action = useAsyncAction();
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+
   return (
-    <Editor
-      key={isOpen ? "open" : "closed"}
-      isOpen={isOpen}
-      onClose={onClose}
-    />
+    <>
+      <FormDialog
+        open={open}
+        onClose={onClose}
+        title={m.worker_enroll_title()}
+        okText={m.worker_enroll_create()}
+        formId={FORM_ID}
+        busy={action.busy}
+      >
+        <EnrollWorkerForm
+          action={action}
+          onEnrolled={(next) => {
+            onClose();
+            setEnrollment(next);
+          }}
+        />
+      </FormDialog>
+      <RevealOnceDialog
+        revealed={enrollment}
+        title={m.worker_enroll_ready()}
+        warning={m.worker_enroll_shown_once()}
+        onClose={() => {
+          setEnrollment(null);
+          void router.invalidate();
+        }}
+      >
+        {({ command, token }) => (
+          <>
+            <CopyableCode
+              value={command}
+              label={m.worker_enroll_command_label()}
+              description={m.worker_enroll_command_description()}
+            />
+            <CopyableCode value={token} label={m.worker_enroll_token_label()} />
+          </>
+        )}
+      </RevealOnceDialog>
+    </>
   );
 }
 
-function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const router = useRouter();
-  const { busy, run } = useAsyncAction();
-  const [enrolled, setEnrolled] = useState<EnrolledWorker | null>(null);
-
-  const close = () => {
-    onClose();
-    if (enrolled) void router.invalidate();
-  };
-
+function EnrollWorkerForm({
+  action: { busy, run },
+  onEnrolled,
+}: {
+  action: AsyncAction;
+  onEnrolled: (enrollment: Enrollment) => void;
+}) {
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && close()}>
-      <Modal.Backdrop>
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            {enrolled ? (
-              <>
-                <Modal.Header>
-                  <Modal.Heading>{m.worker_enroll_ready()}</Modal.Heading>
-                  <Description>{m.worker_enroll_shown_once()}</Description>
-                </Modal.Header>
-                <Modal.Body className="flex flex-col gap-4">
-                  <CopyableCode
-                    value={`vitroctl worker setup ${enrolled.workerId} --server ${window.location.origin}`}
-                    label={m.worker_enroll_command_label()}
-                    description={m.worker_enroll_command_description()}
-                  />
-                  <CopyableCode
-                    value={enrolled.token}
-                    label={m.worker_enroll_token_label()}
-                  />
-                </Modal.Body>
-                <Modal.Footer>
-                  <Button variant="primary" onPress={close}>
-                    {m.close()}
-                  </Button>
-                </Modal.Footer>
-              </>
-            ) : (
-              <>
-                <Modal.Header>
-                  <Modal.Heading>{m.worker_enroll_title()}</Modal.Heading>
-                </Modal.Header>
-                <Modal.Body>
-                  <Form
-                    id="enroll-worker"
-                    className="flex w-full min-w-0 flex-col gap-4"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const form = new FormData(event.currentTarget);
-                      void run(
-                        () =>
-                          addWorker({
-                            data: {
-                              workerId: String(form.get("workerId") ?? ""),
-                            },
-                          }),
-                        m.worker_enroll_failed(),
-                      ).then((result) => {
-                        if (result.ok) setEnrolled(result.value);
-                      });
-                    }}
-                  >
-                    <TextField
-                      variant="secondary"
-                      fullWidth
-                      isRequired
-                      isDisabled={busy}
-                      name="workerId"
-                      autoFocus
-                    >
-                      <Label>{m.worker_enroll_name_label()}</Label>
-                      <Input
-                        className="w-full font-mono"
-                        autoComplete="off"
-                        pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
-                        placeholder={m.worker_enroll_name_placeholder()}
-                      />
-                      <Description>
-                        {m.worker_enroll_name_description()}
-                      </Description>
-                    </TextField>
-                  </Form>
-                </Modal.Body>
-                <Modal.Footer>
-                  <Button variant="tertiary" isDisabled={busy} onPress={close}>
-                    {m.cancel()}
-                  </Button>
-                  <Button
-                    type="submit"
-                    form="enroll-worker"
-                    variant="primary"
-                    isDisabled={busy}
-                  >
-                    {busy
-                      ? m.worker_enroll_creating()
-                      : m.worker_enroll_create()}
-                  </Button>
-                </Modal.Footer>
-              </>
-            )}
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Form
+      id={FORM_ID}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        void run(
+          () =>
+            addWorker({
+              data: { workerId: String(form.get("workerId") ?? "") },
+            }),
+          m.worker_enroll_failed(),
+        ).then((result) => {
+          if (!result.ok) return;
+          const { workerId, token } = result.value;
+          onEnrolled({
+            command: `vitroctl worker setup ${workerId} --server ${window.location.origin}`,
+            token,
+          });
+        });
+      }}
+    >
+      <Form.Field
+        label={m.worker_enroll_name_label()}
+        desc={m.worker_enroll_name_description()}
+        name="workerId"
+        required
+      >
+        <Input
+          name="workerId"
+          className="font-mono"
+          autoComplete="off"
+          autoFocus
+          disabled={busy}
+          pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+          placeholder={m.worker_enroll_name_placeholder()}
+        />
+      </Form.Field>
+    </Form>
   );
 }

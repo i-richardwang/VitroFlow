@@ -1,0 +1,233 @@
+/*
+ * Sidebar 248px, icon rail 64px, workspace card inset 8px. Below 992px the
+ * sidebar becomes a drawer and the workspace loses its card frame.
+ */
+.ui-app-shell {
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+
+  block-size: 100%;
+  min-block-size: 0;
+
+  background: var(--color-canvas);
+}
+
+.ui-app-shell-skip-link {
+  position: fixed;
+  z-index: var(--z-index-toast);
+  inset-block-start: -100px;
+  inset-inline-start: 12px;
+
+  padding-block: 8px;
+  padding-inline: 12px;
+  border-radius: var(--radius-md);
+
+  color: var(--color-fg);
+
+  background: var(--color-elevated);
+
+  &:focus {
+    inset-block-start: 12px;
+  }
+}
+
+.ui-app-shell-sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+
+  inline-size: 248px;
+  block-size: 100%;
+  min-block-size: 0;
+
+  transition: inline-size var(--duration-slow) var(--ease-out);
+
+  &[data-collapsed="true"] {
+    inline-size: 64px;
+  }
+
+  &[data-instant="true"] {
+    transition: none;
+  }
+
+  @variant max-laptop {
+    display: none;
+  }
+}
+
+.ui-app-shell-brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+
+  block-size: 56px;
+  margin-block-start: 8px;
+  padding-inline: 16px;
+
+  color: var(--color-fg);
+
+  &[data-collapsed="true"] {
+    justify-content: center;
+    padding-inline: 0;
+
+    > * {
+      justify-content: center;
+      inline-size: auto;
+    }
+  }
+
+  @variant max-laptop {
+    margin-block-start: 0;
+  }
+}
+
+.ui-app-shell-brand-anchor {
+  display: flex;
+  align-items: center;
+
+  inline-size: 100%;
+  min-inline-size: 0;
+
+  color: inherit;
+  text-decoration: none;
+
+  @apply focus-ring;
+}
+
+.ui-app-shell-brand-lockup {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+.ui-app-shell-brand-name {
+  overflow: hidden;
+
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-app-shell-nav-slot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+.ui-app-shell-sidebar-bottom {
+  flex: none;
+  padding: 8px;
+}
+
+.ui-app-shell-workspace {
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin-block: 8px;
+  margin-inline: 0 8px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
+
+  background: var(--color-container);
+  box-shadow: var(--elevation-sm);
+
+  @variant max-laptop {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+.ui-app-shell-topbar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+
+  block-size: 56px;
+  padding-inline: 12px;
+  border-block-end: 1px solid var(--color-border-secondary);
+}
+
+.ui-app-shell-topbar-divider {
+  flex: none;
+
+  inline-size: 1px;
+  block-size: 18px;
+  margin-inline: 2px;
+
+  background: var(--color-border-secondary);
+}
+
+.ui-app-shell-topbar-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+.ui-app-shell-tools {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+
+  margin-inline-start: auto;
+}
+
+.ui-app-shell-main {
+  overflow: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 24px;
+
+  /* Focus lands here when a click hits empty space; only the skip link draws a ring. */
+  &:focus {
+    outline: none;
+  }
+
+  &[data-skip-target]:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: calc(var(--focus-ring-width) * -1);
+  }
+
+  /* Content scrolls instead of squeezing children, which may clip their own overflow. */
+  > * {
+    flex-shrink: 0;
+  }
+
+  /*
+   * A page that owns a full-height split sets data-page-layout="flush" and
+   * takes over padding and scrolling, so its sidebar can sit on the card edge.
+   */
+  &:has([data-page-layout="flush"]) {
+    overflow: hidden;
+    gap: 0;
+    padding: 0;
+
+    > * {
+      flex-shrink: 1;
+    }
+  }
+
+  @variant max-mobile {
+    gap: 16px;
+    padding: 16px;
+  }
+}

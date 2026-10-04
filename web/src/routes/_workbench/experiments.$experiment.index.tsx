@@ -1,14 +1,15 @@
-import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
-
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import type { ExperimentGrid } from "../../domain/experiments/contracts";
-
 import { experimentIdSchema } from "../../domain/experiments/schema";
-
+import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
 import { getExperimentGrid } from "../../functions/experiments";
-
 import { m } from "../../paraglide/messages";
+import {
+  PageHeaderSkeleton,
+  PageSkeleton,
+  TableSkeleton,
+} from "../../ui/kit/PageSkeleton";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   loader: async ({ params }) => {
@@ -34,6 +35,12 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
     const { experiment } = loaderData as ExperimentGrid;
     return { meta: [{ title: `${experiment.name} · ${m.app_name()}` }] };
   },
+  pendingComponent: () => (
+    <PageSkeleton>
+      <PageHeaderSkeleton description action />
+      <TableSkeleton />
+    </PageSkeleton>
+  ),
   component: ExperimentPage,
 });
 

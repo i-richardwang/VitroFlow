@@ -1,0 +1,45 @@
+.ui-icon {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  font-style: normal;
+  line-height: 0;
+  text-align: center;
+  text-transform: none;
+  vertical-align: -0.125em;
+  text-rendering: optimizelegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  > * {
+    line-height: 1;
+  }
+
+  svg {
+    display: inline-block;
+    vertical-align: inherit;
+  }
+
+  &::before {
+    display: none;
+  }
+
+  &[tabindex] {
+    cursor: pointer;
+  }
+}
+
+.ui-icon-spin {
+  animation: var(--animate-spin);
+}
+
+/* The busy ring inside buttons. */
+.ui-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentcolor;
+  border-block-start-color: transparent;
+  border-radius: 50%;
+  animation: var(--animate-spin);
+}

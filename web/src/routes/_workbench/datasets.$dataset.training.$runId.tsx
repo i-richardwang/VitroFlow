@@ -1,17 +1,29 @@
-import { EmptyState } from "@heroui-pro/react/empty-state";
-import { KPI } from "@heroui-pro/react/kpi";
-import { KPIGroup } from "@heroui-pro/react/kpi-group";
-import { Widget } from "@heroui-pro/react/widget";
-import { Alert, Link } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { ChartLine } from "lucide-react";
 
-import { Page, PageSection } from "../../ui/Page";
+import { Metric } from "../../ui/Metric";
+import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
 import { Timestamp } from "../../ui/Timestamp";
-import { EpochCharts } from "../../features/training/EpochCharts";
-import { ParametersList } from "../../features/training/ParametersList";
+import {
+  EpochCharts,
+  EpochChartsSkeleton,
+} from "../../features/training/EpochCharts";
+import {
+  ParametersList,
+  ParametersListSkeleton,
+} from "../../features/training/ParametersList";
 import { TrainingRunState } from "../../features/training/TrainingRunState";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { Alert } from "../../ui/kit/Alert";
+import { Card } from "../../ui/kit/Card";
+import { Empty } from "../../ui/kit/Empty";
+import {
+  PageHeaderSkeleton,
+  PageSkeleton,
+  StatGridSkeleton,
+} from "../../ui/kit/PageSkeleton";
+import { StatCard, StatGrid } from "../../ui/kit/StatCard";
 import { m } from "../../paraglide/messages";
 import { bestEpoch } from "../../domain/training/metrics";
 import {
@@ -51,11 +63,25 @@ export const Route = createFileRoute(
       },
     ],
   }),
+  pendingComponent: () => (
+    <PageSkeleton>
+      <PageHeaderSkeleton description action />
+      <StatGridSkeleton count={2} />
+      <PageSectionSkeleton>
+        <EpochChartsSkeleton />
+      </PageSectionSkeleton>
+      <PageSectionSkeleton>
+        <Card>
+          <ParametersListSkeleton />
+        </Card>
+      </PageSectionSkeleton>
+    </PageSkeleton>
+  ),
   component: TrainingRunPage,
 });
 
 function TrainingRunPage() {
-  const { dataset, run, epochs, version } = Route.useLoaderData();
+  const { run, epochs, version } = Route.useLoaderData();
   const router = useRouter();
   const live = isTrainingRunActive(run);
 
@@ -65,92 +91,72 @@ function TrainingRunPage() {
   const earlier = epochs.length - current.length;
   const best = bestEpoch(current);
   const total = run.recipe.parameters.epochs;
+  const published =
+    version && version.artifact.kind === "ultralytics" ? version : null;
 
   return (
     <Page
-      title={
-        <span className="flex items-center gap-3">
-          <span className="truncate font-mono">{trainingRunLabel(run)}</span>
-          {run.state.status === "failed" ? null : (
-            <TrainingRunState run={run} />
-          )}
-        </span>
-      }
+      title={<span className="font-mono">{trainingRunLabel(run)}</span>}
       description={<Timestamp value={run.createdAt} />}
+      actions={
+        run.state.status === "failed" ? null : <TrainingRunState run={run} />
+      }
     >
       {run.state.status === "failed" ? (
-        <Alert status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{m.training_failed_title()}</Alert.Title>
-            <Alert.Description>{run.state.error}</Alert.Description>
-          </Alert.Content>
-        </Alert>
+        <Alert
+          type="error"
+          title={m.training_failed_title()}
+          description={run.state.error}
+        />
       ) : null}
 
-      <KPIGroup>
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.training_kpi_epochs()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={current.length} />
-          </KPI.Content>
-          <KPI.Footer>
-            {earlier > 0
-              ? `${m.training_kpi_epochs_of_total({ total })} · ${m.training_kpi_epochs_earlier_hidden({ count: earlier })}`
-              : m.training_kpi_epochs_of_total({ total })}
-          </KPI.Footer>
-        </KPI>
-        <KPIGroup.Separator />
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.training_kpi_best_map()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            {best ? (
-              <KPI.Value maximumFractionDigits={3} value={best.map50To95} />
-            ) : (
-              <span className="text-2xl font-semibold text-muted">—</span>
-            )}
-          </KPI.Content>
-          {version && version.artifact.kind === "ultralytics" ? (
-            <KPI.Footer>
-              <Link href={`/datasets/${dataset}`} className="text-sm">
-                {m.training_kpi_published({ version: version.id })}
-              </Link>
-            </KPI.Footer>
-          ) : best ? (
-            <KPI.Footer>
-              {m.training_kpi_best_epoch({ epoch: best.epoch })}
-            </KPI.Footer>
-          ) : null}
-        </KPI>
-      </KPIGroup>
+      <StatGrid>
+        <StatCard
+          label={m.training_kpi_epochs()}
+          value={m.run_epochs_progress({
+            completed: current.length,
+            total,
+          })}
+          hint={
+            earlier > 0
+              ? m.training_kpi_epochs_earlier_hidden({ count: earlier })
+              : undefined
+          }
+        />
+        <StatCard
+          label={m.training_kpi_best_map()}
+          value={<Metric value={best?.map50To95 ?? null} />}
+          hint={
+            published
+              ? m.training_kpi_published({ version: published.id })
+              : best
+                ? m.training_kpi_best_epoch({ epoch: best.epoch })
+                : undefined
+          }
+        />
+      </StatGrid>
 
-      <Widget>
-        <Widget.Header>
-          <Widget.Title>{m.training_curves()}</Widget.Title>
-        </Widget.Header>
-        <Widget.Content>
-          {current.length > 0 ? (
-            <EpochCharts epochs={current} total={total} best={best} />
-          ) : (
-            <EmptyState size="sm">
-              <EmptyState.Header>
-                <EmptyState.Title>
-                  {run.state.status === "failed"
-                    ? m.training_no_epochs_finished()
-                    : m.training_waiting_first_epoch()}
-                </EmptyState.Title>
-              </EmptyState.Header>
-            </EmptyState>
-          )}
-        </Widget.Content>
-      </Widget>
+      <PageSection title={m.training_curves()}>
+        {current.length > 0 ? (
+          <EpochCharts epochs={current} total={total} best={best} />
+        ) : (
+          <Card className="min-h-72 justify-center">
+            <Empty
+              icon={ChartLine}
+              title={
+                run.state.status === "failed"
+                  ? m.training_no_epochs_finished()
+                  : m.training_waiting_first_epoch()
+              }
+            />
+          </Card>
+        )}
+      </PageSection>
 
       <PageSection title={m.training_parameters()}>
-        <ParametersList parameters={run.recipe.parameters} columns={2} />
+        <Card>
+          <ParametersList parameters={run.recipe.parameters} />
+        </Card>
       </PageSection>
     </Page>
   );

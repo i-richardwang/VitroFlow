@@ -1,0 +1,43 @@
+/* Block order: root, size, color. */
+
+.ui-tag {
+  user-select: none;
+  display: inline-flex;
+  gap: 0.4em;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: var(--color-fg-secondary);
+  white-space: nowrap;
+  background: var(--color-fill-tertiary);
+
+  span {
+    margin: 0;
+    line-height: inherit;
+  }
+}
+
+.ui-tag-small {
+  height: 20px;
+  padding-inline: 4px;
+  border-radius: var(--radius-xs);
+}
+
+.ui-tag-middle {
+  height: 22px;
+  padding-inline: 8px;
+  border-radius: var(--radius-xs);
+}
+
+.ui-tag-warning {
+  color: var(--color-warning);
+  background: var(--color-warning-fill);
+}
+
+.ui-tag-info {
+  color: var(--color-info);
+  background: var(--color-info-fill);
+}

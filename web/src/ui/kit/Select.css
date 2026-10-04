@@ -1,0 +1,214 @@
+/*
+ * Block order is cascade order: trigger, size, variant, then the
+ * trigger's parts and the popup's. Popup, option and group label blocks come
+ * after the matching DropdownMenu.css blocks. The automatic variant sits
+ * inside `:where()`, so it has the specificity of a single class.
+ */
+
+.ui-select-trigger {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  color: var(--color-fg);
+  background: transparent;
+  outline: none;
+  transition: all var(--duration-base) var(--ease-out);
+
+  &:not([data-disabled])[data-popup-open],
+  &:not([data-disabled])[data-open],
+  &:not([data-disabled])[data-state="open"],
+  &:not([data-disabled])[aria-expanded="true"] {
+    background: var(--ui-select-open-bg, var(--color-fill-tertiary));
+  }
+
+  @apply focus-ring;
+
+  &:hover [data-role="ui-select-clear"] {
+    opacity: 1;
+  }
+
+  &[data-placeholder] [data-role="ui-select-clear"] {
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  &[data-disabled] {
+    cursor: not-allowed;
+    color: var(--color-fg-quaternary);
+    background: var(--ui-select-disabled-bg, transparent);
+
+    &:hover {
+      background: var(--ui-select-disabled-bg, transparent);
+    }
+  }
+
+  &[data-disabled] [data-role="ui-select-clear"] {
+    pointer-events: none;
+    opacity: 0;
+  }
+}
+
+.ui-select-trigger-middle {
+  min-height: 32px;
+  padding-block: 4px;
+  padding-inline: 11px;
+  font-size: var(--text-base);
+  line-height: 20px;
+}
+
+.ui-select-trigger-small {
+  min-height: 24px;
+  padding-block: 0;
+  padding-inline: 8px;
+  font-size: var(--text-xs);
+  line-height: 18px;
+}
+
+.ui-select-borderless {
+  --ui-select-open-bg: var(--color-fill-tertiary);
+  --ui-select-disabled-bg: color-mix(
+    in srgb,
+    var(--color-fill-tertiary) 55%,
+    transparent
+  );
+
+  border: none;
+  background: none;
+  box-shadow: none;
+
+  &:hover {
+    background: var(--color-fill-tertiary);
+  }
+}
+
+.ui-select-filled,
+:where(.dark) .ui-select-auto {
+  --ui-select-open-bg: var(--color-fill-secondary);
+  --ui-select-disabled-bg: color-mix(
+    in srgb,
+    var(--color-fill-tertiary) 55%,
+    transparent
+  );
+
+  background: var(--color-fill-tertiary);
+
+  &:hover {
+    background: var(--color-fill-secondary);
+  }
+}
+
+:where(:root:not(.dark)) .ui-select-auto {
+  --ui-select-open-bg: var(--color-fill-tertiary);
+  --ui-select-disabled-bg: color-mix(
+    in srgb,
+    var(--color-container) 60%,
+    transparent
+  );
+
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-container);
+
+  &:hover {
+    border: 1px solid var(--color-border);
+    background: var(--color-container);
+  }
+}
+
+.ui-select-value {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  color: inherit;
+
+  &[data-placeholder] {
+    color: var(--color-fg-quaternary);
+  }
+}
+
+.ui-select-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-select-suffix {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--color-fg-secondary);
+}
+
+.ui-select-clear {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-fg-tertiary);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+
+  &:hover {
+    color: var(--color-fg-secondary);
+  }
+}
+
+.ui-select-icon {
+  display: inline-flex;
+  align-items: center;
+  transition: transform var(--duration-base) var(--ease-out);
+
+  &[data-popup-open] {
+    transform: rotate(180deg);
+  }
+}
+
+.ui-select-positioner {
+  z-index: var(--z-index-popup);
+  outline: none;
+}
+
+.ui-select-popup {
+  --ui-select-available-height: min(
+    var(--available-height),
+    var(--ui-select-popup-max-height, var(--available-height))
+  );
+
+  transform-origin: var(--transform-origin);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: var(--ui-select-available-height);
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: scaleY(0.92);
+    opacity: 0;
+  }
+}
+
+.ui-select-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-block: 0;
+}
+
+.ui-select-item-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: auto;
+  padding-inline-start: 8px;
+  color: var(--color-primary);
+}

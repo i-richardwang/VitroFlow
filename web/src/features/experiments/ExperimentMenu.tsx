@@ -1,26 +1,24 @@
-import {
-  Button,
-  Dropdown,
-  Form,
-  Label,
-  Modal,
-  Separator,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import type { DateValue } from "@internationalized/date";
 
 import type { Experiment } from "../../domain/experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
-import { MoreIcon } from "../../ui/icons";
+import { PageMenu } from "../../ui/ActionsMenu";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  useAsyncAction,
+  type AsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import type { DropdownItem } from "../../ui/kit/DropdownMenu";
+import { Form } from "../../ui/kit/Form";
+import { toast } from "../../ui/kit/Toast";
 import { fromDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
-type Action = "edit" | "delete";
+const EDIT_FORM = "edit-experiment";
 
 export function ExperimentMenu({
   experiment,
@@ -32,63 +30,52 @@ export function ExperimentMenu({
   onNewTreatment: () => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState<Action | null>(null);
-  const close = () => setOpen(null);
+  const [editing, setEditing] = useState(false);
+
+  const items: DropdownItem[] = [
+    {
+      key: "treatment",
+      icon: Plus,
+      label: m.treatment_menu_new(),
+      onClick: onNewTreatment,
+    },
+    { type: "divider" },
+    {
+      key: "edit",
+      icon: Pencil,
+      label: m.experiment_menu_edit(),
+      onClick: () => setEditing(true),
+    },
+  ];
+  if (!hasRecords) {
+    items.push({
+      key: "delete",
+      icon: Trash2,
+      danger: true,
+      label: m.experiment_menu_delete(),
+      onClick: () =>
+        confirmDestructive({
+          title: m.experiment_delete_title({ name: experiment.name }),
+          confirmLabel: m.experiment_delete(),
+          onConfirm: async () => {
+            await removeExperiment({ data: { experiment: experiment.id } });
+            toast.success(m.experiment_deleted({ name: experiment.name }));
+            await router.navigate({ to: "/experiments" });
+          },
+        }),
+    });
+  }
 
   return (
     <>
-      <Dropdown>
-        <Button variant="ghost" isIconOnly aria-label={m.experiment_actions()}>
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={m.experiment_actions()}
-            onAction={(key) => {
-              const id = String(key);
-              if (id === "treatment") {
-                onNewTreatment();
-                return;
-              }
-              setOpen(id as Action);
-            }}
-          >
-            <Dropdown.Item id="treatment" textValue={m.treatment_new()}>
-              <Label>{m.treatment_menu_new()}</Label>
-            </Dropdown.Item>
-            <Separator orientation="horizontal" />
-            <Dropdown.Item id="edit" textValue={m.experiment_edit_details()}>
-              <Label>{m.experiment_menu_edit()}</Label>
-            </Dropdown.Item>
-            {!hasRecords ? (
-              <Dropdown.Item
-                id="delete"
-                textValue={m.experiment_delete()}
-                variant="danger"
-              >
-                <Label>{m.experiment_menu_delete()}</Label>
-              </Dropdown.Item>
-            ) : null}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-
+      <PageMenu
+        label={m.experiment_actions({ name: experiment.name })}
+        items={items}
+      />
       <EditExperimentDialog
         experiment={experiment}
-        isOpen={open === "edit"}
-        onClose={close}
-      />
-
-      <DestructiveActionDialog
-        isOpen={open === "delete"}
-        onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={m.experiment_delete_title({ name: experiment.name })}
-        confirmLabel={m.experiment_delete()}
-        onConfirm={async () => {
-          await removeExperiment({ data: { experiment: experiment.id } });
-          toast.success(m.experiment_deleted({ name: experiment.name }));
-          await router.navigate({ to: "/experiments" });
-        }}
+        open={editing}
+        onClose={() => setEditing(false)}
       />
     </>
   );
@@ -96,81 +83,77 @@ export function ExperimentMenu({
 
 function EditExperimentDialog({
   experiment,
-  isOpen,
+  open,
   onClose,
 }: {
   experiment: Experiment;
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
+  const action = useAsyncAction();
+  return (
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={m.experiment_edit_heading()}
+      okText={m.experiment_action_save()}
+      formId={EDIT_FORM}
+      busy={action.busy}
+      width="wide"
+    >
+      <EditExperimentForm
+        experiment={experiment}
+        action={action}
+        onDone={onClose}
+      />
+    </FormDialog>
+  );
+}
+
+function EditExperimentForm({
+  experiment,
+  action,
+  onDone,
+}: {
+  experiment: Experiment;
+  action: AsyncAction;
+  onDone: () => void;
+}) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
-  const [inoculatedOn, setInoculatedOn] = useState<DateValue | null>(() =>
+  const [inoculatedOn, setInoculatedOn] = useState(() =>
     fromDay(experiment.inoculatedOn),
   );
-
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.experiment_edit_heading()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body key={isOpen ? "open" : "closed"}>
-              <Form
-                id="edit-experiment"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (inoculatedOn === null) return;
-                  const form = new FormData(event.currentTarget);
-                  const fields = readExperimentFields(form);
-                  void run(
-                    () =>
-                      editExperiment({
-                        data: {
-                          experiment: experiment.id,
-                          ...fields,
-                          inoculatedOn: toDay(inoculatedOn),
-                        },
-                      }),
-                    m.experiment_not_saved(),
-                  ).then(async (result) => {
-                    if (result.ok) {
-                      onClose();
-                      await router.invalidate();
-                    }
-                  });
-                }}
-              >
-                <ExperimentFields
-                  busy={busy}
-                  defaults={experiment}
-                  inoculatedOn={inoculatedOn}
-                  onInoculatedOnChange={setInoculatedOn}
-                />
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="edit-experiment"
-                variant="primary"
-                isDisabled={busy}
-              >
-                {busy
-                  ? m.experiment_action_saving()
-                  : m.experiment_action_save()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Form
+      id={EDIT_FORM}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const fields = readExperimentFields(new FormData(event.currentTarget));
+        void action
+          .run(
+            () =>
+              editExperiment({
+                data: {
+                  experiment: experiment.id,
+                  ...fields,
+                  inoculatedOn: toDay(inoculatedOn),
+                },
+              }),
+            m.experiment_not_saved(),
+          )
+          .then(async (result) => {
+            if (!result.ok) return;
+            onDone();
+            await router.invalidate();
+          });
+      }}
+    >
+      <ExperimentFields
+        disabled={action.busy}
+        defaults={experiment}
+        inoculatedOn={inoculatedOn}
+        onInoculatedOnChange={setInoculatedOn}
+      />
+    </Form>
   );
 }

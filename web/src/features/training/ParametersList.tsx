@@ -1,46 +1,64 @@
-import { PARAMETER_LABELS } from "./parameter-fields";
-import type { TrainingParameters } from "../../domain/training/parameters";
+import type { ReactNode } from "react";
 
+import type { TrainingParameters } from "../../domain/training/parameters";
+import { m } from "../../paraglide/messages";
+import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { Skeleton } from "../../ui/kit/Skeleton";
+import { PARAMETER_LABELS } from "./parameter-fields";
+
+const KEYS = Object.keys(PARAMETER_LABELS) as (keyof TrainingParameters)[];
+const HALF = Math.ceil(KEYS.length / 2);
+
+/** The recipe's parameters in two label–value columns that stack on narrow screens. */
 export function ParametersList({
   parameters,
-  columns = 1,
 }: {
   parameters: TrainingParameters;
-  columns?: 1 | 2;
 }) {
   return (
-    <dl
-      className={[
-        "grid gap-x-6 gap-y-1.5 text-sm",
-        columns === 2
-          ? "grid-cols-[max-content_1fr] sm:grid-cols-[max-content_1fr_max-content_1fr]"
-          : "grid-cols-[max-content_1fr]",
-      ].join(" ")}
-    >
-      {(Object.keys(PARAMETER_LABELS) as (keyof TrainingParameters)[]).map(
-        (key) => (
-          <Parameter
-            key={key}
-            label={PARAMETER_LABELS[key]()}
-            value={parameters[key]}
-          />
-        ),
+    <ParameterColumns
+      value={(key) => (
+        <span className="font-mono">{formatParameter(parameters[key])}</span>
       )}
-    </dl>
+    />
   );
 }
 
-function Parameter({
-  label,
+/** `ParametersList` while the run loads: the labels, with a bone for each value. */
+export function ParametersListSkeleton() {
+  return (
+    <div aria-hidden>
+      <ParameterColumns
+        value={() => (
+          <Skeleton width="4em" className="inline-block align-middle" />
+        )}
+      />
+    </div>
+  );
+}
+
+function ParameterColumns({
   value,
 }: {
-  label: string;
-  value: number | string | boolean;
+  value: (key: keyof TrainingParameters) => ReactNode;
 }) {
   return (
-    <>
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-mono tabular-nums">{String(value)}</dd>
-    </>
+    <div className="grid items-start gap-x-12 sm:grid-cols-2">
+      {[KEYS.slice(0, HALF), KEYS.slice(HALF)].map((keys, column) => (
+        <Descriptions key={column} aligned>
+          {keys.map((key) => (
+            <DescriptionsItem key={key} label={PARAMETER_LABELS[key]()}>
+              {value(key)}
+            </DescriptionsItem>
+          ))}
+        </Descriptions>
+      ))}
+    </div>
   );
+}
+
+function formatParameter(value: number | string | boolean): string {
+  if (typeof value === "boolean")
+    return value ? m.parameter_on() : m.parameter_off();
+  return String(value);
 }

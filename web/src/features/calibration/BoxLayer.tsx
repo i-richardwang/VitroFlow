@@ -26,7 +26,7 @@ import {
   type LayerKey,
   type Tool,
 } from "./controls";
-import { Hint } from "../../ui/Hint";
+import { Tooltip } from "../../ui/kit/Tooltip";
 import { usePanGesture, useViewport } from "../../ui/viewport/ImageViewport";
 
 const HANDLE_SCREEN_SIZE = 8;
@@ -97,7 +97,8 @@ function Box({
         <text
           x={box.x}
           y={box.y - 3 / scale}
-          fontSize={11 / scale}
+          fontSize={12 / scale}
+          fontWeight={600}
           fill={paint}
           pointerEvents="none"
         >
@@ -181,11 +182,11 @@ export function ChecksLayer({
               transform: `translateY(-100%) scale(${1 / scale})`,
             }}
           >
-            <Hint text={check.reason}>
-              <span className="px-0.5 text-[13px] leading-none font-semibold text-warning">
+            <Tooltip title={check.reason}>
+              <span className="px-0.5 text-sm leading-none font-bold text-warning">
                 ?
               </span>
-            </Hint>
+            </Tooltip>
           </div>
         ) : null,
       )}

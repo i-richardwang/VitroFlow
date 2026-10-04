@@ -1,0 +1,40 @@
+/* Block order: root, tones, then the dot. */
+
+.ui-status {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ui-status-neutral {
+  color: var(--color-fg-tertiary);
+}
+
+.ui-status-info {
+  color: var(--color-info);
+}
+
+.ui-status-success {
+  color: var(--color-success);
+}
+
+.ui-status-warning {
+  color: var(--color-warning);
+}
+
+.ui-status-error {
+  color: var(--color-error);
+}
+
+.ui-status-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-inline: 3px;
+  border-radius: 50%;
+  background: currentcolor;
+}

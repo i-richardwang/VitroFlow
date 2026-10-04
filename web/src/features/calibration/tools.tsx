@@ -1,23 +1,12 @@
-import { InlineSelect } from "@heroui-pro/react/inline-select";
-import {
-  AlertDialog,
-  Button,
-  ButtonGroup,
-  Dropdown,
-  Kbd,
-  Label,
-  ListBox,
-  Separator,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-} from "@heroui/react";
-import type { ReactNode } from "react";
+import { Redo2, RotateCcw, Trash2, Undo2 } from "lucide-react";
 
 import type { ReviewSource } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
-import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../../ui/icons";
-import { className } from "../../ui/model-names";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
+import { DropdownMenu } from "../../ui/kit/DropdownMenu";
+import { Hotkey } from "../../ui/kit/Hotkey";
+import { Select } from "../../ui/kit/Select";
+import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import {
   ClassLabel,
   classShortcut,
@@ -56,197 +45,97 @@ export function CalibrationTools({
 }) {
   return (
     <>
-      <ToggleButtonGroup
-        aria-label={m.workbench_tool_label()}
-        selectionMode="single"
-        disallowEmptySelection
-        selectedKeys={new Set([tool])}
-        onSelectionChange={(keys) => {
-          const key = [...keys][0];
-          if (key === "select" || key === "add") onToolChange(key);
-        }}
+      <div
+        role="group"
+        aria-label={m.calibration_tool_label()}
+        className="flex gap-0.5"
       >
-        {TOOLS.map((id, index) => {
-          const { label, shortcut, icon: Icon } = TOOL_SPECS[id];
-          const name = label();
+        {TOOLS.map((id) => {
+          const { label, shortcut, icon } = TOOL_SPECS[id];
           return (
-            <ShortcutTooltip key={id} label={name} shortcut={shortcut}>
-              <ToggleButton id={id} isIconOnly aria-label={name}>
-                {index > 0 ? <ToggleButtonGroup.Separator /> : null}
-                <Icon />
-              </ToggleButton>
-            </ShortcutTooltip>
+            <ActionIcon
+              key={id}
+              icon={icon}
+              size="small"
+              title={label()}
+              tooltipProps={{ hotkey: shortcut, placement: "bottom" }}
+              active={tool === id}
+              aria-pressed={tool === id}
+              onClick={() => onToolChange(id)}
+            />
           );
         })}
-      </ToggleButtonGroup>
-      {classes.length > 1 ? <Separator /> : null}
+      </div>
       {classes.length > 1 ? (
-        <InlineSelect
-          aria-label={m.workbench_box_class()}
-          selectedKey={boxClass}
-          onSelectionChange={(key) =>
-            key !== null && onClassChange(String(key))
-          }
-        >
-          <InlineSelect.Trigger>
-            <InlineSelect.Value>
-              <ClassLabel classes={classes} name={boxClass} />
-            </InlineSelect.Value>
-            <InlineSelect.Indicator />
-          </InlineSelect.Trigger>
-          <InlineSelect.Popover className="w-44">
-            <ListBox>
-              {classes.map((name) => {
-                const shortcut = classShortcut(classes, name);
-                return (
-                  <ListBox.Item
-                    key={name}
-                    id={name}
-                    textValue={className(name)}
-                  >
-                    <ClassLabel classes={classes} name={name} />
-                    {shortcut ? (
-                      <Kbd className="ms-auto">{shortcut}</Kbd>
-                    ) : null}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                );
-              })}
-            </ListBox>
-          </InlineSelect.Popover>
-        </InlineSelect>
-      ) : null}
-      <Separator />
-      <ButtonGroup variant="tertiary">
-        <ShortcutTooltip label={m.workbench_undo()} shortcut="⌘Z">
-          <Button
-            variant="tertiary"
-            isIconOnly
-            aria-label={m.workbench_undo()}
-            isDisabled={!history.canUndo}
-            onPress={onUndo}
-          >
-            <UndoIcon />
-          </Button>
-        </ShortcutTooltip>
-        <ShortcutTooltip label={m.workbench_redo()} shortcut="⇧⌘Z">
-          <Button
-            variant="tertiary"
-            isIconOnly
-            aria-label={m.workbench_redo()}
-            isDisabled={!history.canRedo}
-            onPress={onRedo}
-          >
-            <ButtonGroup.Separator />
-            <RedoIcon />
-          </Button>
-        </ShortcutTooltip>
-        <ShortcutTooltip label={m.workbench_delete()} shortcut="⌫">
-          <Button
-            variant="tertiary"
-            isIconOnly
-            aria-label={m.workbench_delete()}
-            isDisabled={!canDelete}
-            onPress={onDelete}
-          >
-            <ButtonGroup.Separator />
-            <DeleteIcon />
-          </Button>
-        </ShortcutTooltip>
-      </ButtonGroup>
-      {sources.length ? (
         <>
-          <Separator />
-          <Dropdown>
-            <Button
-              variant="tertiary"
-              isIconOnly
-              aria-label={m.workbench_restart()}
-            >
-              <RestartIcon />
-            </Button>
-            <Dropdown.Popover placement="bottom start">
-              <Dropdown.Menu
-                aria-label={m.workbench_restart()}
-                onAction={(key) => onRestart(String(key) as ReviewSource)}
-              >
-                {sources.map((source) => (
-                  <Dropdown.Item
-                    key={source}
-                    id={source}
-                    textValue={m.workbench_restart_from({
-                      source: sourceLabels[source](),
-                    })}
-                  >
-                    <Label>
-                      {m.workbench_restart_from({
-                        source: sourceLabels[source](),
-                      })}
-                    </Label>
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
+          <ToolbarSeparator />
+          <Select
+            aria-label={m.calibration_box_class()}
+            variant="borderless"
+            size="small"
+            value={boxClass}
+            popupMatchSelectWidth={false}
+            options={classes.map((name) => ({ value: name, label: name }))}
+            labelRender={(option) => (
+              <ClassLabel classes={classes} name={option.value} />
+            )}
+            optionRender={(option) => {
+              const shortcut = classShortcut(classes, option.value);
+              return (
+                <span className="flex w-full items-center justify-between gap-4">
+                  <ClassLabel classes={classes} name={option.value} />
+                  {shortcut ? <Hotkey keys={shortcut} /> : null}
+                </span>
+              );
+            }}
+            onChange={onClassChange}
+          />
         </>
       ) : null}
+      <ToolbarSeparator />
+      <ActionIcon
+        icon={Undo2}
+        size="small"
+        title={m.calibration_undo()}
+        tooltipProps={{ hotkey: "mod+z", placement: "bottom" }}
+        disabled={!history.canUndo}
+        onClick={onUndo}
+      />
+      <ActionIcon
+        icon={Redo2}
+        size="small"
+        title={m.calibration_redo()}
+        tooltipProps={{ hotkey: "shift+mod+z", placement: "bottom" }}
+        disabled={!history.canRedo}
+        onClick={onRedo}
+      />
+      <ActionIcon
+        icon={Trash2}
+        size="small"
+        title={m.calibration_delete()}
+        tooltipProps={{ hotkey: "backspace", placement: "bottom" }}
+        disabled={!canDelete}
+        onClick={onDelete}
+      />
+      {sources.length ? (
+        <DropdownMenu
+          placement="bottomRight"
+          items={sources.map((source) => ({
+            key: source,
+            label: m.calibration_restart_from({
+              source: sourceLabels[source](),
+            }),
+            onClick: () => onRestart(source),
+          }))}
+        >
+          <ActionIcon
+            icon={RotateCcw}
+            size="small"
+            title={m.calibration_restart()}
+            tooltipProps={{ placement: "bottom" }}
+          />
+        </DropdownMenu>
+      ) : null}
     </>
-  );
-}
-
-function ShortcutTooltip({
-  label,
-  shortcut,
-  children,
-}: {
-  label: string;
-  shortcut: string;
-  children: ReactNode;
-}) {
-  return (
-    <Tooltip delay={0}>
-      {children}
-      <Tooltip.Content className="flex items-center gap-2">
-        {label}
-        <Kbd>{shortcut}</Kbd>
-      </Tooltip.Content>
-    </Tooltip>
-  );
-}
-
-export function DiscardDraftDialog({
-  onStay,
-  onLeave,
-}: {
-  onStay: () => void;
-  onLeave: () => void;
-}) {
-  return (
-    <AlertDialog
-      isOpen
-      onOpenChange={(open) => {
-        if (!open) onStay();
-      }}
-    >
-      <AlertDialog.Backdrop>
-        <AlertDialog.Container size="sm">
-          <AlertDialog.Dialog>
-            <AlertDialog.Header>
-              <AlertDialog.Heading>
-                {m.workbench_discard_confirm()}
-              </AlertDialog.Heading>
-            </AlertDialog.Header>
-            <AlertDialog.Footer>
-              <Button variant="tertiary" slot="close">
-                {m.cancel()}
-              </Button>
-              <Button variant="danger" onPress={onLeave}>
-                {m.workbench_discard()}
-              </Button>
-            </AlertDialog.Footer>
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-    </AlertDialog>
   );
 }

@@ -1,12 +1,19 @@
-import { KPI } from "@heroui-pro/react/kpi";
-import { KPIGroup } from "@heroui-pro/react/kpi-group";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
 import { VersionsTable } from "../../features/datasets/VersionsTable";
-import { Page } from "../../ui/Page";
+import { formatQuantity } from "../../ui/quantity";
+import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingOverview } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { Button } from "../../ui/kit/Button";
+import {
+  PageHeaderSkeleton,
+  PageSkeleton,
+  StatGridSkeleton,
+  TableSkeleton,
+} from "../../ui/kit/PageSkeleton";
+import { StatCard, StatGrid } from "../../ui/kit/StatCard";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/training")({
@@ -15,6 +22,18 @@ export const Route = createFileRoute("/_workbench/training")({
   head: () => ({
     meta: [{ title: `${m.training_title()} · ${m.app_name()}` }],
   }),
+  pendingComponent: () => (
+    <PageSkeleton>
+      <PageHeaderSkeleton />
+      <StatGridSkeleton count={3} />
+      <PageSectionSkeleton>
+        <TableSkeleton rows={3} />
+      </PageSectionSkeleton>
+      <PageSectionSkeleton>
+        <TableSkeleton rows={3} />
+      </PageSectionSkeleton>
+    </PageSkeleton>
+  ),
   component: TrainingPage,
 });
 
@@ -27,38 +46,33 @@ function TrainingPage() {
 
   return (
     <Page title={m.training_title()}>
-      <KPIGroup>
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.training_kpi_runs()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={total} />
-          </KPI.Content>
-        </KPI>
-        <KPIGroup.Separator />
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.training_kpi_in_progress()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={inProgress} />
-          </KPI.Content>
-        </KPI>
-        <KPIGroup.Separator />
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.training_kpi_workers()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={workersOnline} />
-          </KPI.Content>
-        </KPI>
-      </KPIGroup>
+      <StatGrid>
+        <StatCard label={m.training_kpi_runs()} value={formatQuantity(total)} />
+        <StatCard
+          label={m.training_kpi_in_progress()}
+          value={formatQuantity(inProgress)}
+        />
+        <StatCard
+          label={m.training_kpi_workers()}
+          value={formatQuantity(workersOnline)}
+        />
+      </StatGrid>
 
-      <VersionsTable versions={versions} />
+      <PageSection title={m.versions_table()}>
+        <VersionsTable versions={versions} />
+      </PageSection>
 
-      <TrainingRunsTable runs={runs} datasetColumn />
+      <PageSection title={m.run_table_label()}>
+        <TrainingRunsTable
+          runs={runs}
+          datasetColumn
+          emptyAction={
+            <Button render={<Link to="/datasets" />}>
+              {m.run_empty_open_datasets()}
+            </Button>
+          }
+        />
+      </PageSection>
     </Page>
   );
 }

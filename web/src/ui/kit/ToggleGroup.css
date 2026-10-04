@@ -1,0 +1,48 @@
+.ui-toggle-group {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.ui-toggle-group-item {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding-inline: 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+  white-space: nowrap;
+  background: transparent;
+  outline: none;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+
+  &:hover:not([data-disabled]) {
+    color: var(--color-fg-secondary);
+    background: var(--color-fill-secondary);
+  }
+
+  &[data-pressed] {
+    color: var(--color-fg);
+    background: var(--color-fill-secondary);
+  }
+
+  &[data-pressed]:hover:not([data-disabled]) {
+    background: var(--color-fill);
+  }
+
+  @apply focus-ring;
+
+  &[data-disabled] {
+    cursor: not-allowed;
+    color: var(--color-fg-quaternary);
+  }
+}

@@ -1,6 +1,5 @@
-import { DropZone } from "@heroui-pro/react/drop-zone";
-import { toast } from "@heroui/react";
-import { useCallback, type ReactNode } from "react";
+import { ImageUp } from "lucide-react";
+import type { ReactNode } from "react";
 
 import type { ListedImage } from "./state";
 import {
@@ -9,165 +8,107 @@ import {
   SOURCE_IMAGE_EXTENSIONS,
   sourceImageFileError,
 } from "../../domain/images/canonical";
+import {
+  DropZone,
+  DropZoneFile,
+  DropZoneFileList,
+  type DropZoneFileStatus,
+} from "../../ui/kit/DropZone";
+import { toast } from "../../ui/kit/Toast";
 import { m } from "../../paraglide/messages";
 import { getLocale } from "../../paraglide/runtime";
 
-const ITEM_STATUS = {
+const FILE_STATUS = {
   storing: "uploading",
-  stored: "complete",
-  failed: "failed",
-} as const;
-
-export function ImageDropZone({
-  images,
-  onAdd,
-  onRemove,
-  busy,
-  annotate,
-  multiple = true,
-}: {
-  images: ListedImage[];
-  onAdd: (files: File[]) => void;
-  onRemove: (id: number) => void;
-  busy: boolean;
-  annotate?: (image: ListedImage) => ReactNode;
-  multiple?: boolean;
-}) {
-  const addFiles = useCallback(
-    (incoming: File[]) => {
-      const accepted = incoming.filter((file) => {
-        const error = sourceImageFileError(file);
-        if (error)
-          toast.danger(file.name, { description: FILE_ERRORS[error]() });
-        return error === null;
-      });
-      if (accepted.length === 0) return;
-      if (multiple) {
-        onAdd(accepted);
-        return;
-      }
-      for (const image of images) onRemove(image.id);
-      const [file] = accepted;
-      if (file) onAdd([file]);
-    },
-    [images, multiple, onAdd, onRemove],
-  );
-
-  return (
-    <DropZone className="w-full">
-      <DropZone.Area
-        isDisabled={busy}
-        onDrop={async (event) => {
-          const dropped: File[] = [];
-          for (const item of event.items) {
-            if (item.kind === "file") {
-              dropped.push(await item.getFile());
-            }
-          }
-          addFiles(dropped);
-        }}
-      >
-        <DropZone.Icon />
-        <DropZone.Label>{m.dropzone_label()}</DropZone.Label>
-        <DropZone.Description>
-          {m.dropzone_limits({
-            megabytes: MAX_IMAGE_BYTES / (1024 * 1024),
-            megapixels: MAX_SOURCE_IMAGE_PIXELS / 1_000_000,
-          })}
-        </DropZone.Description>
-        <DropZone.Trigger isDisabled={busy}>
-          {m.dropzone_select()}
-        </DropZone.Trigger>
-      </DropZone.Area>
-      <DropZone.Input
-        aria-label={m.dropzone_select()}
-        accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
-        disabled={busy}
-        multiple={multiple}
-        onSelect={(list) => addFiles(Array.from(list))}
-      />
-      {images.length > 0 && (
-        <DropZone.FileList>
-          {images.map(({ id, file, state }) => {
-            const ext = extension(file.name);
-            return (
-              <DropZone.FileItem key={id} status={ITEM_STATUS[state.status]}>
-                <DropZone.FileFormatIcon
-                  color={ext === "tif" || ext === "tiff" ? "purple" : "green"}
-                  format={ext.toUpperCase()}
-                />
-                <DropZone.FileInfo>
-                  <DropZone.FileName>{file.name}</DropZone.FileName>
-                  <DropZone.FileMeta>
-                    {formatSize(file.size)}
-                    {state.status === "storing" && ` | ${state.progress}%`}
-                    {state.status === "stored" && (
-                      <span className="text-success">
-                        {" "}
-                        | {m.dropzone_ready()}
-                      </span>
-                    )}
-                    {state.status === "failed" && (
-                      <span className="text-danger"> | {state.reason}</span>
-                    )}
-                  </DropZone.FileMeta>
-                  {state.status === "storing" && (
-                    <DropZone.FileProgress
-                      aria-label={m.dropzone_progress({ file: file.name })}
-                      value={state.progress}
-                    >
-                      <DropZone.FileProgressTrack>
-                        <DropZone.FileProgressFill />
-                      </DropZone.FileProgressTrack>
-                    </DropZone.FileProgress>
-                  )}
-                </DropZone.FileInfo>
-                <div className="flex shrink-0 items-center gap-2 self-center">
-                  {annotate?.({ id, file, state })}
-                  {busy ? null : (
-                    <DropZone.FileRemoveTrigger
-                      aria-label={m.dropzone_remove({ file: file.name })}
-                      onPress={() => onRemove(id)}
-                    />
-                  )}
-                </div>
-              </DropZone.FileItem>
-            );
-          })}
-        </DropZone.FileList>
-      )}
-    </DropZone>
-  );
-}
-
-function extension(name: string): string {
-  const dot = name.lastIndexOf(".");
-  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
-}
-
-function formatSize(bytes: number): string {
-  const locale = getLocale();
-  if (bytes < 1024) {
-    return new Intl.NumberFormat(locale, {
-      style: "unit",
-      unit: "byte",
-      unitDisplay: "short",
-    }).format(bytes);
-  }
-  if (bytes < 1024 ** 2) {
-    const amount = new Intl.NumberFormat(locale, {
-      maximumFractionDigits: 0,
-    }).format(bytes / 1024);
-    return `${amount} KiB`;
-  }
-  const amount = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 1,
-  }).format(bytes / 1024 ** 2);
-  return `${amount} MiB`;
-}
+  stored: "done",
+  failed: "error",
+} as const satisfies Record<ListedImage["state"]["status"], DropZoneFileStatus>;
 
 const FILE_ERRORS = {
   unsupported: m.image_file_unsupported,
   empty: m.image_file_empty,
   too_large: m.image_file_too_large,
 };
+
+/**
+ * Takes source images by drop or chooser and lists them as they upload.
+ * Without `multiple` a new image replaces the one listed.
+ */
+export function ImageDropZone({
+  images,
+  onAdd,
+  onRemove,
+  disabled,
+  annotate,
+  multiple = true,
+}: {
+  images: ListedImage[];
+  onAdd: (files: File[]) => void;
+  onRemove: (id: number) => void;
+  disabled: boolean;
+  /** Controls placed on a listed image, before its remove button. */
+  annotate?: (image: ListedImage) => ReactNode;
+  multiple?: boolean;
+}) {
+  const addFiles = (incoming: File[]) => {
+    const accepted = incoming.filter((file) => {
+      const error = sourceImageFileError(file);
+      if (error)
+        toast.error({ title: file.name, description: FILE_ERRORS[error]() });
+      return error === null;
+    });
+    if (accepted.length === 0) return;
+    if (multiple) {
+      onAdd(accepted);
+      return;
+    }
+    for (const image of images) onRemove(image.id);
+    onAdd(accepted.slice(0, 1));
+  };
+
+  return (
+    <DropZone
+      accept={SOURCE_IMAGE_EXTENSIONS.join(",")}
+      disabled={disabled}
+      icon={ImageUp}
+      multiple={multiple}
+      title={m.dropzone_label()}
+      description={m.dropzone_limits({
+        megabytes: MAX_IMAGE_BYTES / (1024 * 1024),
+        megapixels: MAX_SOURCE_IMAGE_PIXELS / 1_000_000,
+      })}
+      selectText={m.dropzone_select()}
+      onFiles={addFiles}
+    >
+      {images.length > 0 && (
+        <DropZoneFileList>
+          {images.map((image) => {
+            const { id, file, state } = image;
+            return (
+              <DropZoneFile
+                key={id}
+                name={file.name}
+                size={file.size}
+                status={FILE_STATUS[state.status]}
+                progress={
+                  state.status === "storing" ? state.progress : undefined
+                }
+                statusText={
+                  state.status === "stored"
+                    ? m.dropzone_ready()
+                    : state.status === "failed"
+                      ? state.reason
+                      : new Intl.NumberFormat(getLocale(), {
+                          style: "percent",
+                        }).format(state.progress / 100)
+                }
+                actions={annotate?.(image)}
+                onRemove={disabled ? undefined : () => onRemove(id)}
+              />
+            );
+          })}
+        </DropZoneFileList>
+      )}
+    </DropZone>
+  );
+}

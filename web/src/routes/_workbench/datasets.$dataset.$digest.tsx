@@ -1,15 +1,14 @@
-import { ButtonGroup } from "@heroui/react";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
-import { ChevronLeftIcon, ChevronRightIcon } from "../../ui/icons";
 import { ImageWorkbench } from "../../features/calibration/ImageWorkbench";
-import { Metrics, Section } from "../../features/calibration/inspector";
-import { StepButton } from "../../features/calibration/StepButton";
 import { datasetImageRefSchema } from "../../domain/datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { WorkbenchSection, WorkbenchSkeleton } from "../../ui/shell/Workbench";
+import { StepButton } from "../../ui/StepButton";
 import { m } from "../../paraglide/messages";
 import type {
   DatasetImageStep,
@@ -49,6 +48,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
       ? [{ title: `${loaderData.review.filename} · ${m.app_name()}` }]
       : [],
   }),
+  pendingComponent: WorkbenchSkeleton,
   component: DatasetImagePage,
 });
 
@@ -95,29 +95,28 @@ function DatasetImagePage() {
       context={{
         toolbar: (
           <>
-            <ButtonGroup variant="tertiary">
-              <StepButton
-                label={m.image_previous()}
-                neighbour={previous?.filename ?? null}
-                onPress={() => previous && stepTo(previous)}
-              >
-                <ChevronLeftIcon />
-              </StepButton>
-              <StepButton
-                label={m.image_next()}
-                neighbour={next?.filename ?? null}
-                onPress={() => next && stepTo(next)}
-              >
-                <ButtonGroup.Separator />
-                <ChevronRightIcon />
-              </StepButton>
-            </ButtonGroup>
+            <StepButton
+              direction="previous"
+              label={m.image_previous()}
+              disabled={previous === null}
+              onClick={() => previous && stepTo(previous)}
+            />
+            <StepButton
+              direction="next"
+              label={m.image_next()}
+              disabled={next === null}
+              onClick={() => next && stepTo(next)}
+            />
           </>
         ),
         details: split ? (
-          <Section title={m.image_section()}>
-            <Metrics rows={[{ label: m.image_split(), value: split }]} />
-          </Section>
+          <WorkbenchSection title={m.image_section()}>
+            <Descriptions>
+              <DescriptionsItem label={m.image_split()}>
+                {split}
+              </DescriptionsItem>
+            </Descriptions>
+          </WorkbenchSection>
         ) : undefined,
       }}
     />

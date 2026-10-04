@@ -1,0 +1,41 @@
+.ui-descriptions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 4px;
+  align-items: baseline;
+  margin: 0;
+  line-height: 20px;
+
+  & > dt {
+    font-size: var(--text-xs);
+  }
+
+  & > dd {
+    font-size: var(--text-sm);
+  }
+
+  & > dt,
+  & > dd {
+    padding-block: 4px;
+  }
+}
+
+.ui-descriptions-aligned {
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.ui-descriptions-label {
+  overflow: hidden;
+  color: var(--color-fg-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-descriptions-value {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

@@ -1,9 +1,14 @@
-import { Chip } from "@heroui/react";
+import {
+  CircleCheck,
+  CircleX,
+  Clock,
+  LoaderCircle,
+  type LucideIcon,
+} from "lucide-react";
 
 import { m } from "../../paraglide/messages";
 import type { TrainingRun } from "../../domain/training/schema";
-
-type Tone = "default" | "accent" | "success" | "danger";
+import { Status, type StatusProps, type StatusTone } from "../../ui/kit/Status";
 
 const PHASE_LABELS = {
   preparing: m.run_state_preparing,
@@ -17,26 +22,39 @@ const STATUS_LABELS = {
   failed: m.run_state_failed,
 } as const;
 
-function tone(status: TrainingRun["state"]["status"]): Tone {
-  switch (status) {
-    case "queued":
-      return "default";
-    case "running":
-      return "accent";
-    case "succeeded":
-      return "success";
-    case "failed":
-      return "danger";
-  }
-}
+const LOOKS: Record<
+  TrainingRun["state"]["status"],
+  { tone: StatusTone; icon: LucideIcon }
+> = {
+  queued: { tone: "neutral", icon: Clock },
+  running: { tone: "info", icon: LoaderCircle },
+  succeeded: { tone: "success", icon: CircleCheck },
+  failed: { tone: "error", icon: CircleX },
+};
 
-export function TrainingRunState({ run }: { run: TrainingRun }) {
+/**
+ * A run's status; a running run names its phase and its glyph turns. Other
+ * props reach the status, so it can be a tooltip trigger.
+ */
+export function TrainingRunState({
+  run,
+  ...props
+}: { run: TrainingRun } & Omit<
+  StatusProps,
+  "children" | "tone" | "icon" | "spin"
+>) {
   const { state } = run;
+  const look = LOOKS[state.status];
   return (
-    <Chip color={tone(state.status)} variant="soft" size="sm">
+    <Status
+      {...props}
+      tone={look.tone}
+      icon={look.icon}
+      spin={state.status === "running"}
+    >
       {state.status === "running"
         ? PHASE_LABELS[state.phase]()
         : STATUS_LABELS[state.status]()}
-    </Chip>
+    </Status>
   );
 }

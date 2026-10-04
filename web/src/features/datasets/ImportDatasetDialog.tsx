@@ -1,145 +1,125 @@
-import { DropZone } from "@heroui-pro/react/drop-zone";
-import { Button, Label, Modal, ProgressBar, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import { FileArchive, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 
 import { importDatasetArchive, type ImportProgress } from "./import-archive";
-import { errorMessage } from "../../ui/errors";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  type AsyncAction,
+  useAsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import { DropZone } from "../../ui/kit/DropZone";
+import { Icon } from "../../ui/kit/Icon";
+import { Progress } from "../../ui/kit/Progress";
+import { toast } from "../../ui/kit/Toast";
 import { m } from "../../paraglide/messages";
 
-export function ImportDatasetButton() {
-  const [open, setOpen] = useState(false);
+export function ImportDatasetDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const action = useAsyncAction();
   return (
-    <>
-      <Button variant="secondary" onPress={() => setOpen(true)}>
-        {m.dataset_import()}
-      </Button>
-      <ImportDatasetDialog isOpen={open} onClose={() => setOpen(false)} />
-    </>
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={m.dataset_import_heading()}
+      busy={action.busy}
+    >
+      <ImportArchiveForm action={action} onDone={onClose} />
+    </FormDialog>
   );
 }
 
-function ImportDatasetDialog({
-  isOpen,
-  onClose,
+/**
+ * Starts the import as soon as an archive is dropped or chosen; its progress
+ * stays on screen until the dialog has closed on the imported dataset.
+ */
+function ImportArchiveForm({
+  action: { run },
+  onDone,
 }: {
-  isOpen: boolean;
-  onClose: () => void;
+  action: AsyncAction;
+  onDone: () => void;
 }) {
   const router = useRouter();
   const [progress, setProgress] = useState<ImportProgress | null>(null);
-  const busy = progress !== null;
 
-  const importArchive = async (file: File) => {
-    try {
-      const dataset = await importDatasetArchive(file, setProgress);
-      toast.success(m.dataset_import_done({ dataset: dataset.id }));
-      onClose();
+  const importArchive = (file: File) =>
+    void run(
+      () => importDatasetArchive(file, setProgress),
+      m.dataset_import_failed(),
+    ).then(async (result) => {
+      if (!result.ok) {
+        setProgress(null);
+        return;
+      }
+      toast.success(m.dataset_import_done({ dataset: result.value.id }));
+      onDone();
       await router.navigate({
         to: "/datasets/$dataset",
-        params: { dataset: dataset.id },
+        params: { dataset: result.value.id },
       });
-    } catch (error) {
-      toast.danger(m.dataset_import_failed(), {
-        description: errorMessage(error),
-      });
-    } finally {
-      setProgress(null);
-    }
-  };
+    });
 
-  return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && !busy && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.dataset_import_heading()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              {progress ? (
-                <ImportProgressBar progress={progress} />
-              ) : (
-                <ArchiveDropZone onSelect={importArchive} />
-              )}
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" onPress={onClose} isDisabled={busy}>
-                {m.cancel()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+  return progress ? (
+    <ImportProgressPanel progress={progress} />
+  ) : (
+    <DropZone
+      accept=".zip,application/zip"
+      multiple={false}
+      icon={FileArchive}
+      title={m.dataset_import_drop_label()}
+      description={m.dataset_import_drop_description()}
+      selectText={m.dataset_import_select()}
+      onFiles={([file]) => {
+        if (file) importArchive(file);
+      }}
+    />
   );
 }
 
-function ArchiveDropZone({ onSelect }: { onSelect: (file: File) => void }) {
+/** Occupies the drop zone's place while the archive is read and its images stored. */
+function ImportProgressPanel({ progress }: { progress: ImportProgress }) {
+  const total =
+    progress.phase === "reading" ? 0 : progress.manifest.images.length;
   return (
-    <DropZone className="w-full">
-      <DropZone.Area
-        onDrop={async (event) => {
-          for (const item of event.items) {
-            if (item.kind === "file") {
-              onSelect(await item.getFile());
-              return;
-            }
-          }
-        }}
-      >
-        <DropZone.Icon />
-        <DropZone.Label>{m.dataset_import_drop_label()}</DropZone.Label>
-        <DropZone.Description>
-          {m.dataset_import_drop_description()}
-        </DropZone.Description>
-        <DropZone.Trigger>{m.dataset_import_select()}</DropZone.Trigger>
-      </DropZone.Area>
-      <DropZone.Input
-        aria-label={m.dataset_import_select()}
-        accept=".zip,application/zip"
-        onSelect={(list) => {
-          const file = list?.[0];
-          if (file) onSelect(file);
-        }}
-      />
-    </DropZone>
-  );
-}
-
-function ImportProgressBar({ progress }: { progress: ImportProgress }) {
-  if (progress.phase === "reading") {
-    return (
-      <ProgressBar
-        aria-label={m.dataset_import_progress()}
-        isIndeterminate
-        className="w-full"
-      >
-        <Label>{m.dataset_import_reading()}</Label>
-        <ProgressBar.Track>
-          <ProgressBar.Fill />
-        </ProgressBar.Track>
-      </ProgressBar>
-    );
-  }
-  const total = progress.manifest.images.length;
-  return (
-    <ProgressBar
-      aria-label={m.dataset_import_progress()}
-      value={total === 0 ? 100 : (progress.stored / total) * 100}
-      className="w-full"
+    <div
+      aria-live="polite"
+      className="flex min-h-40 flex-col justify-center gap-3"
     >
-      <Label>
-        {m.dataset_import_storing({
-          dataset: progress.manifest.dataset,
-          stored: progress.stored,
-          total,
-        })}
-      </Label>
-      <ProgressBar.Track>
-        <ProgressBar.Fill />
-      </ProgressBar.Track>
-    </ProgressBar>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          <Icon
+            icon={LoaderCircle}
+            size={14}
+            spin
+            className="text-fg-tertiary"
+          />
+          {progress.phase === "reading" ? (
+            m.dataset_import_reading()
+          ) : (
+            <span className="truncate">
+              {m.dataset_import_storing({
+                dataset: progress.manifest.dataset,
+              })}
+            </span>
+          )}
+        </span>
+        {progress.phase === "reading" ? null : (
+          <span className="shrink-0 tabular-nums text-fg-secondary">
+            {m.dataset_import_storing_count({ stored: progress.stored, total })}
+          </span>
+        )}
+      </div>
+      <Progress
+        aria-label={m.dataset_import_progress()}
+        value={progress.phase === "reading" ? 0 : progress.stored}
+        max={Math.max(total, 1)}
+      />
+    </div>
   );
 }

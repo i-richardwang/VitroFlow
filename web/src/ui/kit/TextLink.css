@@ -1,0 +1,13 @@
+/* Color and weight follow the surrounding text; an underline on hover shows it can be followed. */
+
+.ui-text-link {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  @apply focus-ring;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

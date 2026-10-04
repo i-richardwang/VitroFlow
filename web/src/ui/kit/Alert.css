@@ -1,0 +1,100 @@
+/* Block order is cascade order: tone, root and layout on the root element, then the parts. */
+
+.ui-alert-tone-error {
+  --ui-alert-accent: var(--color-error);
+  --ui-alert-background: color-mix(
+    in srgb,
+    var(--color-error) 5%,
+    var(--color-container)
+  );
+  --ui-alert-border: color-mix(in srgb, var(--color-error) 14%, transparent);
+}
+
+.ui-alert-tone-warning {
+  --ui-alert-accent: var(--color-warning);
+  --ui-alert-background: color-mix(
+    in srgb,
+    var(--color-warning) 5%,
+    var(--color-container)
+  );
+  --ui-alert-border: color-mix(in srgb, var(--color-warning) 14%, transparent);
+}
+
+.ui-alert {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: flex-start;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding-block: 10px;
+  padding-inline: 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  color: var(--color-fg);
+  background: var(--ui-alert-background);
+  box-shadow: inset 0 0 0 1px var(--ui-alert-border);
+
+  @variant max-mobile {
+    flex-wrap: wrap;
+  }
+}
+
+.ui-alert-centered {
+  align-items: center;
+}
+
+.ui-alert-detailed {
+  padding-block: 12px;
+  padding-inline: 14px;
+}
+
+.ui-alert-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  color: var(--ui-alert-accent);
+}
+
+.ui-alert-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-alert-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 20px;
+  color: inherit;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.ui-alert-description {
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--color-fg-secondary);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.ui-alert-action {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 32px;
+  margin-inline-start: auto;
+
+  @variant max-mobile {
+    order: 4;
+    width: calc(100% - 30px);
+    margin-block-start: -2px;
+    margin-inline-start: 30px;
+  }
+}

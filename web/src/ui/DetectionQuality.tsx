@@ -1,7 +1,9 @@
-import { Alert, Chip } from "@heroui/react";
-
 import type { DetectionQuality } from "../domain/detection/schema";
 import { m } from "../paraglide/messages";
+import { getLocale } from "../paraglide/runtime";
+import { Alert } from "./kit/Alert";
+import { Flexbox } from "./kit/Flex";
+import { Tag } from "./kit/Tag";
 
 const WARNING_LABELS: ReadonlyMap<string, () => string> = new Map([
   ["dish_detection_failed", m.quality_dish_detection_failed],
@@ -13,18 +15,18 @@ function warningLabel(warning: string): string {
   return WARNING_LABELS.get(warning)?.() ?? warning.replaceAll("_", " ");
 }
 
-export function QualityChips({ quality }: { quality: DetectionQuality }) {
+export function QualityTags({ quality }: { quality: DetectionQuality }) {
   if (quality.status === "ok") {
     return null;
   }
   return (
-    <span className="inline-flex flex-wrap gap-1">
+    <Flexbox horizontal gap={4} wrap="wrap">
       {quality.warnings.map((warning) => (
-        <Chip key={warning} color="warning" variant="soft" size="sm">
+        <Tag key={warning} color="warning" size="small">
           {warningLabel(warning)}
-        </Chip>
+        </Tag>
       ))}
-    </span>
+    </Flexbox>
   );
 }
 
@@ -33,13 +35,11 @@ export function QualityAlert({ quality }: { quality: DetectionQuality }) {
     return null;
   }
   return (
-    <Alert status="warning">
-      <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
-          {quality.warnings.map(warningLabel).join(" · ")}
-        </Alert.Title>
-      </Alert.Content>
-    </Alert>
+    <Alert
+      type="warning"
+      title={new Intl.ListFormat(getLocale(), { type: "conjunction" }).format(
+        quality.warnings.map(warningLabel),
+      )}
+    />
   );
 }

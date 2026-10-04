@@ -1,24 +1,28 @@
-import { Button, Dropdown, Label, Separator, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import { ChevronDown, FolderPlus, Images, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type {
   ObservationImageCell,
   Unit,
 } from "../../domain/experiments/contracts";
-import { observationLabel } from "./labels";
 import type { PlacedPhoto } from "../../domain/experiments/photos";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
+import type { Model } from "../../domain/models/schema";
 import { removeObservation } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { Button } from "../../ui/kit/Button";
+import { DropdownMenu, type DropdownItem } from "../../ui/kit/DropdownMenu";
+import { toast } from "../../ui/kit/Toast";
 import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
-import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
 import { AssignImagesDialog } from "./AssignImagesDialog";
+import { observationLabel } from "./labels";
 import { ObservationDialog } from "./ObservationDialog";
-import type { Model } from "../../domain/models/schema";
 
-type Action = "images" | "dataset" | "edit" | "delete";
+type Action = "images" | "dataset" | "edit";
 
+/** An observation day's column heading, opening what can be done to that day. */
 export function ObservationMenu({
   experiment,
   inoculatedOn,
@@ -51,66 +55,80 @@ export function ObservationMenu({
   const assigned = new Set(images.map((image) => image.unit));
   const vacant = units.filter((unit) => !assigned.has(unit.id));
 
+  const items: DropdownItem[] = [];
+  if (vacant.length > 0) {
+    items.push({
+      key: "images",
+      icon: Images,
+      label: m.observation_menu_assign_images(),
+      onClick: () => setOpen("images"),
+    });
+  }
+  if (images.length > 0) {
+    items.push({
+      key: "dataset",
+      icon: FolderPlus,
+      label: m.observation_menu_add_to_dataset(),
+      onClick: () => setOpen("dataset"),
+    });
+  }
+  items.push({
+    key: "edit",
+    icon: Pencil,
+    label: m.observation_menu_edit(),
+    onClick: () => setOpen("edit"),
+  });
+  if (!observation.hasRecords) {
+    items.push(
+      { type: "divider" },
+      {
+        key: "delete",
+        icon: Trash2,
+        danger: true,
+        label: m.observation_menu_delete(),
+        onClick: () =>
+          confirmDestructive({
+            title: m.observation_delete_title({ observation: name }),
+            confirmLabel: m.observation_delete(),
+            onConfirm: async () => {
+              await removeObservation({
+                data: { experiment, observation: observation.id },
+              });
+              toast.success(m.observation_deleted({ observation: name }));
+              await router.invalidate();
+            },
+          }),
+      },
+    );
+  }
+
   return (
     <>
-      <Dropdown>
-        <Button variant="ghost" size="sm">
+      <DropdownMenu items={items} placement="bottomLeft">
+        <Button
+          type="text"
+          size="small"
+          outdent
+          icon={ChevronDown}
+          iconPosition="end"
+          aria-label={m.observation_actions({ observation: label })}
+        >
           {label}
         </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={m.observation_actions({ observation: name })}
-            onAction={(key) => setOpen(String(key) as Action)}
-          >
-            {vacant.length > 0 ? (
-              <Dropdown.Item
-                id="images"
-                textValue={m.observation_assign_images()}
-              >
-                <Label>{m.observation_menu_assign_images()}</Label>
-              </Dropdown.Item>
-            ) : null}
-            {images.length > 0 ? (
-              <Dropdown.Item
-                id="dataset"
-                textValue={m.observation_add_to_dataset()}
-              >
-                <Label>{m.observation_menu_add_to_dataset()}</Label>
-              </Dropdown.Item>
-            ) : null}
-            <Dropdown.Item id="edit" textValue={m.observation_edit()}>
-              <Label>{m.observation_menu_edit()}</Label>
-            </Dropdown.Item>
-            {!observation.hasRecords ? (
-              <>
-                <Separator orientation="horizontal" />
-                <Dropdown.Item
-                  id="delete"
-                  textValue={m.observation_delete()}
-                  variant="danger"
-                >
-                  <Label>{m.observation_menu_delete()}</Label>
-                </Dropdown.Item>
-              </>
-            ) : null}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+      </DropdownMenu>
 
-      {vacant.length > 0 ? (
-        <AssignImagesDialog
-          experiment={experiment}
-          observation={observation}
-          units={units}
-          assigned={assigned}
-          placed={placed}
-          isOpen={open === "images"}
-          onClose={close}
-        />
-      ) : null}
+      <AssignImagesDialog
+        experiment={experiment}
+        observation={observation}
+        units={units}
+        assigned={assigned}
+        placed={placed}
+        open={open === "images"}
+        onClose={close}
+      />
 
       <AddToDatasetDialog
-        isOpen={open === "dataset"}
+        open={open === "dataset"}
         images={images.map((image) => ({
           experiment,
           observationImage: image.id,
@@ -125,22 +143,8 @@ export function ObservationMenu({
         inoculatedOn={inoculatedOn}
         models={models}
         observation={observation}
-        isOpen={open === "edit"}
+        open={open === "edit"}
         onClose={close}
-      />
-
-      <DestructiveActionDialog
-        isOpen={open === "delete"}
-        onOpenChange={(isOpen) => setOpen(isOpen ? "delete" : null)}
-        title={m.observation_delete_title({ observation: name })}
-        confirmLabel={m.observation_delete()}
-        onConfirm={async () => {
-          await removeObservation({
-            data: { experiment, observation: observation.id },
-          });
-          toast.success(m.observation_deleted({ observation: name }));
-          await router.invalidate();
-        }}
       />
     </>
   );

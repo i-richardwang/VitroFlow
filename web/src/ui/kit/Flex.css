@@ -1,0 +1,36 @@
+/*
+ * Defaults are declared on each element so a nested Flexbox does not inherit
+ * its parent's variables. The rule sits in `:where()` with zero specificity,
+ * so component classes and caller utilities both override it.
+ */
+
+:where(.ui-flex) {
+  --ui-flex: 0 1 auto;
+  --ui-flex-direction: column;
+  --ui-flex-wrap: nowrap;
+  --ui-flex-justify: flex-start;
+  --ui-flex-align: stretch;
+  --ui-flex-width: auto;
+  --ui-flex-height: auto;
+  --ui-flex-padding: 0;
+  --ui-flex-padding-inline: var(--ui-flex-padding);
+  --ui-flex-padding-block: var(--ui-flex-padding);
+  --ui-flex-gap: 0;
+
+  display: flex;
+
+  flex: var(--ui-flex);
+  flex-direction: var(--ui-flex-direction);
+  flex-wrap: var(--ui-flex-wrap);
+  justify-content: var(--ui-flex-justify);
+  align-items: var(--ui-flex-align);
+
+  width: var(--ui-flex-width);
+  height: var(--ui-flex-height);
+
+  padding: var(--ui-flex-padding);
+  padding-inline: var(--ui-flex-padding-inline);
+  padding-block: var(--ui-flex-padding-block);
+
+  gap: var(--ui-flex-gap);
+}

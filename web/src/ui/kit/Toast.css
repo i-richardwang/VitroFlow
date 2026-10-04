@@ -1,0 +1,205 @@
+/*
+ * Stacking reads the variables Base UI writes on each toast: `--toast-index`
+ * is its position (the newest is 0), `--toast-frontmost-height` is the height
+ * of the front toast, `--toast-offset-y` is the total height of the toasts in
+ * front of it when expanded.
+ */
+
+.ui-toast-viewport {
+  --ui-toast-edge: 16px;
+
+  position: fixed;
+  z-index: var(--z-index-toast);
+  inset-block-end: var(--ui-toast-edge);
+  inset-inline-end: var(--ui-toast-edge);
+
+  width: 360px;
+  max-width: calc(100vw - var(--ui-toast-edge) * 2);
+
+  outline: 0;
+
+  @variant max-mobile {
+    width: calc(100vw - var(--ui-toast-edge) * 2);
+  }
+}
+
+/* Collapsed, every toast takes the front toast's height; hovered (data-expanded) each takes its own. */
+.ui-toast {
+  --ui-toast-gap: 12px;
+  --ui-toast-peek: 12px;
+  --ui-toast-scale: calc(1 - var(--toast-index) * 0.05);
+  --ui-toast-shrink: calc(1 - var(--ui-toast-scale));
+  --ui-toast-collapsed-height: var(
+    --toast-frontmost-height,
+    var(--toast-height)
+  );
+
+  cursor: default;
+  user-select: none;
+
+  position: absolute;
+  z-index: calc(1000 - var(--toast-index));
+  inset-block: auto 0;
+  inset-inline: 0;
+  transform-origin: bottom center;
+  transform: translateX(var(--toast-swipe-movement-x))
+    translateY(
+      calc(
+        var(--toast-swipe-movement-y) -
+          (var(--toast-index) * var(--ui-toast-peek)) -
+          (var(--ui-toast-shrink) * var(--ui-toast-collapsed-height))
+      )
+    )
+    scale(var(--ui-toast-scale));
+
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--ui-toast-collapsed-height);
+  padding-block: 12px;
+  padding-inline: 16px;
+  border-radius: var(--radius-lg);
+
+  color: var(--color-fg);
+
+  background: var(--color-elevated);
+  background-clip: padding-box;
+  box-shadow:
+    var(--elevation-md),
+    0 0 0 1px var(--color-ring);
+
+  transition:
+    transform 0.4s var(--ease-snap),
+    opacity 0.4s,
+    height var(--duration-base);
+
+  /* Fills the gap between toasts so moving the pointer across it does not collapse the stack. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline: 0;
+    height: calc(var(--ui-toast-gap) + var(--ui-toast-peek) + 8px);
+  }
+
+  &[data-expanded] {
+    transform: translateX(var(--toast-swipe-movement-x))
+      translateY(
+        calc(
+          var(--toast-swipe-movement-y) + var(--toast-offset-y) * -1 +
+            var(--toast-index) * var(--ui-toast-gap) * -1
+        )
+      )
+      scale(1);
+    height: var(--toast-height);
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: translateY(150%);
+    opacity: 0;
+  }
+
+  /* Beyond the visible limit a toast stays hidden until one in front closes. */
+  &[data-limited] {
+    opacity: 0;
+  }
+
+  &[data-swiping] {
+    transition: none;
+  }
+}
+
+/* Toasts behind the front show only their edge; their content appears when expanded. */
+.ui-toast-content {
+  overflow: hidden;
+  transition: opacity var(--duration-slow);
+
+  &[data-behind] {
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  &[data-expanded] {
+    pointer-events: auto;
+    opacity: 1;
+  }
+}
+
+.ui-toast-body {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ui-toast-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-toast-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-toast-title-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ui-toast-title {
+  margin: 0;
+
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--color-fg);
+}
+
+.ui-toast-description {
+  margin: 0;
+
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-fg-secondary);
+
+  .ui-toast-title-row + & {
+    margin-block-start: 4px;
+  }
+}
+
+/* Without a title the description is the message, in body color. */
+.ui-toast-description-standalone {
+  color: var(--color-fg);
+}
+
+.ui-toast-close {
+  cursor: pointer;
+
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  width: 20px;
+  height: 20px;
+  margin-inline-start: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+
+  color: var(--color-fg-secondary);
+
+  background: transparent;
+
+  transition: all var(--duration-slow);
+
+  &:hover {
+    color: var(--color-fg);
+    background: var(--color-fill-secondary);
+  }
+}

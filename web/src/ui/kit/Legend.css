@@ -1,0 +1,23 @@
+.ui-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ui-legend-item {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+
+  padding-block: 2px;
+  padding-inline: 8px;
+
+  color: var(--color-fg-tertiary);
+  white-space: nowrap;
+}
+
+.ui-legend-item-content {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+}

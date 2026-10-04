@@ -1,9 +1,14 @@
-import { Button, Dropdown, Label } from "@heroui/react";
+import { useRouter } from "@tanstack/react-router";
+import { CopyPlus, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { Treatment } from "../../domain/experiments/schema";
+import { removeTreatment } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
-import { MoreIcon } from "../../ui/icons";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import type { DropdownItem } from "../../ui/kit/DropdownMenu";
+import { toast } from "../../ui/kit/Toast";
+import { RowMenu } from "../../ui/ActionsMenu";
 import { ReplicatesDialog, TreatmentDialog } from "./TreatmentDialog";
 
 type Action = "edit" | "replicates";
@@ -19,46 +24,66 @@ export function TreatmentMenu({
   /** The last treatment of an experiment is not offered for deletion. */
   deletable: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
-  const label = m.treatment_actions({ name: treatment.name });
+  const close = () => setOpen(null);
+
+  const items: DropdownItem[] = [
+    {
+      key: "replicates",
+      icon: CopyPlus,
+      label: m.treatment_menu_add_replicates(),
+      onClick: () => setOpen("replicates"),
+    },
+    {
+      key: "edit",
+      icon: Pencil,
+      label: m.treatment_menu_edit({ name: treatment.name }),
+      onClick: () => setOpen("edit"),
+    },
+  ];
+  if (deletable) {
+    items.push(
+      { type: "divider" },
+      {
+        key: "delete",
+        icon: Trash2,
+        danger: true,
+        label: m.treatment_menu_remove(),
+        onClick: () =>
+          confirmDestructive({
+            title: m.treatment_delete_title({ name: treatment.name }),
+            content: m.treatment_delete_note(),
+            confirmLabel: m.treatment_delete(),
+            onConfirm: async () => {
+              await removeTreatment({
+                data: { experiment, treatment: treatment.id },
+              });
+              toast.success(m.treatment_deleted({ name: treatment.name }));
+              await router.invalidate();
+            },
+          }),
+      },
+    );
+  }
+
   return (
     <>
-      <Dropdown>
-        <Button variant="tertiary" isIconOnly size="sm" aria-label={label}>
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={label}
-            onAction={(key) => setOpen(key as Action)}
-          >
-            <Dropdown.Item
-              id="replicates"
-              textValue={m.treatment_add_replicates({ name: treatment.name })}
-            >
-              <Label>{m.treatment_menu_add_replicates()}</Label>
-            </Dropdown.Item>
-            <Dropdown.Item
-              id="edit"
-              textValue={m.treatment_edit({ name: treatment.name })}
-            >
-              <Label>{m.treatment_menu_edit({ name: treatment.name })}</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+      <RowMenu
+        label={m.treatment_actions({ name: treatment.name })}
+        items={items}
+      />
       <TreatmentDialog
         experiment={experiment}
         treatment={treatment}
-        deletable={deletable}
-        isOpen={open === "edit"}
-        onClose={() => setOpen(null)}
+        open={open === "edit"}
+        onClose={close}
       />
       <ReplicatesDialog
         experiment={experiment}
         treatment={treatment}
-        isOpen={open === "replicates"}
-        onClose={() => setOpen(null)}
+        open={open === "replicates"}
+        onClose={close}
       />
     </>
   );

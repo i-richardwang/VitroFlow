@@ -1,0 +1,83 @@
+.ui-breadcrumb {
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  align-items: center;
+
+  min-inline-size: 0;
+
+  font-size: var(--text-base);
+  line-height: 1.4;
+
+  > span {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  /*
+   * When the bar runs out of room, ancestors and their separators give up
+   * their width, clipped, before the page does.
+   */
+  > span:not(:last-child) {
+    overflow: hidden;
+    flex-shrink: 1000;
+  }
+}
+
+.ui-breadcrumb-optional {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+
+  @variant max-mobile {
+    /* Outranks the root's direct-child span rule. */
+    &&& {
+      display: none;
+    }
+  }
+}
+
+.ui-breadcrumb-link {
+  overflow: hidden;
+  min-inline-size: 0;
+  color: var(--color-fg-secondary);
+  text-overflow: ellipsis;
+  text-decoration: none;
+  white-space: nowrap;
+
+  /* Drawn inside the link, which its clipped item would otherwise cut off. */
+  --focus-ring-offset: calc(var(--focus-ring-width) * -1);
+
+  @apply focus-ring;
+
+  &:hover {
+    color: var(--color-fg);
+  }
+}
+
+.ui-breadcrumb-page {
+  overflow: hidden;
+
+  min-inline-size: 0;
+
+  font-weight: 600;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-breadcrumb-ancestor {
+  overflow: hidden;
+  min-inline-size: 0;
+  color: var(--color-fg-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-breadcrumb-separator {
+  flex: none;
+  margin-inline: 8px;
+  color: var(--color-fg-quaternary);
+}

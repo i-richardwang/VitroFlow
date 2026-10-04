@@ -1,6 +1,6 @@
 # VitroFlow
 
-The source layout and dependency boundaries are documented in [docs/architecture.md](docs/architecture.md); server transaction and concurrency rules are in [docs/backend-architecture.md](docs/backend-architecture.md).
+The source layout and dependency boundaries are documented in [docs/architecture.md](docs/architecture.md); server transaction and concurrency rules are in [docs/backend-architecture.md](docs/backend-architecture.md); the interface system is described in [docs/interface.md](docs/interface.md).
 
 VitroFlow turns repeated culture images into comparable readings and reviewed detector training data. Treatments define the conditions being compared, units provide independent replicates, observations follow those units over time, and each observation names the model its images are read for. How an image becomes a count and a rate is defined in [docs/readings.md](docs/readings.md).
 
@@ -252,7 +252,7 @@ docker compose up --build -d
 
 Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the one-shot bucket initializer. It exposes the workbench on port 3000 and RustFS on ports 9000 and 9001. Services restart unless stopped. Maintenance collects unreferenced blobs and automatically refreshes missing or obsolete dish analysis in small serial batches; see [Images](docs/images.md) for retry and resource budgets.
 
-`HEROUI_KEY` is a build argument of the builder stage, which the published image does not carry. `BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
+`BETTER_AUTH_SECRET` is a random value of at least 32 bytes, such as `openssl rand -base64 32`. `BETTER_AUTH_URL` is the origin browsers and MCP clients reach the workbench at; it is the OAuth issuer and the MCP endpoint is bound to it, so it must be `https://` anywhere but localhost.
 
 `zeabur-template.yaml` deploys workbench and maintenance from the same repository and `Dockerfile.web`, plus marketplace PostgreSQL and MinIO. Maintenance runs `bun dist/maintenance.js`, shares the storage environment, and has no public port. Deploy both application roles from the same commit; image-based deployments pin the same image digest. Workers stay outside the platform. MinIO creates its bucket from its own start command.
 
@@ -270,10 +270,10 @@ make check
 
 It runs Ruff, Python formatting, Pyright, Python tests, Prettier, TypeScript, Web tests, and the production Web build.
 
-Build the pinned production image with the private component credential:
+Build the pinned production image:
 
 ```bash
-make check-image HEROUI_KEY="$HEROUI_KEY"
+make check-image
 ```
 
 The reference-image regression suite uses the checksum manifest in `tests/fixtures/reference-images.json`. Point it at the matching private corpus:

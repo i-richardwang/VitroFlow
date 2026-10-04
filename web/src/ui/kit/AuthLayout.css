@@ -1,0 +1,62 @@
+.ui-auth-layout {
+  overflow-y: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  block-size: 100%;
+  min-block-size: 0;
+
+  background: var(--color-canvas);
+}
+
+.ui-auth-layout-header {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+
+  block-size: 56px;
+  padding-inline: 16px;
+}
+
+.ui-auth-layout-main {
+  display: grid;
+  flex: 1;
+  place-items: center;
+
+  padding-block: 24px 48px;
+  padding-inline: 16px;
+}
+
+.ui-auth-layout-card {
+  gap: 24px;
+
+  inline-size: min(440px, 100%);
+  padding-block: 40px;
+  padding-inline: 36px;
+
+  @variant max-laptop {
+    padding-block: 28px;
+    padding-inline: 24px;
+  }
+}
+
+.ui-auth-layout-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ui-auth-layout-title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: bold;
+  line-height: var(--text-2xl--line-height);
+}
+
+.ui-auth-layout-description {
+  line-height: 1.6;
+  color: var(--color-fg-secondary);
+}

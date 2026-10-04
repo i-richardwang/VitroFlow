@@ -1,63 +1,71 @@
-import {
-  Button,
-  Form,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
 import type { Treatment } from "../../domain/experiments/schema";
 import { editUnitsTreatment } from "../../functions/experiments";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { TreatmentDot } from "./TreatmentDot";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  useAsyncAction,
+  type AsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import { Form } from "../../ui/kit/Form";
+import { TreatmentField } from "./TreatmentField";
+
+const FORM_ID = "move-units";
 
 /** Moves the selected units to one treatment; each keeps its code. */
 export function MoveUnitsDialog({
   experiment,
   units,
   treatments,
-  isOpen,
+  open,
   onClose,
 }: {
   experiment: string;
   units: Unit[];
   treatments: Treatment[];
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
+  const action = useAsyncAction();
   return (
-    <Editor
-      key={isOpen ? units.map((unit) => unit.id).join() : "closed"}
-      experiment={experiment}
-      units={units}
-      treatments={treatments}
-      isOpen={isOpen}
+    <FormDialog
+      open={open}
       onClose={onClose}
-    />
+      title={m.experiment_move_units()}
+      okText={m.experiment_action_save()}
+      formId={FORM_ID}
+      busy={action.busy}
+      okDisabled={units.length === 0}
+    >
+      <MoveForm
+        experiment={experiment}
+        units={units}
+        treatments={treatments}
+        action={action}
+        onDone={onClose}
+      />
+    </FormDialog>
   );
 }
 
-function Editor({
+/** Proposes a treatment the units are not all in already. */
+function MoveForm({
   experiment,
   units,
   treatments,
-  isOpen,
-  onClose,
+  action,
+  onDone,
 }: {
   experiment: string;
   units: Unit[];
   treatments: Treatment[];
-  isOpen: boolean;
-  onClose: () => void;
+  action: AsyncAction;
+  onDone: () => void;
 }) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
   const shared = units.every((unit) => unit.treatment === units[0]?.treatment)
     ? units[0]?.treatment
     : undefined;
@@ -69,96 +77,36 @@ function Editor({
   );
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.experiment_move_units()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              <Form
-                id="move-units"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(
-                    () =>
-                      editUnitsTreatment({
-                        data: {
-                          experiment,
-                          units: units.map((unit) => unit.id),
-                          treatment,
-                        },
-                      }),
-                    m.experiment_units_not_moved(),
-                  ).then(async (result) => {
-                    if (!result.ok) return;
-                    const name =
-                      treatments.find((item) => item.id === treatment)?.name ??
-                      "";
-                    toast.success(
-                      m.experiment_units_moved({
-                        count: units.length,
-                        treatment: name,
-                      }),
-                    );
-                    onClose();
-                    await router.invalidate();
-                  });
-                }}
-              >
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={treatment}
-                  onSelectionChange={(key) => {
-                    if (key !== null) setTreatment(String(key));
-                  }}
-                >
-                  <Label>{m.treatment_label()}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {treatments.map((item) => (
-                        <ListBox.Item
-                          key={item.id}
-                          id={item.id}
-                          textValue={item.name}
-                        >
-                          <TreatmentDot position={item.position} />
-                          {item.name}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="move-units"
-                variant="primary"
-                isDisabled={busy || treatment === "" || units.length === 0}
-              >
-                {busy
-                  ? m.experiment_action_saving()
-                  : m.experiment_action_save()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Form
+      id={FORM_ID}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (treatment === "" || units.length === 0) return;
+        void action
+          .run(
+            () =>
+              editUnitsTreatment({
+                data: {
+                  experiment,
+                  units: units.map((unit) => unit.id),
+                  treatment,
+                },
+              }),
+            m.experiment_units_not_moved(),
+          )
+          .then(async (result) => {
+            if (!result.ok) return;
+            onDone();
+            await router.invalidate();
+          });
+      }}
+    >
+      <TreatmentField
+        disabled={action.busy}
+        treatments={treatments}
+        value={treatment}
+        onChange={setTreatment}
+      />
+    </Form>
   );
 }

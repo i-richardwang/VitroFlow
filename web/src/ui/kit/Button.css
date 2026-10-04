@@ -1,0 +1,220 @@
+/*
+ * Block order is cascade order: base, size, variant, block, icon end,
+ * icon only, outdent, then the icon and spinner parts. The spinner itself is
+ * `.ui-spinner` in Icon.css. `--button-padding-inline` is the size's inline
+ * padding, read by the outdent block.
+ */
+
+.ui-button {
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--duration-base) var(--ease-soft),
+    background var(--duration-base) var(--ease-soft),
+    border-color var(--duration-base) var(--ease-soft),
+    box-shadow var(--duration-base) var(--ease-soft);
+
+  @apply focus-ring;
+
+  &:disabled,
+  &[aria-disabled="true"] {
+    pointer-events: none;
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.ui-button-size-small {
+  --button-padding-inline: 8px;
+
+  height: 24px;
+  padding-inline: var(--button-padding-inline);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+}
+
+.ui-button-size-middle {
+  --button-padding-inline: 14px;
+
+  height: 32px;
+  padding-inline: var(--button-padding-inline);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.ui-button-size-large {
+  --button-padding-inline: 16px;
+
+  height: 40px;
+  padding-inline: var(--button-padding-inline);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+}
+
+.ui-button-variant-default {
+  background: var(--color-container);
+
+  &,
+  &:hover,
+  &:active {
+    color: var(--color-fg);
+  }
+
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--color-primary-border);
+    color: var(--color-primary);
+  }
+}
+
+.ui-button-variant-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+
+  &,
+  &:hover,
+  &:active {
+    color: var(--color-canvas);
+  }
+
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+  }
+
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--color-primary-active);
+    background: var(--color-primary-active);
+  }
+
+  &&&[data-popup-open] {
+    border-color: var(--color-primary-active);
+    background: var(--color-primary-active);
+  }
+}
+
+.ui-button-variant-dashed {
+  border-style: dashed;
+  background: var(--color-container);
+
+  &,
+  &:hover,
+  &:active {
+    color: var(--color-fg);
+  }
+
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--color-primary-border);
+    color: var(--color-primary);
+  }
+}
+
+.ui-button-variant-text {
+  border-color: transparent;
+  background: transparent;
+
+  &,
+  &:hover,
+  &:active {
+    color: var(--color-fg);
+  }
+
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    background: var(--color-fill-secondary);
+  }
+}
+
+.ui-button-danger-solid {
+  border-color: var(--color-error);
+  background: var(--color-error);
+
+  &,
+  &:hover,
+  &:active {
+    color: var(--color-canvas);
+  }
+
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--color-error-hover);
+    background: var(--color-error-hover);
+  }
+
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--color-error-active);
+    background: var(--color-error-active);
+  }
+
+  &&&[data-popup-open] {
+    border-color: var(--color-error-active);
+    background: var(--color-error-active);
+  }
+}
+
+.ui-button-block {
+  width: 100%;
+}
+
+.ui-button-icon-end {
+  flex-direction: row-reverse;
+}
+
+.ui-button-icon-only-small {
+  --button-padding-inline: 0px;
+
+  width: 24px;
+  padding-inline: 0;
+}
+
+.ui-button-icon-only-middle {
+  --button-padding-inline: 0px;
+
+  width: 32px;
+  padding-inline: 0;
+}
+
+.ui-button-icon-only-large {
+  --button-padding-inline: 0px;
+
+  width: 40px;
+  padding-inline: 0;
+}
+
+.ui-button-outdent-start {
+  margin-inline-start: calc(var(--button-padding-inline) * -1);
+}
+
+.ui-button-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-button-spinner-slot {
+  overflow: hidden;
+  width: 0;
+  margin-inline-end: -6px;
+  opacity: 0;
+  transition:
+    width 380ms var(--ease-snap),
+    margin 380ms var(--ease-snap),
+    opacity 260ms var(--ease-snap);
+}
+
+.ui-button-spinner-slot-show {
+  width: 12px;
+  margin-inline: 0;
+  opacity: 1;
+}
+
+.ui-button-spinner-slot-end {
+  margin-inline: -6px 0;
+}

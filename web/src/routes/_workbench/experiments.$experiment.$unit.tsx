@@ -9,6 +9,7 @@ import {
 } from "../../domain/experiments/schema";
 import { getUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { WorkbenchSkeleton } from "../../ui/shell/Workbench";
 import { m } from "../../paraglide/messages";
 import type { UnitSeries } from "../../domain/experiments/contracts";
 
@@ -60,6 +61,7 @@ export const Route = createFileRoute(
       ],
     };
   },
+  pendingComponent: WorkbenchSkeleton,
   component: UnitPage,
 });
 

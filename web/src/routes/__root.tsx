@@ -1,15 +1,15 @@
 /// <reference types="vite/client" />
 import type { ReactNode } from "react";
 
-import { I18nProvider, RouterProvider, Toast } from "@heroui/react";
 import {
   HeadContent,
   Outlet,
   Scripts,
   createRootRoute,
-  useNavigate,
 } from "@tanstack/react-router";
 
+import { ModalHost } from "../ui/kit/Modal";
+import { Toaster } from "../ui/kit/Toast";
 import { WorkbenchNotice } from "../ui/shell/WorkbenchNotice";
 import { m } from "../paraglide/messages";
 import { getLocale } from "../paraglide/runtime";
@@ -31,18 +31,17 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundPage,
 });
 
+/** Sets the `dark` class from the system preference before the first paint. */
+const SYNC_COLOR_SCHEME = `(()=>{try{const q=matchMedia("(prefers-color-scheme: dark)"),a=e=>document.documentElement.classList.toggle("dark",e.matches);a(q);q.addEventListener("change",a)}catch(e){}})()`;
+
 function RootComponent() {
-  const navigate = useNavigate();
   return (
     <RootDocument>
-      <I18nProvider locale={getLocale()}>
-        <RouterProvider navigate={(href) => navigate({ to: href })}>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <Outlet />
-          </div>
-          <Toast.Provider placement="bottom end" />
-        </RouterProvider>
-      </I18nProvider>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Outlet />
+      </div>
+      <Toaster />
+      <ModalHost />
     </RootDocument>
   );
 }
@@ -53,11 +52,12 @@ function NotFoundPage() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang={getLocale()}>
+    <html lang={getLocale()} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: SYNC_COLOR_SCHEME }} />
         <HeadContent />
       </head>
-      <body className="flex h-dvh flex-col overflow-hidden bg-background text-foreground antialiased">
+      <body className="flex h-dvh flex-col overflow-hidden">
         {children}
         <Scripts />
       </body>

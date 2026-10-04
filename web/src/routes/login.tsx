@@ -1,17 +1,9 @@
 import {
-  Button,
-  Card,
-  FieldError,
-  Form,
-  Input,
-  Label,
-  TextField,
-} from "@heroui/react";
-import {
   createFileRoute,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
+import { KeyRound, Mail } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
@@ -20,8 +12,13 @@ import {
   carriesAuthorizationRequest,
   returnPath,
 } from "../domain/auth/navigation";
-import { BrandLogo } from "../ui/BrandLogo";
+import { AppBrand } from "../ui/BrandLogo";
 import { useAsyncAction } from "../ui/hooks/useAsyncAction";
+import { AuthLayout } from "../ui/kit/AuthLayout";
+import { Button } from "../ui/kit/Button";
+import { Form } from "../ui/kit/Form";
+import { Icon } from "../ui/kit/Icon";
+import { Input, InputPassword } from "../ui/kit/Input";
 import { m } from "../paraglide/messages";
 import { readSession, redirect } from "../server/transport/http/session";
 
@@ -58,85 +55,65 @@ function LoginPage() {
   const [rejected, setRejected] = useState(false);
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center bg-surface-secondary p-6 md:p-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <header className="flex items-center gap-2.5 self-center">
-          <BrandLogo className="size-10" />
-          <span className="text-sm font-semibold">{m.app_name()}</span>
-        </header>
-        <Card className="w-full">
-          <Card.Header>
-            <Card.Title render={(props) => <h1 {...props} />}>
-              {m.login_title()}
-            </Card.Title>
-          </Card.Header>
-          <Form
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              void run(async () => {
-                const { data, error } = await authClient.signIn.email({
-                  email: String(form.get("email") ?? ""),
-                  password: String(form.get("password") ?? ""),
-                });
-                if (error) {
-                  setRejected(true);
-                  return null;
-                }
-                return continuation(data) ?? destination;
-              }, m.login_failed()).then(async (result) => {
-                if (!result.ok || result.value === null) return;
-                if (result.value !== destination) {
-                  window.location.assign(result.value);
-                  return;
-                }
-                await router.invalidate();
-                await navigate({ href: destination });
-              });
-            }}
-          >
-            <Card.Content className="flex flex-col gap-4">
-              <TextField
-                variant="secondary"
-                fullWidth
-                isRequired
-                isDisabled={busy}
-                autoFocus
-                name="email"
-                type="email"
-                onChange={() => setRejected(false)}
-              >
-                <Label>{m.login_email()}</Label>
-                <Input autoComplete="email" />
-              </TextField>
-              <TextField
-                variant="secondary"
-                fullWidth
-                isRequired
-                isDisabled={busy}
-                isInvalid={rejected}
-                name="password"
-                type="password"
-                onChange={() => setRejected(false)}
-              >
-                <Label>{m.login_password()}</Label>
-                <Input autoComplete="current-password" />
-                <FieldError>{m.login_rejected()}</FieldError>
-              </TextField>
-            </Card.Content>
-            <Card.Footer className="mt-4 flex flex-col items-stretch gap-2">
-              <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                isDisabled={busy}
-              >
-                {busy ? m.login_submitting() : m.login_submit()}
-              </Button>
-            </Card.Footer>
-          </Form>
-        </Card>
-      </div>
-    </main>
+    <AuthLayout brand={<AppBrand />} title={m.login_title()}>
+      <Form
+        errors={rejected ? { password: m.login_rejected() } : undefined}
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void run(async () => {
+            const { data, error } = await authClient.signIn.email({
+              email: String(form.get("email") ?? ""),
+              password: String(form.get("password") ?? ""),
+            });
+            if (error) {
+              setRejected(true);
+              return null;
+            }
+            return continuation(data) ?? destination;
+          }, m.login_failed()).then(async (result) => {
+            if (!result.ok || result.value === null) return;
+            if (result.value !== destination) {
+              window.location.assign(result.value);
+              return;
+            }
+            await router.invalidate();
+            await navigate({ href: destination });
+          });
+        }}
+      >
+        <Form.Field name="email" label={m.login_email()}>
+          <Input
+            size="large"
+            required
+            disabled={busy}
+            autoFocus
+            type="email"
+            autoComplete="email"
+            prefix={<Icon icon={Mail} />}
+            onChange={() => setRejected(false)}
+          />
+        </Form.Field>
+        <Form.Field name="password" label={m.login_password()}>
+          <InputPassword
+            size="large"
+            required
+            disabled={busy}
+            autoComplete="current-password"
+            prefix={<Icon icon={KeyRound} />}
+            onChange={() => setRejected(false)}
+          />
+        </Form.Field>
+        <Button
+          block
+          htmlType="submit"
+          size="large"
+          type="primary"
+          loading={busy}
+        >
+          {m.login_submit()}
+        </Button>
+      </Form>
+    </AuthLayout>
   );
 }

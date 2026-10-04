@@ -1,24 +1,25 @@
-import {
-  Button,
-  Dropdown,
-  Form,
-  Label,
-  Modal,
-  TextArea,
-  TextField,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import { NotebookPen, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { Model, ModelAnnotation } from "../../domain/models/schema";
 import { removeModel, updateModelAnnotation } from "../../functions/models";
 import { m } from "../../paraglide/messages";
-import { AnnotationAreaField } from "./AnnotationAreaField";
-import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
-import { MoreIcon } from "../../ui/icons";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  type AsyncAction,
+  useAsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import type { DropdownItem } from "../../ui/kit/DropdownMenu";
+import { Form } from "../../ui/kit/Form";
+import { TextArea } from "../../ui/kit/Input";
+import { toast } from "../../ui/kit/Toast";
 import { modelName } from "../../ui/model-names";
+import { RowMenu } from "../../ui/ActionsMenu";
+import { AnnotationAreaField } from "./AnnotationAreaField";
+
+const FORM_ID = "model-annotation";
 
 export function ModelMenu({
   model,
@@ -28,95 +29,92 @@ export function ModelMenu({
   deletable: boolean;
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"annotation" | "delete" | null>(null);
+  const [editing, setEditing] = useState(false);
   const name = modelName(model);
-  const label = m.model_menu_label({ name });
+
+  const items: DropdownItem[] = [
+    {
+      key: "annotation",
+      icon: NotebookPen,
+      label: m.model_menu_annotation(),
+      onClick: () => setEditing(true),
+    },
+  ];
+  if (deletable) {
+    items.push(
+      { type: "divider" },
+      {
+        key: "delete",
+        danger: true,
+        icon: Trash2,
+        label: m.model_menu_delete_item(),
+        onClick: () =>
+          confirmDestructive({
+            title: m.model_delete_title({ name }),
+            confirmLabel: m.model_delete(),
+            onConfirm: async () => {
+              await removeModel({ data: { model: model.id } });
+              toast.success(m.model_deleted({ name }));
+              await router.invalidate();
+            },
+          }),
+      },
+    );
+  }
 
   return (
     <>
-      <Dropdown>
-        <Button variant="ghost" isIconOnly size="sm" aria-label={label}>
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={label}
-            onAction={(key) =>
-              setDialog(key === "delete" ? "delete" : "annotation")
-            }
-          >
-            <Dropdown.Item
-              id="annotation"
-              textValue={m.model_menu_annotation()}
-            >
-              <Label>{m.model_menu_annotation()}</Label>
-            </Dropdown.Item>
-            {deletable ? (
-              <Dropdown.Item
-                id="delete"
-                textValue={m.model_menu_delete({ name })}
-                variant="danger"
-              >
-                <Label>{m.model_delete()}</Label>
-              </Dropdown.Item>
-            ) : null}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-      <Modal
-        isOpen={dialog === "annotation"}
-        onOpenChange={(next) => !next && setDialog(null)}
-      >
-        <Modal.Backdrop>
-          <Modal.Container size="md">
-            <Modal.Dialog>
-              <Modal.CloseTrigger aria-label={m.close()} />
-              <Modal.Header>
-                <Modal.Heading>
-                  {m.model_annotation_title({ name })}
-                </Modal.Heading>
-              </Modal.Header>
-              {dialog === "annotation" ? (
-                <AnnotationEditor
-                  model={model}
-                  onClose={() => setDialog(null)}
-                />
-              ) : null}
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
-      <DestructiveActionDialog
-        isOpen={dialog === "delete"}
-        onOpenChange={(next) => !next && setDialog(null)}
-        title={m.model_menu_delete({ name })}
-        confirmLabel={m.model_delete()}
-        onConfirm={async () => {
-          await removeModel({ data: { model: model.id } });
-          toast.success(m.model_deleted({ name }));
-          await router.invalidate();
-        }}
+      <RowMenu label={m.model_actions({ name })} items={items} />
+      <ModelAnnotationDialog
+        model={model}
+        open={editing}
+        onClose={() => setEditing(false)}
       />
     </>
   );
 }
 
-function AnnotationEditor({
+function ModelAnnotationDialog({
   model,
+  open,
   onClose,
 }: {
   model: Model;
+  open: boolean;
   onClose: () => void;
 }) {
+  const action = useAsyncAction();
+  return (
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={m.model_annotation_title({ name: modelName(model) })}
+      okText={m.model_annotation_save()}
+      formId={FORM_ID}
+      busy={action.busy}
+    >
+      <ModelAnnotationForm model={model} action={action} onDone={onClose} />
+    </FormDialog>
+  );
+}
+
+function ModelAnnotationForm({
+  model,
+  action: { busy, run },
+  onDone,
+}: {
+  model: Model;
+  action: AsyncAction;
+  onDone: () => void;
+}) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
   const [instructions, setInstructions] = useState(
     model.annotation.instructions,
   );
   const [area, setArea] = useState<ModelAnnotation["area"]>(
     model.annotation.area,
   );
-  const name = modelName(model);
+
   const submit = () => {
     void run(
       () =>
@@ -129,58 +127,30 @@ function AnnotationEditor({
       m.model_annotation_not_saved(),
     ).then(async (result) => {
       if (!result.ok) return;
-      toast.success(m.model_annotation_saved({ name }));
-      onClose();
+      onDone();
       await router.invalidate();
     });
   };
+
   return (
-    <>
-      <Modal.Body>
-        <Form
-          id="model-annotation"
-          className="flex w-full min-w-0 flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <TextField
-            variant="secondary"
-            fullWidth
-            isDisabled={busy}
-            value={instructions}
-            onChange={setInstructions}
-          >
-            <Label>{m.model_annotation_label()}</Label>
-            <TextArea
-              className="w-full"
-              rows={8}
-              placeholder={m.model_annotation_placeholder()}
-            />
-          </TextField>
-          <AnnotationAreaField
-            value={area}
-            onChange={setArea}
-            isDisabled={busy}
-          />
-        </Form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-          {m.cancel()}
-        </Button>
-        <Button
-          type="submit"
-          form="model-annotation"
-          variant="primary"
-          isDisabled={busy}
-        >
-          {busy
-            ? m.action_in_progress({ action: m.model_annotation_save() })
-            : m.model_annotation_save()}
-        </Button>
-      </Modal.Footer>
-    </>
+    <Form
+      id={FORM_ID}
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <Form.Field label={m.model_annotation_label()}>
+        <TextArea
+          rows={8}
+          value={instructions}
+          onChange={(event) => setInstructions(event.currentTarget.value)}
+          placeholder={m.model_annotation_placeholder()}
+          disabled={busy}
+          autoFocus
+        />
+      </Form.Field>
+      <AnnotationAreaField value={area} onChange={setArea} disabled={busy} />
+    </Form>
   );
 }

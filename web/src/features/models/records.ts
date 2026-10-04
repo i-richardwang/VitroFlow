@@ -4,6 +4,7 @@ import {
   type ModelRecords,
 } from "../../domain/models/contracts";
 import { m } from "../../paraglide/messages";
+import { getLocale } from "../../paraglide/runtime";
 
 const LABELS: Record<ModelRecordKind, (input: { count: number }) => string> = {
   versions: m.model_records_versions,
@@ -22,5 +23,7 @@ export function modelRecordsSummary(records: ModelRecords): string | null {
   const held = MODEL_RECORD_KINDS.filter((kind) => records[kind] > 0).map(
     (kind) => LABELS[kind]({ count: records[kind] }),
   );
-  return held.length > 0 ? held.join(" · ") : null;
+  return held.length > 0
+    ? new Intl.ListFormat(getLocale(), { type: "conjunction" }).format(held)
+    : null;
 }

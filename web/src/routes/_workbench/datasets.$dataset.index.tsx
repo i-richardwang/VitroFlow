@@ -1,16 +1,38 @@
-import { EmptyState } from "@heroui-pro/react/empty-state";
-import { KPI } from "@heroui-pro/react/kpi";
-import { KPIGroup } from "@heroui-pro/react/kpi-group";
-import { Button, Link, Table, buttonVariants } from "@heroui/react";
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useRouter,
+} from "@tanstack/react-router";
+import { ChartLine, Download, ImagePlus } from "lucide-react";
 
-import { Count } from "../../ui/Count";
-import { QualityChips } from "../../ui/DetectionQuality";
+import { QualityTags } from "../../ui/DetectionQuality";
+import { Absent } from "../../ui/Absent";
 import { Page } from "../../ui/Page";
 import { archiveFilename } from "../../domain/datasets/archive-format";
-import { ImageMenu } from "../../features/datasets/ImageMenu";
+import { RemoveImageButton } from "../../features/datasets/RemoveImageButton";
+import { formatQuantity } from "../../ui/quantity";
 import { getDatasetOverview } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { Button } from "../../ui/kit/Button";
+import { Empty } from "../../ui/kit/Empty";
+import {
+  PageHeaderSkeleton,
+  PageSkeleton,
+  StatGridSkeleton,
+  TableSkeleton,
+} from "../../ui/kit/PageSkeleton";
+import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/kit/Table";
+import { TextLink } from "../../ui/kit/TextLink";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
@@ -30,6 +52,13 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   head: ({ params }) => ({
     meta: [{ title: `${params.dataset} · ${m.app_name()}` }],
   }),
+  pendingComponent: () => (
+    <PageSkeleton>
+      <PageHeaderSkeleton action />
+      <StatGridSkeleton count={2} />
+      <TableSkeleton />
+    </PageSkeleton>
+  ),
   component: DatasetPage,
 });
 
@@ -45,121 +74,120 @@ function DatasetPage() {
       title={<span className="block truncate font-mono">{dataset}</span>}
       actions={
         <>
-          <Link
-            className={buttonVariants({ variant: "secondary" })}
-            href={`/datasets/${encodeURIComponent(dataset)}/archive`}
-            download={archiveFilename(dataset)}
+          <Button
+            icon={Download}
+            render={
+              <a
+                href={`/datasets/${encodeURIComponent(dataset)}/archive`}
+                download={archiveFilename(dataset)}
+              />
+            }
           >
             {m.dataset_download()}
-          </Link>
+          </Button>
           <Button
-            variant="primary"
-            onPress={() => {
-              void router.navigate({
-                to: "/datasets/$dataset/training",
-                params: { dataset },
-              });
-            }}
+            type="primary"
+            icon={ChartLine}
+            render={
+              <Link to="/datasets/$dataset/training" params={{ dataset }} />
+            }
           >
             {m.dataset_training()}
           </Button>
         </>
       }
     >
-      <KPIGroup>
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.dataset_kpi_reviewed()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={reviewedCount} />
-          </KPI.Content>
-          <KPI.Footer>
-            {m.dataset_kpi_reviewed_of({ count: images.length })}
-          </KPI.Footer>
-        </KPI>
-        <KPIGroup.Separator />
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>{m.dataset_kpi_training_runs()}</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value maximumFractionDigits={0} value={training.runs} />
-          </KPI.Content>
-          {training.reviewedSinceLastRun > 0 ? (
-            <KPI.Footer>
-              {m.dataset_reviewed_since_last_run({
-                count: training.reviewedSinceLastRun,
-              })}
-            </KPI.Footer>
-          ) : null}
-        </KPI>
-      </KPIGroup>
-
-      <Table>
-        <Table.ScrollContainer>
-          <Table.Content aria-label={m.dataset_images_table({ dataset })}>
-            <Table.Header>
-              <Table.Column isRowHeader>
-                {m.dataset_column_image()}
-              </Table.Column>
-              <Table.Column className="text-right">
-                {m.dataset_column_boxes()}
-              </Table.Column>
-              <Table.Column>{m.dataset_column_quality()}</Table.Column>
-              <Table.Column aria-label={m.dataset_column_actions()} />
-            </Table.Header>
-            <Table.Body
-              renderEmptyState={() => (
-                <EmptyState size="sm">
-                  <EmptyState.Header>
-                    <EmptyState.Title>
-                      {m.dataset_empty_images()}
-                    </EmptyState.Title>
-                  </EmptyState.Header>
-                </EmptyState>
-              )}
-            >
-              {images.map((image) => (
-                <Table.Row
-                  key={image.digest}
-                  href={`/datasets/${encodeURIComponent(dataset)}/${image.digest}`}
-                  className="cursor-(--cursor-interactive)"
-                >
-                  <Table.Cell className="font-mono font-medium">
-                    <span className="truncate">{image.filename}</span>
-                  </Table.Cell>
-                  <Table.Cell className="text-right font-mono tabular-nums">
-                    <BoxCount
-                      detected={image.detectionCount}
-                      proposed={image.proposalCount}
-                      boxes={image.instanceCount}
-                    />
-                  </Table.Cell>
-                  <Table.Cell>
-                    {image.quality && image.quality.status !== "ok" ? (
-                      <QualityChips quality={image.quality} />
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell
-                    className="text-right"
-                    onClick={(event) => event.stopPropagation()}
+      <StatGrid>
+        <StatCard
+          label={m.dataset_kpi_reviewed()}
+          value={formatQuantity(reviewedCount)}
+          hint={m.dataset_kpi_reviewed_of({ count: images.length })}
+        />
+        <StatCard
+          label={m.dataset_kpi_training_runs()}
+          value={formatQuantity(training.runs)}
+          hint={
+            training.reviewedSinceLastRun > 0
+              ? m.dataset_reviewed_since_last_run({
+                  count: training.reviewedSinceLastRun,
+                })
+              : undefined
+          }
+        />
+      </StatGrid>
+      <Table aria-label={m.dataset_images_table({ dataset })} narrow="cards">
+        <TableHeader>
+          <tr>
+            <TableHead>{m.dataset_column_image()}</TableHead>
+            <TableHead className="w-24 text-end">
+              {m.dataset_column_boxes()}
+            </TableHead>
+            <TableHead className="w-64">{m.dataset_column_quality()}</TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">{m.dataset_column_actions()}</span>
+            </TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {images.length ? (
+            images.map((image) => (
+              <TableRow key={image.digest} clickable>
+                <TableCell cellSlot="title">
+                  <TextLink
+                    className="block max-w-[40ch] truncate font-mono"
+                    render={
+                      <Link
+                        to="/datasets/$dataset/$digest"
+                        params={{ dataset, digest: image.digest }}
+                      />
+                    }
                   >
-                    <ImageMenu dataset={dataset} image={image} />
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
+                    {image.filename}
+                  </TextLink>
+                </TableCell>
+                <TableCell
+                  cellLabel={m.dataset_column_boxes()}
+                  className="text-end tabular-nums"
+                >
+                  <BoxCount
+                    detected={image.detectionCount}
+                    proposed={image.proposalCount}
+                    boxes={image.instanceCount}
+                  />
+                </TableCell>
+                <TableCell cellLabel={m.dataset_column_quality()}>
+                  {image.quality && image.quality.status !== "ok" ? (
+                    <QualityTags quality={image.quality} />
+                  ) : (
+                    <Absent />
+                  )}
+                </TableCell>
+                <TableCell cellSlot="extra" className="text-end">
+                  <RemoveImageButton dataset={dataset} image={image} />
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableEmpty>
+              <Empty
+                icon={ImagePlus}
+                title={m.dataset_empty_images()}
+                description={m.dataset_empty_images_description()}
+                action={
+                  <Button render={<Link to="/experiments" />}>
+                    {m.dataset_open_experiments()}
+                  </Button>
+                }
+              />
+            </TableEmpty>
+          )}
+        </TableBody>
       </Table>
     </Page>
   );
 }
 
-/** Unreviewed counts are muted. A reviewer's count is plain. */
+/** A reviewer's count reads plain; an unreviewed proposal or detection reads tertiary. */
 function BoxCount({
   detected,
   proposed,
@@ -169,12 +197,11 @@ function BoxCount({
   proposed: number | null;
   boxes: number | null;
 }) {
-  if (boxes === null) {
-    if (proposed !== null) {
-      return <span className="text-muted">{proposed}</span>;
-    }
-    if (detected === null) return <Count value={null} />;
-    return <span className="text-muted">{detected}</span>;
-  }
-  return <>{boxes}</>;
+  if (boxes !== null) return <>{boxes}</>;
+  const unreviewed = proposed ?? detected;
+  return unreviewed === null ? (
+    <Absent />
+  ) : (
+    <span className="text-fg-tertiary">{unreviewed}</span>
+  );
 }

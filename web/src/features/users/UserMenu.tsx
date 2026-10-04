@@ -1,289 +1,183 @@
-import {
-  Button,
-  Description,
-  Dropdown,
-  Form,
-  Label,
-  Modal,
-  Separator,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import { Ban, KeyRound, LogOut, Trash2, UserRoundCheck } from "lucide-react";
 import { useState } from "react";
 
-import type { UserAccount, UserRole } from "../../domain/auth/schema";
+import type { UserAccount } from "../../domain/auth/schema";
 import {
-  changeUserRole,
   reinstateUser,
   removeUser,
   resetUserPassword,
   signOutUserEverywhere,
   suspendUser,
 } from "../../functions/users";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
-import { MoreIcon } from "../../ui/icons";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  type AsyncAction,
+  useAsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import { Form } from "../../ui/kit/Form";
+import { toast } from "../../ui/kit/Toast";
+import { RowMenu } from "../../ui/ActionsMenu";
 import { PasswordField } from "./PasswordField";
-import { RoleSelect } from "./RoleSelect";
 
-type Action = "role" | "reset-password" | "suspend" | "delete";
-
+/** Everything an administrator does to another account, in one row menu. */
 export function UserMenu({ account }: { account: UserAccount }) {
   const router = useRouter();
-  const { run } = useAsyncAction();
-  const [open, setOpen] = useState<Action | null>(null);
+  const { busy, run } = useAsyncAction();
+  const [resetting, setResetting] = useState(false);
 
-  const act = (work: () => Promise<unknown>, failure: string, done: string) =>
+  /** Runs a command; `done` confirms one whose effect the row does not show. */
+  const act = (work: () => Promise<unknown>, failure: string, done?: string) =>
     void run(work, failure).then(async (result) => {
       if (!result.ok) return;
-      toast.success(done);
+      if (done) toast.success(done);
       await router.invalidate();
     });
 
   return (
     <>
-      <Dropdown>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          aria-label={m.user_menu_label({ name: account.name })}
-        >
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={m.user_menu_label({ name: account.name })}
-            onAction={(key) => {
-              const action = String(key);
-              switch (action) {
-                case "reinstate":
+      <RowMenu
+        label={m.user_actions({ name: account.name })}
+        disabled={busy}
+        items={[
+          {
+            key: "reset-password",
+            icon: KeyRound,
+            label: m.user_menu_reset_password_item(),
+            onClick: () => setResetting(true),
+          },
+          {
+            key: "revoke",
+            icon: LogOut,
+            label: m.user_menu_sign_out_everywhere(),
+            onClick: () =>
+              act(
+                () => signOutUserEverywhere({ data: { user: account.id } }),
+                m.user_sessions_not_revoked(),
+                m.user_signed_out_everywhere({ name: account.name }),
+              ),
+          },
+          account.banned
+            ? {
+                key: "reinstate",
+                icon: UserRoundCheck,
+                label: m.user_menu_reinstate(),
+                onClick: () =>
                   act(
                     () => reinstateUser({ data: { user: account.id } }),
                     m.user_not_reinstated(),
-                    m.user_reinstated({ name: account.name }),
-                  );
-                  return;
-                case "revoke":
-                  act(
-                    () => signOutUserEverywhere({ data: { user: account.id } }),
-                    m.user_sessions_not_revoked(),
-                    m.user_signed_out_everywhere({ name: account.name }),
-                  );
-                  return;
-                default:
-                  setOpen(action as Action);
+                  ),
               }
-            }}
-          >
-            <Dropdown.Item
-              id="reset-password"
-              textValue={m.user_menu_reset_password()}
-            >
-              <Label>{m.user_menu_reset_password_item()}</Label>
-            </Dropdown.Item>
-            <Dropdown.Item id="role" textValue={m.user_menu_change_role()}>
-              <Label>{m.user_menu_change_role_item()}</Label>
-            </Dropdown.Item>
-            <Dropdown.Item
-              id="revoke"
-              textValue={m.user_menu_sign_out_everywhere()}
-            >
-              <Label>{m.user_menu_sign_out_everywhere()}</Label>
-            </Dropdown.Item>
-            {account.banned ? (
-              <Dropdown.Item id="reinstate" textValue={m.user_menu_reinstate()}>
-                <Label>{m.user_menu_reinstate()}</Label>
-              </Dropdown.Item>
-            ) : (
-              <Dropdown.Item id="suspend" textValue={m.user_menu_suspend()}>
-                <Label>{m.user_menu_suspend_item()}</Label>
-              </Dropdown.Item>
-            )}
-            <Separator orientation="horizontal" />
-            <Dropdown.Item
-              id="delete"
-              textValue={m.user_menu_delete()}
-              variant="danger"
-            >
-              <Label>{m.user_menu_delete_item()}</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-
-      <ChangeRoleDialog
-        key={open === "role" ? "open" : "closed"}
-        account={account}
-        isOpen={open === "role"}
-        onClose={() => setOpen(null)}
+            : {
+                key: "suspend",
+                icon: Ban,
+                label: m.user_menu_suspend_item(),
+                onClick: () =>
+                  confirmDestructive({
+                    title: m.user_suspend_title({ name: account.name }),
+                    content: m.user_suspend_body(),
+                    confirmLabel: m.user_suspend_confirm(),
+                    onConfirm: async () => {
+                      await suspendUser({ data: { user: account.id } });
+                      toast.success(m.user_suspended({ name: account.name }));
+                      await router.invalidate();
+                    },
+                  }),
+              },
+          { type: "divider" },
+          {
+            key: "delete",
+            icon: Trash2,
+            danger: true,
+            label: m.user_menu_delete_item(),
+            onClick: () =>
+              confirmDestructive({
+                title: m.user_delete_title({ name: account.name }),
+                content: m.user_delete_body(),
+                confirmLabel: m.user_delete_confirm(),
+                onConfirm: async () => {
+                  await removeUser({ data: { user: account.id } });
+                  toast.success(m.user_deleted({ name: account.name }));
+                  await router.invalidate();
+                },
+              }),
+          },
+        ]}
       />
       <ResetPasswordDialog
         account={account}
-        isOpen={open === "reset-password"}
-        onClose={() => setOpen(null)}
+        open={resetting}
+        onClose={() => setResetting(false)}
       />
-      <DestructiveActionDialog
-        isOpen={open === "suspend"}
-        onOpenChange={(next) => setOpen(next ? "suspend" : null)}
-        title={m.user_suspend_title({ name: account.name })}
-        confirmLabel={m.user_suspend_confirm()}
-        onConfirm={async () => {
-          await suspendUser({ data: { user: account.id } });
-          toast.success(m.user_suspended({ name: account.name }));
-          await router.invalidate();
-        }}
-      >
-        {m.user_suspend_body()}
-      </DestructiveActionDialog>
-      <DestructiveActionDialog
-        isOpen={open === "delete"}
-        onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={m.user_delete_title({ name: account.name })}
-        confirmLabel={m.user_delete_confirm()}
-        onConfirm={async () => {
-          await removeUser({ data: { user: account.id } });
-          toast.success(m.user_deleted({ name: account.name }));
-          await router.invalidate();
-        }}
-      >
-        {m.user_delete_body()}
-      </DestructiveActionDialog>
     </>
   );
 }
 
-function ChangeRoleDialog({
-  account,
-  isOpen,
-  onClose,
-}: {
-  account: UserAccount;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const { busy, run } = useAsyncAction();
-  const [role, setRole] = useState<UserRole>(account.role);
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.user_role_dialog_title()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              <Form
-                id="change-role"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(
-                    () => changeUserRole({ data: { user: account.id, role } }),
-                    m.user_role_not_changed(),
-                  ).then(async (result) => {
-                    if (!result.ok) return;
-                    onClose();
-                    await router.invalidate();
-                  });
-                }}
-              >
-                <RoleSelect value={role} onChange={setRole} isDisabled={busy} />
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="change-role"
-                variant="primary"
-                isDisabled={busy || role === account.role}
-              >
-                {busy ? m.user_dialog_saving() : m.user_dialog_save()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
-}
+const RESET_FORM_ID = "reset-password";
 
 function ResetPasswordDialog({
   account,
-  isOpen,
+  open,
   onClose,
 }: {
   account: UserAccount;
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
-  const { busy, run } = useAsyncAction();
-
+  const action = useAsyncAction();
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>
-                {m.user_reset_password_title({ name: account.name })}
-              </Modal.Heading>
-              <Description>{m.user_reset_password_description()}</Description>
-            </Modal.Header>
-            <Modal.Body key={isOpen ? "open" : "closed"}>
-              <Form
-                id="change-password"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  void run(
-                    () =>
-                      resetUserPassword({
-                        data: {
-                          user: account.id,
-                          password: String(form.get("password") ?? ""),
-                        },
-                      }),
-                    m.user_reset_password_not_changed(),
-                  ).then((result) => {
-                    if (!result.ok) return;
-                    toast.success(m.user_reset_password_changed());
-                    onClose();
-                  });
-                }}
-              >
-                <PasswordField
-                  label={m.user_reset_password_new_label()}
-                  isDisabled={busy}
-                  variant="secondary"
-                />
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="change-password"
-                variant="primary"
-                isDisabled={busy}
-              >
-                {busy ? m.user_dialog_saving() : m.user_dialog_save()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={m.user_reset_password_title({ name: account.name })}
+      okText={m.user_dialog_save()}
+      formId={RESET_FORM_ID}
+      busy={action.busy}
+    >
+      <ResetPasswordForm account={account} action={action} onDone={onClose} />
+    </FormDialog>
+  );
+}
+
+function ResetPasswordForm({
+  account,
+  action: { busy, run },
+  onDone,
+}: {
+  account: UserAccount;
+  action: AsyncAction;
+  onDone: () => void;
+}) {
+  return (
+    <Form
+      id={RESET_FORM_ID}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        void run(
+          () =>
+            resetUserPassword({
+              data: {
+                user: account.id,
+                password: String(form.get("password") ?? ""),
+              },
+            }),
+          m.user_reset_password_not_changed(),
+        ).then((result) => {
+          if (!result.ok) return;
+          toast.success(m.user_reset_password_changed());
+          onDone();
+        });
+      }}
+    >
+      <PasswordField
+        label={m.user_reset_password_new_label()}
+        description={m.user_reset_password_description()}
+        disabled={busy}
+        autoFocus
+      />
+    </Form>
   );
 }

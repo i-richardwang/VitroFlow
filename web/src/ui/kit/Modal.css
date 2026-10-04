@@ -1,0 +1,142 @@
+/*
+ * Enter and exit are played by motion, so there are no transitions here.
+ * Backdrop and panel share the `--z-index-popup` step; the panel comes after
+ * the backdrop and covers it by document order.
+ */
+
+.ui-modal-backdrop {
+  position: fixed;
+  z-index: var(--z-index-popup);
+  inset: 0;
+
+  background: var(--color-mask-modal);
+}
+
+.ui-modal-popup {
+  pointer-events: none;
+
+  position: fixed;
+  z-index: var(--z-index-popup);
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-modal-popup-inner {
+  pointer-events: auto;
+
+  position: relative;
+
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  max-width: 440px;
+  max-height: calc(100dvh - 64px);
+  border-radius: var(--radius-lg);
+
+  background: var(--color-elevated);
+  box-shadow:
+    var(--elevation-lg),
+    0 0 0 1px var(--color-ring);
+}
+
+.ui-modal-popup-inner-wide {
+  max-width: 560px;
+}
+
+@keyframes ui-modal-deny {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-5px);
+  }
+
+  40% {
+    transform: translateX(5px);
+  }
+
+  60% {
+    transform: translateX(-3px);
+  }
+
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/* A refused backdrop click shakes the panel. */
+.ui-modal-deny-animation {
+  animation: ui-modal-deny 280ms var(--ease-shake);
+}
+
+.ui-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  min-height: 48px;
+  padding-block: 8px;
+  padding-inline: 16px;
+}
+
+.ui-modal-title {
+  margin: 0;
+
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-fg);
+}
+
+.ui-modal-close {
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 32px;
+  height: 32px;
+  margin-inline-end: -4px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+
+  color: var(--color-fg-tertiary);
+
+  background: transparent;
+
+  transition: all var(--duration-base) var(--ease-soft);
+
+  &:hover {
+    transform: scale(1.04);
+    color: var(--color-fg);
+    background: var(--color-fill-secondary);
+  }
+
+  @apply focus-ring;
+}
+
+.ui-modal-content {
+  overflow: hidden auto;
+  padding-block: 0 16px;
+  padding-inline: 16px;
+}
+
+.ui-modal-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+
+  padding-block: 12px;
+  padding-inline: 16px;
+}

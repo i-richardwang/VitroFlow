@@ -1,7 +1,6 @@
-import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Segment } from "@heroui-pro/react/segment";
-import { Alert, Button, ButtonGroup, Separator } from "@heroui/react";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
+import { FolderPlus, ImageOff } from "lucide-react";
+import { useState } from "react";
 
 import { observationLabel, cultureEventLabel } from "./labels";
 import type { ReviewSource } from "../../domain/annotation/schema";
@@ -12,21 +11,26 @@ import {
 } from "../../domain/experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { Alert } from "../../ui/kit/Alert";
+import { Button } from "../../ui/kit/Button";
+import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { ToggleGroup } from "../../ui/kit/ToggleGroup";
+import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { m } from "../../paraglide/messages";
 import type {
   UnitNavigationEntry,
   UnitSeries,
 } from "../../domain/experiments/contracts";
-import { AddToDatasetButton } from "../datasets/AddToDatasetDialog";
-import { ChevronLeftIcon, ChevronRightIcon } from "../../ui/icons";
+import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
+import { ShellActions } from "../../ui/shell/shell";
 import {
   Workbench,
-  WorkbenchActions,
+  WorkbenchEmpty,
+  WorkbenchSection,
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
+import { StepButton } from "../../ui/StepButton";
 import { ImageWorkbench } from "../calibration/ImageWorkbench";
-import { StepButton } from "../calibration/StepButton";
-import { Metrics, Section } from "../calibration/inspector";
 import { UnitMenu } from "./UnitMenu";
 
 export function UnitWorkbench({
@@ -45,6 +49,7 @@ export function UnitWorkbench({
   onCalibratingChange: (calibrating: boolean) => void;
 }) {
   const { experiment, unit, treatments, navigation, shown } = series;
+  const [addingToDataset, setAddingToDataset] = useState(false);
   const treatment = treatments.find((item) => item.id === unit.treatment)!;
   const at = navigation.findIndex((item) => item.id === unit.id);
   const title = m.unit_title({
@@ -80,7 +85,9 @@ export function UnitWorkbench({
         previous={navigation[at - 1] ?? null}
         next={navigation[at + 1] ?? null}
       />
-      {series.observations.some((item) => item.image) ? <Separator /> : null}
+      {series.observations.some((item) => item.image) ? (
+        <ToolbarSeparator />
+      ) : null}
       <ObservationSwitch
         series={series}
         shown={shown?.observation.id ?? null}
@@ -91,17 +98,27 @@ export function UnitWorkbench({
   if (!shown) {
     return (
       <Workbench title={title}>
-        <WorkbenchActions>{menu}</WorkbenchActions>
+        <ShellActions>{menu}</ShellActions>
         <WorkbenchToolbar label={m.unit_navigation()}>
           {toolbar}
         </WorkbenchToolbar>
-        <div className="flex h-full min-h-0 flex-1 items-center justify-center p-6">
-          <EmptyState>
-            <EmptyState.Header>
-              <EmptyState.Title>{m.unit_no_image()}</EmptyState.Title>
-            </EmptyState.Header>
-          </EmptyState>
-        </div>
+        <WorkbenchEmpty
+          icon={ImageOff}
+          title={m.unit_no_image()}
+          description={m.unit_no_image_description()}
+          action={
+            <Button
+              render={
+                <Link
+                  to="/experiments/$experiment"
+                  params={{ experiment: experiment.id }}
+                />
+              }
+            >
+              {m.unit_open_experiment()}
+            </Button>
+          }
+        />
       </Workbench>
     );
   }
@@ -118,45 +135,54 @@ export function UnitWorkbench({
       onCalibratingChange={onCalibratingChange}
       context={{
         actions: (
-          <AddToDatasetButton images={[shown.ref]} datasets={datasets} />
+          <>
+            <Button icon={FolderPlus} onClick={() => setAddingToDataset(true)}>
+              {m.dataset_add_heading()}
+            </Button>
+            <AddToDatasetDialog
+              open={addingToDataset}
+              images={[shown.ref]}
+              datasets={datasets}
+              onClose={() => setAddingToDataset(false)}
+            />
+          </>
         ),
         menu,
         toolbar,
         details: (
-          <Section title={m.unit_image_section()}>
-            <Metrics
-              rows={[
-                {
-                  label: m.treatment_label(),
-                  value: treatment.name,
-                },
-                {
-                  label: m.unit_status(),
-                  value: latestEvent
-                    ? cultureEventLabel(latestEvent.type)
-                    : m.culture_status_active(),
-                },
-                {
-                  label: m.unit_file(),
-                  value: shown.review.filename,
-                },
-                {
-                  label: m.unit_observed(),
-                  value: shown.observation.observedOn,
-                },
-              ]}
-            />
+          <WorkbenchSection title={m.unit_image_section()}>
+            <Descriptions>
+              <DescriptionsItem label={m.treatment_label()}>
+                {treatment.name}
+              </DescriptionsItem>
+              <DescriptionsItem label={m.unit_status()}>
+                {latestEvent
+                  ? cultureEventLabel(latestEvent.type)
+                  : m.culture_status_active()}
+              </DescriptionsItem>
+              <DescriptionsItem label={m.unit_file()}>
+                {shown.review.filename}
+              </DescriptionsItem>
+              <DescriptionsItem label={m.unit_observed()}>
+                {shown.observation.observedOn}
+              </DescriptionsItem>
+            </Descriptions>
             {shown.failure ? (
-              <Alert status="danger">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>{m.unit_detection_failed()}</Alert.Title>
-                  <Alert.Description>{shown.failure.error}</Alert.Description>
-                </Alert.Content>
-                <RetryButton image={shown.ref} />
-              </Alert>
+              <Alert
+                type="error"
+                title={m.unit_detection_failed()}
+                description={
+                  <span
+                    className="line-clamp-2 break-all"
+                    title={shown.failure.error}
+                  >
+                    {shown.failure.error}
+                  </span>
+                }
+                action={<RetryButton image={shown.ref} />}
+              />
             ) : null}
-          </Section>
+          </WorkbenchSection>
         ),
       }}
     />
@@ -173,13 +199,15 @@ function ObservationSwitch({
   const router = useRouter();
   if (!series.observations.some((item) => item.image)) return null;
   return (
-    <Segment
-      variant="ghost"
+    <ToggleGroup
       aria-label={m.observations_label()}
-      selectedKey={shown ?? undefined}
-      onSelectionChange={(key) => {
-        if (key == null) return;
-        const observation = String(key);
+      value={shown ?? undefined}
+      options={series.observations.map((item) => ({
+        value: item.observation.id,
+        label: observationLabel(item.observation),
+        disabled: !item.image,
+      }))}
+      onChange={(observation) => {
         const item = series.observations.find(
           (entry) => entry.observation.id === observation,
         );
@@ -193,17 +221,7 @@ function ObservationSwitch({
           search: (previous) => ({ ...previous, observation }),
         });
       }}
-    >
-      {series.observations.map((item) => (
-        <Segment.Item
-          key={item.observation.id}
-          id={item.observation.id}
-          isDisabled={!item.image}
-        >
-          {observationLabel(item.observation)}
-        </Segment.Item>
-      ))}
-    </Segment>
+    />
   );
 }
 
@@ -227,23 +245,20 @@ function UnitStepper({
       search: calibrating ? { calibrate: true } : {},
     });
   return (
-    <ButtonGroup variant="tertiary">
+    <>
       <StepButton
+        direction="previous"
         label={m.unit_previous()}
-        neighbour={previous?.code ?? null}
-        onPress={() => previous && go(previous.id)}
-      >
-        <ChevronLeftIcon />
-      </StepButton>
+        disabled={previous === null}
+        onClick={() => previous && go(previous.id)}
+      />
       <StepButton
+        direction="next"
         label={m.unit_next()}
-        neighbour={next?.code ?? null}
-        onPress={() => next && go(next.id)}
-      >
-        <ButtonGroup.Separator />
-        <ChevronRightIcon />
-      </StepButton>
-    </ButtonGroup>
+        disabled={next === null}
+        onClick={() => next && go(next.id)}
+      />
+    </>
   );
 }
 
@@ -252,10 +267,9 @@ function RetryButton({ image }: { image: ObservationImageRef }) {
   const action = useAsyncAction();
   return (
     <Button
-      variant="danger"
-      size="sm"
-      isDisabled={action.busy}
-      onPress={async () => {
+      size="small"
+      loading={action.busy}
+      onClick={async () => {
         const result = await action.run(
           () => retryObservationImageAnalysis({ data: image }),
           m.unit_retry_failed(),

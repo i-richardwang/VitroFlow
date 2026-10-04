@@ -1,4 +1,3 @@
-import { toast } from "@heroui/react";
 import { useBlocker, useRouter } from "@tanstack/react-router";
 import {
   useCallback,
@@ -30,6 +29,8 @@ import type { Model } from "../../domain/models/schema";
 import { getAnnotation, saveAnnotation } from "../../functions/review";
 import { m } from "../../paraglide/messages";
 import { errorMessage } from "../../ui/errors";
+import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { toast } from "../../ui/kit/Toast";
 import { classForShortcut, toolForShortcut, type Tool } from "./controls";
 
 interface SessionState {
@@ -38,6 +39,8 @@ interface SessionState {
   panning: boolean;
   selectedId: string | null;
   activeClass: string;
+  /** A save found the stored review changed since the draft's base was read. */
+  conflicted: boolean;
 }
 
 type SessionAction =
@@ -48,6 +51,7 @@ type SessionAction =
       activeClass: string;
     }
   | { type: "stop" }
+  | { type: "conflict" }
   | { type: "tool"; tool: Tool }
   | { type: "panning"; panning: boolean }
   | { type: "selectedId"; selectedId: string | null }
@@ -65,10 +69,17 @@ function reduceSession(
       panning: false,
       selectedId: null,
       activeClass: action.activeClass,
+      conflicted: false,
     };
   }
   if (action.type === "stop" || state === null) return null;
   switch (action.type) {
+    case "conflict":
+      return {
+        ...state,
+        conflicted: true,
+        draft: reduceDraft(state.draft, { type: "failed" }),
+      };
     case "restart":
       return {
         ...state,
@@ -117,6 +128,8 @@ export type Calibration =
       changeClass: (name: string) => void;
       activeClass: string;
       discard: { onStay: () => void; onLeave: () => void } | null;
+      /** Saving is refused until the draft is read again from the stored review. */
+      conflict: { reload: () => void; reloading: boolean } | null;
     };
 
 /**
@@ -143,7 +156,8 @@ export function useCalibrationSession({
     base: AnnotationInstance[] | null;
   } | null>(null);
   const failed = useEffectEvent((cause: unknown) => {
-    toast.danger(m.workbench_open_failed(), {
+    toast.error({
+      title: m.calibration_open_failed(),
       description: errorMessage(cause),
     });
     onClose();
@@ -289,23 +303,36 @@ export function useCalibrationSession({
         data: { ref: review.ref, base: draft.base, instances: draft.instances },
       });
       if (result.status === "conflict") {
-        toast.danger(m.workbench_save_conflict());
-        dispatch({ type: "failed" });
+        dispatch({ type: "conflict" });
         return;
       }
       try {
         await router.invalidate();
       } catch {
-        toast.warning(m.workbench_saved_refresh_failed());
+        toast.warning(m.calibration_saved_refresh_failed());
       }
       close();
     } catch (cause) {
-      toast.danger(m.workbench_save_failed(), {
+      toast.error({
+        title: m.calibration_save_failed(),
         description: errorMessage(cause),
       });
       dispatch({ type: "failed" });
     }
   }, [draft, review.ref, router, close]);
+
+  const { busy: reloading, run } = useAsyncAction();
+  /** Reads the stored review again; the draft restarts from it as a new base. */
+  const reload = useCallback(
+    () =>
+      void run(async () => {
+        const annotation = await getAnnotation({ data: { digest, modelId } });
+        await router.invalidate();
+        setLoaded({ digest, modelId, base: annotation?.instances ?? null });
+        dispatch({ type: "stop" });
+      }, m.calibration_reload_failed()),
+    [run, digest, modelId, router],
+  );
 
   useShortcuts({
     enabled: session !== null && !saving,
@@ -354,6 +381,7 @@ export function useCalibrationSession({
       blocker.status === "blocked" && !saving
         ? { onStay: blocker.reset, onLeave: blocker.proceed }
         : null,
+    conflict: session.conflicted ? { reload, reloading } : null,
   };
 }
 

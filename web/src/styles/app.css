@@ -1,36 +1,551 @@
+/*
+ * Site styles: design tokens (color, type scale, radius, breakpoints, motion,
+ * elevation, stacking) for both color schemes, the page environment the
+ * components are drawn against, and the few behaviors that must be written as
+ * rules rather than classes. Component styles live next to their components
+ * in `src/ui/kit/*.css`.
+ *
+ * Colors are named by role: `fg` is text; `canvas`, `container` and `elevated`
+ * are the three backgrounds; `fill` is laid over a background; `border` is a
+ * stroke; `primary` and the four status colors have the steps that are used.
+ * The dark scheme overrides the same variables under `.dark`.
+ */
 @import "tailwindcss";
-@import "@heroui/styles";
-@import "@heroui-pro/react/css";
 
+/*
+ * Component styles, one file per component, in the components layer so that
+ * utilities passed in by callers override them.
+ */
+@import "../ui/kit/Flex.css" layer(components);
+@import "../ui/kit/Icon.css" layer(components);
+@import "../ui/kit/Text.css" layer(components);
+@import "../ui/kit/Hotkey.css" layer(components);
+@import "../ui/kit/Button.css" layer(components);
+@import "../ui/kit/ActionIcon.css" layer(components);
+@import "../ui/kit/Tooltip.css" layer(components);
+@import "../ui/kit/Alert.css" layer(components);
+@import "../ui/kit/Block.css" layer(components);
+@import "../ui/kit/Descriptions.css" layer(components);
+@import "../ui/kit/Empty.css" layer(components);
+@import "../ui/kit/Progress.css" layer(components);
+@import "../ui/kit/Skeleton.css" layer(components);
+@import "../ui/kit/Status.css" layer(components);
+@import "../ui/kit/Tag.css" layer(components);
+@import "../ui/kit/TextLink.css" layer(components);
+@import "../ui/kit/Toolbar.css" layer(components);
+@import "../ui/kit/Drawer.css" layer(components);
+@import "../ui/kit/DropdownMenu.css" layer(components);
+@import "../ui/kit/Modal.css" layer(components);
+@import "../ui/kit/Toast.css" layer(components);
+@import "../ui/kit/Checkbox.css" layer(components);
+@import "../ui/kit/Form.css" layer(components);
+@import "../ui/kit/Input.css" layer(components);
+@import "../ui/kit/Select.css" layer(components);
+@import "../ui/kit/Switch.css" layer(components);
+@import "../ui/kit/ToggleGroup.css" layer(components);
+@import "../ui/kit/DraggablePanel.css" layer(components);
+@import "../ui/kit/ScrollShadow.css" layer(components);
+@import "../ui/kit/Card.css" layer(components);
+@import "../ui/kit/AuthLayout.css" layer(components);
+@import "../ui/kit/Breadcrumb.css" layer(components);
+@import "../ui/kit/AppNav.css" layer(components);
+@import "../ui/kit/AppShell.css" layer(components);
+@import "../ui/kit/PageHeader.css" layer(components);
+@import "../ui/kit/PageSkeleton.css" layer(components);
+@import "../ui/kit/StatCard.css" layer(components);
+@import "../ui/kit/ChartTooltip.css" layer(components);
+@import "../ui/kit/ColorSwatch.css" layer(components);
+@import "../ui/kit/DatePicker.css" layer(components);
+@import "../ui/kit/DropZone.css" layer(components);
+@import "../ui/kit/Legend.css" layer(components);
+@import "../ui/kit/LineChart.css" layer(components);
+@import "../ui/kit/Table.css" layer(components);
+
+/*
+ * Dark mode is a class. The `dark` class on `<html>` is the only switch; the
+ * inline script in `__root.tsx` sets it from the system preference before the
+ * first paint.
+ */
+@custom-variant dark (&:is(.dark *));
+
+@theme static {
+  /*
+   * Clear Tailwind's palette, type scale, radii, shadows and easings so only
+   * the sets below exist. A stock palette would let `text-neutral-500` bypass
+   * the semantic colors without anyone noticing.
+   */
+  --color-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --ease-*: initial;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Source Han Sans SC",
+    "Noto Sans CJK SC", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Code", Consolas,
+    "Liberation Mono", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", monospace,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* Type scale. `sm` (13px) is the step for controls and dense tables. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.375rem;
+
+  /* Four radii; fully round is `rounded-full`. */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /*
+   * Breakpoints, used as `max-mobile` and `max-laptop`. Below `laptop` the
+   * app sidebar becomes a drawer; `useIsCompact` reads the same variable.
+   */
+  --breakpoint-mobile: 30rem;
+  --breakpoint-laptop: 62rem;
+
+  /*
+   * Motion. CSS reads these curves and durations directly; motion-driven
+   * panels read them through `motionToken.ts`.
+   * - `--ease-out`: state transitions.
+   * - `--ease-soft`: panels entering, masks fading, button color.
+   * - `--ease-accelerate`: panels and popups leaving.
+   * - `--ease-snap`: small things appearing, such as the focus ring closing in.
+   * - `--ease-shake`: a refused action shaking its panel.
+   * - `--ease-fade`: tooltips fading in, beside their spring.
+   */
+  --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-shake: cubic-bezier(0.36, 0.66, 0.04, 1);
+  --ease-fade: cubic-bezier(0.33, 1, 0.68, 1);
+  /*
+   * Transitions inside a component: `fast` for hover fills, `base` for control
+   * states, `slow` for moving parts and larger areas, `slower` for progress,
+   * scroll shadows and link color. Panels entering and leaving have their own
+   * durations.
+   */
+  --duration-fast: 120ms;
+  --duration-base: 160ms;
+  --duration-slow: 200ms;
+  --duration-slower: 300ms;
+  --duration-modal-enter: 220ms;
+  --duration-modal-exit: 120ms;
+  --duration-drawer-enter: 300ms;
+  --duration-drawer-exit: 220ms;
+  --duration-backdrop: 180ms;
+  --duration-panel-fold: 250ms;
+
+  /* Colors, light scheme. */
+  --color-canvas: #f8f8f8;
+  --color-container: #ffffff;
+  --color-elevated: #ffffff;
+  /* Halfway between canvas and container; follows both schemes. */
+  --color-container-secondary: color-mix(
+    in srgb,
+    var(--color-canvas) 50%,
+    var(--color-container)
+  );
+  /* Dialogs cover the page with translucent container color; drawers darken it. */
+  --color-mask-modal: color-mix(
+    in srgb,
+    var(--color-container) 60%,
+    transparent
+  );
+  --color-mask-drawer: rgba(0, 0, 0, 0.44);
+  --color-shadow: #000;
+  --color-border: #e3e3e3;
+  --color-border-secondary: #eeeeee;
+  --color-fill: rgba(0, 0, 0, 0.12);
+  --color-fill-secondary: rgba(0, 0, 0, 0.06);
+  --color-fill-tertiary: rgba(0, 0, 0, 0.03);
+  --color-fill-quaternary: rgba(0, 0, 0, 0.015);
+  --color-fg: #080808;
+  --color-fg-secondary: #666666;
+  --color-fg-tertiary: #999999;
+  --color-fg-quaternary: #bbbbbb;
+  --color-divider: rgba(12, 12, 12, 0.07);
+
+  /* The primary color is neutral: near black in light, near white in dark. Hue is for status. */
+  --color-primary: #222222;
+  --color-primary-hover: #333333;
+  --color-primary-active: #111111;
+  --color-primary-bg: #f5f5f5;
+  --color-primary-bg-hover: #eeeeee;
+  --color-primary-border: #aaaaaa;
+
+  /* Status colors. Warning and info have a fill for status-colored tags. */
+  --color-success: #379d4a;
+  --color-warning: #ee9e0b;
+  --color-warning-fill: rgba(255, 155, 55, 0.08);
+  --color-error: #ec5e41;
+  --color-error-hover: #fb745a;
+  --color-error-active: #a53716;
+  --color-error-bg: #fff7f6;
+  --color-error-bg-hover: #ffece9;
+  --color-info: #0072f5;
+  --color-info-hover: #4c90ff;
+  --color-info-active: #005ae0;
+  --color-info-fill: rgba(22, 88, 255, 0.06);
+
+  /*
+   * Two lines outside the scale. `ring` is the 1px outline around popups,
+   * drawn together with their shadow; `focus` is the keyboard focus outline.
+   */
+  --color-ring: rgb(0 0 0 / 0.05);
+  --color-focus: color-mix(in srgb, var(--color-info) 90%, transparent);
+
+  /* Selected text, the same in both schemes. */
+  --color-selection: #ffef5c;
+
+  /* Field states outside the scale: focus halo, error halo and hover border, disabled border. */
+  --color-control-outline: rgba(5, 5, 5, 0.04);
+  --color-error-outline: rgba(255, 55, 30, 0.04);
+  --color-error-border-hover: #ffded9;
+  --color-border-disabled: #d9d9d9;
+
+  /* Chart series, in the order series take them. */
+  --color-chart-1: #0072f5;
+  --color-chart-2: #ee9e0b;
+  --color-chart-3: #379d4a;
+  --color-chart-4: #95f3d9;
+  --color-chart-5: #bd54c6;
+  --color-chart-6: #f4416c;
+  --color-chart-7: #ec5e41;
+  --color-chart-8: #888888;
+}
+
+.dark {
+  --color-canvas: #000000;
+  --color-container: #0d0d0d;
+  --color-elevated: #1a1a1a;
+  --color-border: #202020;
+  --color-border-secondary: #1a1a1a;
+  --color-shadow: rgba(255, 255, 255, 0.2);
+  --color-fill: rgba(255, 255, 255, 0.16);
+  --color-fill-secondary: rgba(255, 255, 255, 0.1);
+  --color-fill-tertiary: rgba(255, 255, 255, 0.06);
+  --color-fill-quaternary: rgba(255, 255, 255, 0.02);
+  --color-fg: #ffffff;
+  --color-fg-secondary: #aaaaaa;
+  --color-fg-tertiary: #6f6f6f;
+  --color-fg-quaternary: #555555;
+  --color-divider: rgba(230, 230, 230, 0.06);
+
+  --color-primary: #eeeeee;
+  --color-primary-hover: #ffffff;
+  --color-primary-active: #cccccc;
+  --color-primary-bg: #111111;
+  --color-primary-bg-hover: #333333;
+  --color-primary-border: #666666;
+
+  /* Success, error and info shift hue in dark (yellow-green, rose, sky) to stand out on black. */
+  --color-success: #c4f042;
+  --color-warning: #ffb224;
+  --color-warning-fill: rgba(247, 159, 0, 0.17);
+  --color-error: #f4416c;
+  --color-error-hover: #ffb0b7;
+  --color-error-active: #e43165;
+  --color-error-bg: #380015;
+  --color-error-bg-hover: #560023;
+  --color-info: #60b1ff;
+  --color-info-hover: #a7d3ff;
+  --color-info-active: #2d8ae0;
+  --color-info-fill: rgba(0, 88, 246, 0.26);
+
+  --color-ring: rgb(255 255 255 / 0.18);
+
+  --color-control-outline: rgba(213, 213, 213, 0.02);
+  --color-error-outline: rgba(57, 0, 21, 0.97);
+  --color-error-border-hover: #c10251;
+  --color-border-disabled: #424242;
+
+  --color-chart-1: #0072f5;
+  --color-chart-2: #ffb224;
+  --color-chart-3: #62c473;
+  --color-chart-4: #95f3d9;
+  --color-chart-5: #bd54c6;
+  --color-chart-6: #f4416c;
+  --color-chart-7: #ec5e41;
+  --color-chart-8: #777777;
+}
+
+/*
+ * Elevation. sm, md and lg deepen in `.dark`; the pure black ones are shared.
+ * The ones that reference color tokens are computed again on `.dark` so they
+ * follow the scheme. Drawer names say which edge the panel sits on.
+ */
 :root {
-  --accent: #4a4636;
-  --danger: #b42318;
-  --muted: #6b6b73;
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 4px rgb(0 0 0 / 0.02);
+  --elevation-md:
+    0 17.5px 23.4px rgb(0 0 0 / 0.04), 0 9.4px 12.5px rgb(0 0 0 / 0.03),
+    0 5.25px 7px rgb(0 0 0 / 0.02), 0 2.8px 3.7px -2px rgb(0 0 0 / 0.01),
+    0 1.2px 1.5px rgb(0 0 0 / 0.01);
+  --elevation-lg:
+    0 40px 80px rgb(0 0 0 / 0.06), 0 20px 40px rgb(0 0 0 / 0.05),
+    0 10px 20px rgb(0 0 0 / 0.04), 0 5px 10px rgb(0 0 0 / 0.03),
+    0 2px 4px rgb(0 0 0 / 0.02);
 }
 
-/* The shell is the viewport. Image screens stretch inside the main
-   column, so that column is a flex parent. */
-[data-app-layout].sidebar__provider,
-[data-app-layout][data-scroll-mode="content"] {
-  height: 100%;
-  min-height: 0;
+.dark {
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 4px rgb(0 0 0 / 0.03);
+  --elevation-md:
+    0 17.5px 23.4px rgb(0 0 0 / 0.06), 0 9.4px 12.5px rgb(0 0 0 / 0.05),
+    0 5.25px 7px rgb(0 0 0 / 0.03), 0 2.8px 3.7px -2px rgb(0 0 0 / 0.02),
+    0 1.2px 1.5px rgb(0 0 0 / 0.02);
+  --elevation-lg:
+    0 40px 80px rgb(0 0 0 / 0.09), 0 20px 40px rgb(0 0 0 / 0.08),
+    0 10px 20px rgb(0 0 0 / 0.06), 0 5px 10px rgb(0 0 0 / 0.05),
+    0 2px 4px rgb(0 0 0 / 0.03);
 }
 
-[data-app-layout][data-scroll-mode="content"] .app-layout__main {
-  display: flex;
-  flex-direction: column;
+:root,
+.dark {
+  --elevation-edge:
+    0 1px 0 -1px var(--color-border), 0 1px 2px -0.5px var(--color-border),
+    0 2px 2px -1px var(--color-border-secondary),
+    0 3px 6px -4px var(--color-border-secondary);
+  --elevation-drawer-left:
+    6px 0 16px 0 color-mix(in srgb, var(--color-shadow) 8%, transparent),
+    3px 0 6px -4px color-mix(in srgb, var(--color-shadow) 12%, transparent),
+    9px 0 28px 8px color-mix(in srgb, var(--color-shadow) 5%, transparent);
+  --elevation-drawer-right:
+    -6px 0 16px 0 color-mix(in srgb, var(--color-shadow) 8%, transparent),
+    -3px 0 6px -4px color-mix(in srgb, var(--color-shadow) 12%, transparent),
+    -9px 0 28px 8px color-mix(in srgb, var(--color-shadow) 5%, transparent);
 }
 
-/* ActionBar is viewport-fixed; inset it to the main column. */
-@media (min-width: 769px) {
-  [data-app-layout] .action-bar {
-    inset-inline-start: var(--sidebar-width, 240px);
+@theme {
+  /* Shared by Icon's `spin` and the spinner. */
+  --animate-spin: spin 0.6s linear infinite;
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
-  [data-app-layout]:has(
-      .sidebar[data-state="collapsed"]:not([data-collapsible="offcanvas"])
-    )
-    .action-bar {
-    inset-inline-start: var(--sidebar-width-collapsed, 48px);
+  /* Loading placeholders breathing. */
+  --animate-pulse: pulse 1.6s ease-in-out infinite;
+  @keyframes pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  /*
+   * Stacking scale. Anything that stacks against other components or the page
+   * takes one of these four steps. Layers inside one component (a cell above
+   * its neighbors, a highlight under its content) use small local values that
+   * never leave that component's own stacking context.
+   *
+   * The shell root is `isolate`, so `raise` and `stick` only order things
+   * inside it and can never cover popups portaled to body. `popup` is those
+   * popups' step: as body-level siblings of the shell they only need to beat
+   * it. `toast` mounts once at the root, before any popup opens, so it needs
+   * one more step to stay above an open dialog.
+   */
+  --z-index-raise: 1;
+  --z-index-stick: 20;
+  --z-index-popup: 50;
+  --z-index-toast: 60;
+}
+
+@layer base {
+  /* A bare `border` gives width only; its everyday color is border-secondary. */
+  * {
+    @apply border-border-secondary;
+  }
+
+  :root {
+    font-synthesis: style;
+    text-autospace: normal;
+  }
+
+  html {
+    overscroll-behavior: none;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    font-size: var(--text-base);
+    font-feature-settings: "cv01", "tnum", "kern";
+    font-variation-settings: "opsz" auto;
+    font-optical-sizing: auto;
+    font-kerning: normal;
+    font-variant-ligatures: common-ligatures contextual;
+    font-variant-numeric: tabular-nums;
+    font-size-adjust: from-font;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Unitless, so controls at other font sizes keep the proportion; 22px at the base size. */
+    line-height: calc(22 / 14);
+    color: var(--color-fg);
+    text-wrap: pretty;
+    text-rendering: optimizelegibility;
+    overflow-wrap: anywhere;
+    background-color: var(--color-canvas);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono) !important;
+    font-feature-settings:
+      "liga" 0,
+      "calt" 0;
+    font-variant-ligatures: none;
+
+    span {
+      font-family: var(--font-mono) !important;
+    }
+  }
+
+  ::selection {
+    color: #000;
+    background: var(--color-selection);
+    -webkit-text-fill-color: unset;
+  }
+
+  * {
+    scrollbar-color: var(--color-fill) transparent;
+    scrollbar-width: thin;
+    box-sizing: border-box;
+    vertical-align: baseline;
+  }
+
+  /*
+   * Component appearance depends on these resets differing from Tailwind's
+   * preflight: form controls inherit only family, size and line height and
+   * keep browser defaults for the rest; buttons keep the default padding; svg
+   * stays inline on the baseline; links take the info color.
+   */
+  button,
+  input,
+  select,
+  optgroup,
+  textarea {
+    font: revert;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: revert;
+  }
+
+  button {
+    padding: revert;
+  }
+
+  svg {
+    display: revert;
+    vertical-align: revert;
+  }
+
+  a {
+    color: var(--color-info);
+    text-decoration: none;
+    background-color: transparent;
+    outline: none;
+    cursor: pointer;
+    transition: color var(--duration-slower);
+    -webkit-text-decoration-skip: objects;
+
+    &:hover {
+      color: var(--color-info-hover);
+    }
+
+    &:active {
+      color: var(--color-info-active);
+    }
+
+    &[disabled] {
+      color: var(--color-fg-quaternary);
+      cursor: not-allowed;
+    }
+  }
+
+  /*
+   * Links, buttons and other focusable elements no component owns get the
+   * same focus ring. Component elements (classes starting with `ui-`) are
+   * excluded: their own CSS decides how focus looks.
+   */
+  :where(a, button, [tabindex], [role="checkbox"], [role="radio"]):not(
+    [class^="ui-"],
+    [class*=" ui-"]
+  ) {
+    @apply focus-ring;
+  }
+
+  /* An open menu trigger gets a fill. Triggers that paint their own background are unaffected. */
+  [aria-haspopup="menu"][data-popup-open] {
+    background: var(--color-fill-tertiary);
+  }
+}
+
+/*
+ * Keyboard focus. Component CSS writes `@apply focus-ring`; components that
+ * draw the outline on another element read the same variables. The color
+ * references a color token, so it is computed again on `.dark`.
+ */
+:root,
+.dark {
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-focus);
+  --focus-ring-animation: focus-ring-in var(--duration-slow) var(--ease-snap);
+
+  @media (prefers-reduced-motion: reduce) {
+    --focus-ring-animation: none;
+  }
+
+  @media (forced-colors: active) {
+    --focus-ring-color: CanvasText;
+    --focus-ring-animation: none;
+  }
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    animation: var(--focus-ring-animation);
+  }
+}
+
+@keyframes focus-ring-in {
+  from {
+    outline-color: transparent;
+    outline-offset: 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

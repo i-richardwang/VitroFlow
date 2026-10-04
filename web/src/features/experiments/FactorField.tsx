@@ -1,6 +1,6 @@
-import { Input, Label, TextField } from "@heroui/react";
-
 import type { TreatmentFactor } from "../../domain/experiments/schema";
+import { Form } from "../../ui/kit/Form";
+import { Input } from "../../ui/kit/Input";
 import { m } from "../../paraglide/messages";
 
 const EMPTY_FACTOR: TreatmentFactor = { name: "", level: "", unit: "" };
@@ -16,55 +16,40 @@ export function submittedFactor(
 }
 
 export function FactorField({
-  busy,
+  disabled,
   factor,
   onChange,
 }: {
-  busy: boolean;
+  disabled: boolean;
   factor: TreatmentFactor;
   onChange: (factor: TreatmentFactor) => void;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3">
-      <TextField
-        className="min-w-0 flex-1"
-        variant="secondary"
-        isDisabled={busy}
-        value={factor.name}
-        onChange={(name) => onChange({ ...factor, name })}
-      >
-        <Label>{m.treatment_factor_label()}</Label>
+    <div className="flex min-w-0 gap-3">
+      <Form.Field className="min-w-0 flex-1" label={m.treatment_factor_label()}>
         <Input
-          className="w-full"
+          disabled={disabled}
           placeholder={m.treatment_factor_placeholder()}
+          value={factor.name}
+          onValueChange={(name) => onChange({ ...factor, name })}
         />
-      </TextField>
-      <TextField
-        className="w-24 shrink-0"
-        variant="secondary"
-        isDisabled={busy}
-        value={factor.level}
-        onChange={(level) => onChange({ ...factor, level })}
-      >
-        <Label>{m.treatment_level_label()}</Label>
+      </Form.Field>
+      <Form.Field className="w-24 shrink-0" label={m.treatment_level_label()}>
         <Input
-          className="w-full"
+          disabled={disabled}
           placeholder={m.treatment_level_placeholder()}
+          value={factor.level}
+          onValueChange={(level) => onChange({ ...factor, level })}
         />
-      </TextField>
-      <TextField
-        className="w-28 shrink-0"
-        variant="secondary"
-        isDisabled={busy}
-        value={factor.unit}
-        onChange={(unit) => onChange({ ...factor, unit })}
-      >
-        <Label>{m.treatment_unit_label()}</Label>
+      </Form.Field>
+      <Form.Field className="w-24 shrink-0" label={m.treatment_unit_label()}>
         <Input
-          className="w-full"
+          disabled={disabled}
           placeholder={m.treatment_unit_placeholder()}
+          value={factor.unit}
+          onValueChange={(unit) => onChange({ ...factor, unit })}
         />
-      </TextField>
+      </Form.Field>
     </div>
   );
 }

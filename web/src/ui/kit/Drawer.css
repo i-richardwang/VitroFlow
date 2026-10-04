@@ -1,0 +1,179 @@
+/*
+ * Modifier classes on the same element share the base class's specificity and
+ * win by coming later. Enter and exit are played by motion, so there are no
+ * transitions here.
+ */
+
+.ui-drawer-backdrop {
+  position: fixed;
+  z-index: var(--z-index-popup);
+  inset: 0;
+
+  background: var(--color-mask-drawer);
+}
+
+.ui-drawer-popup {
+  pointer-events: none;
+
+  position: fixed;
+  z-index: var(--z-index-popup);
+
+  display: flex;
+
+  /* Size is clamped here, not on the panel: an oversized width narrows the box and the panel stays on its edge. */
+  max-width: 100dvw;
+  max-height: 100dvh;
+}
+
+.ui-drawer-popup-left {
+  inset-block: 0;
+  inset-inline-start: 0;
+}
+
+.ui-drawer-popup-right {
+  inset-block: 0;
+  inset-inline-end: 0;
+}
+
+.ui-drawer-panel {
+  pointer-events: auto;
+
+  position: relative;
+
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+
+  background: var(--color-container);
+}
+
+/* Only the two corners facing the content are rounded; the viewport edge stays square. */
+.ui-drawer-panel-left {
+  border-inline-end: 1px solid var(--color-border);
+  border-start-end-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+
+  box-shadow: var(--elevation-drawer-left);
+}
+
+.ui-drawer-panel-right {
+  border-inline-start: 1px solid var(--color-border);
+  border-start-start-radius: var(--radius-lg);
+  border-end-start-radius: var(--radius-lg);
+
+  box-shadow: var(--elevation-drawer-right);
+}
+
+.ui-drawer-header {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+
+  min-height: 56px;
+  padding-block: 12px;
+  padding-inline: 16px;
+  border-block-end: 1px solid var(--color-divider);
+}
+
+.ui-drawer-title {
+  margin: 0;
+
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-fg);
+  letter-spacing: -0.005em;
+}
+
+.ui-drawer-extra {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+
+  margin-inline-end: -4px;
+}
+
+.ui-drawer-extra-floating {
+  position: absolute;
+  z-index: var(--z-index-raise);
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+
+  margin-inline-end: 0;
+}
+
+.ui-drawer-close {
+  cursor: pointer;
+
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+
+  color: var(--color-fg-tertiary);
+
+  background: transparent;
+
+  transition:
+    color var(--duration-base) var(--ease-soft),
+    background var(--duration-base) var(--ease-soft),
+    transform var(--duration-base) var(--ease-soft);
+
+  /* Extends the 32px button to a 40px hit area without changing the header layout. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+
+  &:hover {
+    transform: scale(1.04);
+    color: var(--color-fg);
+    background: var(--color-fill-secondary);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  @apply focus-ring;
+}
+
+.ui-drawer-content {
+  overflow: hidden auto;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * The body grows with its content and is at least one panel tall. Stretched to
+ * exactly the panel height as a flex item, long content would overflow the box
+ * and the bottom padding would stay behind, leaving the content flush with the
+ * panel's bottom edge when scrolled to the end.
+ */
+.ui-drawer-body-content {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+
+  width: 100%;
+  min-height: 100%;
+  padding-block: 12px;
+  padding-inline: 16px;
+}

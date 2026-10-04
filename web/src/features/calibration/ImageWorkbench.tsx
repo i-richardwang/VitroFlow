@@ -1,5 +1,3 @@
-import { Segment } from "@heroui-pro/react/segment";
-import { Button, Separator } from "@heroui/react";
 import { useState } from "react";
 
 import { openChecks } from "../../domain/annotation/checks";
@@ -12,9 +10,14 @@ import {
 import type { ReviewSource } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
+import { Alert } from "../../ui/kit/Alert";
+import { Button } from "../../ui/kit/Button";
+import { ToggleGroup } from "../../ui/kit/ToggleGroup";
+import { ToolbarSeparator } from "../../ui/kit/Toolbar";
+import { ShellActions } from "../../ui/shell/shell";
 import {
   Workbench,
-  WorkbenchActions,
+  WorkbenchAlert,
   WorkbenchInspector,
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
@@ -24,7 +27,8 @@ import { BoxLayer, ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import { ReviewInspector } from "./ReviewInspector";
 import { sourceLabels } from "./labels";
 import { useCalibrationSession } from "./session";
-import { CalibrationTools, DiscardDraftDialog } from "./tools";
+import { DiscardDraftDialog } from "./DiscardDraftDialog";
+import { CalibrationTools } from "./tools";
 import type { LayerKey } from "./controls";
 import type { ImageWorkbenchContext } from "./types";
 
@@ -80,44 +84,59 @@ export function ImageWorkbench({
 
   return (
     <Workbench title={title}>
-      <WorkbenchActions>
+      <ShellActions>
         {calibration.status === "idle" ? (
           <>
-            <Button variant="primary" onPress={() => onCalibratingChange(true)}>
-              {m.workbench_calibrate()}
+            <Button type="primary" onClick={() => onCalibratingChange(true)}>
+              {m.calibration_calibrate()}
             </Button>
             {context.actions}
             {context.menu}
           </>
         ) : (
           <>
-            <Button
-              variant="tertiary"
-              isDisabled={saving}
-              onPress={calibration.close}
-            >
-              {m.cancel()}
+            <Button disabled={saving} onClick={calibration.close}>
+              {m.ui_cancel()}
             </Button>
             <Button
-              variant="primary"
-              isPending={calibration.status === "loading" || saving}
-              onPress={ready?.save}
+              type="primary"
+              loading={calibration.status === "loading" || saving}
+              disabled={ready?.conflict != null}
+              onClick={ready?.save}
             >
-              {saving ? m.workbench_saving() : m.workbench_save()}
+              {saving ? m.calibration_saving() : m.calibration_save()}
             </Button>
             <div inert={saving || undefined} className="contents">
               {context.menu}
             </div>
           </>
         )}
-      </WorkbenchActions>
+      </ShellActions>
+      {ready?.conflict ? (
+        <WorkbenchAlert>
+          <Alert
+            type="warning"
+            title={m.calibration_conflict()}
+            description={m.calibration_conflict_description()}
+            action={
+              <Button
+                size="small"
+                loading={ready.conflict.reloading}
+                onClick={ready.conflict.reload}
+              >
+                {m.calibration_reload()}
+              </Button>
+            }
+          />
+        </WorkbenchAlert>
+      ) : null}
       {ready ? (
         <WorkbenchToolbar
-          label={m.workbench_navigation_and_tools()}
+          label={m.calibration_navigation_and_tools()}
           inert={saving || undefined}
         >
           {context.toolbar}
-          {context.toolbar ? <Separator /> : null}
+          {context.toolbar ? <ToolbarSeparator /> : null}
           <CalibrationTools
             tool={ready.tool}
             history={ready.history}
@@ -134,24 +153,19 @@ export function ImageWorkbench({
           />
         </WorkbenchToolbar>
       ) : context.toolbar || sources.length > 1 ? (
-        <WorkbenchToolbar label={m.workbench_navigation()}>
+        <WorkbenchToolbar label={m.calibration_navigation()}>
           {context.toolbar}
-          {context.toolbar && sources.length > 1 ? <Separator /> : null}
+          {context.toolbar && sources.length > 1 ? <ToolbarSeparator /> : null}
           {sources.length > 1 ? (
-            <Segment
-              variant="ghost"
+            <ToggleGroup
               aria-label={m.image_boxes_shown()}
-              selectedKey={shown}
-              onSelectionChange={(key) => {
-                if (key !== null) onSourceChange(String(key) as ReviewSource);
-              }}
-            >
-              {sources.map((item) => (
-                <Segment.Item key={item} id={item}>
-                  {sourceLabels[item]()}
-                </Segment.Item>
-              ))}
-            </Segment>
+              value={shown}
+              options={sources.map((item) => ({
+                value: item,
+                label: sourceLabels[item](),
+              }))}
+              onChange={onSourceChange}
+            />
           ) : null}
         </WorkbenchToolbar>
       ) : null}
@@ -196,12 +210,7 @@ export function ImageWorkbench({
         )}
         <ChecksLayer image={review} checks={checks} layers={display.layers} />
       </ImageViewport>
-      {ready?.discard ? (
-        <DiscardDraftDialog
-          onStay={ready.discard.onStay}
-          onLeave={ready.discard.onLeave}
-        />
-      ) : null}
+      <DiscardDraftDialog discard={ready?.discard ?? null} />
     </Workbench>
   );
 }

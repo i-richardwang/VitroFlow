@@ -1,0 +1,63 @@
+.ui-checkbox {
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-xs);
+  color: var(--color-canvas);
+  background: var(--color-container);
+  outline: none;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+
+  &:hover:not([data-disabled], [data-checked], [data-indeterminate]) {
+    border-color: var(--color-border);
+  }
+
+  @apply focus-ring;
+
+  &[data-checked],
+  &[data-indeterminate] {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+  }
+
+  &[data-disabled] {
+    cursor: not-allowed;
+    border-color: var(--color-fill);
+    color: var(--color-fg);
+    opacity: 0.25;
+    background: var(--color-fill);
+  }
+}
+
+.ui-checkbox-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-checkbox-label {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+
+  &:has([data-disabled]) {
+    cursor: not-allowed;
+  }
+}
+
+.ui-checkbox-group {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 12px;
+}

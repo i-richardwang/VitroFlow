@@ -1,0 +1,166 @@
+/* Enter and exit scale and fade from the side away from the trigger: from below when above. */
+
+.ui-tooltip-positioner {
+  /* The entering spring is baked into linear(): stiffness 700, damping 38,
+     damping ratio about 0.72, overshoot about 4%. The duration is the spring's
+     settling time and changes with the curve. Only tooltips use this spring,
+     so it is not a motion token; fades and exits read the tokens. */
+  --ui-tooltip-animation-duration: 280ms;
+  --ui-tooltip-fade-duration: 160ms;
+  --ui-tooltip-fade-ease: var(--ease-fade);
+  --ui-tooltip-animation-duration-exit: 100ms;
+  --ui-tooltip-animation-translate: 3px;
+  --ui-tooltip-animation-scale: 0.97;
+  --ui-tooltip-animation-ease-in: var(--ease-accelerate);
+  --ui-tooltip-translate-x: 0;
+  --ui-tooltip-translate-y: calc(var(--ui-tooltip-animation-translate) * -1);
+  --ui-tooltip-animation-ease-out: linear(
+    0,
+    0.041,
+    0.14,
+    0.268,
+    0.407,
+    0.541,
+    0.662,
+    0.765,
+    0.849,
+    0.915,
+    0.964,
+    0.998,
+    1.02,
+    1.032,
+    1.038,
+    1.039,
+    1.036,
+    1.032,
+    1.027,
+    1.022,
+    1.016,
+    1.012,
+    1.008,
+    1.005,
+    1.003
+  );
+  will-change: transform, opacity;
+
+  z-index: var(--z-index-popup);
+
+  width: min(var(--positioner-width), 320px, var(--available-width));
+  height: var(--positioner-height);
+
+  transition-timing-function: var(--ui-tooltip-animation-ease-out);
+  transition-duration: var(--ui-tooltip-animation-duration);
+  transition-property: none;
+
+  &[data-instant] {
+    transition: none;
+  }
+
+  &[data-anchor-hidden] {
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  &[data-placement="top"] {
+    --ui-tooltip-translate-x: 0;
+    --ui-tooltip-translate-y: var(--ui-tooltip-animation-translate);
+  }
+
+  &[data-placement="bottom"],
+  &[data-placement="bottomLeft"],
+  &[data-placement="bottomRight"] {
+    --ui-tooltip-translate-x: 0;
+    --ui-tooltip-translate-y: calc(var(--ui-tooltip-animation-translate) * -1);
+  }
+
+  &[data-placement="right"] {
+    --ui-tooltip-translate-x: calc(var(--ui-tooltip-animation-translate) * -1);
+    --ui-tooltip-translate-y: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    --ui-tooltip-animation-duration: 0s;
+    --ui-tooltip-fade-duration: 0s;
+    --ui-tooltip-animation-duration-exit: 0s;
+  }
+}
+
+.ui-tooltip-popup {
+  /* The popup stays on its own compositor layer. Otherwise the browser drops
+     the layer when the opacity transition ends and re-rasterizes on whole
+     pixels, and a fractional width (single-line tooltips) jumps for a frame. */
+  will-change: transform, opacity;
+  user-select: none;
+
+  position: relative;
+  transform-origin: var(--transform-origin);
+
+  box-sizing: border-box;
+
+  /* The 320px cap is on the viewport: Base UI sets --available-width to
+     max-content while measuring, where min(320px, max-content) is invalid and
+     the unclamped size would be measured. */
+  max-width: var(--available-width);
+  border-radius: var(--radius-sm);
+
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: var(--color-fg-secondary);
+
+  background: var(--color-elevated);
+  box-shadow:
+    var(--elevation-sm),
+    0 0 0 1px var(--color-ring);
+
+  /* Opacity uses a monotonic curve: on the overshooting spring it seems to stall
+     near 0.96 and then jump to 1 where it clamps, which reads as a dropped
+     frame. The spring drives only transform. */
+  transition-timing-function:
+    var(--ui-tooltip-fade-ease), var(--ui-tooltip-animation-ease-out);
+  transition-duration:
+    var(--ui-tooltip-fade-duration), var(--ui-tooltip-animation-duration);
+  transition-property: opacity, transform;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: translate3d(
+        var(--ui-tooltip-translate-x),
+        var(--ui-tooltip-translate-y),
+        0
+      )
+      scale(var(--ui-tooltip-animation-scale));
+    opacity: 0;
+  }
+
+  &[data-ending-style] {
+    transition-timing-function: var(--ui-tooltip-animation-ease-in);
+    transition-duration: var(--ui-tooltip-animation-duration-exit);
+  }
+
+  &[data-instant] {
+    transition: none;
+  }
+}
+
+.ui-tooltip-viewport {
+  position: relative;
+
+  overflow: clip;
+
+  max-width: calc(320px - 2px);
+  padding-block: 4px;
+  padding-inline: 8px;
+
+  overflow-wrap: break-word;
+  white-space: normal;
+
+  [data-current] {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+}
+
+.ui-tooltip-disabled-trigger {
+  display: inline-flex;
+}

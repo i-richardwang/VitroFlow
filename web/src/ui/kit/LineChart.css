@@ -1,0 +1,23 @@
+/* The legend sits 20px above the plot. */
+.ui-line-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.ui-line-chart-plot {
+  flex: 1;
+  min-height: 0;
+}
+
+.ui-line-chart-grid-lines {
+  stroke: var(--color-border-secondary);
+  stroke-width: 1;
+}
+
+.ui-line-chart-label {
+  font-size: var(--text-xs);
+  line-height: 16px;
+  fill: var(--color-fg-tertiary);
+}

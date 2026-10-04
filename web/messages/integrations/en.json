@@ -5,8 +5,6 @@
   "integrations_api_keys": "API keys",
   "integrations_mcp_clients": "MCP clients",
   "integrations_mcp_servers": "MCP servers",
-  "integrations_copy": "Copy",
-  "integrations_copied": "Copied",
   "api_key_scope_agent": "Agent interface",
   "api_key_scope_transfer": "Dataset transfer",
   "api_key_column_name": "Name",
@@ -20,7 +18,7 @@
   "api_key_revoke_title": "Revoke {name}?",
   "api_key_revoked": "{name} revoked",
   "api_key_dialog_title": "New API key",
-  "api_key_dialog_shown_once": "Shown only once.",
+  "api_key_dialog_shown_once": "Copy the key now; it is shown only once. Anyone holding it can act within its scopes.",
   "api_key_dialog_secret_label": "API key",
   "api_key_dialog_name_label": "Name",
   "api_key_dialog_name_placeholder": "Claude on the lab laptop",
@@ -31,7 +29,6 @@
   "api_key_expiry_1_year": "1 year",
   "api_key_expiry_never": "Never",
   "api_key_dialog_create": "Create",
-  "api_key_dialog_creating": "Creating…",
   "api_key_not_created": "API key not created",
   "mcp_column_client": "Client",
   "mcp_column_approved": "Approved",
@@ -42,5 +39,11 @@
   "mcp_disconnected": "{name} disconnected",
   "mcp_server_experiments": "Experiments MCP",
   "mcp_server_annotation": "Annotation MCP",
-  "mcp_column_servers": "Access"
+  "mcp_column_servers": "Access",
+  "api_key_expired": "Expired",
+  "api_key_never_used": "Never used",
+  "api_key_empty_description": "Create one so a script or agent can reach this workbench.",
+  "mcp_empty_description": "Add a server address above to your MCP client; it appears here once you approve it.",
+  "api_key_start": "{start}…",
+  "api_key_issued_title": "Save this key"
 }

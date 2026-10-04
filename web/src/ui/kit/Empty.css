@@ -1,0 +1,49 @@
+.ui-empty-icon-box {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  margin-block-end: 4px;
+}
+
+:where(:root:not(.dark)) .ui-empty-icon svg {
+  stroke: var(--color-fg-secondary);
+}
+
+:where(.dark) .ui-empty-icon svg {
+  stroke: var(--color-fg-quaternary);
+}
+
+.ui-empty-icon-bare {
+  color: var(--color-fg-quaternary);
+}
+
+.ui-empty-image-shadow {
+  fill: var(--color-fill-tertiary);
+}
+
+.ui-empty-image-card {
+  fill: var(--color-container);
+  stroke: var(--color-border);
+}
+
+.ui-empty-image-line {
+  fill: var(--color-fill-secondary);
+}
+
+.ui-empty-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-fg);
+  text-align: center;
+}
+
+.ui-empty-description {
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+  text-align: center;
+}
+
+.ui-empty-description-large {
+  font-size: var(--text-base);
+  color: var(--color-fg-secondary);
+}

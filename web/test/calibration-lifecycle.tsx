@@ -1,37 +1,19 @@
-/** Isolated DOM harness: real workbench, draft and viewport; external UI widgets are inert. */
+/** Isolated DOM harness: real workbench, draft, viewport, controls and menus. */
 import assert from "node:assert/strict";
 import { mock } from "bun:test";
-import { Window } from "happy-dom";
-import {
-  act,
-  createContext,
-  createElement,
-  useContext,
-  type ReactNode,
-} from "react";
-import { createRoot } from "react-dom/client";
+import { act, createElement, type ReactNode } from "react";
 
-const browser = new Window({ url: "http://localhost" });
-for (const key of [
-  "window",
-  "document",
-  "navigator",
-  "HTMLElement",
-  "Element",
-  "Node",
-  "Event",
-  "KeyboardEvent",
-  "MouseEvent",
-  "MutationObserver",
-  "getComputedStyle",
-] as const) {
-  const value = key === "window" ? browser : browser[key];
-  Object.defineProperty(globalThis, key, { configurable: true, value });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
-  configurable: true,
-  value: true,
-});
+import {
+  body,
+  browser,
+  button,
+  mount,
+  press,
+  render as renderNode,
+  unmount,
+  waitFor,
+} from "./dom";
+
 Object.defineProperty(browser.HTMLElement.prototype, "clientWidth", {
   configurable: true,
   get: () => 600,
@@ -40,153 +22,53 @@ Object.defineProperty(browser.HTMLElement.prototype, "clientHeight", {
   configurable: true,
   get: () => 400,
 });
-let observed = 0;
-let disconnected = 0;
+/** Elements each resize observer watched, and those whose observer let go. */
+const observations: unknown[] = [];
+const disconnections: unknown[] = [];
 Object.defineProperty(globalThis, "ResizeObserver", {
   configurable: true,
   value: class {
-    observe() {
-      observed++;
+    targets: unknown[] = [];
+    observe(target: unknown) {
+      this.targets.push(target);
+      observations.push(target);
     }
+    unobserve() {}
     disconnect() {
-      disconnected++;
+      disconnections.push(...this.targets);
     }
   },
 });
 
-function Widget({ children }: { children?: ReactNode }) {
+function Passthrough({ children }: { children?: ReactNode }) {
   return createElement("div", null, children);
 }
-const widget = Object.assign(
-  Widget,
-  Object.fromEntries(
-    [
-      "Content",
-      "Trigger",
-      "Value",
-      "Indicator",
-      "Popover",
-      "Item",
-      "ItemIndicator",
-      "Separator",
-      "Backdrop",
-      "Container",
-      "Dialog",
-      "Header",
-      "Heading",
-      "Footer",
-      "Control",
-      "Thumb",
-      "Label",
-      "Track",
-      "Fill",
-      "Title",
-    ].map((name) => [name, Widget]),
-  ),
-);
-function Button({
-  children,
-  onPress,
-  isPending,
-  isDisabled,
-}: {
-  children?: ReactNode;
-  onPress?: () => void;
-  isPending?: boolean;
-  isDisabled?: boolean;
-}) {
-  return createElement(
-    "button",
-    { onClick: onPress, disabled: isPending || isDisabled },
-    children,
-  );
-}
-const selections = new Map<string, (key: string) => void>();
-function SelectionWidget(props: {
-  children?: ReactNode;
-  selectedKey?: string;
-  onSelectionChange?: (key: string) => void;
-}) {
-  if (props.selectedKey && props.onSelectionChange)
-    selections.set(props.selectedKey, props.onSelectionChange);
-  return Widget(props);
-}
-const selectWidget = Object.assign(SelectionWidget, widget);
-const DropdownActions = createContext<((key: string) => void) | null>(null);
-function DropdownMenu(props: {
-  children?: ReactNode;
-  onAction?: (key: string) => void;
-}) {
-  return createElement(
-    DropdownActions.Provider,
-    { value: props.onAction ?? null },
-    props.children,
-  );
-}
-function DropdownItem(props: { id: string; children?: ReactNode }) {
-  const onAction = useContext(DropdownActions);
-  return createElement(
-    "button",
-    { onClick: () => onAction?.(props.id), "data-item": props.id },
-    props.children,
-  );
-}
-const dropdownWidget = Object.assign(Widget, {
-  ...widget,
-  Menu: DropdownMenu,
-  Item: DropdownItem,
-});
-mock.module("@heroui/react", () => ({
-  Dropdown: dropdownWidget,
-  Chip: widget,
-  ColorSwatch: widget,
-  Alert: widget,
-  AlertDialog: widget,
-  Description: widget,
-  Button,
-  ButtonGroup: widget,
-  Kbd: widget,
-  ListBox: Object.assign(DropdownMenu, { ...widget, Item: DropdownItem }),
-  Select: selectWidget,
-  Label: widget,
-  TextField: widget,
-  TextArea: widget,
-  ProgressBar: widget,
-  Separator: widget,
-  ToggleButton: widget,
-  ToggleButtonGroup: widget,
-  Tooltip: widget,
-  Card: widget,
-  Toolbar: widget,
-  Switch: widget,
-  SwitchGroup: widget,
-  toast: { danger() {}, warning() {}, success() {} },
-}));
-mock.module("@heroui-pro/react/inline-select", () => ({
-  InlineSelect: widget,
-}));
-mock.module("@heroui-pro/react/segment", () => ({
-  Segment: selectWidget,
-}));
 mock.module("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: async () => {} }),
   useBlocker: () => ({ status: "idle" }),
 }));
 mock.module("../src/ui/shell/shell", () => ({
-  ShellActions: Widget,
+  ShellActions: Passthrough,
   ShellAside: ({ children }: { children?: ReactNode }) =>
     createElement("aside", null, children),
 }));
 let saved: { data: { base: unknown; instances: unknown } } | undefined;
+let saves = 0;
+/** What the next save answers once released. */
+let saveStatus: "saved" | "conflict" = "saved";
+let releaseSave: (() => void) | undefined;
 let resolveAnnotation: ((value: unknown) => void) | undefined;
 mock.module("../src/functions/review", () => ({
   getAnnotation: () =>
     new Promise((resolve) => {
       resolveAnnotation = resolve;
     }),
-  saveAnnotation: async (request: typeof saved) => {
+  saveAnnotation: (request: typeof saved) => {
+    saves++;
     saved = request;
-    return { status: "saved" };
+    return new Promise((resolve) => {
+      releaseSave = () => resolve({ status: saveStatus });
+    });
   },
 }));
 const { ImageWorkbench } =
@@ -230,35 +112,47 @@ const review = {
   annotation,
   progress: null,
 };
-const mount = browser.document.createElement("div");
-browser.document.body.append(mount);
-const root = createRoot(mount as unknown as HTMLElement);
 let source: "review" | "proposal" | "detection" | undefined;
-const render = async (calibrating: boolean, model = SEED_DETECTOR) => {
-  await act(async () => {
-    root.render(
-      createElement(ImageWorkbench, {
-        title: "Seed",
-        model,
-        review: { ...review, ref: { ...review.ref, modelId: model.id } },
-        calibrating,
-        source,
-        onSourceChange(next) {
-          source = next;
-        },
-        onCalibratingChange() {},
-      }),
-    );
-  });
+const render = (calibrating: boolean, model = SEED_DETECTOR) =>
+  renderNode(
+    createElement(ImageWorkbench, {
+      title: "Seed",
+      model,
+      review: { ...review, ref: { ...review.ref, modelId: model.id } },
+      calibrating,
+      source,
+      onSourceChange(next) {
+        source = next;
+      },
+      onCalibratingChange() {},
+    }),
+  );
+/** A busy button stays focusable and shows it is busy. */
+const pending = (
+  element: { getAttribute(name: string): string | null } | undefined,
+) => element?.getAttribute("aria-busy") === "true";
+/** Opens the draft's reset menu and chooses the reading to start again from. */
+const resetTo = async (source: string) => {
+  await press(
+    body.querySelector(`button[aria-label="${m.calibration_restart()}"]`),
+  );
+  await press(
+    await waitFor(
+      () =>
+        Array.from(body.querySelectorAll('[role="menuitem"]')).find(
+          (entry) =>
+            entry.textContent === m.calibration_restart_from({ source }),
+        ),
+      "the reset menu offers the reading",
+    ),
+  );
 };
-const item = (id: string) =>
-  Array.from(mount.querySelectorAll("button")).find(
-    (button) => button.getAttribute("data-item") === id,
-  );
-const labeled = (text: string) =>
-  Array.from(mount.querySelectorAll("button")).find(
-    (button) => button.textContent === text,
-  );
+/** Clicks a busy Save button and tells whether no further save started. */
+const refuses = async (element: { click(): void } | undefined) => {
+  const before = saves;
+  await act(async () => element!.click());
+  return saves === before;
+};
 await render(false);
 const image = mount.querySelector("img")!;
 const surface = image.parentElement! as import("happy-dom").HTMLElement;
@@ -267,8 +161,12 @@ const boxes = () =>
   surface.querySelectorAll("rect[vector-effect]:not([stroke-dasharray])")
     .length;
 const checks = () => surface.querySelectorAll("rect[stroke-dasharray]").length;
+/** How often the viewport's frame was observed, and released, for resizing. */
+const observed = () => observations.filter((target) => target === frame).length;
+const disconnected = () =>
+  disconnections.filter((target) => target === frame).length;
 assert.equal(boxes(), 1, "the reviewer's boxes outrank the agent's");
-await act(async () => selections.get("review")!("proposal"));
+await act(async () => button(m.calibration_source_proposal())!.click());
 await render(false);
 assert.equal(boxes(), 3, "the page can show the agent's reading instead");
 assert.equal(checks(), 2, "the agent's reading outlines what it asks to check");
@@ -339,8 +237,8 @@ assert.ok(
   mount.querySelector("aside"),
   "loading must retain the inspector layout slot",
 );
-assert.ok(labeled(m.workbench_save())?.disabled, "loading must pending Save");
-assert.equal(labeled(m.workbench_calibrate()), undefined);
+assert.ok(pending(button(m.calibration_save())), "loading must pending Save");
+assert.equal(button(m.calibration_calibrate()), undefined);
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(surface.style.transform, held);
 assert.equal(boxes(), 1);
@@ -366,13 +264,13 @@ await act(async () => {
 });
 assert.equal(boxes(), 2, "calibration must display the fetched annotation");
 assert.equal(boxes(), 2, "an available proposal must not replace the draft");
-await act(async () => item("proposal")!.click());
+await resetTo(m.calibration_source_proposal());
 assert.equal(boxes(), 3, "resetting to the proposal replaces the draft");
 assert.equal(checks(), 2, "a draft from the proposal keeps its checks");
-await act(async () => item("review")!.click());
+await resetTo(m.calibration_source_review());
 assert.equal(boxes(), 2, "resetting to the review restores the stored boxes");
 assert.equal(checks(), 0);
-await act(async () => item("proposal")!.click());
+await resetTo(m.calibration_source_proposal());
 assert.equal(boxes(), 3);
 await act(async () => {
   browser.window.dispatchEvent(
@@ -388,12 +286,40 @@ assert.equal(checks(), 0, "Undo restores the draft's lineage with its boxes");
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(surface.style.transform, held);
 
-const save = labeled(m.workbench_save());
+saveStatus = "conflict";
+await act(async () => button(m.calibration_save())!.click());
+assert.ok(pending(button(m.calibration_saving())), "saving pends Save");
+assert.ok(
+  await refuses(button(m.calibration_saving())),
+  "a pending Save refuses presses",
+);
+await act(async () => releaseSave?.());
+const conflict = () =>
+  Array.from(body.querySelectorAll('[role="alert"]')).find((alert) =>
+    alert.textContent?.includes(m.calibration_conflict()),
+  );
+assert.ok(conflict(), "a save conflict stays on the page");
+assert.equal(
+  button(m.calibration_save())?.getAttribute("aria-disabled"),
+  "true",
+  "a conflicted draft cannot be saved again",
+);
+assert.equal(boxes(), 2, "the draft survives the conflict");
+await act(async () => button(m.calibration_reload())!.click());
+await act(async () => {
+  resolveAnnotation?.(latest);
+});
+assert.equal(conflict(), undefined, "reloading clears the conflict");
+assert.equal(boxes(), 2, "the reloaded draft starts from the stored review");
+
+saveStatus = "saved";
+const save = button(m.calibration_save());
 assert.ok(save);
-assert.equal(save.disabled, false);
+assert.equal(pending(save), false);
 await act(async () => {
   save.click();
 });
+await act(async () => releaseSave?.());
 assert.deepEqual(saved?.data.base, latest.instances);
 assert.deepEqual(
   saved?.data.instances,
@@ -410,25 +336,25 @@ assert.strictEqual(
   held,
   "calibration must preserve scale and pan",
 );
-assert.equal(observed, 1, "calibration must not remount the viewport");
-assert.equal(disconnected, 0);
+assert.equal(observed(), 1, "calibration must not remount the viewport");
+assert.equal(disconnected(), 0);
 await render(false);
-assert.ok(labeled(m.workbench_calibrate()));
+assert.ok(button(m.calibration_calibrate()));
 assert.strictEqual(mount.querySelector("img"), image);
 assert.equal(
   surface.style.transform,
   held,
   "leaving calibration must preserve scale and pan",
 );
-assert.equal(observed, 1);
+assert.equal(observed(), 1);
 await render(true);
-assert.ok(labeled(m.workbench_save())?.disabled);
+assert.ok(pending(button(m.calibration_save())));
 await render(false);
 await act(async () => {
   resolveAnnotation?.(latest);
 });
 assert.ok(
-  labeled(m.workbench_calibrate()),
+  button(m.calibration_calibrate()),
   "a cancelled load must not start a session",
 );
 assert.equal(boxes(), 1);
@@ -446,7 +372,7 @@ const otherModel = {
 };
 await render(true, otherModel);
 assert.ok(
-  labeled(m.workbench_save())?.disabled,
+  pending(button(m.calibration_save())),
   "a different model must load its own baseline",
 );
 assert.equal(boxes(), 1);
@@ -456,20 +382,20 @@ await act(async () => {
   resolveAnnotation?.(null);
 });
 assert.equal(boxes(), 0);
-const otherSave = labeled(m.workbench_save());
+const otherSave = button(m.calibration_save());
 assert.ok(otherSave);
-assert.equal(otherSave.disabled, false);
+assert.equal(pending(otherSave), false);
 await act(async () => {
   otherSave.click();
 });
+await act(async () => releaseSave?.());
 assert.equal(saved?.data.base, null);
 assert.deepEqual(
   saved?.data.instances,
   [],
   "a first review must not inherit another model's annotation",
 );
-assert.equal(observed, 1);
-await act(async () => root.unmount());
-assert.equal(disconnected, 1);
-await browser.happyDOM.close();
+assert.equal(observed(), 1);
+await unmount();
+assert.equal(disconnected(), 1);
 console.log("Calibration retains one viewport");

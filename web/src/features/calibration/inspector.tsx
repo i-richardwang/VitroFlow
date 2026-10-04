@@ -1,45 +1,12 @@
-import { Switch, SwitchGroup } from "@heroui/react";
 import type { ReactNode } from "react";
 
 import { classCount, count, type Tally } from "../../domain/models/classes";
-import { ClassLabel, LAYERS, type LayerKey } from "./controls";
-import { formatCount } from "../../ui/readings";
 import { m } from "../../paraglide/messages";
-
-export function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-export interface Metric {
-  label: ReactNode;
-  value: ReactNode;
-}
-
-export function Metrics({ rows }: { rows: Metric[] }) {
-  return (
-    <dl className="space-y-1.5">
-      {rows.map((row, index) => (
-        <div key={index} className="flex items-baseline justify-between gap-3">
-          <dt className="text-muted">{row.label}</dt>
-          <dd className="truncate font-mono font-medium tabular-nums">
-            {row.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
+import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { Switch } from "../../ui/kit/Switch";
+import { formatCount } from "../../ui/readings";
+import { WorkbenchSection } from "../../ui/shell/Workbench";
+import { ClassLabel, LAYERS, type LayerKey } from "./controls";
 
 /** One reading of the same image, named by where its instances came from. */
 export interface CountSource {
@@ -47,10 +14,19 @@ export interface CountSource {
   tally: Tally;
 }
 
+/** Values side by side in equal columns, so the columns of stacked rows line up. */
+function Columns({ children }: { children: ReactNode }) {
+  return (
+    <span className="grid auto-cols-fr grid-flow-col gap-3 text-end tabular-nums">
+      {children}
+    </span>
+  );
+}
+
 /**
  * What each reading of this image found, per class the model recognizes, with
  * the total when it recognizes more than one. Readings sit side by side, best
- * first.
+ * first, under their names when there is more than one.
  */
 export function CountsSection({
   classes,
@@ -71,58 +47,39 @@ export function CountsSection({
       of: (counts: Tally) => classCount(counts, name),
     })),
     ...(classes.length > 1
-      ? [{ key: "total", label: m.workbench_count_total(), of: count }]
+      ? [{ key: "total", label: m.calibration_count_total(), of: count }]
       : []),
   ];
-  if (sources.length === 1) {
-    const [only] = sources;
-    return (
-      <Section title={m.workbench_section_metrics()}>
-        <Metrics
-          rows={rows.map((row) => ({
-            label: row.label,
-            value: formatCount(row.of(only!.tally)),
-          }))}
-        />
-      </Section>
-    );
-  }
   return (
-    <Section title={m.workbench_section_metrics()}>
-      <table className="w-full border-separate border-spacing-y-1.5">
-        <thead>
-          <tr>
-            <td />
-            {sources.map((source) => (
-              <th
-                key={source.label}
-                scope="col"
-                className="text-right font-normal text-muted"
-              >
-                {source.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <th scope="row" className="text-left font-normal text-muted">
-                {row.label}
-              </th>
+    <WorkbenchSection title={m.calibration_section_metrics()}>
+      <Descriptions>
+        {sources.length > 1 ? (
+          <DescriptionsItem label={null}>
+            <Columns>
               {sources.map((source) => (
-                <td
+                <span
                   key={source.label}
-                  className="text-right font-mono font-medium tabular-nums"
+                  className="truncate text-xs text-fg-secondary"
                 >
-                  {formatCount(row.of(source.tally))}
-                </td>
+                  {source.label}
+                </span>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Section>
+            </Columns>
+          </DescriptionsItem>
+        ) : null}
+        {rows.map((row) => (
+          <DescriptionsItem key={row.key} label={row.label}>
+            <Columns>
+              {sources.map((source) => (
+                <span key={source.label}>
+                  {formatCount(row.of(source.tally))}
+                </span>
+              ))}
+            </Columns>
+          </DescriptionsItem>
+        ))}
+      </Descriptions>
+    </WorkbenchSection>
   );
 }
 
@@ -144,28 +101,22 @@ export function LayersSection({
   };
 
   return (
-    <Section title={m.workbench_section_layers()}>
-      <SwitchGroup
-        role="group"
-        aria-label={m.workbench_section_layers()}
-        className="gap-2"
-      >
+    <WorkbenchSection title={m.calibration_section_layers()}>
+      <div role="group" aria-label={m.calibration_section_layers()}>
         {LAYERS.map((layer) => (
-          <Switch
+          <label
             key={layer.key}
-            size="sm"
-            isSelected={layers.has(layer.key)}
-            onChange={(on) => toggle(layer.key, on)}
+            className="flex cursor-pointer items-center justify-between gap-3 py-1.5 text-sm"
           >
-            <Switch.Content className="flex w-full items-center justify-between">
-              {layer.label()}
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-            </Switch.Content>
-          </Switch>
+            {layer.label()}
+            <Switch
+              size="small"
+              checked={layers.has(layer.key)}
+              onChange={(on) => toggle(layer.key, on)}
+            />
+          </label>
         ))}
-      </SwitchGroup>
-    </Section>
+      </div>
+    </WorkbenchSection>
   );
 }

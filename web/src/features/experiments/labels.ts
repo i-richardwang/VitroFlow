@@ -19,3 +19,12 @@ const CULTURE_EVENT_LABELS: Record<CultureEventType, () => string> = {
 export function cultureEventLabel(type: CultureEventType): string {
   return CULTURE_EVENT_LABELS[type]();
 }
+
+/** Facts of one thing, side by side in a single line. */
+export function joinFacts(facts: readonly string[]): string {
+  return facts.reduce(
+    (first, second) =>
+      first === "" ? second : m.experiment_facts_joined({ first, second }),
+    "",
+  );
+}

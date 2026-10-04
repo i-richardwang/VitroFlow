@@ -1,0 +1,64 @@
+.ui-chart-tooltip {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  width: max-content;
+  min-width: 160px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
+
+  color: var(--color-fg);
+
+  background: var(--color-elevated);
+  box-shadow: var(--elevation-lg);
+}
+
+.ui-chart-tooltip-header {
+  overflow: hidden;
+
+  padding-block: 8px;
+  padding-inline: 16px;
+  border-bottom: 1px solid var(--color-border-secondary);
+
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-chart-tooltip-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  margin-block-start: 4px;
+  padding-block: 8px;
+  padding-inline: 16px;
+}
+
+.ui-chart-tooltip-row {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ui-chart-tooltip-row-name {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ui-chart-tooltip-row-title {
+  overflow: hidden;
+  color: var(--color-fg-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-chart-tooltip-row-number {
+  flex-shrink: 0;
+  font-weight: 500;
+  white-space: nowrap;
+}

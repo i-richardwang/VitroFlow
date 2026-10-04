@@ -1,0 +1,178 @@
+/*
+ * The area is a faint fill with a dashed outline drawn by `::before`, so the
+ * outline can brighten while files are held over it without shifting the
+ * layout. Files are rows of a bordered list under the area.
+ */
+
+.ui-drop-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.ui-drop-zone-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding-block: 24px;
+  padding-inline: 28px;
+  border-radius: var(--radius-lg);
+  background: var(--color-fill-quaternary);
+  transition: background-color var(--duration-slow) var(--ease-out);
+
+  &::before {
+    pointer-events: none;
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px dashed var(--color-fg-quaternary);
+    border-radius: inherit;
+    transition: border-color var(--duration-slow) var(--ease-out);
+  }
+
+  &[data-dragging] {
+    background: var(--color-fill-tertiary);
+
+    &::before {
+      border-color: var(--color-fg-tertiary);
+    }
+  }
+
+  &[data-disabled] {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.ui-drop-zone-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  color: var(--color-fg-secondary);
+  background: var(--color-fill-secondary);
+}
+
+.ui-drop-zone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  text-align: center;
+}
+
+.ui-drop-zone-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: var(--text-base--line-height);
+  color: var(--color-fg);
+}
+
+.ui-drop-zone-description {
+  max-width: 320px;
+  font-size: var(--text-xs);
+  line-height: 18px;
+  color: var(--color-fg-secondary);
+}
+
+.ui-drop-zone-input {
+  display: none;
+}
+
+.ui-drop-zone-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-drop-zone-file {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-md);
+  background: var(--color-container);
+}
+
+.ui-drop-zone-file-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-fg-secondary);
+  background: var(--color-fill-tertiary);
+}
+
+.ui-drop-zone-file-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ui-drop-zone-file-name {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ui-drop-zone-file-meta {
+  display: flex;
+  gap: 8px;
+  font-size: var(--text-xs);
+  line-height: 18px;
+  color: var(--color-fg-tertiary);
+  white-space: nowrap;
+
+  > span {
+    flex: none;
+  }
+
+  > .ui-drop-zone-file-status {
+    overflow: hidden;
+    flex: 0 1 auto;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+}
+
+.ui-drop-zone-file[data-status="done"] .ui-drop-zone-file-status {
+  color: var(--color-success);
+}
+
+.ui-drop-zone-file[data-status="error"] .ui-drop-zone-file-status {
+  color: var(--color-error);
+}
+
+.ui-drop-zone-file-progress {
+  margin-block-start: 4px;
+}
+
+.ui-drop-zone-file-actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+}

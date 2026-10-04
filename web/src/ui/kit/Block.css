@@ -1,0 +1,13 @@
+.ui-block {
+  position: relative;
+  border-radius: var(--radius-md);
+}
+
+.ui-block-filled {
+  background: var(--color-fill-tertiary);
+}
+
+.ui-block-outlined {
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-container);
+}

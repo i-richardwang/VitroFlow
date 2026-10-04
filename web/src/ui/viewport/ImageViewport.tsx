@@ -1,4 +1,3 @@
-import { Button, Toolbar } from "@heroui/react";
 import {
   createContext,
   use,
@@ -14,6 +13,8 @@ import {
 import type { Point } from "../../domain/annotation/geometry";
 import type { ImageSize } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
+import { Button } from "../kit/Button";
+import { Toolbar } from "../kit/Toolbar";
 import {
   FILL,
   pannedTo,
@@ -215,20 +216,20 @@ export function ImageViewport({
         <ViewportContext value={handle}>{children}</ViewportContext>
       </div>
       <Toolbar
-        isAttached
-        aria-label={m.workbench_zoom()}
+        aria-label={m.ui_viewport_zoom()}
         className="absolute bottom-3 left-1/2 -translate-x-1/2"
+        onPointerDown={(event) => event.stopPropagation()}
       >
-        <span className="w-12 text-center font-mono text-xs tabular-nums text-muted">
+        <span className="w-12 text-center text-xs text-fg-secondary tabular-nums">
           {Math.round(view.scale * 100)}%
         </span>
         <Button
-          variant="ghost"
-          size="sm"
-          isDisabled={view.filled}
-          onPress={() => setIntent(FILL)}
+          type="text"
+          size="small"
+          disabled={view.filled}
+          onClick={() => setIntent(FILL)}
         >
-          {m.workbench_fill()}
+          {m.ui_viewport_fill()}
         </Button>
       </Toolbar>
     </div>

@@ -3,8 +3,6 @@ x-web-image: &web-image
   build:
     context: .
     dockerfile: Dockerfile.web
-    args:
-      HEROUI_KEY: ${HEROUI_KEY:-}
 
 x-storage-environment: &storage-environment
   DATABASE_URL: postgres://${POSTGRES_USER:-vitroflow}:${POSTGRES_PASSWORD:-vitroflow}@postgres:5432/${POSTGRES_DB:-vitroflow}

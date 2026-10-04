@@ -1,0 +1,15 @@
+.ui-toolbar {
+  position: relative;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-md);
+  background: var(--color-container);
+  box-shadow: var(--elevation-edge);
+}
+
+.ui-toolbar-separator {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin-inline: 2px;
+  background: var(--color-divider);
+}

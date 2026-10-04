@@ -1,38 +1,31 @@
-import { FieldError, Input, Label, TextField } from "@heroui/react";
-
 import { MIN_PASSWORD_LENGTH } from "../../domain/auth/schema";
+import { Form } from "../../ui/kit/Form";
+import { InputPassword } from "../../ui/kit/Input";
 
 export function PasswordField({
   label,
-  isDisabled,
+  description,
+  disabled,
   name = "password",
   autoComplete = "new-password",
-  isInvalid = false,
-  errorMessage,
-  variant = "primary",
+  autoFocus,
 }: {
   label: string;
-  isDisabled: boolean;
+  description?: string;
+  disabled: boolean;
   name?: string;
   autoComplete?: "current-password" | "new-password";
-  isInvalid?: boolean;
-  errorMessage?: string;
-  variant?: "primary" | "secondary";
+  autoFocus?: boolean;
 }) {
   return (
-    <TextField
-      variant={variant}
-      fullWidth
-      isRequired
-      isDisabled={isDisabled}
-      isInvalid={isInvalid}
-      name={name}
-      type="password"
-      minLength={MIN_PASSWORD_LENGTH}
-    >
-      <Label>{label}</Label>
-      <Input className="w-full" autoComplete={autoComplete} />
-      <FieldError>{errorMessage}</FieldError>
-    </TextField>
+    <Form.Field label={label} desc={description} name={name} required>
+      <InputPassword
+        name={name}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        minLength={MIN_PASSWORD_LENGTH}
+      />
+    </Form.Field>
   );
 }

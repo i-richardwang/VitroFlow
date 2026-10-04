@@ -8,7 +8,6 @@
   "training_kpi_ready": "可用图片",
   "training_kpi_new_since_last_run": "上次训练后新增 {count} 张",
   "training_kpi_epochs": "轮次",
-  "training_kpi_epochs_of_total": "共 {total} 轮",
   "training_kpi_epochs_earlier_hidden": "已隐藏此前尝试的 {count} 轮",
   "training_kpi_best_map": "最佳 mAP50-95",
   "training_kpi_published": "已发布 {version}",
@@ -63,5 +62,13 @@
   "parameter_copy_paste": "Copy-paste",
   "parameter_max_det": "最大检测数",
   "parameter_seed": "随机种子",
-  "parameter_deterministic": "确定性"
+  "parameter_deterministic": "确定性",
+  "run_empty_overview_description": "在数据集的训练页发起训练。",
+  "run_empty_dataset_description": "审阅足够的图片后即可开始训练。",
+  "parameter_on": "开",
+  "parameter_off": "关",
+  "train_refused_active": "已有训练正在进行",
+  "train_refused_reviewed": "请先审阅至少 {count} 张图片",
+  "train_dialog_recipe": "{model} · {framework} {version}",
+  "run_epochs_progress": "{completed} / {total}"
 }

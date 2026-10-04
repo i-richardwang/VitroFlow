@@ -1,86 +1,137 @@
-import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Table, toast } from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import { KeyRound, Plus, Trash2 } from "lucide-react";
 
 import { API_SCOPE_LABELS } from "./labels";
 import type { ApiKey } from "../../domain/auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
-import { DestructiveActionButton } from "../../ui/DestructiveActionDialog";
 import { Timestamp } from "../../ui/Timestamp";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
+import { Button } from "../../ui/kit/Button";
+import { Empty } from "../../ui/kit/Empty";
+import { Flexbox } from "../../ui/kit/Flex";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/kit/Table";
+import { Tag } from "../../ui/kit/Tag";
+import { Text } from "../../ui/kit/Text";
+import { toast } from "../../ui/kit/Toast";
 
-export function ApiKeysTable({ apiKeys }: { apiKeys: ApiKey[] }) {
+export function ApiKeysTable({
+  apiKeys,
+  onCreate,
+}: {
+  apiKeys: ApiKey[];
+  /** Opens the new key dialog. */
+  onCreate: () => void;
+}) {
   return (
-    <Table>
-      <Table.ScrollContainer>
-        <Table.Content aria-label={m.integrations_api_keys()}>
-          <Table.Header>
-            <Table.Column isRowHeader>{m.api_key_column_name()}</Table.Column>
-            <Table.Column>{m.api_key_column_key()}</Table.Column>
-            <Table.Column>{m.api_key_column_scopes()}</Table.Column>
-            <Table.Column>{m.api_key_column_expires()}</Table.Column>
-            <Table.Column>{m.api_key_column_last_used()}</Table.Column>
-            <Table.Column aria-label={m.api_key_column_actions()} />
-          </Table.Header>
-          <Table.Body
-            renderEmptyState={() => (
-              <EmptyState size="sm">
-                <EmptyState.Header>
-                  <EmptyState.Title>{m.api_key_empty()}</EmptyState.Title>
-                </EmptyState.Header>
-              </EmptyState>
-            )}
-          >
-            {apiKeys.map((apiKey) => (
-              <Table.Row key={apiKey.id}>
-                <Table.Cell className="font-medium">{apiKey.name}</Table.Cell>
-                <Table.Cell className="font-mono text-muted">
-                  {apiKey.start}…
-                </Table.Cell>
-                <Table.Cell className="text-muted">
-                  {apiKey.scopes
-                    .map((scope) => API_SCOPE_LABELS[scope]())
-                    .join(" · ")}
-                </Table.Cell>
-                <Table.Cell className="text-muted">
-                  {apiKey.expiresAt ? (
-                    <Timestamp value={apiKey.expiresAt} />
-                  ) : (
-                    "—"
-                  )}
-                </Table.Cell>
-                <Table.Cell className="text-muted">
-                  {apiKey.lastUsedAt ? (
-                    <Timestamp value={apiKey.lastUsedAt} />
-                  ) : (
-                    "—"
-                  )}
-                </Table.Cell>
-                <Table.Cell className="text-right">
-                  <RevokeApiKeyButton apiKey={apiKey} />
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Content>
-      </Table.ScrollContainer>
+    <Table narrow="cards" aria-label={m.integrations_api_keys()}>
+      <TableHeader>
+        <tr>
+          <TableHead>{m.api_key_column_name()}</TableHead>
+          <TableHead>{m.api_key_column_key()}</TableHead>
+          <TableHead>{m.api_key_column_scopes()}</TableHead>
+          <TableHead>{m.api_key_column_expires()}</TableHead>
+          <TableHead>{m.api_key_column_last_used()}</TableHead>
+          <TableHead className="w-12">
+            <span className="sr-only">{m.api_key_column_actions()}</span>
+          </TableHead>
+        </tr>
+      </TableHeader>
+      <TableBody>
+        {apiKeys.length ? (
+          apiKeys.map((apiKey) => <ApiKeyRow key={apiKey.id} apiKey={apiKey} />)
+        ) : (
+          <TableEmpty>
+            <Empty
+              icon={KeyRound}
+              title={m.api_key_empty()}
+              description={m.api_key_empty_description()}
+              action={
+                <Button icon={Plus} onClick={onCreate}>
+                  {m.integrations_new_key()}
+                </Button>
+              }
+            />
+          </TableEmpty>
+        )}
+      </TableBody>
     </Table>
   );
 }
 
-function RevokeApiKeyButton({ apiKey }: { apiKey: ApiKey }) {
+function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
   const router = useRouter();
+  const expired =
+    apiKey.expiresAt !== null && new Date(apiKey.expiresAt) <= new Date();
 
   return (
-    <DestructiveActionButton
-      label={m.api_key_revoke()}
-      title={m.api_key_revoke_title({ name: apiKey.name })}
-      confirmLabel={m.api_key_revoke()}
-      onConfirm={async () => {
-        await removeApiKey({ data: { key: apiKey.id } });
-        toast.success(m.api_key_revoked({ name: apiKey.name }));
-        await router.invalidate();
-      }}
-    />
+    <TableRow>
+      <TableCell cellSlot="title">{apiKey.name}</TableCell>
+      <TableCell cellLabel={m.api_key_column_key()}>
+        <Text as="span" type="secondary" className="text-xs" code>
+          {m.api_key_start({ start: apiKey.start })}
+        </Text>
+      </TableCell>
+      <TableCell cellLabel={m.api_key_column_scopes()}>
+        <Flexbox horizontal gap={4} wrap="wrap">
+          {apiKey.scopes.map((scope) => (
+            <Tag key={scope} size="small">
+              {API_SCOPE_LABELS[scope]()}
+            </Tag>
+          ))}
+        </Flexbox>
+      </TableCell>
+      <TableCell cellLabel={m.api_key_column_expires()}>
+        {apiKey.expiresAt === null ? (
+          <Text as="span" type="secondary">
+            {m.api_key_expiry_never()}
+          </Text>
+        ) : expired ? (
+          <Text as="span" type="danger">
+            {m.api_key_expired()}
+          </Text>
+        ) : (
+          <Text as="span" type="secondary">
+            <Timestamp value={apiKey.expiresAt} />
+          </Text>
+        )}
+      </TableCell>
+      <TableCell cellLabel={m.api_key_column_last_used()}>
+        <Text as="span" type="secondary">
+          {apiKey.lastUsedAt === null ? (
+            m.api_key_never_used()
+          ) : (
+            <Timestamp value={apiKey.lastUsedAt} />
+          )}
+        </Text>
+      </TableCell>
+      <TableCell cellSlot="extra" className="text-end">
+        <ActionIcon
+          icon={Trash2}
+          size="small"
+          title={m.api_key_revoke()}
+          onClick={() =>
+            confirmDestructive({
+              title: m.api_key_revoke_title({ name: apiKey.name }),
+              confirmLabel: m.api_key_revoke(),
+              onConfirm: async () => {
+                await removeApiKey({ data: { key: apiKey.id } });
+                toast.success(m.api_key_revoked({ name: apiKey.name }));
+                await router.invalidate();
+              },
+            })
+          }
+        />
+      </TableCell>
+    </TableRow>
   );
 }

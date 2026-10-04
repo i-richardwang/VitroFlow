@@ -1,0 +1,169 @@
+/*
+ * Block order is cascade order: shell, invalid state, size, color scheme, then
+ * the multiline blocks and the inner parts. The scheme blocks sit behind
+ * `:where()`, so they have the specificity of a single class.
+ */
+
+.ui-input {
+  cursor: text;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  padding-inline: 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  color: var(--color-fg);
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+
+  &[data-disabled],
+  &:has(> .ui-input-input:disabled) {
+    cursor: not-allowed;
+    color: var(--color-fg-quaternary);
+    opacity: 0.66;
+  }
+}
+
+.ui-input:has([data-invalid]) {
+  border-color: var(--color-error);
+
+  &:focus-within {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 2px var(--color-error-bg);
+  }
+}
+
+.ui-input-size-large {
+  height: 40px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-lg);
+}
+
+.ui-input-size-middle {
+  height: 32px;
+}
+
+:where(.dark) .ui-input {
+  border: 1px solid transparent;
+  background: var(--color-fill-tertiary);
+
+  &:hover:not(:focus-within, [data-disabled]) {
+    background: var(--color-fill-secondary);
+  }
+}
+
+:where(:root:not(.dark)) .ui-input {
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-container);
+
+  &:hover:not(:focus-within, [data-disabled]) {
+    border-color: var(--color-border);
+  }
+
+  /* The invalid focus border wins through the higher specificity of `:has([data-invalid])`. */
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
+  }
+}
+
+.ui-input-textarea {
+  height: auto;
+  padding-block: 8px;
+
+  textarea {
+    resize: none;
+    min-height: calc(1.5em * var(--textarea-min-rows, 2));
+    max-height: var(--textarea-max-height, none);
+    line-height: 1.5;
+  }
+}
+
+.ui-input-textarea-auto-size {
+  textarea {
+    field-sizing: content;
+  }
+}
+
+.ui-input-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  background: transparent;
+  outline: none;
+
+  &::placeholder {
+    color: var(--color-fg-quaternary);
+  }
+}
+
+.ui-input-number-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-input-slot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--color-fg-tertiary);
+}
+
+.ui-input-number-controls {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-self: stretch;
+  width: 22px;
+  margin-inline-end: -8px;
+  border-inline-start: 1px solid var(--color-border-secondary);
+}
+
+.ui-input-number-control {
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  color: var(--color-fg-tertiary);
+  background: none;
+  outline: none;
+  transition: color var(--duration-base) var(--ease-out);
+
+  &:hover:not(:disabled) {
+    color: var(--color-fg);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+}
+
+.ui-input-password-toggle {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  color: var(--color-fg-tertiary);
+  background: none;
+  outline: none;
+  transition: color var(--duration-base) var(--ease-out);
+
+  &:hover {
+    color: var(--color-fg);
+  }
+}

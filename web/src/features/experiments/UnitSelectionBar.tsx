@@ -1,6 +1,5 @@
-import { ActionBar } from "@heroui-pro/react/action-bar";
-import { Button, Chip, Separator, Tooltip } from "@heroui/react";
-import { useEffect, useState } from "react";
+import { ArrowRightLeft, ClipboardPen, X } from "lucide-react";
+import { useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
 import type {
@@ -8,10 +7,17 @@ import type {
   Treatment,
 } from "../../domain/experiments/schema";
 import { m } from "../../paraglide/messages";
-import { CloseIcon } from "../../ui/icons";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
+import { Button } from "../../ui/kit/Button";
+import { Toolbar, ToolbarButton, ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { MoveUnitsDialog } from "./MoveUnitsDialog";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 
+/**
+ * Commands for the selected units, shown while any unit is selected. With
+ * nothing selected the bar keeps its place, invisible, so selecting shifts
+ * nothing around it.
+ */
 export function UnitSelectionBar({
   experiment,
   units,
@@ -26,70 +32,71 @@ export function UnitSelectionBar({
   onClear: () => void;
 }) {
   const [open, setOpen] = useState<"record" | "move" | null>(null);
-
-  useEffect(() => {
-    if (units.length === 0) setOpen(null);
-  }, [units.length]);
+  // A dialog about the selection closes when the selection empties.
+  if (units.length === 0 && open !== null) setOpen(null);
+  const close = () => setOpen(null);
+  const hidden = units.length === 0;
 
   return (
     <>
-      <ActionBar
+      <Toolbar
         aria-label={m.experiment_selection()}
-        isOpen={units.length > 0}
+        className={hidden ? "invisible" : undefined}
       >
-        <ActionBar.Prefix>
-          <Chip size="sm" className="tabular-nums">
-            {units.length}
-          </Chip>
-        </ActionBar.Prefix>
-        <Separator />
-        <ActionBar.Content>
-          <Button
-            size="sm"
-            variant="ghost"
-            isDisabled={observations.length === 0}
-            onPress={() => setOpen("record")}
-          >
-            {m.culture_event_record_action()}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            isDisabled={treatments.length < 2}
-            onPress={() => setOpen("move")}
-          >
-            {m.experiment_move_units()}
-          </Button>
-        </ActionBar.Content>
-        <Separator />
-        <ActionBar.Suffix>
-          <Tooltip delay={0}>
+        <span className="px-3 text-sm font-medium whitespace-nowrap tabular-nums">
+          {m.experiment_selection_count({ count: units.length })}
+        </span>
+        <ToolbarSeparator />
+        <ToolbarButton
+          disabled={observations.length === 0}
+          render={
             <Button
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              aria-label={m.experiment_selection_clear()}
-              onPress={onClear}
+              type="text"
+              icon={ClipboardPen}
+              aria-label={m.culture_event_record()}
+              onClick={() => setOpen("record")}
             >
-              <CloseIcon />
+              <span className="max-sm:hidden">{m.culture_event_record()}</span>
             </Button>
-            <Tooltip.Content>{m.experiment_selection_clear()}</Tooltip.Content>
-          </Tooltip>
-        </ActionBar.Suffix>
-      </ActionBar>
+          }
+        />
+        <ToolbarButton
+          disabled={treatments.length < 2}
+          render={
+            <Button
+              type="text"
+              icon={ArrowRightLeft}
+              aria-label={m.experiment_move_units()}
+              onClick={() => setOpen("move")}
+            >
+              <span className="max-sm:hidden">{m.experiment_move_units()}</span>
+            </Button>
+          }
+        />
+        <ToolbarSeparator />
+        <ToolbarButton
+          render={
+            <ActionIcon
+              icon={X}
+              title={m.experiment_selection_clear()}
+              onClick={onClear}
+            />
+          }
+        />
+      </Toolbar>
       <RecordCultureEventDialog
         experiment={experiment}
         units={units}
         observations={observations}
-        isOpen={open === "record"}
-        onClose={() => setOpen(null)}
+        open={open === "record"}
+        onClose={close}
       />
       <MoveUnitsDialog
         experiment={experiment}
         units={units}
         treatments={treatments}
-        isOpen={open === "move"}
-        onClose={() => setOpen(null)}
+        open={open === "move"}
+        onClose={close}
       />
     </>
   );

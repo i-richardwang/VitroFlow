@@ -1,16 +1,9 @@
-import {
-  Button,
-  Description,
-  InputGroup,
-  Label,
-  TextField,
-} from "@heroui/react";
-import { useEffect, useRef, useState } from "react";
+import { CopyButton } from "./kit/CopyButton";
+import { Form } from "./kit/Form";
+import { Input } from "./kit/Input";
+import { Skeleton } from "./kit/Skeleton";
 
-import { Hint } from "./Hint";
-import { CheckIcon, CopyIcon } from "./icons";
-import { m } from "../paraglide/messages";
-
+/** A read-only value with a copy button, such as an endpoint or a key shown once. */
 export function CopyableCode({
   value,
   label,
@@ -20,63 +13,27 @@ export function CopyableCode({
   label: string;
   description?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
-
   return (
-    <div className="w-full max-w-md">
-      <TextField
-        isReadOnly
-        fullWidth
-        variant="secondary"
+    <Form.Field label={label} desc={description}>
+      <Input
+        readOnly
         value={value}
-        name={label}
-      >
-        <Label>{label}</Label>
-        <InputGroup fullWidth variant="secondary">
-          <InputGroup.Input />
-          <InputGroup.Suffix className="pe-0">
-            <Hint
-              text={copied ? m.integrations_copied() : m.integrations_copy()}
-            >
-              <Button
-                isIconOnly
-                aria-label={
-                  copied ? m.integrations_copied() : m.integrations_copy()
-                }
-                size="sm"
-                variant="ghost"
-                onPress={() => {
-                  void navigator.clipboard.writeText(value).then(() => {
-                    setCopied(true);
-                    if (timer.current !== null) {
-                      window.clearTimeout(timer.current);
-                    }
-                    timer.current = window.setTimeout(() => {
-                      setCopied(false);
-                      timer.current = null;
-                    }, 2000);
-                  });
-                }}
-              >
-                {copied ? (
-                  <CheckIcon className="size-4" />
-                ) : (
-                  <CopyIcon className="size-4" />
-                )}
-              </Button>
-            </Hint>
-          </InputGroup.Suffix>
-        </InputGroup>
-        {description ? <Description>{description}</Description> : null}
-      </TextField>
-    </div>
+        className="font-mono"
+        suffix={<CopyButton content={value} />}
+      />
+    </Form.Field>
+  );
+}
+
+/** `CopyableCode` while its value loads: the label, and a bone in the empty field. */
+export function CopyableCodeSkeleton({ label }: { label: string }) {
+  return (
+    <Form.Field label={label} aria-hidden>
+      <Input
+        readOnly
+        tabIndex={-1}
+        prefix={<Skeleton width="16em" className="inline-block" />}
+      />
+    </Form.Field>
   );
 }

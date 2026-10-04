@@ -1,0 +1,109 @@
+import { type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "./cn";
+import { Flexbox, type FlexboxProps } from "./Flex";
+import { mergeRefs } from "./floating";
+
+export interface ScrollShadowProps extends Omit<FlexboxProps, "ref"> {
+  ref?: Ref<HTMLDivElement>;
+  /** Fade length as a percentage of the box. */
+  size?: number;
+}
+
+/** Pixels scrolled before an edge counts as overflowing. */
+const OFFSET = 8;
+
+type Edges = { top: boolean; bottom: boolean };
+
+const POSITION = {
+  bottom: "ui-scroll-shadow-bottom-shadow",
+  top: "ui-scroll-shadow-top-shadow",
+  "top-bottom": "ui-scroll-shadow-top-bottom-shadow",
+} as const;
+
+/**
+ * Which edges have content hidden past them, measured on scroll, window
+ * resize and box resize. State changes only when an edge flips; new children
+ * re-measure because they can resize the content without resizing the box.
+ */
+function useScrollEdges(
+  element: { current: HTMLElement | null },
+  children: unknown,
+) {
+  const [edges, setEdges] = useState<Edges>({ top: false, bottom: false });
+
+  useEffect(() => {
+    const node = element.current;
+    if (!node) return;
+    const check = () => {
+      const overflowing = node.scrollHeight > node.clientHeight;
+      const top = overflowing && node.scrollTop > OFFSET;
+      const bottom =
+        overflowing &&
+        node.scrollTop + node.clientHeight < node.scrollHeight - OFFSET;
+      setEdges((current) =>
+        current.top === top && current.bottom === bottom
+          ? current
+          : { top, bottom },
+      );
+    };
+    check();
+    node.addEventListener("scroll", check);
+    window.addEventListener("resize", check);
+    const observer = new ResizeObserver(check);
+    observer.observe(node);
+    return () => {
+      node.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+      observer.disconnect();
+    };
+  }, [element, children]);
+
+  return edges;
+}
+
+/**
+ * Vertical scroll container that fades the edges with hidden content past
+ * them. The active edges are also exposed as `data-*-scroll` attributes.
+ */
+export function ScrollShadow({
+  className,
+  children,
+  size = 16,
+  style,
+  ref,
+  ...rest
+}: ScrollShadowProps) {
+  const domRef = useRef<HTMLDivElement | null>(null);
+  const setRefs = useMemo(() => mergeRefs([domRef, ref]), [ref]);
+  const edges = useScrollEdges(domRef, children);
+
+  const position =
+    edges.top && edges.bottom
+      ? "top-bottom"
+      : edges.top
+        ? "top"
+        : edges.bottom
+          ? "bottom"
+          : null;
+
+  return (
+    <Flexbox
+      className={cn(
+        "ui-scroll-shadow",
+        "ui-scroll-shadow-vertical",
+        position && POSITION[position],
+        className,
+      )}
+      ref={setRefs as Ref<HTMLElement>}
+      style={{
+        ...({ "--scroll-shadow-size": `${size}%` } as Record<string, string>),
+        ...style,
+      }}
+      data-orientation="vertical"
+      {...(position && { [`data-${position}-scroll`]: true })}
+      {...rest}
+    >
+      {children}
+    </Flexbox>
+  );
+}

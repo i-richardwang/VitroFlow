@@ -1,13 +1,19 @@
-import { Button, Card, Link } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 
 import { authClient, continuation } from "../features/account/client";
-import { BrandLogo } from "../ui/BrandLogo";
+import { AppBrand } from "../ui/BrandLogo";
 import { describeOAuthClient } from "../functions/integrations";
 import { MCP_SERVER_LABELS } from "../features/integrations/labels";
 import { useAsyncAction } from "../ui/hooks/useAsyncAction";
+import { AuthLayout } from "../ui/kit/AuthLayout";
+import { Block } from "../ui/kit/Block";
+import { Button } from "../ui/kit/Button";
+import { Flexbox } from "../ui/kit/Flex";
+import { PageSkeleton } from "../ui/kit/PageSkeleton";
+import { Skeleton } from "../ui/kit/Skeleton";
+import { TextLink } from "../ui/kit/TextLink";
 import { m } from "../paraglide/messages";
 
 /**
@@ -30,15 +36,22 @@ export const Route = createFileRoute("/consent")({
   head: () => ({
     meta: [{ title: `${m.consent_allow()} · ${m.app_name()}` }],
   }),
+  pendingComponent: ConsentPending,
   component: ConsentPage,
+  notFoundComponent: UnknownClientPage,
 });
+
+const brand = <AppBrand />;
 
 function ConsentPage() {
   const client = Route.useLoaderData();
   const { busy, run } = useAsyncAction();
+  const [choice, setChoice] = useState<boolean | null>(null);
   const [decided, setDecided] = useState(false);
+  const pending = busy || decided;
 
-  const decide = (accept: boolean) =>
+  const decide = (accept: boolean) => {
+    setChoice(accept);
     void run(async () => {
       const { data, error } = await authClient.oauth2.consent({ accept });
       if (error) throw new Error(error.message ?? m.consent_failed());
@@ -50,56 +63,95 @@ function ConsentPage() {
       setDecided(true);
       window.location.assign(result.value);
     });
+  };
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center bg-surface-secondary p-6 md:p-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <header className="flex items-center gap-2.5 self-center">
-          <BrandLogo className="size-10" />
-          <span className="text-sm font-semibold">{m.app_name()}</span>
-        </header>
-        <Card className="w-full">
-          <Card.Header>
-            <Card.Title render={(props) => <h1 {...props} />}>
-              {m.consent_title({ client: client.name })}
-            </Card.Title>
-            {client.servers.length > 0 ? (
-              <Card.Description>
-                {m.consent_servers({
-                  servers: client.servers
-                    .map((server) => MCP_SERVER_LABELS[server]())
-                    .join(" · "),
-                })}
-              </Card.Description>
-            ) : null}
-            {client.uri ? (
-              <Card.Description>
-                <Link href={client.uri} target="_blank" rel="noreferrer">
-                  {client.uri}
-                </Link>
-              </Card.Description>
-            ) : null}
-          </Card.Header>
-          <Card.Footer className="flex gap-2">
-            <Button
-              variant="tertiary"
-              fullWidth
-              isDisabled={busy || decided}
-              onPress={() => decide(false)}
-            >
-              {m.consent_deny()}
-            </Button>
-            <Button
-              variant="primary"
-              fullWidth
-              isDisabled={busy || decided}
-              onPress={() => decide(true)}
-            >
-              {busy || decided ? m.consent_authorizing() : m.consent_allow()}
-            </Button>
-          </Card.Footer>
-        </Card>
-      </div>
-    </main>
+    <AuthLayout
+      brand={brand}
+      title={m.consent_title({ client: client.name })}
+      description={
+        client.uri ? (
+          <TextLink href={client.uri} target="_blank" rel="noreferrer">
+            {client.uri}
+          </TextLink>
+        ) : undefined
+      }
+    >
+      {client.servers.length > 0 ? (
+        <Flexbox gap={8}>
+          <span className="text-fg-secondary">{m.consent_servers()}</span>
+          <Flexbox gap={4}>
+            {client.servers.map((server) => (
+              <Block key={server} padding={16} variant="filled">
+                {MCP_SERVER_LABELS[server]()}
+              </Block>
+            ))}
+          </Flexbox>
+        </Flexbox>
+      ) : null}
+      <ConsentDecisions choice={pending ? choice : null} onDecide={decide} />
+    </AuthLayout>
+  );
+}
+
+/** The consent card while the client is looked up: its title and the two decisions. */
+function ConsentPending() {
+  return (
+    <AuthLayout
+      brand={brand}
+      title={<Skeleton width="60%" className="inline-block align-middle" />}
+    >
+      <PageSkeleton>
+        <ConsentDecisions disabled />
+      </PageSkeleton>
+    </AuthLayout>
+  );
+}
+
+/**
+ * Allow and Deny. Once one is chosen, it spins and the other is disabled;
+ * `disabled` holds both while there is nothing to decide yet.
+ */
+function ConsentDecisions({
+  choice = null,
+  disabled,
+  onDecide,
+}: {
+  choice?: boolean | null;
+  disabled?: boolean;
+  onDecide?: (accept: boolean) => void;
+}) {
+  return (
+    <Flexbox gap={12}>
+      <Button
+        block
+        size="large"
+        type="primary"
+        disabled={disabled || choice === false}
+        loading={choice === true}
+        onClick={() => onDecide?.(true)}
+      >
+        {m.consent_allow()}
+      </Button>
+      <Button
+        block
+        size="large"
+        disabled={disabled || choice === true}
+        loading={choice === false}
+        onClick={() => onDecide?.(false)}
+      >
+        {m.consent_deny()}
+      </Button>
+    </Flexbox>
+  );
+}
+
+function UnknownClientPage() {
+  return (
+    <AuthLayout
+      brand={brand}
+      title={m.consent_unknown_client()}
+      description={m.consent_unknown_client_description()}
+    />
   );
 }

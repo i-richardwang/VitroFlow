@@ -1,0 +1,25 @@
+.ui-skeleton {
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-fill-secondary);
+  will-change: opacity;
+  animation: var(--animate-pulse);
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+.ui-skeleton-text {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.ui-skeleton-button {
+  flex: none;
+  inline-size: 96px;
+  block-size: 32px;
+}

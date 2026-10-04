@@ -1,185 +1,127 @@
-import {
-  Button,
-  Form,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
-import { cultureEventLabel, observationLabel } from "./labels";
 import {
   CULTURE_EVENT_TYPES,
   type CultureEventType,
   type ExperimentObservation,
 } from "../../domain/experiments/schema";
 import { createCultureEvents } from "../../functions/experiments";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  useAsyncAction,
+  type AsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import { Form } from "../../ui/kit/Form";
+import { Select } from "../../ui/kit/Select";
+import { cultureEventLabel, observationLabel } from "./labels";
+
+const FORM_ID = "record-culture-event";
 
 /** Records the same culture event on one or more units at one observation. */
 export function RecordCultureEventDialog({
   experiment,
   units,
   observations,
-  isOpen,
+  open,
   onClose,
 }: {
   experiment: string;
   units: Unit[];
   observations: ExperimentObservation[];
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
+  const action = useAsyncAction();
   return (
-    <Editor
-      key={isOpen ? units.map((unit) => unit.id).join() : "closed"}
-      experiment={experiment}
-      units={units}
-      observations={observations}
-      isOpen={isOpen}
+    <FormDialog
+      open={open}
       onClose={onClose}
-    />
+      title={m.culture_event_record()}
+      okText={m.culture_event_record_action()}
+      formId={FORM_ID}
+      busy={action.busy}
+      okDisabled={units.length === 0 || observations.length === 0}
+    >
+      <CultureEventForm
+        experiment={experiment}
+        units={units}
+        observations={observations}
+        action={action}
+        onDone={onClose}
+      />
+    </FormDialog>
   );
 }
 
-function Editor({
+/** Proposes contamination at the latest observation. */
+function CultureEventForm({
   experiment,
   units,
   observations,
-  isOpen,
-  onClose,
+  action,
+  onDone,
 }: {
   experiment: string;
   units: Unit[];
   observations: ExperimentObservation[];
-  isOpen: boolean;
-  onClose: () => void;
+  action: AsyncAction;
+  onDone: () => void;
 }) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
   const [type, setType] = useState<CultureEventType>("contaminated");
   const [observation, setObservation] = useState(observations.at(-1)?.id ?? "");
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.culture_event_record()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              <Form
-                id="record-culture-event"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(
-                    () =>
-                      createCultureEvents({
-                        data: {
-                          experiment,
-                          units: units.map((unit) => unit.id),
-                          type,
-                          observation,
-                        },
-                      }),
-                    m.culture_event_not_recorded(),
-                  ).then(async (result) => {
-                    if (!result.ok) return;
-                    toast.success(
-                      m.culture_event_recorded_for({
-                        event: cultureEventLabel(type),
-                        count: units.length,
-                      }),
-                    );
-                    onClose();
-                    await router.invalidate();
-                  });
-                }}
-              >
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={type}
-                  onSelectionChange={(key) =>
-                    setType(String(key) as CultureEventType)
-                  }
-                >
-                  <Label>{m.culture_event_label()}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {CULTURE_EVENT_TYPES.map((value) => (
-                        <ListBox.Item
-                          key={value}
-                          id={value}
-                          textValue={cultureEventLabel(value)}
-                        >
-                          {cultureEventLabel(value)}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={observation}
-                  onSelectionChange={(key) => setObservation(String(key))}
-                >
-                  <Label>{m.observation_label()}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {observations.map((item) => (
-                        <ListBox.Item
-                          key={item.id}
-                          id={item.id}
-                          textValue={observationLabel(item)}
-                        >
-                          {observationLabel(item)}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="record-culture-event"
-                variant="primary"
-                isDisabled={busy || units.length === 0 || observation === ""}
-              >
-                {busy
-                  ? m.culture_event_recording()
-                  : m.culture_event_record_action()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Form
+      id={FORM_ID}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (observation === "" || units.length === 0) return;
+        void action
+          .run(
+            () =>
+              createCultureEvents({
+                data: {
+                  experiment,
+                  units: units.map((unit) => unit.id),
+                  type,
+                  observation,
+                },
+              }),
+            m.culture_event_not_recorded(),
+          )
+          .then(async (result) => {
+            if (!result.ok) return;
+            onDone();
+            await router.invalidate();
+          });
+      }}
+    >
+      <Form.Field label={m.culture_event_label()}>
+        <Select
+          disabled={action.busy}
+          options={CULTURE_EVENT_TYPES.map((value) => ({
+            label: cultureEventLabel(value),
+            value,
+          }))}
+          value={type}
+          onChange={setType}
+        />
+      </Form.Field>
+      <Form.Field label={m.observation_label()}>
+        <Select
+          disabled={action.busy}
+          options={observations.map((item) => ({
+            label: observationLabel(item),
+            value: item.id,
+          }))}
+          value={observation}
+          onChange={setObservation}
+        />
+      </Form.Field>
+    </Form>
   );
 }

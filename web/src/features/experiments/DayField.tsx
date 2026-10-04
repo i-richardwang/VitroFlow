@@ -3,20 +3,14 @@ import {
   getLocalTimeZone,
   parseDate,
   today,
-  type DateValue,
 } from "@internationalized/date";
-import {
-  Calendar,
-  DateField,
-  DatePicker,
-  FieldError,
-  Label,
-} from "@heroui/react";
 
 import type { CalendarDay } from "../../domain/experiments/schema";
+import { DatePicker } from "../../ui/kit/DatePicker";
+import { Form } from "../../ui/kit/Form";
 
-export function toDay(value: DateValue): CalendarDay {
-  return new CalendarDate(value.year, value.month, value.day).toString();
+export function toDay(value: CalendarDate): CalendarDay {
+  return value.toString();
 }
 
 export function fromDay(day: CalendarDay): CalendarDate {
@@ -27,67 +21,30 @@ export function currentDay(): CalendarDate {
   return today(getLocalTimeZone());
 }
 
+/** A required calendar day; it always holds one, so it cannot be cleared. */
 export function DayField({
   label,
-  busy,
+  disabled,
   value,
   onChange,
-  minValue,
+  minDate,
+  className,
 }: {
   label: string;
-  busy: boolean;
-  value: DateValue | null;
-  onChange: (value: DateValue | null) => void;
-  minValue?: DateValue;
+  disabled: boolean;
+  value: CalendarDate;
+  onChange: (value: CalendarDate) => void;
+  minDate?: CalendarDate;
+  className?: string;
 }) {
   return (
-    <DatePicker
-      className="w-full"
-      granularity="day"
-      isDisabled={busy}
-      isRequired
-      shouldForceLeadingZeros
-      value={value}
-      minValue={minValue}
-      onChange={onChange}
-    >
-      <Label>{label}</Label>
-      <DateField.Group fullWidth variant="secondary">
-        <DateField.Input>
-          {(segment) => <DateField.Segment segment={segment} />}
-        </DateField.Input>
-        <DateField.Suffix>
-          <DatePicker.Trigger>
-            <DatePicker.TriggerIndicator />
-          </DatePicker.Trigger>
-        </DateField.Suffix>
-      </DateField.Group>
-      <FieldError />
-      <DatePicker.Popover>
-        <Calendar aria-label={label}>
-          <Calendar.Header>
-            <Calendar.YearPickerTrigger>
-              <Calendar.YearPickerTriggerHeading />
-              <Calendar.YearPickerTriggerIndicator />
-            </Calendar.YearPickerTrigger>
-            <Calendar.NavButton slot="previous" />
-            <Calendar.NavButton slot="next" />
-          </Calendar.Header>
-          <Calendar.Grid>
-            <Calendar.GridHeader>
-              {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
-            </Calendar.GridHeader>
-            <Calendar.GridBody>
-              {(date) => <Calendar.Cell date={date} />}
-            </Calendar.GridBody>
-          </Calendar.Grid>
-          <Calendar.YearPickerGrid>
-            <Calendar.YearPickerGridBody>
-              {({ year }) => <Calendar.YearPickerCell year={year} />}
-            </Calendar.YearPickerGridBody>
-          </Calendar.YearPickerGrid>
-        </Calendar>
-      </DatePicker.Popover>
-    </DatePicker>
+    <Form.Field className={className} label={label} required>
+      <DatePicker
+        disabled={disabled}
+        minDate={minDate}
+        value={value}
+        onChange={onChange}
+      />
+    </Form.Field>
   );
 }

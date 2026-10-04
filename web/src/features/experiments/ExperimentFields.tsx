@@ -1,7 +1,8 @@
-import type { DateValue } from "@internationalized/date";
-import { FieldError, Input, Label, TextArea, TextField } from "@heroui/react";
+import type { CalendarDate } from "@internationalized/date";
 
 import type { Experiment } from "../../domain/experiments/schema";
+import { Form } from "../../ui/kit/Form";
+import { Input, TextArea } from "../../ui/kit/Input";
 import { m } from "../../paraglide/messages";
 import { DayField } from "./DayField";
 
@@ -21,93 +22,85 @@ export function readExperimentFields(form: FormData): NotebookPage {
   };
 }
 
+/** The notebook page of an experiment, read from the form by field name. */
 export function ExperimentFields({
-  busy,
+  disabled,
   defaults,
   inoculatedOn,
   onInoculatedOnChange,
 }: {
-  busy: boolean;
+  disabled: boolean;
   defaults?: NotebookPage;
-  inoculatedOn: DateValue | null;
-  onInoculatedOnChange: (value: DateValue | null) => void;
+  inoculatedOn: CalendarDate;
+  onInoculatedOnChange: (value: CalendarDate) => void;
 }) {
   return (
     <>
-      <TextField
-        variant="secondary"
-        fullWidth
-        isRequired
-        isDisabled={busy}
+      <Form.Field
         name="name"
-        defaultValue={defaults?.name}
+        label={m.experiment_field_name()}
+        required
+        validate={(value) =>
+          String(value ?? "").trim() === ""
+            ? m.experiment_field_name_required()
+            : null
+        }
       >
-        <Label>{m.experiment_field_name()}</Label>
         <Input
-          className="w-full"
+          disabled={disabled}
+          defaultValue={defaults?.name}
           placeholder={m.experiment_field_name_placeholder()}
         />
-        <FieldError />
-      </TextField>
-      <TextField
-        variant="secondary"
-        fullWidth
-        isDisabled={busy}
-        name="plantMaterial"
-        defaultValue={defaults?.plantMaterial}
-      >
-        <Label>{m.experiment_field_plant_material()}</Label>
-        <Input
-          className="w-full"
-          placeholder={m.experiment_field_plant_material_placeholder()}
+      </Form.Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Form.Field
+          className="min-w-0"
+          name="plantMaterial"
+          label={m.experiment_field_plant_material()}
+        >
+          <Input
+            disabled={disabled}
+            defaultValue={defaults?.plantMaterial}
+            placeholder={m.experiment_field_plant_material_placeholder()}
+          />
+        </Form.Field>
+        <Form.Field
+          className="min-w-0"
+          name="explantType"
+          label={m.experiment_field_explant_type()}
+        >
+          <Input
+            disabled={disabled}
+            defaultValue={defaults?.explantType}
+            placeholder={m.experiment_field_explant_type_placeholder()}
+          />
+        </Form.Field>
+        <Form.Field
+          className="min-w-0"
+          name="baseMedium"
+          label={m.experiment_field_base_medium()}
+        >
+          <Input
+            disabled={disabled}
+            defaultValue={defaults?.baseMedium}
+            placeholder={m.experiment_field_base_medium_placeholder()}
+          />
+        </Form.Field>
+        <DayField
+          className="min-w-0"
+          label={m.experiment_field_inoculated()}
+          disabled={disabled}
+          value={inoculatedOn}
+          onChange={onInoculatedOnChange}
         />
-        <FieldError />
-      </TextField>
-      <TextField
-        variant="secondary"
-        fullWidth
-        isDisabled={busy}
-        name="explantType"
-        defaultValue={defaults?.explantType}
-      >
-        <Label>{m.experiment_field_explant_type()}</Label>
-        <Input
-          className="w-full"
-          placeholder={m.experiment_field_explant_type_placeholder()}
+      </div>
+      <Form.Field name="notes" label={m.experiment_field_notes()}>
+        <TextArea
+          disabled={disabled}
+          defaultValue={defaults?.notes}
+          autoSize={{ minRows: 3, maxRows: 8 }}
         />
-        <FieldError />
-      </TextField>
-      <TextField
-        variant="secondary"
-        fullWidth
-        isDisabled={busy}
-        name="baseMedium"
-        defaultValue={defaults?.baseMedium}
-      >
-        <Label>{m.experiment_field_base_medium()}</Label>
-        <Input
-          className="w-full"
-          placeholder={m.experiment_field_base_medium_placeholder()}
-        />
-        <FieldError />
-      </TextField>
-      <DayField
-        label={m.experiment_field_inoculated()}
-        busy={busy}
-        value={inoculatedOn}
-        onChange={onInoculatedOnChange}
-      />
-      <TextField
-        variant="secondary"
-        fullWidth
-        isDisabled={busy}
-        name="notes"
-        defaultValue={defaults?.notes}
-      >
-        <Label>{m.experiment_field_notes()}</Label>
-        <TextArea className="w-full" rows={3} />
-        <FieldError />
-      </TextField>
+      </Form.Field>
     </>
   );
 }

@@ -11,9 +11,9 @@
   "experiment_new": "New experiment",
   "experiment_not_started": "Experiment not started",
   "experiment_start": "Start",
-  "experiment_starting": "Starting…",
   "experiment_field_name": "Name",
   "experiment_field_name_placeholder": "September germination study",
+  "experiment_field_name_required": "Name the experiment",
   "experiment_field_plant_material": "Plant material",
   "experiment_field_plant_material_placeholder": "Chrysanthemum 'Jinba'",
   "experiment_field_explant_type": "Explant type",
@@ -26,9 +26,8 @@
   "experiment_design_hint": "Each treatment is laid out in replicates, coded {example}.",
   "experiment_design_add_treatment": "Add treatment",
   "experiment_design_remove_treatment": "Remove {name}",
-  "experiment_actions": "Experiment actions",
+  "experiment_actions": "Actions for {name}",
   "experiment_menu_edit": "Edit details…",
-  "experiment_edit_details": "Edit details",
   "experiment_menu_delete": "Delete experiment…",
   "experiment_delete": "Delete experiment",
   "experiment_delete_title": "Delete {name}?",
@@ -36,28 +35,12 @@
   "experiment_edit_heading": "Edit experiment",
   "experiment_not_saved": "Experiment not saved",
   "experiment_action_add": "Add",
-  "experiment_action_adding": "Adding…",
   "experiment_action_save": "Save",
-  "experiment_action_saving": "Saving…",
   "experiment_grid_label": "Observations of {experiment}",
   "experiment_selection": "Selected units",
   "experiment_selection_clear": "Clear selection",
   "experiment_move_units": "Change treatment",
   "experiment_units_not_moved": "Could not switch",
-  "experiment_units_moved": [
-    {
-      "declarations": [
-        "input count",
-        "input treatment",
-        "local countPlural = count: plural"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "Switched to {treatment}",
-        "countPlural=other": "{count} units switched to {treatment}"
-      }
-    }
-  ],
   "experiment_column_treatment": "Treatment",
   "experiment_column_actions": "Actions",
   "experiment_cell_analyzed": "Detected {value}",
@@ -77,12 +60,10 @@
   "observations_label": "Observations",
   "observation_new": "New observation",
   "observation_not_added": "Observation not added",
-  "observation_added": "{observation} added",
   "observation_date_label": "Observation date",
   "observation_note_label": "Note",
-  "observation_actions": "{observation} actions",
+  "observation_actions": "Actions for {observation}",
   "observation_menu_assign_images": "Match to units…",
-  "observation_assign_images": "Match to units",
   "observation_menu_add_to_dataset": "Add images to dataset…",
   "observation_add_to_dataset": "Add images to dataset",
   "observation_menu_edit": "Edit observation…",
@@ -94,20 +75,6 @@
   "observation_not_saved": "Observation not saved",
   "observation_images_heading": "Images for {observation}",
   "observation_images_assign_failed": "Images could not be matched",
-  "observation_images_assigned": [
-    {
-      "declarations": [
-        "input count",
-        "input observation",
-        "local countPlural = count: plural"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{count} image matched to {observation}",
-        "countPlural=other": "{count} images matched to {observation}"
-      }
-    }
-  ],
   "observation_images_remaining": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -118,17 +85,16 @@
       }
     }
   ],
-  "observation_images_assigning": "Matching…",
   "observation_images_uploading": "Uploading…",
   "observation_images_assign_count": "Match {count}",
-  "observation_images_unit_label": "Unit shown by {file}",
   "observation_images_unassigned": "Unmatched",
+  "observation_images_unit_label": "Unit shown by {file}",
   "observation_images_fill_in_order": "Match in order",
   "observation_images_placed": "Already {unit}, day {day}",
   "observation_images_repeated": "Same as {file}",
   "unit_title": "Unit {code} of {experiment}",
   "unit_navigation": "Navigation",
-  "unit_no_image": "No image yet",
+  "unit_no_image": "No photographs of this unit yet",
   "unit_image_section": "Image",
   "unit_status": "Status",
   "unit_file": "Filename",
@@ -138,19 +104,18 @@
   "unit_retry_failed": "Could not detect again",
   "unit_previous": "Previous unit",
   "unit_next": "Next unit",
-  "unit_actions": "{code} actions",
+  "unit_actions": "Actions for {code}",
   "unit_menu_replace": "Replace image…",
-  "unit_replace_image": "Replace image",
   "unit_replace_heading": "Replace {file}",
   "unit_replace": "Replace",
-  "unit_replacing": "Replacing…",
-  "unit_image_replaced": "Image replaced",
   "unit_image_not_replaced": "Image not replaced",
   "unit_menu_edit": "Edit unit…",
   "unit_edit": "Edit unit",
-  "unit_unassign_image": "Unmatch image",
+  "unit_menu_unassign": "Unmatch image…",
+  "unit_unassign_title": "Unmatch {file} from {code}?",
+  "unit_unassign_note": "The photograph stays stored. Matching it again brings its reading back.",
+  "unit_unassign": "Unmatch",
   "unit_image_unassigned": "Image unmatched",
-  "unit_image_not_unassigned": "Image not unmatched",
   "unit_menu_delete": "Delete unit…",
   "unit_delete": "Delete unit",
   "unit_delete_title": "Delete {code}?",
@@ -161,27 +126,12 @@
   "culture_event_menu_record": "Record culture status…",
   "culture_event_record": "Record culture status",
   "culture_event_record_action": "Record",
-  "culture_event_recording": "Recording…",
   "culture_event_not_recorded": "Status not recorded",
-  "culture_event_recorded_for": [
-    {
-      "declarations": [
-        "input count",
-        "input event",
-        "local countPlural = count: plural"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{event} recorded",
-        "countPlural=other": "{event} recorded for {count} units"
-      }
-    }
-  ],
   "culture_event_menu_remove": "Remove culture status…",
   "culture_event_remove": "Remove culture status",
   "culture_event_remove_action": "Remove",
-  "culture_event_removing": "Removing…",
   "culture_event_not_removed": "Status not removed",
+  "culture_event_removed": "{event} removed",
   "culture_event_contaminated": "Contaminated",
   "culture_event_nonviable": "Nonviable",
   "culture_event_discarded": "Discarded",
@@ -195,24 +145,9 @@
   "treatment_menu_edit": "Edit {name}…",
   "treatment_not_added": "Treatment not added",
   "treatment_not_saved": "Treatment not saved",
-  "treatment_added": "{name} added",
-  "treatment_actions": "{name} actions",
+  "treatment_actions": "Actions for {name}",
   "treatment_menu_add_replicates": "Add replicates…",
   "treatment_add_replicates": "Add replicates to {name}",
-  "treatment_replicates_added": [
-    {
-      "declarations": [
-        "input count",
-        "input name",
-        "local countPlural = count: plural"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{count} replicate added to {name}",
-        "countPlural=other": "{count} replicates added to {name}"
-      }
-    }
-  ],
   "treatment_replicates_not_added": "Replicates not added",
   "treatment_name_label": "Name",
   "treatment_name_placeholder": "T1",
@@ -231,5 +166,26 @@
   "observation_model_label": "Model",
   "image_analysis_unread": "Not calibrated yet",
   "image_analysis_proposed": "AI proposal",
-  "experiment_cell_proposed": "AI proposal"
+  "experiment_cell_proposed": "AI proposal",
+  "experiments_empty_description": "Start an experiment to lay out its treatments and units.",
+  "experiment_no_observations": "No observations yet",
+  "experiment_no_observations_description": "Add an observation day, then match its photographs to units.",
+  "treatment_deleted": "{name} deleted",
+  "experiment_selection_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} unit selected",
+        "countPlural=other": "{count} units selected"
+      }
+    }
+  ],
+  "experiment_facts_joined": "{first} · {second}",
+  "observation_heading": "{day} · {model}",
+  "experiment_summary_deviation": "± {deviation}",
+  "experiment_summary_sample": "n = {count}",
+  "culture_event_at": "{event} · {observation}",
+  "unit_no_image_description": "Match a photograph to it from an observation day in the experiment.",
+  "unit_open_experiment": "Open experiment"
 }

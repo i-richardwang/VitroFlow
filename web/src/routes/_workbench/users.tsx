@@ -1,15 +1,32 @@
-import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Button, Chip, Table } from "@heroui/react";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { USER_ROLE_LABELS } from "../../ui/user-roles";
-import { isAdmin, type UserAccount } from "../../domain/auth/schema";
-import { Page } from "../../ui/Page";
 import { NewUserDialog } from "../../features/users/NewUserDialog";
+import { RoleSelect } from "../../features/users/RoleSelect";
 import { UserMenu } from "../../features/users/UserMenu";
-import { getUsers } from "../../functions/users";
+import { isAdmin, type UserAccount } from "../../domain/auth/schema";
+import { changeUserRole, getUsers } from "../../functions/users";
 import { m } from "../../paraglide/messages";
+import { Page } from "../../ui/Page";
+import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { Button } from "../../ui/kit/Button";
+import { Flexbox } from "../../ui/kit/Flex";
+import {
+  PageHeaderSkeleton,
+  PageSkeleton,
+  TableSkeleton,
+} from "../../ui/kit/PageSkeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/kit/Table";
+import { Tag } from "../../ui/kit/Tag";
+import { Text } from "../../ui/kit/Text";
 
 export const Route = createFileRoute("/_workbench/users")({
   beforeLoad: ({ context }) => {
@@ -20,6 +37,12 @@ export const Route = createFileRoute("/_workbench/users")({
   head: () => ({
     meta: [{ title: `${m.users_title()} · ${m.app_name()}` }],
   }),
+  pendingComponent: () => (
+    <PageSkeleton>
+      <PageHeaderSkeleton action />
+      <TableSkeleton rows={3} />
+    </PageSkeleton>
+  ),
   component: UsersPage,
 });
 
@@ -32,74 +55,80 @@ function UsersPage() {
     <Page
       title={m.users_title()}
       actions={
-        <Button variant="primary" onPress={() => setCreating(true)}>
+        <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
           {m.users_new()}
         </Button>
       }
     >
-      <Table>
-        <Table.ScrollContainer>
-          <Table.Content aria-label={m.users_title()}>
-            <Table.Header>
-              <Table.Column isRowHeader>{m.users_column_name()}</Table.Column>
-              <Table.Column>{m.users_column_email()}</Table.Column>
-              <Table.Column>{m.users_column_role()}</Table.Column>
-              <Table.Column>{m.users_column_status()}</Table.Column>
-              <Table.Column aria-label={m.users_column_actions()} />
-            </Table.Header>
-            <Table.Body
-              renderEmptyState={() => (
-                <EmptyState size="sm">
-                  <EmptyState.Header>
-                    <EmptyState.Title>{m.users_empty()}</EmptyState.Title>
-                  </EmptyState.Header>
-                </EmptyState>
-              )}
-            >
-              {accounts.map((account) => (
-                <Table.Row key={account.id}>
-                  <Table.Cell className="font-medium">
-                    {account.name}
-                  </Table.Cell>
-                  <Table.Cell className="font-mono text-muted">
-                    {account.email}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Chip
-                      color={account.role === "admin" ? "accent" : "default"}
-                      variant="soft"
-                      size="sm"
-                    >
-                      {USER_ROLE_LABELS[account.role]()}
-                    </Chip>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <StatusChip account={account} />
-                  </Table.Cell>
-                  <Table.Cell className="text-right">
-                    {account.id === me.id ? null : (
-                      <UserMenu account={account} />
-                    )}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
+      <Table narrow="cards" aria-label={m.users_title()}>
+        <TableHeader>
+          <tr>
+            <TableHead>{m.users_column_name()}</TableHead>
+            <TableHead>{m.users_column_email()}</TableHead>
+            <TableHead className="w-40">{m.users_column_role()}</TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">{m.users_column_actions()}</span>
+            </TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {accounts.map((account) => (
+            <UserRow
+              key={account.id}
+              account={account}
+              self={account.id === me.id}
+            />
+          ))}
+        </TableBody>
       </Table>
-      <NewUserDialog isOpen={creating} onClose={() => setCreating(false)} />
+      <NewUserDialog open={creating} onClose={() => setCreating(false)} />
     </Page>
   );
 }
 
-function StatusChip({ account }: { account: UserAccount }) {
-  return account.banned ? (
-    <Chip color="warning" variant="soft" size="sm">
-      {m.user_status_suspended()}
-    </Chip>
-  ) : (
-    <Chip color="success" variant="soft" size="sm">
-      {m.user_status_active()}
-    </Chip>
+function UserRow({ account, self }: { account: UserAccount; self: boolean }) {
+  const router = useRouter();
+  const { busy, run } = useAsyncAction();
+
+  return (
+    <TableRow>
+      <TableCell cellSlot="title">
+        <Flexbox horizontal align="center" gap={8}>
+          {account.name}
+          {self ? <Tag size="small">{m.users_you()}</Tag> : null}
+          {account.banned ? (
+            <Tag size="small" color="warning">
+              {m.user_status_suspended()}
+            </Tag>
+          ) : null}
+        </Flexbox>
+      </TableCell>
+      <TableCell cellLabel={m.users_column_email()}>
+        <Text as="span" type="secondary">
+          {account.email}
+        </Text>
+      </TableCell>
+      <TableCell cellLabel={m.users_column_role()}>
+        <RoleSelect
+          aria-label={m.user_role_of({ name: account.name })}
+          value={account.role}
+          size="small"
+          variant="borderless"
+          disabled={self || busy}
+          onChange={(role) => {
+            if (role === account.role) return;
+            void run(
+              () => changeUserRole({ data: { user: account.id, role } }),
+              m.user_role_not_changed(),
+            ).then(async (result) => {
+              if (result.ok) await router.invalidate();
+            });
+          }}
+        />
+      </TableCell>
+      <TableCell cellSlot="extra" className="text-end">
+        {self ? null : <UserMenu account={account} />}
+      </TableCell>
+    </TableRow>
   );
 }

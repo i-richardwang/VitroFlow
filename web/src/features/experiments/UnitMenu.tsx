@@ -1,22 +1,18 @@
-import {
-  Button,
-  Dropdown,
-  Form,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  Separator,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
+import {
+  CircleMinus,
+  ClipboardPen,
+  ImageMinus,
+  ImageUp,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 
 import type {
   ExperimentObservationImage,
   Unit,
 } from "../../domain/experiments/contracts";
-import { cultureEventLabel, observationLabel } from "./labels";
 import type {
   ExperimentObservation,
   Treatment,
@@ -26,15 +22,26 @@ import {
   removeUnit,
   unassignObservationImage,
 } from "../../functions/experiments";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import { DestructiveActionDialog } from "../../ui/DestructiveActionDialog";
-import { MoreIcon } from "../../ui/icons";
-import { ReplaceObservationImageModal } from "./ReplaceObservationImageModal";
+import { PageMenu } from "../../ui/ActionsMenu";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  useAsyncAction,
+  type AsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import type { DropdownItem } from "../../ui/kit/DropdownMenu";
+import { Form } from "../../ui/kit/Form";
+import { Select } from "../../ui/kit/Select";
+import { toast } from "../../ui/kit/Toast";
+import { cultureEventLabel, observationLabel } from "./labels";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
+import { ReplaceObservationImageDialog } from "./ReplaceObservationImageDialog";
 import { UnitDialog } from "./UnitDialog";
 
-type Action = "replace" | "edit" | "record" | "remove-event" | "delete";
+type Action = "replace" | "edit" | "record" | "remove-event";
+
+const REMOVE_EVENT_FORM = "remove-culture-event";
 
 export function UnitMenu({
   experiment,
@@ -52,151 +59,174 @@ export function UnitMenu({
   image: ExperimentObservationImage | null;
 }) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
   const [open, setOpen] = useState<Action | null>(null);
-  const unassign = async () => {
-    if (!image) return;
-    await unassignObservationImage({ data: image.ref });
-    toast.success(m.unit_image_unassigned());
-    await router.navigate({
-      to: "/experiments/$experiment",
-      params: { experiment: image.ref.experiment },
+  const close = () => setOpen(null);
+
+  const items: DropdownItem[] = [];
+  if (image) {
+    items.push({
+      key: "replace",
+      icon: ImageUp,
+      label: m.unit_menu_replace(),
+      onClick: () => setOpen("replace"),
     });
-  };
+  }
+  items.push({
+    key: "edit",
+    icon: Pencil,
+    label: m.unit_menu_edit(),
+    onClick: () => setOpen("edit"),
+  });
+  if (observations.length > 0) {
+    items.push({
+      key: "record",
+      icon: ClipboardPen,
+      label: m.culture_event_menu_record(),
+      onClick: () => setOpen("record"),
+    });
+  }
+  if (unit.events.length > 0) {
+    items.push({
+      key: "remove-event",
+      icon: CircleMinus,
+      label: m.culture_event_menu_remove(),
+      onClick: () => setOpen("remove-event"),
+    });
+  }
+  if (image || canRemove) items.push({ type: "divider" });
+  if (image) {
+    items.push({
+      key: "unassign",
+      icon: ImageMinus,
+      danger: true,
+      label: m.unit_menu_unassign(),
+      onClick: () =>
+        confirmDestructive({
+          title: m.unit_unassign_title({
+            file: image.review.filename,
+            code: unit.code,
+          }),
+          content: m.unit_unassign_note(),
+          confirmLabel: m.unit_unassign(),
+          onConfirm: async () => {
+            await unassignObservationImage({ data: image.ref });
+            toast.success(m.unit_image_unassigned());
+            await router.navigate({
+              to: "/experiments/$experiment",
+              params: { experiment: image.ref.experiment },
+            });
+          },
+        }),
+    });
+  }
+  if (canRemove) {
+    items.push({
+      key: "delete",
+      icon: Trash2,
+      danger: true,
+      label: m.unit_menu_delete(),
+      onClick: () =>
+        confirmDestructive({
+          title: m.unit_delete_title({ code: unit.code }),
+          confirmLabel: m.unit_delete(),
+          onConfirm: async () => {
+            await removeUnit({ data: { experiment, unit: unit.id } });
+            toast.success(m.unit_deleted({ code: unit.code }));
+            await router.invalidate();
+          },
+        }),
+    });
+  }
 
   return (
     <>
-      <Dropdown>
-        <Button
-          variant="ghost"
-          isIconOnly
-          size="sm"
-          aria-label={m.unit_actions({
-            code: unit.code,
-          })}
-        >
-          <MoreIcon />
-        </Button>
-        <Dropdown.Popover placement="bottom end">
-          <Dropdown.Menu
-            aria-label={m.unit_actions({
-              code: unit.code,
-            })}
-            disabledKeys={busy ? ["unassign"] : []}
-            onAction={(key) => {
-              if (key !== "unassign") return setOpen(key as Action);
-              void run(unassign, m.unit_image_not_unassigned());
-            }}
-          >
-            {image ? (
-              <Dropdown.Item id="replace" textValue={m.unit_replace_image()}>
-                <Label>{m.unit_menu_replace()}</Label>
-              </Dropdown.Item>
-            ) : null}
-            <Dropdown.Item id="edit" textValue={m.unit_edit()}>
-              <Label>{m.unit_menu_edit()}</Label>
-            </Dropdown.Item>
-            {observations.length > 0 ? (
-              <Dropdown.Item id="record" textValue={m.culture_event_record()}>
-                <Label>{m.culture_event_menu_record()}</Label>
-              </Dropdown.Item>
-            ) : null}
-            {unit.events.length > 0 ? (
-              <Dropdown.Item
-                id="remove-event"
-                textValue={m.culture_event_remove()}
-              >
-                <Label>{m.culture_event_menu_remove()}</Label>
-              </Dropdown.Item>
-            ) : null}
-            {image || canRemove ? <Separator orientation="horizontal" /> : null}
-            {image ? (
-              <Dropdown.Item
-                id="unassign"
-                textValue={m.unit_unassign_image()}
-                variant="danger"
-              >
-                <Label>{m.unit_unassign_image()}</Label>
-              </Dropdown.Item>
-            ) : null}
-            {canRemove ? (
-              <Dropdown.Item
-                id="delete"
-                textValue={m.unit_delete()}
-                variant="danger"
-              >
-                <Label>{m.unit_menu_delete()}</Label>
-              </Dropdown.Item>
-            ) : null}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+      <PageMenu label={m.unit_actions({ code: unit.code })} items={items} />
 
       <UnitDialog
         experiment={experiment}
         unit={unit}
         treatments={treatments}
-        isOpen={open === "edit"}
-        onClose={() => setOpen(null)}
+        open={open === "edit"}
+        onClose={close}
       />
 
       <RecordCultureEventDialog
         experiment={experiment}
         units={[unit]}
         observations={observations}
-        isOpen={open === "record"}
-        onClose={() => setOpen(null)}
+        open={open === "record"}
+        onClose={close}
       />
 
-      <RemoveCultureEventModal
-        key={open === "remove-event" ? "removing" : "idle"}
+      <RemoveCultureEventDialog
         experiment={experiment}
         unit={unit}
         observations={observations}
-        isOpen={open === "remove-event"}
-        onClose={() => setOpen(null)}
+        open={open === "remove-event"}
+        onClose={close}
       />
 
       {image ? (
-        <ReplaceObservationImageModal
+        <ReplaceObservationImageDialog
           image={image}
-          isOpen={open === "replace"}
-          onClose={() => setOpen(null)}
+          open={open === "replace"}
+          onClose={close}
         />
       ) : null}
-
-      <DestructiveActionDialog
-        isOpen={open === "delete"}
-        onOpenChange={(next) => setOpen(next ? "delete" : null)}
-        title={m.unit_delete_title({ code: unit.code })}
-        confirmLabel={m.unit_delete()}
-        onConfirm={async () => {
-          await removeUnit({
-            data: { experiment, unit: unit.id },
-          });
-          toast.success(m.unit_deleted({ code: unit.code }));
-          await router.invalidate();
-        }}
-      />
     </>
   );
 }
 
-function RemoveCultureEventModal({
+function RemoveCultureEventDialog({
   experiment,
   unit,
   observations,
-  isOpen,
+  open,
   onClose,
 }: {
   experiment: string;
   unit: Unit;
   observations: ExperimentObservation[];
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
+  const action = useAsyncAction();
+  return (
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={m.culture_event_remove()}
+      okText={m.culture_event_remove_action()}
+      formId={REMOVE_EVENT_FORM}
+      busy={action.busy}
+      danger
+    >
+      <RemoveCultureEventForm
+        experiment={experiment}
+        unit={unit}
+        observations={observations}
+        action={action}
+        onDone={onClose}
+      />
+    </FormDialog>
+  );
+}
+
+/** Proposes the unit's latest status. */
+function RemoveCultureEventForm({
+  experiment,
+  unit,
+  observations,
+  action,
+  onDone,
+}: {
+  experiment: string;
+  unit: Unit;
+  observations: ExperimentObservation[];
+  action: AsyncAction;
+  onDone: () => void;
+}) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
   const { events } = unit;
   const [event, setEvent] = useState(events.at(-1)?.id ?? "");
   const describe = (item: (typeof events)[number]) => {
@@ -204,82 +234,46 @@ function RemoveCultureEventModal({
       (entry) => entry.id === item.observation,
     );
     return observation
-      ? `${cultureEventLabel(item.type)} · ${observationLabel(observation)}`
+      ? m.culture_event_at({
+          event: cultureEventLabel(item.type),
+          observation: observationLabel(observation),
+        })
       : cultureEventLabel(item.type);
   };
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.culture_event_remove()}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              <Form
-                id="remove-culture-event"
-                className="flex w-full min-w-0 flex-col gap-4"
-                onSubmit={(formEvent) => {
-                  formEvent.preventDefault();
-                  void run(
-                    () => removeCultureEvent({ data: { experiment, event } }),
-                    m.culture_event_not_removed(),
-                  ).then(async (result) => {
-                    if (!result.ok) return;
-                    onClose();
-                    await router.invalidate();
-                  });
-                }}
-              >
-                <Select
-                  variant="secondary"
-                  fullWidth
-                  isDisabled={busy}
-                  selectedKey={event}
-                  onSelectionChange={(key) => setEvent(String(key))}
-                >
-                  <Label>{m.culture_event_label()}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {events.map((item) => (
-                        <ListBox.Item
-                          key={item.id}
-                          id={item.id}
-                          textValue={describe(item)}
-                        >
-                          {describe(item)}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              </Form>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-                {m.cancel()}
-              </Button>
-              <Button
-                type="submit"
-                form="remove-culture-event"
-                variant="danger"
-                isDisabled={busy || event === ""}
-              >
-                {busy
-                  ? m.culture_event_removing()
-                  : m.culture_event_remove_action()}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Form
+      id={REMOVE_EVENT_FORM}
+      onSubmit={(formEvent) => {
+        formEvent.preventDefault();
+        const removed = events.find((item) => item.id === event);
+        if (!removed) return;
+        void action
+          .run(
+            () => removeCultureEvent({ data: { experiment, event } }),
+            m.culture_event_not_removed(),
+          )
+          .then(async (result) => {
+            if (!result.ok) return;
+            toast.success(
+              m.culture_event_removed({ event: describe(removed) }),
+            );
+            onDone();
+            await router.invalidate();
+          });
+      }}
+    >
+      <Form.Field label={m.culture_event_label()} required>
+        <Select
+          disabled={action.busy}
+          options={events.map((item) => ({
+            label: describe(item),
+            value: item.id,
+          }))}
+          value={event}
+          onChange={setEvent}
+        />
+      </Form.Field>
+    </Form>
   );
 }

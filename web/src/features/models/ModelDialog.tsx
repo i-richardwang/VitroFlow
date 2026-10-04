@@ -1,22 +1,19 @@
-import {
-  Button,
-  FieldError,
-  Form,
-  Input,
-  Label,
-  Modal,
-  TextArea,
-  TextField,
-  toast,
-} from "@heroui/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import type { ModelAnnotation } from "../../domain/models/schema";
 import { addModel } from "../../functions/models";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { FormDialog } from "../../ui/FormDialog";
+import {
+  type AsyncAction,
+  useAsyncAction,
+} from "../../ui/hooks/useAsyncAction";
+import { Form } from "../../ui/kit/Form";
+import { Input, TextArea } from "../../ui/kit/Input";
 import { m } from "../../paraglide/messages";
 import { AnnotationAreaField } from "./AnnotationAreaField";
+
+const FORM_ID = "model";
 
 function classList(text: string): string[] {
   return text
@@ -25,33 +22,36 @@ function classList(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-function ModelDialog({
-  isOpen,
+export function ModelDialog({
+  open,
   onClose,
 }: {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }) {
+  const action = useAsyncAction();
   return (
-    <Modal isOpen={isOpen} onOpenChange={(next) => !next && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={m.close()} />
-            <Modal.Header>
-              <Modal.Heading>{m.model_new()}</Modal.Heading>
-            </Modal.Header>
-            <Editor key={isOpen ? "open" : "closed"} onClose={onClose} />
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={m.model_new()}
+      okText={m.model_create()}
+      formId={FORM_ID}
+      busy={action.busy}
+    >
+      <ModelForm action={action} onDone={onClose} />
+    </FormDialog>
   );
 }
 
-function Editor({ onClose }: { onClose: () => void }) {
+function ModelForm({
+  action: { busy, run },
+  onDone,
+}: {
+  action: AsyncAction;
+  onDone: () => void;
+}) {
   const router = useRouter();
-  const { busy, run } = useAsyncAction();
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [classes, setClasses] = useState("");
@@ -72,109 +72,51 @@ function Editor({ onClose }: { onClose: () => void }) {
       m.model_not_created(),
     ).then(async (result) => {
       if (!result.ok) return;
-      toast.success(m.model_created({ name: result.value.name }));
-      onClose();
+      onDone();
       await router.invalidate();
     });
   };
 
   return (
-    <>
-      <Modal.Body>
-        <Form
-          id="model"
-          className="flex w-full min-w-0 flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <TextField
-            variant="secondary"
-            fullWidth
-            isRequired
-            isDisabled={busy}
-            value={name}
-            onChange={setName}
-          >
-            <Label>{m.model_name_label()}</Label>
-            <Input className="w-full" />
-            <FieldError />
-          </TextField>
-          <TextField
-            variant="secondary"
-            fullWidth
-            isRequired
-            isDisabled={busy}
-            value={id}
-            onChange={setId}
-          >
-            <Label>{m.model_id_label()}</Label>
-            <Input
-              className="w-full font-mono"
-              placeholder={m.model_id_placeholder()}
-            />
-            <FieldError />
-          </TextField>
-          <TextField
-            variant="secondary"
-            fullWidth
-            isRequired
-            isDisabled={busy}
-            value={classes}
-            onChange={setClasses}
-          >
-            <Label>{m.model_classes_label()}</Label>
-            <TextArea
-              className="w-full font-mono"
-              rows={3}
-              placeholder={m.model_classes_placeholder()}
-            />
-            <FieldError />
-          </TextField>
-          <TextField
-            variant="secondary"
-            fullWidth
-            isDisabled={busy}
-            value={instructions}
-            onChange={setInstructions}
-          >
-            <Label>{m.model_annotation_label()}</Label>
-            <TextArea
-              className="w-full"
-              rows={4}
-              placeholder={m.model_annotation_placeholder()}
-            />
-          </TextField>
-          <AnnotationAreaField
-            value={area}
-            onChange={setArea}
-            isDisabled={busy}
-          />
-        </Form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="tertiary" isDisabled={busy} onPress={onClose}>
-          {m.cancel()}
-        </Button>
-        <Button type="submit" form="model" variant="primary" isDisabled={busy}>
-          {busy
-            ? m.action_in_progress({ action: m.model_create() })
-            : m.model_create()}
-        </Button>
-      </Modal.Footer>
-    </>
-  );
-}
-
-export function ModelDialogButton() {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button variant="primary" onPress={() => setOpen(true)}>
-        {m.model_new()}
-      </Button>
-      <ModelDialog isOpen={open} onClose={() => setOpen(false)} />
-    </>
+    <Form
+      id={FORM_ID}
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <Form.Field label={m.model_name_label()} required>
+        <Input value={name} onValueChange={setName} disabled={busy} autoFocus />
+      </Form.Field>
+      <Form.Field label={m.model_id_label()} required>
+        <Input
+          className="font-mono"
+          value={id}
+          onValueChange={setId}
+          placeholder={m.model_id_placeholder()}
+          disabled={busy}
+        />
+      </Form.Field>
+      <Form.Field label={m.model_classes_label()} required>
+        <TextArea
+          className="font-mono"
+          rows={3}
+          value={classes}
+          onChange={(event) => setClasses(event.currentTarget.value)}
+          placeholder={m.model_classes_placeholder()}
+          disabled={busy}
+        />
+      </Form.Field>
+      <Form.Field label={m.model_annotation_label()}>
+        <TextArea
+          rows={4}
+          value={instructions}
+          onChange={(event) => setInstructions(event.currentTarget.value)}
+          placeholder={m.model_annotation_placeholder()}
+          disabled={busy}
+        />
+      </Form.Field>
+      <AnnotationAreaField value={area} onChange={setArea} disabled={busy} />
+    </Form>
   );
 }

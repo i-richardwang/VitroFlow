@@ -64,10 +64,6 @@ spec:
           type: STRING
           name: Workbench Domain
           description: "The full domain the workbench is served on, such as vitroflow.example.com. Bind it in the Networking tab after deploying. It is also the auth issuer and the MCP endpoint origin."
-        - key: HEROUI_KEY
-          type: STRING
-          name: HeroUI Pro Key
-          description: "Private component-registry credential. The Web build needs it; the built image does not retain it."
         - key: VITROFLOW_ADMIN_EMAIL
           type: STRING
           name: Administrator Email
@@ -250,8 +246,6 @@ spec:
                 <<: &application-environment
                     ZBPACK_DOCKERFILE_NAME:
                         default: web
-                    HEROUI_KEY:
-                        default: ${HEROUI_KEY}
                     DATABASE_URL:
                         default: ${POSTGRES_CONNECTION_STRING}
                     VITROFLOW_BLOB_ENDPOINT:

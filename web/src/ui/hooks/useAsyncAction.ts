@@ -1,7 +1,7 @@
-import { toast } from "@heroui/react";
 import { useCallback, useState } from "react";
 
 import { errorMessage } from "../errors";
+import { toast } from "../kit/Toast";
 
 export type ActionResult<T> =
   { ok: true; value: T } | { ok: false; error: unknown };
@@ -16,6 +16,10 @@ export async function performAction<T>(
   }
 }
 
+/**
+ * One action's busy flag and runner. A failure is reported as an error toast
+ * titled `failure`; the result says whether the work succeeded.
+ */
 export function useAsyncAction() {
   const [busy, setBusy] = useState(false);
   const run = useCallback(
@@ -24,7 +28,10 @@ export function useAsyncAction() {
       try {
         const result = await performAction(work);
         if (!result.ok) {
-          toast.danger(failure, { description: errorMessage(result.error) });
+          toast.error({
+            title: failure,
+            description: errorMessage(result.error),
+          });
         }
         return result;
       } finally {
@@ -35,3 +42,5 @@ export function useAsyncAction() {
   );
   return { busy, run };
 }
+
+export type AsyncAction = ReturnType<typeof useAsyncAction>;

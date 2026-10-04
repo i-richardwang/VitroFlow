@@ -1,8 +1,10 @@
-import { EmptyState } from "@heroui-pro/react/empty-state";
-import { Link } from "@heroui/react";
+import { Link } from "@tanstack/react-router";
 
 import { m } from "../../paraglide/messages";
+import { Button } from "../kit/Button";
+import { WorkbenchEmpty } from "./Workbench";
 
+/** A page that could not be shown, with the way back to the experiments. */
 export function WorkbenchNotice({
   title,
   description,
@@ -11,20 +13,14 @@ export function WorkbenchNotice({
   description?: string;
 }) {
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <EmptyState>
-        <EmptyState.Header>
-          <EmptyState.Title>{title}</EmptyState.Title>
-          {description ? (
-            <EmptyState.Description>{description}</EmptyState.Description>
-          ) : null}
-        </EmptyState.Header>
-        <EmptyState.Content>
-          <Link href="/experiments" className="text-sm font-medium">
-            {m.return_to_experiments()}
-          </Link>
-        </EmptyState.Content>
-      </EmptyState>
-    </div>
+    <WorkbenchEmpty
+      title={title}
+      description={description}
+      action={
+        <Button render={<Link to="/experiments" />}>
+          {m.return_to_experiments()}
+        </Button>
+      }
+    />
   );
 }

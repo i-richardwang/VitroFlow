@@ -1,0 +1,107 @@
+/* The thumb offset `--switch-x` is written by Switch.tsx; `--switch-dir` flips it in right-to-left text. */
+
+.ui-switch {
+  --switch-dir: 1;
+
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  padding: 2px;
+  border: 0;
+  border-radius: 100px;
+  background: var(--color-fill-secondary);
+  outline: none;
+  box-shadow: inset 0 1.5px 2px rgb(0 0 0 / 8%);
+  transition:
+    background var(--duration-slow) var(--ease-out),
+    box-shadow var(--duration-slow) var(--ease-out);
+
+  &:dir(rtl) {
+    --switch-dir: -1;
+  }
+
+  [dir="rtl"] & {
+    --switch-dir: -1;
+  }
+
+  @apply focus-ring;
+
+  &:hover:not([data-disabled]) {
+    background: var(--color-fill);
+  }
+
+  &[data-checked] {
+    background: var(--color-primary);
+    box-shadow: inset 0 1.5px 3px rgb(0 0 0 / 18%);
+
+    &:hover:not([data-disabled]) {
+      background: var(--color-primary-hover);
+    }
+  }
+
+  &[data-disabled] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition-duration: 0s;
+  }
+}
+
+.ui-switch-root-default {
+  width: 36px;
+  min-width: 36px;
+  height: 22px;
+}
+
+.ui-switch-root-small {
+  width: 28px;
+  min-width: 28px;
+  height: 16px;
+}
+
+.ui-switch-thumb {
+  transform: translateX(calc(var(--switch-x, 0px) * var(--switch-dir, 1)));
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-container);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 4%),
+    0 1px 1px rgb(0 0 0 / 6%),
+    0 3px 8px rgb(0 0 0 / 16%);
+  transition: box-shadow var(--duration-slow) var(--ease-out);
+
+  [role="switch"]:hover:not([data-disabled]) > & {
+    box-shadow:
+      0 0 0 0.5px rgb(0 0 0 / 4%),
+      0 1px 1px rgb(0 0 0 / 8%),
+      0 6px 14px rgb(0 0 0 / 24%);
+  }
+
+  [data-disabled] > & {
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition-duration: 0s;
+  }
+}
+
+.ui-switch-thumb-default {
+  width: 18px;
+  height: 18px;
+}
+
+.ui-switch-thumb-small {
+  width: 12px;
+  height: 12px;
+}

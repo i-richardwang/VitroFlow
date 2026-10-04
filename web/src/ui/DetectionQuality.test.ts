@@ -3,10 +3,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { m } from "../paraglide/messages";
-import { QualityAlert, QualityChips } from "./DetectionQuality";
+import { QualityAlert, QualityTags } from "./DetectionQuality";
 
 test("unrecognized warnings render as labels rather than inherited object properties", () => {
-  for (const Component of [QualityAlert, QualityChips]) {
+  for (const Component of [QualityAlert, QualityTags]) {
     const markup = renderToStaticMarkup(
       createElement(Component, {
         quality: {
