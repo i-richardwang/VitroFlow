@@ -9,6 +9,8 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { WorkbenchSection, WorkbenchSkeleton } from "../../ui/shell/Workbench";
 import { StepButton } from "../../ui/StepButton";
+import { splitLabel } from "../../features/datasets/labels";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import type {
   DatasetImageStep,
@@ -44,9 +46,17 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
     },
   },
   head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [{ title: `${loaderData.review.filename} · ${m.app_name()}` }]
-      : [],
+    meta: [
+      {
+        title: documentTitle(
+          loaderData &&
+            m.image_title({
+              file: loaderData.review.filename,
+              dataset: loaderData.dataset.id,
+            }),
+        ),
+      },
+    ],
   }),
   pendingComponent: WorkbenchSkeleton,
   component: DatasetImagePage,
@@ -113,7 +123,7 @@ function DatasetImagePage() {
           <WorkbenchSection title={m.image_section()}>
             <Descriptions>
               <DescriptionsItem label={m.image_split()}>
-                {split}
+                {splitLabel(split)}
               </DescriptionsItem>
             </Descriptions>
           </WorkbenchSection>

@@ -49,7 +49,7 @@ import { TextLink } from "../../ui/kit/TextLink";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { modelName } from "../../ui/model-names";
 import { Page } from "../../ui/Page";
-import { formatCount } from "../../ui/readings";
+import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
 import { ImageAnalysisStatus } from "./ImageAnalysisStatus";
 import { joinFacts, observationLabel } from "./labels";
@@ -415,7 +415,7 @@ function UnitCell({
       >
         {formatCount(reading.count)}
         {reading.source === "proposal" ? (
-          <Icon icon={Sparkles} size={12} className="text-info" />
+          <Icon icon={Sparkles} className="text-info" />
         ) : null}
       </span>
     );

@@ -10,7 +10,7 @@ import {
   datasets,
   experimentObservationImages,
   experimentObservations,
-  images as imageAssets,
+  type images as imageAssets,
 } from "../infra/db/schema";
 import {
   datasetSchema,

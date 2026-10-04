@@ -56,7 +56,9 @@ export function UnitSelectionBar({
               aria-label={m.culture_event_record()}
               onClick={() => setOpen("record")}
             >
-              <span className="max-sm:hidden">{m.culture_event_record()}</span>
+              <span className="max-mobile:hidden">
+                {m.culture_event_record()}
+              </span>
             </Button>
           }
         />
@@ -69,7 +71,9 @@ export function UnitSelectionBar({
               aria-label={m.experiment_move_units()}
               onClick={() => setOpen("move")}
             >
-              <span className="max-sm:hidden">{m.experiment_move_units()}</span>
+              <span className="max-mobile:hidden">
+                {m.experiment_move_units()}
+              </span>
             </Button>
           }
         />

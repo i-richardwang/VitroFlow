@@ -77,7 +77,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
     <TableRow>
       <TableCell cellSlot="title">{apiKey.name}</TableCell>
       <TableCell cellLabel={m.api_key_column_key()}>
-        <Text as="span" type="secondary" className="text-xs" code>
+        <Text as="span" className="text-xs text-fg-secondary" code>
           {m.api_key_start({ start: apiKey.start })}
         </Text>
       </TableCell>
@@ -92,27 +92,25 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
       </TableCell>
       <TableCell cellLabel={m.api_key_column_expires()}>
         {apiKey.expiresAt === null ? (
-          <Text as="span" type="secondary">
-            {m.api_key_expiry_never()}
-          </Text>
+          <span className="text-fg-secondary">{m.api_key_expiry_never()}</span>
         ) : expired ? (
           <Text as="span" type="danger">
             {m.api_key_expired()}
           </Text>
         ) : (
-          <Text as="span" type="secondary">
+          <span className="text-fg-secondary">
             <Timestamp value={apiKey.expiresAt} />
-          </Text>
+          </span>
         )}
       </TableCell>
       <TableCell cellLabel={m.api_key_column_last_used()}>
-        <Text as="span" type="secondary">
+        <span className="text-fg-secondary">
           {apiKey.lastUsedAt === null ? (
             m.api_key_never_used()
           ) : (
             <Timestamp value={apiKey.lastUsedAt} />
           )}
-        </Text>
+        </span>
       </TableCell>
       <TableCell cellSlot="extra" className="text-end">
         <ActionIcon

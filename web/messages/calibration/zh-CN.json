@@ -25,7 +25,6 @@
   "calibration_layer_boxes": "标记",
   "calibration_layer_ids": "序号",
   "calibration_layer_checks": "待确认",
-  "calibration_saved_refresh_failed": "复核已保存，但页面刷新失败。请重新加载页面查看。",
   "calibration_open_failed": "无法开始校准",
   "calibration_count_total": "合计",
   "calibration_source_proposal": "AI 建议",

@@ -10,6 +10,7 @@ import { tally } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../../ui/DetectionQuality";
+import { formatNumber } from "../../ui/numbers";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { WorkbenchSection } from "../../ui/shell/Workbench";
 import { CountsSection, LayersSection, type CountSource } from "./inspector";
@@ -65,7 +66,7 @@ function DetectionFacts({ result }: { result: DetectionResult }) {
       </DescriptionsItem>
       {threshold === undefined ? null : (
         <DescriptionsItem label={m.calibration_detection_threshold()}>
-          {String(threshold)}
+          {formatNumber(threshold)}
         </DescriptionsItem>
       )}
     </Descriptions>

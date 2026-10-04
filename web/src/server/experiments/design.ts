@@ -24,20 +24,20 @@ import {
   UnitRejectedError,
 } from "../../domain/experiments/errors";
 import { replicateCodes, sameName } from "../../domain/experiments/naming";
-import {
-  type Experiment,
-  type ExperimentRef,
-  type ExperimentRequest,
-  type ExperimentUpdate,
-  type ReplicateRequest,
-  type Treatment,
-  type TreatmentDesign,
-  type TreatmentRef,
-  type TreatmentRequest,
-  type TreatmentUpdate,
-  type UnitRef,
-  type UnitsTreatmentUpdate,
-  type UnitUpdate,
+import type {
+  Experiment,
+  ExperimentRef,
+  ExperimentRequest,
+  ExperimentUpdate,
+  ReplicateRequest,
+  Treatment,
+  TreatmentDesign,
+  TreatmentRef,
+  TreatmentRequest,
+  TreatmentUpdate,
+  UnitRef,
+  UnitsTreatmentUpdate,
+  UnitUpdate,
 } from "../../domain/experiments/schema";
 import {
   atTreatment,

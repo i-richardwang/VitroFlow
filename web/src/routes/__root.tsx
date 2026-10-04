@@ -10,6 +10,7 @@ import {
 
 import { ModalHost } from "../ui/kit/Modal";
 import { Toaster } from "../ui/kit/Toast";
+import { documentTitle } from "../ui/documentTitle";
 import { WorkbenchNotice } from "../ui/shell/WorkbenchNotice";
 import { m } from "../paraglide/messages";
 import { getLocale } from "../paraglide/runtime";
@@ -20,7 +21,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: m.app_name() },
+      { title: documentTitle() },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -47,13 +48,14 @@ function RootComponent() {
 }
 
 function NotFoundPage() {
-  return <WorkbenchNotice title={m.page_not_found()} />;
+  return <WorkbenchNotice title={m.not_found()} />;
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang={getLocale()} suppressHydrationWarning>
       <head>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant script that sets the scheme before the first paint */}
         <script dangerouslySetInnerHTML={{ __html: SYNC_COLOR_SCHEME }} />
         <HeadContent />
       </head>

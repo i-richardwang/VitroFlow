@@ -24,7 +24,7 @@ export interface IconProps
     Omit<ComponentProps<"span">, "children" | "color" | "ref">,
     Pick<LucideProps, "fill" | "color"> {
   // Any component that takes lucide-style props.
-  icon: LucideIcon | FC<any> | ReactNode;
+  icon: LucideIcon | FC<LucideProps> | ReactNode;
   size?: IconSize;
   spin?: boolean;
 }

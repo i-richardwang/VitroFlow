@@ -96,7 +96,10 @@ export function ScrollShadow({
       )}
       ref={setRefs as Ref<HTMLElement>}
       style={{
-        ...({ "--scroll-shadow-size": `${size}%` } as Record<string, string>),
+        ...({ "--ui-scroll-shadow-size": `${size}%` } as Record<
+          string,
+          string
+        >),
         ...style,
       }}
       data-orientation="vertical"

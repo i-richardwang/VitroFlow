@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ChangePasswordDialog } from "../../features/account/ChangePasswordDialog";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import { LanguageSelect } from "../../ui/LanguageSelect";
 import { Page, PageSection } from "../../ui/Page";
@@ -13,7 +14,7 @@ import { USER_ROLE_LABELS } from "../../ui/user-roles";
 export const Route = createFileRoute("/_workbench/account")({
   staticData: { crumbs: () => [{ label: m.account_title() }] },
   head: () => ({
-    meta: [{ title: `${m.account_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.account_title()) }],
   }),
   component: AccountPage,
 });

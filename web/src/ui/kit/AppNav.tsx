@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { m } from "../../paraglide/messages";
 import { useAppShell } from "./AppShell";
 import { Icon, type IconProps } from "./Icon";
-import { usePrefersReducedMotion } from "./mediaQuery";
+import { durationMs } from "./motionToken";
 import { ScrollShadow } from "./ScrollShadow";
 import { Tooltip } from "./Tooltip";
 
@@ -45,8 +45,6 @@ function resolveActiveHref(pathname: string, groups: readonly AppNavGroup[]) {
     .filter((item) => matchesNavPath(pathname, item.href))
     .sort((left, right) => right.href.length - left.href.length)[0]?.href;
 }
-
-const PANEL_TRANSITION_MS = 160;
 
 function scrollActiveIntoView(container: HTMLElement) {
   const link = container.querySelector<HTMLElement>('[aria-current="page"]');
@@ -126,7 +124,6 @@ export function AppNav({
   const id = useId();
   const navRef = useRef<HTMLDivElement>(null);
   const { collapsed } = useAppShell();
-  const reducedMotion = usePrefersReducedMotion();
   const [closed, setClosed] = useState<Record<string, boolean>>({});
 
   const activeHref = resolveActiveHref(pathname, groups);
@@ -148,14 +145,13 @@ export function AppNav({
     const container = navRef.current;
     if (!container) return;
     scrollActiveIntoView(container);
-    if (reducedMotion) return;
     // Once more after an opening group panel has finished growing.
     const timer = window.setTimeout(
       () => scrollActiveIntoView(container),
-      PANEL_TRANSITION_MS,
+      durationMs("--duration-base"),
     );
     return () => window.clearTimeout(timer);
-  }, [activeHref, collapsed, pathname, reducedMotion]);
+  }, [activeHref, collapsed, pathname]);
 
   const links = (group: AppNavGroup, rail: boolean) =>
     group.items.map((item) => (
@@ -184,7 +180,6 @@ export function AppNav({
             className="ui-app-nav-rail-group"
             data-first={index === 0}
             key={group.key}
-            role="group"
           >
             <h2 className="sr-only">{group.label}</h2>
             {links(group, true)}
@@ -227,7 +222,6 @@ export function AppNav({
               aria-hidden={!expanded}
               className="ui-app-nav-group-panel"
               data-expanded={expanded}
-              data-instant={reducedMotion}
               id={panelId}
               inert={!expanded}
             >

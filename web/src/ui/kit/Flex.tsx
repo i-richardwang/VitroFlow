@@ -34,7 +34,6 @@ export interface FlexboxProps extends HTMLAttributes<HTMLElement> {
   justify?: CSSProperties["justifyContent"];
   padding?: number | string;
   paddingBlock?: number | string;
-  paddingInline?: number | string;
   ref?: Ref<HTMLElement>;
   width?: number | string;
   wrap?: CSSProperties["flexWrap"];
@@ -54,7 +53,6 @@ export function Flexbox({
   height,
   width,
   padding,
-  paddingInline,
   paddingBlock,
   as: Container = "div",
   className,
@@ -64,9 +62,8 @@ export function Flexbox({
   ref,
   ...props
 }: FlexboxProps) {
-  const justifyContent = justify;
   const finalWidth =
-    horizontal && !width && justifyContent && SPACE.includes(justifyContent)
+    horizontal && !width && justify && SPACE.includes(justify)
       ? "100%"
       : width === undefined
         ? undefined
@@ -76,13 +73,11 @@ export function Flexbox({
   if (flex !== undefined) vars["--ui-flex"] = String(flex);
   if (horizontal) vars["--ui-flex-direction"] = "row";
   if (wrap !== undefined) vars["--ui-flex-wrap"] = wrap;
-  if (justifyContent !== undefined) vars["--ui-flex-justify"] = justifyContent;
+  if (justify !== undefined) vars["--ui-flex-justify"] = justify;
   if (align !== undefined) vars["--ui-flex-align"] = align;
   if (finalWidth !== undefined) vars["--ui-flex-width"] = finalWidth;
   if (height !== undefined) vars["--ui-flex-height"] = cssValue(height);
   if (padding !== undefined) vars["--ui-flex-padding"] = cssValue(padding);
-  if (paddingInline !== undefined)
-    vars["--ui-flex-padding-inline"] = cssValue(paddingInline);
   if (paddingBlock !== undefined)
     vars["--ui-flex-padding-block"] = cssValue(paddingBlock);
   if (gap !== undefined) vars["--ui-flex-gap"] = cssValue(gap);

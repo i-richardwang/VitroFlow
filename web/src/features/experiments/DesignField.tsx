@@ -7,16 +7,23 @@ import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Button } from "../../ui/kit/Button";
 import { Form } from "../../ui/kit/Form";
 import { Input } from "../../ui/kit/Input";
-import { Text } from "../../ui/kit/Text";
 import { m } from "../../paraglide/messages";
 import { DEFAULT_REPLICATES, ReplicatesInput } from "./ReplicatesField";
 import { TreatmentDot } from "./TreatmentDot";
 
-export type DesignRow = { name: string; replicates: number };
+/** A treatment being designed; `id` keeps its inputs with it when rows are removed. */
+export type DesignRow = { id: number; name: string; replicates: number };
 
-export const INITIAL_DESIGN: DesignRow[] = [
-  { name: "", replicates: DEFAULT_REPLICATES },
-];
+let nextRowId = 0;
+
+function emptyRow(): DesignRow {
+  nextRowId += 1;
+  return { id: nextRowId, name: "", replicates: DEFAULT_REPLICATES };
+}
+
+export function initialDesign(): DesignRow[] {
+  return [emptyRow()];
+}
 
 const MAX_TREATMENTS = 50;
 
@@ -55,18 +62,18 @@ export function DesignField({
         })}
       />
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2">
-        <Text aria-hidden className="col-start-2 text-xs" type="secondary">
+        <div aria-hidden className="col-start-2 text-xs text-fg-secondary">
           {m.treatment_name_label()}
-        </Text>
-        <Text aria-hidden className="col-span-2 text-xs" type="secondary">
+        </div>
+        <div aria-hidden className="col-span-2 text-xs text-fg-secondary">
           {m.treatment_replicates_label()}
-        </Text>
+        </div>
         {rows.map((row, index) => {
           const removeLabel = m.experiment_design_remove_treatment({
             name: row.name || String(index + 1),
           });
           return (
-            <Fragment key={index}>
+            <Fragment key={row.id}>
               <TreatmentDot position={index + 1} />
               <Input
                 aria-label={m.treatment_name_label()}
@@ -97,9 +104,7 @@ export function DesignField({
         block
         icon={Plus}
         disabled={disabled || rows.length >= MAX_TREATMENTS}
-        onClick={() =>
-          onChange([...rows, { name: "", replicates: DEFAULT_REPLICATES }])
-        }
+        onClick={() => onChange([...rows, emptyRow()])}
       >
         {m.experiment_design_add_treatment()}
       </Button>

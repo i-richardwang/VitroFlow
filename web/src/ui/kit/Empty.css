@@ -32,18 +32,17 @@
 
 .ui-empty-title {
   font-size: var(--text-lg);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-fg);
   text-align: center;
 }
 
 .ui-empty-description {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   color: var(--color-fg-tertiary);
   text-align: center;
 }
 
 .ui-empty-description-large {
-  font-size: var(--text-base);
   color: var(--color-fg-secondary);
 }

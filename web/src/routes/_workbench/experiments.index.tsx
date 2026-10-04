@@ -9,6 +9,9 @@ import {
 import { joinFacts } from "../../features/experiments/labels";
 import { NewExperimentDialog } from "../../features/experiments/NewExperimentDialog";
 import { getExperiments } from "../../functions/experiments";
+import { documentTitle } from "../../ui/documentTitle";
+import { Day } from "../../ui/Day";
+import { formatList } from "../../ui/lists";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
 import { Button } from "../../ui/kit/Button";
@@ -34,7 +37,7 @@ export const Route = createFileRoute("/_workbench/experiments/")({
   loader: () => getExperiments(),
   staticData: { crumbs: () => [{ label: m.experiments_title() }] },
   head: () => ({
-    meta: [{ title: `${m.experiments_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.experiments_title()) }],
   }),
   pendingComponent: () => (
     <PageSkeleton>
@@ -108,7 +111,7 @@ function ExperimentsPage() {
                     >
                       <span className="block max-w-56 truncate">
                         {treatmentNames.length > 0 ? (
-                          joinFacts(treatmentNames)
+                          formatList(treatmentNames)
                         ) : (
                           <Absent />
                         )}
@@ -118,7 +121,7 @@ function ExperimentsPage() {
                       cellLabel={m.experiments_column_inoculated()}
                       className="whitespace-nowrap text-fg-tertiary tabular-nums"
                     >
-                      {experiment.inoculatedOn}
+                      <Day value={experiment.inoculatedOn} />
                     </TableCell>
                     <TableCell
                       cellLabel={m.experiments_column_latest()}

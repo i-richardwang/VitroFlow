@@ -1,6 +1,8 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "training_title": "训练",
+  "training_dataset_title": "{dataset} 的训练",
+  "training_run_page_title": "{dataset} 的训练 {run}",
   "training_datasets_crumb": "数据集",
   "training_kpi_runs": "训练次数",
   "training_kpi_in_progress": "进行中",

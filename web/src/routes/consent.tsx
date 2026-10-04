@@ -14,6 +14,7 @@ import { Flexbox } from "../ui/kit/Flex";
 import { PageSkeleton } from "../ui/kit/PageSkeleton";
 import { Skeleton } from "../ui/kit/Skeleton";
 import { TextLink } from "../ui/kit/TextLink";
+import { documentTitle } from "../ui/documentTitle";
 import { m } from "../paraglide/messages";
 
 /**
@@ -33,8 +34,14 @@ export const Route = createFileRoute("/consent")({
     resources: [search.resource ?? []].flat(),
   }),
   loader: ({ deps }) => describeOAuthClient({ data: deps }),
-  head: () => ({
-    meta: [{ title: `${m.consent_allow()} · ${m.app_name()}` }],
+  head: ({ loaderData }) => ({
+    meta: [
+      {
+        title: documentTitle(
+          loaderData && m.consent_title({ client: loaderData.name }),
+        ),
+      },
+    ],
   }),
   pendingComponent: ConsentPending,
   component: ConsentPage,
@@ -99,7 +106,7 @@ function ConsentPending() {
   return (
     <AuthLayout
       brand={brand}
-      title={<Skeleton width="60%" className="inline-block align-middle" />}
+      title={<Skeleton width="9em" className="inline-block align-middle" />}
     >
       <PageSkeleton>
         <ConsentDecisions disabled />

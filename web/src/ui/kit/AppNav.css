@@ -125,10 +125,6 @@
   &[data-expanded="false"] {
     grid-template-rows: 0fr;
   }
-
-  &[data-instant="true"] {
-    transition: none;
-  }
 }
 
 .ui-app-nav-group-items {

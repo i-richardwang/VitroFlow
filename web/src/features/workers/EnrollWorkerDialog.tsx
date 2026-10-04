@@ -1,6 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { RESOURCE_ID_PATTERN } from "../../domain/identifiers/schema";
 import { addWorker } from "../../functions/status";
 import { m } from "../../paraglide/messages";
 import { CopyableCode } from "../../ui/CopyableCode";
@@ -120,7 +121,7 @@ function EnrollWorkerForm({
           autoComplete="off"
           autoFocus
           disabled={busy}
-          pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+          pattern={RESOURCE_ID_PATTERN}
           placeholder={m.worker_enroll_name_placeholder()}
         />
       </Form.Field>

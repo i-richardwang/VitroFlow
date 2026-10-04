@@ -4,6 +4,7 @@ import type { TrainingParameters } from "../../domain/training/parameters";
 import { m } from "../../paraglide/messages";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { Skeleton } from "../../ui/kit/Skeleton";
+import { formatNumber } from "../../ui/numbers";
 import { PARAMETER_LABELS } from "./parameter-fields";
 
 const KEYS = Object.keys(PARAMETER_LABELS) as (keyof TrainingParameters)[];
@@ -43,9 +44,9 @@ function ParameterColumns({
   value: (key: keyof TrainingParameters) => ReactNode;
 }) {
   return (
-    <div className="grid items-start gap-x-12 sm:grid-cols-2">
-      {[KEYS.slice(0, HALF), KEYS.slice(HALF)].map((keys, column) => (
-        <Descriptions key={column} aligned>
+    <div className="grid items-start gap-x-12 mobile:grid-cols-2">
+      {[KEYS.slice(0, HALF), KEYS.slice(HALF)].map((keys) => (
+        <Descriptions key={keys[0]} aligned>
           {keys.map((key) => (
             <DescriptionsItem key={key} label={PARAMETER_LABELS[key]()}>
               {value(key)}
@@ -60,5 +61,5 @@ function ParameterColumns({
 function formatParameter(value: number | string | boolean): string {
   if (typeof value === "boolean")
     return value ? m.parameter_on() : m.parameter_off();
-  return String(value);
+  return typeof value === "number" ? formatNumber(value) : value;
 }

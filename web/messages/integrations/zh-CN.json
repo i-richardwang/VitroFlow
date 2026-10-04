@@ -44,6 +44,7 @@
   "api_key_never_used": "从未使用",
   "api_key_empty_description": "创建一个，供脚本或 agent 访问本工作台。",
   "mcp_empty_description": "把上方的服务地址添加到 MCP 客户端，批准后会出现在这里。",
+  "mcp_empty_show_servers": "查看服务地址",
   "api_key_start": "{start}…",
   "api_key_issued_title": "保存密钥"
 }

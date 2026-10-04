@@ -5,6 +5,7 @@ import { animate, press } from "motion";
 import { type MouseEvent, type ReactNode, useEffect, useRef } from "react";
 import { cn } from "./cn";
 import { resolveIcon } from "./Icon";
+import { springTransition } from "./motionToken";
 
 /*
  * A link is made with `render` (a router `<Link>` or an `<a>`), not with
@@ -46,12 +47,7 @@ const ICON_ONLY = {
 } as const;
 
 const TAP = { scale: 0.98 };
-const TAP_TRANSITION = {
-  damping: 26,
-  mass: 0.6,
-  stiffness: 600,
-  type: "spring",
-} as const;
+const TAP_SPRING = { damping: 26, mass: 0.6, stiffness: 600 };
 
 /** Shrinks to 0.98 while pressed and springs back on release; not attached while interaction is disabled. */
 function usePressScale(enabled: boolean) {
@@ -60,8 +56,8 @@ function usePressScale(enabled: boolean) {
     const element = ref.current;
     if (!element || !enabled) return;
     return press(element, (target) => {
-      animate(target, TAP, TAP_TRANSITION);
-      return () => animate(target, { scale: 1 }, TAP_TRANSITION);
+      animate(target, TAP, springTransition(TAP_SPRING));
+      return () => animate(target, { scale: 1 }, springTransition(TAP_SPRING));
     });
   }, [enabled]);
   return ref;

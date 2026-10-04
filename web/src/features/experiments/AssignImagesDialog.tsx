@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
 import { pairInOrder, suggestUnit } from "../../domain/experiments/naming";
@@ -64,11 +64,17 @@ function AssignImagesSession({
     {},
   );
   const suggested = useRef(new Set<number>());
-  const vacantUnits = units.filter((unit) => !assigned.has(unit.id));
+  const vacantUnits = useMemo(
+    () => units.filter((unit) => !assigned.has(unit.id)),
+    [units, assigned],
+  );
   const { images } = uploads;
-  const stored = storedPhotos(images);
-  const conflicts = photoConflicts(stored, placed);
-  const free = stored.filter((photo) => !conflicts.has(photo.id));
+  const { conflicts, free } = useMemo(() => {
+    const stored = storedPhotos(images);
+    const conflicts = photoConflicts(stored, placed);
+    const free = stored.filter((photo) => !conflicts.has(photo.id));
+    return { conflicts, free };
+  }, [images, placed]);
 
   /**
    * Each photograph is guessed once, when it is stored and free to take a
@@ -95,7 +101,7 @@ function AssignImagesSession({
       }
       return next;
     });
-  }, [images]);
+  }, [free, vacantUnits]);
 
   const chosen = new Map(
     free.flatMap((photo) => {
@@ -278,7 +284,7 @@ function UnitChoice({
   return (
     <Select
       aria-label={m.observation_images_unit_label({ file: image.file.name })}
-      className="w-28 sm:w-44"
+      className="w-28 mobile:w-44"
       size="small"
       variant="filled"
       allowClear

@@ -44,6 +44,7 @@
   "api_key_never_used": "Never used",
   "api_key_empty_description": "Create one so a script or agent can reach this workbench.",
   "mcp_empty_description": "Add a server address above to your MCP client; it appears here once you approve it.",
+  "mcp_empty_show_servers": "Show server addresses",
   "api_key_start": "{start}…",
   "api_key_issued_title": "Save this key"
 }

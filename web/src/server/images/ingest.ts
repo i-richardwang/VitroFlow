@@ -52,8 +52,7 @@ export async function canonicalImageSize(
     .metadata()
     .catch(() => null);
   if (
-    !metadata ||
-    metadata.format !== "heif" ||
+    metadata?.format !== "heif" ||
     metadata.compression !== "av1" ||
     (metadata.pages ?? 1) !== 1 ||
     !metadata.width ||

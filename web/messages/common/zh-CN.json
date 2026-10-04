@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "app_name": "VitroFlow",
+  "document_title": "{page} · {app}",
   "nav_group_lab": "实验室",
   "nav_group_model": "模型",
   "nav_group_workers": "工作节点",
@@ -15,7 +16,6 @@
   "nav_integrations": "集成",
   "nav_users": "用户",
   "sign_out": "退出登录",
-  "page_not_found": "页面不存在",
   "not_found": "未找到",
   "something_went_wrong": "出了点问题",
   "return_to_experiments": "返回实验列表",
@@ -27,6 +27,7 @@
   "quality_dish_detection_failed": "未检测到培养皿",
   "quality_exposure_clipping": "曝光溢出",
   "quality_low_focus": "对焦不足",
+  "quality_unknown_warning": "图像质量需要检查",
   "error_not_found": "记录已不存在，请刷新页面后重试。",
   "error_conflict": "当前状态不允许此操作，请刷新页面后重试。",
   "error_invalid_request": "提交的数据不符合要求，请检查后重试。",

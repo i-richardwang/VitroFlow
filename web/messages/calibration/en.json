@@ -25,7 +25,6 @@
   "calibration_layer_boxes": "Marks",
   "calibration_layer_ids": "Numbers",
   "calibration_layer_checks": "To check",
-  "calibration_saved_refresh_failed": "Your review was saved, but the page could not refresh. Reload the page to see it.",
   "calibration_open_failed": "Could not start calibration",
   "calibration_count_total": "Total",
   "calibration_source_proposal": "AI proposal",

@@ -5,7 +5,7 @@
  * moves the panel.
  */
 .ui-draggable-panel {
-  --draggable-panel-gap: 0px;
+  --ui-draggable-panel-gap: 0px;
 
   display: flex;
   flex-shrink: 0;
@@ -15,13 +15,13 @@
   &:hover,
   &:focus-within,
   &[data-expand="false"] {
-    --draggable-panel-gap: 45px;
+    --ui-draggable-panel-gap: 45px;
   }
 
-  /* The wrapper carries an inline opacity when collapsed, so beat it. */
-  &:hover .ui-draggable-panel-toggle-root,
-  &:focus-within .ui-draggable-panel-toggle-root {
-    opacity: 1 !important;
+  /* Collapsed, the toggle shows only while the seam is hovered or focused. */
+  &[data-expand="false"]:not(:hover, :focus-within)
+    .ui-draggable-panel-toggle-root {
+    opacity: 0;
   }
 
   &:hover .ui-draggable-panel-toggle-root svg,
@@ -32,7 +32,7 @@
   }
 
   &[data-resizing="true"] {
-    --draggable-panel-gap: 0px;
+    --ui-draggable-panel-gap: 0px;
   }
 
   &[data-resizing="true"] .ui-draggable-panel-toggle-root svg {
@@ -160,7 +160,7 @@
 .ui-draggable-panel-handle-vertical {
   cursor: col-resize;
   inset-block: 0;
-  width: var(--draggable-panel-handle-size);
+  width: var(--ui-draggable-panel-handle-size);
 
   &::before,
   &::after {
@@ -171,11 +171,11 @@
 
   &::before {
     inset-block-start: 0;
-    height: calc(50% - var(--draggable-panel-gap, 0px));
+    height: calc(50% - var(--ui-draggable-panel-gap, 0px));
   }
 
   &::after {
     inset-block-end: 0;
-    height: calc(50% - var(--draggable-panel-gap, 0px));
+    height: calc(50% - var(--ui-draggable-panel-gap, 0px));
   }
 }

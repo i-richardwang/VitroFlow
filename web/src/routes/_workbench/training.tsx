@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
 import { VersionsTable } from "../../features/datasets/VersionsTable";
-import { formatQuantity } from "../../ui/quantity";
+import { formatCount } from "../../ui/numbers";
 import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingOverview } from "../../functions/training";
@@ -14,13 +14,14 @@ import {
   TableSkeleton,
 } from "../../ui/kit/PageSkeleton";
 import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/training")({
   loader: () => getTrainingOverview(),
   staticData: { crumbs: () => [{ label: m.training_title() }] },
   head: () => ({
-    meta: [{ title: `${m.training_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.training_title()) }],
   }),
   pendingComponent: () => (
     <PageSkeleton>
@@ -47,19 +48,26 @@ function TrainingPage() {
   return (
     <Page title={m.training_title()}>
       <StatGrid>
-        <StatCard label={m.training_kpi_runs()} value={formatQuantity(total)} />
+        <StatCard label={m.training_kpi_runs()} value={formatCount(total)} />
         <StatCard
           label={m.training_kpi_in_progress()}
-          value={formatQuantity(inProgress)}
+          value={formatCount(inProgress)}
         />
         <StatCard
           label={m.training_kpi_workers()}
-          value={formatQuantity(workersOnline)}
+          value={formatCount(workersOnline)}
         />
       </StatGrid>
 
       <PageSection title={m.versions_table()}>
-        <VersionsTable versions={versions} />
+        <VersionsTable
+          versions={versions}
+          emptyAction={
+            <Button render={<Link to="/datasets" />}>
+              {m.run_empty_open_datasets()}
+            </Button>
+          }
+        />
       </PageSection>
 
       <PageSection title={m.run_table_label()}>

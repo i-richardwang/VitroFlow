@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { cn } from "./cn";
-import { prefersReducedMotion } from "./mediaQuery";
+import { springTransition } from "./motionToken";
 
 /*
  * A controlled switch. The thumb stretches while pressed and springs to its
@@ -31,7 +31,7 @@ const THUMB_METRICS: Record<
   small: { checkedX: 12, pressedCheckedX: 8, pressedWidth: 16, width: 12 },
 };
 
-const THUMB_SPRING = { damping: 24, stiffness: 360, type: "spring" as const };
+const THUMB_SPRING = { damping: 24, stiffness: 360 };
 
 const ROOT_SIZE = {
   default: "ui-switch-root-default",
@@ -69,14 +69,17 @@ function SwitchThumb({
 
   const [initialStyle] = useState<CSSProperties>(
     () =>
-      ({ "--switch-x": `${targetX}px`, width: targetWidth }) as CSSProperties,
+      ({
+        "--ui-switch-x": `${targetX}px`,
+        width: targetWidth,
+      }) as CSSProperties,
   );
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const unsubscribeX = values.x.on("change", (x) => {
-      el.style.setProperty("--switch-x", `${x}px`);
+      el.style.setProperty("--ui-switch-x", `${x}px`);
     });
     const unsubscribeWidth = values.width.on("change", (width) => {
       el.style.setProperty("width", `${width}px`);
@@ -88,9 +91,7 @@ function SwitchThumb({
   }, [values]);
 
   useEffect(() => {
-    const transition = prefersReducedMotion.matches()
-      ? { duration: 0 }
-      : THUMB_SPRING;
+    const transition = springTransition(THUMB_SPRING);
     const animations = [
       animate(values.x, targetX, transition),
       animate(values.width, targetWidth, transition),
@@ -140,6 +141,7 @@ export function Switch({
       render={
         <button
           className={cn("ui-switch", ROOT_SIZE[size])}
+          type="button"
           onKeyDown={(event: KeyboardEvent) => {
             if (event.key === " ") press();
           }}

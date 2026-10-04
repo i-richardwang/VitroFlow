@@ -3,10 +3,11 @@
 .ui-tooltip-positioner {
   /* The entering spring is baked into linear(): stiffness 700, damping 38,
      damping ratio about 0.72, overshoot about 4%. The duration is the spring's
-     settling time and changes with the curve. Only tooltips use this spring,
-     so it is not a motion token; fades and exits read the tokens. */
+     settling time and changes with the curve. Only tooltips use this spring
+     and the short exit, so neither is a motion token; the fade and the
+     curves read the tokens. */
   --ui-tooltip-animation-duration: 280ms;
-  --ui-tooltip-fade-duration: 160ms;
+  --ui-tooltip-fade-duration: var(--duration-base);
   --ui-tooltip-fade-ease: var(--ease-fade);
   --ui-tooltip-animation-duration-exit: 100ms;
   --ui-tooltip-animation-translate: 3px;
@@ -76,12 +77,6 @@
   &[data-placement="right"] {
     --ui-tooltip-translate-x: calc(var(--ui-tooltip-animation-translate) * -1);
     --ui-tooltip-translate-y: 0;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    --ui-tooltip-animation-duration: 0s;
-    --ui-tooltip-fade-duration: 0s;
-    --ui-tooltip-animation-duration-exit: 0s;
   }
 }
 

@@ -1,10 +1,4 @@
-import {
-  animate,
-  type MotionValue,
-  motionValue,
-  type Transition,
-} from "motion/react";
-import { prefersReducedMotion } from "./mediaQuery";
+import { animate, type MotionValue, motionValue } from "motion/react";
 import { foldTransition } from "./motionToken";
 
 /*
@@ -19,12 +13,6 @@ const HANDLE_SIZE_COARSE = 20;
 
 export const handleSize = (coarse: boolean) =>
   coarse ? HANDLE_SIZE_COARSE : HANDLE_SIZE_WIDE;
-
-const INSTANT: Transition = { duration: 0 };
-
-/** Read when an animation starts, so the current tokens and motion preference apply. */
-export const timing = (): Transition =>
-  prefersReducedMotion.matches() ? INSTANT : foldTransition();
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -166,8 +154,8 @@ export const createPanelController = (
     foldTo = to;
     patch({ folding: true });
     if (size.get() === 0) content.jump(to || content.get());
-    else if (to > 0) animate(content, to, timing());
-    animate(size, to, timing());
+    else if (to > 0) animate(content, to, foldTransition());
+    animate(size, to, foldTransition());
   };
 
   const release = () => {

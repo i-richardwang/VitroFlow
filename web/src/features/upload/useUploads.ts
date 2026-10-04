@@ -55,14 +55,17 @@ export function useUploads(): Uploads {
 
   const add = useCallback(
     (files: File[]) => {
-      const added = files.map((file) => ({
-        id: (nextId.current += 1),
+      const first = nextId.current + 1;
+      nextId.current += files.length;
+      const added = files.map((file, index) => ({
+        id: first + index,
         file,
         state: { status: "storing", progress: 0 } as const,
       }));
       setImages((current) => [...current, ...added]);
       queue.current.push(...added);
-      const { signal } = (abort.current ??= new AbortController());
+      abort.current ??= new AbortController();
+      const { signal } = abort.current;
       while (lanes.current < UPLOAD_LANES && queue.current.length > 0) {
         lanes.current += 1;
         void (async () => {

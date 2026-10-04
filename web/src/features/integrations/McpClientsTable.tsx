@@ -8,6 +8,7 @@ import { m } from "../../paraglide/messages";
 import { Timestamp } from "../../ui/Timestamp";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { ActionIcon } from "../../ui/kit/ActionIcon";
+import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { Flexbox } from "../../ui/kit/Flex";
 import {
@@ -20,10 +21,16 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
-import { Text } from "../../ui/kit/Text";
 import { toast } from "../../ui/kit/Toast";
 
-export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
+/** Approved MCP clients; `serversHref` leads to the server addresses a first client is given. */
+export function McpClientsTable({
+  mcpClients,
+  serversHref,
+}: {
+  mcpClients: McpClient[];
+  serversHref: string;
+}) {
   return (
     <Table narrow="cards" aria-label={m.integrations_mcp_clients()}>
       <TableHeader>
@@ -47,6 +54,11 @@ export function McpClientsTable({ mcpClients }: { mcpClients: McpClient[] }) {
               icon={Plug}
               title={m.mcp_empty()}
               description={m.mcp_empty_description()}
+              action={
+                <Button render={<a href={serversHref} />}>
+                  {m.mcp_empty_show_servers()}
+                </Button>
+              }
             />
           </TableEmpty>
         )}
@@ -71,9 +83,9 @@ function McpClientRow({ client }: { client: McpClient }) {
         </Flexbox>
       </TableCell>
       <TableCell cellLabel={m.mcp_column_approved()}>
-        <Text as="span" type="secondary">
+        <span className="text-fg-secondary">
           <Timestamp value={client.lastGrantedAt} />
-        </Text>
+        </span>
       </TableCell>
       <TableCell cellSlot="extra" className="text-end">
         <ActionIcon

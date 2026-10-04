@@ -28,6 +28,10 @@ export interface DropZoneProps {
   description?: ReactNode;
   disabled?: boolean;
   icon?: IconProps["icon"];
+  /**
+   * Whether the chooser takes several files. A drop always passes every file
+   * to `onFiles`, and the caller picks among them.
+   */
   multiple?: boolean;
   onFiles: (files: File[]) => void;
   /** Label of the button that opens the chooser. */
@@ -55,15 +59,14 @@ export function DropZone({
 
   const take = (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    const files = Array.from(list);
-    onFiles(multiple ? files : files.slice(0, 1));
+    onFiles(Array.from(list));
   };
   const holdsFiles = (event: DragEvent) =>
     Array.from(event.dataTransfer.types).includes("Files");
 
   return (
     <div className={cn("ui-drop-zone", className)}>
-      <div
+      <fieldset
         aria-labelledby={titleId}
         className="ui-drop-zone-area"
         data-disabled={disabled ? "" : undefined}
@@ -91,7 +94,6 @@ export function DropZone({
           setDragging(false);
           take(event.dataTransfer.files);
         }}
-        role="group"
       >
         <span aria-hidden className="ui-drop-zone-icon">
           <Icon icon={icon} size={{ size: 28, strokeWidth: 1.5 }} />
@@ -126,7 +128,7 @@ export function DropZone({
           tabIndex={-1}
           type="file"
         />
-      </div>
+      </fieldset>
       {children}
     </div>
   );

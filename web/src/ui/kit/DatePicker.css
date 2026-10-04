@@ -1,13 +1,8 @@
 /*
- * Block order is cascade order: dropdown footer, field, dropdown and panels,
- * then the field's scheme variant twice, as its state rules and as the base
- * look laid over them. The variant sits inside `:where()`, so it has the
- * specificity of a single class. The field's text is a button
- * (`.ui-date-picker-trigger`) that opens the dropdown; it takes the place and
- * look of a text input.
- *
- * The field matches the other controls' 32px height, so a date sits level
- * with the inputs beside it.
+ * Block order is cascade order: dropdown footer, field, dropdown and panels.
+ * The field is the Input shell (`.ui-input`, Input.css) with a button
+ * (`.ui-date-picker-trigger`) in the place of the text input; this file only
+ * adds what a pressable field needs and the calendar icon's quieter color.
  *
  * Sizes: a cell is 27px high and 40.5px wide, a header row 45px, a month or
  * year cell 67.5px wide in rows of 74.25px; the date panel is seven cells
@@ -19,96 +14,26 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 43px;
+    height: 44px;
     padding-inline: 12px;
     border-top: 1px solid var(--color-divider);
   }
 }
 
 .ui-date-picker {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 4px 11px;
-  color: var(--color-fg);
-  font-size: var(--text-base);
-  list-style: none;
-  font-family: var(--font-sans);
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-  border-radius: var(--radius-md);
-  transition:
-    border var(--duration-slow),
-    box-shadow var(--duration-slow),
-    background-color var(--duration-slow);
+  cursor: pointer;
 
-  &:has(.ui-date-picker-input > .ui-date-picker-trigger:focus-visible) {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-    animation: var(--focus-ring-animation);
-  }
-
-  .ui-date-picker-input {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    width: 100%;
-
-    > .ui-date-picker-trigger {
-      position: relative;
-      display: inline-block;
-      width: 100%;
-      color: inherit;
-      font-size: var(--text-base);
-      line-height: 1.5714285714285714;
-      transition: all var(--duration-slow);
-      flex: auto;
-      min-width: 1px;
-      height: auto;
-      padding: 0;
-      background: transparent;
-      border: 0;
-      font-family: inherit;
-      text-align: start;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      cursor: pointer;
-
-      &:focus {
-        box-shadow: none;
-        outline: 0;
-      }
-
-      &[disabled] {
-        background: transparent;
-        color: var(--color-fg-quaternary);
-        cursor: not-allowed;
-      }
-    }
-  }
-
-  .ui-date-picker-suffix {
-    display: flex;
-    flex: none;
-    align-self: center;
-    margin-inline-start: 4px;
+  .ui-input-slot {
     color: var(--color-fg-quaternary);
-    line-height: 1;
-    pointer-events: none;
-    transition:
-      opacity var(--duration-slow),
-      color var(--duration-slow);
-
-    > * {
-      vertical-align: top;
-
-      &:not(:last-child) {
-        margin-inline-end: 8px;
-      }
-    }
   }
+}
+
+.ui-date-picker-trigger {
+  cursor: inherit;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-date-picker-positioner {
@@ -403,7 +328,7 @@
     border-color: var(--color-fg-quaternary);
   }
 
-  /* The keyboard position in the grid; the grid has focus, the cell shows it. */
+  /* The keyboard position in the grid: the focused cell draws its ring on the inner square. */
   &:focus-visible .ui-date-picker-cell-inner {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: 1px;
@@ -440,123 +365,5 @@
   .ui-date-picker-content th {
     box-sizing: border-box;
     padding: 0;
-  }
-}
-
-:where(:root:not(.dark)) .ui-date-picker-auto {
-  background: var(--color-container);
-  border-width: 1px;
-  border-style: solid;
-  border-color: var(--color-border);
-
-  &:hover {
-    background-color: var(--color-container);
-  }
-
-  &:focus,
-  &:focus-within {
-    box-shadow: 0 0 0 2px var(--color-control-outline);
-    outline: 0;
-    background-color: var(--color-container);
-  }
-
-  &.ui-date-picker-disabled {
-    color: var(--color-fg-quaternary);
-    background-color: var(--color-fill-tertiary);
-    border-color: var(--color-border-disabled);
-    box-shadow: none;
-    cursor: not-allowed;
-    opacity: 1;
-
-    &:hover:not([disabled]) {
-      border-color: var(--color-border-disabled);
-      background-color: var(--color-fill-tertiary);
-    }
-  }
-
-  &:has(.ui-date-picker-trigger[data-invalid]):not(.ui-date-picker-disabled) {
-    background: var(--color-container);
-    border-width: 1px;
-    border-style: solid;
-    border-color: var(--color-error);
-
-    .ui-date-picker-suffix {
-      color: var(--color-error);
-    }
-
-    &:hover {
-      border-color: var(--color-error-border-hover);
-      background-color: var(--color-container);
-    }
-
-    &:focus,
-    &:focus-within {
-      border-color: var(--color-error);
-      box-shadow: 0 0 0 2px var(--color-error-outline);
-      outline: 0;
-      background-color: var(--color-container);
-    }
-  }
-}
-
-:where(.dark) .ui-date-picker-auto {
-  background: var(--color-fill-tertiary);
-  border-width: 1px;
-  border-style: solid;
-  border-color: transparent;
-
-  &:hover {
-    background: var(--color-fill-secondary);
-  }
-
-  &:focus,
-  &:focus-within {
-    outline: 0;
-    background-color: var(--color-container);
-  }
-
-  &.ui-date-picker-disabled {
-    color: var(--color-fg-quaternary);
-    background-color: var(--color-fill-tertiary);
-    border-color: var(--color-border-disabled);
-    box-shadow: none;
-    cursor: not-allowed;
-    opacity: 1;
-  }
-
-  &:has(.ui-date-picker-trigger[data-invalid]):not(.ui-date-picker-disabled) {
-    background: var(--color-error-bg);
-
-    .ui-date-picker-suffix {
-      color: var(--color-error);
-    }
-
-    &:hover {
-      background: var(--color-error-bg-hover);
-    }
-
-    &:focus,
-    &:focus-within {
-      border-color: var(--color-error);
-      background-color: var(--color-container);
-    }
-  }
-}
-
-:where(.dark) .ui-date-picker-auto {
-  background: var(--color-fill-tertiary);
-
-  &:hover {
-    background: var(--color-fill-secondary);
-  }
-}
-
-:where(:root:not(.dark)) .ui-date-picker-auto {
-  border: 1px solid var(--color-border-secondary);
-  background: var(--color-container);
-
-  &:hover {
-    border: 1px solid var(--color-border);
-    background: var(--color-container);
   }
 }

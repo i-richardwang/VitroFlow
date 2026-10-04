@@ -58,7 +58,3 @@ export function useMediaQuery(store: MediaQueryStore) {
 export function useIsCompact() {
   return useMediaQuery(belowLaptop);
 }
-
-export function usePrefersReducedMotion() {
-  return useMediaQuery(prefersReducedMotion);
-}

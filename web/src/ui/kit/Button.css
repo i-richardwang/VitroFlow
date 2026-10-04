@@ -1,7 +1,7 @@
 /*
  * Block order is cascade order: base, size, variant, block, icon end,
  * icon only, outdent, then the icon and spinner parts. The spinner itself is
- * `.ui-spinner` in Icon.css. `--button-padding-inline` is the size's inline
+ * `.ui-spinner` in Icon.css. `--ui-button-padding-inline` is the size's inline
  * padding, read by the outdent block.
  */
 
@@ -35,28 +35,28 @@
 }
 
 .ui-button-size-small {
-  --button-padding-inline: 8px;
+  --ui-button-padding-inline: 8px;
 
   height: 24px;
-  padding-inline: var(--button-padding-inline);
+  padding-inline: var(--ui-button-padding-inline);
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
 }
 
 .ui-button-size-middle {
-  --button-padding-inline: 14px;
+  --ui-button-padding-inline: 14px;
 
   height: 32px;
-  padding-inline: var(--button-padding-inline);
+  padding-inline: var(--ui-button-padding-inline);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
 
 .ui-button-size-large {
-  --button-padding-inline: 16px;
+  --ui-button-padding-inline: 16px;
 
   height: 40px;
-  padding-inline: var(--button-padding-inline);
+  padding-inline: var(--ui-button-padding-inline);
   border-radius: var(--radius-md);
   font-size: var(--text-base);
 }
@@ -168,28 +168,28 @@
 }
 
 .ui-button-icon-only-small {
-  --button-padding-inline: 0px;
+  --ui-button-padding-inline: 0px;
 
   width: 24px;
   padding-inline: 0;
 }
 
 .ui-button-icon-only-middle {
-  --button-padding-inline: 0px;
+  --ui-button-padding-inline: 0px;
 
   width: 32px;
   padding-inline: 0;
 }
 
 .ui-button-icon-only-large {
-  --button-padding-inline: 0px;
+  --ui-button-padding-inline: 0px;
 
   width: 40px;
   padding-inline: 0;
 }
 
 .ui-button-outdent-start {
-  margin-inline-start: calc(var(--button-padding-inline) * -1);
+  margin-inline-start: calc(var(--ui-button-padding-inline) * -1);
 }
 
 .ui-button-icon-box {

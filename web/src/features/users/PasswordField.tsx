@@ -1,5 +1,5 @@
 import { MIN_PASSWORD_LENGTH } from "../../domain/auth/schema";
-import { Form } from "../../ui/kit/Form";
+import { Form, type FormFieldProps } from "../../ui/kit/Form";
 import { InputPassword } from "../../ui/kit/Input";
 
 export function PasswordField({
@@ -9,6 +9,7 @@ export function PasswordField({
   name = "password",
   autoComplete = "new-password",
   autoFocus,
+  validate,
 }: {
   label: string;
   description?: string;
@@ -16,9 +17,16 @@ export function PasswordField({
   name?: string;
   autoComplete?: "current-password" | "new-password";
   autoFocus?: boolean;
+  validate?: FormFieldProps["validate"];
 }) {
   return (
-    <Form.Field label={label} desc={description} name={name} required>
+    <Form.Field
+      label={label}
+      desc={description}
+      name={name}
+      validate={validate}
+      required
+    >
       <InputPassword
         name={name}
         autoComplete={autoComplete}

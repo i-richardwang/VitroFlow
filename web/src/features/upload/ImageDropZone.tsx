@@ -15,8 +15,8 @@ import {
   type DropZoneFileStatus,
 } from "../../ui/kit/DropZone";
 import { toast } from "../../ui/kit/Toast";
+import { formatPercent } from "../../ui/numbers";
 import { m } from "../../paraglide/messages";
-import { getLocale } from "../../paraglide/runtime";
 
 const FILE_STATUS = {
   storing: "uploading",
@@ -98,9 +98,7 @@ export function ImageDropZone({
                     ? m.dropzone_ready()
                     : state.status === "failed"
                       ? state.reason
-                      : new Intl.NumberFormat(getLocale(), {
-                          style: "percent",
-                        }).format(state.progress / 100)
+                      : formatPercent(state.progress / 100)
                 }
                 actions={annotate?.(image)}
                 onRemove={disabled ? undefined : () => onRemove(id)}

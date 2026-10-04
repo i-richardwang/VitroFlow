@@ -16,6 +16,7 @@ check-web:
 	cd web && bun run architecture:check
 	cd web && bun run contracts:check
 	cd web && bun run format:check
+	cd web && bun run lint
 	cd web && bunx tsc --noEmit
 	cd web && bun test
 

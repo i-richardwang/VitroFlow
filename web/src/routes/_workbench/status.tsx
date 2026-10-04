@@ -7,6 +7,7 @@ import { isAdmin } from "../../domain/auth/schema";
 import type { WorkerPresence } from "../../domain/workers/presence";
 import type { WorkerActivity } from "../../domain/workers/schema";
 import { deleteWorker, getStatus } from "../../functions/status";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import { Page } from "../../ui/Page";
 import { confirmDestructive } from "../../ui/confirmDestructive";
@@ -29,7 +30,6 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { Status, type StatusTone } from "../../ui/kit/Status";
-import { Text } from "../../ui/kit/Text";
 import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
 
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
   staticData: { crumbs: () => [{ label: m.status_title() }] },
   head: () => ({
-    meta: [{ title: `${m.status_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.status_title()) }],
   }),
   pendingComponent: StatusPending,
   component: StatusPage,
@@ -161,11 +161,11 @@ function WorkerRow({
         <Activity activity={worker.activity} />
       </TableCell>
       <TableCell cellLabel={m.status_column_last_seen()}>
-        <Text as="span" type="secondary" className="tabular-nums">
+        <span className="tabular-nums text-fg-secondary">
           {worker.lastSeenSeconds === null
             ? m.worker_never_seen()
             : formatAge(worker.lastSeenSeconds)}
-        </Text>
+        </span>
       </TableCell>
       {administers ? (
         <TableCell cellSlot="extra" className="text-end">
@@ -203,9 +203,7 @@ function RemoveWorkerButton({ workerId }: { workerId: string }) {
 function Activity({ activity }: { activity: WorkerActivity | null }) {
   if (!activity) {
     return (
-      <Text as="span" type="secondary">
-        {m.worker_activity_idle()}
-      </Text>
+      <span className="text-fg-secondary">{m.worker_activity_idle()}</span>
     );
   }
   if (activity.kind === "inference") {

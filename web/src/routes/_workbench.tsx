@@ -20,6 +20,7 @@ const readNavCollapsed = createIsomorphicFn()
   );
 
 function writeNavCollapsed(collapsed: boolean) {
+  // biome-ignore lint/suspicious/noDocumentCookie: the next request's server render reads it, so the write is synchronous
   document.cookie = `${NAV_COOKIE}=${collapsed ? "collapsed" : "expanded"}; path=/; max-age=31536000; samesite=lax`;
 }
 

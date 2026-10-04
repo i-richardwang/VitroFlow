@@ -6,16 +6,43 @@
   background: var(--color-fill-secondary);
   will-change: opacity;
   animation: var(--animate-pulse);
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
 }
 
 .ui-skeleton-text {
   display: flex;
   flex-direction: column;
   width: 100%;
+}
+
+/* The margins round to whole pixels and the block takes the rest of the line box. */
+.ui-skeleton-line {
+  --ui-skeleton-leading: round(
+    calc((var(--ui-skeleton-line-height) - var(--ui-skeleton-font-size)) / 4),
+    1px
+  );
+
+  height: calc(var(--ui-skeleton-line-height) - 2 * var(--ui-skeleton-leading));
+  margin-block: var(--ui-skeleton-leading);
+}
+
+.ui-skeleton-line-xs {
+  --ui-skeleton-font-size: var(--text-xs);
+  --ui-skeleton-line-height: var(--text-xs--line-height);
+}
+
+.ui-skeleton-line-sm {
+  --ui-skeleton-font-size: var(--text-sm);
+  --ui-skeleton-line-height: var(--text-sm--line-height);
+}
+
+.ui-skeleton-line-base {
+  --ui-skeleton-font-size: var(--text-base);
+  --ui-skeleton-line-height: var(--text-base--line-height);
+}
+
+.ui-skeleton-line-lg {
+  --ui-skeleton-font-size: var(--text-lg);
+  --ui-skeleton-line-height: var(--text-lg--line-height);
 }
 
 .ui-skeleton-button {

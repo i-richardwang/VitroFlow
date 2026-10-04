@@ -18,7 +18,7 @@ const description = (value: unknown): AnnotationPanel => ({
   kind: "description",
   value,
 });
-const escape = (value: string) =>
+const escapeXml = (value: string) =>
   value.replace(
     /[&<>"']/g,
     (c) =>
@@ -55,7 +55,7 @@ function described(text: string, classes: readonly string[]) {
 
 function overlay(width: number, height: number, boxes: MarkedBox[]) {
   return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxes.map(({ bbox: b, label, color }) => `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="none" stroke="${color}" stroke-width="2"/><text x="${b.x + 2}" y="${Math.max(12, b.y + 12)}" fill="#fff" stroke="#000" stroke-width="0.3" font-size="12">${escape(label)}</text>`).join("")}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxes.map(({ bbox: b, label, color }) => `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="none" stroke="${color}" stroke-width="2"/><text x="${b.x + 2}" y="${Math.max(12, b.y + 12)}" fill="#fff" stroke="#000" stroke-width="0.3" font-size="12">${escapeXml(label)}</text>`).join("")}</svg>`,
   );
 }
 const rendered = new ByteCache<Buffer>(16 * 1024 * 1024);

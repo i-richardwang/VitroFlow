@@ -102,7 +102,10 @@ function ObservationForm(
         label={m.observation_date_label()}
         disabled={action.busy}
         value={observedOn}
-        minDate={fromDay(inoculatedOn)}
+        earliest={{
+          date: fromDay(inoculatedOn),
+          error: m.observation_before_inoculation(),
+        }}
         onChange={setObservedOn}
       />
       <ModelField

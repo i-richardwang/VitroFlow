@@ -29,7 +29,7 @@ import type { Model } from "../../domain/models/schema";
 import { getAnnotation, saveAnnotation } from "../../functions/review";
 import { m } from "../../paraglide/messages";
 import { errorMessage } from "../../ui/errors";
-import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { performAction, useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { toast } from "../../ui/kit/Toast";
 import { classForShortcut, toolForShortcut, type Tool } from "./controls";
 
@@ -155,13 +155,7 @@ export function useCalibrationSession({
     modelId: string;
     base: AnnotationInstance[] | null;
   } | null>(null);
-  const failed = useEffectEvent((cause: unknown) => {
-    toast.error({
-      title: m.calibration_open_failed(),
-      description: errorMessage(cause),
-    });
-    onClose();
-  });
+  const closeUnopened = useEffectEvent(onClose);
   const { digest, modelId } = review.ref;
   useEffect(() => {
     if (!calibrating) {
@@ -169,14 +163,18 @@ export function useCalibrationSession({
       return;
     }
     let cancelled = false;
-    getAnnotation({ data: { digest, modelId } }).then(
-      (annotation) => {
-        if (!cancelled) {
-          setLoaded({ digest, modelId, base: annotation?.instances ?? null });
+    void performAction(() => getAnnotation({ data: { digest, modelId } })).then(
+      (result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          setLoaded({ digest, modelId, base: result.value?.instances ?? null });
+          return;
         }
-      },
-      (cause: unknown) => {
-        if (!cancelled) failed(cause);
+        toast.error({
+          title: m.calibration_open_failed(),
+          description: errorMessage(result.error),
+        });
+        closeUnopened();
       },
     );
     return () => {
@@ -295,31 +293,32 @@ export function useCalibrationSession({
     dispatch({ type: "tool", tool: "select" });
   }, []);
 
+  const { run: runSave } = useAsyncAction();
   const save = useCallback(async () => {
     if (!draft || draft.saving) return;
     dispatch({ type: "submit" });
-    try {
-      const result = await saveAnnotation({
-        data: { ref: review.ref, base: draft.base, instances: draft.instances },
-      });
-      if (result.status === "conflict") {
-        dispatch({ type: "conflict" });
-        return;
-      }
-      try {
-        await router.invalidate();
-      } catch {
-        toast.warning(m.calibration_saved_refresh_failed());
-      }
-      close();
-    } catch (cause) {
-      toast.error({
-        title: m.calibration_save_failed(),
-        description: errorMessage(cause),
-      });
+    const result = await runSave(
+      () =>
+        saveAnnotation({
+          data: {
+            ref: review.ref,
+            base: draft.base,
+            instances: draft.instances,
+          },
+        }),
+      m.calibration_save_failed(),
+    );
+    if (!result.ok) {
       dispatch({ type: "failed" });
+      return;
     }
-  }, [draft, review.ref, router, close]);
+    if (result.value.status === "conflict") {
+      dispatch({ type: "conflict" });
+      return;
+    }
+    await router.invalidate();
+    close();
+  }, [draft, review.ref, router, close, runSave]);
 
   const { busy: reloading, run } = useAsyncAction();
   /** Reads the stored review again; the draft restarts from it as a new base. */
@@ -385,12 +384,18 @@ export function useCalibrationSession({
   };
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** Open popups (a Select's options, a menu, a dialog) own the keys typed in them. */
+const KEY_OWNERS =
+  "[role='listbox'], [role='menu'], [role='dialog'], [role='alertdialog']";
+
+/** A key typed into text or an open popup belongs there, not to the editor. */
+function isOwnedKey(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
     (target.tagName === "INPUT" ||
       target.tagName === "TEXTAREA" ||
-      target.isContentEditable)
+      target.isContentEditable ||
+      target.closest(KEY_OWNERS) !== null)
   );
 }
 
@@ -421,7 +426,7 @@ function useShortcuts({
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || event.altKey) return;
+      if (isOwnedKey(event.target) || event.altKey) return;
       if (event.metaKey || event.ctrlKey) {
         if (event.key.toLowerCase() === "z") {
           event.preventDefault();

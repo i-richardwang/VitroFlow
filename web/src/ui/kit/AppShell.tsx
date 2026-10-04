@@ -14,7 +14,7 @@ import { Button } from "./Button";
 import { cn } from "./cn";
 import { Drawer } from "./Drawer";
 import { Flexbox } from "./Flex";
-import { useIsCompact, usePrefersReducedMotion } from "./mediaQuery";
+import { useIsCompact } from "./mediaQuery";
 
 export interface AppShellState {
   /** Closes the compact navigation drawer. */
@@ -123,7 +123,6 @@ export function AppShell({
   const mainId = `app-main-${useId().replaceAll(":", "")}`;
   const shellRef = useRef<HTMLDivElement>(null);
   const isCompact = useIsCompact();
-  const reducedMotion = usePrefersReducedMotion();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // The workspace shows a focus ring only when the skip link moved focus there.
   const [skippedToMain, setSkippedToMain] = useState(false);
@@ -193,11 +192,7 @@ export function AppShell({
       >
         {m.ui_shell_skip_to_content()}
       </a>
-      <aside
-        className="ui-app-shell-sidebar"
-        data-collapsed={railed}
-        data-instant={reducedMotion}
-      >
+      <aside className="ui-app-shell-sidebar" data-collapsed={railed}>
         {!isCompact && sidebar(railed)}
       </aside>
       {isCompact ? (

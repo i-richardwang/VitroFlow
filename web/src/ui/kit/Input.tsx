@@ -25,8 +25,9 @@ const SIZE = {
   middle: "ui-input-size-middle",
 } as const;
 
-/** Class names of the field shell. */
-const shellClass = (size?: InputSize) => cn("ui-input", size && SIZE[size]);
+/** Class names of the field shell, also worn by DatePicker's field. */
+export const shellClass = (size?: InputSize) =>
+  cn("ui-input", size && SIZE[size]);
 
 export interface InputProps extends Omit<
   BaseInput.Props,
@@ -98,10 +99,10 @@ export function TextArea({
 }: TextAreaProps) {
   const bounds = autoSize
     ? {
-        "--textarea-max-height": autoSize.maxRows
+        "--ui-textarea-max-height": autoSize.maxRows
           ? `calc(1.5em * ${autoSize.maxRows})`
           : undefined,
-        "--textarea-min-rows": autoSize.minRows,
+        "--ui-textarea-min-rows": autoSize.minRows,
       }
     : undefined;
   return (

@@ -53,6 +53,7 @@ function Layer({
 }: React.SVGProps<SVGSVGElement> & { image: ImageSize }) {
   return (
     <svg
+      aria-hidden
       viewBox={`0 0 ${image.width} ${image.height}`}
       className="absolute inset-0 h-full w-full overflow-visible"
       {...handlers}
@@ -141,6 +142,11 @@ export function BoxLayer({
  * an unsure box is ringed, a questioned area is ringed and marked "?", whose
  * hover gives the agent's reason.
  */
+/** A check is identified by what it asks and where. */
+function checkKey({ kind, bbox }: Check): string {
+  return `${kind}:${bbox.x},${bbox.y},${bbox.width},${bbox.height}`;
+}
+
 export function ChecksLayer({
   image,
   checks,
@@ -156,13 +162,13 @@ export function ChecksLayer({
   return (
     <>
       <Layer image={image} pointerEvents="none">
-        {checks.map(({ bbox }, index) => (
+        {checks.map((check) => (
           <rect
-            key={index}
-            x={bbox.x - gap}
-            y={bbox.y - gap}
-            width={bbox.width + 2 * gap}
-            height={bbox.height + 2 * gap}
+            key={checkKey(check)}
+            x={check.bbox.x - gap}
+            y={check.bbox.y - gap}
+            width={check.bbox.width + 2 * gap}
+            height={check.bbox.height + 2 * gap}
             fill="none"
             stroke={CANVAS_COLORS.check}
             strokeWidth={1.5}
@@ -171,10 +177,10 @@ export function ChecksLayer({
           />
         ))}
       </Layer>
-      {checks.map((check, index) =>
+      {checks.map((check) =>
         check.kind === "issue" ? (
           <div
-            key={index}
+            key={checkKey(check)}
             className="absolute origin-bottom-left"
             style={{
               left: check.bbox.x + check.bbox.width + gap,

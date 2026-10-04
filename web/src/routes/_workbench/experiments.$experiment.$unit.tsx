@@ -10,6 +10,7 @@ import {
 import { getUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { WorkbenchSkeleton } from "../../ui/shell/Workbench";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import type { UnitSeries } from "../../domain/experiments/contracts";
 
@@ -51,16 +52,19 @@ export const Route = createFileRoute(
       ];
     },
   },
-  head: ({ loaderData }) => {
-    const { experiment, unit } = loaderData as UnitSeries;
-    return {
-      meta: [
-        {
-          title: `${unit.code} · ${experiment.name} · ${m.app_name()}`,
-        },
-      ],
-    };
-  },
+  head: ({ loaderData }) => ({
+    meta: [
+      {
+        title: documentTitle(
+          loaderData &&
+            m.unit_title({
+              code: loaderData.unit.code,
+              experiment: loaderData.experiment.name,
+            }),
+        ),
+      },
+    ],
+  }),
   pendingComponent: WorkbenchSkeleton,
   component: UnitPage,
 });

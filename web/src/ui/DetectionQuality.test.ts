@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { m } from "../paraglide/messages";
 import { QualityAlert, QualityTags } from "./DetectionQuality";
 
-test("unrecognized warnings render as labels rather than inherited object properties", () => {
+test("unrecognized warnings render as the generic label, not inherited object properties", () => {
   for (const Component of [QualityAlert, QualityTags]) {
     const markup = renderToStaticMarkup(
       createElement(Component, {
@@ -15,8 +15,9 @@ test("unrecognized warnings render as labels rather than inherited object proper
         },
       }),
     );
-    expect(markup).toContain("constructor");
-    expect(markup).toContain("new warning");
+    expect(markup).not.toContain("constructor");
+    expect(markup).not.toContain("new warning");
+    expect(markup).toContain(m.quality_unknown_warning());
   }
 });
 

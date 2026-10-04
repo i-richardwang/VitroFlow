@@ -65,7 +65,6 @@ export function Hotkey({ compact, keys }: HotkeyProps) {
       {compact ? (
         <Center as="kbd" className="ui-hotkey" gap={6} horizontal>
           {keysGroup.map((key, index) => (
-            // The same key name can appear twice; position is its identity.
             <div key={index}>{mapping[key] ?? key.toUpperCase()}</div>
           ))}
         </Center>

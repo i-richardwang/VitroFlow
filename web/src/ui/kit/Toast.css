@@ -198,6 +198,8 @@
 
   transition: all var(--duration-slow);
 
+  @apply focus-ring;
+
   &:hover {
     color: var(--color-fg);
     background: var(--color-fill-secondary);

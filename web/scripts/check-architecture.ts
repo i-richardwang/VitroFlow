@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import { checkArchitecture } from "./architecture";
+import { checkComposition } from "./composition";
 
 const root = resolve(import.meta.dir, "..");
 const paths = [
@@ -24,12 +25,12 @@ const sources = new Map(
       ),
   ),
 );
-const errors = checkArchitecture(sources);
+const errors = [...checkArchitecture(sources), ...checkComposition(sources)];
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exitCode = 1;
 } else {
   console.log(
-    "Web architecture: layer boundaries, pure capabilities, server APIs and dependency cycles checked",
+    "Web architecture: layer boundaries, pure capabilities, server APIs, dependency cycles and style composition checked",
   );
 }

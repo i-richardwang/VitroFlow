@@ -3,17 +3,17 @@
  * them; `overflow: clip` clips without making the frame a scroller. Cell
  * padding is component tokens on `:root`.
  *
- * A cell paints `--table-cell-bg`. Several of its values are translucent, so
+ * A cell paints `--ui-table-cell-bg`. Several of its values are translucent, so
  * a pinned cell lays the same color over the container color to hide what
  * scrolls under it.
  */
 
 :root {
-  --table-padding-block: 8px;
-  --table-padding-inline: 8px;
-  --table-padding-edge: 24px;
-  --table-selection-column-width: 36px;
-  --table-z-index-fixed: 2;
+  --ui-table-padding-block: 8px;
+  --ui-table-padding-inline: 8px;
+  --ui-table-padding-edge: 24px;
+  --ui-table-selection-column-width: 36px;
+  --ui-table-z-index-fixed: 2;
 }
 
 .ui-table-wrapper {
@@ -46,24 +46,24 @@
   }
 
   .ui-table-cell {
-    --table-cell-bg: transparent;
+    --ui-table-cell-bg: transparent;
     position: relative;
-    padding: var(--table-padding-block) var(--table-padding-inline);
+    padding: var(--ui-table-padding-block) var(--ui-table-padding-inline);
     overflow-wrap: break-word;
     vertical-align: middle;
-    background: var(--table-cell-bg);
+    background: var(--ui-table-cell-bg);
   }
 
   tr > .ui-table-cell:first-child {
-    padding-inline-start: var(--table-padding-edge);
+    padding-inline-start: var(--ui-table-padding-edge);
   }
 
   tr > .ui-table-cell:last-child {
-    padding-inline-end: var(--table-padding-edge);
+    padding-inline-end: var(--ui-table-padding-edge);
   }
 
   .ui-table-thead > tr > th {
-    --table-cell-bg: var(--color-fill-quaternary);
+    --ui-table-cell-bg: var(--color-fill-quaternary);
     color: var(--color-fg-secondary);
     font-weight: 500;
     text-align: start;
@@ -80,7 +80,7 @@
   }
 
   .ui-table-footer {
-    padding: 10px var(--table-padding-edge);
+    padding: 10px var(--ui-table-padding-edge);
     color: var(--color-fg);
     border-top: 1px solid var(--color-border-secondary);
   }
@@ -88,7 +88,7 @@
 
 /* A group row is a heading for the rows below it; hover and selection still show on it. */
 .ui-table-wrapper .ui-table-group-row > .ui-table-cell {
-  --table-cell-bg: var(--color-fill-quaternary);
+  --ui-table-cell-bg: var(--color-fill-quaternary);
   font-weight: 600;
 }
 
@@ -98,7 +98,7 @@
 
   &:hover > th,
   &:hover > td {
-    --table-cell-bg: var(--color-container);
+    --ui-table-cell-bg: var(--color-container);
   }
 }
 
@@ -110,7 +110,7 @@
 .ui-table-wrapper {
   table tr th.ui-table-selection-column,
   table tr td.ui-table-selection-column {
-    width: var(--table-selection-column-width);
+    width: var(--ui-table-selection-column-width);
     padding-inline-end: 8px;
     padding-inline-start: 8px;
     line-height: 0;
@@ -119,24 +119,25 @@
 
   table tr > .ui-table-selection-column:first-child {
     width: calc(
-      var(--table-selection-column-width) - 8px + var(--table-padding-edge)
+      var(--ui-table-selection-column-width) - 8px +
+        var(--ui-table-padding-edge)
     );
-    padding-inline-start: var(--table-padding-edge);
+    padding-inline-start: var(--ui-table-padding-edge);
   }
 }
 
 /* Hover sits in `:where()` and adds no specificity, so a selected row's background beats it. */
 .ui-table-wrapper .ui-table-tbody .ui-table-row {
   &[data-state="selected"] > .ui-table-cell {
-    --table-cell-bg: var(--color-primary-bg);
+    --ui-table-cell-bg: var(--color-primary-bg);
 
     &:where(.ui-table-row:hover > *) {
-      --table-cell-bg: var(--color-primary-bg-hover);
+      --ui-table-cell-bg: var(--color-primary-bg-hover);
     }
   }
 
   &:where(:hover) > .ui-table-cell {
-    --table-cell-bg: var(--color-fill-tertiary);
+    --ui-table-cell-bg: var(--color-fill-tertiary);
   }
 
   &[data-clickable] {
@@ -156,7 +157,7 @@
 .ui-table-wrapper {
   .ui-table-scroll-y .ui-table-thead {
     position: sticky;
-    z-index: calc(var(--table-z-index-fixed) + 2);
+    z-index: calc(var(--ui-table-z-index-fixed) + 2);
     top: 0;
     background: var(--color-container);
   }
@@ -201,9 +202,9 @@
   }
 
   .ui-table-cell-fix {
-    z-index: var(--table-z-index-fixed);
+    z-index: var(--ui-table-z-index-fixed);
     background:
-      linear-gradient(var(--table-cell-bg), var(--table-cell-bg)),
+      linear-gradient(var(--ui-table-cell-bg), var(--ui-table-cell-bg)),
       var(--color-container);
 
     &::after {
@@ -218,7 +219,7 @@
   }
 
   .ui-table-cell-fix-start {
-    z-index: calc(var(--table-z-index-fixed) + 1);
+    z-index: calc(var(--ui-table-z-index-fixed) + 1);
 
     &::after {
       inset-inline-start: 100%;
@@ -247,7 +248,7 @@
       content: "";
       pointer-events: none;
       position: absolute;
-      z-index: calc(var(--table-z-index-fixed) + 3);
+      z-index: calc(var(--ui-table-z-index-fixed) + 3);
       top: 0;
       bottom: -1px;
       width: 30px;
@@ -343,7 +344,7 @@
 
       &,
       &:where(.ui-table-row:hover > *) {
-        --table-cell-bg: transparent;
+        --ui-table-cell-bg: transparent;
       }
     }
 

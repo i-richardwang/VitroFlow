@@ -152,9 +152,12 @@ export function TableBody({ className, ...props }: ComponentProps<"tbody">) {
   return <tbody className={cn("ui-table-tbody", className)} {...props} />;
 }
 
-/** Things in a row that answer clicks themselves; a click on them is not a click on the row. */
+/**
+ * Things in a row that answer clicks themselves, and the selection cell around
+ * its checkbox; a click on them is not a click on the row.
+ */
 const CONTROLS =
-  "a, button, input, select, textarea, label, [role='button'], [role='checkbox'], [role='switch'], [role='menuitem']";
+  "a, button, input, select, textarea, label, [role='button'], [role='checkbox'], [role='switch'], [role='menuitem'], .ui-table-selection-column";
 
 /** Passes a click on the row to its title link, with the same button and modifier keys. */
 function clickTitleLink(event: MouseEvent<HTMLTableRowElement>) {
@@ -212,8 +215,13 @@ export function TableGroupRow({ className, ...props }: ComponentProps<"tr">) {
 type Fixed = "start" | "end";
 
 /** Classes of a cell pinned to one side of a horizontally scrolling table. */
+const FIXED = {
+  start: "ui-table-cell-fix-start",
+  end: "ui-table-cell-fix-end",
+} satisfies Record<Fixed, string>;
+
 function fixedClass(fixed: Fixed | undefined) {
-  return fixed && ["ui-table-cell-fix", `ui-table-cell-fix-${fixed}`];
+  return fixed && ["ui-table-cell-fix", FIXED[fixed]];
 }
 
 interface TableHeadProps extends ComponentProps<"th"> {

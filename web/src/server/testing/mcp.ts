@@ -65,6 +65,7 @@ export const requestEras = [
 
 /** The last JSON-RPC message of a JSON or event-stream response. */
 export async function rpcMessage(response: Response): Promise<{
+  // biome-ignore lint/suspicious/noExplicitAny: a result has the shape of whichever method was called; tests read it directly
   result?: any;
   error?: { message: string };
 }> {

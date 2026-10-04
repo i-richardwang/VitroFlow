@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 import { cn } from "./cn";
 import { Icon } from "./Icon";
 
-/* An inline notice: a title, an optional description line under it, and an optional action. */
+/*
+ * An inline notice of a lasting state: a title, an optional description line
+ * under it, and an optional action. It is a polite live region, so a notice
+ * that appears is announced without interrupting.
+ */
 
 export type AlertType = "warning" | "error";
 
@@ -15,6 +19,11 @@ export interface AlertProps {
   type: AlertType;
 }
 
+const TONE = {
+  error: "ui-alert-tone-error",
+  warning: "ui-alert-tone-warning",
+} satisfies Record<AlertType, string>;
+
 const TYPE_ICONS = {
   error: XCircle,
   warning: TriangleAlert,
@@ -25,11 +34,11 @@ export function Alert({ action, description, title, type }: AlertProps) {
   return (
     <div
       className={cn(
-        `ui-alert-tone-${type}`,
+        TONE[type],
         "ui-alert",
         hasDescription ? "ui-alert-detailed" : "ui-alert-centered",
       )}
-      role="alert"
+      role="status"
     >
       <span aria-hidden="true" className="ui-alert-icon">
         <Icon icon={TYPE_ICONS[type]} size={hasDescription ? 18 : 16} />

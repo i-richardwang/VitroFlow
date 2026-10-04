@@ -45,8 +45,7 @@ export function CalibrationTools({
 }) {
   return (
     <>
-      <div
-        role="group"
+      <fieldset
         aria-label={m.calibration_tool_label()}
         className="flex gap-0.5"
       >
@@ -65,7 +64,7 @@ export function CalibrationTools({
             />
           );
         })}
-      </div>
+      </fieldset>
       {classes.length > 1 ? (
         <>
           <ToolbarSeparator />

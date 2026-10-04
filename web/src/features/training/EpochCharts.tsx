@@ -5,6 +5,7 @@ import type { TrainingEpoch } from "../../domain/training/schema";
 import { Card } from "../../ui/kit/Card";
 import { LineChart } from "../../ui/kit/LineChart";
 import { Skeleton } from "../../ui/kit/Skeleton";
+import { formatDecimal } from "../../ui/numbers";
 
 interface Series {
   key: string;
@@ -85,7 +86,7 @@ export function EpochCharts({
   best: TrainingEpoch | null;
 }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 laptop:grid-cols-2">
       {PANELS.map((panel) => (
         <EpochChart
           key={panel.key}
@@ -102,7 +103,7 @@ export function EpochCharts({
 /** `EpochCharts` while the run loads: the four titled panels, each holding a bone the chart's height. */
 export function EpochChartsSkeleton() {
   return (
-    <div aria-hidden className="grid gap-4 lg:grid-cols-2">
+    <div aria-hidden className="grid gap-4 laptop:grid-cols-2">
       {PANELS.map((panel) => (
         <Card key={panel.key} title={panel.title()}>
           <Skeleton height={CHART_HEIGHT} />
@@ -144,11 +145,11 @@ function EpochChart({
         height={CHART_HEIGHT}
         xAxisDomain={[1, Math.max(total, 2)]}
         yAxisDomain={panel.unit ? [0, 1] : ["auto", "auto"]}
-        valueFormatter={(value) => value.toFixed(2)}
+        valueFormatter={(value) => formatDecimal(value, 2)}
         tooltipLabelFormatter={(epoch) =>
           m.epoch_tooltip_epoch({ epoch: String(epoch) })
         }
-        tooltipValueFormatter={(value) => value.toFixed(4)}
+        tooltipValueFormatter={(value) => formatDecimal(value, 4)}
       >
         {best && (
           <ReferenceLine

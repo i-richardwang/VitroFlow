@@ -10,8 +10,4 @@
   border-radius: inherit;
   background: var(--color-primary);
   transition: width var(--duration-slower) var(--ease-out);
-
-  @media (prefers-reduced-motion: reduce) {
-    transition-duration: 0s;
-  }
 }

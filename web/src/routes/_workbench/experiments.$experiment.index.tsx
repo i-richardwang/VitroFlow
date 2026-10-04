@@ -4,6 +4,7 @@ import type { ExperimentGrid } from "../../domain/experiments/contracts";
 import { experimentIdSchema } from "../../domain/experiments/schema";
 import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
 import { getExperimentGrid } from "../../functions/experiments";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import {
   PageHeaderSkeleton,
@@ -31,10 +32,9 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
       ];
     },
   },
-  head: ({ loaderData }) => {
-    const { experiment } = loaderData as ExperimentGrid;
-    return { meta: [{ title: `${experiment.name} · ${m.app_name()}` }] };
-  },
+  head: ({ loaderData }) => ({
+    meta: [{ title: documentTitle(loaderData?.experiment.name) }],
+  }),
   pendingComponent: () => (
     <PageSkeleton>
       <PageHeaderSkeleton description action />

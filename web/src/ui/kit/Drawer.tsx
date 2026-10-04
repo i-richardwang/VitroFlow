@@ -21,6 +21,16 @@ import { panelTransition } from "./motionToken";
 
 type DrawerPlacement = "left" | "right";
 
+const POPUP_PLACEMENT = {
+  left: "ui-drawer-popup-left",
+  right: "ui-drawer-popup-right",
+} satisfies Record<DrawerPlacement, string>;
+
+const PANEL_PLACEMENT = {
+  left: "ui-drawer-panel-left",
+  right: "ui-drawer-panel-right",
+} satisfies Record<DrawerPlacement, string>;
+
 const offscreen: Record<DrawerPlacement, { x: string }> = {
   left: { x: "-100%" },
   right: { x: "100%" },
@@ -53,14 +63,14 @@ function DrawerPopup({
   return (
     <Dialog.Popup
       aria-label={ariaLabel}
-      className={cn("ui-drawer-popup", `ui-drawer-popup-${placement}`)}
+      className={cn("ui-drawer-popup", POPUP_PLACEMENT[placement])}
       style={{ width }}
     >
       <AnimatePresence onExitComplete={onExitComplete}>
         {open ? (
           <motion.div
             {...drawerMotionConfig(placement)}
-            className={cn("ui-drawer-panel", `ui-drawer-panel-${placement}`)}
+            className={cn("ui-drawer-panel", PANEL_PLACEMENT[placement])}
             key="drawer-popup-panel"
           >
             {children}
@@ -71,20 +81,28 @@ function DrawerPopup({
   );
 }
 
-interface DrawerProps {
-  /** Names the dialog when `noHeader` leaves it without a title. */
-  "aria-label"?: string;
+type DrawerProps = {
   children: ReactNode;
-  /** No header row; the close button floats at the top end. */
-  noHeader?: boolean;
   onClose: () => void;
   open: boolean;
   placement?: DrawerPlacement;
-  /** Names the dialog; required unless `noHeader`. */
-  title?: ReactNode;
   /** In pixels. */
   width: number;
-}
+} & (
+  | {
+      /** Names the dialog. */
+      "aria-label": string;
+      /** No header row; the close button floats at the top end. */
+      noHeader: true;
+      title?: never;
+    }
+  | {
+      "aria-label"?: never;
+      noHeader?: false;
+      /** The header's title, which names the dialog. */
+      title: ReactNode;
+    }
+);
 
 export function Drawer({
   "aria-label": ariaLabel,
@@ -115,11 +133,7 @@ export function Drawer({
     >
       <Dialog.Portal container={defaultPortalContainer()}>
         <DialogPresenceBackdrop className="ui-drawer-backdrop" />
-        <DrawerPopup
-          aria-label={noHeader ? ariaLabel : undefined}
-          placement={placement}
-          width={width}
-        >
+        <DrawerPopup aria-label={ariaLabel} placement={placement} width={width}>
           {noHeader ? (
             closeNode
           ) : (

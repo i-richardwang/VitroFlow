@@ -295,7 +295,7 @@ assert.ok(
 );
 await act(async () => releaseSave?.());
 const conflict = () =>
-  Array.from(body.querySelectorAll('[role="alert"]')).find((alert) =>
+  Array.from(body.querySelectorAll('[role="status"]')).find((alert) =>
     alert.textContent?.includes(m.calibration_conflict()),
   );
 assert.ok(conflict(), "a save conflict stays on the page");

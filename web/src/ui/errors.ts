@@ -1,7 +1,7 @@
 import { businessFailureSchema, type BusinessFailure } from "../domain/errors";
 import { imageAlreadyUsedDetailsSchema } from "../domain/experiments/errors";
 import { m } from "../paraglide/messages";
-import { getLocale } from "../paraglide/runtime";
+import { formatList } from "./lists";
 
 type Label = (details: BusinessFailure["details"]) => string | null;
 
@@ -23,9 +23,7 @@ const BUSINESS_ERROR_LABELS: ReadonlyMap<string, Label> = new Map<
 function imageAlreadyUsed(details: BusinessFailure["details"]): string | null {
   const parsed = imageAlreadyUsedDetailsSchema.safeParse(details);
   if (!parsed.success) return null;
-  const images = new Intl.ListFormat(getLocale(), {
-    type: "conjunction",
-  }).format(
+  const images = formatList(
     parsed.data.images.map((image) =>
       m.error_image_already_used_item({
         file: image.filename,

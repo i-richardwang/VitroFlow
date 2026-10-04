@@ -161,7 +161,7 @@ test("concurrent claims lease a run to exactly one worker", async () => {
   expect(winners).toHaveLength(1);
   expect(claims.filter((claimed) => claimed === null)).toHaveLength(2);
   const winner = winners[0];
-  if (!winner || winner.state.status !== "running") throw new Error("no lease");
+  if (winner?.state.status !== "running") throw new Error("no lease");
   await failTrainingRun(
     run.id,
     { workerId: winner.state.workerId, sessionId: winner.state.sessionId },
@@ -250,8 +250,7 @@ test("publication registers one immutable version per training run", async () =>
   });
   expect(version?.artifact.kind).toBe("ultralytics");
   if (
-    !version ||
-    version.source.kind !== "training_run" ||
+    version?.source.kind !== "training_run" ||
     version.artifact.kind !== "ultralytics"
   ) {
     throw new Error("missing ultralytics version");

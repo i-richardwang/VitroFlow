@@ -70,15 +70,18 @@
 
 @theme static {
   /*
-   * Clear Tailwind's palette, type scale, radii, shadows and easings so only
-   * the sets below exist. A stock palette would let `text-neutral-500` bypass
-   * the semantic colors without anyone noticing.
+   * Clear Tailwind's palette, type scale, radii, shadows, easings, breakpoints
+   * and animations so only the sets in this file exist. A stock palette would
+   * let `text-neutral-500` bypass the semantic colors, and a stock breakpoint
+   * would let `md:` bypass the two layout widths, without anyone noticing.
    */
   --color-*: initial;
   --text-*: initial;
   --radius-*: initial;
   --shadow-*: initial;
   --ease-*: initial;
+  --breakpoint-*: initial;
+  --animate-*: initial;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI",
@@ -104,7 +107,6 @@
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.875rem;
-  --text-3xl--line-height: 2.375rem;
 
   /* Four radii; fully round is `rounded-full`. */
   --radius-xs: 0.25rem;
@@ -113,15 +115,16 @@
   --radius-lg: 0.75rem;
 
   /*
-   * Breakpoints, used as `max-mobile` and `max-laptop`. Below `laptop` the
-   * app sidebar becomes a drawer; `useIsCompact` reads the same variable.
+   * Breakpoints, the only two: `mobile:` and `laptop:` from a width up,
+   * `max-mobile:` and `max-laptop:` below it. Below `laptop` the app sidebar
+   * becomes a drawer; `useIsCompact` reads the same variable.
    */
   --breakpoint-mobile: 30rem;
   --breakpoint-laptop: 62rem;
 
   /*
    * Motion. CSS reads these curves and durations directly; motion-driven
-   * panels read them through `motionToken.ts`.
+   * animations read them through `motionToken.ts`.
    * - `--ease-out`: state transitions.
    * - `--ease-soft`: panels entering, masks fading, button color.
    * - `--ease-accelerate`: panels and popups leaving.
@@ -198,7 +201,6 @@
   --color-error-hover: #fb745a;
   --color-error-active: #a53716;
   --color-error-bg: #fff7f6;
-  --color-error-bg-hover: #ffece9;
   --color-info: #0072f5;
   --color-info-hover: #4c90ff;
   --color-info-active: #005ae0;
@@ -213,12 +215,6 @@
 
   /* Selected text, the same in both schemes. */
   --color-selection: #ffef5c;
-
-  /* Field states outside the scale: focus halo, error halo and hover border, disabled border. */
-  --color-control-outline: rgba(5, 5, 5, 0.04);
-  --color-error-outline: rgba(255, 55, 30, 0.04);
-  --color-error-border-hover: #ffded9;
-  --color-border-disabled: #d9d9d9;
 
   /* Chart series, in the order series take them. */
   --color-chart-1: #0072f5;
@@ -263,18 +259,12 @@
   --color-error-hover: #ffb0b7;
   --color-error-active: #e43165;
   --color-error-bg: #380015;
-  --color-error-bg-hover: #560023;
   --color-info: #60b1ff;
   --color-info-hover: #a7d3ff;
   --color-info-active: #2d8ae0;
   --color-info-fill: rgba(0, 88, 246, 0.26);
 
   --color-ring: rgb(255 255 255 / 0.18);
-
-  --color-control-outline: rgba(213, 213, 213, 0.02);
-  --color-error-outline: rgba(57, 0, 21, 0.97);
-  --color-error-border-hover: #c10251;
-  --color-border-disabled: #424242;
 
   --color-chart-1: #0072f5;
   --color-chart-2: #ffb224;
@@ -287,9 +277,9 @@
 }
 
 /*
- * Elevation. sm, md and lg deepen in `.dark`; the pure black ones are shared.
- * The ones that reference color tokens are computed again on `.dark` so they
- * follow the scheme. Drawer names say which edge the panel sits on.
+ * Elevation. sm, md and lg deepen in `.dark`; the ones built from color tokens
+ * follow the scheme through them. Drawer names say which edge the panel sits
+ * on.
  */
 :root {
   --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 4px rgb(0 0 0 / 0.02);
@@ -301,22 +291,6 @@
     0 40px 80px rgb(0 0 0 / 0.06), 0 20px 40px rgb(0 0 0 / 0.05),
     0 10px 20px rgb(0 0 0 / 0.04), 0 5px 10px rgb(0 0 0 / 0.03),
     0 2px 4px rgb(0 0 0 / 0.02);
-}
-
-.dark {
-  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 4px rgb(0 0 0 / 0.03);
-  --elevation-md:
-    0 17.5px 23.4px rgb(0 0 0 / 0.06), 0 9.4px 12.5px rgb(0 0 0 / 0.05),
-    0 5.25px 7px rgb(0 0 0 / 0.03), 0 2.8px 3.7px -2px rgb(0 0 0 / 0.02),
-    0 1.2px 1.5px rgb(0 0 0 / 0.02);
-  --elevation-lg:
-    0 40px 80px rgb(0 0 0 / 0.09), 0 20px 40px rgb(0 0 0 / 0.08),
-    0 10px 20px rgb(0 0 0 / 0.06), 0 5px 10px rgb(0 0 0 / 0.05),
-    0 2px 4px rgb(0 0 0 / 0.03);
-}
-
-:root,
-.dark {
   --elevation-edge:
     0 1px 0 -1px var(--color-border), 0 1px 2px -0.5px var(--color-border),
     0 2px 2px -1px var(--color-border-secondary),
@@ -329,6 +303,18 @@
     -6px 0 16px 0 color-mix(in srgb, var(--color-shadow) 8%, transparent),
     -3px 0 6px -4px color-mix(in srgb, var(--color-shadow) 12%, transparent),
     -9px 0 28px 8px color-mix(in srgb, var(--color-shadow) 5%, transparent);
+}
+
+.dark {
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 4px rgb(0 0 0 / 0.03);
+  --elevation-md:
+    0 17.5px 23.4px rgb(0 0 0 / 0.06), 0 9.4px 12.5px rgb(0 0 0 / 0.05),
+    0 5.25px 7px rgb(0 0 0 / 0.03), 0 2.8px 3.7px -2px rgb(0 0 0 / 0.02),
+    0 1.2px 1.5px rgb(0 0 0 / 0.02);
+  --elevation-lg:
+    0 40px 80px rgb(0 0 0 / 0.09), 0 20px 40px rgb(0 0 0 / 0.08),
+    0 10px 20px rgb(0 0 0 / 0.06), 0 5px 10px rgb(0 0 0 / 0.05),
+    0 2px 4px rgb(0 0 0 / 0.03);
 }
 
 @theme {
@@ -505,19 +491,13 @@
 
 /*
  * Keyboard focus. Component CSS writes `@apply focus-ring`; components that
- * draw the outline on another element read the same variables. The color
- * references a color token, so it is computed again on `.dark`.
+ * draw the outline on another element read the same variables.
  */
-:root,
-.dark {
+:root {
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --focus-ring-color: var(--color-focus);
   --focus-ring-animation: focus-ring-in var(--duration-slow) var(--ease-snap);
-
-  @media (prefers-reduced-motion: reduce) {
-    --focus-ring-animation: none;
-  }
 
   @media (forced-colors: active) {
     --focus-ring-color: CanvasText;
@@ -540,6 +520,10 @@
   }
 }
 
+/*
+ * Reduced motion. CSS transitions and animations finish at once here;
+ * motion-driven ones do the same through `motionToken.ts`.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

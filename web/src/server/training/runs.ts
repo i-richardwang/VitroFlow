@@ -481,8 +481,7 @@ export async function requireOwnedRunningRun(
 ): Promise<RunningTrainingRun> {
   await currentWorkerSession(owner, db);
   if (
-    !run ||
-    run.state.status !== "running" ||
+    run?.state.status !== "running" ||
     run.state.workerId !== owner.workerId ||
     run.state.sessionId !== owner.sessionId
   ) {

@@ -3,6 +3,7 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -13,9 +14,9 @@ import {
   createPanelController,
   handleSize as getHandleSize,
   type PanelControllerOptions,
-  timing,
 } from "./draggablePanelController";
 import { coarsePointer, useMediaQuery } from "./mediaQuery";
+import { foldTransition } from "./motionToken";
 
 /*
  * A panel on the inline-end side of the page, resized by dragging its seam.
@@ -73,6 +74,7 @@ export function DraggablePanel({
   maxWidth: number;
   minWidth: number;
 }) {
+  const contentId = useId();
   const [expand, setExpand] = useState(true);
   const [width, setWidth] = useState(defaultWidth);
 
@@ -123,10 +125,7 @@ export function DraggablePanel({
       ref={elementRef}
       style={{ flexDirection: "row" }}
     >
-      <div
-        className="ui-draggable-panel-toggle-root ui-draggable-panel-toggle-left"
-        style={{ opacity: expand ? undefined : 0 }}
-      >
+      <div className="ui-draggable-panel-toggle-root ui-draggable-panel-toggle-left">
         <button
           aria-label={
             expand
@@ -140,6 +139,7 @@ export function DraggablePanel({
           onClick={() => setExpand(!expand)}
         >
           <svg
+            aria-hidden
             fill="none"
             height={BOW_H}
             viewBox={`0 0 ${BOW_W} ${BOW_H}`}
@@ -189,7 +189,8 @@ export function DraggablePanel({
         <motion.div
           animate={{ scale: expand ? 1 : COLLAPSED_SCALE }}
           className="ui-draggable-panel-content"
-          transition={timing()}
+          id={contentId}
+          transition={foldTransition()}
           style={
             {
               transformOrigin: "right center",
@@ -202,7 +203,10 @@ export function DraggablePanel({
         </motion.div>
       </motion.div>
       {expand ? (
+        // biome-ignore lint/a11y/useSemanticElements: a focusable window splitter; <hr> is a static rule
         <div
+          aria-controls={contentId}
+          aria-label={m.ui_draggable_panel_resize({ panel: ariaLabel })}
           aria-orientation="vertical"
           aria-valuemax={max}
           aria-valuemin={min}
@@ -214,7 +218,7 @@ export function DraggablePanel({
           tabIndex={0}
           style={
             {
-              "--draggable-panel-handle-size": `${handle}px`,
+              "--ui-draggable-panel-handle-size": `${handle}px`,
               insetInlineStart: -handle / 2,
             } as CSSProperties
           }

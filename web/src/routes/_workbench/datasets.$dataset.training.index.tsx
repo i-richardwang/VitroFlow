@@ -3,7 +3,7 @@ import { Play } from "lucide-react";
 import { useState } from "react";
 
 import { Page } from "../../ui/Page";
-import { formatQuantity } from "../../ui/quantity";
+import { formatCount } from "../../ui/numbers";
 import { TrainDialog, trainRefusal } from "../../features/training/TrainDialog";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../functions/training";
@@ -17,6 +17,7 @@ import {
 } from "../../ui/kit/PageSkeleton";
 import { StatCard, StatGrid } from "../../ui/kit/StatCard";
 import { Tooltip } from "../../ui/kit/Tooltip";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
@@ -42,7 +43,9 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
     head: ({ params }) => ({
       meta: [
         {
-          title: `${m.training_title()} · ${params.dataset} · ${m.app_name()}`,
+          title: documentTitle(
+            m.training_dataset_title({ dataset: params.dataset }),
+          ),
         },
       ],
     }),
@@ -80,7 +83,7 @@ function TrainingPage() {
       <StatGrid>
         <StatCard
           label={m.training_kpi_ready()}
-          value={formatQuantity(reviewed)}
+          value={formatCount(reviewed)}
           hint={
             training.reviewedSinceLastRun > 0
               ? m.training_kpi_new_since_last_run({
@@ -91,7 +94,7 @@ function TrainingPage() {
         />
         <StatCard
           label={m.training_kpi_workers()}
-          value={formatQuantity(training.workersOnline)}
+          value={formatCount(training.workersOnline)}
         />
       </StatGrid>
 

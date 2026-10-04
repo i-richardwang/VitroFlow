@@ -9,12 +9,12 @@ import {
   ObservationRejectedError,
 } from "../../domain/experiments/errors";
 import { ModelNotFoundError } from "../../domain/models/errors";
-import {
-  type Experiment,
-  type ExperimentObservation,
-  type ObservationRef,
-  type ObservationRequest,
-  type ObservationUpdate,
+import type {
+  Experiment,
+  ExperimentObservation,
+  ObservationRef,
+  ObservationRequest,
+  ObservationUpdate,
 } from "../../domain/experiments/schema";
 import {
   atObservation,

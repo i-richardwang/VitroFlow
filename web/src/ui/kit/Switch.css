@@ -1,7 +1,7 @@
-/* The thumb offset `--switch-x` is written by Switch.tsx; `--switch-dir` flips it in right-to-left text. */
+/* The thumb offset `--ui-switch-x` is written by Switch.tsx; `--ui-switch-dir` flips it in right-to-left text. */
 
 .ui-switch {
-  --switch-dir: 1;
+  --ui-switch-dir: 1;
 
   cursor: pointer;
   user-select: none;
@@ -22,11 +22,11 @@
     box-shadow var(--duration-slow) var(--ease-out);
 
   &:dir(rtl) {
-    --switch-dir: -1;
+    --ui-switch-dir: -1;
   }
 
   [dir="rtl"] & {
-    --switch-dir: -1;
+    --ui-switch-dir: -1;
   }
 
   @apply focus-ring;
@@ -48,10 +48,6 @@
     cursor: not-allowed;
     opacity: 0.45;
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition-duration: 0s;
-  }
 }
 
 .ui-switch-root-default {
@@ -67,7 +63,9 @@
 }
 
 .ui-switch-thumb {
-  transform: translateX(calc(var(--switch-x, 0px) * var(--switch-dir, 1)));
+  transform: translateX(
+    calc(var(--ui-switch-x, 0px) * var(--ui-switch-dir, 1))
+  );
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -89,10 +87,6 @@
 
   [data-disabled] > & {
     box-shadow: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition-duration: 0s;
   }
 }
 

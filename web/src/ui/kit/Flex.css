@@ -13,7 +13,6 @@
   --ui-flex-width: auto;
   --ui-flex-height: auto;
   --ui-flex-padding: 0;
-  --ui-flex-padding-inline: var(--ui-flex-padding);
   --ui-flex-padding-block: var(--ui-flex-padding);
   --ui-flex-gap: 0;
 
@@ -29,7 +28,6 @@
   height: var(--ui-flex-height);
 
   padding: var(--ui-flex-padding);
-  padding-inline: var(--ui-flex-padding-inline);
   padding-block: var(--ui-flex-padding-block);
 
   gap: var(--ui-flex-gap);

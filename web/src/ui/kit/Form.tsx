@@ -20,13 +20,16 @@ function FormRoot({ className, ...rest }: FormProps) {
   return <BaseForm className={cn("ui-form", className)} {...rest} />;
 }
 
-/** A label with an optional line of description under it. */
+/**
+ * A label with an optional line of description under it. It is built from
+ * phrasing content, so it can sit inside a `<label>`.
+ */
 function FormTitle({ title, desc }: { desc?: ReactNode; title: ReactNode }) {
   return (
-    <div className="ui-form-title">
-      <div className="ui-form-title-title">{title}</div>
+    <span className="ui-form-title">
+      <span className="ui-form-title-title">{title}</span>
       {desc && <small className="ui-form-title-desc">{desc}</small>}
-    </div>
+    </span>
   );
 }
 
@@ -40,7 +43,7 @@ export interface FormFieldProps extends Omit<
   desc?: ReactNode;
   /** Names a group of controls, such as a CheckboxGroup, with a legend instead of a label. */
   fieldset?: boolean;
-  label?: ReactNode;
+  label: ReactNode;
   layout?: "horizontal" | "vertical";
   /** Marks the label and passes `required` to the control; a fieldset only marks its legend. */
   required?: boolean;

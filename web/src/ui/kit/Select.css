@@ -1,8 +1,9 @@
 /*
- * Block order is cascade order: trigger, size, variant, then the
- * trigger's parts and the popup's. Popup, option and group label blocks come
- * after the matching DropdownMenu.css blocks. The automatic variant sits
- * inside `:where()`, so it has the specificity of a single class.
+ * Block order is cascade order: trigger, size, variant, then the trigger's
+ * parts and the popup's. The popup and its options are drawn by the
+ * DropdownMenu.css blocks; this file adds the select's own popup sizing. The
+ * automatic variant sits inside `:where()`, so it has the specificity of a
+ * single class.
  */
 
 .ui-select-trigger {
@@ -21,22 +22,15 @@
   outline: none;
   transition: all var(--duration-base) var(--ease-out);
 
-  &:not([data-disabled])[data-popup-open],
-  &:not([data-disabled])[data-open],
-  &:not([data-disabled])[data-state="open"],
-  &:not([data-disabled])[aria-expanded="true"] {
+  &:not([data-disabled])[data-popup-open] {
     background: var(--ui-select-open-bg, var(--color-fill-tertiary));
   }
 
   @apply focus-ring;
 
-  &:hover [data-role="ui-select-clear"] {
+  &:hover .ui-select-clear,
+  &:focus-visible .ui-select-clear {
     opacity: 1;
-  }
-
-  &[data-placeholder] [data-role="ui-select-clear"] {
-    pointer-events: none;
-    opacity: 0;
   }
 
   &[data-disabled] {
@@ -47,11 +41,6 @@
     &:hover {
       background: var(--ui-select-disabled-bg, transparent);
     }
-  }
-
-  &[data-disabled] [data-role="ui-select-clear"] {
-    pointer-events: none;
-    opacity: 0;
   }
 }
 

@@ -19,6 +19,7 @@ import { Button } from "../ui/kit/Button";
 import { Form } from "../ui/kit/Form";
 import { Icon } from "../ui/kit/Icon";
 import { Input, InputPassword } from "../ui/kit/Input";
+import { documentTitle } from "../ui/documentTitle";
 import { m } from "../paraglide/messages";
 import { readSession, redirect } from "../server/transport/http/session";
 
@@ -30,7 +31,7 @@ import { readSession, redirect } from "../server/transport/http/session";
 export const Route = createFileRoute("/login")({
   validateSearch: z.object({ returnTo: z.string().optional() }).loose(),
   head: () => ({
-    meta: [{ title: `${m.login_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.login_title()) }],
   }),
   server: {
     handlers: {

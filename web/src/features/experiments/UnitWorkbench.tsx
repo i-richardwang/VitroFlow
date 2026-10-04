@@ -16,6 +16,7 @@ import { Button } from "../../ui/kit/Button";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { ToolbarSeparator } from "../../ui/kit/Toolbar";
+import { Day } from "../../ui/Day";
 import { m } from "../../paraglide/messages";
 import type {
   UnitNavigationEntry,
@@ -164,7 +165,7 @@ export function UnitWorkbench({
                 {shown.review.filename}
               </DescriptionsItem>
               <DescriptionsItem label={m.unit_observed()}>
-                {shown.observation.observedOn}
+                <Day value={shown.observation.observedOn} />
               </DescriptionsItem>
             </Descriptions>
             {shown.failure ? (

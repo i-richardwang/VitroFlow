@@ -1,6 +1,11 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Check, ChevronDown, X } from "lucide-react";
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import type {
+  CSSProperties,
+  KeyboardEvent,
+  ReactNode,
+  SyntheticEvent,
+} from "react";
 import { m } from "../../paraglide/messages";
 import { cn } from "./cn";
 import { defaultPortalContainer } from "./floating";
@@ -38,7 +43,10 @@ interface SelectBaseProps<Value> {
   variant?: SelectVariant;
 }
 
-/** With `allowClear` a clear button empties the value and `onChange` receives `null`. */
+/**
+ * With `allowClear`, Backspace or Delete on the trigger empties the value and
+ * `onChange` receives `null`; the clear glyph does the same for a pointer.
+ */
 export type SelectProps<Value = string> = SelectBaseProps<Value> &
   (
     | { allowClear?: false; onChange: (value: Value) => void; value: Value }
@@ -108,10 +116,17 @@ export function Select<Value = string>(props: SelectProps<Value>) {
 
   const showClear = props.allowClear && value !== null && !disabled;
 
-  const handleClear = (event: MouseEvent) => {
+  /* The glyph sits inside the trigger, so its pointer events stop here and never open the popup. */
+  const holdPointer = (event: SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    emit(null);
+  };
+
+  const clearByKey = (event: KeyboardEvent) => {
+    if (showClear && (event.key === "Backspace" || event.key === "Delete")) {
+      event.preventDefault();
+      emit(null);
+    }
   };
 
   const popupStyle = {
@@ -120,10 +135,9 @@ export function Select<Value = string>(props: SelectProps<Value>) {
     "--ui-select-popup-max-height": `${LIST_HEIGHT}px`,
   } as CSSProperties;
 
-  const itemTextClassName = cn(
-    optionRender ? "ui-dropdown-menu-item-content" : "ui-dropdown-menu-label",
-    "ui-select-item-text",
-  );
+  const itemTextClassName = optionRender
+    ? "ui-dropdown-menu-item-content"
+    : "ui-dropdown-menu-label";
 
   return (
     <BaseSelect.Root<Value>
@@ -134,6 +148,7 @@ export function Select<Value = string>(props: SelectProps<Value>) {
       onValueChange={emit}
     >
       <BaseSelect.Trigger
+        aria-keyshortcuts={showClear ? "Backspace Delete" : undefined}
         aria-label={ariaLabel}
         className={cn(
           "ui-select-trigger",
@@ -142,6 +157,7 @@ export function Select<Value = string>(props: SelectProps<Value>) {
           className,
         )}
         disabled={disabled}
+        onKeyDown={clearByKey}
       >
         <BaseSelect.Value className="ui-select-value">
           {renderValue}
@@ -149,9 +165,14 @@ export function Select<Value = string>(props: SelectProps<Value>) {
         <span className="ui-select-suffix">
           {showClear && (
             <span
+              aria-hidden
               className="ui-select-clear"
-              data-role="ui-select-clear"
-              onClick={handleClear}
+              onClick={(event) => {
+                holdPointer(event);
+                emit(null);
+              }}
+              onMouseDown={holdPointer}
+              onPointerDown={holdPointer}
             >
               <Icon icon={X} size="small" />
             </span>
@@ -180,21 +201,15 @@ export function Select<Value = string>(props: SelectProps<Value>) {
           >
             <BaseSelect.List className="ui-select-list">
               {options.length === 0 ? (
-                <div
-                  className={cn(
-                    "ui-dropdown-menu-item",
-                    "ui-dropdown-menu-empty",
-                    "ui-select-empty",
-                  )}
-                >
+                <div className="ui-dropdown-menu-item ui-dropdown-menu-empty">
                   {m.ui_no_data()}
                 </div>
               ) : (
-                options.map((option, index) => (
+                options.map((option) => (
                   <BaseSelect.Item
-                    className={cn("ui-dropdown-menu-item", "ui-select-item")}
+                    className="ui-dropdown-menu-item"
                     disabled={option.disabled}
-                    key={`${String(option.value)}-${index}`}
+                    key={String(option.value)}
                     label={searchText(option)}
                     value={option.value}
                   >

@@ -1,6 +1,8 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "training_title": "Training",
+  "training_dataset_title": "Training of {dataset}",
+  "training_run_page_title": "{run} of {dataset}",
   "training_datasets_crumb": "Datasets",
   "training_kpi_runs": "Runs",
   "training_kpi_in_progress": "In progress",

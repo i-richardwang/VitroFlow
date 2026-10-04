@@ -1,7 +1,7 @@
 import { Field } from "@base-ui/react/field";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import {
-  CalendarDate,
+  type CalendarDate,
   endOfWeek,
   getLocalTimeZone,
   isSameDay,
@@ -26,6 +26,7 @@ import { Button } from "./Button";
 import { cn } from "./cn";
 import { defaultPortalContainer } from "./floating";
 import { Icon } from "./Icon";
+import { shellClass } from "./Input";
 
 /*
  * A controlled single-day picker that always holds a day. The field shows the
@@ -44,8 +45,8 @@ import { Icon } from "./Icon";
  * The trigger is the control of an enclosing Base UI Field: the field's
  * label names it, and the field's invalid state and errors apply to it.
  *
- * The field is outlined in the light scheme and filled in the dark one; CSS
- * picks it from `.dark`, so rendering never reads the theme. Today is read
+ * The field is the Input shell, so it looks and responds like the text
+ * fields beside it. Today is read
  * only inside the open dialog, which renders only in the browser.
  */
 
@@ -58,6 +59,12 @@ export interface DatePickerProps {
 }
 
 type Mode = "date" | "month" | "year";
+
+const PANEL = {
+  date: "ui-date-picker-date-panel",
+  month: "ui-date-picker-month-panel",
+  year: "ui-date-picker-year-panel",
+} satisfies Record<Mode, string>;
 
 const FORMAT: Intl.DateTimeFormatOptions = {
   dateStyle: "medium",
@@ -86,7 +93,7 @@ export function DatePicker({
     value.toDate("UTC"),
   );
   const openFromField = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
+    if (triggerRef.current?.contains(event.target as Node)) return;
     triggerRef.current?.focus();
     setOpen(true);
   };
@@ -94,34 +101,29 @@ export function DatePicker({
   return (
     <BasePopover.Root onOpenChange={setOpen} open={open}>
       <div
-        className={cn(
-          "ui-date-picker",
-          "ui-date-picker-auto",
-          disabled && "ui-date-picker-disabled",
-        )}
+        className={cn(shellClass("middle"), "ui-date-picker")}
+        data-disabled={disabled ? "" : undefined}
         // A press on the padding or the suffix opens the dialog like a press on the text.
         onClick={openFromField}
         ref={setAnchor}
       >
-        <div className="ui-date-picker-input" onClick={openFromField}>
-          <BasePopover.Trigger
-            className="ui-date-picker-trigger"
-            disabled={disabled}
-            ref={triggerRef}
-            render={
-              <Field.Control
-                disabled={disabled}
-                render={<button type="button" />}
-                value={value.toString()}
-              />
-            }
-          >
-            {text}
-          </BasePopover.Trigger>
-          <span className="ui-date-picker-suffix">
-            <Icon icon={CalendarIcon} />
-          </span>
-        </div>
+        <BasePopover.Trigger
+          className="ui-input-input ui-date-picker-trigger"
+          disabled={disabled}
+          ref={triggerRef}
+          render={
+            <Field.Control
+              disabled={disabled}
+              render={<button type="button" />}
+              value={value.toString()}
+            />
+          }
+        >
+          {text}
+        </BasePopover.Trigger>
+        <span className="ui-input-slot">
+          <Icon icon={CalendarIcon} />
+        </span>
       </div>
       <BasePopover.Portal container={defaultPortalContainer()}>
         <BasePopover.Positioner
@@ -290,7 +292,7 @@ function Panels({
       <div className="ui-date-picker-panel-layout">
         <div>
           <div className="ui-date-picker-panel">
-            <div className={`ui-date-picker-${mode}-panel`}>
+            <div className={PANEL[mode]}>
               {header}
               <div className="ui-date-picker-body">
                 {mode === "date" ? (

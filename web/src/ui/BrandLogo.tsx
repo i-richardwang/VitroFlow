@@ -7,17 +7,15 @@ import { Text } from "./kit/Text";
 /** The mark, drawn in the current text color so it reads on either scheme. */
 export function BrandLogo({
   className,
-  style,
   ...props
-}: Omit<ComponentPropsWithoutRef<"span">, "children">) {
+}: Omit<ComponentPropsWithoutRef<"span">, "children" | "style">) {
   return (
     <span
       aria-hidden
-      className={cn("inline-block shrink-0 bg-current", className)}
-      style={{
-        mask: "url(/logo.svg) center / contain no-repeat",
-        ...style,
-      }}
+      className={cn(
+        "inline-block shrink-0 bg-current mask-[url(/logo.svg)] mask-center mask-contain mask-no-repeat",
+        className,
+      )}
       {...props}
     />
   );

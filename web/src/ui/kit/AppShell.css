@@ -47,10 +47,6 @@
     inline-size: 64px;
   }
 
-  &[data-instant="true"] {
-    transition: none;
-  }
-
   @variant max-laptop {
     display: none;
   }

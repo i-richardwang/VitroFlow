@@ -7,6 +7,7 @@ import { RoleSelect } from "../../features/users/RoleSelect";
 import { UserMenu } from "../../features/users/UserMenu";
 import { isAdmin, type UserAccount } from "../../domain/auth/schema";
 import { changeUserRole, getUsers } from "../../functions/users";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import { Page } from "../../ui/Page";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
@@ -26,7 +27,6 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
-import { Text } from "../../ui/kit/Text";
 
 export const Route = createFileRoute("/_workbench/users")({
   beforeLoad: ({ context }) => {
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_workbench/users")({
   loader: () => getUsers(),
   staticData: { crumbs: () => [{ label: m.users_title() }] },
   head: () => ({
-    meta: [{ title: `${m.users_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.users_title()) }],
   }),
   pendingComponent: () => (
     <PageSkeleton>
@@ -104,9 +104,7 @@ function UserRow({ account, self }: { account: UserAccount; self: boolean }) {
         </Flexbox>
       </TableCell>
       <TableCell cellLabel={m.users_column_email()}>
-        <Text as="span" type="secondary">
-          {account.email}
-        </Text>
+        <span className="text-fg-secondary">{account.email}</span>
       </TableCell>
       <TableCell cellLabel={m.users_column_role()}>
         <RoleSelect

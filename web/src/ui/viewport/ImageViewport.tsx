@@ -14,6 +14,7 @@ import type { Point } from "../../domain/annotation/geometry";
 import type { ImageSize } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
 import { Button } from "../kit/Button";
+import { formatPercent } from "../numbers";
 import { Toolbar } from "../kit/Toolbar";
 import {
   FILL,
@@ -221,7 +222,7 @@ export function ImageViewport({
         onPointerDown={(event) => event.stopPropagation()}
       >
         <span className="w-12 text-center text-xs text-fg-secondary tabular-nums">
-          {Math.round(view.scale * 100)}%
+          {formatPercent(view.scale)}
         </span>
         <Button
           type="text"

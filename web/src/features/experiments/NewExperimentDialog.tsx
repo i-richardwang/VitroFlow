@@ -10,7 +10,7 @@ import { m } from "../../paraglide/messages";
 import { currentDay, toDay } from "./DayField";
 import {
   DesignField,
-  INITIAL_DESIGN,
+  initialDesign,
   submittedDesign,
   type DesignRow,
 } from "./DesignField";
@@ -42,7 +42,7 @@ function NewExperimentSession({
   const router = useRouter();
   const action = useAsyncAction();
   const [inoculatedOn, setInoculatedOn] = useState<CalendarDate>(currentDay);
-  const [design, setDesign] = useState<DesignRow[]>(INITIAL_DESIGN);
+  const [design, setDesign] = useState<DesignRow[]>(initialDesign);
   const treatments = submittedDesign(design);
 
   return (

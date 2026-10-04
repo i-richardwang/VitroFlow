@@ -1,7 +1,8 @@
 /*
  * Block order is cascade order: shell, invalid state, size, color scheme, then
  * the multiline blocks and the inner parts. The scheme blocks sit behind
- * `:where()`, so they have the specificity of a single class.
+ * `:where()`, so they have the specificity of a single class and the shell's
+ * focus and invalid states beat them in both schemes.
  */
 
 .ui-input {
@@ -19,6 +20,11 @@
     background var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out),
     box-shadow var(--duration-base) var(--ease-out);
+
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
+  }
 
   &[data-disabled],
   &:has(> .ui-input-input:disabled) {
@@ -63,12 +69,6 @@
   &:hover:not(:focus-within, [data-disabled]) {
     border-color: var(--color-border);
   }
-
-  /* The invalid focus border wins through the higher specificity of `:has([data-invalid])`. */
-  &:focus-within {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-bg);
-  }
 }
 
 .ui-input-textarea {
@@ -77,8 +77,8 @@
 
   textarea {
     resize: none;
-    min-height: calc(1.5em * var(--textarea-min-rows, 2));
-    max-height: var(--textarea-max-height, none);
+    min-height: calc(1.5em * var(--ui-textarea-min-rows, 2));
+    max-height: var(--ui-textarea-max-height, none);
     line-height: 1.5;
   }
 }

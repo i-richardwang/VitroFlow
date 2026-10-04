@@ -191,6 +191,8 @@ interface ConfirmConfig {
   /** Draws the OK button as destructive. */
   danger?: boolean;
   okText: ReactNode;
+  /** Called when the reader cancels: Cancel, the close button, Esc or the backdrop. */
+  onCancel?: () => void;
   /**
    * Returning a Promise spins the OK button and closes once it resolves; until
    * then the dialog cannot be dismissed. On rejection the dialog stays open and
@@ -206,9 +208,14 @@ interface ConfirmEntry {
   open: boolean;
 }
 
-/* Closing first sets the entry's `open` to false; it leaves the list after its exit animation. */
+/*
+ * Closing first sets the entry's `open` to false; it leaves the list after its
+ * exit animation. An entry closed before its dialog mounted has no animation to
+ * wait for and leaves at once.
+ */
 let confirmStack: ConfirmEntry[] = [];
 let confirmSeed = 0;
+const mountedConfirms = new Set<number>();
 const confirmListeners = new Set<() => void>();
 
 function setConfirmStack(next: ConfirmEntry[]) {
@@ -227,23 +234,34 @@ const NO_CONFIRMS: ConfirmEntry[] = [];
 
 const closeConfirm = (id: number) =>
   setConfirmStack(
-    confirmStack.map((entry) =>
-      entry.id === id ? { ...entry, open: false } : entry,
-    ),
+    mountedConfirms.has(id)
+      ? confirmStack.map((entry) =>
+          entry.id === id ? { ...entry, open: false } : entry,
+        )
+      : confirmStack.filter((entry) => entry.id !== id),
   );
 
 /**
  * Asks for confirmation in a dialog with Cancel and OK. The backdrop, Esc, the
  * close button and Cancel all cancel, except while a returned Promise runs.
+ * Returns a function that closes the dialog without an answer, for a question
+ * that its caller can withdraw.
  */
-export function confirmModal(config: ConfirmConfig) {
+export function confirmModal(config: ConfirmConfig): () => void {
   const id = confirmSeed++;
   setConfirmStack([...confirmStack, { config, id, open: true }]);
+  return () => closeConfirm(id);
 }
 
 function ConfirmDialog({ entry }: { entry: ConfirmEntry }) {
   const { config, id, open } = entry;
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    mountedConfirms.add(id);
+    return () => {
+      mountedConfirms.delete(id);
+    };
+  }, [id]);
   const ok = async () => {
     try {
       const result = config.onOk();
@@ -261,7 +279,14 @@ function ConfirmDialog({ entry }: { entry: ConfirmEntry }) {
     <Modal
       open={open}
       title={config.title}
-      onCancel={loading ? () => {} : () => closeConfirm(id)}
+      onCancel={
+        loading
+          ? () => {}
+          : () => {
+              closeConfirm(id);
+              config.onCancel?.();
+            }
+      }
       keyboard={!loading}
       maskClosable={!loading}
       okText={config.okText}

@@ -1,0 +1,77 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "src/**",
+      "scripts/**",
+      "test/**",
+      "*.ts",
+      "!src/paraglide",
+      "!src/routeTree.gen.ts",
+    ],
+  },
+  // Prettier formats; Biome only lints.
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "overrides": [
+    {
+      // Placeholder bones, key caps, crumbs and menu dividers are positional lists that never reorder.
+      "includes": [
+        "src/ui/kit/Breadcrumb.tsx",
+        "src/ui/kit/DropdownMenu.tsx",
+        "src/ui/kit/Hotkey.tsx",
+        "src/ui/kit/PageSkeleton.tsx",
+        "src/ui/kit/Skeleton.tsx",
+        "src/ui/shell/Workbench.tsx",
+      ],
+      "linter": { "rules": { "suspicious": { "noArrayIndexKey": "off" } } },
+    },
+    {
+      // A base rule that must beat the component layers is !important: reduced motion and monospace code.
+      "includes": ["src/styles/app.css"],
+      "linter": { "rules": { "complexity": { "noImportantStyles": "off" } } },
+    },
+    {
+      // The calendar is the ARIA grid pattern: a table whose cells take focus while the table handles keys,
+      // and the field around the trigger widens its pointer target while the trigger stays the keyboard path.
+      "includes": ["src/ui/kit/DatePicker.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noNoninteractiveElementToInteractiveRole": "off",
+            "noStaticElementInteractions": "off",
+            "useKeyWithClickEvents": "off",
+          },
+        },
+      },
+    },
+  ],
+  "linter": {
+    "domains": { "react": "recommended" },
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // `!` marks a value the code just above proves present: a Map entry just set, the first item of a non-empty list.
+        "noNonNullAssertion": "off",
+        // Component CSS is written block by block in the order of the markup, not sorted by specificity.
+        "noDescendingSpecificity": "off",
+      },
+      "correctness": {
+        "useExhaustiveDependencies": {
+          "level": "error",
+          // An effect that re-runs on a trigger lists it (re-center on a new page, re-measure on new children).
+          "options": { "reportUnnecessaryDependencies": false },
+        },
+        "useHookAtTopLevel": "error",
+      },
+      "a11y": {
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": { "inputComponents": ["CheckboxBox", "Switch"] },
+        },
+      },
+    },
+  },
+}

@@ -52,7 +52,7 @@ export function ExperimentFields({
           placeholder={m.experiment_field_name_placeholder()}
         />
       </Form.Field>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 mobile:grid-cols-2">
         <Form.Field
           className="min-w-0"
           name="plantMaterial"

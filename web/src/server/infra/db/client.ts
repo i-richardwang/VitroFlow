@@ -15,7 +15,8 @@ const HANDLE: unique symbol = Symbol.for("vitroflow.database");
 const runtime = globalThis as typeof globalThis & {
   [HANDLE]?: DatabaseHandle;
 };
-const handle: DatabaseHandle = (runtime[HANDLE] ??= {});
+runtime[HANDLE] ??= {};
+const handle: DatabaseHandle = runtime[HANDLE];
 
 /** The process entry point supplies initialization; drivers do not know application data. */
 export function configureDatabase(initialize: () => Promise<Connection>): void {

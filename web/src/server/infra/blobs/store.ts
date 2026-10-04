@@ -235,15 +235,16 @@ export function createS3BlobStore(options: S3BlobStoreOptions): BlobStore {
         await client.send(request);
         return;
       } catch (error) {
+        let failure = error;
         if (statusOf(error) === 409) {
           try {
             await client.send(request);
             return;
           } catch (retryError) {
-            error = retryError;
+            failure = retryError;
           }
         }
-        if (statusOf(error) !== 412) throw error;
+        if (statusOf(failure) !== 412) throw failure;
       }
       const existing = await get(validKey);
       if (!existing)

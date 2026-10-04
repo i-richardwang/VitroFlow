@@ -1,4 +1,9 @@
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useRouter,
+} from "@tanstack/react-router";
 import { ChartLine } from "lucide-react";
 
 import { Metric } from "../../ui/Metric";
@@ -24,6 +29,8 @@ import {
   StatGridSkeleton,
 } from "../../ui/kit/PageSkeleton";
 import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import { TextLink } from "../../ui/kit/TextLink";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import { bestEpoch } from "../../domain/training/metrics";
 import {
@@ -59,7 +66,12 @@ export const Route = createFileRoute(
   head: ({ params }) => ({
     meta: [
       {
-        title: `${trainingRunLabel({ id: params.runId })} · ${m.training_title()} · ${m.app_name()}`,
+        title: documentTitle(
+          m.training_run_page_title({
+            run: trainingRunLabel({ id: params.runId }),
+            dataset: params.dataset,
+          }),
+        ),
       },
     ],
   }),
@@ -82,6 +94,7 @@ export const Route = createFileRoute(
 
 function TrainingRunPage() {
   const { run, epochs, version } = Route.useLoaderData();
+  const { dataset } = Route.useParams();
   const router = useRouter();
   const live = isTrainingRunActive(run);
 
@@ -127,11 +140,15 @@ function TrainingRunPage() {
           label={m.training_kpi_best_map()}
           value={<Metric value={best?.map50To95 ?? null} />}
           hint={
-            published
-              ? m.training_kpi_published({ version: published.id })
-              : best
-                ? m.training_kpi_best_epoch({ epoch: best.epoch })
-                : undefined
+            published ? (
+              <TextLink
+                render={<Link to="/datasets/$dataset" params={{ dataset }} />}
+              >
+                {m.training_kpi_published({ version: published.id })}
+              </TextLink>
+            ) : best ? (
+              m.training_kpi_best_epoch({ epoch: best.epoch })
+            ) : undefined
           }
         />
       </StatGrid>

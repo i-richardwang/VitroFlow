@@ -11,7 +11,7 @@ import { Absent } from "../../ui/Absent";
 import { Page } from "../../ui/Page";
 import { archiveFilename } from "../../domain/datasets/archive-format";
 import { RemoveImageButton } from "../../features/datasets/RemoveImageButton";
-import { formatQuantity } from "../../ui/quantity";
+import { formatCount } from "../../ui/numbers";
 import { getDatasetOverview } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
@@ -50,7 +51,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
     ],
   },
   head: ({ params }) => ({
-    meta: [{ title: `${params.dataset} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(params.dataset) }],
   }),
   pendingComponent: () => (
     <PageSkeleton>
@@ -100,12 +101,12 @@ function DatasetPage() {
       <StatGrid>
         <StatCard
           label={m.dataset_kpi_reviewed()}
-          value={formatQuantity(reviewedCount)}
+          value={formatCount(reviewedCount)}
           hint={m.dataset_kpi_reviewed_of({ count: images.length })}
         />
         <StatCard
           label={m.dataset_kpi_training_runs()}
-          value={formatQuantity(training.runs)}
+          value={formatCount(training.runs)}
           hint={
             training.reviewedSinceLastRun > 0
               ? m.dataset_reviewed_since_last_run({
@@ -134,7 +135,7 @@ function DatasetPage() {
               <TableRow key={image.digest} clickable>
                 <TableCell cellSlot="title">
                   <TextLink
-                    className="block max-w-[40ch] truncate font-mono"
+                    className="block max-w-80 truncate font-mono"
                     render={
                       <Link
                         to="/datasets/$dataset/$digest"
@@ -197,11 +198,11 @@ function BoxCount({
   proposed: number | null;
   boxes: number | null;
 }) {
-  if (boxes !== null) return <>{boxes}</>;
+  if (boxes !== null) return <>{formatCount(boxes)}</>;
   const unreviewed = proposed ?? detected;
   return unreviewed === null ? (
     <Absent />
   ) : (
-    <span className="text-fg-tertiary">{unreviewed}</span>
+    <span className="text-fg-tertiary">{formatCount(unreviewed)}</span>
   );
 }

@@ -9,7 +9,6 @@ import type { TrainingConsole } from "../../domain/training/read-model";
 import { Alert } from "../../ui/kit/Alert";
 import { Form } from "../../ui/kit/Form";
 import { InputNumber } from "../../ui/kit/Input";
-import { Text } from "../../ui/kit/Text";
 import { toast } from "../../ui/kit/Toast";
 import { PARAMETER_FIELDS } from "./parameter-fields";
 import {
@@ -98,13 +97,13 @@ function TrainSession({
       width="wide"
     >
       <div className="flex flex-col gap-4">
-        <Text type="secondary" className="text-sm">
+        <div className="text-sm text-fg-secondary">
           {m.train_dialog_recipe({
             model: recipe.baseModel.reference,
             framework: recipe.runtime.framework,
             version: recipe.runtime.version,
           })}
-        </Text>
+        </div>
         <Form
           id={FORM_ID}
           onSubmit={(event) => {
@@ -112,7 +111,7 @@ function TrainSession({
             submit();
           }}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 mobile:grid-cols-2">
             {PARAMETER_FIELDS.map((field) => (
               <Form.Field key={field.key} label={field.label()}>
                 <InputNumber

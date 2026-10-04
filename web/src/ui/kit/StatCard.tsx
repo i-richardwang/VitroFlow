@@ -13,7 +13,7 @@ export function StatCard({
   value,
 }: {
   /** Line under the figure. */
-  hint?: string;
+  hint?: ReactNode;
   label: ReactNode;
   value: ReactNode;
 }) {
@@ -21,7 +21,7 @@ export function StatCard({
     <Card>
       <div className="ui-stat-card-label">{label}</div>
       <div className="ui-stat-card-value">{value}</div>
-      {hint ? <div className="ui-stat-card-hint">{hint}</div> : null}
+      {hint != null ? <div className="ui-stat-card-hint">{hint}</div> : null}
     </Card>
   );
 }

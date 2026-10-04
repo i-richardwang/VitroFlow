@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Images, Upload } from "lucide-react";
 import { useState } from "react";
 
-import { formatQuantity } from "../../ui/quantity";
+import { formatCount } from "../../ui/numbers";
 import { ImportDatasetDialog } from "../../features/datasets/ImportDatasetDialog";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
@@ -24,13 +24,14 @@ import { TextLink } from "../../ui/kit/TextLink";
 import { Absent } from "../../ui/Absent";
 import { Page } from "../../ui/Page";
 import { getDatasets } from "../../functions/datasets";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/datasets/")({
   loader: () => getDatasets(),
   staticData: { crumbs: () => [{ label: m.datasets_title() }] },
   head: () => ({
-    meta: [{ title: `${m.datasets_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.datasets_title()) }],
   }),
   pendingComponent: () => (
     <PageSkeleton>
@@ -94,7 +95,7 @@ function DatasetsPage() {
                   cellLabel={m.datasets_column_images()}
                   className="text-end tabular-nums"
                 >
-                  {formatQuantity(dataset.imageCount)}
+                  {formatCount(dataset.imageCount)}
                 </TableCell>
                 <TableCell
                   cellLabel={m.datasets_column_reviewed()}
@@ -103,7 +104,7 @@ function DatasetsPage() {
                   {dataset.reviewedCount === null ? (
                     <Absent />
                   ) : (
-                    formatQuantity(dataset.reviewedCount)
+                    formatCount(dataset.reviewedCount)
                   )}
                 </TableCell>
               </TableRow>

@@ -1,9 +1,9 @@
 /*
  * Blocks follow the order the component composes them: positioner; popup;
  * item, danger, empty; separator; item-content; icon; label. Select reuses
- * the popup, item, empty, item-content and label blocks. Modifier classes come after their base class and win at
- * equal specificity. The open trigger's fill lives in the base layer of
- * `app.css`.
+ * the popup, item, empty, item-content and label blocks. Modifier classes
+ * come after their base class and win at equal specificity. The open
+ * trigger's fill lives in the base layer of `app.css`.
  */
 
 .ui-dropdown-menu-positioner {
@@ -68,7 +68,7 @@
   &:has([data-highlighted]) {
     [role^="menuitem"]:hover:not([data-highlighted]),
     [role="option"]:hover:not([data-highlighted]) {
-      background: transparent !important;
+      background: transparent;
     }
   }
 }
@@ -117,21 +117,19 @@
   &[data-highlighted]:not([data-disabled]) {
     background: var(--color-fill-tertiary);
   }
-
-  &[data-state="open"]:not([data-disabled]),
-  &[data-open]:not([data-disabled]),
-  &[aria-expanded="true"]:not([data-disabled]) {
-    background: var(--color-fill-tertiary);
-  }
 }
 
+/* `&&` lifts the danger look over the item's own states; pointer and keyboard light it alike. */
 .ui-dropdown-menu-danger {
   --ui-menu-icon-color: var(--color-error);
 
-  color: var(--color-error) !important;
+  && {
+    color: var(--color-error);
+  }
 
-  &:hover {
-    background: var(--color-error-bg) !important;
+  &&:hover:not([data-disabled]),
+  &&[data-highlighted]:not([data-disabled]) {
+    background: var(--color-error-bg);
   }
 }
 

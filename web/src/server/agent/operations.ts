@@ -97,6 +97,7 @@ interface OperationDefinition<
   handler: (
     input: z.output<Input>,
     executor?: Executor,
+    // biome-ignore lint/suspicious/noConfusingVoidType: a command answering `done` resolves to nothing, which execution reads as null
   ) => Promise<z.input<Output> | void>;
 }
 

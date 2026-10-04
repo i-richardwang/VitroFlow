@@ -2,7 +2,7 @@ import type { Review } from "../../domain/annotation/review";
 import { m } from "../../paraglide/messages";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { Progress } from "../../ui/kit/Progress";
-import { formatCount } from "../../ui/readings";
+import { formatCount } from "../../ui/numbers";
 import { WorkbenchSection } from "../../ui/shell/Workbench";
 import { Timestamp } from "../../ui/Timestamp";
 

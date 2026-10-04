@@ -1,5 +1,5 @@
 import {
-  CalendarDate,
+  type CalendarDate,
   getLocalTimeZone,
   parseDate,
   today,
@@ -21,27 +21,38 @@ export function currentDay(): CalendarDate {
   return today(getLocalTimeZone());
 }
 
-/** A required calendar day; it always holds one, so it cannot be cleared. */
+/**
+ * A required calendar day; it always holds one, so it cannot be cleared.
+ * `earliest` greys the days before it in the calendar and rejects them on
+ * submit, since the starting value can already lie before it.
+ */
 export function DayField({
   label,
   disabled,
   value,
   onChange,
-  minDate,
+  earliest,
   className,
 }: {
   label: string;
   disabled: boolean;
   value: CalendarDate;
   onChange: (value: CalendarDate) => void;
-  minDate?: CalendarDate;
+  earliest?: { date: CalendarDate; error: string };
   className?: string;
 }) {
   return (
-    <Form.Field className={className} label={label} required>
+    <Form.Field
+      className={className}
+      label={label}
+      validate={() =>
+        earliest && value.compare(earliest.date) < 0 ? earliest.error : null
+      }
+      required
+    >
       <DatePicker
         disabled={disabled}
-        minDate={minDate}
+        minDate={earliest?.date}
         value={value}
         onChange={onChange}
       />

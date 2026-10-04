@@ -24,19 +24,16 @@ export interface CheckboxProps {
   value?: string;
 }
 
-export function Checkbox({
-  children,
+/** The box itself; named by the text beside it when there is one. */
+function CheckboxBox({
   onChange,
-  disabled,
+  labelledBy,
   ...rest
-}: CheckboxProps) {
-  const textId = useId();
-
-  const box = (
+}: Omit<CheckboxProps, "children"> & { labelledBy?: string }) {
+  return (
     <BaseCheckbox.Root
-      aria-labelledby={children ? textId : undefined}
+      aria-labelledby={labelledBy}
       className="ui-checkbox"
-      disabled={disabled}
       onCheckedChange={onChange}
       {...rest}
     >
@@ -54,13 +51,21 @@ export function Checkbox({
       />
     </BaseCheckbox.Root>
   );
+}
 
-  if (!children) return box;
+export function Checkbox({ children, ...rest }: CheckboxProps) {
+  const textId = useId();
+
+  if (!children) return <CheckboxBox {...rest} />;
 
   return (
     <label className="ui-checkbox-label">
-      {box}
-      <Text as="span" id={textId} type={disabled ? "secondary" : undefined}>
+      <CheckboxBox labelledBy={textId} {...rest} />
+      <Text
+        as="span"
+        id={textId}
+        type={rest.disabled ? "secondary" : undefined}
+      >
         {children}
       </Text>
     </label>

@@ -19,6 +19,7 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  min-inline-size: 0;
   padding-block: 24px;
   padding-inline: 28px;
   border-radius: var(--radius-lg);

@@ -23,15 +23,18 @@ export function Page({
   );
 }
 
+/** A titled part of a document page; `id` makes it a link target. */
 export function PageSection({
+  id,
   title,
   children,
 }: {
+  id?: string;
   title: string;
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
+    <section id={id} className="flex flex-col gap-3">
       <h2 className="text-lg font-bold">{title}</h2>
       {children}
     </section>
@@ -42,7 +45,7 @@ export function PageSection({
 export function PageSectionSkeleton({ children }: { children: ReactNode }) {
   return (
     <section aria-hidden className="flex flex-col gap-3">
-      <Skeleton.Text size="lg" width={160} />
+      <Skeleton.Text size="lg" width="8em" />
       {children}
     </section>
   );

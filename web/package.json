@@ -19,6 +19,7 @@
     "format": "prettier --write \"**/*.{ts,tsx}\" \"messages/**/*.json\"",
     "format:check": "prettier --check \"**/*.{ts,tsx}\" \"messages/**/*.json\"",
     "architecture:check": "bun scripts/check-architecture.ts",
+    "lint": "biome lint --error-on-warnings",
     "images:analyze": "bun dist/analyze-images.js"
   },
   "dependencies": {
@@ -50,6 +51,7 @@
   "devDependencies": {
     "@babel/parser": "^7.29.8",
     "@babel/traverse": "^7.29.8",
+    "@biomejs/biome": "^2.5.15",
     "@electric-sql/pglite": "^0.5.8",
     "@inlang/paraglide-js": "^2.25.0",
     "@tailwindcss/vite": "^4.3.3",

@@ -6,6 +6,11 @@ import { cn } from "./cn";
 export type TagSize = "small" | "middle";
 export type TagStatusColor = "warning" | "info";
 
+const COLOR = {
+  warning: "ui-tag-warning",
+  info: "ui-tag-info",
+} satisfies Record<TagStatusColor, string>;
+
 export interface TagProps extends Omit<ComponentProps<"span">, "color"> {
   color?: TagStatusColor;
   size?: TagSize;
@@ -25,12 +30,7 @@ export function Tag({
 }: TagProps) {
   return (
     <span
-      className={cn(
-        "ui-tag",
-        SIZE[size],
-        color && `ui-tag-${color}`,
-        className,
-      )}
+      className={cn("ui-tag", SIZE[size], color && COLOR[color], className)}
       {...props}
     >
       {children}

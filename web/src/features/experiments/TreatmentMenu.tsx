@@ -38,7 +38,7 @@ export function TreatmentMenu({
     {
       key: "edit",
       icon: Pencil,
-      label: m.treatment_menu_edit({ name: treatment.name }),
+      label: m.treatment_menu_edit(),
       onClick: () => setOpen("edit"),
     },
   ];

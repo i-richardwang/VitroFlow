@@ -1,4 +1,5 @@
 import { Network } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { validationMetric } from "../../domain/models/schema";
 import type { VersionOverview } from "../../domain/training/read-model";
@@ -18,7 +19,14 @@ import { Absent } from "../../ui/Absent";
 import { Metric } from "../../ui/Metric";
 import { ModelKindTag } from "./ModelKindTag";
 
-export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
+/** Published versions; `emptyAction` leads to where a first one is trained. */
+export function VersionsTable({
+  versions,
+  emptyAction,
+}: {
+  versions: VersionOverview[];
+  emptyAction: ReactNode;
+}) {
   return (
     <Table aria-label={m.versions_table()} narrow="cards">
       <TableHeader>
@@ -92,6 +100,7 @@ export function VersionsTable({ versions }: { versions: VersionOverview[] }) {
               icon={Network}
               title={m.versions_empty()}
               description={m.versions_empty_description()}
+              action={emptyAction}
             />
           </TableEmpty>
         )}

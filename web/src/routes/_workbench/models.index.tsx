@@ -26,13 +26,14 @@ import { Tag } from "../../ui/kit/Tag";
 import { Page } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
 import { getModelCatalogue } from "../../functions/models";
+import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/models/")({
   loader: () => getModelCatalogue(),
   staticData: { crumbs: () => [{ label: m.models_title() }] },
   head: () => ({
-    meta: [{ title: `${m.models_title()} · ${m.app_name()}` }],
+    meta: [{ title: documentTitle(m.models_title()) }],
   }),
   pendingComponent: () => (
     <PageSkeleton>

@@ -11,7 +11,6 @@ import {
 import { DropZone } from "../../ui/kit/DropZone";
 import { Icon } from "../../ui/kit/Icon";
 import { Progress } from "../../ui/kit/Progress";
-import { toast } from "../../ui/kit/Toast";
 import { m } from "../../paraglide/messages";
 
 export function ImportDatasetDialog({
@@ -57,7 +56,6 @@ function ImportArchiveForm({
         setProgress(null);
         return;
       }
-      toast.success(m.dataset_import_done({ dataset: result.value.id }));
       onDone();
       await router.navigate({
         to: "/datasets/$dataset",
@@ -95,7 +93,7 @@ function ImportProgressPanel({ progress }: { progress: ImportProgress }) {
         <span className="flex min-w-0 items-center gap-2">
           <Icon
             icon={LoaderCircle}
-            size={14}
+            size="small"
             spin
             className="text-fg-tertiary"
           />

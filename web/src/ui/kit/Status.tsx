@@ -11,6 +11,14 @@ import { Icon } from "./Icon";
 
 export type StatusTone = "neutral" | "info" | "success" | "warning" | "error";
 
+const TONE = {
+  neutral: "ui-status-neutral",
+  info: "ui-status-info",
+  success: "ui-status-success",
+  warning: "ui-status-warning",
+  error: "ui-status-error",
+} satisfies Record<StatusTone, string>;
+
 export interface StatusProps extends ComponentProps<"span"> {
   icon?: LucideIcon;
   spin?: boolean;
@@ -26,10 +34,7 @@ export function Status({
   ...props
 }: StatusProps) {
   return (
-    <span
-      {...props}
-      className={cn("ui-status", `ui-status-${tone}`, className)}
-    >
+    <span {...props} className={cn("ui-status", TONE[tone], className)}>
       {icon ? (
         <Icon icon={icon} size={12} spin={spin} />
       ) : (

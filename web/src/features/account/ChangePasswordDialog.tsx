@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { authClient } from "./client";
 import { PasswordField } from "../users/PasswordField";
 import { m } from "../../paraglide/messages";
@@ -43,25 +41,14 @@ function ChangePasswordForm({
   action: AsyncAction;
   onDone: () => void;
 }) {
-  const [mismatch, setMismatch] = useState(false);
-
   return (
     <Form
       id={FORM_ID}
-      errors={
-        mismatch ? { confirmation: m.account_password_mismatch() } : undefined
-      }
       onSubmit={(event) => {
         event.preventDefault();
         const values = new FormData(event.currentTarget);
         const currentPassword = String(values.get("currentPassword") ?? "");
         const newPassword = String(values.get("newPassword") ?? "");
-        const confirmation = String(values.get("confirmation") ?? "");
-        if (newPassword !== confirmation) {
-          setMismatch(true);
-          return;
-        }
-        setMismatch(false);
         void run(async () => {
           const { error } = await authClient.changePassword({
             currentPassword,
@@ -92,6 +79,11 @@ function ChangePasswordForm({
         label={m.account_confirm_password()}
         name="confirmation"
         disabled={busy}
+        validate={(value, formValues) =>
+          value === formValues.newPassword
+            ? null
+            : m.account_password_mismatch()
+        }
       />
     </Form>
   );

@@ -4,7 +4,7 @@ import { classCount, count, type Tally } from "../../domain/models/classes";
 import { m } from "../../paraglide/messages";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { Switch } from "../../ui/kit/Switch";
-import { formatCount } from "../../ui/readings";
+import { formatCount } from "../../ui/numbers";
 import { WorkbenchSection } from "../../ui/shell/Workbench";
 import { ClassLabel, LAYERS, type LayerKey } from "./controls";
 
@@ -102,7 +102,7 @@ export function LayersSection({
 
   return (
     <WorkbenchSection title={m.calibration_section_layers()}>
-      <div role="group" aria-label={m.calibration_section_layers()}>
+      <fieldset aria-label={m.calibration_section_layers()} className="min-w-0">
         {LAYERS.map((layer) => (
           <label
             key={layer.key}
@@ -116,7 +116,7 @@ export function LayersSection({
             />
           </label>
         ))}
-      </div>
+      </fieldset>
     </WorkbenchSection>
   );
 }
