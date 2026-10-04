@@ -44,21 +44,28 @@ dev = [
   "pyright>=1.1.405",
   "pytest>=8.0",
   "ruff>=0.12",
+  "vitroflow",
 ]
+
+[tool.uv.workspace]
+members = ["packages/vitroflow"]
+
+[tool.uv.sources]
+vitroflow = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "packages/vitroflow/tests"]
 addopts = "-m 'not reference'"
 markers = [
   "reference: requires the checksum-pinned private reference images",
 ]
 
 [tool.pyright]
-include = ["src", "scripts"]
+include = ["src", "scripts", "packages/vitroflow/src"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
 

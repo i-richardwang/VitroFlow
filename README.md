@@ -122,6 +122,14 @@ Workers advertise the traditional runtime and, when installed and importable, th
 
 For training they claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
 
+## Preparing photographs
+
+Experimenters photograph each dish, often several times in a row, and copy the photographs into a folder. The [`vitroflow`](packages/vitroflow/README.md) command, published on PyPI, sorts that folder into dishes and chooses the photograph whose seeds are sharpest for each, without reading labels or touching the files. An agent then uploads the chosen photographs through the experiments MCP server:
+
+```bash
+uvx vitroflow photos select ~/plates
+```
+
 ## Agent interface
 
 AI agents maintain experiment records over the same domain layer the workbench uses, acting as the account that let them in. Every request is authorized afresh by its API key or MCP client; each command runs in one transaction that a failure rolls back whole. Every operation validates the request schema its workbench counterpart validates, so business invariants hold regardless of which face performed the write. The interface is documented in [docs/agent-api.md](docs/agent-api.md) and has two faces over one operation registry:
@@ -146,7 +154,7 @@ the rules in [Readings](docs/readings.md).
 
 A Dataset leaves a workbench as an archive: **Download** on the dataset page streams a ZIP holding the dataset's manifest and every image it names, stored uncompressed under the same layout as a local data root. **Import** on the Datasets page reads such an archive in the browser, stores each image under its digest, and then applies the manifest, so a dataset moves between workbenches with its annotations intact and nothing is re-encoded on the way.
 
-Wire documents shared by the Web control plane and Python workers/CLI are defined by the Web Zod schemas. `bun run contracts:generate` emits their JSON Schemas into the Python package; `make check` refuses stale generated contracts. Python validates shared structure against those schemas before decoding domain objects and enforcing cross-field semantics.
+Wire documents shared by the Web control plane and Python workers/CLI are defined by the Web Zod schemas. `bun run contracts:generate` emits their JSON Schemas into `vitroctl`; `make check` refuses stale generated contracts. Python validates shared structure against those schemas before decoding domain objects and enforcing cross-field semantics.
 
 The same transfer runs from the command line over `/api/transfer/`, opened by a personal API key that holds the transfer scope:
 
@@ -221,13 +229,13 @@ uv run python scripts/train_yolo.py \
 
 `configs/yolo26/seed-small.recipe.json` fixes the base-weight digest, Ultralytics version, and training arguments. `--epochs`, `--imgsz`, and `--batch` provide explicit local overrides.
 
-## Publishing the Python package
+## Publishing the Python packages
 
-Set the new version in `pyproject.toml`, then build and upload from a clean `dist/`:
+`vitroctl` is versioned in the root `pyproject.toml` and `vitroflow` in `packages/vitroflow/pyproject.toml`; each is released on its own. Set the package's new version, then build and upload it from a clean `dist/`:
 
 ```bash
 rm -rf dist
-uv build
+uv build --package vitroflow
 uv publish
 ```
 

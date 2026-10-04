@@ -1,6 +1,6 @@
 # Architecture
 
-VitroFlow has a Web control plane and a Python client/worker package. Source boundaries describe the capabilities a module may use; each boundary is organized by the domain or lifecycle it owns. React components can render on the server, so a frontend directory does not authorize browser globals during rendering.
+VitroFlow has a Web control plane and two Python packages: `vitroctl` (`src/vitroctl`) runs Workers, moves datasets and trains detectors for operators, and `vitroflow` (`packages/vitroflow`) prepares photographs for experimenters. Source boundaries describe the capabilities a module may use; each boundary is organized by the domain or lifecycle it owns. React components can render on the server, so a frontend directory does not authorize browser globals during rendering.
 
 ## Web boundaries
 
@@ -28,6 +28,8 @@ Domain exceptions inherit shared categories from `domain/errors.ts` and carry st
 
 `image_geometry` owns dish circle detection without model or annotation dependencies; traditional detection uses it, and the workbench reads the same [recipe](images.md) to bound AI annotation to the dish. AI annotation itself runs on the workbench and the agents people connect to it; see [AI annotation](ai-annotation.md).
 
+`vitroflow` depends on neither `vitroctl` nor the workbench. It locates the dish with its own detector because it only needs a region to look in, not the reproducible analysis the workbench records for every stored image.
+
 Worker execution can use algorithms and data documents. Algorithm families do not import workers or host operations. Dataset manifests depend on the detector contract, not an algorithm implementation; loading reviewed dataset entries belongs to `datasets/annotations.py`. Core annotation documents do not load datasets. The top-level package and detector namespace do not eagerly initialize algorithms.
 
 `python scripts/check_architecture.py` checks package ownership, dependency directions, unresolved package imports, and file/package cycles, including type-only and function-local imports. It is part of `make check-python`.
@@ -40,4 +42,4 @@ A runtime fingerprint identifies execution code. A traditional artifact digest i
 
 ## Verification
 
-`make check` runs Web builds, architecture checks, contract generation checks, formatting, type checks, and tests for both packages. The standard suite uses PGlite and in-memory blobs. PostgreSQL, S3, and private reference images have explicit integration targets in the Makefile. Package moves must preserve CLI entry points, bundled data resources, and executable runtime fingerprints as well as import resolution.
+`make check` runs Web builds, architecture checks, contract generation checks, formatting, type checks, and tests for the Web application and both Python packages. The standard suite uses PGlite and in-memory blobs. PostgreSQL, S3, and private reference images have explicit integration targets in the Makefile. Package moves must preserve CLI entry points, bundled data resources, and executable runtime fingerprints as well as import resolution.

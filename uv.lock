@@ -13,6 +13,12 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'darwin'",
 ]
 
+[manifest]
+members = [
+    "vitroctl",
+    "vitroflow",
+]
+
 [[package]]
 name = "anyio"
 version = "4.14.2"
@@ -1833,6 +1839,7 @@ dev = [
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "vitroflow" },
 ]
 
 [package.metadata]
@@ -1850,4 +1857,21 @@ dev = [
     { name = "pyright", specifier = ">=1.1.405" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.12" },
+    { name = "vitroflow", editable = "packages/vitroflow" },
+]
+
+[[package]]
+name = "vitroflow"
+version = "0.2.0"
+source = { editable = "packages/vitroflow" }
+dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "opencv-python-headless" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "opencv-python-headless", specifier = ">=5.0" },
 ]
