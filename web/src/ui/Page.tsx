@@ -1,43 +1,76 @@
 import type { ReactNode } from "react";
 
-import type { IconProps } from "./kit/Icon";
 import { PageHeader } from "./kit/PageHeader";
 import { PageSkeleton } from "./kit/PageSkeleton";
 import { Skeleton } from "./kit/Skeleton";
+import { ShellActions } from "./shell/Shell";
 
-/** A document page in the shell's card: a header row, then its sections. */
+/*
+ * The reading column of a document page: at most 960px wide and centered.
+ * A `wide` page, whose content grows sideways with the data, takes the card's
+ * full width.
+ */
+const COLUMN = "mx-auto flex w-full max-w-240 flex-col gap-6 max-mobile:gap-4";
+const WIDE = "flex w-full flex-col gap-6 max-mobile:gap-4";
+
+/**
+ * A document page in the shell's card. The top bar names it and carries its
+ * `action`. A list leaves its title to the top bar; a page about one subject
+ * sets `headline` and shows the title in the content too, with the subject's
+ * `status`, `description` and `meta`.
+ */
 export function Page({
   title,
+  headline = false,
   description,
-  icon,
   status,
   meta,
   action,
+  wide = false,
   children,
 }: {
-  title: ReactNode;
+  title: string;
+  headline?: boolean;
   description?: ReactNode;
-  /** Marks what the page is about, before the title. */
-  icon?: IconProps["icon"];
   /** The subject's state, right after the title. */
   status?: ReactNode;
   /** Facts about the subject under the description, each in a chip. */
   meta?: ReactNode[];
+  /** Commands in the top bar: at most one primary button, then a menu. */
   action?: ReactNode;
+  wide?: boolean;
   children: ReactNode;
 }) {
   return (
-    <>
-      <PageHeader
-        title={title}
-        description={description}
-        icon={icon}
-        status={status}
-        meta={meta}
-        action={action}
-      />
+    <div className={wide ? WIDE : COLUMN}>
+      {headline ? (
+        <PageHeader
+          title={title}
+          description={description}
+          status={status}
+          meta={meta}
+        />
+      ) : (
+        <h1 className="sr-only">{title}</h1>
+      )}
+      {action ? <ShellActions>{action}</ShellActions> : null}
       {children}
-    </>
+    </div>
+  );
+}
+
+/** A `Page` while it loads, in the same column. */
+export function PageColumnSkeleton({
+  wide = false,
+  children,
+}: {
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <PageSkeleton>
+      <div className={wide ? WIDE : COLUMN}>{children}</div>
+    </PageSkeleton>
   );
 }
 

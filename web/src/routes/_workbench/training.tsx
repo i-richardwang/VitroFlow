@@ -2,17 +2,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { VersionsTable } from "../../features/datasets/VersionsTable";
 import { formatCount } from "../../ui/numbers";
-import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
+import {
+  Page,
+  PageColumnSkeleton,
+  PageSection,
+  PageSectionSkeleton,
+} from "../../ui/Page";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingOverview } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  StatStripSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
-import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
+  Statistic,
+  StatisticGroup,
+  StatisticGroupSkeleton,
+} from "../../ui/kit/Statistic";
 import { Tag } from "../../ui/kit/Tag";
 import { Button } from "../../ui/kit/Button";
 import { documentTitle } from "../../ui/documentTitle";
@@ -25,16 +29,15 @@ export const Route = createFileRoute("/_workbench/training")({
     meta: [{ title: documentTitle(m.training_title()) }],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
-      <PageHeaderSkeleton />
-      <StatStripSkeleton count={3} />
+    <PageColumnSkeleton>
+      <StatisticGroupSkeleton count={3} />
       <PageSectionSkeleton>
         <TableSkeleton rows={3} />
       </PageSectionSkeleton>
       <PageSectionSkeleton>
         <TableSkeleton rows={3} />
       </PageSectionSkeleton>
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: TrainingPage,
 });
@@ -47,20 +50,17 @@ function TrainingPage() {
 
   return (
     <Page title={m.training_title()}>
-      <StatStrip>
-        <StatStripItem
-          label={m.training_kpi_runs()}
-          value={formatCount(total)}
-        />
-        <StatStripItem
-          label={m.training_kpi_in_progress()}
+      <StatisticGroup>
+        <Statistic title={m.training_kpi_runs()} value={formatCount(total)} />
+        <Statistic
+          title={m.training_kpi_in_progress()}
           value={formatCount(inProgress)}
         />
-        <StatStripItem
-          label={m.training_kpi_workers()}
+        <Statistic
+          title={m.training_kpi_workers()}
           value={formatCount(workersOnline)}
         />
-      </StatStrip>
+      </StatisticGroup>
 
       <PageSection
         title={m.versions_table()}

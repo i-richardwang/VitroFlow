@@ -1,20 +1,17 @@
-import { Fragment, type ReactNode } from "react";
-import { IconBox, type IconBoxSize } from "./IconBox";
-import type { IconProps } from "./Icon";
+import type { ReactNode } from "react";
 import { Skeleton } from "./Skeleton";
 
 /*
- * Things of one kind as rows rather than table columns. An `Item` leads with
- * an icon box, then its name with an `addon` right after it (a tag, a status
- * dot) over a line of description; `extra` sits at the end of the row, or
- * on a line under the description on a phone, and `actions` after it show
- * while the row is hovered, holds focus or has its menu open, and always on a
- * phone. A description given as a list is set with thin rules between its
- * parts.
+ * Things of one kind as rows rather than table columns. An `Item` is one
+ * line: its name with an `addon` right after it (a tag, a status dot), then
+ * a trailing cluster at the end of the row holding `extra` (tags) and `meta`
+ * (small facts such as a time or a count), then `actions`, which show while
+ * the row is hovered, holds focus or has its menu open, and always on a
+ * phone. On a phone the trailing cluster moves to a line under the name.
  *
- * The list runs to the surface's edges through `--surface-gutter` and the rows'
- * hover fill stays inside it, so the icons line up with the content above.
- * `empty` is drawn in place of the list when it has no items.
+ * The list runs to the surface's edges through `--surface-gutter` and the
+ * rows' hover fill stays inside it, so the names line up with the content
+ * above. `empty` is drawn in place of the list when it has no items.
  */
 
 export function ItemList({
@@ -39,43 +36,34 @@ export function ItemList({
 export function Item({
   actions,
   addon,
-  description,
   extra,
-  icon,
-  iconSize = "middle",
+  meta,
   title,
 }: {
   actions?: ReactNode;
   addon?: ReactNode;
-  description?: ReactNode | ReactNode[];
   extra?: ReactNode;
-  icon: IconProps["icon"];
-  iconSize?: Exclude<IconBoxSize, "small">;
+  /** One fact, or several set side by side. */
+  meta?: ReactNode | ReactNode[];
   title: ReactNode;
 }) {
-  const parts = Array.isArray(description) ? description : [description];
+  const facts = meta == null ? [] : Array.isArray(meta) ? meta : [meta];
   return (
     <li className="ui-item">
-      <IconBox icon={icon} size={iconSize} />
-      <div className="ui-item-body">
-        <div className="ui-item-heading">
-          <span className="ui-item-title">{title}</span>
-          {addon}
-        </div>
-        {description != null ? (
-          <div className="ui-item-description">
-            {parts.map((part, index) => (
-              <Fragment key={index}>
-                {index > 0 ? (
-                  <span aria-hidden className="ui-item-rule" />
-                ) : null}
-                <span>{part}</span>
-              </Fragment>
-            ))}
-          </div>
-        ) : null}
+      <div className="ui-item-heading">
+        <span className="ui-item-title">{title}</span>
+        {addon}
       </div>
-      {extra != null ? <div className="ui-item-extra">{extra}</div> : null}
+      {extra != null || facts.length > 0 ? (
+        <div className="ui-item-trailing">
+          {extra}
+          {facts.map((fact, index) => (
+            <span className="ui-item-meta" key={index}>
+              {fact}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {actions != null ? (
         <div className="ui-item-actions">{actions}</div>
       ) : null}
@@ -83,16 +71,17 @@ export function Item({
   );
 }
 
-/** An `ItemList` while it loads: `rows` rows of an icon and two lines. */
+/** An `ItemList` while it loads: `rows` rows of a name and its meta. */
 export function ItemListSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div aria-hidden className="ui-item-list">
       {Array.from({ length: rows }, (_, index) => (
         <div className="ui-item" key={index}>
-          <Skeleton className="ui-item-skeleton-icon" />
-          <div className="ui-item-body">
+          <div className="ui-item-heading">
             <Skeleton.Text width="32%" />
-            <Skeleton.Text size="xs" width="48%" />
+          </div>
+          <div className="ui-item-trailing">
+            <Skeleton.Text size="xs" width="6em" />
           </div>
         </div>
       ))}

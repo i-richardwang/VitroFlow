@@ -1,6 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "status_title": "状态",
+  "status_title": "工作节点",
   "status_empty": "还没有登记工作节点",
   "worker_presence_online": "在线",
   "worker_presence_stale": "失联",

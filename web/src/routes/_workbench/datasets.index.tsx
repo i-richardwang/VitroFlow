@@ -6,12 +6,7 @@ import { formatCount } from "../../ui/numbers";
 import { ImportDatasetDialog } from "../../features/datasets/ImportDatasetDialog";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { IconBox } from "../../ui/kit/IconBox";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
+import { TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
   Table,
   TableBody,
@@ -21,7 +16,7 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
-import { Page } from "../../ui/Page";
+import { Page, PageColumnSkeleton } from "../../ui/Page";
 import { getDatasets } from "../../functions/datasets";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -33,10 +28,9 @@ export const Route = createFileRoute("/_workbench/datasets/")({
     meta: [{ title: documentTitle(m.datasets_title()) }],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
-      <PageHeaderSkeleton action />
+    <PageColumnSkeleton>
       <TableSkeleton />
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: DatasetsPage,
 });
@@ -91,23 +85,20 @@ function DatasetsPage() {
           {datasets.map((dataset) => (
             <TableRow key={dataset.dataset} clickable>
               <TableCell cellSlot="title">
-                <span className="flex items-center gap-3">
-                  <IconBox icon={Images} size="small" />
-                  <span className="flex min-w-0 flex-col">
-                    <TextLink
-                      className="truncate"
-                      render={
-                        <Link
-                          to="/datasets/$dataset"
-                          params={{ dataset: dataset.dataset }}
-                        />
-                      }
-                    >
-                      {dataset.dataset}
-                    </TextLink>
-                    <span className="truncate font-mono text-xs font-normal text-fg-secondary">
-                      {dataset.modelId}
-                    </span>
+                <span className="flex min-w-0 flex-col">
+                  <TextLink
+                    className="truncate"
+                    render={
+                      <Link
+                        to="/datasets/$dataset"
+                        params={{ dataset: dataset.dataset }}
+                      />
+                    }
+                  >
+                    {dataset.dataset}
+                  </TextLink>
+                  <span className="truncate text-xs font-normal text-fg-secondary">
+                    {dataset.modelId}
                   </span>
                 </span>
               </TableCell>

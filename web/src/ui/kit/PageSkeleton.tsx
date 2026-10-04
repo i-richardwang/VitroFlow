@@ -5,7 +5,8 @@ import { Skeleton } from "./Skeleton";
 /*
  * Loading shape of a page. `PageSkeleton` is the root: it stacks its parts
  * like the page's content and announces the load in a polite live region.
- * The parts (`PageHeaderSkeleton`, `StatStripSkeleton`, `TableSkeleton`) are
+ * The parts (`PageHeaderSkeleton`, `TableSkeleton`, and the skeletons kept
+ * beside other components, such as `StatisticGroupSkeleton`) are
  * laid out in the order the page draws them. Bones are sized by their
  * classes.
  */
@@ -24,43 +25,19 @@ export function PageSkeleton({ children }: { children: ReactNode }) {
   );
 }
 
-/** The title row; `icon`, `description`, `meta` and `action` match what the page shows. */
+/** The title block of a page about one subject; `description` and `meta` match what it shows. */
 export function PageHeaderSkeleton({
-  action,
   description,
-  icon,
   meta,
 }: {
-  action?: boolean;
   description?: boolean;
-  icon?: boolean;
   meta?: boolean;
 }) {
   return (
     <div aria-hidden className="ui-page-skeleton-header">
-      <div className="ui-page-skeleton-header-main">
-        {icon ? <Skeleton className="ui-page-skeleton-icon" /> : null}
-        <div className="ui-page-skeleton-header-copy">
-          <Skeleton className="ui-page-skeleton-title" />
-          {description ? <Skeleton.Text width="46%" /> : null}
-          {meta ? <Skeleton className="ui-page-skeleton-meta" /> : null}
-        </div>
-      </div>
-      {action ? <Skeleton.Button className="ui-page-skeleton-action" /> : null}
-    </div>
-  );
-}
-
-/** `count` items of a `StatStrip`: a figure's bone over a label's. */
-export function StatStripSkeleton({ count }: { count: number }) {
-  return (
-    <div aria-hidden className="ui-stat-strip">
-      {Array.from({ length: count }, (_, index) => (
-        <div className="ui-stat-strip-item" key={index}>
-          <Skeleton className="ui-page-skeleton-stat-value" />
-          <Skeleton.Text size="xs" width={64} />
-        </div>
-      ))}
+      <Skeleton className="ui-page-skeleton-title" />
+      {description ? <Skeleton.Text width="46%" /> : null}
+      {meta ? <Skeleton className="ui-page-skeleton-meta" /> : null}
     </div>
   );
 }

@@ -115,7 +115,7 @@ export function TrainingRunsTable({
             </TableCell>
             <TableCell
               cellLabel={m.run_column_version()}
-              className="font-mono text-xs text-fg-tertiary"
+              className="text-xs text-fg-tertiary tabular-nums"
             >
               {run.state.status === "succeeded" ? (
                 run.state.modelVersionId

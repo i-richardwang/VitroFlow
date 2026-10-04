@@ -117,7 +117,6 @@ function EnrollWorkerForm({
       >
         <Input
           name="workerId"
-          className="font-mono"
           autoComplete="off"
           autoFocus
           disabled={busy}

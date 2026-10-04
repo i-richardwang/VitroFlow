@@ -1,0 +1,114 @@
+/*
+ * A bordered panel, padded 20px, with one column per statistic, each at
+ * least 240px; below that the columns that fit share the row and the rest
+ * wrap.
+ */
+.ui-statistic-group {
+  --ui-statistic-group-gap: 8px;
+
+  display: grid;
+  padding: 20px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-md);
+  background: var(--color-container);
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      max(
+        240px,
+        calc(
+          (
+              100% - var(--ui-statistic-group-gap) *
+                (var(--ui-statistic-group-columns) - 1)
+            ) /
+            var(--ui-statistic-group-columns)
+        )
+      ),
+      1fr
+    )
+  );
+  gap: var(--ui-statistic-group-gap);
+
+  margin: 0;
+
+  /* A phone keeps two figures to a row rather than one per screen line. */
+  @variant max-mobile {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 16px;
+    padding: 16px;
+  }
+}
+
+/* The title row holds the title and the `extra` at its end; the value and its description sit under it. */
+.ui-statistic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-content: start;
+  align-items: center;
+
+  min-inline-size: 0;
+}
+
+.ui-statistic-title {
+  overflow: hidden;
+
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: 32px;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  @variant max-mobile {
+    margin-block-end: 8px;
+    font-size: var(--text-base);
+    line-height: 16px;
+  }
+}
+
+.ui-statistic-extra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin: 0;
+}
+
+.ui-statistic-body {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+}
+
+.ui-statistic-value {
+  font-size: var(--text-2xl);
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--color-fg);
+}
+
+.ui-statistic-description {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-tertiary);
+}
+
+.ui-statistic-skeleton-title {
+  inline-size: 96px;
+  block-size: var(--text-lg);
+  margin-block: calc((32px - var(--text-lg)) / 2);
+
+  @variant max-mobile {
+    block-size: var(--text-base);
+    margin-block: 1px;
+  }
+}
+
+.ui-statistic-skeleton-value {
+  grid-column: 1 / -1;
+  inline-size: 72px;
+  block-size: calc(var(--text-2xl) * 1.2);
+}

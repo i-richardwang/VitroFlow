@@ -90,7 +90,6 @@ function ModelForm({
       </Form.Field>
       <Form.Field label={m.model_id_label()} required>
         <Input
-          className="font-mono"
           value={id}
           onValueChange={setId}
           placeholder={m.model_id_placeholder()}
@@ -99,7 +98,6 @@ function ModelForm({
       </Form.Field>
       <Form.Field label={m.model_classes_label()} required>
         <TextArea
-          className="font-mono"
           rows={3}
           value={classes}
           onChange={(event) => setClasses(event.currentTarget.value)}

@@ -8,9 +8,8 @@ import { modelRecordsSummary } from "../../features/models/records";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
-import { PageHeaderSkeleton, PageSkeleton } from "../../ui/kit/PageSkeleton";
 import { Tag } from "../../ui/kit/Tag";
-import { Page } from "../../ui/Page";
+import { Page, PageColumnSkeleton } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
 import { getModelCatalogue } from "../../functions/models";
 import { documentTitle } from "../../ui/documentTitle";
@@ -23,10 +22,9 @@ export const Route = createFileRoute("/_workbench/models/")({
     meta: [{ title: documentTitle(m.models_title()) }],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
-      <PageHeaderSkeleton action />
+    <PageColumnSkeleton>
       <ItemListSkeleton />
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: ModelsPage,
 });
@@ -69,17 +67,12 @@ function ModelsPage() {
           return (
             <Item
               key={entry.model.id}
-              icon={Network}
               title={modelName(entry.model)}
-              addon={
-                <Tag size="small" className="font-mono">
-                  {entry.model.id}
-                </Tag>
-              }
-              description={held ?? m.model_records_none()}
+              addon={<Tag size="small">{entry.model.id}</Tag>}
               extra={entry.model.classes.map((each) => (
                 <Tag key={each}>{className(each)}</Tag>
               ))}
+              meta={held ?? m.model_records_none()}
               actions={<ModelMenu model={entry.model} deletable={!held} />}
             />
           );

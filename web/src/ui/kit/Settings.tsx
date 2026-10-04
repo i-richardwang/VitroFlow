@@ -4,11 +4,12 @@ import { Skeleton } from "./Skeleton";
 /*
  * A group of a settings page: a tray with the group's heading, an optional
  * description and an `extra` at its end (a count, a small button), and an
- * inner panel holding the group's content. The panel's content runs to its
- * edges: `SettingsRow`s, a table, a list.
+ * inner panel lifted 3px inside it holding the group's content. The panel's
+ * content runs to its edges: `SettingsRow`s, a table, a list.
  *
- * `SettingsRow` is one setting in the panel: a label column, the value after
- * it and an optional action at the end of the row, rows ruled apart.
+ * `SettingsRow` is one setting in the panel: its label, with an optional
+ * line of description under it, and its value or control at the end of the
+ * row; rows are ruled apart.
  */
 export function SettingsGroup({
   children,
@@ -43,20 +44,25 @@ export function SettingsGroup({
 }
 
 export function SettingsRow({
-  action,
   children,
+  description,
   label,
 }: {
-  action?: ReactNode;
+  /** The setting's value or the control that changes it. */
   children?: ReactNode;
+  description?: ReactNode;
   label: ReactNode;
 }) {
   return (
     <div className="ui-settings-row">
-      <div className="ui-settings-row-label">{label}</div>
-      <div className="ui-settings-row-value">{children}</div>
-      {action != null ? (
-        <div className="ui-settings-row-action">{action}</div>
+      <div className="ui-settings-row-label">
+        <span className="ui-settings-row-title">{label}</span>
+        {description != null ? (
+          <small className="ui-settings-row-description">{description}</small>
+        ) : null}
+      </div>
+      {children != null ? (
+        <div className="ui-settings-row-control">{children}</div>
       ) : null}
     </div>
   );
@@ -86,8 +92,8 @@ export function SettingsGroupSkeleton({
               <div className="ui-settings-row-label">
                 <Skeleton.Text width="5em" />
               </div>
-              <div className="ui-settings-row-value">
-                <Skeleton.Text width="40%" />
+              <div className="ui-settings-row-control">
+                <Skeleton.Text width="10em" />
               </div>
             </div>
           ))}

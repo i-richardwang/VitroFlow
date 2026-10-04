@@ -4,7 +4,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   width: 100%;
 
   /* Inside a form, the gap spaces fields; a field outside one keeps its own padding. */
@@ -142,5 +142,5 @@ fieldset.ui-form-field {
 .ui-form-group-body {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }

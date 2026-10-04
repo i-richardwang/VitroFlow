@@ -84,9 +84,9 @@
 
   flex: none;
 
-  min-height: 56px;
-  padding-block: 12px;
-  padding-inline: 24px;
+  min-height: 48px;
+  padding-block: 8px;
+  padding-inline: 16px;
   border-block-end: 1px solid transparent;
 
   transition: border-color var(--duration-fast) var(--ease-out);
@@ -101,6 +101,14 @@
   color: var(--color-fg);
 }
 
+/* Pulls the close button 4px into the header's padding, 12px from the panel's edge. */
+.ui-modal-header-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-inline-end: -4px;
+}
+
 .ui-modal-close {
   cursor: pointer;
 
@@ -110,7 +118,6 @@
 
   width: 32px;
   height: 32px;
-  margin-inline-end: -8px;
   padding: 0;
   border: none;
   border-radius: var(--radius-lg);
@@ -136,18 +143,14 @@
  * content runs on past the edge.
  */
 .ui-modal-content {
-  --surface-gutter: 24px;
+  --surface-gutter: 16px;
 
   overflow: hidden auto;
   flex: 1 1 auto;
 
   min-block-size: 0;
-  padding-block: 0 8px;
-  padding-inline: 24px;
-
-  &:last-child {
-    padding-block-end: 24px;
-  }
+  padding-block: 0 16px;
+  padding-inline: 16px;
 }
 
 .ui-modal-footer {
@@ -157,8 +160,8 @@
   align-items: center;
   justify-content: flex-end;
 
-  padding-block: 16px 24px;
-  padding-inline: 24px;
+  padding-block: 12px;
+  padding-inline: 16px;
   border-block-start: 1px solid transparent;
 
   transition: border-color var(--duration-fast) var(--ease-out);

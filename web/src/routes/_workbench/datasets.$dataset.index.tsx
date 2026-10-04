@@ -1,9 +1,14 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ChartLine, ImagePlus, Images } from "lucide-react";
+import { ChartLine, ImagePlus } from "lucide-react";
 
 import { QualityTags } from "../../ui/DetectionQuality";
 import { Absent } from "../../ui/Absent";
-import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
+import {
+  Page,
+  PageColumnSkeleton,
+  PageSection,
+  PageSectionSkeleton,
+} from "../../ui/Page";
 import { modelName } from "../../ui/model-names";
 import { DatasetMenu } from "../../features/datasets/DatasetMenu";
 import { RemoveImageButton } from "../../features/datasets/RemoveImageButton";
@@ -12,14 +17,13 @@ import { getDatasetOverview } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  StatStripSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { Progress } from "../../ui/kit/Progress";
-import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
+import {
+  Statistic,
+  StatisticGroup,
+  StatisticGroupSkeleton,
+} from "../../ui/kit/Statistic";
 import {
   Table,
   TableBody,
@@ -51,13 +55,13 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
     meta: [{ title: documentTitle(params.dataset) }],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
-      <PageHeaderSkeleton icon description action />
-      <StatStripSkeleton count={2} />
+    <PageColumnSkeleton>
+      <PageHeaderSkeleton description />
+      <StatisticGroupSkeleton count={2} />
       <PageSectionSkeleton>
         <TableSkeleton />
       </PageSectionSkeleton>
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: DatasetPage,
 });
@@ -71,11 +75,10 @@ function DatasetPage() {
   return (
     <Page
       title={dataset}
-      icon={Images}
+      headline
       description={modelName(model)}
       action={
         <>
-          <DatasetMenu dataset={dataset} />
           <Button
             type="primary"
             icon={ChartLine}
@@ -85,17 +88,18 @@ function DatasetPage() {
           >
             {m.dataset_training()}
           </Button>
+          <DatasetMenu dataset={dataset} />
         </>
       }
     >
-      <StatStrip>
-        <StatStripItem
-          label={m.dataset_kpi_reviewed()}
+      <StatisticGroup>
+        <Statistic
+          title={m.dataset_kpi_reviewed()}
           value={m.dataset_kpi_reviewed_value({
             reviewed: reviewedCount,
             total: images.length,
           })}
-          hint={
+          description={
             <Progress
               aria-label={m.dataset_kpi_reviewed()}
               size="small"
@@ -104,10 +108,10 @@ function DatasetPage() {
             />
           }
         />
-        <StatStripItem
-          label={m.dataset_kpi_training_runs()}
+        <Statistic
+          title={m.dataset_kpi_training_runs()}
           value={formatCount(training.runs)}
-          hint={
+          description={
             training.reviewedSinceLastRun > 0
               ? m.dataset_reviewed_since_last_run({
                   count: training.reviewedSinceLastRun,
@@ -115,7 +119,7 @@ function DatasetPage() {
               : undefined
           }
         />
-      </StatStrip>
+      </StatisticGroup>
       <PageSection
         title={m.dataset_images_section()}
         extra={

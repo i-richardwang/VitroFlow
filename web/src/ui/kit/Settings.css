@@ -1,26 +1,26 @@
 /*
- * The tray is a faint fill one step off the panel inside it, in both schemes;
- * dark fills read weaker on a dark surface, so the dark tray takes the next
- * fill up.
+ * The tray is a faint fill with the panel lifted 3px inside it, outlined and
+ * with an edge shadow. In the dark scheme the tray takes the canvas color
+ * and the panel drops the shadow.
  */
 .ui-settings-group {
   display: flex;
   flex-direction: column;
 
   min-inline-size: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
 
   background: var(--color-fill-quaternary);
 }
 
 :where(.dark) .ui-settings-group {
-  background: var(--color-fill-tertiary);
+  background: var(--color-canvas);
 }
 
 .ui-settings-group-header {
   display: flex;
-  gap: 16px;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-start;
   justify-content: space-between;
 
   padding-block: 12px;
@@ -34,22 +34,20 @@
 .ui-settings-group-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-inline-size: 0;
 }
 
 .ui-settings-group-title {
   margin: 0;
   font-size: var(--text-lg);
-  font-weight: 500;
-  line-height: var(--text-lg--line-height);
+  font-weight: bold;
+  line-height: 28px;
   color: var(--color-fg);
 }
 
 .ui-settings-group-description {
-  font-size: var(--text-sm);
-  line-height: var(--text-sm--line-height);
-  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
 }
 
 .ui-settings-group-extra {
@@ -57,6 +55,8 @@
   flex: none;
   gap: 8px;
   align-items: center;
+
+  min-block-size: 28px;
 
   font-size: var(--text-xs);
   font-weight: 500;
@@ -76,19 +76,24 @@
   border-radius: var(--radius-md);
 
   background: var(--color-container);
+  box-shadow: var(--elevation-edge);
+}
+
+:where(.dark) .ui-settings-group-panel {
+  box-shadow: none;
 }
 
 .ui-settings-row {
   display: flex;
-  gap: 8px 24px;
+  gap: 12px;
   align-items: center;
+  justify-content: space-between;
 
-  min-block-size: 56px;
-  padding-block: 12px;
+  padding-block: 16px;
   padding-inline: 16px;
 
   & + & {
-    border-block-start: 1px solid var(--color-border-secondary);
+    border-block-start: 1px solid var(--color-divider);
   }
 
   @variant max-mobile {
@@ -97,25 +102,37 @@
 }
 
 .ui-settings-row-label {
-  flex: none;
-  inline-size: 160px;
-  font-weight: 500;
-  color: var(--color-fg);
-
-  @variant max-mobile {
-    inline-size: 100%;
-  }
-}
-
-.ui-settings-row-value {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 8px;
+
   min-inline-size: 0;
-  color: var(--color-fg-secondary);
 }
 
-.ui-settings-row-action {
+.ui-settings-row-title {
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-fg);
+}
+
+.ui-settings-row-description {
+  font-size: var(--text-xs);
+  line-height: 1.44;
+  color: var(--color-fg-tertiary);
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.ui-settings-row-control {
   display: flex;
   flex: none;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
+
+  max-inline-size: 100%;
+  min-inline-size: 0;
+
+  color: var(--color-fg-secondary);
 }

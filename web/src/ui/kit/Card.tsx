@@ -4,8 +4,7 @@ import { cn } from "./cn";
 /*
  * A surface on the page that stacks its content with 16px padding, optionally
  * under a small title. `outlined` (the default) is the container color inside
- * a thin border; `filled` is a band of fill one step heavier, for the figure a
- * page leads with.
+ * a thin border; `filled` is a band of fill, for the figure a page leads with.
  */
 export function Card({
   children,

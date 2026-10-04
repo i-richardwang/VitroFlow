@@ -7,11 +7,11 @@ import { Icon, type IconProps } from "./Icon";
  * The frame of the pages outside the signed-in shell: one bordered surface
  * inset 8px from the viewport, the brand in its top row, a bottom bar for
  * page-wide controls such as the language, and the content bare in the
- * middle. The content is a heading, the page's body and, 32px below, its
- * `actions`; a `hero` such as an `AuthConnection` goes above the heading.
- * `centered` narrows the column to 400px and centers the heading, for a
- * question put to the reader. The frame scrolls itself when the content is
- * taller than the viewport.
+ * middle. The content is a heading, the page's body with 32px above and
+ * below it, and then its `actions`; a `hero` such as an `AuthConnection`
+ * goes 16px above the heading. `centered` narrows the column to 400px and
+ * centers the heading, for a question put to the reader. The frame scrolls
+ * itself when the content is taller than the viewport.
  */
 export function AuthLayout({
   actions,
@@ -44,16 +44,20 @@ export function AuthLayout({
             )}
           >
             {hero}
-            <div className="ui-auth-layout-heading">
-              <h1 className="ui-auth-layout-title">{title}</h1>
-              {description ? (
-                <div className="ui-auth-layout-description">{description}</div>
+            <div className="ui-auth-layout-card">
+              <div className="ui-auth-layout-heading">
+                <h1 className="ui-auth-layout-title">{title}</h1>
+                {description ? (
+                  <div className="ui-auth-layout-description">
+                    {description}
+                  </div>
+                ) : null}
+              </div>
+              <div className="ui-auth-layout-body">{children}</div>
+              {actions ? (
+                <div className="ui-auth-layout-actions">{actions}</div>
               ) : null}
             </div>
-            {children}
-            {actions ? (
-              <div className="ui-auth-layout-actions">{actions}</div>
-            ) : null}
           </div>
         </main>
         {footer ? (

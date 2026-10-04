@@ -1,4 +1,4 @@
-import { PanelLeft } from "lucide-react";
+import { ChevronDown, ChevronRight, House, PanelLeft } from "lucide-react";
 import {
   createContext,
   type HTMLAttributes,
@@ -13,14 +13,14 @@ import { m } from "../../paraglide/messages";
 import { ActionIcon } from "./ActionIcon";
 import { cn } from "./cn";
 import { Drawer } from "./Drawer";
+import { DropdownMenu, type DropdownItem } from "./DropdownMenu";
 import { Flexbox } from "./Flex";
+import { Icon } from "./Icon";
 import { useIsCompact } from "./mediaQuery";
 
 export interface AppShellState {
   /** Closes the compact navigation drawer. */
   closeNavigation: () => void;
-  /** Icon rail, only when the sidebar is collapsed on a wide viewport. */
-  collapsed: boolean;
 }
 
 const AppShellContext = createContext<AppShellState | null>(null);
@@ -31,8 +31,8 @@ export function useAppShell(): AppShellState {
   return value;
 }
 
-export interface AppShellBrandLinkProps {
-  "aria-label": string;
+export interface AppShellLinkProps {
+  "aria-label"?: string;
   children: ReactNode;
   className: string;
   href: string;
@@ -40,7 +40,7 @@ export interface AppShellBrandLinkProps {
   onClick: () => void;
 }
 
-/** Home link at the top of the sidebar; only the mark shows on the rail. */
+/** Home link at the top of the sidebar: the mark in a 28px slot and the name. */
 export function AppShellBrand({
   href,
   logo,
@@ -48,44 +48,100 @@ export function AppShellBrand({
   title,
 }: {
   href: string;
-  /** Mark shown on its own when the sidebar is an icon rail. */
   logo: ReactNode;
   /** Renders the home link, for example as a router link. */
-  renderLink: (props: AppShellBrandLinkProps) => ReactNode;
-  /** Name beside the mark; also names the link. */
+  renderLink: (props: AppShellLinkProps) => ReactNode;
   title: string;
 }) {
   const shell = useAppShell();
   return renderLink({
-    "aria-label": title,
-    children: shell.collapsed ? (
-      logo
-    ) : (
-      <span className="ui-app-shell-brand-lockup">
-        {logo}
+    children: (
+      <>
+        <span className="ui-app-shell-brand-mark">{logo}</span>
         <span className="ui-app-shell-brand-name">{title}</span>
-      </span>
+      </>
     ),
-    className: "ui-app-shell-brand-anchor",
+    className: "ui-app-shell-brand",
     href,
     onClick: shell.closeNavigation,
   });
+}
+
+/**
+ * The sidebar's top row inside a section that replaces the navigation, such
+ * as settings: a home link, then the section's name.
+ */
+export function AppShellTrail({
+  home,
+  renderLink,
+  title,
+}: {
+  home: { href: string; label: string };
+  renderLink: (props: AppShellLinkProps) => ReactNode;
+  title: string;
+}) {
+  const shell = useAppShell();
+  return (
+    <nav aria-label={m.ui_breadcrumb_label()} className="ui-app-shell-trail">
+      {renderLink({
+        "aria-label": home.label,
+        children: <Icon icon={House} size={14} />,
+        className: "ui-app-shell-trail-link",
+        href: home.href,
+        onClick: shell.closeNavigation,
+      })}
+      <Icon
+        aria-hidden
+        className="ui-app-shell-trail-separator"
+        icon={ChevronRight}
+        size={12}
+      />
+      <span aria-current="page" className="ui-app-shell-trail-page">
+        {title}
+      </span>
+    </nav>
+  );
+}
+
+/** The signed-in person at the bottom of the sidebar, opening their menu. */
+export function AppShellAccount({
+  items,
+  label,
+  name,
+}: {
+  items: DropdownItem[];
+  /** Names the menu button. */
+  label: string;
+  name: string;
+}) {
+  return (
+    <DropdownMenu items={items}>
+      <button aria-label={label} className="ui-app-shell-account" type="button">
+        <span className="ui-app-shell-account-name">{name}</span>
+        <Icon
+          className="ui-app-shell-account-chevron"
+          icon={ChevronDown}
+          size={14}
+        />
+      </button>
+    </DropdownMenu>
+  );
 }
 
 export interface AppShellProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   "title"
 > {
-  /** Home mark, usually an `AppShellBrand`. Rendered at the top of the sidebar. */
-  brand: ReactNode;
   /** Location shown in the top bar, usually a `Breadcrumb`. */
   breadcrumb: ReactNode;
   children?: ReactNode;
-  /** Collapse the sidebar to an icon rail. Ignored while compact. */
+  /** Hide the sidebar. Ignored while compact. */
   collapsed: boolean;
-  /** Account menu or other content pinned to the bottom of the sidebar. */
+  /** Pinned to the bottom of the sidebar, usually an `AppShellAccount`. */
   footer: ReactNode;
-  /** Navigation, usually an `AppNav`; the rail state comes from the shell. */
+  /** The sidebar's top row: an `AppShellBrand` or an `AppShellTrail`. */
+  header: ReactNode;
+  /** Navigation, usually an `AppNav`. */
   navigation: ReactNode;
   onCollapsedChange: (collapsed: boolean) => void;
   /** Actions at the end of the top bar. */
@@ -112,17 +168,19 @@ export function AppShellFlush({ children }: { children: ReactNode }) {
 }
 
 /**
- * App frame: a sidebar that collapses to an icon rail and becomes a drawer
- * below the laptop breakpoint, a top bar, and an inset workspace card.
- * Mod+B toggles the sidebar while focus is inside the shell.
+ * App frame: a sidebar on the canvas and the page in a bordered card with a
+ * 44px top bar. The sidebar hides entirely when collapsed, and its toggle
+ * moves from the sidebar's top row to the start of the top bar; below the
+ * laptop breakpoint it is a drawer. Mod+B toggles it while focus is inside
+ * the shell.
  */
 export function AppShell({
-  brand,
   breadcrumb,
   children,
   className,
   collapsed,
   footer,
+  header,
   navigation,
   onCollapsedChange,
   tools,
@@ -134,7 +192,7 @@ export function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   // The workspace shows a focus ring only when the skip link moved focus there.
   const [skippedToMain, setSkippedToMain] = useState(false);
-  const railed = collapsed && !isCompact;
+  const hidden = collapsed && !isCompact;
 
   const closeNavigation = () => setDrawerOpen(false);
   const toggleNavigation = () => {
@@ -171,24 +229,39 @@ export function AppShell({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const sidebar = (rail: boolean) => (
-    <AppShellContext value={{ closeNavigation, collapsed: rail }}>
-      <div className="ui-app-shell-brand" data-collapsed={rail}>
-        {brand}
+  const toggle = (
+    <ActionIcon
+      icon={PanelLeft}
+      size="header"
+      title={
+        isCompact
+          ? m.ui_shell_open_navigation()
+          : hidden
+            ? m.ui_shell_expand()
+            : m.ui_shell_collapse()
+      }
+      onClick={toggleNavigation}
+    />
+  );
+
+  const sidebar = (
+    <AppShellContext value={{ closeNavigation }}>
+      <div className="ui-app-shell-sidebar-header">
+        <div className="ui-app-shell-sidebar-header-main">{header}</div>
+        {isCompact ? null : toggle}
       </div>
       <div className="ui-app-shell-nav-slot">{navigation}</div>
-      <div className="ui-app-shell-sidebar-bottom">{footer}</div>
+      <div className="ui-app-shell-sidebar-footer">{footer}</div>
     </AppShellContext>
   );
 
-  const toggleLabel = isCompact
-    ? m.ui_shell_open_navigation()
-    : railed
-      ? m.ui_shell_expand()
-      : m.ui_shell_collapse();
-
   return (
-    <div className={cn("ui-app-shell", className)} ref={shellRef} {...rest}>
+    <div
+      className={cn("ui-app-shell", className)}
+      data-sidebar={hidden || isCompact ? "hidden" : "shown"}
+      ref={shellRef}
+      {...rest}
+    >
       <a
         className="ui-app-shell-skip-link"
         href={`#${mainId}`}
@@ -200,30 +273,31 @@ export function AppShell({
       >
         {m.ui_shell_skip_to_content()}
       </a>
-      <aside className="ui-app-shell-sidebar" data-collapsed={railed}>
-        {!isCompact && sidebar(railed)}
-      </aside>
       {isCompact ? (
         <Drawer
           aria-label={m.ui_nav_label()}
           noHeader
           open={drawerOpen}
           placement="left"
-          width={272}
+          width={280}
           onClose={closeNavigation}
         >
-          <Flexbox height="100%">{sidebar(false)}</Flexbox>
+          <Flexbox className="ui-app-shell-drawer" height="100%">
+            {sidebar}
+          </Flexbox>
         </Drawer>
-      ) : null}
+      ) : (
+        <aside
+          aria-hidden={hidden || undefined}
+          className="ui-app-shell-sidebar"
+          inert={hidden}
+        >
+          {sidebar}
+        </aside>
+      )}
       <div className="ui-app-shell-workspace">
         <header className="ui-app-shell-topbar">
-          <ActionIcon
-            icon={PanelLeft}
-            size="header"
-            title={toggleLabel}
-            onClick={toggleNavigation}
-          />
-          <span aria-hidden className="ui-app-shell-topbar-divider" />
+          {hidden || isCompact ? toggle : null}
           <div className="ui-app-shell-topbar-main">{breadcrumb}</div>
           <div className="ui-app-shell-tools">{tools}</div>
         </header>

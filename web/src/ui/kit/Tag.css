@@ -12,17 +12,18 @@
   color: var(--color-fg-secondary);
   white-space: nowrap;
   background: var(--color-fill-tertiary);
-  border-radius: var(--radius-xs);
 }
 
 .ui-tag-small {
   height: 20px;
   padding-inline: 4px;
+  border-radius: 3px;
 }
 
 .ui-tag-middle {
   height: 22px;
   padding-inline: 8px;
+  border-radius: 3px;
 }
 
 .ui-tag-warning {

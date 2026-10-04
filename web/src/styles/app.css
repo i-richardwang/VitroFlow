@@ -25,7 +25,6 @@
 @import "../ui/kit/Tooltip.css" layer(components);
 @import "../ui/kit/Alert.css" layer(components);
 @import "../ui/kit/Block.css" layer(components);
-@import "../ui/kit/IconBox.css" layer(components);
 @import "../ui/kit/Descriptions.css" layer(components);
 @import "../ui/kit/Empty.css" layer(components);
 @import "../ui/kit/Progress.css" layer(components);
@@ -55,7 +54,7 @@
 @import "../ui/kit/AppShell.css" layer(components);
 @import "../ui/kit/PageHeader.css" layer(components);
 @import "../ui/kit/PageSkeleton.css" layer(components);
-@import "../ui/kit/StatStrip.css" layer(components);
+@import "../ui/kit/Statistic.css" layer(components);
 @import "../ui/kit/ItemList.css" layer(components);
 @import "../ui/kit/Settings.css" layer(components);
 @import "../ui/kit/ChartTooltip.css" layer(components);
@@ -101,8 +100,8 @@
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 
   /*
-   * Type scale. `sm` (13px) is the step for controls and dense tables, `xl`
-   * (20px) for figures in a stat strip, `3xl` (28px) for the sign-in heading.
+   * Type scale. `sm` (13px) is the step for controls and dense tables, `2xl`
+   * (24px) for a statistic's value, `3xl` (28px) for the sign-in heading.
    */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.25rem;
@@ -112,8 +111,6 @@
   --text-base--line-height: 1.375rem;
   --text-lg: 1rem;
   --text-lg--line-height: 1.5rem;
-  --text-xl: 1.25rem;
-  --text-xl--line-height: 1.75rem;
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.75rem;

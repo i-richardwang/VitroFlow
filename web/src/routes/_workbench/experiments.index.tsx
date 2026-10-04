@@ -16,11 +16,7 @@ import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
+import { TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
   Table,
   TableBody,
@@ -30,7 +26,7 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
-import { Page } from "../../ui/Page";
+import { Page, PageColumnSkeleton } from "../../ui/Page";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
   loader: () => getExperiments(),
@@ -39,10 +35,9 @@ export const Route = createFileRoute("/_workbench/experiments/")({
     meta: [{ title: documentTitle(m.experiments_title()) }],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
-      <PageHeaderSkeleton action />
+    <PageColumnSkeleton>
       <TableSkeleton />
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: ExperimentsPage,
 });

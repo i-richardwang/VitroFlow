@@ -2,20 +2,19 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Play } from "lucide-react";
 import { useState } from "react";
 
-import { Page } from "../../ui/Page";
+import { Page, PageColumnSkeleton } from "../../ui/Page";
 import { formatCount } from "../../ui/numbers";
 import { TrainDialog, trainRefusal } from "../../features/training/TrainDialog";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
+import { TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  StatStripSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
-import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
+  Statistic,
+  StatisticGroup,
+  StatisticGroupSkeleton,
+} from "../../ui/kit/Statistic";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -49,11 +48,10 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
       ],
     }),
     pendingComponent: () => (
-      <PageSkeleton>
-        <PageHeaderSkeleton action />
-        <StatStripSkeleton count={2} />
+      <PageColumnSkeleton>
+        <StatisticGroupSkeleton count={2} />
         <TableSkeleton />
-      </PageSkeleton>
+      </PageColumnSkeleton>
     ),
     component: TrainingPage,
   },
@@ -76,11 +74,11 @@ function TrainingPage() {
         ) : null
       }
     >
-      <StatStrip>
-        <StatStripItem
-          label={m.training_kpi_ready()}
+      <StatisticGroup>
+        <Statistic
+          title={m.training_kpi_ready()}
           value={formatCount(reviewed)}
-          hint={
+          description={
             training.reviewedSinceLastRun > 0
               ? m.training_kpi_new_since_last_run({
                   count: training.reviewedSinceLastRun,
@@ -88,11 +86,11 @@ function TrainingPage() {
               : undefined
           }
         />
-        <StatStripItem
-          label={m.training_kpi_workers()}
+        <Statistic
+          title={m.training_kpi_workers()}
           value={formatCount(training.workersOnline)}
         />
-      </StatStrip>
+      </StatisticGroup>
 
       <TrainingRunsTable
         runs={runs}

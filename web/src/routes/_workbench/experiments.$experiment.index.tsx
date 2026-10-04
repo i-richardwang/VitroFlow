@@ -5,13 +5,10 @@ import { experimentIdSchema } from "../../domain/experiments/schema";
 import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
 import { getExperimentGrid } from "../../functions/experiments";
 import { documentTitle } from "../../ui/documentTitle";
+import { PageColumnSkeleton } from "../../ui/Page";
 import { m } from "../../paraglide/messages";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  StatStripSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
+import { StatisticGroupSkeleton } from "../../ui/kit/Statistic";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   loader: async ({ params }) => {
@@ -37,11 +34,11 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
     meta: [{ title: documentTitle(loaderData?.experiment.name) }],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
-      <PageHeaderSkeleton meta action />
-      <StatStripSkeleton count={4} />
+    <PageColumnSkeleton wide>
+      <PageHeaderSkeleton meta />
+      <StatisticGroupSkeleton count={4} />
       <TableSkeleton />
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: ExperimentPage,
 });

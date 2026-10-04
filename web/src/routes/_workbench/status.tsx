@@ -154,10 +154,9 @@ function WorkerItem({
 
   return (
     <Item
-      icon={Server}
       title={worker.workerId}
       addon={<StatusDot label={presence.label()} tone={presence.tone} />}
-      description={[
+      meta={[
         <Activity key="activity" activity={worker.activity} />,
         worker.lastSeenSeconds === null
           ? m.worker_never_seen()

@@ -64,7 +64,7 @@ export function VersionsTable({
             <TableCell cellSlot="title">{version.id}</TableCell>
             <TableCell
               cellLabel={m.versions_column_model()}
-              className="font-mono text-xs text-fg-secondary"
+              className="text-xs text-fg-secondary"
             >
               {version.modelId}
             </TableCell>

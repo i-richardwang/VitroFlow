@@ -30,7 +30,7 @@ import { Button } from "../../ui/kit/Button";
 import { cn } from "../../ui/kit/cn";
 import { Empty } from "../../ui/kit/Empty";
 import { Icon } from "../../ui/kit/Icon";
-import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
+import { Statistic, StatisticGroup } from "../../ui/kit/Statistic";
 import {
   Table,
   TableBody,
@@ -116,6 +116,8 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   return (
     <Page
       title={experiment.name}
+      headline
+      wide
       meta={[
         experiment.plantMaterial,
         experiment.explantType,
@@ -329,32 +331,32 @@ function ExperimentStats({ data }: { data: ExperimentGridData }) {
   ).length;
   const pending = images.filter((image) => image.state === "pending").length;
   return (
-    <StatStrip>
-      <StatStripItem
-        label={m.experiment_stat_treatments()}
+    <StatisticGroup>
+      <Statistic
+        title={m.experiment_stat_treatments()}
         value={formatCount(treatments.length)}
       />
-      <StatStripItem
-        label={m.experiment_stat_units()}
+      <Statistic
+        title={m.experiment_stat_units()}
         value={formatCount(units.length)}
       />
-      <StatStripItem
-        label={m.experiment_stat_observations()}
+      <Statistic
+        title={m.experiment_stat_observations()}
         value={formatCount(observations.length)}
       />
-      <StatStripItem
-        label={m.experiment_stat_images()}
+      <Statistic
+        title={m.experiment_stat_images()}
         value={m.experiment_stat_images_value({
           analyzed,
           total: images.length,
         })}
-        hint={
+        description={
           pending > 0
             ? m.experiment_stat_images_pending({ count: pending })
             : undefined
         }
       />
-    </StatStrip>
+    </StatisticGroup>
   );
 }
 

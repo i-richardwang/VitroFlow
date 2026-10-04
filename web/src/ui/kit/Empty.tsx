@@ -2,21 +2,21 @@ import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages";
 import { Block } from "./Block";
 import { cn } from "./cn";
-import { Flexbox } from "./Flex";
 import { Icon, type IconProps } from "./Icon";
 
 /*
- * An empty state: a centered column of a mark, a title, a description and the
- * way forward 16px below them. `middle` (the default) sits in the place of a
- * table, a list or a panel's content; `large` fills a whole pane. Without
- * `icon`, the default image is drawn.
+ * An empty state: a mark, a title over a description, and the way forward,
+ * stacked 8px apart in a centered column. `default` sits in the place of a
+ * table, a list or a panel's content; `page` speaks for a whole pane, with a
+ * larger title. An `icon` is drawn in a 48px outlined block; without one, the
+ * default image is drawn.
  */
 
 export interface EmptyProps {
   action?: ReactNode;
   description?: ReactNode;
   icon?: IconProps["icon"];
-  size?: "middle" | "large";
+  type?: "default" | "page";
   title?: ReactNode;
 }
 
@@ -79,21 +79,18 @@ export function Empty({
   description,
   icon,
   action,
-  size = "middle",
+  type = "default",
 }: EmptyProps) {
-  const large = size === "large";
   return (
-    <div className={cn("ui-empty", large && "ui-empty-large")}>
-      {icon && large ? (
-        <Icon className="ui-empty-icon-bare" icon={icon} size={48} />
-      ) : icon ? (
+    <div className={cn("ui-empty", type === "page" && "ui-empty-page")}>
+      {icon ? (
         <Block
           align="center"
           className="ui-empty-icon-box"
           justify="center"
           variant="outlined"
         >
-          <Icon className="ui-empty-icon" icon={icon} size={24} />
+          <Icon className="ui-empty-icon" icon={icon} size={32} />
         </Block>
       ) : (
         <EmptyImage />
@@ -104,11 +101,7 @@ export function Empty({
           <div className="ui-empty-description">{description}</div>
         )}
       </div>
-      {action && (
-        <Flexbox className="ui-empty-action" horizontal gap={8} align="center">
-          {action}
-        </Flexbox>
-      )}
+      {action && <div className="ui-empty-action">{action}</div>}
     </div>
   );
 }

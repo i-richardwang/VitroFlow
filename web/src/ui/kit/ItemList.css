@@ -1,6 +1,6 @@
 /*
  * The list reaches past the content box by the surface's gutter and pads
- * back so a row's 12px padding starts its icon on the content edge; a list
+ * back so a row's 12px padding starts its name on the content edge; a list
  * on a surface without a gutter keeps 4px around its rows.
  */
 .ui-item-list {
@@ -30,19 +30,19 @@
 }
 
 /*
- * Icon, body, extra and actions sit in one row; on a phone the extra moves
- * to a line of its own under the body so the description keeps the width.
- * Each part after the icon brings its own 16px lead, so a part an item does
- * not have leaves no gap.
+ * Name, trailing cluster and actions sit in one row 12px apart; on a phone
+ * the trailing cluster moves to a line of its own under the name.
  */
 .ui-item {
   display: grid;
-  grid-template-areas: "icon body extra actions";
-  grid-template-columns: auto minmax(0, 1fr) fit-content(40%) auto;
+  grid-template-areas: "heading trailing actions";
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 12px;
   align-items: center;
 
   min-inline-size: 0;
-  padding: 12px;
+  padding-block: 8px;
+  padding-inline: 12px;
   border-radius: var(--radius-lg);
 
   transition: background-color var(--duration-fast) var(--ease-out);
@@ -51,32 +51,19 @@
     background: var(--color-fill-tertiary);
   }
 
-  > :first-child {
-    grid-area: icon;
-  }
-
   @variant max-mobile {
     grid-template-areas:
-      "icon body actions"
-      ". extra extra";
-    grid-template-columns: auto minmax(0, 1fr) auto;
+      "heading actions"
+      "trailing trailing";
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
   }
-}
-
-.ui-item-body {
-  grid-area: body;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-
-  min-inline-size: 0;
-  margin-inline-start: 16px;
 }
 
 .ui-item-heading {
+  grid-area: heading;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 
   min-inline-size: 0;
@@ -93,38 +80,31 @@
   white-space: nowrap;
 }
 
-.ui-item-description {
+.ui-item-heading > :not(.ui-item-title) {
+  flex: none;
+}
+
+.ui-item-trailing {
+  grid-area: trailing;
+  overflow: hidden;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  color: var(--color-fg-secondary);
-}
-
-.ui-item-rule {
-  flex: none;
-  inline-size: 1px;
-  block-size: 10px;
-  background: var(--color-border);
-}
-
-.ui-item-extra {
-  grid-area: extra;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
   justify-content: flex-end;
 
-  margin-inline-start: 16px;
+  max-inline-size: 420px;
 
   @variant max-mobile {
     justify-content: flex-start;
-    margin-block-start: 8px;
+    max-inline-size: none;
   }
+}
+
+.ui-item-meta {
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+  white-space: nowrap;
 }
 
 .ui-item-actions {
@@ -132,8 +112,6 @@
   display: flex;
   gap: 4px;
   align-items: center;
-
-  margin-inline-start: 16px;
 }
 
 /* Row actions wait for the row, except on a phone, where the row is too narrow to keep a hidden slot. */
@@ -149,10 +127,4 @@
       opacity: 1;
     }
   }
-}
-
-.ui-item-skeleton-icon {
-  flex: none;
-  inline-size: 40px;
-  block-size: 40px;
 }

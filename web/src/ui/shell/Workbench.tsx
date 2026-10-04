@@ -212,10 +212,10 @@ export function WorkbenchAlert({ children }: { children: ReactNode }) {
 }
 
 /** The subject's place when there is nothing to frame: what is missing and the way forward. */
-export function WorkbenchEmpty(props: Omit<EmptyProps, "size">) {
+export function WorkbenchEmpty(props: Omit<EmptyProps, "type">) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <Empty size="large" {...props} />
+      <Empty type="page" {...props} />
     </div>
   );
 }

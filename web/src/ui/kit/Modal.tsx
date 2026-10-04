@@ -145,9 +145,14 @@ export function Modal({
         >
           <div className="ui-modal-header">
             <Dialog.Title className="ui-modal-title">{title}</Dialog.Title>
-            <Dialog.Close aria-label={m.ui_close()} className="ui-modal-close">
-              <X size={16} />
-            </Dialog.Close>
+            <div className="ui-modal-header-actions">
+              <Dialog.Close
+                aria-label={m.ui_close()}
+                className="ui-modal-close"
+              >
+                <X size={16} />
+              </Dialog.Close>
+            </div>
           </div>
           {children != null && <ModalContent>{children}</ModalContent>}
           {footerNode !== null && (

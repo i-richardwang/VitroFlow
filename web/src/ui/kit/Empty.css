@@ -1,27 +1,24 @@
 .ui-empty {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 
   padding: 16px;
-}
-
-.ui-empty-large {
-  padding-block: 64px;
 }
 
 .ui-empty-icon-box {
   flex: none;
   width: 48px;
   height: 48px;
+  margin-block-end: 4px;
 }
 
-.ui-empty-icon svg {
-  stroke: var(--color-fg-tertiary);
+.ui-empty-icon {
+  color: var(--color-fg-secondary);
 }
 
-.ui-empty-icon-bare {
+:where(.dark) .ui-empty-icon {
   color: var(--color-fg-quaternary);
 }
 
@@ -41,28 +38,44 @@
 .ui-empty-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
   align-items: center;
-
-  max-inline-size: 360px;
 
   text-align: center;
 }
 
 .ui-empty-title {
-  font-size: var(--text-base);
-  font-weight: 600;
-  line-height: var(--text-base--line-height);
+  font-size: var(--text-lg);
+  font-weight: bold;
+  line-height: var(--text-lg--line-height);
   color: var(--color-fg);
 }
 
 .ui-empty-description {
-  font-size: var(--text-sm);
-  line-height: var(--text-sm--line-height);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
   color: var(--color-fg-tertiary);
 }
 
-/* The way forward sits 16px under the text; the column's own gap gives 12. */
 .ui-empty-action {
-  margin-block-start: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-empty-page {
+  .ui-empty-text {
+    gap: 4px;
+  }
+
+  .ui-empty-title {
+    font-size: var(--text-2xl);
+    line-height: var(--text-2xl--line-height);
+  }
+
+  .ui-empty-description {
+    font-size: var(--text-lg);
+    line-height: var(--text-lg--line-height);
+    color: var(--color-fg-secondary);
+  }
 }

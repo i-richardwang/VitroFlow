@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ChartLine } from "lucide-react";
 
 import { Metric } from "../../ui/Metric";
-import { Page } from "../../ui/Page";
+import { Page, PageColumnSkeleton } from "../../ui/Page";
 import { Timestamp } from "../../ui/Timestamp";
 import {
   EpochCharts,
@@ -17,14 +17,14 @@ import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Alert } from "../../ui/kit/Alert";
 import { Empty } from "../../ui/kit/Empty";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  StatStripSkeleton,
-} from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
 import { Panel } from "../../ui/kit/Panel";
 import { Progress } from "../../ui/kit/Progress";
-import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
+import {
+  Statistic,
+  StatisticGroup,
+  StatisticGroupSkeleton,
+} from "../../ui/kit/Statistic";
 import { TextLink } from "../../ui/kit/TextLink";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -71,16 +71,16 @@ export const Route = createFileRoute(
     ],
   }),
   pendingComponent: () => (
-    <PageSkeleton>
+    <PageColumnSkeleton>
       <PageHeaderSkeleton meta />
-      <StatStripSkeleton count={2} />
+      <StatisticGroupSkeleton count={2} />
       <Panel title={m.training_curves()}>
         <EpochChartsSkeleton />
       </Panel>
       <Panel title={m.training_parameters()}>
         <ParametersListSkeleton />
       </Panel>
-    </PageSkeleton>
+    </PageColumnSkeleton>
   ),
   component: TrainingRunPage,
 });
@@ -102,6 +102,7 @@ function TrainingRunPage() {
   return (
     <Page
       title={trainingRunLabel(run)}
+      headline
       status={<TrainingRunState run={run} />}
       meta={[
         <TextLink
@@ -110,17 +111,17 @@ function TrainingRunPage() {
         >
           {dataset}
         </TextLink>,
-        <span key="base-model" className="font-mono text-xs">
+        <span key="base-model" className="text-xs">
           {run.recipe.baseModel.reference}
         </span>,
         <Timestamp key="created" value={run.createdAt} />,
       ]}
     >
-      <StatStrip>
-        <StatStripItem
-          label={m.training_kpi_best_map()}
+      <StatisticGroup>
+        <Statistic
+          title={m.training_kpi_best_map()}
           value={<Metric value={best?.map50To95 ?? null} />}
-          hint={
+          description={
             published
               ? m.training_kpi_published({ version: published.id })
               : best
@@ -128,13 +129,13 @@ function TrainingRunPage() {
                 : undefined
           }
         />
-        <StatStripItem
-          label={m.training_kpi_epochs()}
+        <Statistic
+          title={m.training_kpi_epochs()}
           value={m.run_epochs_progress({
             completed: current.length,
             total,
           })}
-          hint={
+          description={
             <div className="flex flex-col gap-1">
               <Progress
                 aria-label={m.training_kpi_epochs()}
@@ -148,7 +149,7 @@ function TrainingRunPage() {
             </div>
           }
         />
-      </StatStrip>
+      </StatisticGroup>
 
       <Panel title={m.training_curves()}>
         {run.state.status === "failed" ? (

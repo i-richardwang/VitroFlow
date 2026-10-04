@@ -1,6 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "status_title": "Status",
+  "status_title": "Workers",
   "status_empty": "No workers enrolled yet",
   "worker_presence_online": "Online",
   "worker_presence_stale": "Stale",

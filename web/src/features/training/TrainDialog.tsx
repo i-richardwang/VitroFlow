@@ -103,7 +103,7 @@ function TrainSession({
         }}
       >
         <Form.Group title={m.train_dialog_recipe_title()}>
-          <div className="font-mono text-xs text-fg-secondary">
+          <div className="text-xs text-fg-secondary">
             {m.train_dialog_recipe({
               model: recipe.baseModel.reference,
               framework: recipe.runtime.framework,

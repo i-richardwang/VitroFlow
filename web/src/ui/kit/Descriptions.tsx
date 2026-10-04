@@ -4,7 +4,7 @@ import { cn } from "./cn";
 /*
  * An object's properties, one per row of at least 30px. By default labels
  * share a fixed column so stacked lists line up; `justified` sets each label
- * at the start and its value at the end in monospaced figures, for a list of
+ * at the start and its value at the end in tabular figures, for a list of
  * numbers such as training parameters.
  */
 

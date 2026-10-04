@@ -1,18 +1,17 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 
 import { authClient } from "./client";
 import type { WorkbenchUser } from "../../domain/auth/schema";
 import { m } from "../../paraglide/messages";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
-import { ActionIcon } from "../../ui/kit/ActionIcon";
-import { useAppShell } from "../../ui/kit/AppShell";
-import { Text } from "../../ui/kit/Text";
+import { AppShellAccount, useAppShell } from "../../ui/kit/AppShell";
 
+/** The signed-in person at the foot of the sidebar: settings and signing out. */
 export function SignedInUser({ user }: { user: WorkbenchUser }) {
   const router = useRouter();
   const navigate = useNavigate();
-  const { collapsed } = useAppShell();
+  const shell = useAppShell();
   const { busy, run } = useAsyncAction();
 
   const signOut = () =>
@@ -23,24 +22,29 @@ export function SignedInUser({ user }: { user: WorkbenchUser }) {
       await navigate({ to: "/login" });
     }, m.sign_out_failed());
 
-  const action = (
-    <ActionIcon
-      icon={LogOut}
-      title={m.sign_out()}
-      disabled={busy}
-      onClick={signOut}
-    />
-  );
-
-  if (collapsed) {
-    return <div className="flex justify-center">{action}</div>;
-  }
   return (
-    <div className="flex items-center gap-2 ps-2">
-      <Text ellipsis className="min-w-0 flex-1 font-medium">
-        {user.name}
-      </Text>
-      {action}
-    </div>
+    <AppShellAccount
+      label={m.nav_account_menu()}
+      name={user.name}
+      items={[
+        {
+          key: "settings",
+          icon: Settings,
+          label: m.nav_settings(),
+          onClick: () => {
+            shell.closeNavigation();
+            void navigate({ to: "/account" });
+          },
+        },
+        { type: "divider" },
+        {
+          key: "sign-out",
+          icon: LogOut,
+          label: m.sign_out(),
+          disabled: busy,
+          onClick: signOut,
+        },
+      ]}
+    />
   );
 }

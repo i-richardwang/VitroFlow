@@ -30,24 +30,18 @@ function AccountPage() {
         <SettingsRow label={m.role_label()}>
           {USER_ROLE_LABELS[user.role]()}
         </SettingsRow>
-        <SettingsRow
-          label={m.account_password()}
-          action={
-            <Button onClick={() => setChangingPassword(true)}>
-              {m.account_change_password()}
-            </Button>
-          }
-        />
+        <SettingsRow label={m.account_password()}>
+          <Button onClick={() => setChangingPassword(true)}>
+            {m.account_change_password()}
+          </Button>
+        </SettingsRow>
       </SettingsGroup>
       <SettingsGroup title={m.account_preferences()}>
-        <SettingsRow
-          label={m.account_language()}
-          action={
-            <div className="w-40">
-              <LanguageSelect aria-label={m.account_language()} />
-            </div>
-          }
-        />
+        <SettingsRow label={m.account_language()}>
+          <div className="w-40">
+            <LanguageSelect aria-label={m.account_language()} />
+          </div>
+        </SettingsRow>
       </SettingsGroup>
       <ChangePasswordDialog
         open={changingPassword}

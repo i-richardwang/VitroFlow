@@ -22,77 +22,52 @@ import {
 } from "../kit/Breadcrumb";
 import {
   AppNav,
-  type AppNavGroup,
+  type AppNavItem,
   type AppNavLinkProps,
   matchesNavPath,
 } from "../kit/AppNav";
 import {
   AppShell,
   AppShellBrand,
-  type AppShellBrandLinkProps,
+  type AppShellLinkProps,
+  AppShellTrail,
 } from "../kit/AppShell";
 
 export type Crumb = { label: string; href?: string };
 
-function navigation(user: WorkbenchUser): AppNavGroup[] {
-  const groups: AppNavGroup[] = [
-    {
-      key: "lab",
-      label: m.nav_group_lab(),
-      items: [
-        {
-          href: "/experiments",
-          icon: FlaskConical,
-          label: m.nav_experiments(),
-        },
-      ],
-    },
-    {
-      key: "model",
-      label: m.nav_group_model(),
-      items: [
-        { href: "/models", icon: Network, label: m.nav_models() },
-        { href: "/datasets", icon: Images, label: m.nav_datasets() },
-        { href: "/training", icon: ChartLine, label: m.nav_training() },
-      ],
-    },
-    {
-      key: "workers",
-      label: m.nav_group_workers(),
-      items: [{ href: "/status", icon: Server, label: m.nav_status() }],
-    },
-    {
-      key: "settings",
-      label: m.nav_group_settings(),
-      items: [
-        { href: "/account", icon: CircleUser, label: m.nav_account() },
-        {
-          href: "/integrations",
-          icon: KeyRound,
-          label: m.nav_integrations(),
-        },
-      ],
-    },
+const HOME = "/experiments";
+
+function places(): AppNavItem[] {
+  return [
+    { href: HOME, icon: FlaskConical, label: m.nav_experiments() },
+    { href: "/models", icon: Network, label: m.nav_models() },
+    { href: "/datasets", icon: Images, label: m.nav_datasets() },
+    { href: "/training", icon: ChartLine, label: m.nav_training() },
+  ];
+}
+
+/** The settings section, which takes the sidebar's place while one of its pages is open. */
+export function settingsPlaces(user: WorkbenchUser): AppNavItem[] {
+  const items: AppNavItem[] = [
+    { href: "/account", icon: CircleUser, label: m.nav_account() },
+    { href: "/integrations", icon: KeyRound, label: m.nav_integrations() },
+    { href: "/status", icon: Server, label: m.nav_workers() },
   ];
   if (isAdmin(user)) {
-    groups.push({
-      key: "administration",
-      label: m.nav_group_administration(),
-      items: [{ href: "/users", icon: Users, label: m.nav_users() }],
-    });
+    items.push({ href: "/users", icon: Users, label: m.nav_users() });
   }
-  return groups;
+  return items;
 }
 
 /*
  * The router sets `aria-current="page"` on a link it counts as active, over
  * the kit's own marking; matching exactly keeps it off the ancestors a
- * breadcrumb or navigation group links to.
+ * breadcrumb links to.
  */
 const routerLink = ({
   href,
   ...props
-}: AppShellBrandLinkProps | AppNavLinkProps | BreadcrumbLinkProps) => (
+}: AppShellLinkProps | AppNavLinkProps | BreadcrumbLinkProps) => (
   <Link {...props} to={href} activeOptions={{ exact: true }} />
 );
 
@@ -107,8 +82,9 @@ export function ShellActions({ children }: { children: ReactNode }) {
 
 /**
  * The signed-in frame: navigation on the canvas, the page in a card with a top
- * bar carrying the breadcrumb and the page's actions. The rail's collapsed
- * state is owned by the caller so the server renders the stored choice.
+ * bar carrying the breadcrumb and the page's actions. A settings page swaps
+ * the places for the settings section. Whether the sidebar is hidden is
+ * owned by the caller so the server renders the stored choice.
  */
 export function Shell({
   children,
@@ -124,7 +100,10 @@ export function Shell({
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const groups = navigation(user);
+  const settings = settingsPlaces(user);
+  const inSettings = settings.some((item) =>
+    matchesNavPath(pathname, item.href),
+  );
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
 
   return (
@@ -133,19 +112,31 @@ export function Shell({
         className="isolate"
         collapsed={collapsed}
         onCollapsedChange={onCollapsedChange}
-        brand={
-          <AppShellBrand
-            href="/experiments"
-            logo={<BrandLogo className="size-6" />}
-            title={m.app_name()}
+        header={
+          inSettings ? (
+            <AppShellTrail
+              home={{ href: HOME, label: m.nav_home() }}
+              title={m.nav_settings()}
+              renderLink={routerLink}
+            />
+          ) : (
+            <AppShellBrand
+              href={HOME}
+              logo={<BrandLogo className="size-5" />}
+              title={m.app_name()}
+              renderLink={routerLink}
+            />
+          )
+        }
+        navigation={
+          <AppNav
+            items={inSettings ? settings : places()}
+            pathname={pathname}
             renderLink={routerLink}
           />
         }
-        navigation={
-          <AppNav groups={groups} pathname={pathname} renderLink={routerLink} />
-        }
         footer={account}
-        breadcrumb={<Trail group={sectionGroup(groups, pathname)} />}
+        breadcrumb={<Trail />}
         tools={<div ref={setActionsSlot} className="flex items-center gap-1" />}
       >
         {children}
@@ -154,24 +145,13 @@ export function Shell({
   );
 }
 
-/** The navigation group holding the current page; it leads the breadcrumb. */
-function sectionGroup(
-  groups: AppNavGroup[],
-  pathname: string,
-): string | undefined {
-  return groups.find((group) =>
-    group.items.some((item) => matchesNavPath(pathname, item.href)),
-  )?.label;
-}
-
-function Trail({ group }: { group?: string }) {
+function Trail() {
   const crumbs = trail(useMatches());
   if (crumbs.length === 0) return null;
   const items: BreadcrumbItem[] = crumbs.map((crumb, index) => ({
     href: index === crumbs.length - 1 ? undefined : crumb.href,
     label: crumb.label,
   }));
-  if (group && group !== crumbs[0]!.label) items.unshift({ label: group });
   return <Breadcrumb items={items} renderLink={routerLink} />;
 }
 

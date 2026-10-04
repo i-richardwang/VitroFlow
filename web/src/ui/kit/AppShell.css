@@ -1,5 +1,5 @@
 /*
- * Sidebar 248px, icon rail 64px, workspace card inset 8px. Below 992px the
+ * Sidebar 240px on the canvas, the page in a card beside it. Below 992px the
  * sidebar becomes a drawer and the workspace loses its card frame.
  */
 .ui-app-shell {
@@ -33,78 +33,117 @@
 }
 
 .ui-app-shell-sidebar {
+  overflow: hidden;
   display: flex;
   flex: none;
   flex-direction: column;
 
-  inline-size: 248px;
+  inline-size: 240px;
   block-size: 100%;
   min-block-size: 0;
 
+  color: var(--color-fg-secondary);
+
   transition: inline-size var(--duration-slow) var(--ease-out);
 
-  &[data-collapsed="true"] {
-    inline-size: 64px;
+  /* The content keeps its width while the column closes over it. */
+  > * {
+    inline-size: 240px;
   }
+}
 
-  @variant max-laptop {
-    display: none;
-  }
+.ui-app-shell[data-sidebar="hidden"] .ui-app-shell-sidebar {
+  inline-size: 0;
+}
+
+.ui-app-shell-drawer {
+  color: var(--color-fg-secondary);
+}
+
+/* Top row: the brand or a section trail, and the toggle at its end. */
+.ui-app-shell-sidebar-header {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+
+  padding-block: 8px;
+  padding-inline: 6px;
+}
+
+.ui-app-shell-sidebar-header-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-inline-size: 0;
 }
 
 .ui-app-shell-brand {
   display: flex;
-  flex: none;
+  gap: 8px;
   align-items: center;
 
-  block-size: 56px;
-  margin-block-start: 8px;
-  padding-inline: 16px;
+  min-inline-size: 0;
+  padding-block: 2px;
+  padding-inline: 2px 8px;
+  border-radius: var(--radius-md);
 
   color: var(--color-fg);
-
-  &[data-collapsed="true"] {
-    justify-content: center;
-    padding-inline: 0;
-
-    > * {
-      justify-content: center;
-      inline-size: auto;
-    }
-  }
-
-  @variant max-laptop {
-    margin-block-start: 0;
-  }
-}
-
-.ui-app-shell-brand-anchor {
-  display: flex;
-  align-items: center;
-
-  inline-size: 100%;
-  min-inline-size: 0;
-
-  color: inherit;
   text-decoration: none;
 
   @apply focus-ring;
 }
 
-.ui-app-shell-brand-lockup {
+.ui-app-shell-brand-mark {
   display: flex;
-  gap: 10px;
+  flex: none;
   align-items: center;
-  min-inline-size: 0;
+  justify-content: center;
+
+  inline-size: 28px;
+  block-size: 28px;
 }
 
 .ui-app-shell-brand-name {
   overflow: hidden;
 
-  font-size: var(--text-base);
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--color-fg);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-app-shell-trail {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
+  min-inline-size: 0;
+  padding-inline: 6px;
+
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.ui-app-shell-trail-link {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-xs);
+  color: inherit;
+
+  @apply focus-ring;
+
+  &:hover {
+    color: var(--color-fg);
+  }
+}
+
+.ui-app-shell-trail-separator {
+  flex: none;
+}
+
+.ui-app-shell-trail-page {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -116,11 +155,58 @@
   min-block-size: 0;
 }
 
-.ui-app-shell-sidebar-bottom {
+.ui-app-shell-sidebar-footer {
   flex: none;
   padding: 8px;
 }
 
+.ui-app-shell-account {
+  cursor: pointer;
+  user-select: none;
+
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
+  max-inline-size: 100%;
+  min-block-size: 32px;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border: none;
+  border-radius: var(--radius-md);
+
+  font: inherit;
+  color: var(--color-fg);
+
+  background: none;
+
+  transition: background var(--duration-fast) var(--ease-out);
+
+  @apply focus-ring;
+
+  &:hover,
+  &[data-popup-open] {
+    background: var(--color-fill-tertiary);
+  }
+}
+
+.ui-app-shell-account-name {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-app-shell-account-chevron {
+  flex: none;
+  color: var(--color-fg-tertiary);
+}
+
+/*
+ * The page's card: inset 8px from the canvas, except on the side where the
+ * sidebar stands. A full-strength border and no shadow; a phone drops the
+ * frame.
+ */
 .ui-app-shell-workspace {
   overflow: hidden;
   display: flex;
@@ -129,19 +215,31 @@
 
   min-inline-size: 0;
   min-block-size: 0;
-  margin-block: 8px;
-  margin-inline: 0 8px;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--radius-lg);
+  margin: 8px;
+  margin-inline-start: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 
   background: var(--color-container);
-  box-shadow: var(--elevation-sm);
+
+  transition: margin var(--duration-slow) var(--ease-out);
+
+  .ui-app-shell[data-sidebar="hidden"] & {
+    margin-inline-start: 8px;
+  }
+
+  @variant dark {
+    border-color: var(--color-border-secondary);
+  }
 
   @variant max-laptop {
     margin: 0;
     border: none;
     border-radius: 0;
-    box-shadow: none;
+
+    .ui-app-shell[data-sidebar="hidden"] & {
+      margin: 0;
+    }
   }
 }
 
@@ -155,21 +253,12 @@
   padding-inline: 8px;
 }
 
-.ui-app-shell-topbar-divider {
-  flex: none;
-
-  inline-size: 1px;
-  block-size: 18px;
-  margin-inline: 2px;
-
-  background: var(--color-border-secondary);
-}
-
 .ui-app-shell-topbar-main {
   display: flex;
   flex: 1;
   align-items: center;
   min-inline-size: 0;
+  padding-inline-start: 4px;
 }
 
 .ui-app-shell-tools {
@@ -184,7 +273,7 @@
 /* The surface gutter (see app.css) is the inline padding; flush content resets it. */
 .ui-app-shell-main {
   --ui-app-shell-main-padding-block: 24px;
-  --ui-app-shell-main-padding-inline: 32px;
+  --ui-app-shell-main-padding-inline: 24px;
   --surface-gutter: var(--ui-app-shell-main-padding-inline);
 
   overflow: auto;
