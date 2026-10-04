@@ -1,13 +1,53 @@
+import { ColorSwatch } from "@heroui/react";
+
+import { classColor } from "../../domain/models/classes";
 import { AddBoxIcon, CursorIcon } from "../../ui/icons";
+import { className } from "../../ui/model-names";
 import { m } from "../../paraglide/messages";
 
-/** Theme colors shared by the canvas drawing and the layer legend. */
+/** Theme colors of the canvas drawing; boxes take their class's color. */
 export const CANVAS_COLORS = {
-  box: "var(--success)",
   selected: "var(--accent)",
   handle: "var(--background)",
   check: "var(--warning)",
 } as const;
+
+/** A class by its name, beside the color its boxes are drawn in. */
+export function ClassLabel({
+  classes,
+  name,
+}: {
+  classes: readonly string[];
+  name: string;
+}) {
+  return (
+    <span className="flex items-center gap-2">
+      <ColorSwatch
+        size="xs"
+        shape="circle"
+        color={classColor(classes, name).hex}
+        aria-hidden
+      />
+      {className(name)}
+    </span>
+  );
+}
+
+/** A model's classes answer to the digit keys, in the order it declares them. */
+export function classShortcut(
+  classes: readonly string[],
+  name: string,
+): string | null {
+  const index = classes.indexOf(name);
+  return classes.length > 1 && index < 9 ? String(index + 1) : null;
+}
+
+export function classForShortcut(
+  classes: readonly string[],
+  key: string,
+): string | null {
+  return classes.find((name) => classShortcut(classes, name) === key) ?? null;
+}
 
 export const TOOLS = ["select", "add"] as const;
 export type Tool = (typeof TOOLS)[number];
@@ -44,12 +84,8 @@ export function toolForShortcut(key: string): Tool | null {
 }
 
 export const LAYERS = [
-  { key: "boxes", label: m.workbench_layer_boxes, color: CANVAS_COLORS.box },
-  { key: "ids", label: m.workbench_layer_ids, color: CANVAS_COLORS.box },
-  {
-    key: "checks",
-    label: m.workbench_layer_checks,
-    color: CANVAS_COLORS.check,
-  },
+  { key: "boxes", label: m.workbench_layer_boxes },
+  { key: "ids", label: m.workbench_layer_ids },
+  { key: "checks", label: m.workbench_layer_checks },
 ] as const;
 export type LayerKey = (typeof LAYERS)[number]["key"];

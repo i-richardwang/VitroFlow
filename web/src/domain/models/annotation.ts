@@ -19,13 +19,17 @@ export const annotationAreaSchema = z.enum(["image", "dish"]);
 export const SEED_ANNOTATION_CONFIG = {
   ...DEFAULT_ANNOTATION_REGION,
   area: "dish" as const,
-  classes: ["seed"],
-  rules: `Annotate each seed body separately, including opaque brown/gold
-and pale yellow/translucent bodies with a coherent elongated outline. Enclose the
-complete visible body, including pale coat and tips, before minimizing background.
-Distinguish seed bodies from fibers and glare. Inspect touching clusters for
-separate bodies at different angles; their rectangles may overlap naturally.
-Do not force an expected count or mechanically shrink, expand or pad boxes.`,
+  classes: ["ungerminated", "germinated"],
+  rules: `Box every visible seed separately, germinated or not. A seed is germinated
+once a radicle or shoot has visibly broken through its coat, and ungerminated
+until then; mark a box uncertain when its state cannot be told. Enclose the seed
+body together with any radicle or shoot that emerged from it. Seeds include opaque
+brown/gold and pale yellow/translucent bodies with a coherent elongated outline;
+enclose the complete visible body, including pale coat and tips, before
+minimizing background. Distinguish seeds and their radicles and shoots from
+fibers and glare. Inspect touching clusters for separate bodies at different
+angles; their rectangles may overlap naturally. Do not force an expected count
+or mechanically shrink, expand or pad boxes.`,
 };
 
 /** Complete visual task settings, shared by product assignments and standalone runs. */

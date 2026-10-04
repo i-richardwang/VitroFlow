@@ -14,7 +14,10 @@ from typing import Any, Protocol
 from vitroflow.contracts.validation import validate_wire_contract
 from vitroflow.detectors.contract import Detector
 from vitroflow.detectors.traditional.config import PipelineConfig
-from vitroflow.detectors.traditional.detector import TraditionalDetector
+from vitroflow.detectors.traditional.detector import (
+    TRADITIONAL_CLASS,
+    TraditionalDetector,
+)
 from vitroflow.detectors.traditional.scoring import DEFAULT_MODEL
 from vitroflow.detectors.ultralytics.detector import UltralyticsDetector
 from vitroflow.detectors.ultralytics.runtime import release_accelerator
@@ -69,8 +72,10 @@ class ModelStore:
                 version_id, manifest.classes, artifact
             )
         else:
-            if manifest.classes != ("seed",):
-                raise ValueError("Traditional detector only executes the seed class")
+            if TRADITIONAL_CLASS not in manifest.classes:
+                raise ValueError(
+                    f"Traditional detector requires a model that declares {TRADITIONAL_CLASS}"
+                )
             detector = TraditionalDetector(PipelineConfig(), DEFAULT_MODEL)
         if detector.artifact_digest != artifact["digest"]:
             raise ValueError(

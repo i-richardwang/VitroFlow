@@ -22,6 +22,7 @@ from vitroflow.detectors.traditional.artifacts import (
     write_image_artifacts,
 )
 from vitroflow.detectors.traditional.config import PipelineConfig
+from vitroflow.detectors.traditional.detector import TRADITIONAL_CLASS
 from vitroflow.detectors.traditional.scoring import (
     DEFAULT_MODEL,
     CandidateModel,
@@ -50,8 +51,10 @@ def _candidate_model(path: str | None) -> CandidateModel:
 
 def _traditional_manifest(path: Path) -> DatasetManifest:
     manifest = load_dataset_manifest(path)
-    if manifest.classes != ("seed",):
-        raise ValueError("Traditional recognition requires a seed-only dataset")
+    if TRADITIONAL_CLASS not in manifest.classes:
+        raise ValueError(
+            f"Traditional recognition requires a dataset that declares {TRADITIONAL_CLASS}"
+        )
     return manifest
 
 

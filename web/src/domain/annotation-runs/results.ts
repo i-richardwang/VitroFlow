@@ -25,8 +25,6 @@ interface Sighting {
   region: string;
   bbox: BoundingBox;
   standing: Standing;
-  /** Boxes compare by class; issues have none. */
-  class?: string;
 }
 
 function iou(a: BoundingBox, b: BoundingBox): number {
@@ -38,9 +36,10 @@ function iou(a: BoundingBox, b: BoundingBox): number {
 }
 
 /**
- * Groups the sightings that are one object: of one class, overlapping by at
- * least SAME_OBJECT_IOU, and at most one from each region. Strongest overlaps
- * join first; sightings within one region always stay apart.
+ * Groups the sightings that are one object: overlapping by at least
+ * SAME_OBJECT_IOU, whatever class each region judged it, and at most one from
+ * each region. Strongest overlaps join first; sightings within one region
+ * always stay apart.
  */
 function sameObjects<T extends Sighting>(sightings: T[]): T[][] {
   const pairs: [number, number, number][] = [];
@@ -56,7 +55,7 @@ function sameObjects<T extends Sighting>(sightings: T[]): T[][] {
     });
     for (const index of active) {
       const a = sightings[index]!;
-      if (a.region === b.region || a.class !== b.class) continue;
+      if (a.region === b.region) continue;
       const overlap = iou(a.bbox, b.bbox);
       if (overlap >= SAME_OBJECT_IOU)
         pairs.push([
@@ -90,7 +89,7 @@ function sameObjects<T extends Sighting>(sightings: T[]): T[][] {
 /**
  * The strongest sighting of an object, the first region in grid order among
  * equals; none when a lone halo sighting went unconfirmed by the region that
- * owns its center.
+ * owns its center. The object takes everything, class included, from it.
  */
 function representative<T extends Sighting>(object: T[]): T | null {
   const rank = (s: T) => STANDINGS.indexOf(s.standing);

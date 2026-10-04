@@ -1,7 +1,8 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "builtin_model_seed_detector": "种子检测",
-  "builtin_class_seed": "种子",
+  "builtin_model_seed_detector": "种子萌发",
+  "builtin_class_ungerminated": "未萌发",
+  "builtin_class_germinated": "已萌发",
   "models_title": "模型",
   "models_empty": "还没有模型",
   "models_column_model": "模型",

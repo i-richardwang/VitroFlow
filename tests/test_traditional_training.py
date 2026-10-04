@@ -1,4 +1,8 @@
+from pathlib import Path
+from types import SimpleNamespace
+
 import numpy as np
+import pytest
 
 from vitroflow.annotations import AnnotationDocument, AnnotationInstance, BoundingBox
 from vitroflow.detectors.traditional.candidates import FEATURE_NAMES, CandidateEvidence
@@ -10,6 +14,7 @@ from vitroflow.detectors.traditional.training import (
     evaluate_candidate_model,
     label_candidates,
     match_boxes,
+    prepare_images,
     train_candidate_model,
 )
 
@@ -46,7 +51,9 @@ def _image(index: int) -> PreparedImage:
         digest=f"{index:064x}",
         width=100,
         height=100,
-        instances=(AnnotationInstance("seed-1", "seed", BoundingBox(5, 5, 10, 10)),),
+        instances=(
+            AnnotationInstance("seed-1", "ungerminated", BoundingBox(5, 5, 10, 10)),
+        ),
     )
     return PreparedImage(
         annotation=annotation,
@@ -82,6 +89,33 @@ def test_every_candidate_inside_an_instance_is_positive() -> None:
     ]
     labels = label_candidates([BoundingBox(0, 0, 10, 10)], proposals)
     assert labels.tolist() == [1, 1, 0]
+
+
+def test_every_annotated_class_is_a_seed_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    data = "vitroflow.detectors.traditional.training.data"
+    monkeypatch.setattr(f"{data}.verified_blob", lambda root, digest: Path(digest))
+    monkeypatch.setattr(
+        f"{data}.analyze_candidates",
+        lambda path, config: SimpleNamespace(
+            image=np.zeros((100, 100, 3), dtype=np.uint8),
+            proposals=[SeedProposal(10, 10, 4, 1, 1), SeedProposal(50, 50, 4, 1, 1)],
+            evidence=[_evidence(1.0), _evidence(1.0)],
+        ),
+    )
+    annotation = AnnotationDocument(
+        digest="0" * 64,
+        width=100,
+        height=100,
+        instances=(
+            AnnotationInstance("a", "ungerminated", BoundingBox(5, 5, 10, 10)),
+            AnnotationInstance("b", "germinated", BoundingBox(45, 45, 10, 10)),
+        ),
+    )
+
+    [prepared] = prepare_images([annotation], "data", PipelineConfig())
+
+    assert prepared.labels.tolist() == [1, 1]
+    assert prepared.matched_boxes == 2
 
 
 def test_training_selects_a_model_that_reduces_traditional_corrections() -> None:

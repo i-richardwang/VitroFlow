@@ -19,6 +19,7 @@ import type {
   BoundingBox,
   ImageSize,
 } from "../../domain/annotation/schema";
+import { classColor } from "../../domain/models/classes";
 import {
   CANVAS_COLORS,
   TOOL_SPECS,
@@ -62,19 +63,21 @@ function Layer({
 
 function Box({
   box,
+  color,
   ordinal,
   selected = false,
   cursor,
   children,
 }: {
   box: BoundingBox;
+  color: string;
   ordinal?: number;
   selected?: boolean;
   cursor?: string;
   children?: React.ReactNode;
 }) {
   const { scale } = useViewport();
-  const color = selected ? CANVAS_COLORS.selected : CANVAS_COLORS.box;
+  const paint = selected ? CANVAS_COLORS.selected : color;
   return (
     <>
       <rect
@@ -82,9 +85,9 @@ function Box({
         y={box.y}
         width={box.width}
         height={box.height}
-        fill={color}
+        fill={paint}
         fillOpacity={selected ? 0.18 : 0.06}
-        stroke={color}
+        stroke={paint}
         strokeWidth={selected ? 2 : 1.5}
         vectorEffect="non-scaling-stroke"
         style={{ cursor }}
@@ -94,7 +97,7 @@ function Box({
           x={box.x}
           y={box.y - 3 / scale}
           fontSize={11 / scale}
-          fill={color}
+          fill={paint}
           pointerEvents="none"
         >
           {ordinal}
@@ -107,10 +110,12 @@ function Box({
 
 export function BoxLayer({
   image,
+  classes,
   instances,
   layers,
 }: {
   image: ImageSize;
+  classes: readonly string[];
   instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
 }) {
@@ -121,6 +126,7 @@ export function BoxLayer({
         <Box
           key={instance.id}
           box={instance.bbox}
+          color={classColor(classes, instance.class).hex}
           ordinal={layers.has("ids") ? index + 1 : undefined}
         />
       ))}
@@ -200,21 +206,23 @@ type BoxGesture =
  */
 export function EditableBoxLayer({
   image,
+  classes,
   instances,
   layers,
   tool,
   panning,
-  className,
+  activeClass,
   selectedId,
   onSelect,
   onInstancesChange,
 }: {
   image: ImageSize;
+  classes: readonly string[];
   instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
   tool: Tool;
   panning: boolean;
-  className: string;
+  activeClass: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onInstancesChange: (instances: AnnotationInstance[]) => void;
@@ -231,7 +239,7 @@ export function EditableBoxLayer({
   const addBoxAt = (center: Point) => {
     const box = boxAround(center, initialBoxSide(instances, image), image);
     if (!box) return;
-    const instance = instanceFromBox(className, box);
+    const instance = instanceFromBox(activeClass, box);
     onInstancesChange([...instances, instance]);
     onSelect(instance.id);
   };
@@ -348,6 +356,7 @@ export function EditableBoxLayer({
               <g key={instance.id} data-instance-id={instance.id}>
                 <Box
                   box={box}
+                  color={classColor(classes, instance.class).hex}
                   ordinal={layers.has("ids") ? index + 1 : undefined}
                   selected={selected}
                   cursor={editable ? "move" : undefined}

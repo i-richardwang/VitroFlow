@@ -33,7 +33,7 @@ async function detected(name: string, worker: string) {
 
 const box: AnnotationInstance = {
   id: "kept",
-  class: "seed",
+  class: "ungerminated",
   bbox: { x: 2, y: 3, width: 4, height: 5 },
 };
 
@@ -103,7 +103,11 @@ test("a base compares content regardless of JSON object property order", async (
   const { ref } = await detected("draft-order", "draft-order-worker");
   await storeAnnotation(ref, [box], null);
   const base = [
-    { bbox: { height: 5, width: 4, y: 3, x: 2 }, class: "seed", id: "kept" },
+    {
+      bbox: { height: 5, width: 4, y: 3, x: 2 },
+      class: "ungerminated",
+      id: "kept",
+    },
   ];
   await storeAnnotation(ref, [], base);
   expect((await readAnnotation(ref))!.instances).toEqual([]);

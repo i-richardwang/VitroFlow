@@ -84,7 +84,7 @@ def _snapshot(images: list[dict[str, object]]) -> dict[str, object]:
         "id": "snapshot-one",
         "datasetId": "set",
         "modelId": "set",
-        "classes": ["seed"],
+        "classes": ["ungerminated", "germinated"],
         "createdAt": "2026-08-27T00:00:00.000Z",
         "images": images,
     }
@@ -203,7 +203,7 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     )
     assert val_label.read_text() == ""
     assert dataset_yaml.read_text() == (
-        "train: images/train\nval: images/val\nnames:\n  0: seed\n"
+        "train: images/train\nval: images/val\nnames:\n  0: ungerminated\n  1: germinated\n"
     )
 
 

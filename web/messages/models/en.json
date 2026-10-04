@@ -1,7 +1,8 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "builtin_model_seed_detector": "Seed detector",
-  "builtin_class_seed": "Seeds",
+  "builtin_model_seed_detector": "Seed germination",
+  "builtin_class_ungerminated": "Ungerminated",
+  "builtin_class_germinated": "Germinated",
   "models_title": "Models",
   "models_empty": "No models yet",
   "models_column_model": "Model",

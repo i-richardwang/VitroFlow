@@ -4,12 +4,11 @@ import type { ObservationImageCell, Unit } from "./contracts";
 import { observationOrdinals } from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 import {
-  baselineObservation,
-  cellKey,
   cellTally,
-  experimentReadings,
+  observationCells,
   summarize,
   treatmentSummary,
+  unitReading,
 } from "./readings";
 
 function cell(
@@ -44,16 +43,9 @@ function observation(ordinal: number): ExperimentObservation {
   };
 }
 
-function grid(cells: ObservationImageCell[]) {
-  return new Map(
-    cells.map((item) => [cellKey(item.unit, item.observation), item]),
-  );
-}
-
 /** What a reading looks like when nobody has reviewed the detection behind it. */
 const unreviewed = (count: number) => ({
   count,
-  rate: null,
   source: "detection" as const,
   detected: null,
 });
@@ -63,19 +55,17 @@ describe("the tally a cell reads by", () => {
     expect(
       cellTally(
         cell("a", "b", {
-          detectionTally: { seed: 19 },
-          annotationTally: { seed: 20 },
+          detectionTally: { ungerminated: 19 },
+          annotationTally: { ungerminated: 20 },
         }),
       ),
-    ).toEqual({ seed: 20 });
+    ).toEqual({ ungerminated: 20 });
   });
 
   test("an unreviewed image reads by its detection", () => {
-    expect(cellTally(cell("a", "b", { detectionTally: { seed: 19 } }))).toEqual(
-      {
-        seed: 19,
-      },
-    );
+    expect(
+      cellTally(cell("a", "b", { detectionTally: { ungerminated: 19 } })),
+    ).toEqual({ ungerminated: 19 });
   });
 
   test("an image with no reading has no tally", () => {
@@ -84,128 +74,46 @@ describe("the tally a cell reads by", () => {
   });
 });
 
-describe("the baseline", () => {
-  test("is the earliest observation, whatever order they arrive in", () => {
-    expect(
-      baselineObservation([observation(3), observation(1), observation(2)])?.id,
-    ).toBe("observation-1");
-  });
-
-  test("an experiment with no observation has none", () => {
-    expect(baselineObservation([])).toBeUndefined();
-  });
-});
-
 describe("what a grid reads", () => {
   const day0 = observation(1);
-  const day14 = observation(2);
 
-  test("a later day divides by the population the baseline counted", () => {
-    const readings = experimentReadings(
-      [day0, day14],
-      grid([
-        cell("dish", day0.id, { detectionTally: { seed: 20 } }),
-        cell("dish", day14.id, { detectionTally: { germinated: 15 } }),
-      ]),
-    );
-    expect(readings.population("dish")).toBe(20);
-    expect(readings.read("dish", day14)).toEqual({
-      ...unreviewed(15),
-      rate: 0.75,
-    });
-  });
-
-  test("the baseline reads counts alone, because its own share is one", () => {
-    const readings = experimentReadings(
-      [day0, day14],
-      grid([cell("dish", day0.id, { detectionTally: { seed: 20 } })]),
-    );
-    expect(readings.read("dish", day0)).toEqual(unreviewed(20));
-  });
-
-  test("the calibrated baseline is the one that counts", () => {
-    const readings = experimentReadings(
-      [day0, day14],
-      grid([
-        cell("dish", day0.id, {
-          detectionTally: { seed: 19 },
-          annotationTally: { seed: 20 },
-        }),
-        cell("dish", day14.id, { detectionTally: { germinated: 15 } }),
-      ]),
-    );
-    expect(readings.read("dish", day14)).toEqual({
-      ...unreviewed(15),
-      rate: 0.75,
-    });
+  test("a cell counts every class its reading found", () => {
+    const cells = observationCells([
+      cell("dish", day0.id, {
+        detectionTally: { ungerminated: 12, germinated: 8 },
+      }),
+    ]);
+    expect(unitReading(cells, "dish", day0)).toEqual(unreviewed(20));
   });
 
   test("a calibrated cell carries the detection it replaced", () => {
-    const readings = experimentReadings(
-      [day0],
-      grid([
-        cell("dish", day0.id, {
-          detectionTally: { seed: 19 },
-          annotationTally: { seed: 20 },
-        }),
-      ]),
-    );
-    expect(readings.read("dish", day0)).toEqual({
+    const cells = observationCells([
+      cell("dish", day0.id, {
+        detectionTally: { ungerminated: 19 },
+        annotationTally: { ungerminated: 20 },
+      }),
+    ]);
+    expect(unitReading(cells, "dish", day0)).toEqual({
       count: 20,
-      rate: null,
       source: "review",
       detected: 19,
     });
   });
 
   test("an annotation drawn where nothing was detected replaced nothing", () => {
-    const readings = experimentReadings(
-      [day0],
-      grid([cell("dish", day0.id, { annotationTally: { seed: 20 } })]),
-    );
-    expect(readings.read("dish", day0)).toEqual({
+    const cells = observationCells([
+      cell("dish", day0.id, { annotationTally: { ungerminated: 20 } }),
+    ]);
+    expect(unitReading(cells, "dish", day0)).toEqual({
       count: 20,
-      rate: null,
       source: "review",
       detected: null,
     });
   });
 
-  test("a baseline that found nothing leaves later days without a share", () => {
-    const readings = experimentReadings(
-      [day0, day14],
-      grid([
-        cell("dish", day0.id, { detectionTally: {} }),
-        cell("dish", day14.id, { detectionTally: { germinated: 15 } }),
-      ]),
-    );
-    expect(readings.population("dish")).toBe(0);
-    expect(readings.read("dish", day14)).toEqual(unreviewed(15));
-  });
-
-  test("a unit never photographed at the baseline reads counts without a share", () => {
-    const readings = experimentReadings(
-      [day0, day14],
-      grid([cell("dish", day14.id, { detectionTally: { germinated: 15 } })]),
-    );
-    expect(readings.population("dish")).toBeNull();
-    expect(readings.read("dish", day14)).toEqual(unreviewed(15));
-  });
-
-  test("no unit borrows another unit's population", () => {
-    const readings = experimentReadings(
-      [day0, day14],
-      grid([
-        cell("counted", day0.id, { detectionTally: { seed: 20 } }),
-        cell("late", day14.id, { detectionTally: { germinated: 15 } }),
-      ]),
-    );
-    expect(readings.read("late", day14)).toEqual(unreviewed(15));
-  });
-
   test("a cell with no image reads nothing", () => {
-    const readings = experimentReadings([day0, day14], grid([]));
-    expect(readings.read("dish", day14)).toBeNull();
+    const cells = observationCells([]);
+    expect(unitReading(cells, "dish", day0)).toBeNull();
   });
 });
 
@@ -241,18 +149,11 @@ describe("what a treatment read on a day", () => {
 
   function treatment(cells: ObservationImageCell[], units: Unit[]) {
     return (day: ExperimentObservation) =>
-      treatmentSummary(
-        experimentReadings([sown, later], grid(cells)),
-        units,
-        day,
-        ordinals,
-      );
+      treatmentSummary(observationCells(cells), units, day, ordinals);
   }
 
-  /** Two dishes sown with twenty seeds, of which fifteen and ten germinated. */
-  const sownAndGerminated = [
-    cell("A1", sown.id, { detectionTally: { seed: 20 } }),
-    cell("A2", sown.id, { detectionTally: { seed: 20 } }),
+  /** Two dishes in which fifteen and ten seeds germinated. */
+  const germinated = [
     cell("A1", later.id, { detectionTally: { germinated: 15 } }),
     cell("A2", later.id, { detectionTally: { germinated: 10 } }),
   ];
@@ -272,56 +173,24 @@ describe("what a treatment read on a day", () => {
     ];
   }
 
-  test("means the counts, and the shares behind them", () => {
-    const summary = treatment(sownAndGerminated, [unit("A1"), unit("A2")])(
-      later,
-    );
-    expect(summary.count.value).toBe(12.5);
-    expect(summary.count.sampleSize).toBe(2);
-    expect(summary.rate?.value).toBe(0.625);
-  });
-
-  test("the day that establishes the population means counts alone", () => {
-    const summary = treatment(sownAndGerminated, [unit("A1"), unit("A2")])(
-      sown,
-    );
-    expect(summary.count.value).toBe(20);
-    expect(summary.rate).toBeNull();
+  test("means the counts of its replicates", () => {
+    const summary = treatment(germinated, [unit("A1"), unit("A2")])(later);
+    expect(summary.value).toBe(12.5);
+    expect(summary.sampleSize).toBe(2);
   });
 
   test("a replicate an event excluded is left out, and uncounted", () => {
-    const summary = treatment(sownAndGerminated, [
+    const summary = treatment(germinated, [
       unit("A1"),
       unit("A2", contaminatedAt(later)),
     ])(later);
-    expect(summary.count.value).toBe(15);
-    expect(summary.count.sampleSize).toBe(1);
-    expect(summary.rate?.value).toBe(0.75);
-  });
-
-  test("one replicate without a share leaves the treatment without one", () => {
-    const summary = treatment(
-      [
-        ...sownAndGerminated,
-        cell("A3", later.id, { detectionTally: { germinated: 8 } }),
-      ],
-      [unit("A1"), unit("A2"), unit("A3")],
-    )(later);
-    expect(summary.count.value).toBe(11);
-    expect(summary.count.sampleSize).toBe(3);
-    expect(summary.rate).toBeNull();
+    expect(summary.value).toBe(15);
+    expect(summary.sampleSize).toBe(1);
   });
 
   test("a day nothing has read yet means nothing, over nobody", () => {
-    const summary = treatment(
-      [
-        cell("A1", sown.id, { detectionTally: { seed: 20 } }),
-        cell("A2", sown.id, { detectionTally: { seed: 20 } }),
-      ],
-      [unit("A1"), unit("A2")],
-    )(later);
-    expect(summary.count.value).toBeNull();
-    expect(summary.count.sampleSize).toBe(0);
-    expect(summary.rate).toBeNull();
+    const summary = treatment(germinated, [unit("A1"), unit("A2")])(sown);
+    expect(summary.value).toBeNull();
+    expect(summary.sampleSize).toBe(0);
   });
 });

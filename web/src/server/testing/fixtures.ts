@@ -35,7 +35,10 @@ import { storeImage } from "../images/store";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "./inference";
 import type { DpopKey } from "./dpop";
-import { SEED_DETECTOR_BASELINE_VERSION_ID } from "../../domain/models/builtins";
+import {
+  SEED_DETECTOR,
+  SEED_DETECTOR_BASELINE_VERSION_ID,
+} from "../../domain/models/builtins";
 import {
   readModel,
   readModelVersion,
@@ -63,7 +66,7 @@ export const ULTRALYTICS_RUNTIME: RuntimeDescriptor = {
   fingerprint: "e".repeat(64),
 };
 
-/** The builtin seed detector every deployment starts with. */
+/** The builtin seed germination model every deployment starts with. */
 export async function baselineVersion(): Promise<ModelVersion> {
   const version = await readModelVersion(SEED_DETECTOR_BASELINE_VERSION_ID);
   if (!version) throw new Error("builtin models are not registered");
@@ -73,7 +76,7 @@ export async function baselineVersion(): Promise<ModelVersion> {
 /**
  * A model of a test's own, with a traditional version the way a builtin ships.
  * An observation reads with its model's newest version, so a test that needs
- * several versions registers them here rather than against the seed detector
+ * several versions registers them here rather than against the builtin model
  * every other test observes with.
  */
 export async function traditionalVersion(
@@ -86,7 +89,7 @@ export async function traditionalVersion(
     id: modelId,
     name: `${modelId} detector`,
     task: "object_detection",
-    classes: ["seed"],
+    classes: SEED_DETECTOR.classes,
     annotation: DEFAULT_MODEL_ANNOTATION,
   });
   return registerModelVersion({

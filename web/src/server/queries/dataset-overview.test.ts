@@ -93,7 +93,7 @@ test("the overview derives review progress and training readiness", async () => 
     [
       {
         id: "added",
-        class: "seed",
+        class: "ungerminated",
         bbox: { x: 0, y: 0, width: 1, height: 1 },
       },
     ],

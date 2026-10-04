@@ -20,7 +20,7 @@ from vitroflow.detectors.contract import (
 )
 from vitroflow.worker import session as worker_session
 from vitroflow.worker.inference import Assignment, InferenceClient, run_pass
-from vitroflow.worker.model_store import ModelManifest
+from vitroflow.worker.model_store import ModelManifest, ModelStore
 from vitroflow.worker.session import LeaseLostError, WorkerClient, WorkerSession
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
@@ -29,13 +29,13 @@ DIGEST = hashlib.sha256(IMAGE).hexdigest()
 MANIFEST = {
     "schemaVersion": 1,
     "modelVersionId": "set.traditional-v1",
-    "classes": ["seed"],
+    "classes": ["ungerminated", "germinated"],
     "artifact": {"kind": "traditional", "digest": "a" * 64},
 }
 OTHER_MANIFEST = {
     "schemaVersion": 1,
     "modelVersionId": "set.traditional-v2",
-    "classes": ["seed"],
+    "classes": ["ungerminated", "germinated"],
     "artifact": {"kind": "traditional", "digest": "c" * 64},
 }
 
@@ -54,7 +54,7 @@ class FakeDetector:
             100,
             80,
             producer,
-            (DetectionInstance("1", "seed", BoundingBox(10, 20, 8, 6), 0.9),),
+            (DetectionInstance("1", "ungerminated", BoundingBox(10, 20, 8, 6), 0.9),),
             DetectionQuality("ok"),
         )
 
@@ -191,7 +191,7 @@ def test_assignment_validates_its_manifest() -> None:
                 "manifest": {
                     "schemaVersion": 1,
                     "modelVersionId": "set.v1",
-                    "classes": ["seed"],
+                    "classes": ["ungerminated", "germinated"],
                     "artifact": {"kind": "onnx", "digest": "a" * 64},
                 },
                 "image": DIGEST,
@@ -205,7 +205,7 @@ def test_assignment_validates_its_manifest() -> None:
                 "manifest": {
                     "schemaVersion": 1,
                     "modelVersionId": "/set",
-                    "classes": ["seed"],
+                    "classes": ["ungerminated", "germinated"],
                     "artifact": {"kind": "traditional", "digest": "a" * 64},
                 },
                 "image": DIGEST,
@@ -396,3 +396,15 @@ def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
         client.worker.close()
 
     assert workbench.calls() == []
+
+
+def test_traditional_detector_requires_its_class(tmp_path: Path) -> None:
+    class NoWeights:
+        def weights(self, version_id: str) -> bytes:
+            raise AssertionError(version_id)
+
+    store = ModelStore(NoWeights(), tmp_path, None)
+    manifest = ModelManifest.parse({**MANIFEST, "classes": ["germinated"]})
+
+    with pytest.raises(ValueError, match="declares ungerminated"):
+        store.load(manifest)

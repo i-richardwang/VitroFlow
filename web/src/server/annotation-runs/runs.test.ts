@@ -33,7 +33,7 @@ test("the model's instructions and region are frozen into the run definition", a
   const model = await createModel({
     id: "ai-region-model",
     name: "Region model",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
   });
   const ref = { digest: digests[0]!, modelId: model.id };
   await expect(createAnnotationRun({ ...request, ref })).rejects.toThrow(
@@ -57,7 +57,7 @@ test("the model's instructions and region are frozen into the run definition", a
   const { definition } = await stored(run.id);
   expect(definition.config).toEqual({
     area: "image",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
     rules: annotation.instructions,
     coreSize: 16,
     halo: 8,
@@ -74,7 +74,7 @@ test("a run stays open between conversations, and any agent continues it by its 
   const model = await createModel({
     id: "ai-open-model",
     name: "Open model",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
     annotation: {
       area: "image",
       instructions: "Box every seed.",
@@ -125,7 +125,7 @@ test("dish runs freeze coverage and actual task totals while later model edits l
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Dish plan",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
     annotation: {
       instructions: "Box each seed",
       area: "dish",

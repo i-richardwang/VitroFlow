@@ -73,6 +73,7 @@ import {
   readExperimentObservationImage,
 } from "./queries";
 import {
+  SEED_DETECTOR,
   SEED_DETECTOR_BASELINE_VERSION_ID,
   SEED_DETECTOR_MODEL_ID,
 } from "../../domain/models/builtins";
@@ -116,7 +117,7 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
     id: modelId,
     name: `${modelId} detector`,
     task: "object_detection",
-    classes: ["seed"],
+    classes: SEED_DETECTOR.classes,
     annotation: DEFAULT_MODEL_ANNOTATION,
   });
   return registerTrainedVersion(modelId);
@@ -190,7 +191,7 @@ async function imagesByUnit(experiment: string): Promise<Map<string, string>> {
 }
 
 describe("experiments", () => {
-  test("start on a fresh deployment with the builtin seed detector", async () => {
+  test("start on a fresh deployment with the builtin seed germination model", async () => {
     expect(calendarDaySchema.safeParse("2026-02-29").success).toBeFalse();
     expect(calendarDaySchema.safeParse("2024-02-29").success).toBeTrue();
     const offered = await listAllModelVersions();
@@ -363,8 +364,8 @@ describe("experiments", () => {
   test("an untrained model is observed and read by a reviewer alone", async () => {
     const model = await createModel({
       id: "exp-untrained",
-      name: "Untrained detector",
-      classes: ["germinated"],
+      name: "Rooting",
+      classes: ["rooted"],
     });
     const experiment = await createExperiment({
       name: "Untrained",
@@ -401,31 +402,31 @@ describe("experiments", () => {
       [
         {
           id: "a",
-          class: "germinated",
+          class: "rooted",
           bbox: { x: 2, y: 3, width: 4, height: 5 },
         },
         {
           id: "b",
-          class: "germinated",
+          class: "rooted",
           bbox: { x: 9, y: 3, width: 4, height: 5 },
         },
       ],
       null,
     );
-    expect((await cell()).annotationTally).toEqual({ germinated: 2 });
+    expect((await cell()).annotationTally).toEqual({ rooted: 2 });
   });
 
   test("observations of one experiment read with different models", async () => {
-    const seeds = await trainedVersion("exp-stage-seeds");
     await registerModel({
       schemaVersion: 1,
-      id: "exp-stage-germination",
-      name: "Germination detector",
+      id: "exp-stage-callus",
+      name: "Callus detector",
       task: "object_detection",
-      classes: ["seed", "germinated"],
+      classes: ["callus"],
       annotation: DEFAULT_MODEL_ANNOTATION,
     });
-    const germination = await registerTrainedVersion("exp-stage-germination");
+    const callus = await registerTrainedVersion("exp-stage-callus");
+    const seeds = await trainedVersion("exp-stage-seeds");
     const experiment = await createExperiment({
       name: "Stages",
       inoculatedOn: INOCULATED,
@@ -435,21 +436,21 @@ describe("experiments", () => {
       experiment: experiment.id,
       observedOn: "2026-08-08",
       note: "",
-      ...reading(seeds),
+      ...reading(callus),
     });
     const day14 = await addObservation({
       experiment: experiment.id,
       observedOn: "2026-08-15",
       note: "",
-      ...reading(germination),
+      ...reading(seeds),
     });
     await assignImages(experiment.id, day7.id, units, { "A-1": "stage-d7" });
     await assignImages(experiment.id, day14.id, units, { "A-1": "stage-d14" });
     const digest = await imageDigest("stage-d14");
     const grid = (await readExperimentGrid(experiment.id))!;
     expect(grid.observations.map((item) => [item.day, item.modelId])).toEqual([
-      [7, seeds.modelId],
-      [14, germination.modelId],
+      [7, callus.modelId],
+      [14, seeds.modelId],
     ]);
     const ref = {
       experiment: experiment.id,
@@ -469,31 +470,27 @@ describe("experiments", () => {
         modelId,
       });
 
-    const found = resultFor(germination, digest, 2);
-    await seedInferenceOutcome(
-      { versionId: germination.id, digest },
-      found,
-      worker,
-    );
+    const found = resultFor(seeds, digest, 2);
+    await seedInferenceOutcome({ versionId: seeds.id, digest }, found, worker);
     await storeAnnotation(
-      { digest, modelId: germination.modelId },
+      { digest, modelId: seeds.modelId },
       instancesFromDetection(found),
       null,
     );
     expect((await cell()).state).toBe("analyzed");
     const before = (await readExperimentObservationImage(ref))!;
-    expect(before.model.id).toBe(germination.modelId);
+    expect(before.model.id).toBe(seeds.modelId);
     expect(before.review.detection?.instances).toHaveLength(2);
     expect(before.review.annotation).not.toBeNull();
 
-    await reread(seeds.modelId);
+    await reread(callus.modelId);
     expect((await cell()).state).toBe("pending");
     const switched = (await readExperimentObservationImage(ref))!;
-    expect(switched.model.id).toBe(seeds.modelId);
+    expect(switched.model.id).toBe(callus.modelId);
     expect(switched.review.detection).toBeNull();
     expect(switched.review.annotation).toBeNull();
 
-    await reread(germination.modelId);
+    await reread(seeds.modelId);
     expect((await cell()).state).toBe("analyzed");
     const restored = (await readExperimentObservationImage(ref))!;
     expect(restored.review.detection).toEqual(before.review.detection);
@@ -1561,7 +1558,7 @@ describe("experiments", () => {
         ])
         .sort(),
     ).toEqual([
-      ["D-1", "analyzed", { seed: 3 }, null],
+      ["D-1", "analyzed", { ungerminated: 3 }, null],
       ["D-2", "failed", null, "no unit found"],
     ]);
 
@@ -1622,7 +1619,7 @@ describe("experiments", () => {
     };
 
     const newest = await readUnit(ref);
-    expect(newest?.shown?.model.classes).toEqual(["seed"]);
+    expect(newest?.shown?.model.classes).toEqual(SEED_DETECTOR.classes);
     expect(newest?.shown?.observation.id).toBe(day14.id);
     expect(
       newest?.observations.map((item) => item.image?.state ?? null),

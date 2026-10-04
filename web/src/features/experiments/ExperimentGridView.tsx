@@ -19,7 +19,6 @@ import type {
 } from "../../domain/experiments/contracts";
 import {
   observationOrdinals,
-  type ObservationOrdinals,
   unitIsAvailableAt,
   unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
@@ -34,17 +33,13 @@ import type { getExperimentGrid } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import {
   cellKey,
-  experimentReadings,
+  observationCells,
   treatmentSummary,
-  type ExperimentReadings,
+  unitReading,
+  type Reading,
 } from "../../domain/experiments/readings";
 import { modelName } from "../../ui/model-names";
-import {
-  formatCount,
-  formatCountSummary,
-  formatRate,
-  formatRateSummary,
-} from "../../ui/readings";
+import { formatCount, formatCountSummary } from "../../ui/readings";
 import { m } from "../../paraglide/messages";
 
 type Dialog = { kind: "treatment" } | { kind: "observation" };
@@ -71,11 +66,8 @@ export function ExperimentGridView({
   const waiting = images.some((image) => image.state === "pending");
   useRouteRefresh(router, 5000, waiting);
 
-  const cells = new Map(
-    images.map((image) => [cellKey(image.unit, image.observation), image]),
-  );
+  const cells = observationCells(images);
   const ordinals = observationOrdinals(observations);
-  const readings = experimentReadings(observations, cells);
   const placed = placedPhotos(data);
   const hasRecords =
     images.length > 0 || units.some((unit) => unit.events.length > 0);
@@ -131,15 +123,16 @@ export function ExperimentGridView({
         cell: (row) =>
           row.kind === "treatment" ? (
             <span className="font-medium">
-              {groupSummary(readings, row.units, observation, ordinals)}
+              {formatCountSummary(
+                treatmentSummary(cells, row.units, observation, ordinals),
+              )}
             </span>
           ) : (
             <Cell
               experiment={experiment.id}
-              readings={readings}
-              observation={observation}
               unit={row.unit}
               image={cells.get(cellKey(row.unit.id, observation.id))}
+              reading={unitReading(cells, row.unit.id, observation)}
               counted={unitIsIncludedInAnalysis(
                 row.unit.events,
                 observation,
@@ -317,42 +310,22 @@ function experimentRows(treatments: Treatment[], units: Unit[]): GridRow[] {
   });
 }
 
-/**
- * The replicates of one treatment on one day. Shares are what treatments are
- * compared by, so a day that reads them summarizes them; a day without them,
- * the baseline among others, summarizes its counts.
- */
-function groupSummary(
-  readings: ExperimentReadings,
-  units: Unit[],
-  observation: ExperimentObservation,
-  ordinals: ObservationOrdinals,
-): string {
-  const summary = treatmentSummary(readings, units, observation, ordinals);
-  return summary.rate
-    ? formatRateSummary(summary.rate)
-    : formatCountSummary(summary.count);
-}
-
 function Cell({
   experiment,
-  readings,
-  observation,
   unit,
   image,
+  reading,
   counted,
 }: {
   experiment: string;
-  readings: ExperimentReadings;
-  observation: ExperimentObservation;
   unit: Unit;
   image: ObservationImageCell | undefined;
+  reading: Reading | null;
   counted: boolean;
 }) {
   if (!image) return <span className="text-muted">—</span>;
   const href = `/experiments/${experiment}/${unit.id}?observation=${image.observation}`;
   const dimmed = counted ? "" : "text-muted line-through";
-  const reading = readings.read(unit.id, observation);
   if (reading) {
     return explain(
       [
@@ -371,12 +344,6 @@ function Cell({
         className={`${reading.source === "review" ? "font-semibold" : ""} ${dimmed}`}
       >
         {formatCount(reading.count)}
-        {reading.rate === null ? null : (
-          <span className="font-normal text-muted">
-            {" · "}
-            {formatRate(reading.rate)}
-          </span>
-        )}
       </Link>,
     );
   }

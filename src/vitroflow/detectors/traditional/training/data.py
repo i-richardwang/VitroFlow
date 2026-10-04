@@ -86,14 +86,6 @@ def _prepare_image(
     data_root: str | Path,
     config: PipelineConfig,
 ) -> PreparedImage:
-    foreign_classes = sorted(
-        {instance.class_name for instance in annotation.instances} - {"seed"}
-    )
-    if foreign_classes:
-        raise ValueError(
-            "Traditional training requires seed instances; found "
-            + ", ".join(foreign_classes)
-        )
     boxes = tuple(instance.bbox for instance in annotation.instances)
     analysis = analyze_candidates(verified_blob(data_root, annotation.digest), config)
     height, width = analysis.image.shape[:2]

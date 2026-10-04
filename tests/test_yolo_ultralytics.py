@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from conftest import (
+    SEED_CLASSES,
     annotation_document,
     encoded_image,
     manifest_entry,
@@ -49,7 +50,7 @@ def test_ultralytics_resolves_exported_dataset_from_its_yaml(
     annotated = load_annotations(write_manifest(data_root, "batch", entries))
 
     output = tmp_path / "dataset"
-    export_yolo_dataset(annotated, ("seed",), data_root, output)
+    export_yolo_dataset(annotated, SEED_CLASSES, data_root, output)
 
     loaded = data_utils.check_det_dataset(str((output / "dataset.yaml").resolve()))
 

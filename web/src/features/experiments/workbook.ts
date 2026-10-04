@@ -4,7 +4,6 @@ import {
   blankCell,
   countCell,
   dateCell,
-  rateCell,
   sheetName,
   textCell,
   workbookFilename,
@@ -19,10 +18,10 @@ import {
   type ObservationOrdinals,
 } from "../../domain/experiments/culture-events";
 import {
-  cellKey,
-  experimentReadings,
+  observationCells,
   treatmentSummary,
-  type ExperimentReadings,
+  unitReading,
+  type ObservationCells,
 } from "../../domain/experiments/readings";
 import {
   formatFactor,
@@ -40,19 +39,13 @@ export type ExperimentWorkbookSource = ExperimentGrid & {
   models: readonly Model[];
 };
 
-type Quantity = "count" | "rate" | "replicates";
+type Quantity = "count" | "replicates";
 
-/**
- * Every day is read for a tally, and for the replicates a mean of it is over.
- * A day is read for a share as well once an earlier day has established the
- * population that share is of.
- */
-const QUANTITIES: readonly Quantity[] = ["count", "rate", "replicates"];
-const BASELINE_QUANTITIES: readonly Quantity[] = ["count", "replicates"];
+/** Every day is read for a tally, and for the replicates a mean of it is over. */
+const QUANTITIES: readonly Quantity[] = ["count", "replicates"];
 
 const QUANTITY_WIDTH: Record<Quantity, number> = {
   count: 10,
-  rate: 10,
   replicates: 8,
 };
 
@@ -60,8 +53,6 @@ function quantityLabel(quantity: Quantity): string {
   switch (quantity) {
     case "count":
       return m.workbook_quantity_count();
-    case "rate":
-      return m.workbook_quantity_rate();
     case "replicates":
       return m.workbook_quantity_replicates();
   }
@@ -70,7 +61,6 @@ function quantityLabel(quantity: Quantity): string {
 interface Day {
   observation: ExperimentObservation;
   model: Model | null;
-  quantities: readonly Quantity[];
 }
 
 const DESIGN_COLUMNS = [{ width: 22 }, { width: 16 }, { width: 14 }];
@@ -83,8 +73,7 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
 /**
  * The grid as a spreadsheet: the design repeated down every row, the days
  * across the top, and every quantity left as a number for whatever charts or
- * computes on it. A day that establishes the population reads counts alone,
- * as the grid does.
+ * computes on it.
  *
  * The sheet records what the dish did rather than what the workbench is doing.
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
@@ -100,18 +89,11 @@ export function experimentWorkbook(
 ): Workbook {
   const { experiment, treatments, units, observations, images, models } =
     source;
-  const cells = new Map(
-    images.map((image) => [cellKey(image.unit, image.observation), image]),
-  );
+  const cells = observationCells(images);
   const ordinals = observationOrdinals(observations);
-  const readings = experimentReadings(observations, cells);
   const days = observations.map((observation): Day => ({
     observation,
     model: models.find((model) => model.id === observation.modelId) ?? null,
-    quantities:
-      observation.id === readings.baseline?.id
-        ? BASELINE_QUANTITIES
-        : QUANTITIES,
   }));
 
   const rows: WorkbookCell[][] = [
@@ -123,9 +105,9 @@ export function experimentWorkbook(
   rows.push(...heading(days));
   for (const treatment of treatments) {
     const replicates = units.filter((unit) => unit.treatment === treatment.id);
-    rows.push(meanRow(treatment, replicates, days, readings, ordinals));
+    rows.push(meanRow(treatment, replicates, days, cells, ordinals));
     for (const unit of replicates) {
-      rows.push(unitRow(treatment, unit, days, readings, ordinals));
+      rows.push(unitRow(treatment, unit, days, cells, ordinals));
     }
   }
 
@@ -133,8 +115,8 @@ export function experimentWorkbook(
     sheet: sheetName(experiment.name, m.experiments_title()),
     columns: [
       ...DESIGN_COLUMNS,
-      ...days.flatMap((day) =>
-        day.quantities.map((quantity) => ({ width: QUANTITY_WIDTH[quantity] })),
+      ...days.flatMap(() =>
+        QUANTITIES.map((quantity) => ({ width: QUANTITY_WIDTH[quantity] })),
       ),
     ],
     rows,
@@ -177,8 +159,8 @@ function heading(days: readonly Day[]): WorkbookCell[][] {
   const dates: WorkbookCell[] = DESIGN_COLUMNS.map(() => blankCell);
   const quantities: WorkbookCell[] = DESIGN_COLUMNS.map(() => blankCell);
   for (const day of days) {
-    const columns = day.quantities.length;
-    const covered = day.quantities.slice(1).map(() => blankCell);
+    const columns = QUANTITIES.length;
+    const covered = QUANTITIES.slice(1).map(() => blankCell);
     names.push(
       textCell(dayHeading(day), { strong: true, columns }),
       ...covered,
@@ -188,7 +170,7 @@ function heading(days: readonly Day[]): WorkbookCell[][] {
       ...covered,
     );
     quantities.push(
-      ...day.quantities.map((quantity) =>
+      ...QUANTITIES.map((quantity) =>
         textCell(quantityLabel(quantity), { strong: true }),
       ),
     );
@@ -208,62 +190,50 @@ function factorCell(treatment: Treatment, style: CellStyle = {}): WorkbookCell {
     : blankCell;
 }
 
-function dayCells(
-  day: Day,
-  read: Record<Quantity, WorkbookCell>,
-): WorkbookCell[] {
-  return day.quantities.map((quantity) => read[quantity]);
+function dayCells(read: Record<Quantity, WorkbookCell>): WorkbookCell[] {
+  return QUANTITIES.map((quantity) => read[quantity]);
 }
 
 function unitRow(
   treatment: Treatment,
   unit: Unit,
   days: readonly Day[],
-  readings: ExperimentReadings,
+  cells: ObservationCells,
   ordinals: ObservationOrdinals,
 ): WorkbookCell[] {
   return [
     textCell(treatment.name),
     factorCell(treatment),
     textCell(unit.code),
-    ...days.flatMap((day) => unitCells(unit, day, readings, ordinals)),
+    ...days.flatMap((day) => unitCells(unit, day, cells, ordinals)),
   ];
 }
 
 function unitCells(
   unit: Unit,
   day: Day,
-  readings: ExperimentReadings,
+  cells: ObservationCells,
   ordinals: ObservationOrdinals,
 ): WorkbookCell[] {
   const excluded = exclusionAt(unit.events, day.observation, ordinals);
   if (excluded) {
-    return dayCells(day, {
+    return dayCells({
       count: textCell(cultureEventLabel(excluded.type)),
-      rate: blankCell,
       replicates: blankCell,
     });
   }
-  const reading = readings.read(unit.id, day.observation);
+  const reading = unitReading(cells, unit.id, day.observation);
   if (!reading) {
-    return dayCells(day, {
-      count: blankCell,
-      rate: blankCell,
-      replicates: blankCell,
-    });
+    return dayCells({ count: blankCell, replicates: blankCell });
   }
-  return dayCells(day, {
-    count: countCell(reading.count),
-    rate: reading.rate === null ? blankCell : rateCell(reading.rate),
-    replicates: blankCell,
-  });
+  return dayCells({ count: countCell(reading.count), replicates: blankCell });
 }
 
 function meanRow(
   treatment: Treatment,
   replicates: readonly Unit[],
   days: readonly Day[],
-  readings: ExperimentReadings,
+  cells: ObservationCells,
   ordinals: ObservationOrdinals,
 ): WorkbookCell[] {
   const strong = { strong: true };
@@ -271,7 +241,7 @@ function meanRow(
     textCell(treatment.name, strong),
     factorCell(treatment, strong),
     textCell(m.workbook_row_mean(), strong),
-    ...days.flatMap((day) => meanCells(replicates, day, readings, ordinals)),
+    ...days.flatMap((day) => meanCells(replicates, day, cells, ordinals)),
   ];
 }
 
@@ -279,20 +249,17 @@ function meanRow(
 function meanCells(
   replicates: readonly Unit[],
   day: Day,
-  readings: ExperimentReadings,
+  cells: ObservationCells,
   ordinals: ObservationOrdinals,
 ): WorkbookCell[] {
   const summary = treatmentSummary(
-    readings,
+    cells,
     replicates,
     day.observation,
     ordinals,
   );
-  const share = summary.rate?.value ?? null;
-  return dayCells(day, {
-    count:
-      summary.count.value === null ? blankCell : countCell(summary.count.value),
-    rate: share === null ? blankCell : rateCell(share),
-    replicates: countCell(summary.count.sampleSize),
+  return dayCells({
+    count: summary.value === null ? blankCell : countCell(summary.value),
+    replicates: countCell(summary.sampleSize),
   });
 }

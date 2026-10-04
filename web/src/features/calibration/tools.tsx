@@ -17,7 +17,14 @@ import type { ReactNode } from "react";
 import type { ReviewSource } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
 import { DeleteIcon, RedoIcon, RestartIcon, UndoIcon } from "../../ui/icons";
-import { TOOL_SPECS, TOOLS, type Tool } from "./controls";
+import { className } from "../../ui/model-names";
+import {
+  ClassLabel,
+  classShortcut,
+  TOOL_SPECS,
+  TOOLS,
+  type Tool,
+} from "./controls";
 import { sourceLabels } from "./labels";
 
 export function CalibrationTools({
@@ -31,7 +38,7 @@ export function CalibrationTools({
   sources,
   onRestart,
   classes,
-  className,
+  boxClass,
   onClassChange,
 }: {
   tool: Tool;
@@ -44,8 +51,8 @@ export function CalibrationTools({
   sources: ReviewSource[];
   onRestart: (source: ReviewSource) => void;
   classes: string[];
-  className: string;
-  onClassChange: (className: string) => void;
+  boxClass: string;
+  onClassChange: (name: string) => void;
 }) {
   return (
     <>
@@ -76,23 +83,35 @@ export function CalibrationTools({
       {classes.length > 1 ? (
         <InlineSelect
           aria-label={m.workbench_box_class()}
-          selectedKey={className}
+          selectedKey={boxClass}
           onSelectionChange={(key) =>
             key !== null && onClassChange(String(key))
           }
         >
           <InlineSelect.Trigger>
-            <InlineSelect.Value />
+            <InlineSelect.Value>
+              <ClassLabel classes={classes} name={boxClass} />
+            </InlineSelect.Value>
             <InlineSelect.Indicator />
           </InlineSelect.Trigger>
           <InlineSelect.Popover className="w-44">
             <ListBox>
-              {classes.map((name) => (
-                <ListBox.Item key={name} id={name} textValue={name}>
-                  {name}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
+              {classes.map((name) => {
+                const shortcut = classShortcut(classes, name);
+                return (
+                  <ListBox.Item
+                    key={name}
+                    id={name}
+                    textValue={className(name)}
+                  >
+                    <ClassLabel classes={classes} name={name} />
+                    {shortcut ? (
+                      <Kbd className="ms-auto">{shortcut}</Kbd>
+                    ) : null}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                );
+              })}
             </ListBox>
           </InlineSelect.Popover>
         </InlineSelect>

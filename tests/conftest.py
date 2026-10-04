@@ -14,6 +14,8 @@ from vitroflow.datasets.manifest import (
     manifest_path,
 )
 
+SEED_CLASSES = ("ungerminated", "germinated")
+
 
 def annotation_document(
     digest: str,
@@ -28,7 +30,7 @@ def annotation_document(
         "schemaVersion": 1,
         "image": {"digest": digest, "width": width, "height": height},
         "instances": [
-            {"id": f"seed-{index + 1}", "class": "seed", "bbox": box}
+            {"id": f"seed-{index + 1}", "class": "ungerminated", "bbox": box}
             for index, box in enumerate(boxes)
         ],
     }
@@ -48,7 +50,7 @@ def detection_document(
         "instances": [
             {
                 "id": "1",
-                "class": "seed",
+                "class": "ungerminated",
                 "bbox": {"x": 96.25, "y": 196.25, "width": 7.5, "height": 7.5},
                 "score": 0.9,
             }
@@ -91,7 +93,7 @@ def manifest_document(
         "dataset": dataset,
         "model": {
             "id": model_id,
-            "classes": classes if classes is not None else ["seed"],
+            "classes": classes if classes is not None else list(SEED_CLASSES),
         },
         "images": images,
     }

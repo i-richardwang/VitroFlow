@@ -89,7 +89,7 @@ def test_traditional_detector_adapts_detections_to_boxes(monkeypatch) -> None:
     assert document["instances"] == [
         {
             "id": "3",
-            "class": "seed",
+            "class": "ungerminated",
             "bbox": {"x": 7.5, "y": 9.5, "width": 5.0, "height": 5.0},
             "score": 0.91,
         }

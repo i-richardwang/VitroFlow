@@ -4,19 +4,26 @@ import type { ObservationImageCell, Unit } from "./contracts";
 import { exclusionAt, type ObservationOrdinals } from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 
-/**
- * What a unit read on a day: the individuals found, their share of the
- * population the unit started with, and who stood behind the number.
- */
-interface Reading {
+/** What a unit read on a day: the individuals found, and who stood behind the number. */
+export interface Reading {
   count: number;
-  rate: number | null;
   source: ReviewSource;
   detected: number | null;
 }
 
 export function cellKey(unit: string, observation: string): string {
   return `${unit}:${observation}`;
+}
+
+/** An experiment's images, each in the cell of its unit and observation. */
+export type ObservationCells = ReadonlyMap<string, ObservationImageCell>;
+
+export function observationCells(
+  images: readonly ObservationImageCell[],
+): ObservationCells {
+  return new Map(
+    images.map((image) => [cellKey(image.unit, image.observation), image]),
+  );
 }
 
 /**
@@ -46,71 +53,20 @@ export function cellTally(
   return cellReading(image)?.tally ?? null;
 }
 
-/**
- * The observation a unit's population is counted from. Dishes are sown without
- * counting, so the earliest photograph of one establishes how many individuals
- * it holds, and every later share divides by that.
- */
-export function baselineObservation(
-  observations: readonly ExperimentObservation[],
-): ExperimentObservation | undefined {
-  return observations.reduce<ExperimentObservation | undefined>(
-    (earliest, observation) =>
-      !earliest || observation.ordinal < earliest.ordinal
-        ? observation
-        : earliest,
-    undefined,
-  );
-}
-
-/**
- * The share of the unit's starting population this count represents. A unit
- * whose baseline was never counted has no share, and neither has one whose
- * baseline found nothing.
- */
-function share(found: number, population: number | null): number | null {
-  if (population === null || population === 0) return null;
-  return found / population;
-}
-
-export interface ExperimentReadings {
-  baseline: ExperimentObservation | undefined;
-  population: (unit: string) => number | null;
-  read: (unit: string, observation: ExperimentObservation) => Reading | null;
-}
-
-/**
- * The numbers an experiment's grid reads. The share a unit shows on its own
- * baseline is one by construction, so the baseline reads counts alone.
- */
-export function experimentReadings(
-  observations: readonly ExperimentObservation[],
-  cells: ReadonlyMap<string, ObservationImageCell>,
-): ExperimentReadings {
-  const baseline = baselineObservation(observations);
-  const population = (unit: string): number | null => {
-    if (!baseline) return null;
-    const counts = cellTally(cells.get(cellKey(unit, baseline.id)));
-    return counts === null ? null : count(counts);
-  };
+/** What a unit read on a day, or nothing while its image has no reading. */
+export function unitReading(
+  cells: ObservationCells,
+  unit: string,
+  observation: ExperimentObservation,
+): Reading | null {
+  const image = cells.get(cellKey(unit, observation.id));
+  const reading = cellReading(image);
+  if (!image || !reading) return null;
+  const replaced = reading.source === "detection" ? null : image.detectionTally;
   return {
-    baseline,
-    population,
-    read: (unit, observation) => {
-      const image = cells.get(cellKey(unit, observation.id));
-      const reading = cellReading(image);
-      if (!image || !reading) return null;
-      const replaced =
-        reading.source === "detection" ? null : image.detectionTally;
-      const started = observation.id === baseline?.id ? null : population(unit);
-      const found = count(reading.tally);
-      return {
-        count: found,
-        rate: share(found, started),
-        source: reading.source,
-        detected: replaced === null ? null : count(replaced),
-      };
-    },
+    count: count(reading.tally),
+    source: reading.source,
+    detected: replaced === null ? null : count(replaced),
   };
 }
 
@@ -140,36 +96,21 @@ export function summarize(values: readonly number[]): Summary {
   return { value: mean, deviation, sampleSize: values.length };
 }
 
-export interface TreatmentSummary {
-  count: Summary;
-  rate: Summary | null;
-}
-
 /**
- * A treatment on one day, over the replicates the analysis still counts, a
- * population that exclusions move day by day. Shares average only when every
- * one of those replicates has one, since a mean over some of them would divide
- * by a population it never states.
+ * A treatment's count on one day, over the replicates the analysis still
+ * counts, a population that exclusions move day by day.
  */
 export function treatmentSummary(
-  readings: ExperimentReadings,
+  cells: ObservationCells,
   replicates: readonly Unit[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
-): TreatmentSummary {
-  const counted = replicates.flatMap((unit) => {
-    if (exclusionAt(unit.events, observation, ordinals)) return [];
-    const reading = readings.read(unit.id, observation);
-    return reading ? [reading] : [];
-  });
-  const shares = counted.flatMap((reading) =>
-    reading.rate === null ? [] : [reading.rate],
+): Summary {
+  return summarize(
+    replicates.flatMap((unit) => {
+      if (exclusionAt(unit.events, observation, ordinals)) return [];
+      const reading = unitReading(cells, unit.id, observation);
+      return reading ? [reading.count] : [];
+    }),
   );
-  return {
-    count: summarize(counted.map((reading) => reading.count)),
-    rate:
-      counted.length > 0 && shares.length === counted.length
-        ? summarize(shares)
-        : null,
-  };
 }

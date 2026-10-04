@@ -12,7 +12,7 @@ const definition: AnnotationDefinition = {
     coreSize: 64,
     halo: 16,
     displayScale: 4,
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
     rules: "Box seeds",
   },
 };
@@ -27,7 +27,9 @@ test("regions preserve source coverage, clip halo and assign seam centers exactl
   ).toEqual(["tile-000-001"]);
   const prepared = prepareProposal(
     {
-      instances: [{ id: "seed", class: "seed", box_2d: [250, 250, 500, 500] }],
+      instances: [
+        { id: "seed", class: "ungerminated", box_2d: [250, 250, 500, 500] },
+      ],
     },
     tasks[0]!,
     definition,
@@ -43,7 +45,7 @@ test("regions preserve source coverage, clip halo and assign seam centers exactl
 test("internal clipping is rejected for owned objects; context and source boundaries remain legal", () => {
   const task = regions(definition)[0]!;
   const propose = (box_2d: number[]) => ({
-    instances: [{ id: "seed", class: "seed", box_2d }],
+    instances: [{ id: "seed", class: "ungerminated", box_2d }],
   });
   expect(() =>
     prepareProposal(propose([100, 400, 300, 1000]), task, definition),
@@ -60,13 +62,19 @@ test("internal clipping is rejected for owned objects; context and source bounda
 });
 
 /** The patch edges of a source box, as a region's proposal states them. */
-function drawn(region: Region, id: string, x: number, width: number) {
+function drawn(
+  region: Region,
+  id: string,
+  x: number,
+  width: number,
+  state = "ungerminated",
+) {
   const p = region.patch;
   const y = 20,
     height = 8;
   return {
     id,
-    class: "seed",
+    class: state,
     box_2d: [
       ((y - p.y) * 1000) / p.height,
       ((x - p.x) * 1000) / p.width,
@@ -115,10 +123,35 @@ test("neighbors that read one seam object yield one box, whichever side they pla
   expect(collect([66], [])).toEqual([]);
 });
 
+test("neighbors that judge a seam object differently yield one box, as its owner judged it", () => {
+  const [left, right] = regions(definition) as [Region, Region];
+  const result = collectRegions(definition, [
+    {
+      taskId: "run/left",
+      region: left,
+      response: {
+        instances: [drawn(left, "l", 59, 14, "ungerminated")],
+        issues: [],
+      },
+    },
+    {
+      taskId: "run/right",
+      region: right,
+      response: {
+        instances: [drawn(right, "r", 59, 14, "germinated")],
+        issues: [],
+      },
+    },
+  ]);
+  expect(
+    result.document.instances.map(({ id, class: state }) => [id, state]),
+  ).toEqual([["run/right/r", "germinated"]]);
+});
+
 test("a redrawn region's reading of a retained neighbor's object keeps the retained box", () => {
   const retained = {
     id: "kept",
-    class: "seed",
+    class: "ungerminated",
     bbox: { x: 58, y: 20, width: 14, height: 8 },
   };
   const scoped: AnnotationDefinition = {
@@ -150,7 +183,7 @@ test("decimal source-edge boxes preview and collect identically, with halo-only 
         instances: [
           {
             id: "edge",
-            class: "seed",
+            class: "ungerminated",
             box_2d: [1.4, 801.4, 1000, 1000],
           },
         ],
@@ -172,8 +205,12 @@ test("decimal source-edge boxes preview and collect identically, with halo-only 
   const { response, content: preview } = prepareProposal(
     {
       instances: [
-        { id: "owned", class: "seed", box_2d: [100, 200, 300, 400] },
-        { id: "neighbor", class: "seed", box_2d: [100, 900, 300, 1000] },
+        { id: "owned", class: "ungerminated", box_2d: [100, 200, 300, 400] },
+        {
+          id: "neighbor",
+          class: "ungerminated",
+          box_2d: [100, 900, 300, 1000],
+        },
       ],
     },
     region,
@@ -195,7 +232,11 @@ test("fractional boxes touching the source boundary remain valid through collect
   };
   const region = regions(frame)[0]!;
   const { response, content: preview } = prepareProposal(
-    { instances: [{ id: "s", class: "seed", box_2d: [100, 1.4, 300, 1000] }] },
+    {
+      instances: [
+        { id: "s", class: "ungerminated", box_2d: [100, 1.4, 300, 1000] },
+      ],
+    },
     region,
     frame,
   );
@@ -210,12 +251,12 @@ test("fractional boxes touching the source boundary remain valid through collect
 test("a scope selects the regions it touches, and the result keeps the input boxes of the others", () => {
   const kept = {
     id: "kept",
-    class: "seed",
+    class: "ungerminated",
     bbox: { x: 4, y: 4, width: 8, height: 8 },
   };
   const replaced = {
     id: "replaced",
-    class: "seed",
+    class: "ungerminated",
     bbox: { x: 100, y: 10, width: 8, height: 8 },
   };
   const scoped: AnnotationDefinition = {
@@ -234,7 +275,7 @@ test("a scope selects the regions it touches, and the result keeps the input box
         instances: [
           {
             id: "s1",
-            class: "seed",
+            class: "ungerminated",
             box_2d: [200, 400, 400, 600],
             uncertain: false,
             truncated: false,
@@ -256,7 +297,7 @@ test("a scope selects the regions it touches, and the result keeps the input box
 test("dish-filtered cores retain their input boxes and notes; included boxes are not clipped to the circle", () => {
   const outside = {
     id: "keep",
-    class: "seed",
+    class: "ungerminated",
     bbox: { x: 10, y: 10, width: 10, height: 10 },
   };
   const dish: AnnotationDefinition = {
@@ -294,7 +335,11 @@ test("dish-filtered cores retain their input boxes and notes; included boxes are
   const content = prepareProposal(
     {
       instances: [
-        { id: "outside-circle", class: "seed", box_2d: [200, 200, 260, 260] },
+        {
+          id: "outside-circle",
+          class: "ungerminated",
+          box_2d: [200, 200, 260, 260],
+        },
       ],
     },
     boundary,

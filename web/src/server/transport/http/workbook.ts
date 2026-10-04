@@ -5,9 +5,8 @@ import type { Workbook, WorkbookCell } from "../../../lib/spreadsheet/workbook";
 const CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-/** A tally is whole unless a mean falls between two; a share reads per hundred. */
+/** A tally is whole unless a mean falls between two. */
 const COUNT_FORMAT = "0.#";
-const RATE_FORMAT = "0.0%";
 /** A day reads largest unit first, the order that sorts as it reads. */
 const DATE_FORMAT = "yyyy-mm-dd";
 
@@ -31,14 +30,6 @@ function encode(cell: WorkbookCell): Cell {
         value: cell.count,
         type: Number,
         format: COUNT_FORMAT,
-        align: "right",
-      };
-    case "rate":
-      return {
-        ...style,
-        value: cell.rate,
-        type: Number,
-        format: RATE_FORMAT,
         align: "right",
       };
   }

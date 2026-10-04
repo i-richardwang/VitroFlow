@@ -10,7 +10,8 @@ const BUILTIN_MODEL_NAMES: ReadonlyMap<string, () => string> = new Map([
 ]);
 
 const BUILTIN_CLASS_NAMES: ReadonlyMap<string, () => string> = new Map([
-  ["seed", m.builtin_class_seed],
+  ["ungerminated", m.builtin_class_ungerminated],
+  ["germinated", m.builtin_class_germinated],
 ]);
 
 export function modelName(model: Pick<Model, "id" | "name">): string {

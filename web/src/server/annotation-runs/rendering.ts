@@ -10,6 +10,7 @@ import type {
   AnnotationContent,
 } from "../../domain/annotation-runs/schema";
 import type { Region } from "../../domain/annotation-runs/tasks";
+import { classColor } from "../../domain/models/classes";
 export type AnnotationPanel =
   { kind: "image"; bytes: Buffer } | { kind: "description"; value: unknown };
 const image = (bytes: Buffer): AnnotationPanel => ({ kind: "image", bytes });
@@ -29,13 +30,32 @@ const escape = (value: string) =>
         "'": "&apos;",
       })[c]!,
   );
-function overlay(
-  width: number,
-  height: number,
-  boxes: { bbox: BoundingBox; label: string }[],
-) {
+type MarkedBox = { bbox: BoundingBox; label: string; color: string };
+
+/** Boxes outlined in their class's color, labeled with the class too when the task has several. */
+function marks(
+  classes: readonly string[],
+  items: { id: string; class: string; bbox: BoundingBox }[],
+): MarkedBox[] {
+  return items.map((item) => ({
+    bbox: item.bbox,
+    label: classes.length > 1 ? `${item.id} ${item.class}` : item.id,
+    color: classColor(classes, item.class).hex,
+  }));
+}
+
+/** A panel's description, naming the outline color of each class when there are several. */
+function described(text: string, classes: readonly string[]) {
+  return description(
+    classes.length > 1
+      ? `${text} Outline colors: ${classes.map((name) => `${name} ${classColor(classes, name).name}`).join(", ")}.`
+      : text,
+  );
+}
+
+function overlay(width: number, height: number, boxes: MarkedBox[]) {
   return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxes.map(({ bbox: b, label }) => `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="none" stroke="#ef4444" stroke-width="2"/><text x="${b.x + 2}" y="${Math.max(12, b.y + 12)}" fill="#fff" stroke="#000" stroke-width="0.3" font-size="12">${escape(label)}</text>`).join("")}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxes.map(({ bbox: b, label, color }) => `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="none" stroke="${color}" stroke-width="2"/><text x="${b.x + 2}" y="${Math.max(12, b.y + 12)}" fill="#fff" stroke="#000" stroke-width="0.3" font-size="12">${escape(label)}</text>`).join("")}</svg>`,
   );
 }
 const rendered = new ByteCache<Buffer>(16 * 1024 * 1024);
@@ -47,7 +67,7 @@ async function marked(
   bytes: Buffer,
   width: number,
   height: number,
-  boxes: { bbox: BoundingBox; label: string }[],
+  boxes: MarkedBox[],
 ): Promise<Buffer> {
   const cached = rendered.get(key);
   if (cached) return cached;
@@ -100,7 +120,7 @@ export async function renderTask(
   preview?: { content: AnnotationContent; proposalId: string },
 ) {
   const { patch } = region,
-    scale = definition.config.displayScale;
+    { classes, displayScale: scale } = definition.config;
   const width = patch.width * scale,
     height = patch.height * scale;
   const { clean } = evidence;
@@ -128,16 +148,20 @@ export async function renderTask(
       clean,
       width,
       height,
-      preview.content.document.instances.map((item) => ({
-        bbox: local(item.bbox),
-        label: item.id,
-      })),
+      marks(
+        classes,
+        preview.content.document.instances.map((item) => ({
+          ...item,
+          bbox: local(item.bbox),
+        })),
+      ),
     );
     panels.push(
       description("CLEAN — image evidence"),
       image(clean),
-      description(
-        "PROPOSED — boxes this region will save; halo-only boxes belong to neighboring regions. Inspect every edge against CLEAN before submitting. Changed geometry requires another preview.",
+      described(
+        "PROPOSED — boxes this region will save; halo-only boxes belong to neighboring regions. Inspect every edge and class against CLEAN before submitting. Changed geometry requires another preview.",
+        classes,
       ),
       image(drawn),
     );
@@ -164,10 +188,14 @@ export async function renderTask(
         : [];
     });
     if (references.length) {
-      const boxes = references.map((item, i) => ({
-        bbox: local(item.bbox),
-        label: String(i + 1),
-      }));
+      const boxes = marks(
+        classes,
+        references.map((item, i) => ({
+          ...item,
+          id: String(i + 1),
+          bbox: local(item.bbox),
+        })),
+      );
       const initial = await marked(
         `${evidence.key}/references/${contentDigest(canonicalJson(boxes))}`,
         clean,
@@ -184,7 +212,7 @@ export async function renderTask(
             class: item.class,
           })),
         }),
-        description("INITIAL — previous annotation references"),
+        described("INITIAL — previous annotation references.", classes),
         image(initial),
       );
     } else

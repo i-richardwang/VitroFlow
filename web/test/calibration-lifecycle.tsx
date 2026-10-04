@@ -139,6 +139,7 @@ const dropdownWidget = Object.assign(Widget, {
 mock.module("@heroui/react", () => ({
   Dropdown: dropdownWidget,
   Chip: widget,
+  ColorSwatch: widget,
   Alert: widget,
   AlertDialog: widget,
   Description: widget,
@@ -199,7 +200,7 @@ const annotation = {
   instances: [
     {
       id: "box-1",
-      class: "seed",
+      class: "ungerminated",
       bbox: { x: 100, y: 100, width: 50, height: 50 },
     },
   ],

@@ -30,7 +30,7 @@ import type { Model } from "../../domain/models/schema";
 import { getAnnotation, saveAnnotation } from "../../functions/review";
 import { m } from "../../paraglide/messages";
 import { errorMessage } from "../../ui/errors";
-import { toolForShortcut, type Tool } from "./controls";
+import { classForShortcut, toolForShortcut, type Tool } from "./controls";
 
 interface SessionState {
   draft: AnnotationDraft;
@@ -112,8 +112,9 @@ export type Calibration =
       deleteSelected: () => void;
       sources: ReviewSource[];
       restartFrom: (source: ReviewSource) => void;
-      className: string;
-      changeClass: (className: string) => void;
+      /** The class the picker shows: the selected box's, or the one new boxes take. */
+      boxClass: string;
+      changeClass: (name: string) => void;
       activeClass: string;
       discard: { onStay: () => void; onLeave: () => void } | null;
     };
@@ -254,14 +255,12 @@ export function useCalibrationSession({
   }, [instances, session?.selectedId, replaceInstances]);
 
   const changeClass = useCallback(
-    (className: string) => {
-      dispatch({ type: "activeClass", activeClass: className });
-      if (!selected || selected.class === className) return;
+    (name: string) => {
+      dispatch({ type: "activeClass", activeClass: name });
+      if (!selected || selected.class === name) return;
       replaceInstances(
         instances.map((instance) =>
-          instance.id === selected.id
-            ? { ...instance, class: className }
-            : instance,
+          instance.id === selected.id ? { ...instance, class: name } : instance,
         ),
       );
     },
@@ -316,6 +315,8 @@ export function useCalibrationSession({
     onDelete: deleteSelected,
     onUndo: undo,
     onRedo: redo,
+    classes: model.classes,
+    onClassChange: changeClass,
   });
 
   if (!calibrating) return { status: "idle" };
@@ -346,7 +347,7 @@ export function useCalibrationSession({
       ...availableSources({ ...review, annotation: null }),
     ],
     restartFrom,
-    className: selected?.class ?? session.activeClass,
+    boxClass: selected?.class ?? session.activeClass,
     changeClass,
     activeClass: session.activeClass,
     discard:
@@ -373,6 +374,8 @@ function useShortcuts({
   onDelete,
   onUndo,
   onRedo,
+  classes,
+  onClassChange,
 }: {
   enabled: boolean;
   onPanChange: (panning: boolean) => void;
@@ -381,6 +384,8 @@ function useShortcuts({
   onDelete: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  classes: readonly string[];
+  onClassChange: (name: string) => void;
 }) {
   useEffect(() => {
     if (!enabled) {
@@ -411,7 +416,12 @@ function useShortcuts({
         return;
       }
       const tool = toolForShortcut(event.key);
-      if (tool) onToolChange(tool);
+      if (tool) {
+        onToolChange(tool);
+        return;
+      }
+      const shortcutClass = classForShortcut(classes, event.key);
+      if (shortcutClass) onClassChange(shortcutClass);
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === " ") onPanChange(false);
@@ -422,5 +432,15 @@ function useShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [enabled, onPanChange, onToolChange, onEscape, onDelete, onUndo, onRedo]);
+  }, [
+    enabled,
+    onPanChange,
+    onToolChange,
+    onEscape,
+    onDelete,
+    onUndo,
+    onRedo,
+    classes,
+    onClassChange,
+  ]);
 }

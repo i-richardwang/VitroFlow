@@ -115,7 +115,8 @@ Each region is then worked through four tools:
   coordinates for rendering. The immutable response is the content accepted by
   submission and projected into the final image. PROPOSED
   shows only the boxes this region owns and will save; halo-only boxes belong to
-  neighboring regions. Preview and final collection use the same projection.
+  neighboring regions. Boxes are outlined in their class's color, and a model
+  with several classes labels each box with its class and names the colors. Preview and final collection use the same projection.
 - `annotation_submit({taskId, proposalId})` durably accepts exactly the previewed
   proposal. Changed geometry requires a new preview. Empty regions still submit an
   empty instance list. The final accepted region automatically completes the run.
@@ -202,15 +203,16 @@ run changes, validate geometry, accept a region and update progress. Concurrent
 final submissions cannot complete a run twice. Source-coordinate boxes are owned
 by the half-open core containing their centers. Neighbors read the same seam
 object independently, so their centers can disagree; collection therefore reads
-every region's boxes, halo context included, and treats boxes of one class from
-different regions overlapping by IoU ≥ 0.5 as one object, at most one box per
-region, strongest overlaps first. Each object yields one box: a retained input box
-first, then a box its region owns, then a whole halo reading over a cut one. A
-halo reading its owning region did not confirm is dropped. Issues follow the same
-rule without classes. A scoped run reads the frozen input boxes of regions it did
-not redraw (those whose centers fall there) as retained readings, so its seams
-behave the same way. Overlaps within one region are never merged. Owned boxes
-touching internal patch edges are rejected. Uncertainty and boundary truncation
+every region's boxes, halo context included, and treats boxes from different
+regions overlapping by IoU ≥ 0.5 as one object, whatever class each region
+judged it, at most one box per region, strongest overlaps first. Each object
+yields one box, its class included: a retained input box first, then a box its
+region owns, then a whole halo reading over a cut one. A halo reading its owning
+region did not confirm is dropped. Issues follow the same rule. A scoped run
+reads the frozen input boxes of regions it did not redraw (those whose centers
+fall there) as retained readings, so its seams behave the same way. Overlaps
+within one region are never merged. Owned boxes touching internal patch edges
+are rejected. Uncertainty and boundary truncation
 remain in the proposal. Frozen input notes, when present, describe the input
 proposal; bare boxes carry no such assessment. Geometry validation does not
 establish visual accuracy.

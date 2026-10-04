@@ -2,8 +2,7 @@ import { Switch, SwitchGroup } from "@heroui/react";
 import type { ReactNode } from "react";
 
 import { classCount, count, type Tally } from "../../domain/models/classes";
-import { LAYERS, type LayerKey } from "./controls";
-import { className } from "../../ui/model-names";
+import { ClassLabel, LAYERS, type LayerKey } from "./controls";
 import { formatCount } from "../../ui/readings";
 import { m } from "../../paraglide/messages";
 
@@ -23,18 +22,15 @@ export function Section({
 }
 
 export interface Metric {
-  label: string;
+  label: ReactNode;
   value: ReactNode;
 }
 
 export function Metrics({ rows }: { rows: Metric[] }) {
   return (
     <dl className="space-y-1.5">
-      {rows.map((row) => (
-        <div
-          key={row.label}
-          className="flex items-baseline justify-between gap-3"
-        >
+      {rows.map((row, index) => (
+        <div key={index} className="flex items-baseline justify-between gap-3">
           <dt className="text-muted">{row.label}</dt>
           <dd className="truncate font-mono font-medium tabular-nums">
             {row.value}
@@ -64,13 +60,18 @@ export function CountsSection({
   sources: CountSource[];
 }) {
   if (!sources.length) return null;
-  const rows: { label: string; of: (counts: Tally) => number }[] = [
+  const rows: {
+    key: string;
+    label: ReactNode;
+    of: (counts: Tally) => number;
+  }[] = [
     ...classes.map((name) => ({
-      label: className(name),
+      key: name,
+      label: <ClassLabel classes={classes} name={name} />,
       of: (counts: Tally) => classCount(counts, name),
     })),
     ...(classes.length > 1
-      ? [{ label: m.workbench_count_total(), of: count }]
+      ? [{ key: "total", label: m.workbench_count_total(), of: count }]
       : []),
   ];
   if (sources.length === 1) {
@@ -105,7 +106,7 @@ export function CountsSection({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.label}>
+            <tr key={row.key}>
               <th scope="row" className="text-left font-normal text-muted">
                 {row.label}
               </th>
@@ -157,13 +158,7 @@ export function LayersSection({
             onChange={(on) => toggle(layer.key, on)}
           >
             <Switch.Content className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-2">
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: layer.color }}
-                />
-                {layer.label()}
-              </span>
+              {layer.label()}
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>

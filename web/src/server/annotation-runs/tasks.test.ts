@@ -31,7 +31,9 @@ async function setup(name: string) {
   return { run, ref };
 }
 const proposal = {
-  instances: [{ id: "s1", class: "seed", box_2d: [100, 100, 300, 300] }],
+  instances: [
+    { id: "s1", class: "ungerminated", box_2d: [100, 100, 300, 300] },
+  ],
 };
 
 test("image-to-preview-to-submit is durable, idempotent and remains an unreviewed proposal", async () => {
@@ -139,7 +141,7 @@ test("twenty regions reuse frozen context across views and reconnects before fin
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Regional annotation test",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
   });
   ref.modelId = model.id;
   await setModelAnnotation({
@@ -211,7 +213,7 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Partial annotation test",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
   });
   ref.modelId = model.id;
   await setModelAnnotation({
@@ -226,12 +228,12 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   });
   const kept = {
     id: "kept",
-    class: "seed",
+    class: "ungerminated",
     bbox: { x: 2, y: 2, width: 4, height: 4 },
   };
   const stale = {
     id: "stale",
-    class: "seed",
+    class: "ungerminated",
     bbox: { x: 50, y: 50, width: 4, height: 4 },
   };
   await storeAnnotation(ref, [kept, stale], null);
@@ -265,7 +267,9 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   const next = await nextAnnotationTask(ref);
   expect(next.taskId).toBe(`${partial.id}/tile-003-003`);
   const preview = await savePreview(next.taskId, {
-    instances: [{ id: "fresh", class: "seed", box_2d: [500, 500, 700, 700] }],
+    instances: [
+      { id: "fresh", class: "ungerminated", box_2d: [500, 500, 700, 700] },
+    ],
   });
   const receipt = await submitProposal(next.taskId, preview.proposalId);
   expect(receipt.status).toBe("succeeded");
@@ -287,7 +291,7 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   const model = await createModel({
     id: crypto.randomUUID(),
     name: "Partial proposal notes",
-    classes: ["seed"],
+    classes: ["ungerminated", "germinated"],
   });
   ref.modelId = model.id;
   await setModelAnnotation({
@@ -314,7 +318,14 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
     const preview = await savePreview(taskId, {
       instances:
         first || neighbor || corner
-          ? [{ id: "seed", class: "seed", box_2d, uncertain: first || corner }]
+          ? [
+              {
+                id: "seed",
+                class: "ungerminated",
+                box_2d,
+                uncertain: first || corner,
+              },
+            ]
           : [],
       issues:
         first || corner

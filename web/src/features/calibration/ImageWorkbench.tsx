@@ -134,7 +134,7 @@ export function ImageWorkbench({
             sources={ready.sources}
             onRestart={ready.restartFrom}
             classes={model.classes}
-            className={ready.className}
+            boxClass={ready.boxClass}
             onClassChange={ready.changeClass}
           />
         </WorkbenchToolbar>
@@ -182,11 +182,12 @@ export function ImageWorkbench({
         {ready && !saving ? (
           <EditableBoxLayer
             image={review}
+            classes={model.classes}
             instances={ready.instances}
             layers={display.layers}
             tool={ready.tool}
             panning={ready.panning}
-            className={ready.activeClass}
+            activeClass={ready.activeClass}
             selectedId={ready.selectedId}
             onSelect={ready.setSelectedId}
             onInstancesChange={ready.replaceInstances}
@@ -194,6 +195,7 @@ export function ImageWorkbench({
         ) : (
           <BoxLayer
             image={review}
+            classes={model.classes}
             instances={instances}
             layers={display.layers}
           />

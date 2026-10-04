@@ -301,9 +301,9 @@ export type CultureEventRef = z.infer<typeof cultureEventRefSchema>;
 
 /**
  * An observation is one day the units were photographed, and the question
- * asked of them: a seed detector on the day of sowing, a germination model
- * once shoots can show. Which version answers is the workbench's business,
- * and until one is trained the answer is a reviewer's own.
+ * asked of them: the model its images are read for. Which version answers is
+ * the workbench's business, and until one is trained the answer is a
+ * reviewer's own.
  */
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,

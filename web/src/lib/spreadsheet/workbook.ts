@@ -15,8 +15,7 @@ type CellValue =
   | { readonly kind: "blank" }
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "date"; readonly date: Date }
-  | { readonly kind: "count"; readonly count: number }
-  | { readonly kind: "rate"; readonly rate: number };
+  | { readonly kind: "count"; readonly count: number };
 
 export interface CellStyle {
   readonly strong?: boolean;
@@ -50,10 +49,6 @@ export function dateCell(
 
 export function countCell(count: number, style: CellStyle = {}): WorkbookCell {
   return { kind: "count", count, ...style };
-}
-
-export function rateCell(rate: number, style: CellStyle = {}): WorkbookCell {
-  return { kind: "rate", rate, ...style };
 }
 
 interface WorkbookColumn {

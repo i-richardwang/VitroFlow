@@ -42,6 +42,26 @@ export function count(counts: Tally): number {
   return Object.values(counts).reduce((sum, found) => sum + found, 0);
 }
 
+/**
+ * Each class keeps one color wherever its boxes are drawn, for the people who
+ * calibrate them and the agents that propose them alike, taken in the order
+ * its model declares its classes.
+ */
+const CLASS_COLORS = [
+  { name: "blue", hex: "#3b82f6" },
+  { name: "magenta", hex: "#d946ef" },
+  { name: "green", hex: "#22c55e" },
+] as const;
+
+export type ClassColor = (typeof CLASS_COLORS)[number];
+
+export function classColor(
+  classes: readonly string[],
+  name: string,
+): ClassColor {
+  return CLASS_COLORS[classes.indexOf(name) % CLASS_COLORS.length]!;
+}
+
 export function assertInstanceClasses(
   classes: readonly string[],
   instances: readonly { class: string }[],

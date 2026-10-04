@@ -23,18 +23,18 @@ const HEADING_ROWS = 3;
 const SEEDS: Model = {
   schemaVersion: 1,
   id: "seed-detector",
-  name: "Seed detector",
+  name: "Seed germination",
   task: "object_detection",
-  classes: ["seed"],
+  classes: ["ungerminated", "germinated"],
   annotation: DEFAULT_MODEL_ANNOTATION,
 };
 
-const SHOOTS: Model = {
+const ROOTS: Model = {
   schemaVersion: 1,
-  id: "germination",
-  name: "Germination",
+  id: "rooting",
+  name: "Rooting",
   task: "object_detection",
-  classes: ["germinated"],
+  classes: ["rooted"],
   annotation: DEFAULT_MODEL_ANNOTATION,
 };
 
@@ -59,13 +59,13 @@ const SOWN: ExperimentObservation = {
   hasRecords: true,
 };
 
-const GERMINATED: ExperimentObservation = {
-  id: "germinated",
+const ROOTED: ExperimentObservation = {
+  id: "rooted",
   ordinal: 2,
   observedOn: "2026-09-15",
   day: 14,
   note: "",
-  modelId: SHOOTS.id,
+  modelId: ROOTS.id,
   hasRecords: true,
 };
 
@@ -81,7 +81,7 @@ const CONTAMINATED: Unit["events"] = [
   {
     id: "event",
     type: "contaminated",
-    observation: GERMINATED.id,
+    observation: ROOTED.id,
     recordedAt: "2026-09-15T00:00:00.000Z",
   },
 ];
@@ -115,14 +115,14 @@ function trial(overrides: Partial<ExperimentWorkbookSource> = {}) {
       experiment: EXPERIMENT,
       treatments: [TREATMENT],
       units: [unit("A1"), unit("A2")],
-      observations: [SOWN, GERMINATED],
+      observations: [SOWN, ROOTED],
       images: [
-        image("A1", SOWN.id, { seed: 20 }),
-        image("A2", SOWN.id, { seed: 20 }),
-        image("A1", GERMINATED.id, { germinated: 15 }),
-        image("A2", GERMINATED.id, { germinated: 10 }),
+        image("A1", SOWN.id, { ungerminated: 20 }),
+        image("A2", SOWN.id, { ungerminated: 20 }),
+        image("A1", ROOTED.id, { rooted: 15 }),
+        image("A2", ROOTED.id, { rooted: 10 }),
       ],
-      models: [SEEDS, SHOOTS],
+      models: [SEEDS, ROOTS],
       ...overrides,
     },
     "2026-09-20",
@@ -171,31 +171,34 @@ describe("the experiment workbook", () => {
   test("names the model of every day, and dates it underneath", () => {
     const [names, dates, quantities] = heading(trial());
     expect(names?.slice(3)).toEqual([
-      { kind: "text", text: "Day 0 · Seed detector", strong: true, columns: 2 },
+      {
+        kind: "text",
+        text: "Day 0 · Seed germination",
+        strong: true,
+        columns: 2,
+      },
       { kind: "blank" },
-      { kind: "text", text: "Day 14 · Germination", strong: true, columns: 3 },
-      { kind: "blank" },
+      { kind: "text", text: "Day 14 · Rooting", strong: true, columns: 2 },
       { kind: "blank" },
     ]);
     expect(dates?.slice(3)).toEqual([
       { kind: "date", date: new Date(Date.UTC(2026, 8, 1)), columns: 2 },
       { kind: "blank" },
-      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)), columns: 3 },
-      { kind: "blank" },
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)), columns: 2 },
       { kind: "blank" },
     ]);
     expect(
       quantities?.slice(3).map((cell) => cell.kind === "text" && cell.text),
-    ).toEqual(["Count", "Replicates", "Count", "Rate", "Replicates"]);
+    ).toEqual(["Count", "Replicates", "Count", "Replicates"]);
   });
 
-  test("the day that establishes the population reads counts alone", () => {
+  test("every day reads a count and the replicates behind it", () => {
     const workbook = trial();
-    expect(workbook.columns).toHaveLength(8);
+    expect(workbook.columns).toHaveLength(7);
     expect(workbook.stickyColumns).toBe(3);
   });
 
-  test("a unit reads its own tallies, and a share as the fraction it is", () => {
+  test("a unit reads its own tallies", () => {
     const [, first] = readings(trial());
     expect(first).toEqual([
       { kind: "text", text: "CK" },
@@ -204,7 +207,6 @@ describe("the experiment workbook", () => {
       { kind: "count", count: 20 },
       { kind: "blank" },
       { kind: "count", count: 15 },
-      { kind: "rate", rate: 0.75 },
       { kind: "blank" },
     ]);
   });
@@ -216,7 +218,6 @@ describe("the experiment workbook", () => {
       { kind: "count", count: 20 },
       { kind: "count", count: 2 },
       { kind: "count", count: 12.5 },
-      { kind: "rate", rate: 0.625 },
       { kind: "count", count: 2 },
     ]);
   });
@@ -229,11 +230,9 @@ describe("the experiment workbook", () => {
     expect(second?.slice(5)).toEqual([
       { kind: "text", text: "Contaminated" },
       { kind: "blank" },
-      { kind: "blank" },
     ]);
     expect(summary?.slice(5)).toEqual([
       { kind: "count", count: 15 },
-      { kind: "rate", rate: 0.75 },
       { kind: "count", count: 1 },
     ]);
   });
@@ -241,18 +240,13 @@ describe("the experiment workbook", () => {
   test("a reading still to come leaves its cell empty, and its mean over none", () => {
     const workbook = trial({
       images: [
-        image("A1", SOWN.id, { seed: 20 }),
-        image("A2", SOWN.id, { seed: 20 }),
+        image("A1", SOWN.id, { ungerminated: 20 }),
+        image("A2", SOWN.id, { ungerminated: 20 }),
       ],
     });
     const [summary, first] = readings(workbook);
-    expect(first?.slice(5)).toEqual([
-      { kind: "blank" },
-      { kind: "blank" },
-      { kind: "blank" },
-    ]);
+    expect(first?.slice(5)).toEqual([{ kind: "blank" }, { kind: "blank" }]);
     expect(summary?.slice(5)).toEqual([
-      { kind: "blank" },
       { kind: "blank" },
       { kind: "count", count: 0 },
     ]);

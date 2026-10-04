@@ -14,7 +14,7 @@ function manifest(images: DatasetManifest["images"]): DatasetManifest {
   return {
     schemaVersion: 1,
     dataset: "archive-test",
-    model: { id: "seed-detector", classes: ["seed"] },
+    model: { id: "seed-detector", classes: ["ungerminated", "germinated"] },
     images,
   };
 }

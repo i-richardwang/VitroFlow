@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from conftest import (
+    SEED_CLASSES,
     annotation_document,
     encoded_image,
     manifest_entry,
@@ -56,7 +57,7 @@ def test_yolo_export_is_deterministic_and_self_contained(tmp_path: Path) -> None
     annotated = _annotated_blobs(data_root, 2)
 
     output = tmp_path / "yolo"
-    manifest = export_yolo_dataset(annotated, ("seed",), data_root, output, seed=7)
+    manifest = export_yolo_dataset(annotated, SEED_CLASSES, data_root, output, seed=7)
 
     entries = manifest["images"]
     assert [entry["digest"] for entry in entries] == sorted(
@@ -84,7 +85,7 @@ def test_yolo_export_is_deterministic_and_self_contained(tmp_path: Path) -> None
     ]
 
     with pytest.raises(FileExistsError, match="already exists"):
-        export_yolo_dataset(annotated, ("seed",), data_root, output, seed=7)
+        export_yolo_dataset(annotated, SEED_CLASSES, data_root, output, seed=7)
 
 
 def test_yolo_export_preserves_the_model_class_order(tmp_path: Path) -> None:
@@ -135,10 +136,10 @@ def test_yolo_validation_split_is_stable_per_digest(tmp_path: Path) -> None:
     annotated = _annotated_blobs(data_root, 5)
 
     first = export_yolo_dataset(
-        annotated, ("seed",), data_root, tmp_path / "one", seed=3
+        annotated, SEED_CLASSES, data_root, tmp_path / "one", seed=3
     )
     second = export_yolo_dataset(
-        annotated[::-1], ("seed",), data_root, tmp_path / "two", seed=3
+        annotated[::-1], SEED_CLASSES, data_root, tmp_path / "two", seed=3
     )
 
     assert first["images"] == second["images"]
@@ -150,7 +151,7 @@ def test_yolo_export_honours_recorded_splits(tmp_path: Path) -> None:
     annotated = _annotated_blobs(data_root, 2, ("val", "train"))
 
     manifest = export_yolo_dataset(
-        annotated, ("seed",), data_root, tmp_path / "yolo", seed=3
+        annotated, SEED_CLASSES, data_root, tmp_path / "yolo", seed=3
     )
 
     assert {entry["digest"]: entry["split"] for entry in manifest["images"]} == {
@@ -187,7 +188,7 @@ def test_yolo_export_requires_unique_digests(tmp_path: Path) -> None:
     image = DatasetImage(digest=digest, width=100, height=80, instances=())
 
     with pytest.raises(ValueError, match="unique image digests"):
-        export_dataset_images([image, image], ("seed",), data_root, tmp_path / "dup")
+        export_dataset_images([image, image], SEED_CLASSES, data_root, tmp_path / "dup")
 
 
 def test_yolo_export_discards_an_invalid_dataset(tmp_path: Path) -> None:
@@ -199,7 +200,7 @@ def test_yolo_export_discards_an_invalid_dataset(tmp_path: Path) -> None:
     output = tmp_path / "yolo"
 
     with pytest.raises(ValueError, match="dimensions differ"):
-        export_yolo_dataset(annotated, ("seed",), data_root, output)
+        export_yolo_dataset(annotated, SEED_CLASSES, data_root, output)
 
     assert not output.exists()
     assert not list(tmp_path.glob(".yolo-*"))
@@ -214,7 +215,7 @@ def test_yolo_export_refuses_a_corrupted_blob(tmp_path: Path) -> None:
     output = tmp_path / "yolo"
 
     with pytest.raises(BlobError, match="digest verification"):
-        export_yolo_dataset(annotated, ("seed",), data_root, output)
+        export_yolo_dataset(annotated, SEED_CLASSES, data_root, output)
 
     assert not output.exists()
 
@@ -225,7 +226,7 @@ def test_yolo_export_refuses_a_missing_blob(tmp_path: Path) -> None:
     blob_path(data_root, annotated[0].entry.digest).unlink()
 
     with pytest.raises(BlobError, match="missing"):
-        export_yolo_dataset(annotated, ("seed",), data_root, tmp_path / "yolo")
+        export_yolo_dataset(annotated, SEED_CLASSES, data_root, tmp_path / "yolo")
 
 
 def test_export_reads_recorded_splits_from_the_manifest(tmp_path: Path) -> None:
@@ -241,7 +242,9 @@ def test_export_reads_recorded_splits_from_the_manifest(tmp_path: Path) -> None:
     manifest_path = write_manifest(data_root, "batch", entries)
 
     annotated = load_annotations(manifest_path)
-    manifest = export_yolo_dataset(annotated, ("seed",), data_root, tmp_path / "yolo")
+    manifest = export_yolo_dataset(
+        annotated, SEED_CLASSES, data_root, tmp_path / "yolo"
+    )
 
     recorded = {entry["digest"]: entry["split"] for entry in entries}
     assert {entry["digest"]: entry["split"] for entry in manifest["images"]} == recorded

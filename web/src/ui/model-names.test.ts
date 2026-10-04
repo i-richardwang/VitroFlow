@@ -18,5 +18,5 @@ test("builtin names use the current language", () => {
   expect(modelName({ id: "seed-detector", name: "Stored name" })).toBe(
     m.builtin_model_seed_detector(),
   );
-  expect(className("seed")).toBe(m.builtin_class_seed());
+  expect(className("germinated")).toBe(m.builtin_class_germinated());
 });

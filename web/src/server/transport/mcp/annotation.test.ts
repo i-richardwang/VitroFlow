@@ -199,7 +199,7 @@ describe.each(requestEras)(
       const model = await createModel({
         id: `mcp-annotation-${era}`,
         name: `Annotation over MCP (${era})`,
-        classes: ["seed"],
+        classes: ["ungerminated", "germinated"],
         annotation: {
           area: "image",
           instructions: "Box every seed.",

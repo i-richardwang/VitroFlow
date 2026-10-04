@@ -20,6 +20,9 @@ from vitroflow.detectors.traditional.identity import ExecutionIdentity
 from vitroflow.detectors.traditional.pipeline import count_seeds
 from vitroflow.detectors.traditional.scoring import DEFAULT_MODEL, CandidateModel
 
+#: Every body the detector finds is a seed it cannot yet judge as germinated.
+TRADITIONAL_CLASS = "ungerminated"
+
 _BOX_SIDE_FRACTION = 0.025
 _MIN_BOX_SIZE = 2.0
 
@@ -99,7 +102,7 @@ class TraditionalDetector:
                 instances.append(
                     DetectionInstance(
                         instance_id=str(detection.detection_id),
-                        class_name="seed",
+                        class_name=TRADITIONAL_CLASS,
                         bbox=bbox,
                         score=detection.score,
                     )
