@@ -65,7 +65,7 @@ export function NewApiKeyDialog({
       <RevealOnceDialog
         revealed={issued}
         title={m.api_key_issued_title()}
-        warning={m.api_key_dialog_shown_once()}
+        hint={m.api_key_dialog_shown_once()}
         onClose={() => {
           setIssued(null);
           void router.invalidate();

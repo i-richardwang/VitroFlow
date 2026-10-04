@@ -1,19 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AppWindow } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
+import { AuthPage } from "../features/account/AuthPage";
 import { authClient, continuation } from "../features/account/client";
-import { AppBrand } from "../ui/BrandLogo";
 import { describeOAuthClient } from "../functions/integrations";
 import { MCP_SERVER_LABELS } from "../features/integrations/labels";
+import { BrandLogo } from "../ui/BrandLogo";
 import { useAsyncAction } from "../ui/hooks/useAsyncAction";
-import { AuthLayout } from "../ui/kit/AuthLayout";
+import { AuthConnection } from "../ui/kit/AuthLayout";
 import { Block } from "../ui/kit/Block";
 import { Button } from "../ui/kit/Button";
 import { Flexbox } from "../ui/kit/Flex";
 import { PageSkeleton } from "../ui/kit/PageSkeleton";
 import { Skeleton } from "../ui/kit/Skeleton";
-import { TextLink } from "../ui/kit/TextLink";
 import { documentTitle } from "../ui/documentTitle";
 import { m } from "../paraglide/messages";
 
@@ -48,7 +49,13 @@ export const Route = createFileRoute("/consent")({
   notFoundComponent: UnknownClientPage,
 });
 
-const brand = <AppBrand />;
+/** The client, which brings no mark of its own, joined to the product. */
+const connection = (
+  <AuthConnection
+    client={AppWindow}
+    product={<BrandLogo className="size-7" />}
+  />
+);
 
 function ConsentPage() {
   const client = Route.useLoaderData();
@@ -73,20 +80,32 @@ function ConsentPage() {
   };
 
   return (
-    <AuthLayout
-      brand={brand}
+    <AuthPage
+      centered
+      hero={connection}
       title={m.consent_title({ client: client.name })}
       description={
-        client.uri ? (
-          <TextLink href={client.uri} target="_blank" rel="noreferrer">
-            {client.uri}
-          </TextLink>
-        ) : undefined
+        <Flexbox gap={4} align="center">
+          {m.consent_description({
+            client: client.name,
+            product: m.app_name(),
+          })}
+          {client.uri ? (
+            <span className="text-xs font-normal break-all text-fg-tertiary">
+              {client.uri}
+            </span>
+          ) : null}
+        </Flexbox>
+      }
+      actions={
+        <ConsentDecisions choice={pending ? choice : null} onDecide={decide} />
       }
     >
       {client.servers.length > 0 ? (
         <Flexbox gap={8}>
-          <span className="text-fg-secondary">{m.consent_servers()}</span>
+          <span className="text-lg text-fg-secondary">
+            {m.consent_servers()}
+          </span>
           <Flexbox gap={4}>
             {client.servers.map((server) => (
               <Block key={server} padding={16} variant="filled">
@@ -96,19 +115,24 @@ function ConsentPage() {
           </Flexbox>
         </Flexbox>
       ) : null}
-      <ConsentDecisions choice={pending ? choice : null} onDecide={decide} />
-    </AuthLayout>
+    </AuthPage>
   );
 }
 
-/** The consent card while the client is looked up: its title and the two decisions. */
+/** The consent page while the client is looked up: its heading and the two decisions. */
 function ConsentPending() {
   return (
-    <AuthLayout brand={brand} title={<Skeleton.Inline width="9em" />}>
-      <PageSkeleton>
-        <ConsentDecisions disabled />
-      </PageSkeleton>
-    </AuthLayout>
+    <AuthPage
+      centered
+      hero={connection}
+      title={<Skeleton.Inline width="9em" />}
+      description={<Skeleton.Inline width="16em" />}
+      actions={
+        <PageSkeleton>
+          <ConsentDecisions disabled />
+        </PageSkeleton>
+      }
+    />
   );
 }
 
@@ -152,8 +176,7 @@ function ConsentDecisions({
 
 function UnknownClientPage() {
   return (
-    <AuthLayout
-      brand={brand}
+    <AuthPage
       title={m.consent_unknown_client()}
       description={m.consent_unknown_client_description()}
     />

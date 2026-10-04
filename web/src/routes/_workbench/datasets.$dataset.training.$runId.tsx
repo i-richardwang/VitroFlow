@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ChartLine } from "lucide-react";
 
 import { Metric } from "../../ui/Metric";
-import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
+import { Page } from "../../ui/Page";
 import { Timestamp } from "../../ui/Timestamp";
 import {
   EpochCharts,
@@ -16,14 +16,15 @@ import { TrainingRunState } from "../../features/training/TrainingRunState";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Alert } from "../../ui/kit/Alert";
-import { Card } from "../../ui/kit/Card";
 import { Empty } from "../../ui/kit/Empty";
 import {
   PageHeaderSkeleton,
   PageSkeleton,
-  StatGridSkeleton,
+  StatStripSkeleton,
 } from "../../ui/kit/PageSkeleton";
-import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import { Panel } from "../../ui/kit/Panel";
+import { Progress } from "../../ui/kit/Progress";
+import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
 import { TextLink } from "../../ui/kit/TextLink";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -49,13 +50,12 @@ export const Route = createFileRoute(
       {
         label: params.dataset,
         href: `/datasets/${params.dataset}`,
-        mono: true,
       },
       {
         label: m.training_title(),
         href: `/datasets/${params.dataset}/training`,
       },
-      { label: trainingRunLabel({ id: params.runId }), mono: true },
+      { label: trainingRunLabel({ id: params.runId }) },
     ],
   },
   head: ({ params }) => ({
@@ -72,16 +72,14 @@ export const Route = createFileRoute(
   }),
   pendingComponent: () => (
     <PageSkeleton>
-      <PageHeaderSkeleton description action />
-      <StatGridSkeleton count={2} />
-      <PageSectionSkeleton>
+      <PageHeaderSkeleton meta />
+      <StatStripSkeleton count={2} />
+      <Panel title={m.training_curves()}>
         <EpochChartsSkeleton />
-      </PageSectionSkeleton>
-      <PageSectionSkeleton>
-        <Card>
-          <ParametersListSkeleton />
-        </Card>
-      </PageSectionSkeleton>
+      </Panel>
+      <Panel title={m.training_parameters()}>
+        <ParametersListSkeleton />
+      </Panel>
     </PageSkeleton>
   ),
   component: TrainingRunPage,
@@ -103,72 +101,78 @@ function TrainingRunPage() {
 
   return (
     <Page
-      title={<span className="font-mono">{trainingRunLabel(run)}</span>}
-      description={<Timestamp value={run.createdAt} />}
-      action={
-        run.state.status === "failed" ? null : <TrainingRunState run={run} />
-      }
+      title={trainingRunLabel(run)}
+      status={<TrainingRunState run={run} />}
+      meta={[
+        <TextLink
+          key="dataset"
+          render={<Link to="/datasets/$dataset" params={{ dataset }} />}
+        >
+          {dataset}
+        </TextLink>,
+        <span key="base-model" className="font-mono text-xs">
+          {run.recipe.baseModel.reference}
+        </span>,
+        <Timestamp key="created" value={run.createdAt} />,
+      ]}
     >
-      {run.state.status === "failed" ? (
-        <Alert
-          type="error"
-          title={m.training_failed_title()}
-          description={run.state.error}
+      <StatStrip>
+        <StatStripItem
+          label={m.training_kpi_best_map()}
+          value={<Metric value={best?.map50To95 ?? null} />}
+          hint={
+            published
+              ? m.training_kpi_published({ version: published.id })
+              : best
+                ? m.training_kpi_best_epoch({ epoch: best.epoch })
+                : undefined
+          }
         />
-      ) : null}
-
-      <StatGrid>
-        <StatCard
+        <StatStripItem
           label={m.training_kpi_epochs()}
           value={m.run_epochs_progress({
             completed: current.length,
             total,
           })}
           hint={
-            earlier > 0
-              ? m.training_kpi_epochs_earlier_hidden({ count: earlier })
-              : undefined
+            <div className="flex flex-col gap-1">
+              <Progress
+                aria-label={m.training_kpi_epochs()}
+                size="small"
+                value={current.length}
+                max={total}
+              />
+              {earlier > 0
+                ? m.training_kpi_epochs_earlier_hidden({ count: earlier })
+                : null}
+            </div>
           }
         />
-        <StatCard
-          label={m.training_kpi_best_map()}
-          value={<Metric value={best?.map50To95 ?? null} />}
-          hint={
-            published ? (
-              <TextLink
-                render={<Link to="/datasets/$dataset" params={{ dataset }} />}
-              >
-                {m.training_kpi_published({ version: published.id })}
-              </TextLink>
-            ) : best ? (
-              m.training_kpi_best_epoch({ epoch: best.epoch })
-            ) : undefined
-          }
-        />
-      </StatGrid>
+      </StatStrip>
 
-      <PageSection title={m.training_curves()}>
+      <Panel title={m.training_curves()}>
+        {run.state.status === "failed" ? (
+          <Alert
+            type="error"
+            title={m.training_failed_title()}
+            description={
+              current.length === 0 ? m.training_no_epochs_finished() : undefined
+            }
+            detail={run.state.error}
+          />
+        ) : null}
         {current.length > 0 ? (
           <EpochCharts epochs={current} total={total} best={best} />
-        ) : (
-          <Card className="min-h-72 justify-center">
-            <Empty
-              icon={ChartLine}
-              title={
-                run.state.status === "failed"
-                  ? m.training_no_epochs_finished()
-                  : m.training_waiting_first_epoch()
-              }
-            />
-          </Card>
+        ) : run.state.status === "failed" ? null : (
+          <div className="flex min-h-72 flex-col justify-center">
+            <Empty icon={ChartLine} title={m.training_waiting_first_epoch()} />
+          </div>
         )}
-      </PageSection>
+      </Panel>
 
-      <PageSection title={m.training_parameters()}>
-        <Card>
-          <ParametersList parameters={run.recipe.parameters} />
-        </Card>
-      </PageSection>
+      <Panel title={m.training_parameters()}>
+        <ParametersList parameters={run.recipe.parameters} />
+      </Panel>
     </Page>
   );
 }

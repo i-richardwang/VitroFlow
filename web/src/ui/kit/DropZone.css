@@ -20,6 +20,7 @@
   justify-content: center;
   box-sizing: border-box;
   min-inline-size: 0;
+  min-block-size: 160px;
   padding-block: 24px;
   padding-inline: 28px;
   border-radius: var(--radius-lg);
@@ -53,13 +54,7 @@
 .ui-drop-zone-icon {
   display: flex;
   flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-secondary);
-  background: var(--color-fill-secondary);
+  color: var(--color-primary);
 }
 
 .ui-drop-zone-text {
@@ -81,7 +76,7 @@
   max-width: 320px;
   font-size: var(--text-xs);
   line-height: 18px;
-  color: var(--color-fg-secondary);
+  color: var(--color-fg-tertiary);
 }
 
 .ui-drop-zone-input {

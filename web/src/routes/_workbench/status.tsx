@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { Plus, Server, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Server, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { EnrollWorkerDialog } from "../../features/workers/EnrollWorkerDialog";
@@ -9,27 +9,16 @@ import type { WorkerActivity } from "../../domain/workers/schema";
 import { deleteWorker, getStatus } from "../../functions/status";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
-import { Page } from "../../ui/Page";
+import { RowMenu } from "../../ui/ActionsMenu";
+import { SettingsPage, SettingsPageSkeleton } from "../../ui/Page";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../ui/kit/Table";
-import { Status, type StatusTone } from "../../ui/kit/Status";
+import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
+import { SettingsGroup, SettingsGroupSkeleton } from "../../ui/kit/Settings";
+import { StatusDot, type StatusTone } from "../../ui/kit/Status";
 import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
 
@@ -39,19 +28,15 @@ export const Route = createFileRoute("/_workbench/status")({
   head: () => ({
     meta: [{ title: documentTitle(m.status_title()) }],
   }),
-  pendingComponent: StatusPending,
+  pendingComponent: () => (
+    <SettingsPageSkeleton>
+      <SettingsGroupSkeleton>
+        <ItemListSkeleton rows={3} />
+      </SettingsGroupSkeleton>
+    </SettingsPageSkeleton>
+  ),
   component: StatusPage,
 });
-
-function StatusPending() {
-  const { user } = Route.useRouteContext();
-  return (
-    <PageSkeleton>
-      <PageHeaderSkeleton action={isAdmin(user)} />
-      <TableSkeleton rows={3} />
-    </PageSkeleton>
-  );
-}
 
 const PRESENCE: Record<
   WorkerPresence,
@@ -69,46 +54,38 @@ function StatusPage() {
   const { user } = Route.useRouteContext();
   const [enrolling, setEnrolling] = useState(false);
   const administers = isAdmin(user);
+  const enroll = () => setEnrolling(true);
   useRouteRefresh(5000);
 
   return (
-    <Page
-      title={m.status_title()}
-      action={
-        administers ? (
-          <Button type="primary" icon={Plus} onClick={() => setEnrolling(true)}>
-            {m.worker_enroll()}
-          </Button>
-        ) : null
-      }
-    >
-      <Table narrow="cards" aria-label={m.status_table_label()}>
-        <TableHeader>
-          <tr>
-            <TableHead>{m.status_column_worker()}</TableHead>
-            <TableHead className="w-32">{m.status_column_presence()}</TableHead>
-            <TableHead>{m.status_column_activity()}</TableHead>
-            <TableHead className="w-36">
-              {m.status_column_last_seen()}
-            </TableHead>
-            {administers ? (
-              <TableHead className="w-12">
-                <span className="sr-only">{m.status_column_actions()}</span>
-              </TableHead>
+    <SettingsPage title={m.status_title()}>
+      <SettingsGroup
+        title={m.status_workers()}
+        extra={
+          <>
+            {workers.length > 0 ? (
+              <>
+                {m.status_worker_count({ count: workers.length })}
+                {administers ? (
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={Plus}
+                    onClick={enroll}
+                  >
+                    {m.worker_enroll()}
+                  </Button>
+                ) : null}
+              </>
             ) : null}
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {workers.length ? (
-            workers.map((worker) => (
-              <WorkerRow
-                key={worker.workerId}
-                worker={worker}
-                administers={administers}
-              />
-            ))
-          ) : (
-            <TableEmpty>
+            <RefreshButton />
+          </>
+        }
+      >
+        <ItemList
+          aria-label={m.status_workers()}
+          empty={
+            workers.length === 0 && (
               <Empty
                 icon={Server}
                 title={m.status_empty()}
@@ -119,27 +96,54 @@ function StatusPage() {
                 }
                 action={
                   administers ? (
-                    <Button icon={Plus} onClick={() => setEnrolling(true)}>
+                    <Button type="primary" icon={Plus} onClick={enroll}>
                       {m.worker_enroll()}
                     </Button>
                   ) : null
                 }
               />
-            </TableEmpty>
-          )}
-        </TableBody>
-      </Table>
+            )
+          }
+        >
+          {workers.map((worker) => (
+            <WorkerItem
+              key={worker.workerId}
+              worker={worker}
+              administers={administers}
+            />
+          ))}
+        </ItemList>
+      </SettingsGroup>
       {administers ? (
         <EnrollWorkerDialog
           open={enrolling}
           onClose={() => setEnrolling(false)}
         />
       ) : null}
-    </Page>
+    </SettingsPage>
   );
 }
 
-function WorkerRow({
+/** Reloads the roster now rather than at the next periodic refresh. */
+function RefreshButton() {
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+
+  return (
+    <ActionIcon
+      icon={RefreshCw}
+      size="small"
+      title={m.status_refresh()}
+      loading={refreshing}
+      onClick={() => {
+        setRefreshing(true);
+        void router.invalidate().finally(() => setRefreshing(false));
+      }}
+    />
+  );
+}
+
+function WorkerItem({
   worker,
   administers,
 }: {
@@ -149,62 +153,54 @@ function WorkerRow({
   const presence = PRESENCE[worker.presence];
 
   return (
-    <TableRow>
-      <TableCell cellSlot="title" className="font-mono">
-        {worker.workerId}
-      </TableCell>
-      <TableCell cellLabel={m.status_column_presence()}>
-        <Status tone={presence.tone}>{presence.label()}</Status>
-      </TableCell>
-      <TableCell cellLabel={m.status_column_activity()}>
-        <Activity activity={worker.activity} />
-      </TableCell>
-      <TableCell cellLabel={m.status_column_last_seen()}>
-        <span className="tabular-nums text-fg-secondary">
-          {worker.lastSeenSeconds === null
-            ? m.worker_never_seen()
-            : formatAge(worker.lastSeenSeconds)}
-        </span>
-      </TableCell>
-      {administers ? (
-        <TableCell cellSlot="extra" className="text-end">
-          <RemoveWorkerButton workerId={worker.workerId} />
-        </TableCell>
-      ) : null}
-    </TableRow>
-  );
-}
-
-function RemoveWorkerButton({ workerId }: { workerId: string }) {
-  const router = useRouter();
-
-  return (
-    <ActionIcon
-      icon={Trash2}
-      size="small"
-      title={m.worker_remove()}
-      onClick={() =>
-        confirmDestructive({
-          title: m.worker_remove_title({ name: workerId }),
-          content: m.worker_remove_description(),
-          confirmLabel: m.worker_remove(),
-          onConfirm: async () => {
-            await deleteWorker({ data: { workerId } });
-            toast.success(m.worker_removed({ name: workerId }));
-            await router.invalidate();
-          },
-        })
+    <Item
+      icon={Server}
+      title={worker.workerId}
+      addon={<StatusDot label={presence.label()} tone={presence.tone} />}
+      description={[
+        <Activity key="activity" activity={worker.activity} />,
+        worker.lastSeenSeconds === null
+          ? m.worker_never_seen()
+          : formatAge(worker.lastSeenSeconds),
+      ]}
+      actions={
+        administers ? <WorkerMenu workerId={worker.workerId} /> : undefined
       }
     />
   );
 }
 
+function WorkerMenu({ workerId }: { workerId: string }) {
+  const router = useRouter();
+
+  return (
+    <RowMenu
+      label={m.worker_actions({ name: workerId })}
+      items={[
+        {
+          key: "remove",
+          icon: Trash2,
+          label: m.worker_remove_item(),
+          danger: true,
+          onClick: () =>
+            confirmDestructive({
+              title: m.worker_remove_title({ name: workerId }),
+              content: m.worker_remove_description(),
+              confirmLabel: m.worker_remove(),
+              onConfirm: async () => {
+                await deleteWorker({ data: { workerId } });
+                toast.success(m.worker_removed({ name: workerId }));
+                await router.invalidate();
+              },
+            }),
+        },
+      ]}
+    />
+  );
+}
+
 function Activity({ activity }: { activity: WorkerActivity | null }) {
-  if (!activity) {
-    return (
-      <span className="text-fg-secondary">{m.worker_activity_idle()}</span>
-    );
-  }
+  if (!activity) return m.worker_activity_idle();
   if (activity.kind === "inference") {
     return m.worker_activity_inference({ image: activity.image });
   }

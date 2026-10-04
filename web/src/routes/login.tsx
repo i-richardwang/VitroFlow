@@ -7,14 +7,13 @@ import { KeyRound, Mail } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
+import { AuthPage } from "../features/account/AuthPage";
 import { authClient, continuation } from "../features/account/client";
 import {
   carriesAuthorizationRequest,
   returnPath,
 } from "../domain/auth/navigation";
-import { AppBrand } from "../ui/BrandLogo";
 import { useAsyncAction } from "../ui/hooks/useAsyncAction";
-import { AuthLayout } from "../ui/kit/AuthLayout";
 import { Button } from "../ui/kit/Button";
 import { Form } from "../ui/kit/Form";
 import { Icon } from "../ui/kit/Icon";
@@ -47,6 +46,8 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+const FORM_ID = "login";
+
 function LoginPage() {
   const { returnTo } = Route.useSearch();
   const destination = returnPath(returnTo);
@@ -56,8 +57,24 @@ function LoginPage() {
   const [rejected, setRejected] = useState(false);
 
   return (
-    <AuthLayout brand={<AppBrand />} title={m.login_title()}>
+    <AuthPage
+      title={m.login_title()}
+      description={m.login_description()}
+      actions={
+        <Button
+          block
+          form={FORM_ID}
+          htmlType="submit"
+          size="large"
+          type="primary"
+          loading={busy}
+        >
+          {m.login_submit()}
+        </Button>
+      }
+    >
       <Form
+        id={FORM_ID}
         errors={rejected ? { password: m.login_rejected() } : undefined}
         onSubmit={(event) => {
           event.preventDefault();
@@ -105,16 +122,7 @@ function LoginPage() {
             onChange={() => setRejected(false)}
           />
         </Form.Field>
-        <Button
-          block
-          htmlType="submit"
-          size="large"
-          type="primary"
-          loading={busy}
-        >
-          {m.login_submit()}
-        </Button>
       </Form>
-    </AuthLayout>
+    </AuthPage>
   );
 }

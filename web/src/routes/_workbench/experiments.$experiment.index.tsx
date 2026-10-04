@@ -9,6 +9,7 @@ import { m } from "../../paraglide/messages";
 import {
   PageHeaderSkeleton,
   PageSkeleton,
+  StatStripSkeleton,
   TableSkeleton,
 } from "../../ui/kit/PageSkeleton";
 
@@ -37,7 +38,8 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   }),
   pendingComponent: () => (
     <PageSkeleton>
-      <PageHeaderSkeleton description action />
+      <PageHeaderSkeleton meta action />
+      <StatStripSkeleton count={4} />
       <TableSkeleton />
     </PageSkeleton>
   ),

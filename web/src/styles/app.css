@@ -25,6 +25,7 @@
 @import "../ui/kit/Tooltip.css" layer(components);
 @import "../ui/kit/Alert.css" layer(components);
 @import "../ui/kit/Block.css" layer(components);
+@import "../ui/kit/IconBox.css" layer(components);
 @import "../ui/kit/Descriptions.css" layer(components);
 @import "../ui/kit/Empty.css" layer(components);
 @import "../ui/kit/Progress.css" layer(components);
@@ -46,13 +47,17 @@
 @import "../ui/kit/DraggablePanel.css" layer(components);
 @import "../ui/kit/ScrollShadow.css" layer(components);
 @import "../ui/kit/Card.css" layer(components);
+@import "../ui/kit/Panel.css" layer(components);
+@import "../ui/kit/Snippet.css" layer(components);
 @import "../ui/kit/AuthLayout.css" layer(components);
 @import "../ui/kit/Breadcrumb.css" layer(components);
 @import "../ui/kit/AppNav.css" layer(components);
 @import "../ui/kit/AppShell.css" layer(components);
 @import "../ui/kit/PageHeader.css" layer(components);
 @import "../ui/kit/PageSkeleton.css" layer(components);
-@import "../ui/kit/StatCard.css" layer(components);
+@import "../ui/kit/StatStrip.css" layer(components);
+@import "../ui/kit/ItemList.css" layer(components);
+@import "../ui/kit/Settings.css" layer(components);
 @import "../ui/kit/ChartTooltip.css" layer(components);
 @import "../ui/kit/ColorSwatch.css" layer(components);
 @import "../ui/kit/DatePicker.css" layer(components);
@@ -95,7 +100,10 @@
     "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", monospace,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 
-  /* Type scale. `sm` (13px) is the step for controls and dense tables. */
+  /*
+   * Type scale. `sm` (13px) is the step for controls and dense tables, `xl`
+   * (20px) for figures in a stat strip, `3xl` (28px) for the sign-in heading.
+   */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.25rem;
   --text-sm: 0.8125rem;
@@ -104,9 +112,11 @@
   --text-base--line-height: 1.375rem;
   --text-lg: 1rem;
   --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
-  --text-3xl: 1.875rem;
+  --text-3xl: 1.75rem;
 
   /* Four radii; fully round is `rounded-full`. */
   --radius-xs: 0.25rem;
@@ -499,6 +509,18 @@
   [aria-haspopup="menu"][data-popup-open] {
     background: var(--color-fill-tertiary);
   }
+}
+
+/*
+ * The space between a surface's content box and its edge. Content that runs
+ * edge to edge (a table's header band, a list's hover fill) reaches past its
+ * box by this much and insets its text by the same amount, so the text lines
+ * up with the content around it. The shell's content area and every padded
+ * surface (`Card`, `Panel`, `Modal`, a settings group) set it to their own
+ * padding; anywhere else it is zero.
+ */
+:root {
+  --surface-gutter: 0px;
 }
 
 /*

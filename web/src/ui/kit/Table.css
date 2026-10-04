@@ -1,6 +1,7 @@
 /*
- * The frame rounds its corners and clips the header background along with
- * them; `overflow: clip` clips without making the frame a scroller.
+ * The wrapper's negative margins take the table to the surface's edges and
+ * the edge padding brings the first and last columns back in line with the
+ * content; outside any surface padding the edge is 16px.
  *
  * A cell paints `--ui-table-cell-bg`. Several of its values are translucent, so
  * a pinned cell lays the same color over the container color to hide what
@@ -10,11 +11,12 @@
 .ui-table-wrapper {
   --ui-table-padding-block: 8px;
   --ui-table-padding-inline: 8px;
-  --ui-table-padding-edge: 24px;
+  --ui-table-padding-edge: max(var(--surface-gutter), 16px);
   --ui-table-selection-column-width: 36px;
   --ui-table-z-index-fixed: 2;
 
-  max-width: 100%;
+  min-inline-size: 0;
+  margin-inline: calc(var(--surface-gutter) * -1);
 
   .ui-table {
     box-sizing: border-box;
@@ -24,9 +26,6 @@
     font-size: var(--text-sm);
     line-height: var(--text-sm--line-height);
     font-family: var(--font-sans);
-    background: var(--color-container);
-    border: 1px solid var(--color-border-secondary);
-    border-radius: var(--radius-md);
     overflow: clip;
     scrollbar-color: var(--color-fg-quaternary) var(--color-divider);
   }
@@ -72,6 +71,12 @@
     white-space: nowrap;
   }
 
+  &.ui-table-small .ui-table-thead > tr > th {
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    color: var(--color-fg-tertiary);
+  }
+
   .ui-table-tbody > tr > td {
     transition: background-color var(--duration-fast) var(--ease-out);
   }
@@ -80,32 +85,91 @@
   .ui-table-tbody > tr > td[data-slot="title"] {
     font-weight: 500;
   }
-
-  .ui-table-footer {
-    padding: 10px var(--ui-table-padding-edge);
-    color: var(--color-fg);
-    border-top: 1px solid var(--color-border-secondary);
-  }
 }
 
-/* A group row is a heading for the rows below it; hover and selection still show on it. */
+/*
+ * A group row is a heading for the rows below it: taller, heavier and ruled
+ * off from the rows of the group before it, on the surface color so it never reads as the
+ * header band. Hover and selection still show on it.
+ */
 .ui-table-wrapper .ui-table-group-row > .ui-table-cell {
-  --ui-table-cell-bg: var(--color-fill-quaternary);
+  padding-block: 12px;
   font-weight: 600;
 }
 
-.ui-table-wrapper .ui-table-tbody > tr.ui-table-placeholder {
-  color: var(--color-fg-quaternary);
+/* The first group sits right under the header band, which already parts it from what is above. */
+.ui-table-wrapper .ui-table-group-row:not(:first-child) > .ui-table-cell {
+  border-block-start: 1px solid var(--color-border-secondary);
+}
 
-  > td {
-    text-align: center;
+/* The place of a table with no rows: its empty state, centered. */
+.ui-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-block-size: 240px;
+}
+
+/* Inherits the header cell's type; only the chevron has its own color until hover. */
+.ui-table-head-menu {
+  cursor: pointer;
+
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+
+  font: inherit;
+  color: inherit;
+
+  background: none;
+
+  @apply focus-ring;
+
+  &:hover,
+  &[data-popup-open] {
+    color: var(--color-fg);
+
+    .ui-table-head-menu-icon {
+      color: var(--color-fg);
+    }
+  }
+}
+
+.ui-table-head-menu-icon {
+  color: var(--color-fg-quaternary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Row actions wait for the row. They stay in the layout while hidden, so a
+ * row does not change width when they appear.
+ */
+@media (hover: hover) {
+  .ui-table-wrapper .ui-table-tbody > tr > td[data-slot="actions"] > * {
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .ui-table-wrapper
+    .ui-table-tbody
+    > tr:is(:hover, :focus-within, :has([data-popup-open]))
+    > td[data-slot="actions"]
+    > * {
+    opacity: 1;
   }
 }
 
 /*
  * The box sits centered in the column; as the first column it also keeps the
- * edge padding. No line box around the box, so the cell centers the box
- * itself rather than a text line it sits on the baseline of.
+ * edge padding. The box is a block of its own, so the cell centers the box
+ * itself whatever line height the header or body gives the row, rather than
+ * a text line it would sit on the baseline of.
  */
 .ui-table-wrapper {
   table tr th.ui-table-selection-column,
@@ -113,8 +177,11 @@
     width: var(--ui-table-selection-column-width);
     padding-inline-end: 8px;
     padding-inline-start: 8px;
-    line-height: 0;
-    text-align: center;
+
+    > .ui-checkbox {
+      display: flex;
+      margin-inline: auto;
+    }
   }
 
   table tr > .ui-table-selection-column:first-child {
@@ -137,7 +204,7 @@
   }
 
   &:where(:hover) > .ui-table-cell {
-    --ui-table-cell-bg: var(--color-fill-tertiary);
+    --ui-table-cell-bg: var(--color-fill-quaternary);
   }
 
   &[data-clickable] {
@@ -145,6 +212,11 @@
 
     &:hover > [data-slot="title"] {
       color: var(--color-info);
+    }
+
+    /* The row's hover already says the name leads somewhere. */
+    > [data-slot="title"] a {
+      text-decoration: none;
     }
   }
 }
@@ -184,19 +256,18 @@
   .ui-table-content {
     min-block-size: 0;
   }
-
-  .ui-table-footer {
-    flex: none;
-  }
 }
 
 /*
  * Pinned columns. A pinned start column overlays a pinned end column when
- * they meet. The shadow sits outside the inner edge of the last pinned start
- * cell and the first pinned end cell; without a pinned column on a side, the
- * container's own edge shadow shows there instead.
+ * they meet. While content scrolls under a pinned column, a soft edge fades
+ * from its inner side: drawn by each cell as a gradient the cell's full
+ * height, so the cells' edges join into one unbroken strip. Without a pinned
+ * column on a side, the container draws the same edge there instead.
  */
 .ui-table-wrapper {
+  --ui-table-scroll-edge-size: 10px;
+
   .ui-table-cell-fix {
     position: sticky;
     z-index: var(--ui-table-z-index-fixed);
@@ -208,10 +279,10 @@
       content: "";
       pointer-events: none;
       position: absolute;
-      top: 0;
-      bottom: -1px;
-      width: 30px;
-      transition: box-shadow var(--duration-slower);
+      inset-block: 0;
+      width: var(--ui-table-scroll-edge-size);
+      opacity: 0;
+      transition: opacity var(--duration-slower);
     }
   }
 
@@ -220,21 +291,20 @@
 
     &::after {
       inset-inline-start: 100%;
+      background: linear-gradient(to right, var(--color-divider), transparent);
     }
   }
 
   .ui-table-cell-fix-end::after {
     inset-inline-end: 100%;
+    background: linear-gradient(to left, var(--color-divider), transparent);
   }
 
   .ui-table-fix-start-shadow-show
-    .ui-table-cell-fix-start:not(:has(+ .ui-table-cell-fix-start))::after {
-    box-shadow: inset 10px 0 8px -8px var(--color-divider);
-  }
-
+    .ui-table-cell-fix-start:not(:has(+ .ui-table-cell-fix-start))::after,
   .ui-table-fix-end-shadow-show
     .ui-table-cell-fix-end:not(.ui-table-cell-fix-end + *)::after {
-    box-shadow: inset -10px 0 8px -8px var(--color-divider);
+    opacity: 1;
   }
 
   .ui-table-container {
@@ -246,18 +316,20 @@
       pointer-events: none;
       position: absolute;
       z-index: calc(var(--ui-table-z-index-fixed) + 3);
-      top: 0;
-      bottom: -1px;
-      width: 30px;
-      transition: box-shadow var(--duration-slower);
+      inset-block: 0;
+      width: var(--ui-table-scroll-edge-size);
+      opacity: 0;
+      transition: opacity var(--duration-slower);
     }
 
     &::before {
       inset-inline-start: 0;
+      background: linear-gradient(to right, var(--color-divider), transparent);
     }
 
     &::after {
       inset-inline-end: 0;
+      background: linear-gradient(to left, var(--color-divider), transparent);
     }
   }
 
@@ -271,12 +343,9 @@
     display: none;
   }
 
-  .ui-table-fix-start-shadow-show .ui-table-container::before {
-    box-shadow: inset 10px 0 8px -8px var(--color-divider);
-  }
-
+  .ui-table-fix-start-shadow-show .ui-table-container::before,
   .ui-table-fix-end-shadow-show .ui-table-container::after {
-    box-shadow: inset -10px 0 8px -8px var(--color-divider);
+    opacity: 1;
   }
 }
 
@@ -284,9 +353,9 @@
  * Card layout: the wrapper is a size container, and the cards switch on at
  * 600px of the table's own width rather than at a viewport breakpoint,
  * because the same table sits in a full page or beside a sidebar or an
- * inspector. The frame gives way to one outlined card per row; cards keep
- * their background on hover and selected cards use the primary-side
- * background. An empty body's placeholder stays a plain centered row.
+ * inspector. Each row becomes an outlined card, inset back to the content
+ * edge; cards keep their background on hover and selected cards use the
+ * primary-side background. Row actions always show.
  */
 .ui-table-wrapper.ui-table-narrow-cards {
   container-type: inline-size;
@@ -294,9 +363,7 @@
 
 @container (max-width: 600px) {
   .ui-table-wrapper.ui-table-narrow-cards .ui-table {
-    background: none;
-    border: none;
-    border-radius: 0;
+    padding-inline: var(--surface-gutter);
 
     table {
       display: block;
@@ -354,7 +421,7 @@
       justify-content: flex-end;
     }
 
-    /* Title and extra share the first row; both stretch to its height so their bottom borders meet in one line. */
+    /* Title and actions share the first row; both stretch to its height so their bottom borders meet in one line. */
     .ui-table-tbody > tr > td[data-slot="title"] {
       grid-column: 1;
       grid-row: 1;
@@ -366,23 +433,16 @@
       font-weight: 600;
     }
 
-    .ui-table-tbody > tr > td[data-slot="extra"] {
+    .ui-table-tbody > tr > td[data-slot="actions"] {
       grid-column: 2;
       grid-row: 1;
       align-self: stretch;
       justify-content: flex-end;
       padding-block: 8px;
       border-bottom: 1px solid var(--color-border-secondary);
-    }
 
-    .ui-table-tbody > tr.ui-table-placeholder {
-      display: block;
-      padding: 0;
-      border: none;
-
-      > td {
-        display: block;
-        text-align: center;
+      > * {
+        opacity: 1;
       }
     }
   }

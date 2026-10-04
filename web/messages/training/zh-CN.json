@@ -48,7 +48,6 @@
   "run_table_label": "训练任务",
   "run_column_run": "训练任务",
   "run_column_dataset": "数据集",
-  "run_column_state": "状态",
   "run_column_epochs": "轮次",
   "run_column_best_map50": "最佳 mAP50",
   "run_column_map50_95": "mAP50-95",
@@ -119,5 +118,9 @@
         "completed=*": "{formattedCompleted} / {formattedTotal}"
       }
     }
-  ]
+  ],
+  "train_dialog_recipe_title": "配方",
+  "parameter_group_training": "训练",
+  "parameter_group_augmentation": "数据增强",
+  "parameter_group_validation": "验证与复现"
 }

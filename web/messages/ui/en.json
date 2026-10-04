@@ -1,5 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
+  "ui_alert_detail": "Details",
   "ui_breadcrumb_label": "Breadcrumb",
   "ui_cancel": "Cancel",
   "ui_close": "Close",
@@ -16,6 +17,7 @@
   "ui_date_picker_prev_month": "Previous month",
   "ui_date_picker_prev_year": "Previous year",
   "ui_date_picker_today": "Today",
+  "ui_done": "Done",
   "ui_draggable_panel_collapse": "Collapse panel",
   "ui_draggable_panel_expand": "Expand panel",
   "ui_draggable_panel_resize": "Resize {panel}",

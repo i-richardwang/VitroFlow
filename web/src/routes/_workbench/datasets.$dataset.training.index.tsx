@@ -8,14 +8,14 @@ import { TrainDialog, trainRefusal } from "../../features/training/TrainDialog";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
-import { Button, type ButtonType } from "../../ui/kit/Button";
+import { Button } from "../../ui/kit/Button";
 import {
   PageHeaderSkeleton,
   PageSkeleton,
-  StatGridSkeleton,
+  StatStripSkeleton,
   TableSkeleton,
 } from "../../ui/kit/PageSkeleton";
-import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -35,7 +35,6 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
         {
           label: params.dataset,
           href: `/datasets/${params.dataset}`,
-          mono: true,
         },
         { label: m.training_title() },
       ],
@@ -52,7 +51,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
     pendingComponent: () => (
       <PageSkeleton>
         <PageHeaderSkeleton action />
-        <StatGridSkeleton count={2} />
+        <StatStripSkeleton count={2} />
         <TableSkeleton />
       </PageSkeleton>
     ),
@@ -72,15 +71,13 @@ function TrainingPage() {
     <Page
       title={m.training_title()}
       action={
-        <TrainButton
-          type="primary"
-          refusal={refusal}
-          onClick={() => setStarting(true)}
-        />
+        runs.length > 0 ? (
+          <TrainButton refusal={refusal} onClick={() => setStarting(true)} />
+        ) : null
       }
     >
-      <StatGrid>
-        <StatCard
+      <StatStrip>
+        <StatStripItem
           label={m.training_kpi_ready()}
           value={formatCount(reviewed)}
           hint={
@@ -91,11 +88,11 @@ function TrainingPage() {
               : undefined
           }
         />
-        <StatCard
+        <StatStripItem
           label={m.training_kpi_workers()}
           value={formatCount(training.workersOnline)}
         />
-      </StatGrid>
+      </StatStrip>
 
       <TrainingRunsTable
         runs={runs}
@@ -114,18 +111,16 @@ function TrainingPage() {
 
 /** Opens the training dialog, or says in a tooltip why a run cannot start. */
 function TrainButton({
-  type,
   refusal,
   onClick,
 }: {
-  type?: ButtonType;
   refusal: string | null;
   onClick: () => void;
 }) {
   return (
     <Tooltip title={refusal}>
       <Button
-        type={type}
+        type="primary"
         icon={Play}
         disabled={refusal !== null}
         onClick={onClick}

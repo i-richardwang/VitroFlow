@@ -6,14 +6,15 @@ import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingOverview } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
-import { Button } from "../../ui/kit/Button";
 import {
   PageHeaderSkeleton,
   PageSkeleton,
-  StatGridSkeleton,
+  StatStripSkeleton,
   TableSkeleton,
 } from "../../ui/kit/PageSkeleton";
-import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
+import { Tag } from "../../ui/kit/Tag";
+import { Button } from "../../ui/kit/Button";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/_workbench/training")({
   pendingComponent: () => (
     <PageSkeleton>
       <PageHeaderSkeleton />
-      <StatGridSkeleton count={3} />
+      <StatStripSkeleton count={3} />
       <PageSectionSkeleton>
         <TableSkeleton rows={3} />
       </PageSectionSkeleton>
@@ -46,40 +47,53 @@ function TrainingPage() {
 
   return (
     <Page title={m.training_title()}>
-      <StatGrid>
-        <StatCard label={m.training_kpi_runs()} value={formatCount(total)} />
-        <StatCard
+      <StatStrip>
+        <StatStripItem
+          label={m.training_kpi_runs()}
+          value={formatCount(total)}
+        />
+        <StatStripItem
           label={m.training_kpi_in_progress()}
           value={formatCount(inProgress)}
         />
-        <StatCard
+        <StatStripItem
           label={m.training_kpi_workers()}
           value={formatCount(workersOnline)}
         />
-      </StatGrid>
+      </StatStrip>
 
-      <PageSection title={m.versions_table()}>
-        <VersionsTable
-          versions={versions}
-          emptyAction={
-            <Button render={<Link to="/datasets" />}>
-              {m.run_empty_open_datasets()}
-            </Button>
-          }
-        />
+      <PageSection
+        title={m.versions_table()}
+        extra={
+          versions.length > 0 ? <CountTag count={versions.length} /> : null
+        }
+      >
+        <VersionsTable versions={versions} emptyAction={<OpenDatasets />} />
       </PageSection>
 
-      <PageSection title={m.run_table_label()}>
+      <PageSection
+        title={m.run_table_label()}
+        extra={runs.length > 0 ? <OpenDatasets /> : null}
+      >
         <TrainingRunsTable
           runs={runs}
           datasetColumn
-          emptyAction={
-            <Button render={<Link to="/datasets" />}>
-              {m.run_empty_open_datasets()}
-            </Button>
-          }
+          emptyAction={<OpenDatasets />}
         />
       </PageSection>
     </Page>
+  );
+}
+
+function CountTag({ count }: { count: number }) {
+  return <Tag size="small">{formatCount(count)}</Tag>;
+}
+
+/** Training starts from a dataset's training page, so the runs point there. */
+function OpenDatasets() {
+  return (
+    <Button render={<Link to="/datasets" />}>
+      {m.run_empty_open_datasets()}
+    </Button>
   );
 }

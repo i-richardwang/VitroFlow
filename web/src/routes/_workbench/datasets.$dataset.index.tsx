@@ -1,10 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ChartLine, Download, ImagePlus } from "lucide-react";
+import { ChartLine, ImagePlus, Images } from "lucide-react";
 
 import { QualityTags } from "../../ui/DetectionQuality";
 import { Absent } from "../../ui/Absent";
-import { Page } from "../../ui/Page";
-import { archiveFilename } from "../../domain/datasets/archive-format";
+import { Page, PageSection, PageSectionSkeleton } from "../../ui/Page";
+import { modelName } from "../../ui/model-names";
+import { DatasetMenu } from "../../features/datasets/DatasetMenu";
 import { RemoveImageButton } from "../../features/datasets/RemoveImageButton";
 import { formatCount } from "../../ui/numbers";
 import { getDatasetOverview } from "../../functions/datasets";
@@ -14,19 +15,20 @@ import { Empty } from "../../ui/kit/Empty";
 import {
   PageHeaderSkeleton,
   PageSkeleton,
-  StatGridSkeleton,
+  StatStripSkeleton,
   TableSkeleton,
 } from "../../ui/kit/PageSkeleton";
-import { StatCard, StatGrid } from "../../ui/kit/StatCard";
+import { Progress } from "../../ui/kit/Progress";
+import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
 import {
   Table,
   TableBody,
   TableCell,
-  TableEmpty,
   TableHead,
   TableHeader,
   TableRow,
 } from "../../ui/kit/Table";
+import { Tag } from "../../ui/kit/Tag";
 import { TextLink } from "../../ui/kit/TextLink";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -42,7 +44,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   staticData: {
     crumbs: ({ params }) => [
       { label: m.datasets_title(), href: "/datasets" },
-      { label: params.dataset, mono: true },
+      { label: params.dataset },
     ],
   },
   head: ({ params }) => ({
@@ -50,9 +52,11 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   }),
   pendingComponent: () => (
     <PageSkeleton>
-      <PageHeaderSkeleton action />
-      <StatGridSkeleton count={2} />
-      <TableSkeleton />
+      <PageHeaderSkeleton icon description action />
+      <StatStripSkeleton count={2} />
+      <PageSectionSkeleton>
+        <TableSkeleton />
+      </PageSectionSkeleton>
     </PageSkeleton>
   ),
   component: DatasetPage,
@@ -60,26 +64,18 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
-  const { images, reviewedCount, training } = Route.useLoaderData();
+  const { model, images, reviewedCount, training } = Route.useLoaderData();
 
   useRouteRefresh(10_000);
 
   return (
     <Page
-      title={<span className="block truncate font-mono">{dataset}</span>}
+      title={dataset}
+      icon={Images}
+      description={modelName(model)}
       action={
         <>
-          <Button
-            icon={Download}
-            render={
-              <a
-                href={`/datasets/${encodeURIComponent(dataset)}/archive`}
-                download={archiveFilename(dataset)}
-              />
-            }
-          >
-            {m.dataset_download()}
-          </Button>
+          <DatasetMenu dataset={dataset} />
           <Button
             type="primary"
             icon={ChartLine}
@@ -92,13 +88,23 @@ function DatasetPage() {
         </>
       }
     >
-      <StatGrid>
-        <StatCard
+      <StatStrip>
+        <StatStripItem
           label={m.dataset_kpi_reviewed()}
-          value={formatCount(reviewedCount)}
-          hint={m.dataset_kpi_reviewed_of({ count: images.length })}
+          value={m.dataset_kpi_reviewed_value({
+            reviewed: reviewedCount,
+            total: images.length,
+          })}
+          hint={
+            <Progress
+              aria-label={m.dataset_kpi_reviewed()}
+              size="small"
+              value={reviewedCount}
+              max={Math.max(images.length, 1)}
+            />
+          }
         />
-        <StatCard
+        <StatStripItem
           label={m.dataset_kpi_training_runs()}
           value={formatCount(training.runs)}
           hint={
@@ -109,58 +115,21 @@ function DatasetPage() {
               : undefined
           }
         />
-      </StatGrid>
-      <Table aria-label={m.dataset_images_table({ dataset })} narrow="cards">
-        <TableHeader>
-          <tr>
-            <TableHead>{m.dataset_column_image()}</TableHead>
-            <TableHead className="w-24" numeric>
-              {m.dataset_column_boxes()}
-            </TableHead>
-            <TableHead className="w-64">{m.dataset_column_quality()}</TableHead>
-            <TableHead className="w-12">
-              <span className="sr-only">{m.dataset_column_actions()}</span>
-            </TableHead>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {images.length ? (
-            images.map((image) => (
-              <TableRow key={image.digest} clickable>
-                <TableCell cellSlot="title">
-                  <TextLink
-                    className="block max-w-80 truncate font-mono"
-                    render={
-                      <Link
-                        to="/datasets/$dataset/$digest"
-                        params={{ dataset, digest: image.digest }}
-                      />
-                    }
-                  >
-                    {image.filename}
-                  </TextLink>
-                </TableCell>
-                <TableCell cellLabel={m.dataset_column_boxes()} numeric>
-                  <BoxCount
-                    detected={image.detectionCount}
-                    proposed={image.proposalCount}
-                    boxes={image.instanceCount}
-                  />
-                </TableCell>
-                <TableCell cellLabel={m.dataset_column_quality()}>
-                  {image.quality && image.quality.status !== "ok" ? (
-                    <QualityTags quality={image.quality} />
-                  ) : (
-                    <Absent />
-                  )}
-                </TableCell>
-                <TableCell cellSlot="extra" className="text-end">
-                  <RemoveImageButton dataset={dataset} image={image} />
-                </TableCell>
-              </TableRow>
-            ))
-          ) : (
-            <TableEmpty>
+      </StatStrip>
+      <PageSection
+        title={m.dataset_images_section()}
+        extra={
+          images.length > 0 ? (
+            <Tag size="small">{formatCount(images.length)}</Tag>
+          ) : null
+        }
+      >
+        <Table
+          aria-label={m.dataset_images_table({ dataset })}
+          size="small"
+          narrow="cards"
+          empty={
+            images.length === 0 && (
               <Empty
                 icon={ImagePlus}
                 title={m.dataset_empty_images()}
@@ -171,10 +140,61 @@ function DatasetPage() {
                   </Button>
                 }
               />
-            </TableEmpty>
-          )}
-        </TableBody>
-      </Table>
+            )
+          }
+        >
+          <TableHeader>
+            <tr>
+              <TableHead>{m.dataset_column_image()}</TableHead>
+              <TableHead className="w-1/3">
+                {m.dataset_column_quality()}
+              </TableHead>
+              <TableHead className="w-24" numeric>
+                {m.dataset_column_boxes()}
+              </TableHead>
+              <TableHead className="w-12">
+                <span className="sr-only">{m.dataset_column_actions()}</span>
+              </TableHead>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {images.map((image) => (
+              <TableRow key={image.digest} clickable>
+                <TableCell cellSlot="title">
+                  <TextLink
+                    className="block max-w-80 truncate"
+                    render={
+                      <Link
+                        to="/datasets/$dataset/$digest"
+                        params={{ dataset, digest: image.digest }}
+                      />
+                    }
+                  >
+                    {image.filename}
+                  </TextLink>
+                </TableCell>
+                <TableCell cellLabel={m.dataset_column_quality()}>
+                  {image.quality && image.quality.status !== "ok" ? (
+                    <QualityTags quality={image.quality} />
+                  ) : (
+                    <Absent />
+                  )}
+                </TableCell>
+                <TableCell cellLabel={m.dataset_column_boxes()} numeric>
+                  <BoxCount
+                    detected={image.detectionCount}
+                    proposed={image.proposalCount}
+                    boxes={image.instanceCount}
+                  />
+                </TableCell>
+                <TableCell cellSlot="actions" className="text-end">
+                  <RemoveImageButton dataset={dataset} image={image} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </PageSection>
     </Page>
   );
 }

@@ -36,6 +36,14 @@
   }
 }
 
+.ui-action-icon-header {
+  && {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+  }
+}
+
 .ui-action-icon-bar {
   && {
     width: 36px;

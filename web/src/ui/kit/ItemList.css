@@ -1,0 +1,158 @@
+/*
+ * The list reaches past the content box by the surface's gutter and pads
+ * back so a row's 12px padding starts its icon on the content edge; a list
+ * on a surface without a gutter keeps 4px around its rows.
+ */
+.ui-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  min-inline-size: 0;
+  margin-block: 0;
+  margin-inline: calc(var(--surface-gutter) * -1);
+  padding-block: 0;
+  padding-inline: max(calc(var(--surface-gutter) - 12px), 4px);
+
+  list-style: none;
+}
+
+.ui-settings-group-panel > .ui-item-list {
+  padding-block: 4px;
+}
+
+.ui-item-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-block-size: 240px;
+}
+
+/*
+ * Icon, body, extra and actions sit in one row; on a phone the extra moves
+ * to a line of its own under the body so the description keeps the width.
+ * Each part after the icon brings its own 16px lead, so a part an item does
+ * not have leaves no gap.
+ */
+.ui-item {
+  display: grid;
+  grid-template-areas: "icon body extra actions";
+  grid-template-columns: auto minmax(0, 1fr) fit-content(40%) auto;
+  align-items: center;
+
+  min-inline-size: 0;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+
+  transition: background-color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    background: var(--color-fill-tertiary);
+  }
+
+  > :first-child {
+    grid-area: icon;
+  }
+
+  @variant max-mobile {
+    grid-template-areas:
+      "icon body actions"
+      ". extra extra";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+.ui-item-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  min-inline-size: 0;
+  margin-inline-start: 16px;
+}
+
+.ui-item-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+
+  min-inline-size: 0;
+}
+
+.ui-item-title {
+  overflow: hidden;
+
+  min-inline-size: 0;
+
+  font-weight: 500;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-item-description {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-secondary);
+}
+
+.ui-item-rule {
+  flex: none;
+  inline-size: 1px;
+  block-size: 10px;
+  background: var(--color-border);
+}
+
+.ui-item-extra {
+  grid-area: extra;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+
+  margin-inline-start: 16px;
+
+  @variant max-mobile {
+    justify-content: flex-start;
+    margin-block-start: 8px;
+  }
+}
+
+.ui-item-actions {
+  grid-area: actions;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
+  margin-inline-start: 16px;
+}
+
+/* Row actions wait for the row, except on a phone, where the row is too narrow to keep a hidden slot. */
+@variant mobile {
+  @media (hover: hover) {
+    .ui-item-actions {
+      opacity: 0;
+      transition: opacity var(--duration-fast) var(--ease-out);
+    }
+
+    .ui-item:is(:hover, :focus-within, :has([data-popup-open]))
+      .ui-item-actions {
+      opacity: 1;
+    }
+  }
+}
+
+.ui-item-skeleton-icon {
+  flex: none;
+  inline-size: 40px;
+  block-size: 40px;
+}

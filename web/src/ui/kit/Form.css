@@ -4,7 +4,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   width: 100%;
 
   /* Inside a form, the gap spaces fields; a field outside one keeps its own padding. */
@@ -98,4 +98,49 @@ fieldset.ui-form-field {
   font-size: var(--text-base);
   line-height: 1;
   color: var(--color-error);
+}
+
+/*
+ * A group is a section: its heading is set above the labels it gathers, ruled
+ * off from the fields under it. The legend is not a flex item, so the group is
+ * a plain block and its body stacks the fields.
+ */
+.ui-form-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ui-form-group-title {
+  box-sizing: border-box;
+  inline-size: 100%;
+  margin-block-end: 16px;
+  padding: 0;
+  padding-block-end: 8px;
+  border-block-end: 1px solid var(--color-border-secondary);
+
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--text-base--line-height);
+  color: var(--color-fg);
+
+  &:has(+ .ui-form-group-description) {
+    margin-block-end: 8px;
+  }
+}
+
+.ui-form-group-description {
+  margin: 0;
+  margin-block-end: 16px;
+
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-fg-tertiary);
+}
+
+.ui-form-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }

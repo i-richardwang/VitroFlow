@@ -25,7 +25,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableEmpty,
   TableHead,
   TableHeader,
   TableRow,
@@ -51,17 +50,31 @@ export const Route = createFileRoute("/_workbench/experiments/")({
 function ExperimentsPage() {
   const experiments = Route.useLoaderData();
   const [creating, setCreating] = useState(false);
+  const create = (
+    <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
+      {m.experiment_new()}
+    </Button>
+  );
 
   return (
     <Page
       title={m.experiments_title()}
-      action={
-        <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
-          {m.experiment_new()}
-        </Button>
-      }
+      action={experiments.length > 0 ? create : undefined}
     >
-      <Table narrow="cards" aria-label={m.experiments_title()}>
+      <Table
+        narrow="cards"
+        aria-label={m.experiments_title()}
+        empty={
+          experiments.length === 0 && (
+            <Empty
+              icon={FlaskConical}
+              title={m.experiments_empty()}
+              description={m.experiments_empty_description()}
+              action={create}
+            />
+          )
+        }
+      >
         <TableHeader>
           <tr>
             <TableHead>{m.experiments_column_experiment()}</TableHead>
@@ -73,90 +86,71 @@ function ExperimentsPage() {
           </tr>
         </TableHeader>
         <TableBody>
-          {experiments.length ? (
-            experiments.map(
-              ({ experiment, treatmentNames, latestDay, counts }) => {
-                const state = summarizedImageAnalysis(counts);
-                const material = joinFacts(
-                  [experiment.plantMaterial, experiment.explantType].filter(
-                    Boolean,
-                  ),
-                );
-                return (
-                  <TableRow key={experiment.id} clickable>
-                    <TableCell cellSlot="title">
-                      <TextLink
-                        className="block max-w-72 truncate"
-                        render={
-                          <Link
-                            to="/experiments/$experiment"
-                            params={{ experiment: experiment.id }}
-                          />
-                        }
-                      >
-                        {experiment.name}
-                      </TextLink>
-                    </TableCell>
-                    <TableCell
-                      cellLabel={m.experiments_column_material()}
-                      className="text-fg-secondary"
+          {experiments.map(
+            ({ experiment, treatmentNames, latestDay, counts }) => {
+              const state = summarizedImageAnalysis(counts);
+              const material = joinFacts(
+                [experiment.plantMaterial, experiment.explantType].filter(
+                  Boolean,
+                ),
+              );
+              return (
+                <TableRow key={experiment.id} clickable>
+                  <TableCell cellSlot="title">
+                    <TextLink
+                      className="block max-w-72 truncate"
+                      render={
+                        <Link
+                          to="/experiments/$experiment"
+                          params={{ experiment: experiment.id }}
+                        />
+                      }
                     >
-                      <span className="block max-w-56 truncate">
-                        {material || <Absent />}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      cellLabel={m.experiments_column_treatments()}
-                      className="text-fg-secondary"
-                    >
-                      <span className="block max-w-56 truncate">
-                        {treatmentNames.length > 0 ? (
-                          formatList(treatmentNames)
-                        ) : (
-                          <Absent />
-                        )}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      cellLabel={m.experiments_column_inoculated()}
-                      className="whitespace-nowrap text-fg-tertiary tabular-nums"
-                    >
-                      <Day value={experiment.inoculatedOn} />
-                    </TableCell>
-                    <TableCell
-                      cellLabel={m.experiments_column_latest()}
-                      className="whitespace-nowrap text-fg-secondary tabular-nums"
-                    >
-                      {latestDay === null ? (
-                        <Absent />
-                      ) : (
-                        m.observation_day_label({ day: latestDay })
-                      )}
-                    </TableCell>
-                    <TableCell cellLabel={m.experiments_column_analysis()}>
-                      {state ? (
-                        <ImageAnalysisStatus state={state} />
+                      {experiment.name}
+                    </TextLink>
+                  </TableCell>
+                  <TableCell
+                    cellLabel={m.experiments_column_material()}
+                    className="text-fg-secondary"
+                  >
+                    <span className="block max-w-56 truncate">
+                      {material || <Absent />}
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    cellLabel={m.experiments_column_treatments()}
+                    className="text-fg-secondary"
+                  >
+                    <span className="block max-w-56 truncate">
+                      {treatmentNames.length > 0 ? (
+                        formatList(treatmentNames)
                       ) : (
                         <Absent />
                       )}
-                    </TableCell>
-                  </TableRow>
-                );
-              },
-            )
-          ) : (
-            <TableEmpty>
-              <Empty
-                icon={FlaskConical}
-                title={m.experiments_empty()}
-                description={m.experiments_empty_description()}
-                action={
-                  <Button icon={Plus} onClick={() => setCreating(true)}>
-                    {m.experiment_new()}
-                  </Button>
-                }
-              />
-            </TableEmpty>
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    cellLabel={m.experiments_column_inoculated()}
+                    className="whitespace-nowrap text-fg-tertiary tabular-nums"
+                  >
+                    <Day value={experiment.inoculatedOn} />
+                  </TableCell>
+                  <TableCell
+                    cellLabel={m.experiments_column_latest()}
+                    className="whitespace-nowrap text-fg-tertiary tabular-nums"
+                  >
+                    {latestDay === null ? (
+                      <Absent />
+                    ) : (
+                      m.observation_day_label({ day: latestDay })
+                    )}
+                  </TableCell>
+                  <TableCell cellLabel={m.experiments_column_analysis()}>
+                    {state ? <ImageAnalysisStatus state={state} /> : <Absent />}
+                  </TableCell>
+                </TableRow>
+              );
+            },
           )}
         </TableBody>
       </Table>

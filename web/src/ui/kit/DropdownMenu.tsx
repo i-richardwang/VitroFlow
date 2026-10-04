@@ -8,7 +8,8 @@ import { resolveNativeButton } from "./nativeButton";
 
 /*
  * A menu opened by clicking its trigger. `items` describes the menu (plain
- * items and dividers); Base UI owns the open state and mounts the items only
+ * items and dividers); an item with `href` is a link, such as a download the
+ * server sends as an attachment. Base UI owns the open state and mounts the items only
  * while the menu is open or closing. When any item has an icon, every item
  * reserves the icon slot so labels line up. The trigger gets no class: its
  * open fill is selected by `[aria-haspopup="menu"][data-popup-open]` in the
@@ -19,6 +20,7 @@ import { resolveNativeButton } from "./nativeButton";
 interface MenuItemType {
   danger?: boolean;
   disabled?: boolean;
+  href?: string;
   icon?: LucideIcon;
   key: Key;
   label: string;
@@ -36,30 +38,56 @@ function renderItems(items: DropdownItem[]) {
   const reserveIconSpace = items.some(
     (item) => item.type !== "divider" && item.icon,
   );
-  return items.map((item, index) =>
-    item.type === "divider" ? (
-      <Menu.Separator className="ui-dropdown-menu-separator" key={index} />
+  return items.map((item, index) => {
+    if (item.type === "divider") {
+      return (
+        <Menu.Separator className="ui-dropdown-menu-separator" key={index} />
+      );
+    }
+    const className = cn(
+      "ui-dropdown-menu-item",
+      item.danger && "ui-dropdown-menu-danger",
+    );
+    return item.href ? (
+      <Menu.LinkItem
+        className={className}
+        closeOnClick
+        href={item.href}
+        key={item.key}
+        label={item.label}
+      >
+        <MenuItemContent item={item} reserveIconSpace={reserveIconSpace} />
+      </Menu.LinkItem>
     ) : (
       <Menu.Item
-        className={cn(
-          "ui-dropdown-menu-item",
-          item.danger && "ui-dropdown-menu-danger",
-        )}
+        className={className}
         disabled={item.disabled}
         key={item.key}
         label={item.label}
         onClick={item.onClick}
       >
-        <div className="ui-dropdown-menu-item-content">
-          {reserveIconSpace ? (
-            <span aria-hidden={!item.icon} className="ui-dropdown-menu-icon">
-              {item.icon ? <Icon icon={item.icon} /> : null}
-            </span>
-          ) : null}
-          <span className="ui-dropdown-menu-label">{item.label}</span>
-        </div>
+        <MenuItemContent item={item} reserveIconSpace={reserveIconSpace} />
       </Menu.Item>
-    ),
+    );
+  });
+}
+
+function MenuItemContent({
+  item,
+  reserveIconSpace,
+}: {
+  item: MenuItemType;
+  reserveIconSpace: boolean;
+}) {
+  return (
+    <div className="ui-dropdown-menu-item-content">
+      {reserveIconSpace ? (
+        <span aria-hidden={!item.icon} className="ui-dropdown-menu-icon">
+          {item.icon ? <Icon icon={item.icon} /> : null}
+        </span>
+      ) : null}
+      <span className="ui-dropdown-menu-label">{item.label}</span>
+    </div>
   );
 }
 

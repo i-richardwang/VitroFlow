@@ -7,7 +7,12 @@ import { datasetImageRefSchema } from "../../domain/datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
-import { WorkbenchSection, WorkbenchSkeleton } from "../../ui/shell/Workbench";
+import { modelName } from "../../ui/model-names";
+import {
+  WorkbenchIdentity,
+  WorkbenchSection,
+  WorkbenchSkeleton,
+} from "../../ui/shell/Workbench";
 import { StepButton } from "../../ui/StepButton";
 import { splitLabel } from "../../features/datasets/labels";
 import { documentTitle } from "../../ui/documentTitle";
@@ -40,8 +45,8 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
       const { dataset, review } = loaderData as DatasetImageView;
       return [
         { label: m.datasets_title(), href: "/datasets" },
-        { label: dataset.id, href: `/datasets/${dataset.id}`, mono: true },
-        { label: review.filename, mono: true },
+        { label: dataset.id, href: `/datasets/${dataset.id}` },
+        { label: review.filename },
       ];
     },
   },
@@ -116,6 +121,13 @@ function DatasetImagePage() {
               onClick={() => next && stepTo(next)}
             />
           </>
+        ),
+        identity: (
+          <WorkbenchIdentity
+            kicker={dataset.id}
+            title={review.filename}
+            meta={modelName(model)}
+          />
         ),
         details: split ? (
           <WorkbenchSection title={m.image_section()}>

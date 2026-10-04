@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { ChevronDown, FolderPlus, Images, Pencil, Trash2 } from "lucide-react";
+import { FolderPlus, Images, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type {
@@ -12,9 +12,10 @@ import type { Model } from "../../domain/models/schema";
 import { removeObservation } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { confirmDestructive } from "../../ui/confirmDestructive";
-import { Button } from "../../ui/kit/Button";
-import { DropdownMenu, type DropdownItem } from "../../ui/kit/DropdownMenu";
+import type { DropdownItem } from "../../ui/kit/DropdownMenu";
+import { TableHeadMenu } from "../../ui/kit/Table";
 import { toast } from "../../ui/kit/Toast";
+import { modelName } from "../../ui/model-names";
 import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { AssignImagesDialog } from "./AssignImagesDialog";
 import { observationLabel } from "./labels";
@@ -22,12 +23,15 @@ import { ObservationDialog } from "./ObservationDialog";
 
 type Action = "images" | "dataset" | "edit";
 
-/** An observation day's column heading, opening what can be done to that day. */
+/**
+ * An observation day's column heading, opening what can be done to that day.
+ * The day heads the column; `model`, when given, sits on a line under it.
+ */
 export function ObservationMenu({
   experiment,
   inoculatedOn,
   observation,
-  label,
+  model,
   units,
   images,
   placed,
@@ -37,7 +41,8 @@ export function ObservationMenu({
   experiment: string;
   inoculatedOn: string;
   observation: ExperimentObservation;
-  label: string;
+  /** The model the day reads for, named when the columns read for several. */
+  model: Model | undefined;
   /** The units that can still be photographed at this observation. */
   units: Unit[];
   /** The images taken at this observation. */
@@ -104,18 +109,23 @@ export function ObservationMenu({
 
   return (
     <>
-      <DropdownMenu items={items}>
-        <Button
-          type="text"
-          size="small"
-          className="-ms-2"
-          icon={ChevronDown}
-          iconPosition="end"
-          aria-label={m.observation_actions({ observation: label })}
-        >
-          {label}
-        </Button>
-      </DropdownMenu>
+      <TableHeadMenu
+        aria-label={m.observation_actions({
+          observation: model
+            ? m.observation_heading({ day: name, model: modelName(model) })
+            : name,
+        })}
+        items={items}
+      >
+        <span className="flex flex-col items-start">
+          {name}
+          {model ? (
+            <span className="text-xs font-normal text-fg-quaternary">
+              {modelName(model)}
+            </span>
+          ) : null}
+        </span>
+      </TableHeadMenu>
 
       <AssignImagesDialog
         experiment={experiment}

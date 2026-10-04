@@ -1,0 +1,75 @@
+/*
+ * Items hang from the top, so every figure sits on one line whatever hints
+ * lie under the labels. Each rule sits in the middle of the gap before its
+ * item, centered on the figure and label rather than on the item, whose hint
+ * may make it taller. The strip clips what lies outside it, so an item that
+ * wraps to the start of a line keeps its rule out of sight.
+ */
+.ui-stat-strip {
+  --ui-stat-strip-head: calc(
+    var(--text-xl--line-height) + 2px + var(--text-xs--line-height)
+  );
+  --ui-stat-strip-rule: 28px;
+
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 48px;
+  align-items: flex-start;
+
+  margin: 0;
+}
+
+.ui-stat-strip-item {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  min-inline-size: 0;
+
+  & + &::before {
+    content: "";
+
+    position: absolute;
+    inset-block-start: calc(
+      (var(--ui-stat-strip-head) - var(--ui-stat-strip-rule)) / 2
+    );
+    inset-inline-start: -24px;
+
+    inline-size: 1px;
+    block-size: var(--ui-stat-strip-rule);
+
+    background: var(--color-border-secondary);
+  }
+}
+
+/* The label comes first in the markup, as a term before its value; the figure is drawn above it. */
+.ui-stat-strip-value {
+  order: -1;
+
+  margin: 0;
+
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--text-xl--line-height);
+  color: var(--color-fg);
+}
+
+.ui-stat-strip-label {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-tertiary);
+  white-space: nowrap;
+}
+
+.ui-stat-strip-hint {
+  margin: 0;
+  margin-block-start: 4px;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-tertiary);
+}

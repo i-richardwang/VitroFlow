@@ -1,7 +1,9 @@
 import { useRouter } from "@tanstack/react-router";
 import { KeyRound, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { API_SCOPE_LABELS } from "./labels";
+import { NewApiKeyDialog } from "./NewApiKeyDialog";
 import type { ApiKey } from "../../domain/auth/integrations";
 import { removeApiKey } from "../../functions/integrations";
 import { m } from "../../paraglide/messages";
@@ -11,11 +13,11 @@ import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { Flexbox } from "../../ui/kit/Flex";
+import { SettingsGroup } from "../../ui/kit/Settings";
 import {
   Table,
   TableBody,
   TableCell,
-  TableEmpty,
   TableHead,
   TableHeader,
   TableRow,
@@ -23,47 +25,65 @@ import {
 import { Tag } from "../../ui/kit/Tag";
 import { toast } from "../../ui/kit/Toast";
 
-export function ApiKeysTable({
-  apiKeys,
-  onCreate,
-}: {
-  apiKeys: ApiKey[];
-  /** Opens the new key dialog. */
-  onCreate: () => void;
-}) {
+/** The reader's API keys, and the one place a new key is created. */
+export function ApiKeysGroup({ apiKeys }: { apiKeys: ApiKey[] }) {
+  const [creating, setCreating] = useState(false);
+  const create = () => setCreating(true);
+
   return (
-    <Table narrow="cards" aria-label={m.integrations_api_keys()}>
-      <TableHeader>
-        <tr>
-          <TableHead>{m.api_key_column_name()}</TableHead>
-          <TableHead>{m.api_key_column_key()}</TableHead>
-          <TableHead>{m.api_key_column_scopes()}</TableHead>
-          <TableHead>{m.api_key_column_expires()}</TableHead>
-          <TableHead>{m.api_key_column_last_used()}</TableHead>
-          <TableHead className="w-12">
-            <span className="sr-only">{m.api_key_column_actions()}</span>
-          </TableHead>
-        </tr>
-      </TableHeader>
-      <TableBody>
-        {apiKeys.length ? (
-          apiKeys.map((apiKey) => <ApiKeyRow key={apiKey.id} apiKey={apiKey} />)
-        ) : (
-          <TableEmpty>
-            <Empty
-              icon={KeyRound}
-              title={m.api_key_empty()}
-              description={m.api_key_empty_description()}
-              action={
-                <Button icon={Plus} onClick={onCreate}>
-                  {m.integrations_new_key()}
-                </Button>
-              }
-            />
-          </TableEmpty>
-        )}
-      </TableBody>
-    </Table>
+    <>
+      <SettingsGroup
+        title={m.integrations_api_keys()}
+        extra={
+          apiKeys.length > 0 ? (
+            <>
+              {m.api_key_count({ count: apiKeys.length })}
+              <Button size="small" type="primary" icon={Plus} onClick={create}>
+                {m.integrations_new_key()}
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        <Table
+          narrow="cards"
+          aria-label={m.integrations_api_keys()}
+          empty={
+            apiKeys.length === 0 && (
+              <Empty
+                icon={KeyRound}
+                title={m.api_key_empty()}
+                description={m.api_key_empty_description()}
+                action={
+                  <Button type="primary" icon={Plus} onClick={create}>
+                    {m.integrations_new_key()}
+                  </Button>
+                }
+              />
+            )
+          }
+        >
+          <TableHeader>
+            <tr>
+              <TableHead>{m.api_key_column_name()}</TableHead>
+              <TableHead>{m.api_key_column_key()}</TableHead>
+              <TableHead>{m.api_key_column_scopes()}</TableHead>
+              <TableHead>{m.api_key_column_expires()}</TableHead>
+              <TableHead>{m.api_key_column_last_used()}</TableHead>
+              <TableHead className="w-12">
+                <span className="sr-only">{m.api_key_column_actions()}</span>
+              </TableHead>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {apiKeys.map((apiKey) => (
+              <ApiKeyRow key={apiKey.id} apiKey={apiKey} />
+            ))}
+          </TableBody>
+        </Table>
+      </SettingsGroup>
+      <NewApiKeyDialog open={creating} onClose={() => setCreating(false)} />
+    </>
   );
 }
 
@@ -76,7 +96,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
     <TableRow>
       <TableCell cellSlot="title">{apiKey.name}</TableCell>
       <TableCell cellLabel={m.api_key_column_key()}>
-        <span className="font-mono text-xs text-fg-secondary">
+        <span className="font-mono text-xs text-fg-tertiary">
           {m.api_key_start({ start: apiKey.start })}
         </span>
       </TableCell>
@@ -91,17 +111,17 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
       </TableCell>
       <TableCell cellLabel={m.api_key_column_expires()}>
         {apiKey.expiresAt === null ? (
-          <span className="text-fg-secondary">{m.api_key_expiry_never()}</span>
+          <span className="text-fg-tertiary">{m.api_key_expiry_never()}</span>
         ) : expired ? (
           <span className="text-error">{m.api_key_expired()}</span>
         ) : (
-          <span className="text-fg-secondary">
+          <span className="text-fg-tertiary">
             <Timestamp value={apiKey.expiresAt} />
           </span>
         )}
       </TableCell>
       <TableCell cellLabel={m.api_key_column_last_used()}>
-        <span className="text-fg-secondary">
+        <span className="text-fg-tertiary">
           {apiKey.lastUsedAt === null ? (
             m.api_key_never_used()
           ) : (
@@ -109,7 +129,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
           )}
         </span>
       </TableCell>
-      <TableCell cellSlot="extra" className="text-end">
+      <TableCell cellSlot="actions" className="text-end">
         <ActionIcon
           icon={Trash2}
           size="small"

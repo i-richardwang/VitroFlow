@@ -24,6 +24,39 @@ export const PARAMETER_LABELS: Record<keyof TrainingParameters, () => string> =
     deterministic: m.parameter_deterministic,
   };
 
+export interface ParameterGroup {
+  key: string;
+  title: () => string;
+  parameters: (keyof TrainingParameters)[];
+}
+
+/** The recipe's parameters by what they govern, in the order a run is read. */
+export const PARAMETER_GROUPS: ParameterGroup[] = [
+  {
+    key: "training",
+    title: m.parameter_group_training,
+    parameters: [
+      "epochs",
+      "patience",
+      "batch",
+      "imgsz",
+      "optimizer",
+      "lr0",
+      "warmup_epochs",
+    ],
+  },
+  {
+    key: "augmentation",
+    title: m.parameter_group_augmentation,
+    parameters: ["mosaic", "mixup", "copy_paste"],
+  },
+  {
+    key: "validation",
+    title: m.parameter_group_validation,
+    parameters: ["max_det", "seed", "deterministic"],
+  },
+];
+
 export interface ParameterField {
   key: keyof TrainingOverrides;
   label: () => string;
@@ -59,3 +92,12 @@ export const PARAMETER_FIELDS: ParameterField[] = (
     step: FIELD_STEPS[key],
   };
 });
+
+/** The editable fields under the groups they belong to; groups with none are left out. */
+export const PARAMETER_FIELD_GROUPS = PARAMETER_GROUPS.map((group) => ({
+  key: group.key,
+  title: group.title,
+  fields: group.parameters.flatMap((key) =>
+    PARAMETER_FIELDS.filter((field) => field.key === key),
+  ),
+})).filter((group) => group.fields.length > 0);

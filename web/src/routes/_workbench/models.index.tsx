@@ -7,21 +7,8 @@ import { ModelMenu } from "../../features/models/ModelMenu";
 import { modelRecordsSummary } from "../../features/models/records";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { Flexbox } from "../../ui/kit/Flex";
-import {
-  PageHeaderSkeleton,
-  PageSkeleton,
-  TableSkeleton,
-} from "../../ui/kit/PageSkeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../ui/kit/Table";
+import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
+import { PageHeaderSkeleton, PageSkeleton } from "../../ui/kit/PageSkeleton";
 import { Tag } from "../../ui/kit/Tag";
 import { Page } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
@@ -38,7 +25,7 @@ export const Route = createFileRoute("/_workbench/models/")({
   pendingComponent: () => (
     <PageSkeleton>
       <PageHeaderSkeleton action />
-      <TableSkeleton />
+      <ItemListSkeleton />
     </PageSkeleton>
   ),
   component: ModelsPage,
@@ -47,78 +34,57 @@ export const Route = createFileRoute("/_workbench/models/")({
 function ModelsPage() {
   const entries = Route.useLoaderData();
   const [creating, setCreating] = useState(false);
+  const create = () => setCreating(true);
 
   return (
     <Page
       title={m.models_title()}
       action={
-        <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
-          {m.model_new()}
-        </Button>
+        entries.length > 0 ? (
+          <Button type="primary" icon={Plus} onClick={create}>
+            {m.model_new()}
+          </Button>
+        ) : null
       }
     >
-      <Table aria-label={m.models_title()} narrow="cards">
-        <TableHeader>
-          <tr>
-            <TableHead>{m.models_column_model()}</TableHead>
-            <TableHead>{m.model_id_label()}</TableHead>
-            <TableHead>{m.models_column_classes()}</TableHead>
-            <TableHead>{m.models_column_records()}</TableHead>
-            <TableHead className="w-12">
-              <span className="sr-only">{m.models_column_actions()}</span>
-            </TableHead>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {entries.length ? (
-            entries.map((entry) => {
-              const held = modelRecordsSummary(entry.records);
-              return (
-                <TableRow key={entry.model.id}>
-                  <TableCell cellSlot="title">
-                    {modelName(entry.model)}
-                  </TableCell>
-                  <TableCell
-                    cellLabel={m.model_id_label()}
-                    className="font-mono text-fg-secondary"
-                  >
-                    {entry.model.id}
-                  </TableCell>
-                  <TableCell cellLabel={m.models_column_classes()}>
-                    <Flexbox horizontal gap={4} wrap="wrap">
-                      {entry.model.classes.map((each) => (
-                        <Tag key={each}>{className(each)}</Tag>
-                      ))}
-                    </Flexbox>
-                  </TableCell>
-                  <TableCell
-                    cellLabel={m.models_column_records()}
-                    className="text-fg-tertiary"
-                  >
-                    {held ?? m.model_records_none()}
-                  </TableCell>
-                  <TableCell cellSlot="extra" className="text-end">
-                    <ModelMenu model={entry.model} deletable={!held} />
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          ) : (
-            <TableEmpty>
-              <Empty
-                icon={Network}
-                title={m.models_empty()}
-                description={m.models_empty_description()}
-                action={
-                  <Button icon={Plus} onClick={() => setCreating(true)}>
-                    {m.model_new()}
-                  </Button>
-                }
-              />
-            </TableEmpty>
-          )}
-        </TableBody>
-      </Table>
+      <ItemList
+        aria-label={m.models_title()}
+        empty={
+          entries.length === 0 && (
+            <Empty
+              icon={Network}
+              title={m.models_empty()}
+              description={m.models_empty_description()}
+              action={
+                <Button type="primary" icon={Plus} onClick={create}>
+                  {m.model_new()}
+                </Button>
+              }
+            />
+          )
+        }
+      >
+        {entries.map((entry) => {
+          const held = modelRecordsSummary(entry.records);
+          return (
+            <Item
+              key={entry.model.id}
+              icon={Network}
+              title={modelName(entry.model)}
+              addon={
+                <Tag size="small" className="font-mono">
+                  {entry.model.id}
+                </Tag>
+              }
+              description={held ?? m.model_records_none()}
+              extra={entry.model.classes.map((each) => (
+                <Tag key={each}>{className(each)}</Tag>
+              ))}
+              actions={<ModelMenu model={entry.model} deletable={!held} />}
+            />
+          );
+        })}
+      </ItemList>
       <ModelDialog open={creating} onClose={() => setCreating(false)} />
     </Page>
   );

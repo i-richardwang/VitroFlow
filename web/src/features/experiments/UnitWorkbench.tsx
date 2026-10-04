@@ -11,6 +11,7 @@ import {
 } from "../../domain/experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
@@ -27,6 +28,7 @@ import { ShellActions } from "../../ui/shell/Shell";
 import {
   Workbench,
   WorkbenchEmpty,
+  WorkbenchIdentity,
   WorkbenchSection,
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
@@ -135,11 +137,21 @@ export function UnitWorkbench({
       onSourceChange={onSourceChange}
       onCalibratingChange={onCalibratingChange}
       context={{
+        identity: (
+          <WorkbenchIdentity
+            kicker={unit.code}
+            title={treatment.name}
+            meta={observationLabel(shown.observation)}
+          />
+        ),
         actions: (
           <>
-            <Button icon={FolderPlus} onClick={() => setAddingToDataset(true)}>
-              {m.dataset_add_heading()}
-            </Button>
+            <ActionIcon
+              icon={FolderPlus}
+              size="header"
+              title={m.dataset_add_heading()}
+              onClick={() => setAddingToDataset(true)}
+            />
             <AddToDatasetDialog
               open={addingToDataset}
               images={[shown.ref]}
@@ -153,9 +165,6 @@ export function UnitWorkbench({
         details: (
           <WorkbenchSection title={m.unit_image_section()}>
             <Descriptions>
-              <DescriptionsItem label={m.treatment_label()}>
-                {treatment.name}
-              </DescriptionsItem>
               <DescriptionsItem label={m.unit_status()}>
                 {latestEvent
                   ? cultureEventLabel(latestEvent.type)
@@ -172,14 +181,7 @@ export function UnitWorkbench({
               <Alert
                 type="error"
                 title={m.unit_detection_failed()}
-                description={
-                  <span
-                    className="line-clamp-2 break-all"
-                    title={shown.failure.error}
-                  >
-                    {shown.failure.error}
-                  </span>
-                }
+                detail={shown.failure.error}
                 action={<RetryButton image={shown.ref} />}
               />
             ) : null}

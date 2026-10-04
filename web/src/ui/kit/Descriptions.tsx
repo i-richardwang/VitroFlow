@@ -2,20 +2,26 @@ import type { ReactNode } from "react";
 import { cn } from "./cn";
 
 /*
- * An object's properties in a label column and a value column. The label
- * column fits the longest label; `aligned` lists share one fixed label width
- * so stacked or side-by-side lists line up.
+ * An object's properties, one per row of at least 30px. By default labels
+ * share a fixed column so stacked lists line up; `justified` sets each label
+ * at the start and its value at the end in monospaced figures, for a list of
+ * numbers such as training parameters.
  */
 
 export function Descriptions({
-  aligned,
   children,
+  justified,
 }: {
-  aligned?: boolean;
   children: ReactNode;
+  justified?: boolean;
 }) {
   return (
-    <dl className={cn("ui-descriptions", aligned && "ui-descriptions-aligned")}>
+    <dl
+      className={cn(
+        "ui-descriptions",
+        justified && "ui-descriptions-justified",
+      )}
+    >
       {children}
     </dl>
   );

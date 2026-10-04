@@ -1,8 +1,20 @@
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+
+  padding: 16px;
+}
+
+.ui-empty-large {
+  padding-block: 64px;
+}
+
 .ui-empty-icon-box {
   flex: none;
   width: 48px;
   height: 48px;
-  margin-block-end: 4px;
 }
 
 .ui-empty-icon svg {
@@ -26,19 +38,31 @@
   fill: var(--color-fill-secondary);
 }
 
-.ui-empty-title {
-  font-size: var(--text-lg);
-  font-weight: 700;
-  color: var(--color-fg);
+.ui-empty-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+
+  max-inline-size: 360px;
+
   text-align: center;
+}
+
+.ui-empty-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--text-base--line-height);
+  color: var(--color-fg);
 }
 
 .ui-empty-description {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
   color: var(--color-fg-tertiary);
-  text-align: center;
 }
 
-.ui-empty-description-large {
-  color: var(--color-fg-secondary);
+/* The way forward sits 16px under the text; the column's own gap gives 12. */
+.ui-empty-action {
+  margin-block-start: 4px;
 }

@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { m } from "../../paraglide/messages";
-import { Button } from "./Button";
+import { ActionIcon } from "./ActionIcon";
 import { cn } from "./cn";
 import { Drawer } from "./Drawer";
 import { Flexbox } from "./Flex";
@@ -217,10 +217,10 @@ export function AppShell({
       ) : null}
       <div className="ui-app-shell-workspace">
         <header className="ui-app-shell-topbar">
-          <Button
-            aria-label={toggleLabel}
+          <ActionIcon
             icon={PanelLeft}
-            type="text"
+            size="header"
+            title={toggleLabel}
             onClick={toggleNavigation}
           />
           <span aria-hidden className="ui-app-shell-topbar-divider" />

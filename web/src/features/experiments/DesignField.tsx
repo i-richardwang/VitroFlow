@@ -54,60 +54,61 @@ export function DesignField({
       rows.map((item, at) => (at === index ? { ...item, ...row } : item)),
     );
   return (
-    <section className="flex flex-col gap-3">
-      <Form.Title
-        title={m.experiment_design_label()}
-        desc={m.experiment_design_hint({
-          example: replicateCodes(example, 1, [])[0]!,
-        })}
-      />
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2">
-        <div aria-hidden className="col-start-2 text-xs text-fg-secondary">
-          {m.treatment_name_label()}
+    <Form.Group
+      title={m.experiment_design_label()}
+      description={m.experiment_design_hint({
+        example: replicateCodes(example, 1, [])[0]!,
+      })}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2">
+          <div aria-hidden className="col-start-2 text-xs text-fg-secondary">
+            {m.treatment_name_label()}
+          </div>
+          <div aria-hidden className="col-span-2 text-xs text-fg-secondary">
+            {m.treatment_replicates_label()}
+          </div>
+          {rows.map((row, index) => {
+            const removeLabel = m.experiment_design_remove_treatment({
+              name: row.name || String(index + 1),
+            });
+            return (
+              <Fragment key={row.id}>
+                <TreatmentDot position={index + 1} />
+                <Input
+                  aria-label={m.treatment_name_label()}
+                  disabled={disabled}
+                  placeholder={m.treatment_name_placeholder()}
+                  value={row.name}
+                  onValueChange={(name) => update(index, { name })}
+                />
+                <ReplicatesInput
+                  className="w-28"
+                  disabled={disabled}
+                  value={row.replicates}
+                  onChange={(replicates) => update(index, { replicates })}
+                />
+                <ActionIcon
+                  title={removeLabel}
+                  icon={X}
+                  size="middle"
+                  disabled={disabled || rows.length === 1}
+                  onClick={() => onChange(rows.filter((_, at) => at !== index))}
+                />
+              </Fragment>
+            );
+          })}
         </div>
-        <div aria-hidden className="col-span-2 text-xs text-fg-secondary">
-          {m.treatment_replicates_label()}
-        </div>
-        {rows.map((row, index) => {
-          const removeLabel = m.experiment_design_remove_treatment({
-            name: row.name || String(index + 1),
-          });
-          return (
-            <Fragment key={row.id}>
-              <TreatmentDot position={index + 1} />
-              <Input
-                aria-label={m.treatment_name_label()}
-                disabled={disabled}
-                placeholder={m.treatment_name_placeholder()}
-                value={row.name}
-                onValueChange={(name) => update(index, { name })}
-              />
-              <ReplicatesInput
-                className="w-28"
-                disabled={disabled}
-                value={row.replicates}
-                onChange={(replicates) => update(index, { replicates })}
-              />
-              <ActionIcon
-                title={removeLabel}
-                icon={X}
-                size="middle"
-                disabled={disabled || rows.length === 1}
-                onClick={() => onChange(rows.filter((_, at) => at !== index))}
-              />
-            </Fragment>
-          );
-        })}
+        <Button
+          type="dashed"
+          block
+          icon={Plus}
+          disabled={disabled || rows.length >= MAX_TREATMENTS}
+          onClick={() => onChange([...rows, emptyRow()])}
+        >
+          {m.experiment_design_add_treatment()}
+        </Button>
       </div>
-      <Button
-        type="dashed"
-        block
-        icon={Plus}
-        disabled={disabled || rows.length >= MAX_TREATMENTS}
-        onClick={() => onChange([...rows, emptyRow()])}
-      >
-        {m.experiment_design_add_treatment()}
-      </Button>
-    </section>
+    </Form.Group>
   );
 }

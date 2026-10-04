@@ -22,17 +22,11 @@
   > span:not(:last-child) {
     overflow: hidden;
     flex-shrink: 1000;
-  }
-}
 
-.ui-breadcrumb-optional {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-
-  @variant max-mobile {
-    display: none;
+    /* A phone names only the page; the way back is the navigation. */
+    @variant max-mobile {
+      display: none;
+    }
   }
 }
 

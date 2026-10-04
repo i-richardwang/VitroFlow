@@ -4,6 +4,7 @@ import { AnimatePresence, type MotionProps, motion } from "motion/react";
 import {
   type ReactNode,
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -17,6 +18,7 @@ import {
 } from "./dialogPresence";
 import { defaultPortalContainer } from "./floating";
 import { panelTransition } from "./motionToken";
+import { useScrollEdges } from "./ScrollShadow";
 
 /*
  * `Modal` unmounts its root after the exit animation (see dialogPresence.tsx).
@@ -35,7 +37,7 @@ const modalMotionConfig = (): MotionProps => ({
   transition: panelTransition("modal", "enter"),
 });
 
-/** Panel widths: `default` for a few fields, `wide` for tables and multi-column forms. */
+/** Panel widths: `default` (520) for a form in one column, `wide` (640) for a table or a form laid out in two columns. */
 export type ModalWidth = "default" | "wide";
 
 const WIDTH = {
@@ -147,15 +149,32 @@ export function Modal({
               <X size={16} />
             </Dialog.Close>
           </div>
-          {children != null && (
-            <div className="ui-modal-content">{children}</div>
-          )}
+          {children != null && <ModalContent>{children}</ModalContent>}
           {footerNode !== null && (
             <div className="ui-modal-footer">{footerNode}</div>
           )}
         </ModalPopup>
       </Dialog.Portal>
     </DialogPresenceRoot>
+  );
+}
+
+/**
+ * The body scrolls between the header and the footer, which stay in place; an
+ * edge with content hidden past it is marked so a hairline separates it.
+ */
+function ModalContent({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(ref, children);
+  return (
+    <div
+      className="ui-modal-content"
+      data-overflow-bottom={edges.bottom || undefined}
+      data-overflow-top={edges.top || undefined}
+      ref={ref}
+    >
+      {children}
+    </div>
   );
 }
 

@@ -30,5 +30,7 @@
   "account_name": "Name",
   "account_email": "Email",
   "account_password": "Password",
-  "sign_out_failed": "Not signed out"
+  "sign_out_failed": "Not signed out",
+  "login_description": "Use the account an administrator set up for you.",
+  "consent_description": "{client} wants to access your {product} account"
 }

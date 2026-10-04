@@ -86,6 +86,45 @@ const scenarios: Record<string, () => Promise<void>> = {
     assert.deepEqual(ran, ["delete"], "an item runs its onClick");
   },
 
+  async table() {
+    const { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } =
+      await import("../src/ui/kit/Table");
+    function List({ rows }: { rows: string[] }) {
+      return (
+        <Table
+          aria-label="Letters"
+          empty={rows.length === 0 && <p data-empty="">Nothing yet</p>}
+        >
+          <TableHeader>
+            <tr>
+              <TableHead>Letter</TableHead>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row}>
+                <TableCell cellSlot="title">{row}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      );
+    }
+    await render(<List rows={["a", "b"]} />);
+    assert.equal(
+      body.querySelectorAll("tr").length,
+      3,
+      "a header row and one row per item",
+    );
+    await render(<List rows={[]} />);
+    assert.equal(
+      body.querySelector("table"),
+      null,
+      "an empty table draws no table, header included",
+    );
+    assert.ok(body.querySelector("[data-empty]"), "the empty state shows");
+  },
+
   async form() {
     const { Form } = await import("../src/ui/kit/Form");
     const { Input } = await import("../src/ui/kit/Input");

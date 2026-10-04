@@ -1,8 +1,8 @@
+import type { ReactNode } from "react";
 import { ReferenceLine } from "recharts";
 
 import { m } from "../../paraglide/messages";
 import type { TrainingEpoch } from "../../domain/training/schema";
-import { Card } from "../../ui/kit/Card";
 import { LineChart } from "../../ui/kit/LineChart";
 import { Skeleton } from "../../ui/kit/Skeleton";
 import { formatDecimal } from "../../ui/numbers";
@@ -13,7 +13,7 @@ interface Series {
   value: (epoch: TrainingEpoch) => number;
 }
 
-interface Panel {
+interface Chart {
   key: string;
   title: () => string;
   series: Series[];
@@ -34,7 +34,7 @@ function losses(split: "train" | "val"): Series[] {
   }));
 }
 
-const PANELS: Panel[] = [
+const CHARTS: Chart[] = [
   { key: "train", title: m.epoch_chart_train_loss, series: losses("train") },
   { key: "val", title: m.epoch_chart_val_loss, series: losses("val") },
   {
@@ -73,9 +73,12 @@ const PANELS: Panel[] = [
   },
 ];
 
-const CHART_HEIGHT = 240;
+const CHART_HEIGHT = 300;
 
-/** Four panels of per-epoch curves; a dashed line marks the best epoch. */
+/**
+ * Four titled charts of per-epoch curves, two abreast on a wide screen; a
+ * dashed line marks the best epoch.
+ */
 export function EpochCharts({
   epochs,
   total,
@@ -86,11 +89,11 @@ export function EpochCharts({
   best: TrainingEpoch | null;
 }) {
   return (
-    <div className="grid gap-4 laptop:grid-cols-2">
-      {PANELS.map((panel) => (
+    <div className="grid gap-x-8 gap-y-6 laptop:grid-cols-2">
+      {CHARTS.map((chart) => (
         <EpochChart
-          key={panel.key}
-          panel={panel}
+          key={chart.key}
+          chart={chart}
           epochs={epochs}
           total={total}
           best={best}
@@ -100,26 +103,44 @@ export function EpochCharts({
   );
 }
 
-/** `EpochCharts` while the run loads: the four titled panels, each holding a bone the chart's height. */
+/** `EpochCharts` while the run loads: the four titles, each over a bone the chart's height. */
 export function EpochChartsSkeleton() {
   return (
-    <div aria-hidden className="grid gap-4 laptop:grid-cols-2">
-      {PANELS.map((panel) => (
-        <Card key={panel.key} title={panel.title()}>
+    <div aria-hidden className="grid gap-x-8 gap-y-6 laptop:grid-cols-2">
+      {CHARTS.map((chart) => (
+        <ChartFigure key={chart.key} title={chart.title()}>
           <Skeleton height={CHART_HEIGHT} />
-        </Card>
+        </ChartFigure>
       ))}
     </div>
   );
 }
 
+/** A chart's title over the bone that holds its place. */
+function ChartFigure({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <figure className="flex min-w-0 flex-col gap-2">
+      <figcaption className="text-xs font-medium text-fg-secondary">
+        {title}
+      </figcaption>
+      {children}
+    </figure>
+  );
+}
+
 function EpochChart({
-  panel,
+  chart,
   epochs,
   total,
   best,
 }: {
-  panel: Panel;
+  chart: Chart;
   epochs: TrainingEpoch[];
   total: number;
   best: TrainingEpoch | null;
@@ -127,36 +148,35 @@ function EpochChart({
   const data = epochs.map((epoch) => ({
     epoch: epoch.epoch,
     ...Object.fromEntries(
-      panel.series.map((series) => [series.key, series.value(epoch)]),
+      chart.series.map((series) => [series.key, series.value(epoch)]),
     ),
   }));
-  const categories = panel.series.map((series) => series.key);
+  const categories = chart.series.map((series) => series.key);
   const names = Object.fromEntries(
-    panel.series.map((series) => [series.key, series.label()]),
+    chart.series.map((series) => [series.key, series.label()]),
   );
 
   return (
-    <Card title={panel.title()}>
-      <LineChart
-        data={data}
-        index="epoch"
-        categories={categories}
-        labels={names}
-        height={CHART_HEIGHT}
-        xAxisDomain={[1, Math.max(total, 2)]}
-        yAxisDomain={panel.unit ? [0, 1] : ["auto", "auto"]}
-        valueFormatter={(value) => formatDecimal(value, 2)}
-        tooltipLabelFormatter={(epoch) => m.epoch_tooltip_epoch({ epoch })}
-        tooltipValueFormatter={(value) => formatDecimal(value, 4)}
-      >
-        {best && (
-          <ReferenceLine
-            x={best.epoch}
-            stroke="var(--color-fg-quaternary)"
-            strokeDasharray="4 3"
-          />
-        )}
-      </LineChart>
-    </Card>
+    <LineChart
+      title={chart.title()}
+      data={data}
+      index="epoch"
+      categories={categories}
+      labels={names}
+      height={CHART_HEIGHT}
+      xAxisDomain={[1, Math.max(total, 2)]}
+      yAxisDomain={chart.unit ? [0, 1] : ["auto", "auto"]}
+      valueFormatter={(value) => formatDecimal(value, 2)}
+      tooltipLabelFormatter={(epoch) => m.epoch_tooltip_epoch({ epoch })}
+      tooltipValueFormatter={(value) => formatDecimal(value, 4)}
+    >
+      {best && (
+        <ReferenceLine
+          x={best.epoch}
+          stroke="var(--color-fg-quaternary)"
+          strokeDasharray="4 3"
+        />
+      )}
+    </LineChart>
   );
 }

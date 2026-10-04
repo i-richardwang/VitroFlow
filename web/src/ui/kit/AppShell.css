@@ -148,12 +148,11 @@
 .ui-app-shell-topbar {
   display: flex;
   flex: none;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
 
-  block-size: 56px;
-  padding-inline: 12px;
-  border-block-end: 1px solid var(--color-border-secondary);
+  block-size: 44px;
+  padding-inline: 8px;
 }
 
 .ui-app-shell-topbar-divider {
@@ -176,24 +175,28 @@
 .ui-app-shell-tools {
   display: flex;
   flex: none;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 
   margin-inline-start: auto;
 }
 
+/* The surface gutter (see app.css) is the inline padding; flush content resets it. */
 .ui-app-shell-main {
-  --ui-app-shell-main-padding: 24px;
+  --ui-app-shell-main-padding-block: 24px;
+  --ui-app-shell-main-padding-inline: 32px;
+  --surface-gutter: var(--ui-app-shell-main-padding-inline);
 
   overflow: auto;
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 
   min-inline-size: 0;
   min-block-size: 0;
-  padding: var(--ui-app-shell-main-padding);
+  padding-block: var(--ui-app-shell-main-padding-block);
+  padding-inline: var(--ui-app-shell-main-padding-inline);
 
   /* Focus lands here when a click hits empty space; only the skip link draws a ring. */
   &:focus {
@@ -218,15 +221,19 @@
 /* Read by the flush content as well, so its edge follows the card's padding. */
 @variant max-mobile {
   .ui-app-shell-main {
-    --ui-app-shell-main-padding: 16px;
+    --ui-app-shell-main-padding-block: 16px;
+    --ui-app-shell-main-padding-inline: 16px;
   }
 }
 
 /* Its margin box is exactly the card's content box, so the card never scrolls. */
 .ui-app-shell-main > .ui-app-shell-flush {
+  --surface-gutter: 0px;
+
   display: flex;
   flex: 1 1 0;
 
   min-block-size: 0;
-  margin: calc(var(--ui-app-shell-main-padding) * -1);
+  margin-block: calc(var(--ui-app-shell-main-padding-block) * -1);
+  margin-inline: calc(var(--ui-app-shell-main-padding-inline) * -1);
 }

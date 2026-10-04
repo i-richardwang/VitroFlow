@@ -1,12 +1,16 @@
 import { type LucideIcon, TriangleAlert, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
+import { m } from "../../paraglide/messages";
 import { cn } from "./cn";
 import { Icon } from "./Icon";
+import { Snippet } from "./Snippet";
 
 /*
- * An inline notice of a lasting state: a title, an optional description line
- * under it, and an optional action. It is a polite live region, so a notice
- * that appears is announced without interrupting.
+ * An inline notice of a lasting state: a title that states the conclusion, an
+ * optional description line under it, and an optional action such as Retry.
+ * `detail` holds the raw text behind it, an error message for instance,
+ * folded away under a disclosure and copyable when opened. It is a polite
+ * live region, so a notice that appears is announced without interrupting.
  */
 
 export type AlertType = "warning" | "error";
@@ -15,6 +19,8 @@ export interface AlertProps {
   /** Placed after the text. */
   action?: ReactNode;
   description?: ReactNode;
+  /** Raw text behind the notice, shown on request. */
+  detail?: string;
   title: ReactNode;
   type: AlertType;
 }
@@ -29,8 +35,15 @@ const TYPE_ICONS = {
   warning: TriangleAlert,
 } satisfies Record<AlertType, LucideIcon>;
 
-export function Alert({ action, description, title, type }: AlertProps) {
-  const hasDescription = description !== undefined && description !== null;
+export function Alert({
+  action,
+  description,
+  detail,
+  title,
+  type,
+}: AlertProps) {
+  const hasDescription =
+    (description !== undefined && description !== null) || Boolean(detail);
   return (
     <div
       className={cn(
@@ -45,9 +58,17 @@ export function Alert({ action, description, title, type }: AlertProps) {
       </span>
       <div className="ui-alert-content">
         <div className="ui-alert-title">{title}</div>
-        {hasDescription && (
+        {description != null && (
           <div className="ui-alert-description">{description}</div>
         )}
+        {detail ? (
+          <details className="ui-alert-detail">
+            <summary className="ui-alert-detail-summary">
+              {m.ui_alert_detail()}
+            </summary>
+            <Snippet>{detail}</Snippet>
+          </details>
+        ) : null}
       </div>
       {action && <div className="ui-alert-action">{action}</div>}
     </div>

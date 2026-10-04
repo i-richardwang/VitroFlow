@@ -33,10 +33,15 @@
     opacity: 1;
   }
 
+  /* A disabled value stays readable in the secondary color, apart from a placeholder; the chevron fades. */
   &[data-disabled] {
     cursor: not-allowed;
-    color: var(--color-fg-quaternary);
+    color: var(--color-fg-secondary);
     background: var(--ui-select-disabled-bg, transparent);
+
+    .ui-select-suffix {
+      color: var(--color-fg-quaternary);
+    }
 
     &:hover {
       background: var(--ui-select-disabled-bg, transparent);

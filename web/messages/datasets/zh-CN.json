@@ -2,21 +2,12 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "datasets_title": "数据集",
   "datasets_column_dataset": "数据集",
-  "datasets_column_model": "模型",
   "datasets_column_images": "图片",
   "datasets_column_reviewed": "已复核",
   "datasets_empty": "还没有数据集",
   "dataset_download": "下载",
   "dataset_training": "训练",
   "dataset_kpi_reviewed": "已复核",
-  "dataset_kpi_reviewed_of": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "共 {formattedCount} 张图片"
-      }
-    }
-  ],
   "dataset_kpi_training_runs": "训练次数",
   "dataset_reviewed_since_last_run": [
     {
@@ -137,5 +128,20 @@
   ],
   "dataset_remove_title": "从 {dataset} 移除 {file}？",
   "dataset_image_removed": "已从 {dataset} 移除 {file}",
-  "dataset_open_experiments": "打开实验"
+  "dataset_open_experiments": "打开实验",
+  "dataset_kpi_reviewed_value": [
+    {
+      "declarations": [
+        "input reviewed",
+        "input total",
+        "local formattedReviewed = reviewed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "reviewed=*": "{formattedReviewed} / {formattedTotal}"
+      }
+    }
+  ],
+  "dataset_images_section": "图片",
+  "dataset_actions": "{dataset} 的操作"
 }

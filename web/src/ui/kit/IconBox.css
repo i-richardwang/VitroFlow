@@ -1,0 +1,33 @@
+.ui-icon-box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--color-fg-secondary);
+
+  background: var(--color-fill-tertiary);
+}
+
+.ui-icon-box-small {
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--radius-md);
+}
+
+.ui-icon-box-middle {
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--radius-md);
+}
+
+.ui-icon-box-large {
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: var(--radius-lg);
+}
+
+.ui-icon-box-primary {
+  color: var(--color-primary);
+  background: var(--color-primary-bg);
+}

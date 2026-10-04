@@ -91,7 +91,7 @@ export function DropZone({
         }}
       >
         <span aria-hidden className="ui-drop-zone-icon">
-          <Icon icon={icon} size={28} strokeWidth={1.5} />
+          <Icon icon={icon} size={40} strokeWidth={1.5} />
         </span>
         <div className="ui-drop-zone-text">
           <div className="ui-drop-zone-title" id={titleId}>

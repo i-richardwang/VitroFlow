@@ -41,5 +41,13 @@
   "user_reset_password_changed": "密码已更改",
   "user_reset_password_new_label": "新密码",
   "user_dialog_save": "保存",
-  "users_you": "你"
+  "users_you": "你",
+  "users_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 位用户"
+      }
+    }
+  ]
 }

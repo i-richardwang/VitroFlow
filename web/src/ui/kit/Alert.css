@@ -84,6 +84,33 @@
   overflow-wrap: anywhere;
 }
 
+.ui-alert-detail {
+  margin-block-start: 4px;
+
+  &[open] > .ui-alert-detail-summary {
+    margin-block-end: 8px;
+  }
+}
+
+.ui-alert-detail-summary {
+  cursor: pointer;
+
+  inline-size: fit-content;
+  border-radius: var(--radius-xs);
+
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-tertiary);
+
+  transition: color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    color: var(--color-fg-secondary);
+  }
+
+  @apply focus-ring;
+}
+
 .ui-alert-action {
   display: flex;
   flex-shrink: 0;

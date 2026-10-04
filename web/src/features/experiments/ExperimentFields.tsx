@@ -20,7 +20,10 @@ export function readExperimentFields(form: FormData): NotebookPage {
   };
 }
 
-/** The notebook page of an experiment, read from the form by field name. */
+/**
+ * The notebook page of an experiment, read from the form by field name: its
+ * name and free notes, then the culture it starts from as a section.
+ */
 export function ExperimentFields({
   disabled,
   defaults,
@@ -50,9 +53,15 @@ export function ExperimentFields({
           placeholder={m.experiment_field_name_placeholder()}
         />
       </Form.Field>
-      <div className="grid gap-4 mobile:grid-cols-2">
+      <Form.Field name="notes" label={m.experiment_field_notes()}>
+        <TextArea
+          disabled={disabled}
+          defaultValue={defaults?.notes}
+          autoSize={{ minRows: 3, maxRows: 8 }}
+        />
+      </Form.Field>
+      <Form.Group title={m.experiment_group_culture()}>
         <Form.Field
-          className="min-w-0"
           name="plantMaterial"
           label={m.experiment_field_plant_material()}
         >
@@ -63,7 +72,6 @@ export function ExperimentFields({
           />
         </Form.Field>
         <Form.Field
-          className="min-w-0"
           name="explantType"
           label={m.experiment_field_explant_type()}
         >
@@ -73,11 +81,7 @@ export function ExperimentFields({
             placeholder={m.experiment_field_explant_type_placeholder()}
           />
         </Form.Field>
-        <Form.Field
-          className="min-w-0"
-          name="baseMedium"
-          label={m.experiment_field_base_medium()}
-        >
+        <Form.Field name="baseMedium" label={m.experiment_field_base_medium()}>
           <Input
             disabled={disabled}
             defaultValue={defaults?.baseMedium}
@@ -85,20 +89,12 @@ export function ExperimentFields({
           />
         </Form.Field>
         <DayField
-          className="min-w-0"
           label={m.experiment_field_inoculated()}
           disabled={disabled}
           value={inoculatedOn}
           onChange={onInoculatedOnChange}
         />
-      </div>
-      <Form.Field name="notes" label={m.experiment_field_notes()}>
-        <TextArea
-          disabled={disabled}
-          defaultValue={defaults?.notes}
-          autoSize={{ minRows: 3, maxRows: 8 }}
-        />
-      </Form.Field>
+      </Form.Group>
     </>
   );
 }

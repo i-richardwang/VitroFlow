@@ -48,7 +48,7 @@ export const Route = createFileRoute(
       return [
         { label: m.experiments_title(), href: "/experiments" },
         { label: experiment.name, href: `/experiments/${experiment.id}` },
-        { label: unit.code, mono: true },
+        { label: unit.code },
       ];
     },
   },

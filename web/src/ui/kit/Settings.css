@@ -1,0 +1,121 @@
+/*
+ * The tray is a faint fill one step off the panel inside it, in both schemes;
+ * dark fills read weaker on a dark surface, so the dark tray takes the next
+ * fill up.
+ */
+.ui-settings-group {
+  display: flex;
+  flex-direction: column;
+
+  min-inline-size: 0;
+  border-radius: var(--radius-lg);
+
+  background: var(--color-fill-quaternary);
+}
+
+:where(.dark) .ui-settings-group {
+  background: var(--color-fill-tertiary);
+}
+
+.ui-settings-group-header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+
+  padding-block: 12px;
+  padding-inline: 16px;
+
+  @variant max-mobile {
+    flex-wrap: wrap;
+  }
+}
+
+.ui-settings-group-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.ui-settings-group-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: var(--text-lg--line-height);
+  color: var(--color-fg);
+}
+
+.ui-settings-group-description {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-fg-secondary);
+}
+
+.ui-settings-group-extra {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-fg-secondary);
+}
+
+/* Content runs to the panel's edges; a table insets its columns to line up with the rows. */
+.ui-settings-group-panel {
+  --surface-gutter: 0px;
+
+  overflow: clip;
+
+  min-inline-size: 0;
+  margin-block-end: 3px;
+  margin-inline: 3px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-md);
+
+  background: var(--color-container);
+}
+
+.ui-settings-row {
+  display: flex;
+  gap: 8px 24px;
+  align-items: center;
+
+  min-block-size: 56px;
+  padding-block: 12px;
+  padding-inline: 16px;
+
+  & + & {
+    border-block-start: 1px solid var(--color-border-secondary);
+  }
+
+  @variant max-mobile {
+    flex-wrap: wrap;
+  }
+}
+
+.ui-settings-row-label {
+  flex: none;
+  inline-size: 160px;
+  font-weight: 500;
+  color: var(--color-fg);
+
+  @variant max-mobile {
+    inline-size: 100%;
+  }
+}
+
+.ui-settings-row-value {
+  flex: 1;
+  min-inline-size: 0;
+  color: var(--color-fg-secondary);
+}
+
+.ui-settings-row-action {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+}

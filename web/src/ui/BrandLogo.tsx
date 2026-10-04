@@ -21,12 +21,12 @@ export function BrandLogo({
   );
 }
 
-/** Mark and product name, for pages outside the signed-in shell. */
+/** Mark and product name, for the top row of pages outside the signed-in shell. */
 export function AppBrand() {
   return (
-    <span className="flex items-center gap-2.5">
-      <BrandLogo className="size-6" />
-      <Text as="span" className="font-bold">
+    <span className="flex items-center gap-3">
+      <BrandLogo className="size-10" />
+      <Text as="span" className="text-lg font-bold">
         {m.app_name()}
       </Text>
     </span>

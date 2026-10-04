@@ -6,9 +6,10 @@ import { Flexbox } from "./Flex";
 import { Icon, type IconProps } from "./Icon";
 
 /*
- * An empty state: a centered column. `middle` (the default) sits inside a
- * surface such as a table, drawer or popup; `large` fills a whole column or
- * page. Without `icon`, the default image is drawn.
+ * An empty state: a centered column of a mark, a title, a description and the
+ * way forward 16px below them. `middle` (the default) sits in the place of a
+ * table, a list or a panel's content; `large` fills a whole pane. Without
+ * `icon`, the default image is drawn.
  */
 
 export interface EmptyProps {
@@ -82,12 +83,7 @@ export function Empty({
 }: EmptyProps) {
   const large = size === "large";
   return (
-    <Flexbox
-      align="center"
-      gap={large ? 16 : 8}
-      padding={large ? undefined : 16}
-      paddingBlock={large ? 64 : undefined}
-    >
+    <div className={cn("ui-empty", large && "ui-empty-large")}>
       {icon && large ? (
         <Icon className="ui-empty-icon-bare" icon={icon} size={48} />
       ) : icon ? (
@@ -97,25 +93,22 @@ export function Empty({
           justify="center"
           variant="outlined"
         >
-          <Icon className="ui-empty-icon" icon={icon} size={32} />
+          <Icon className="ui-empty-icon" icon={icon} size={24} />
         </Block>
       ) : (
         <EmptyImage />
       )}
-      <Flexbox align="center" gap={large ? 4 : 1}>
+      <div className="ui-empty-text">
         {title && <div className="ui-empty-title">{title}</div>}
         {description && (
-          <div
-            className={cn(
-              "ui-empty-description",
-              large && "ui-empty-description-large",
-            )}
-          >
-            {description}
-          </div>
+          <div className="ui-empty-description">{description}</div>
         )}
-      </Flexbox>
-      {action && <Flexbox gap={4}>{action}</Flexbox>}
-    </Flexbox>
+      </div>
+      {action && (
+        <Flexbox className="ui-empty-action" horizontal gap={8} align="center">
+          {action}
+        </Flexbox>
+      )}
+    </div>
   );
 }

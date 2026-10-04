@@ -1,4 +1,7 @@
+/* Content that runs to a surface's edges stops at the block's padding. */
 .ui-block {
+  --surface-gutter: 0px;
+
   position: relative;
   border-radius: var(--radius-md);
 }

@@ -32,7 +32,7 @@ const POSITION = {
  * resize and box resize. State changes only when an edge flips; new children
  * re-measure because they can resize the content without resizing the box.
  */
-function useScrollEdges(
+export function useScrollEdges(
   element: { current: HTMLElement | null },
   children: unknown,
 ) {

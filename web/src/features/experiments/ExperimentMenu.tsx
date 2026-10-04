@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { Experiment } from "../../domain/experiments/schema";
@@ -19,6 +19,10 @@ import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
 const EDIT_FORM = "edit-experiment";
 
+/**
+ * An experiment page's secondary actions. The workbook is served as an
+ * attachment, so following it downloads the file and leaves the page open.
+ */
 export function ExperimentMenu({
   experiment,
   hasRecords,
@@ -37,6 +41,12 @@ export function ExperimentMenu({
       icon: Plus,
       label: m.treatment_menu_new(),
       onClick: onNewTreatment,
+    },
+    {
+      key: "export",
+      icon: Download,
+      label: m.experiment_export(),
+      href: `/experiments/${experiment.id}/workbook`,
     },
     { type: "divider" },
     {
@@ -98,7 +108,6 @@ function EditExperimentDialog({
       okText={m.experiment_action_save()}
       formId={EDIT_FORM}
       busy={action.busy}
-      width="wide"
     >
       <EditExperimentForm
         experiment={experiment}

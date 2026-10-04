@@ -1,22 +1,16 @@
 import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages";
-import { Card } from "./Card";
 import { Skeleton } from "./Skeleton";
 
 /*
  * Loading shape of a page. `PageSkeleton` is the root: it stacks its parts
  * like the page's content and announces the load in a polite live region.
- * The parts (`PageHeaderSkeleton`, `StatGridSkeleton`, `TableSkeleton`) are
+ * The parts (`PageHeaderSkeleton`, `StatStripSkeleton`, `TableSkeleton`) are
  * laid out in the order the page draws them. Bones are sized by their
  * classes.
  */
 
-const lineWidths = [
-  ["68%", "36%"],
-  ["52%", "28%"],
-  ["76%", "42%"],
-  ["58%", "32%"],
-] as const;
+const lineWidths = ["68%", "52%", "76%", "58%"] as const;
 const HEAD = [96, 72, 64, 48];
 
 export function PageSkeleton({ children }: { children: ReactNode }) {
@@ -30,41 +24,48 @@ export function PageSkeleton({ children }: { children: ReactNode }) {
   );
 }
 
-/** The title row; `description` and `action` match what the page shows. */
+/** The title row; `icon`, `description`, `meta` and `action` match what the page shows. */
 export function PageHeaderSkeleton({
   action,
   description,
+  icon,
+  meta,
 }: {
   action?: boolean;
   description?: boolean;
+  icon?: boolean;
+  meta?: boolean;
 }) {
   return (
     <div aria-hidden className="ui-page-skeleton-header">
-      <div className="ui-page-skeleton-header-copy">
-        <Skeleton className="ui-page-skeleton-title" />
-        {description ? <Skeleton.Text width="46%" /> : null}
+      <div className="ui-page-skeleton-header-main">
+        {icon ? <Skeleton className="ui-page-skeleton-icon" /> : null}
+        <div className="ui-page-skeleton-header-copy">
+          <Skeleton className="ui-page-skeleton-title" />
+          {description ? <Skeleton.Text width="46%" /> : null}
+          {meta ? <Skeleton className="ui-page-skeleton-meta" /> : null}
+        </div>
       </div>
       {action ? <Skeleton.Button className="ui-page-skeleton-action" /> : null}
     </div>
   );
 }
 
-/** `count` metric tiles in `StatGrid`'s grid, each shaped like a `StatCard`. */
-export function StatGridSkeleton({ count }: { count: number }) {
+/** `count` items of a `StatStrip`: a figure's bone over a label's. */
+export function StatStripSkeleton({ count }: { count: number }) {
   return (
-    <div aria-hidden className="ui-stat-grid">
+    <div aria-hidden className="ui-stat-strip">
       {Array.from({ length: count }, (_, index) => (
-        <Card key={index}>
-          <Skeleton.Text size="xs" width={72} />
+        <div className="ui-stat-strip-item" key={index}>
           <Skeleton className="ui-page-skeleton-stat-value" />
-          <Skeleton.Text size="xs" width="68%" />
-        </Card>
+          <Skeleton.Text size="xs" width={64} />
+        </div>
       ))}
     </div>
   );
 }
 
-/** A framed table: a header band and `rows` rows. */
+/** A `Table`: its header band and `rows` rows, running to the same edges. */
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div aria-hidden className="ui-page-skeleton-table">
@@ -80,10 +81,7 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
       {Array.from({ length: rows }, (_, index) => (
         <div className="ui-page-skeleton-row" key={index}>
           <div className="ui-page-skeleton-copy">
-            <Skeleton.Text
-              rows={2}
-              width={[...lineWidths[index % lineWidths.length]]}
-            />
+            <Skeleton.Text width={lineWidths[index % lineWidths.length]!} />
           </div>
           <Skeleton className="ui-page-skeleton-tag" />
           <Skeleton className="ui-page-skeleton-cell" />

@@ -59,7 +59,7 @@ export function EnrollWorkerDialog({
       <RevealOnceDialog
         revealed={enrollment}
         title={m.worker_enroll_ready()}
-        warning={m.worker_enroll_shown_once()}
+        hint={m.worker_enroll_shown_once()}
         onClose={() => {
           setEnrollment(null);
           void router.invalidate();

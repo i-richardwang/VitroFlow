@@ -31,7 +31,7 @@ const InspectorSlot = createContext<{
   mount: () => () => void;
 } | null>(null);
 
-const INSPECTOR_WIDTH = { default: 300, min: 240, max: 480 };
+const INSPECTOR_WIDTH = { default: 360, min: 300, max: 600 };
 
 /**
  * A page built around one framed subject. It fills the shell's card edge to
@@ -67,7 +67,7 @@ export function Workbench({
     <div
       ref={setInspectorNode}
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-6",
+        "flex min-h-0 flex-1 flex-col gap-4",
         !compact && "overflow-y-auto p-4",
       )}
     />
@@ -107,6 +107,7 @@ export function Workbench({
             <ShellActions>
               <ActionIcon
                 icon={PanelRight}
+                size="header"
                 title={m.workbench_inspector()}
                 onClick={() => setDrawerOpen(true)}
               />
@@ -138,7 +139,34 @@ export function WorkbenchInspector({ children }: { children: ReactNode }) {
   return createPortal(children, slot.node);
 }
 
-/** A titled group of the inspector. */
+/**
+ * The inspector's first block: what the subject is. The name of what holds
+ * it above its own name, such as a unit's code over its treatment, and a line
+ * of facts under it.
+ */
+export function WorkbenchIdentity({
+  kicker,
+  title,
+  meta,
+}: {
+  kicker?: ReactNode;
+  title: ReactNode;
+  meta?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1 border-b pb-4">
+      {kicker != null ? (
+        <div className="text-xs font-medium text-fg-secondary">{kicker}</div>
+      ) : null}
+      <div className="text-base font-semibold">{title}</div>
+      {meta != null ? (
+        <div className="text-xs text-fg-tertiary">{meta}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A titled group of the inspector, ruled off from the next. */
 export function WorkbenchSection({
   title,
   children,
@@ -147,8 +175,10 @@ export function WorkbenchSection({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-base font-medium">{title}</h2>
+    <section className="flex flex-col gap-1.5 border-b pb-4">
+      <h2 className="text-xs font-semibold tracking-[0.02em] text-fg-tertiary">
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -191,8 +221,8 @@ export function WorkbenchEmpty(props: Omit<EmptyProps, "size">) {
 }
 
 const INSPECTOR_BONES = [
-  ["40%", "88%", "72%"],
-  ["32%", "64%", "80%", "56%"],
+  ["32%", "88%", "72%"],
+  ["28%", "64%", "80%", "56%"],
 ] as const;
 
 /** The loading shape of a workbench: the framed subject and the inspector's groups. */
@@ -203,9 +233,17 @@ export function WorkbenchSkeleton() {
         <Skeleton.Button />
       </ShellActions>
       <WorkbenchInspector>
+        <div aria-hidden className="flex flex-col gap-1 border-b pb-4">
+          <Skeleton.Text size="xs" width="24%" />
+          <Skeleton.Text width="56%" />
+        </div>
         {INSPECTOR_BONES.map((widths, index) => (
-          <div aria-hidden key={index}>
-            <Skeleton.Text size="lg" width={widths[0]} />
+          <div
+            aria-hidden
+            className="flex flex-col gap-1.5 border-b pb-4"
+            key={index}
+          >
+            <Skeleton.Text size="xs" width={widths[0]} />
             <Skeleton.Text
               rows={widths.length - 1}
               width={[...widths.slice(1)]}

@@ -1,5 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
+  "ui_alert_detail": "详细信息",
   "ui_breadcrumb_label": "面包屑导航",
   "ui_cancel": "取消",
   "ui_close": "关闭",
@@ -16,6 +17,7 @@
   "ui_date_picker_prev_month": "上个月",
   "ui_date_picker_prev_year": "上一年",
   "ui_date_picker_today": "今天",
+  "ui_done": "完成",
   "ui_draggable_panel_collapse": "收起面板",
   "ui_draggable_panel_expand": "展开面板",
   "ui_draggable_panel_resize": "调整{panel}宽度",

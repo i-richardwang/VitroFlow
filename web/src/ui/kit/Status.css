@@ -1,4 +1,4 @@
-/* Block order: root, tones, then the dot. */
+/* Block order: root, tones, the dot, then the standalone dot and its tones. */
 
 .ui-status {
   display: inline-flex;
@@ -37,4 +37,40 @@
   margin-inline: 3px;
   border-radius: 50%;
   background: currentcolor;
+}
+
+.ui-status-dot-mark {
+  display: inline-block;
+  flex: none;
+
+  inline-size: 8px;
+  block-size: 8px;
+  margin: 3px;
+  border-radius: 50%;
+
+  background: var(--ui-status-dot-color);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--ui-status-dot-color) 20%, transparent);
+}
+
+.ui-status-dot-neutral {
+  border: 1.5px solid var(--color-fg-quaternary);
+  background: none;
+  box-shadow: none;
+}
+
+.ui-status-dot-info {
+  --ui-status-dot-color: var(--color-info);
+}
+
+.ui-status-dot-success {
+  --ui-status-dot-color: var(--color-success);
+}
+
+.ui-status-dot-warning {
+  --ui-status-dot-color: var(--color-warning);
+}
+
+.ui-status-dot-error {
+  --ui-status-dot-color: var(--color-error);
 }

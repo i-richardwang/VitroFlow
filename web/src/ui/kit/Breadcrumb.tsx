@@ -4,8 +4,6 @@ import { m } from "../../paraglide/messages";
 export interface BreadcrumbItem {
   href?: string;
   label: ReactNode;
-  /** Dropped on narrow screens. Use this for a group name that the page title already repeats. */
-  optional?: boolean;
 }
 
 export interface BreadcrumbLinkProps {
@@ -14,6 +12,7 @@ export interface BreadcrumbLinkProps {
   href: string;
 }
 
+/** The trail to the page; a phone shows the page's own crumb alone. */
 export function Breadcrumb({
   items,
   renderLink,
@@ -27,10 +26,7 @@ export function Breadcrumb({
       {items.map((item, index) => {
         const last = index === items.length - 1;
         return (
-          <span
-            className={item.optional ? "ui-breadcrumb-optional" : undefined}
-            key={`${index}`}
-          >
+          <span key={`${index}`}>
             {item.href && !last ? (
               renderLink({
                 children: item.label,

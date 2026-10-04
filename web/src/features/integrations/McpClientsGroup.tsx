@@ -8,23 +8,23 @@ import { m } from "../../paraglide/messages";
 import { Timestamp } from "../../ui/Timestamp";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { ActionIcon } from "../../ui/kit/ActionIcon";
-import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { Flexbox } from "../../ui/kit/Flex";
+import { SettingsGroup } from "../../ui/kit/Settings";
 import {
   Table,
   TableBody,
   TableCell,
-  TableEmpty,
   TableHead,
   TableHeader,
   TableRow,
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
+import { Button } from "../../ui/kit/Button";
 import { toast } from "../../ui/kit/Toast";
 
 /** Approved MCP clients; `serversHref` leads to the server addresses a first client is given. */
-export function McpClientsTable({
+export function McpClientsGroup({
   mcpClients,
   serversHref,
 }: {
@@ -32,24 +32,19 @@ export function McpClientsTable({
   serversHref: string;
 }) {
   return (
-    <Table narrow="cards" aria-label={m.integrations_mcp_clients()}>
-      <TableHeader>
-        <tr>
-          <TableHead>{m.mcp_column_client()}</TableHead>
-          <TableHead>{m.mcp_column_servers()}</TableHead>
-          <TableHead>{m.mcp_column_approved()}</TableHead>
-          <TableHead className="w-12">
-            <span className="sr-only">{m.mcp_column_actions()}</span>
-          </TableHead>
-        </tr>
-      </TableHeader>
-      <TableBody>
-        {mcpClients.length ? (
-          mcpClients.map((client) => (
-            <McpClientRow key={client.id} client={client} />
-          ))
-        ) : (
-          <TableEmpty>
+    <SettingsGroup
+      title={m.integrations_mcp_clients()}
+      extra={
+        mcpClients.length > 0
+          ? m.mcp_client_count({ count: mcpClients.length })
+          : null
+      }
+    >
+      <Table
+        narrow="cards"
+        aria-label={m.integrations_mcp_clients()}
+        empty={
+          mcpClients.length === 0 && (
             <Empty
               icon={Plug}
               title={m.mcp_empty()}
@@ -60,10 +55,26 @@ export function McpClientsTable({
                 </Button>
               }
             />
-          </TableEmpty>
-        )}
-      </TableBody>
-    </Table>
+          )
+        }
+      >
+        <TableHeader>
+          <tr>
+            <TableHead>{m.mcp_column_client()}</TableHead>
+            <TableHead>{m.mcp_column_servers()}</TableHead>
+            <TableHead>{m.mcp_column_approved()}</TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">{m.mcp_column_actions()}</span>
+            </TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {mcpClients.map((client) => (
+            <McpClientRow key={client.id} client={client} />
+          ))}
+        </TableBody>
+      </Table>
+    </SettingsGroup>
   );
 }
 
@@ -83,11 +94,11 @@ function McpClientRow({ client }: { client: McpClient }) {
         </Flexbox>
       </TableCell>
       <TableCell cellLabel={m.mcp_column_approved()}>
-        <span className="text-fg-secondary">
+        <span className="text-fg-tertiary">
           <Timestamp value={client.lastGrantedAt} />
         </span>
       </TableCell>
-      <TableCell cellSlot="extra" className="text-end">
+      <TableCell cellSlot="actions" className="text-end">
         <ActionIcon
           icon={Unplug}
           size="small"

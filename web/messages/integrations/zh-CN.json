@@ -18,7 +18,7 @@
   "api_key_revoke_title": "吊销 {name}？",
   "api_key_revoked": "已吊销 {name}",
   "api_key_dialog_title": "新建 API 密钥",
-  "api_key_dialog_shown_once": "请现在复制密钥，它只显示这一次。持有它就能在其权限范围内操作。",
+  "api_key_dialog_shown_once": "只显示这一次。持有密钥即可在其权限范围内操作。",
   "api_key_dialog_secret_label": "API 密钥",
   "api_key_dialog_name_label": "名称",
   "api_key_dialog_name_placeholder": "实验室笔记本上的 Claude",
@@ -43,8 +43,24 @@
   "api_key_expired": "已过期",
   "api_key_never_used": "从未使用",
   "api_key_empty_description": "创建一个，供脚本或 agent 访问本工作台。",
-  "mcp_empty_description": "把上方的服务地址添加到 MCP 客户端，批准后会出现在这里。",
+  "mcp_empty_description": "把服务地址加到 MCP 客户端，批准后显示在这里。",
   "mcp_empty_show_servers": "查看服务地址",
   "api_key_start": "{start}…",
-  "api_key_issued_title": "保存密钥"
+  "api_key_issued_title": "保存密钥",
+  "api_key_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 个密钥"
+      }
+    }
+  ],
+  "mcp_client_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 个客户端"
+      }
+    }
+  ]
 }

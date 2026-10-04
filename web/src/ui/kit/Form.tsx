@@ -1,15 +1,17 @@
 import { Field } from "@base-ui/react/field";
 import { Fieldset } from "@base-ui/react/fieldset";
 import { Form as BaseForm } from "@base-ui/react/form";
-import { cloneElement, isValidElement, type ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactNode, useId } from "react";
 import { cn } from "./cn";
 
 /*
  * A native `<form>` built on Base UI Form. Fields are plain controls that carry
  * a `name`; errors reach a field from its own validation, from Zod through
  * `validate`, or from the server through the form's `errors` map, keyed by
- * field name. Fields stack 16px apart, each with its label above the control;
- * with `layout="horizontal"` the label starts the row and the control ends it.
+ * field name. Fields stack 24px apart, each with its label 8px above the
+ * control; with `layout="horizontal"` the label starts the row and the
+ * control ends it. `Form.Group` gathers related fields into a section under a
+ * heading.
  */
 
 export interface FormProps extends Omit<BaseForm.Props, "className"> {
@@ -111,7 +113,38 @@ function FormField({
   );
 }
 
+/**
+ * A section of a form: related fields under a heading, such as the culture of
+ * an experiment or the augmentation settings of a run, with an optional line
+ * of description under the heading. Fields inside stack as they do in the form.
+ */
+function FormGroup({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description?: ReactNode;
+  title: ReactNode;
+}) {
+  const descriptionId = useId();
+  return (
+    <fieldset
+      aria-describedby={description != null ? descriptionId : undefined}
+      className="ui-form-group"
+    >
+      <legend className="ui-form-group-title">{title}</legend>
+      {description != null ? (
+        <p className="ui-form-group-description" id={descriptionId}>
+          {description}
+        </p>
+      ) : null}
+      <div className="ui-form-group-body">{children}</div>
+    </fieldset>
+  );
+}
+
 export const Form = Object.assign(FormRoot, {
   Field: FormField,
-  Title: FormTitle,
+  Group: FormGroup,
 });

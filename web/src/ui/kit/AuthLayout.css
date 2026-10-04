@@ -1,24 +1,38 @@
 .ui-auth-layout {
-  overflow-y: auto;
   display: flex;
   flex: 1;
   flex-direction: column;
 
   block-size: 100%;
   min-block-size: 0;
+  padding: 8px;
 
   background: var(--color-canvas);
+}
+
+.ui-auth-layout-frame {
+  overflow-y: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  min-block-size: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  background: var(--color-container);
+}
+
+:where(.dark) .ui-auth-layout-frame {
+  border-color: var(--color-border-secondary);
 }
 
 .ui-auth-layout-header {
   display: flex;
   flex: none;
-  gap: 12px;
   align-items: center;
-  justify-content: space-between;
 
-  block-size: 56px;
-  padding-inline: 16px;
+  padding: 16px;
 }
 
 .ui-auth-layout-main {
@@ -30,33 +44,86 @@
   padding-inline: 16px;
 }
 
-.ui-auth-layout-card {
-  gap: 24px;
+.ui-auth-layout-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 
   inline-size: min(440px, 100%);
-  padding-block: 40px;
-  padding-inline: 36px;
+}
 
-  @variant max-laptop {
-    padding-block: 28px;
-    padding-inline: 24px;
+.ui-auth-layout-content-centered {
+  inline-size: min(400px, 100%);
+
+  .ui-auth-layout-heading {
+    align-items: center;
+    text-align: center;
   }
 }
 
 .ui-auth-layout-heading {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .ui-auth-layout-title {
   margin: 0;
-  font-size: var(--text-2xl);
+  font-size: var(--text-3xl);
   font-weight: bold;
-  line-height: var(--text-2xl--line-height);
+  line-height: 1.4;
 }
 
 .ui-auth-layout-description {
-  line-height: 1.6;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--color-fg-secondary);
+}
+
+.ui-auth-layout-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ui-auth-layout-footer {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+
+  padding: 16px;
+}
+
+.ui-auth-connection {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-auth-connection-tile {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  inline-size: 56px;
+  block-size: 56px;
+  border-radius: var(--radius-lg);
+
+  color: var(--color-fg-secondary);
+
+  background: var(--color-fill-tertiary);
+}
+
+.ui-auth-connection-line {
+  flex: none;
+  inline-size: 24px;
+  block-size: 1px;
+  background: var(--color-border-secondary);
+}
+
+.ui-auth-connection-link {
   color: var(--color-fg-secondary);
 }

@@ -1,12 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "status_title": "Status",
-  "status_table_label": "Workers",
-  "status_column_worker": "Worker",
-  "status_column_presence": "Presence",
-  "status_column_activity": "Activity",
-  "status_column_last_seen": "Last seen",
-  "status_column_actions": "Actions",
   "status_empty": "No workers enrolled yet",
   "worker_presence_online": "Online",
   "worker_presence_stale": "Stale",
@@ -55,7 +49,7 @@
   "worker_enroll_create": "Enroll",
   "worker_enroll_failed": "Worker not enrolled",
   "worker_enroll_ready": "Save this token",
-  "worker_enroll_shown_once": "Copy the token now; it is shown only once. Anyone holding it can act as this worker.",
+  "worker_enroll_shown_once": "Shown only this once. Anyone with the token can act as this worker.",
   "worker_enroll_command_label": "Setup command",
   "worker_enroll_command_description": "Run this on the machine and paste the token when asked.",
   "worker_enroll_token_label": "Token",
@@ -64,5 +58,23 @@
   "worker_remove_description": "Its token stops working at once, and the work it holds returns to the queue. Enroll it again to reconnect the machine.",
   "worker_removed": "Removed {name}",
   "status_empty_description_admin": "Enroll a machine, then run the setup command on it.",
-  "status_empty_description_member": "An administrator enrolls the machines that run detection and training."
+  "status_empty_description_member": "An administrator enrolls the machines that run detection and training.",
+  "status_workers": "Workers",
+  "status_worker_count": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural",
+        "local formattedCount = count: number"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{formattedCount} worker",
+        "countPlural=other": "{formattedCount} workers"
+      }
+    }
+  ],
+  "status_refresh": "Refresh",
+  "worker_actions": "Actions for {name}",
+  "worker_remove_item": "Remove…"
 }

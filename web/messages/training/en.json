@@ -48,7 +48,6 @@
   "run_table_label": "Training runs",
   "run_column_run": "Run",
   "run_column_dataset": "Dataset",
-  "run_column_state": "State",
   "run_column_epochs": "Epochs",
   "run_column_best_map50": "Best mAP50",
   "run_column_map50_95": "mAP50-95",
@@ -119,5 +118,9 @@
         "completed=*": "{formattedCompleted} / {formattedTotal}"
       }
     }
-  ]
+  ],
+  "train_dialog_recipe_title": "Recipe",
+  "parameter_group_training": "Training",
+  "parameter_group_augmentation": "Augmentation",
+  "parameter_group_validation": "Validation and reproducibility"
 }

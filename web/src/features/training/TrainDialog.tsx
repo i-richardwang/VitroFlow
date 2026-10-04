@@ -10,7 +10,7 @@ import { Alert } from "../../ui/kit/Alert";
 import { Form } from "../../ui/kit/Form";
 import { InputNumber } from "../../ui/kit/Input";
 import { toast } from "../../ui/kit/Toast";
-import { PARAMETER_FIELDS } from "./parameter-fields";
+import { PARAMETER_FIELD_GROUPS } from "./parameter-fields";
 import {
   trainingOverrides,
   trainingOverridesSchema,
@@ -94,48 +94,51 @@ function TrainSession({
       formId={FORM_ID}
       busy={action.busy}
       okDisabled={!valid}
-      width="wide"
     >
-      <div className="flex flex-col gap-4">
-        <div className="text-sm text-fg-secondary">
-          {m.train_dialog_recipe({
-            model: recipe.baseModel.reference,
-            framework: recipe.runtime.framework,
-            version: recipe.runtime.version,
-          })}
-        </div>
-        <Form
-          id={FORM_ID}
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <div className="grid gap-4 mobile:grid-cols-2">
-            {PARAMETER_FIELDS.map((field) => (
-              <Form.Field key={field.key} label={field.label()}>
-                <InputNumber
-                  value={overrides[field.key]}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  format={{ maximumFractionDigits: 5 }}
-                  disabled={action.busy}
-                  onChange={(value) =>
-                    setOverrides((current) => ({
-                      ...current,
-                      [field.key]: value ?? Number.NaN,
-                    }))
-                  }
-                />
-              </Form.Field>
-            ))}
+      <Form
+        id={FORM_ID}
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Form.Group title={m.train_dialog_recipe_title()}>
+          <div className="font-mono text-xs text-fg-secondary">
+            {m.train_dialog_recipe({
+              model: recipe.baseModel.reference,
+              framework: recipe.runtime.framework,
+              version: recipe.runtime.version,
+            })}
           </div>
-        </Form>
+        </Form.Group>
+        {PARAMETER_FIELD_GROUPS.map((group) => (
+          <Form.Group key={group.key} title={group.title()}>
+            <div className="grid gap-4 mobile:grid-cols-2">
+              {group.fields.map((field) => (
+                <Form.Field key={field.key} label={field.label()}>
+                  <InputNumber
+                    value={overrides[field.key]}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    format={{ maximumFractionDigits: 5 }}
+                    disabled={action.busy}
+                    onChange={(value) =>
+                      setOverrides((current) => ({
+                        ...current,
+                        [field.key]: value ?? Number.NaN,
+                      }))
+                    }
+                  />
+                </Form.Field>
+              ))}
+            </div>
+          </Form.Group>
+        ))}
         {training.workerMemoryBytes === null ? (
           <Alert type="warning" title={m.train_dialog_no_worker()} />
         ) : null}
-      </div>
+      </Form>
     </FormDialog>
   );
 }

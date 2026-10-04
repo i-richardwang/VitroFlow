@@ -63,7 +63,6 @@ function ReplaceObservationImageSession({
       formId={FORM_ID}
       busy={action.busy}
       okDisabled={uploads.storing || replacement === undefined}
-      width="wide"
     >
       <Form
         id={FORM_ID}

@@ -16,7 +16,8 @@ import { chartColor, Legend } from "./Legend";
 
 /*
  * A line per category over `data` against a numeric x axis keyed by `index`,
- * under a legend of the categories. Series take the chart colors in category
+ * under a header row holding the chart's title and the legend of its
+ * categories. Series take the chart colors in category
  * order. Recharts elements passed as `children` (reference lines) draw inside
  * the chart after the lines.
  */
@@ -30,6 +31,7 @@ export interface LineChartProps {
   index: string;
   /** Display names by category. */
   labels: Record<string, string>;
+  title: string;
   /** Formats the hovered x value as the tooltip's title. */
   tooltipLabelFormatter: (label: number) => ReactNode;
   tooltipValueFormatter: (value: number) => string;
@@ -84,6 +86,7 @@ export function LineChart({
   height,
   index,
   labels,
+  title,
   tooltipLabelFormatter,
   tooltipValueFormatter,
   valueFormatter,
@@ -95,8 +98,11 @@ export function LineChart({
   const lone = data.length === 1;
 
   return (
-    <div className="ui-line-chart" style={{ height }}>
-      <Legend categories={categories} labels={labels} />
+    <figure className="ui-line-chart" style={{ height }}>
+      <figcaption className="ui-line-chart-header">
+        <span className="ui-line-chart-title">{title}</span>
+        <Legend categories={categories} labels={labels} />
+      </figcaption>
       <div className="ui-line-chart-plot">
         <ResponsiveContainer>
           <RechartsLineChart data={data} margin={{ top: DOT_RADIUS }}>
@@ -199,6 +205,6 @@ export function LineChart({
           </RechartsLineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </figure>
   );
 }

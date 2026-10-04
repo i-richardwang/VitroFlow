@@ -14,16 +14,21 @@ const LOCALE_NAMES: Record<Locale, () => string> = {
 
 /**
  * The reader's language. Choosing one stores the locale cookie and reloads,
- * so the server renders the next document in that language.
+ * so the server renders the next document in that language. `quiet` draws it
+ * small and borderless, for a page's footer.
  */
 export function LanguageSelect({
   "aria-label": ariaLabel,
+  quiet = false,
 }: {
   "aria-label": string;
+  quiet?: boolean;
 }) {
   return (
     <Select<Locale>
       aria-label={ariaLabel}
+      size={quiet ? "small" : undefined}
+      variant={quiet ? "borderless" : undefined}
       value={getLocale()}
       options={locales.map((locale) => ({
         value: locale,

@@ -13,18 +13,15 @@ export function DayField({
   value,
   onChange,
   earliest,
-  className,
 }: {
   label: string;
   disabled: boolean;
   value: CalendarDay;
   onChange: (value: CalendarDay) => void;
   earliest?: { day: CalendarDay; error: string };
-  className?: string;
 }) {
   return (
     <Form.Field
-      className={className}
       label={label}
       // Days written YYYY-MM-DD sort as text in calendar order.
       validate={() =>

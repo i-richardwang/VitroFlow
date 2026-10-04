@@ -1,19 +1,23 @@
-/*
- * The workspace is already a container surface, so a card inside it steps up
- * to the elevated fill and the stronger border.
- */
+/* Surfaces on the page carry no shadow; shadows belong to what floats over it. */
 .ui-card {
+  --surface-gutter: 16px;
+
   display: flex;
   flex-direction: column;
   gap: 8px;
 
   min-inline-size: 0;
   padding: 16px;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
 
-  background: var(--color-elevated);
-  box-shadow: var(--elevation-sm);
+.ui-card-outlined {
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-container);
+}
+
+.ui-card-filled {
+  background: var(--color-fill-quaternary);
 }
 
 .ui-card-title {

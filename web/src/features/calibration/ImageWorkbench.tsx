@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useState } from "react";
 
 import { openChecks } from "../../domain/annotation/checks";
@@ -10,6 +11,7 @@ import {
 import type { ReviewSource } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
@@ -94,9 +96,13 @@ export function ImageWorkbench({
           </>
         ) : (
           <>
-            <Button disabled={saving} onClick={calibration.close}>
-              {m.ui_cancel()}
-            </Button>
+            <ActionIcon
+              icon={X}
+              size="header"
+              title={m.ui_cancel()}
+              disabled={saving}
+              onClick={calibration.close}
+            />
             <Button
               type="primary"
               loading={calibration.status === "loading" || saving}
@@ -169,6 +175,7 @@ export function ImageWorkbench({
         </WorkbenchToolbar>
       ) : null}
       <WorkbenchInspector>
+        {context.identity}
         <AiSection review={review} openChecks={checks.length} />
         <ReviewInspector
           model={model}

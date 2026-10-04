@@ -1,9 +1,6 @@
-import { CopyButton } from "./kit/CopyButton";
-import { Form } from "./kit/Form";
-import { Input } from "./kit/Input";
-import { Skeleton } from "./kit/Skeleton";
+import { Snippet } from "./kit/Snippet";
 
-/** A read-only value with a copy button, such as an endpoint or a key shown once. */
+/** A named read-only value with a copy button, such as an endpoint or a key shown once. */
 export function CopyableCode({
   value,
   label,
@@ -14,22 +11,12 @@ export function CopyableCode({
   description?: string;
 }) {
   return (
-    <Form.Field label={label} desc={description}>
-      <Input
-        readOnly
-        value={value}
-        className="font-mono"
-        suffix={<CopyButton content={value} />}
-      />
-    </Form.Field>
-  );
-}
-
-/** `CopyableCode` while its value loads: the label, and a bone in the empty field. */
-export function CopyableCodeSkeleton({ label }: { label: string }) {
-  return (
-    <Form.Field label={label} aria-hidden>
-      <Input readOnly tabIndex={-1} prefix={<Skeleton.Inline width="16em" />} />
-    </Form.Field>
+    <div className="flex flex-col gap-2">
+      <div className="font-medium">{label}</div>
+      <Snippet>{value}</Snippet>
+      {description ? (
+        <div className="text-xs text-fg-secondary">{description}</div>
+      ) : null}
+    </div>
   );
 }

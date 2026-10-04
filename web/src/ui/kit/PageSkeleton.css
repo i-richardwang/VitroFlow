@@ -1,7 +1,11 @@
 .ui-page-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+
+  @variant max-mobile {
+    gap: 16px;
+  }
 }
 
 .ui-page-skeleton-header {
@@ -16,11 +20,34 @@
   }
 }
 
+.ui-page-skeleton-header-main {
+  display: flex;
+  flex: 1;
+  gap: 16px;
+  align-items: flex-start;
+
+  min-inline-size: 0;
+}
+
+.ui-page-skeleton-icon {
+  flex: none;
+  inline-size: 40px;
+  block-size: 40px;
+}
+
+.ui-page-skeleton-meta {
+  inline-size: 240px;
+  max-inline-size: 80%;
+  block-size: 24px;
+  margin-block-start: 8px;
+  border-radius: var(--radius-sm);
+}
+
 .ui-page-skeleton-header-copy {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 
   min-inline-size: 0;
 }
@@ -29,6 +56,7 @@
   inline-size: 220px;
   max-inline-size: 70%;
   block-size: var(--text-2xl);
+  margin-block: calc((var(--text-2xl--line-height) - var(--text-2xl)) / 2);
 }
 
 .ui-page-skeleton-action {
@@ -39,17 +67,17 @@
 }
 
 .ui-page-skeleton-stat-value {
-  inline-size: 42%;
-  block-size: calc(var(--text-3xl) * 1.2);
+  inline-size: 56px;
+  block-size: var(--text-xl);
+  margin-block: calc((var(--text-xl--line-height) - var(--text-xl)) / 2);
 }
 
-/* The frame of `Table`. */
+/* The edges of `Table`: out to the surface's gutter, columns inset by it. */
 .ui-page-skeleton-table {
-  overflow: hidden;
+  --ui-page-skeleton-edge: max(var(--surface-gutter), 16px);
+
   min-inline-size: 0;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--radius-md);
-  background: var(--color-container);
+  margin-inline: calc(var(--surface-gutter) * -1);
 }
 
 .ui-page-skeleton-thead {
@@ -57,11 +85,11 @@
   gap: 12px;
   align-items: center;
 
-  min-block-size: 39px;
-  padding-block: 10px;
-  padding-inline: 16px;
+  min-block-size: 36px;
+  padding-block: 8px;
+  padding-inline: var(--ui-page-skeleton-edge);
 
-  background: var(--color-fill-tertiary);
+  background: var(--color-fill-quaternary);
 }
 
 .ui-page-skeleton-thead-cell {
@@ -74,14 +102,9 @@
   gap: 12px;
   align-items: center;
 
-  min-block-size: 54px;
-  padding-block: 12px;
-  padding-inline: 16px;
-  border-block-end: 1px solid var(--color-border);
-
-  &:last-child {
-    border-block-end: none;
-  }
+  min-block-size: 38px;
+  padding-block: 8px;
+  padding-inline: var(--ui-page-skeleton-edge);
 }
 
 .ui-page-skeleton-copy {
@@ -92,7 +115,7 @@
 .ui-page-skeleton-tag {
   flex: none;
   inline-size: 72px;
-  block-size: 22px;
+  block-size: 20px;
   border-radius: var(--radius-sm);
 }
 

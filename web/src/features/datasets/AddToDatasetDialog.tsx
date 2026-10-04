@@ -100,7 +100,7 @@ function AddToDatasetForm({
           options={[
             ...datasets.map((dataset) => ({
               value: dataset,
-              label: <span className="font-mono">{dataset}</span>,
+              label: dataset,
             })),
             { value: NEW_DATASET, label: m.dataset_add_new() },
           ]}
@@ -109,7 +109,6 @@ function AddToDatasetForm({
       {choice === NEW_DATASET ? (
         <Form.Field label={m.dataset_add_name_label()} required>
           <Input
-            className="font-mono"
             value={name}
             onValueChange={setName}
             pattern={DATASET_NAME_PATTERN}

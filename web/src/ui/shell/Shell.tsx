@@ -32,7 +32,7 @@ import {
   type AppShellBrandLinkProps,
 } from "../kit/AppShell";
 
-export type Crumb = { label: string; href?: string; mono?: boolean };
+export type Crumb = { label: string; href?: string };
 
 function navigation(user: WorkbenchUser): AppNavGroup[] {
   const groups: AppNavGroup[] = [
@@ -146,7 +146,7 @@ export function Shell({
         }
         footer={account}
         breadcrumb={<Trail group={sectionGroup(groups, pathname)} />}
-        tools={<div ref={setActionsSlot} className="flex items-center gap-2" />}
+        tools={<div ref={setActionsSlot} className="flex items-center gap-1" />}
       >
         {children}
       </AppShell>
@@ -169,13 +169,9 @@ function Trail({ group }: { group?: string }) {
   if (crumbs.length === 0) return null;
   const items: BreadcrumbItem[] = crumbs.map((crumb, index) => ({
     href: index === crumbs.length - 1 ? undefined : crumb.href,
-    label: crumb.mono ? (
-      <span className="font-mono">{crumb.label}</span>
-    ) : (
-      crumb.label
-    ),
+    label: crumb.label,
   }));
-  if (group) items.unshift({ label: group, optional: true });
+  if (group && group !== crumbs[0]!.label) items.unshift({ label: group });
   return <Breadcrumb items={items} renderLink={routerLink} />;
 }
 

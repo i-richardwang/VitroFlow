@@ -35,7 +35,7 @@
 
   box-sizing: border-box;
   width: calc(100% - 32px);
-  max-width: 440px;
+  max-width: 520px;
   max-height: calc(100dvh - 64px);
   border-radius: var(--radius-lg);
 
@@ -46,7 +46,7 @@
 }
 
 .ui-modal-popup-inner-wide {
-  max-width: 560px;
+  max-width: 640px;
 }
 
 @keyframes ui-modal-deny {
@@ -82,9 +82,14 @@
   align-items: center;
   justify-content: space-between;
 
-  min-height: 48px;
-  padding-block: 8px;
-  padding-inline: 16px;
+  flex: none;
+
+  min-height: 56px;
+  padding-block: 12px;
+  padding-inline: 24px;
+  border-block-end: 1px solid transparent;
+
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
 .ui-modal-title {
@@ -105,7 +110,7 @@
 
   width: 32px;
   height: 32px;
-  margin-inline-end: -4px;
+  margin-inline-end: -8px;
   padding: 0;
   border: none;
   border-radius: var(--radius-lg);
@@ -125,18 +130,45 @@
   @apply focus-ring;
 }
 
+/*
+ * The body takes the height the panel has left and scrolls inside it; the
+ * header and the footer keep theirs. A hairline appears on the side where
+ * content runs on past the edge.
+ */
 .ui-modal-content {
+  --surface-gutter: 24px;
+
   overflow: hidden auto;
-  padding-block: 0 16px;
-  padding-inline: 16px;
+  flex: 1 1 auto;
+
+  min-block-size: 0;
+  padding-block: 0 8px;
+  padding-inline: 24px;
+
+  &:last-child {
+    padding-block-end: 24px;
+  }
 }
 
 .ui-modal-footer {
   display: flex;
+  flex: none;
   gap: 8px;
   align-items: center;
   justify-content: flex-end;
 
-  padding-block: 12px;
-  padding-inline: 16px;
+  padding-block: 16px 24px;
+  padding-inline: 24px;
+  border-block-start: 1px solid transparent;
+
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.ui-modal-popup-inner:has(> .ui-modal-content[data-overflow-top])
+  > .ui-modal-header {
+  border-block-end-color: var(--color-border-secondary);
+}
+
+.ui-modal-content[data-overflow-bottom] + .ui-modal-footer {
+  border-block-start-color: var(--color-border-secondary);
 }

@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import {
   useCallback,
@@ -9,22 +10,34 @@ import {
 import { m } from "../../paraglide/messages";
 import { Checkbox } from "./Checkbox";
 import { cn } from "./cn";
-import { Empty } from "./Empty";
+import { DropdownMenu, type DropdownItem } from "./DropdownMenu";
+import { Icon } from "./Icon";
 
 /*
- * The table draws its own frame: one outlined surface whose corners clip the
- * header and the rows. In the card layout the frame goes away and each row is
+ * The table has no frame of its own: a header band and rows on the surface it
+ * sits on. It runs to the surface's edges through `--surface-gutter` (see
+ * app.css) and insets its first and last columns by the same amount, so
+ * their text lines up with the content above. In the card layout each row is
  * its own outlined card.
  *
+ * - `size="small"`: the dense header of a data grid, 12px in the tertiary
+ *   color; the default header is 13px in the secondary color.
+ * - `empty`: drawn instead of the table, header and all, when there are no
+ *   rows; usually an `Empty` with the one way forward.
  * - Whole-row click: `TableRow`'s `clickable`. A click anywhere on the row
  *   that is not on a control is passed to the link in its `cellSlot="title"`
  *   cell, modifier keys included, so the link stays the row's one tab stop
  *   and a modified click opens a new tab as on the link itself.
+ * - Row actions: the `cellSlot="actions"` cell shows while the row is
+ *   hovered, holds focus or has its menu open; on a touch screen and in the
+ *   card layout it always shows.
  * - Selection: `TableSelectionHead` (select all, with the mixed state) and
  *   `TableSelectionCell` (one row) hold a checkbox each; a selected row is
  *   `data-state="selected"`. The caller owns the selected set.
  * - Groups: `TableGroupRow` heads the rows that follow it until the next
  *   group row; its own `TableSelectionCell` selects the group.
+ * - `TableHeadMenu`: a column header that opens a menu of the column's
+ *   commands, drawn in the header's own type.
  * - `fill`: the table takes the height its flex parent leaves it and scrolls
  *   its rows under a pinned header.
  * - Pinned columns: `fixed="start"` / `"end"` on every cell of a column keeps
@@ -32,7 +45,6 @@ import { Empty } from "./Empty";
  *   content is passing under.
  * - `numeric`: the column holds figures, set at the end edge in tabular digits
  *   so they line up; header and body cells of the column both take it.
- * - `TableEmpty` is the single row of an empty body.
  * - `narrow="cards"`: below 600px of table width each row becomes a card
  *   whose cells carry their `cellLabel` on the left; the default `"scroll"`
  *   scrolls horizontally when the table is wider than its box.
@@ -42,23 +54,30 @@ interface TableProps extends Omit<
   ComponentProps<"table">,
   "className" | "style"
 > {
+  /** Shown in place of the table when it has no rows. */
+  empty?: ReactNode;
   /** Takes the height its flex parent leaves it; the rows scroll under a pinned header. */
   fill?: boolean;
-  footer?: ReactNode;
   narrow?: "scroll" | "cards";
+  size?: "small" | "middle";
 }
 
 export function Table({
+  empty,
   fill,
-  footer,
   narrow = "scroll",
+  size = "middle",
   ...props
 }: TableProps) {
   const { contentRef, onScroll, shadow, tableRef } = useFixedColumns();
+  if (empty != null && empty !== false) {
+    return <div className="ui-table-empty">{empty}</div>;
+  }
   return (
     <div
       className={cn(
         "ui-table-wrapper",
+        size === "small" && "ui-table-small",
         narrow === "cards" && "ui-table-narrow-cards",
         fill && "ui-table-fill",
       )}
@@ -80,7 +99,6 @@ export function Table({
             <table ref={tableRef} {...props} />
           </div>
         </div>
-        {footer != null && <div className="ui-table-footer">{footer}</div>}
       </div>
     </div>
   );
@@ -255,10 +273,11 @@ interface TableCellProps extends ComponentProps<"td"> {
   /** The label left of this cell in the card layout, usually the column header's text. */
   cellLabel?: string;
   /**
-   * Where the cell goes in the card layout: `title` is the name heading the
-   * card, `extra` sits beside it at the end (a row's menu).
+   * `title` holds the row's name, which heads the card in the card layout;
+   * `actions` holds the row's commands, shown on hover or focus and set
+   * beside the title in the card layout.
    */
-  cellSlot?: "title" | "extra";
+  cellSlot?: "title" | "actions";
   fixed?: Fixed;
   numeric?: boolean;
 }
@@ -349,20 +368,33 @@ export function TableSelectionCell({
   );
 }
 
-/*
- * A colspan past the last column ends at the last column, so the one cell of
- * an empty body spans every column without counting them; 1000 is the
- * largest colspan HTML allows.
+/**
+ * A column header that opens a menu of commands for the column. It reads in
+ * the header's own size and color; the chevron brightens on hover.
  */
-const ALL_COLUMNS = 1000;
-
-/** The one row of an empty body, spanning every column. */
-export function TableEmpty({ children }: { children?: ReactNode }) {
+export function TableHeadMenu({
+  "aria-label": ariaLabel,
+  children,
+  items,
+}: {
+  "aria-label": string;
+  children: ReactNode;
+  items: DropdownItem[];
+}) {
   return (
-    <tr className="ui-table-placeholder">
-      <td className="ui-table-cell" colSpan={ALL_COLUMNS}>
-        {children ?? <Empty description={m.ui_no_data()} />}
-      </td>
-    </tr>
+    <DropdownMenu items={items}>
+      <button
+        aria-label={ariaLabel}
+        className="ui-table-head-menu"
+        type="button"
+      >
+        {children}
+        <Icon
+          className="ui-table-head-menu-icon"
+          icon={ChevronDown}
+          size={12}
+        />
+      </button>
+    </DropdownMenu>
   );
 }

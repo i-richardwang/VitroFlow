@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarPlus, Download, Plus, Sparkles } from "lucide-react";
+import { CalendarPlus, Plus, Sparkles } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
 import type {
@@ -20,20 +20,17 @@ import {
   type Reading,
   type Summary,
 } from "../../domain/experiments/readings";
-import {
-  formatFactor,
-  type ExperimentObservation,
-  type Treatment,
-} from "../../domain/experiments/schema";
-import type { Model } from "../../domain/models/schema";
+import { formatFactor, type Treatment } from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
+import { formatDay } from "../../ui/Day";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { cn } from "../../ui/kit/cn";
 import { Empty } from "../../ui/kit/Empty";
 import { Icon } from "../../ui/kit/Icon";
+import { StatStrip, StatStripItem } from "../../ui/kit/StatStrip";
 import {
   Table,
   TableBody,
@@ -47,27 +44,24 @@ import {
 } from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
 import { Tooltip } from "../../ui/kit/Tooltip";
-import { modelName } from "../../ui/model-names";
 import { Page } from "../../ui/Page";
 import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
 import { ImageAnalysisStatus } from "./ImageAnalysisStatus";
-import { joinFacts, observationLabel } from "./labels";
 import { ObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
 import { TreatmentDialog } from "./TreatmentDialog";
 import { TreatmentDot } from "./TreatmentDot";
 import { TreatmentMenu } from "./TreatmentMenu";
 import { UnitSelectionBar } from "./UnitSelectionBar";
-import { experimentWorkbookFilename } from "./workbook";
 
 type Dialog = "treatment" | "observation";
 
-export function ExperimentGridView({
-  data,
-}: {
-  data: NonNullable<Awaited<ReturnType<typeof getExperimentGrid>>>;
-}) {
+type ExperimentGridData = NonNullable<
+  Awaited<ReturnType<typeof getExperimentGrid>>
+>;
+
+export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   const {
     experiment,
     treatments,
@@ -109,37 +103,30 @@ export function ExperimentGridView({
     search: { observation },
   });
 
+  const newObservation = (
+    <Button type="primary" icon={Plus} onClick={() => setOpen("observation")}>
+      {m.observation_new()}
+    </Button>
+  );
+  // A column is one day; it names its model too when the days read for more
+  // than one, since values compare within a column and columns may ask
+  // different questions.
+  const asked = new Set(observations.map((item) => item.modelId));
+
   return (
     <Page
       title={experiment.name}
-      description={joinFacts(
-        [
-          experiment.plantMaterial,
-          experiment.explantType,
-          experiment.baseMedium,
-        ].filter(Boolean),
-      )}
+      meta={[
+        experiment.plantMaterial,
+        experiment.explantType,
+        experiment.baseMedium,
+        m.experiment_meta_inoculated({
+          day: formatDay(experiment.inoculatedOn),
+        }),
+      ].filter(Boolean)}
       action={
         <>
-          <Button
-            icon={Download}
-            render={
-              // The workbook is a file download, not a route.
-              <a
-                href={`/experiments/${experiment.id}/workbook`}
-                download={experimentWorkbookFilename(experiment)}
-              />
-            }
-          >
-            {m.experiment_export()}
-          </Button>
-          <Button
-            type="primary"
-            icon={Plus}
-            onClick={() => setOpen("observation")}
-          >
-            {m.observation_new()}
-          </Button>
+          {observations.length > 0 ? newObservation : null}
           <ExperimentMenu
             experiment={experiment}
             hasRecords={hasRecords}
@@ -148,23 +135,11 @@ export function ExperimentGridView({
         </>
       }
     >
+      <ExperimentStats data={data} />
       <Table
         aria-label={m.experiment_grid_label({ experiment: experiment.name })}
-        fill
-        footer={
-          observations.length === 0 ? (
-            <Empty
-              icon={CalendarPlus}
-              title={m.experiment_no_observations()}
-              description={m.experiment_no_observations_description()}
-              action={
-                <Button icon={Plus} onClick={() => setOpen("observation")}>
-                  {m.observation_new()}
-                </Button>
-              }
-            />
-          ) : undefined
-        }
+        fill={observations.length > 0}
+        size="small"
       >
         <TableHeader>
           <tr>
@@ -184,12 +159,16 @@ export function ExperimentGridView({
               {m.experiment_column_treatment()}
             </TableHead>
             {observations.map((observation) => (
-              <TableHead key={observation.id} className="min-w-36">
+              <TableHead key={observation.id} className="min-w-28">
                 <ObservationMenu
                   experiment={experiment.id}
                   inoculatedOn={experiment.inoculatedOn}
                   observation={observation}
-                  label={observationHeading(observation, observations, models)}
+                  model={
+                    asked.size > 1
+                      ? models.find((item) => item.id === observation.modelId)
+                      : undefined
+                  }
                   units={units.filter((unit) =>
                     unitIsAvailableAt(unit.events, observation, ordinals),
                   )}
@@ -268,7 +247,7 @@ export function ExperimentGridView({
                   />
                   <TableCell fixed="start" cellSlot="title">
                     <TextLink
-                      className="ms-4 font-mono"
+                      className="ms-4"
                       render={<Link {...unitHref(unit)} />}
                     >
                       {unit.code}
@@ -303,6 +282,16 @@ export function ExperimentGridView({
           })}
         </TableBody>
       </Table>
+      {observations.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Empty
+            icon={CalendarPlus}
+            title={m.experiment_no_observations()}
+            description={m.experiment_no_observations_description()}
+            action={newObservation}
+          />
+        </div>
+      ) : null}
       <div className="pointer-events-none sticky bottom-0 flex shrink-0 justify-center *:pointer-events-auto">
         <UnitSelectionBar
           experiment={experiment.id}
@@ -332,20 +321,41 @@ export function ExperimentGridView({
   );
 }
 
-/**
- * The column is the day, and the model as well when the days read for more than
- * one: values in a column are comparable, columns may ask different questions.
- */
-function observationHeading(
-  observation: ExperimentObservation,
-  observations: readonly ExperimentObservation[],
-  models: readonly Model[],
-): string {
-  const day = observationLabel(observation);
-  const asked = new Set(observations.map((item) => item.modelId));
-  const model = models.find((item) => item.id === observation.modelId);
-  if (asked.size < 2 || !model) return day;
-  return m.observation_heading({ day, model: modelName(model) });
+/** The size of the experiment and how far detection has got with its photographs. */
+function ExperimentStats({ data }: { data: ExperimentGridData }) {
+  const { treatments, units, observations, images } = data;
+  const analyzed = images.filter(
+    (image) => image.state === "analyzed" || image.state === "proposed",
+  ).length;
+  const pending = images.filter((image) => image.state === "pending").length;
+  return (
+    <StatStrip>
+      <StatStripItem
+        label={m.experiment_stat_treatments()}
+        value={formatCount(treatments.length)}
+      />
+      <StatStripItem
+        label={m.experiment_stat_units()}
+        value={formatCount(units.length)}
+      />
+      <StatStripItem
+        label={m.experiment_stat_observations()}
+        value={formatCount(observations.length)}
+      />
+      <StatStripItem
+        label={m.experiment_stat_images()}
+        value={m.experiment_stat_images_value({
+          analyzed,
+          total: images.length,
+        })}
+        hint={
+          pending > 0
+            ? m.experiment_stat_images_pending({ count: pending })
+            : undefined
+        }
+      />
+    </StatStrip>
+  );
 }
 
 function TreatmentName({ treatment }: { treatment: Treatment }) {

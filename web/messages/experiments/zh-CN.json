@@ -229,5 +229,32 @@
   ],
   "culture_event_at": "{event} · {observation}",
   "unit_no_image_description": "在实验表格中，从某个观测日把照片对应到这个试验单元。",
-  "unit_open_experiment": "打开实验"
+  "unit_open_experiment": "打开实验",
+  "experiment_meta_inoculated": "{day} 接种",
+  "experiment_stat_treatments": "处理",
+  "experiment_stat_units": "试验单元",
+  "experiment_stat_observations": "观测日",
+  "experiment_stat_images": "已分析图像",
+  "experiment_stat_images_value": [
+    {
+      "declarations": [
+        "input analyzed",
+        "input total",
+        "local formattedAnalyzed = analyzed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "analyzed=*": "{formattedAnalyzed} / {formattedTotal}"
+      }
+    }
+  ],
+  "experiment_stat_images_pending": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 张待检测"
+      }
+    }
+  ],
+  "experiment_group_culture": "培养"
 }

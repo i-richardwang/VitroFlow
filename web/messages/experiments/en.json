@@ -241,5 +241,32 @@
   ],
   "culture_event_at": "{event} · {observation}",
   "unit_no_image_description": "Match a photograph to it from an observation day in the experiment.",
-  "unit_open_experiment": "Open experiment"
+  "unit_open_experiment": "Open experiment",
+  "experiment_meta_inoculated": "Inoculated {day}",
+  "experiment_stat_treatments": "Treatments",
+  "experiment_stat_units": "Units",
+  "experiment_stat_observations": "Observation days",
+  "experiment_stat_images": "Images analyzed",
+  "experiment_stat_images_value": [
+    {
+      "declarations": [
+        "input analyzed",
+        "input total",
+        "local formattedAnalyzed = analyzed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "analyzed=*": "{formattedAnalyzed} / {formattedTotal}"
+      }
+    }
+  ],
+  "experiment_stat_images_pending": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} pending detection"
+      }
+    }
+  ],
+  "experiment_group_culture": "Culture"
 }
