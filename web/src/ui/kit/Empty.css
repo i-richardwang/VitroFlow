@@ -5,12 +5,8 @@
   margin-block-end: 4px;
 }
 
-:where(:root:not(.dark)) .ui-empty-icon svg {
-  stroke: var(--color-fg-secondary);
-}
-
-:where(.dark) .ui-empty-icon svg {
-  stroke: var(--color-fg-quaternary);
+.ui-empty-icon svg {
+  stroke: var(--color-fg-tertiary);
 }
 
 .ui-empty-icon-bare {

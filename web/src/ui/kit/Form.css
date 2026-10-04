@@ -95,7 +95,6 @@ fieldset.ui-form-field {
 .ui-form-field-required {
   display: inline-block;
   margin-inline-end: 4px;
-  font-family: sans-serif;
   font-size: var(--text-base);
   line-height: 1;
   color: var(--color-error);

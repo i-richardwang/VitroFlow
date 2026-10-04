@@ -28,9 +28,8 @@ import type {
 import type { Model } from "../../domain/models/schema";
 import { getAnnotation, saveAnnotation } from "../../functions/review";
 import { m } from "../../paraglide/messages";
-import { errorMessage } from "../../ui/errors";
-import { performAction, useAsyncAction } from "../../ui/hooks/useAsyncAction";
-import { toast } from "../../ui/kit/Toast";
+import { confirmDestructive } from "../../ui/confirmDestructive";
+import { runAction, useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { classForShortcut, toolForShortcut, type Tool } from "./controls";
 
 interface SessionState {
@@ -127,7 +126,6 @@ export type Calibration =
       boxClass: string;
       changeClass: (name: string) => void;
       activeClass: string;
-      discard: { onStay: () => void; onLeave: () => void } | null;
       /** Saving is refused until the draft is read again from the stored review. */
       conflict: { reload: () => void; reloading: boolean } | null;
     };
@@ -162,24 +160,20 @@ export function useCalibrationSession({
       setLoaded(null);
       return;
     }
-    let cancelled = false;
-    void performAction(() => getAnnotation({ data: { digest, modelId } })).then(
-      (result) => {
-        if (cancelled) return;
-        if (result.ok) {
-          setLoaded({ digest, modelId, base: result.value?.instances ?? null });
-          return;
-        }
-        toast.error({
-          title: m.calibration_open_failed(),
-          description: errorMessage(result.error),
-        });
-        closeUnopened();
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
+    const opening = new AbortController();
+    void runAction(
+      () => getAnnotation({ data: { digest, modelId } }),
+      m.calibration_open_failed(),
+      opening.signal,
+    ).then((result) => {
+      if (opening.signal.aborted) return;
+      if (result.ok) {
+        setLoaded({ digest, modelId, base: result.value?.instances ?? null });
+        return;
+      }
+      closeUnopened();
+    });
+    return () => opening.abort();
   }, [calibrating, digest, modelId]);
 
   const ready =
@@ -230,8 +224,22 @@ export function useCalibrationSession({
     withResolver: true,
   });
 
+  // A navigation waiting on unsaved changes asks whether to discard them:
+  // dismissing the question stays, discarding leaves, and saving stays and
+  // withdraws the question.
   useEffect(() => {
-    if (blocker.status === "blocked" && saving) blocker.reset();
+    if (blocker.status !== "blocked") return;
+    if (saving) {
+      blocker.reset();
+      return;
+    }
+    return confirmDestructive({
+      title: m.calibration_discard_confirm(),
+      content: m.calibration_discard_description(),
+      confirmLabel: m.calibration_discard(),
+      onConfirm: blocker.proceed,
+      onCancel: blocker.reset,
+    });
   }, [blocker, saving]);
 
   const selected =
@@ -376,10 +384,6 @@ export function useCalibrationSession({
     boxClass: selected?.class ?? session.activeClass,
     changeClass,
     activeClass: session.activeClass,
-    discard:
-      blocker.status === "blocked" && !saving
-        ? { onStay: blocker.reset, onLeave: blocker.proceed }
-        : null,
     conflict: session.conflicted ? { reload, reloading } : null,
   };
 }

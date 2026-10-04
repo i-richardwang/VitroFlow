@@ -1,9 +1,4 @@
-import {
-  createFileRoute,
-  Link,
-  notFound,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ChartLine, Download, ImagePlus } from "lucide-react";
 
 import { QualityTags } from "../../ui/DetectionQuality";
@@ -66,14 +61,13 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 function DatasetPage() {
   const { dataset } = Route.useParams();
   const { images, reviewedCount, training } = Route.useLoaderData();
-  const router = useRouter();
 
-  useRouteRefresh(router, 10_000);
+  useRouteRefresh(10_000);
 
   return (
     <Page
       title={<span className="block truncate font-mono">{dataset}</span>}
-      actions={
+      action={
         <>
           <Button
             icon={Download}
@@ -120,7 +114,7 @@ function DatasetPage() {
         <TableHeader>
           <tr>
             <TableHead>{m.dataset_column_image()}</TableHead>
-            <TableHead className="w-24 text-end">
+            <TableHead className="w-24" numeric>
               {m.dataset_column_boxes()}
             </TableHead>
             <TableHead className="w-64">{m.dataset_column_quality()}</TableHead>
@@ -146,10 +140,7 @@ function DatasetPage() {
                     {image.filename}
                   </TextLink>
                 </TableCell>
-                <TableCell
-                  cellLabel={m.dataset_column_boxes()}
-                  className="text-end tabular-nums"
-                >
+                <TableCell cellLabel={m.dataset_column_boxes()} numeric>
                   <BoxCount
                     detected={image.detectionCount}
                     proposed={image.proposalCount}

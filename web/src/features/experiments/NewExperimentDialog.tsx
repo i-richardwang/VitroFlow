@@ -1,13 +1,12 @@
-import type { CalendarDate } from "@internationalized/date";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { today } from "../../domain/experiments/schema";
 import { startExperiment } from "../../functions/experiments";
 import { DialogSession, FormDialog } from "../../ui/FormDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Form } from "../../ui/kit/Form";
 import { m } from "../../paraglide/messages";
-import { currentDay, toDay } from "./DayField";
 import {
   DesignField,
   initialDesign,
@@ -41,7 +40,7 @@ function NewExperimentSession({
 }: NewExperimentDialogProps & { afterClose: () => void }) {
   const router = useRouter();
   const action = useAsyncAction();
-  const [inoculatedOn, setInoculatedOn] = useState<CalendarDate>(currentDay);
+  const [inoculatedOn, setInoculatedOn] = useState(today);
   const [design, setDesign] = useState<DesignRow[]>(initialDesign);
   const treatments = submittedDesign(design);
 
@@ -69,7 +68,7 @@ function NewExperimentSession({
                 startExperiment({
                   data: {
                     ...readExperimentFields(form),
-                    inoculatedOn: toDay(inoculatedOn),
+                    inoculatedOn,
                     treatments,
                   },
                 }),

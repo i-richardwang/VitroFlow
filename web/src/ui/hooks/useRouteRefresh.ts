@@ -1,10 +1,9 @@
+import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-export function useRouteRefresh(
-  router: { invalidate: () => Promise<unknown> },
-  intervalMs: number,
-  enabled = true,
-): void {
+/** Reloads the current route's data every `intervalMs` while the tab is visible and `enabled` holds. */
+export function useRouteRefresh(intervalMs: number, enabled = true): void {
+  const router = useRouter();
   useEffect(() => {
     if (!enabled) return;
     const refresh = () => {

@@ -12,103 +12,75 @@ import { springTransition } from "./motionToken";
 
 /*
  * A controlled switch. The thumb stretches while pressed and springs to its
- * place; its offset and width are motion values written straight to the
- * element, so React never rewrites them mid-flight.
+ * place. Its geometry lives in Switch.css; two motion values from 0 to 1, how
+ * far it has travelled and how far it is stretched, are written straight to
+ * the element as `--ui-switch-on` and `--ui-switch-stretch`, so React never
+ * rewrites them mid-flight.
  */
 
-export type SwitchSize = "default" | "small";
-
-const THUMB_METRICS: Record<
-  SwitchSize,
-  {
-    checkedX: number;
-    pressedCheckedX: number;
-    pressedWidth: number;
-    width: number;
-  }
-> = {
-  default: { checkedX: 14, pressedCheckedX: 10, pressedWidth: 22, width: 18 },
-  small: { checkedX: 12, pressedCheckedX: 8, pressedWidth: 16, width: 12 },
-};
+export type SwitchSize = "middle" | "small";
 
 const THUMB_SPRING = { damping: 24, stiffness: 360 };
 
-const ROOT_SIZE = {
-  default: "ui-switch-root-default",
-  small: "ui-switch-root-small",
-} as const;
-
-const THUMB_SIZE = {
-  default: "ui-switch-thumb-default",
-  small: "ui-switch-thumb-small",
+const SIZE = {
+  middle: "ui-switch-middle",
+  small: "ui-switch-small",
 } as const;
 
 function SwitchThumb({
   checked,
   pressed,
-  size,
 }: {
   checked: boolean;
   pressed: boolean;
-  size: SwitchSize;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-
-  const metrics = THUMB_METRICS[size];
-  const targetX = checked
-    ? pressed
-      ? metrics.pressedCheckedX
-      : metrics.checkedX
-    : 0;
-  const targetWidth = pressed ? metrics.pressedWidth : metrics.width;
+  const on = checked ? 1 : 0;
+  const stretch = pressed ? 1 : 0;
 
   const [values] = useState(() => ({
-    width: motionValue(targetWidth),
-    x: motionValue(targetX),
+    on: motionValue(on),
+    stretch: motionValue(stretch),
   }));
 
-  const [initialStyle] = useState<CSSProperties>(
+  const [initialStyle] = useState(
     () =>
       ({
-        "--ui-switch-x": `${targetX}px`,
-        width: targetWidth,
+        "--ui-switch-on": on,
+        "--ui-switch-stretch": stretch,
       }) as CSSProperties,
   );
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const unsubscribeX = values.x.on("change", (x) => {
-      el.style.setProperty("--ui-switch-x", `${x}px`);
+    const unsubscribeOn = values.on.on("change", (value) => {
+      el.style.setProperty("--ui-switch-on", String(value));
     });
-    const unsubscribeWidth = values.width.on("change", (width) => {
-      el.style.setProperty("width", `${width}px`);
+    const unsubscribeStretch = values.stretch.on("change", (value) => {
+      el.style.setProperty("--ui-switch-stretch", String(value));
     });
     return () => {
-      unsubscribeX();
-      unsubscribeWidth();
+      unsubscribeOn();
+      unsubscribeStretch();
     };
   }, [values]);
 
   useEffect(() => {
     const transition = springTransition(THUMB_SPRING);
     const animations = [
-      animate(values.x, targetX, transition),
-      animate(values.width, targetWidth, transition),
+      animate(values.on, on, transition),
+      animate(values.stretch, stretch, transition),
     ];
     return () => {
       for (const animation of animations) animation.stop();
     };
-  }, [values, targetX, targetWidth]);
+  }, [values, on, stretch]);
 
   return (
     <BaseSwitch.Thumb
       render={
-        <span
-          className={cn("ui-switch-thumb", THUMB_SIZE[size])}
-          ref={ref}
-          style={initialStyle}
-        />
+        <span className="ui-switch-thumb" ref={ref} style={initialStyle} />
       }
     />
   );
@@ -125,7 +97,7 @@ export function Switch({
   checked,
   disabled,
   onChange,
-  size = "default",
+  size = "middle",
 }: SwitchProps) {
   const [pressed, setPressed] = useState(false);
   const press = () => {
@@ -140,7 +112,7 @@ export function Switch({
       disabled={disabled}
       render={
         <button
-          className={cn("ui-switch", ROOT_SIZE[size])}
+          className={cn("ui-switch", SIZE[size])}
           type="button"
           onKeyDown={(event: KeyboardEvent) => {
             if (event.key === " ") press();
@@ -156,7 +128,7 @@ export function Switch({
       }
       onCheckedChange={(next) => onChange(next)}
     >
-      <SwitchThumb checked={checked} pressed={pressed} size={size} />
+      <SwitchThumb checked={checked} pressed={pressed} />
     </BaseSwitch.Root>
   );
 }

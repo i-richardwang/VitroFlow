@@ -41,13 +41,13 @@ export function TrainingRunsTable({
           <TableHead>{m.run_column_run()}</TableHead>
           {datasetColumn && <TableHead>{m.run_column_dataset()}</TableHead>}
           <TableHead>{m.run_column_state()}</TableHead>
-          <TableHead className="w-24 text-end">
+          <TableHead className="w-24" numeric>
             {m.run_column_epochs()}
           </TableHead>
-          <TableHead className="w-28 text-end">
+          <TableHead className="w-28" numeric>
             {m.run_column_best_map50()}
           </TableHead>
-          <TableHead className="w-28 text-end">
+          <TableHead className="w-28" numeric>
             {m.run_column_map50_95()}
           </TableHead>
           <TableHead className="w-48">{m.run_column_version()}</TableHead>
@@ -85,10 +85,7 @@ export function TrainingRunsTable({
                   <TrainingRunState run={run} />
                 </Tooltip>
               </TableCell>
-              <TableCell
-                cellLabel={m.run_column_epochs()}
-                className="text-end tabular-nums"
-              >
+              <TableCell cellLabel={m.run_column_epochs()} numeric>
                 {m.run_epochs_progress({
                   completed,
                   total: run.recipe.parameters.epochs,
@@ -96,13 +93,15 @@ export function TrainingRunsTable({
               </TableCell>
               <TableCell
                 cellLabel={m.run_column_best_map50()}
-                className="text-end font-mono tabular-nums"
+                className="font-mono"
+                numeric
               >
                 <Metric value={best?.map50 ?? null} />
               </TableCell>
               <TableCell
                 cellLabel={m.run_column_map50_95()}
-                className="text-end font-mono tabular-nums"
+                className="font-mono"
+                numeric
               >
                 <Metric value={best?.map50To95 ?? null} />
               </TableCell>

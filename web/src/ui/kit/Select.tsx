@@ -1,21 +1,17 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Check, ChevronDown, X } from "lucide-react";
-import type {
-  CSSProperties,
-  KeyboardEvent,
-  ReactNode,
-  SyntheticEvent,
-} from "react";
+import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
 import { m } from "../../paraglide/messages";
 import { cn } from "./cn";
 import { defaultPortalContainer } from "./floating";
+import { Hotkey } from "./Hotkey";
 import { Icon } from "./Icon";
 
 /*
  * A controlled select of one value from a flat list of options. Without a
  * `variant` the trigger is outlined in the light scheme and filled in the dark
  * one; CSS picks it from `.dark`. The popup reuses the menu blocks from
- * DropdownMenu.css.
+ * DropdownMenu.css. An option's label is also what the trigger shows for it.
  */
 
 export type SelectSize = "middle" | "small";
@@ -23,6 +19,8 @@ export type SelectVariant = "borderless" | "filled";
 
 export interface SelectOption<Value = string> {
   disabled?: boolean;
+  /** A shortcut that picks this option elsewhere, shown at the end of its row. */
+  hotkey?: string;
   label: ReactNode;
   value: Value;
 }
@@ -33,12 +31,10 @@ interface SelectBaseProps<Value> {
   className?: string;
   disabled?: boolean;
   id?: string;
-  labelRender?: (option: SelectOption<Value>) => ReactNode;
-  optionRender?: (option: SelectOption<Value>) => ReactNode;
   options: SelectOption<Value>[];
   placeholder?: ReactNode;
-  /** `false` lets the popup grow to its content instead of the trigger's width. */
-  popupMatchSelectWidth?: boolean;
+  /** `content` lets the popup grow past the trigger's width to fit its options. */
+  popupWidth?: "trigger" | "content";
   size?: SelectSize;
   variant?: SelectVariant;
 }
@@ -56,8 +52,6 @@ export type SelectProps<Value = string> = SelectBaseProps<Value> &
         value: Value | null;
       }
   );
-
-const LIST_HEIGHT = 512;
 
 const TRIGGER_SIZE = {
   middle: "ui-select-trigger-middle",
@@ -80,11 +74,9 @@ export function Select<Value = string>(props: SelectProps<Value>) {
     className,
     disabled,
     id,
-    labelRender,
-    optionRender,
     options,
     placeholder,
-    popupMatchSelectWidth = true,
+    popupWidth = "trigger",
     size = "middle",
     value,
     variant,
@@ -106,11 +98,8 @@ export function Select<Value = string>(props: SelectProps<Value>) {
       return placeholder === undefined ? null : (
         <span className="ui-select-value-text">{placeholder}</span>
       );
-    const option = optionOf(current);
     return (
-      <span className="ui-select-value-text">
-        {labelRender ? labelRender(option) : option.label}
-      </span>
+      <span className="ui-select-value-text">{optionOf(current).label}</span>
     );
   };
 
@@ -128,16 +117,6 @@ export function Select<Value = string>(props: SelectProps<Value>) {
       emit(null);
     }
   };
-
-  const popupStyle = {
-    maxWidth: "var(--available-width)",
-    minWidth: popupMatchSelectWidth ? "var(--anchor-width)" : "max-content",
-    "--ui-select-popup-max-height": `${LIST_HEIGHT}px`,
-  } as CSSProperties;
-
-  const itemTextClassName = optionRender
-    ? "ui-dropdown-menu-item-content"
-    : "ui-dropdown-menu-label";
 
   return (
     <BaseSelect.Root<Value>
@@ -174,13 +153,13 @@ export function Select<Value = string>(props: SelectProps<Value>) {
               onMouseDown={holdPointer}
               onPointerDown={holdPointer}
             >
-              <Icon icon={X} size="small" />
+              <Icon icon={X} size={14} />
             </span>
           )}
           <BaseSelect.Icon className="ui-select-icon">
             <Icon
               icon={ChevronDown}
-              size="small"
+              size={14}
               style={{ pointerEvents: "none" }}
             />
           </BaseSelect.Icon>
@@ -196,8 +175,11 @@ export function Select<Value = string>(props: SelectProps<Value>) {
           sideOffset={6}
         >
           <BaseSelect.Popup
-            className={cn("ui-dropdown-menu-popup", "ui-select-popup")}
-            style={popupStyle}
+            className={cn(
+              "ui-dropdown-menu-popup",
+              "ui-select-popup",
+              popupWidth === "content" && "ui-select-popup-fit-content",
+            )}
           >
             <BaseSelect.List className="ui-select-list">
               {options.length === 0 ? (
@@ -213,11 +195,16 @@ export function Select<Value = string>(props: SelectProps<Value>) {
                     label={searchText(option)}
                     value={option.value}
                   >
-                    <BaseSelect.ItemText className={itemTextClassName}>
-                      {optionRender ? optionRender(option) : option.label}
+                    <BaseSelect.ItemText className="ui-dropdown-menu-label">
+                      {option.label}
                     </BaseSelect.ItemText>
+                    {option.hotkey && (
+                      <span className="ui-select-item-hotkey">
+                        <Hotkey keys={option.hotkey} />
+                      </span>
+                    )}
                     <BaseSelect.ItemIndicator className="ui-select-item-indicator">
-                      <Icon icon={Check} size="small" />
+                      <Icon icon={Check} size={14} />
                     </BaseSelect.ItemIndicator>
                   </BaseSelect.Item>
                 ))

@@ -61,7 +61,6 @@
 }
 
 .ui-select-borderless {
-  --ui-select-open-bg: var(--color-fill-tertiary);
   --ui-select-disabled-bg: color-mix(
     in srgb,
     var(--color-fill-tertiary) 55%,
@@ -70,7 +69,6 @@
 
   border: none;
   background: none;
-  box-shadow: none;
 
   &:hover {
     background: var(--color-fill-tertiary);
@@ -94,7 +92,6 @@
 }
 
 :where(:root:not(.dark)) .ui-select-auto {
-  --ui-select-open-bg: var(--color-fill-tertiary);
   --ui-select-disabled-bg: color-mix(
     in srgb,
     var(--color-container) 60%,
@@ -113,8 +110,6 @@
 .ui-select-value {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
-  gap: 4px;
   align-items: center;
   min-width: 0;
   color: inherit;
@@ -164,17 +159,15 @@
   outline: none;
 }
 
+/* At least as wide as the trigger and at most 512px tall, within the room the viewport leaves. */
 .ui-select-popup {
-  --ui-select-available-height: min(
-    var(--available-height),
-    var(--ui-select-popup-max-height, var(--available-height))
-  );
-
   transform-origin: var(--transform-origin);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  max-height: var(--ui-select-available-height);
+  min-width: var(--anchor-width);
+  max-width: var(--available-width);
+  max-height: min(var(--available-height), 512px);
   transition:
     opacity var(--duration-base) var(--ease-out),
     transform var(--duration-base) var(--ease-out);
@@ -186,11 +179,19 @@
   }
 }
 
+.ui-select-popup-fit-content {
+  min-width: max-content;
+}
+
 .ui-select-list {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
   padding-block: 0;
+}
+
+.ui-select-item-hotkey {
+  margin-inline-start: 16px;
 }
 
 .ui-select-item-indicator {

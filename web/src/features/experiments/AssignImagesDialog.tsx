@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
 import { pairInOrder, suggestUnit } from "../../domain/experiments/naming";
@@ -60,10 +60,7 @@ function AssignImagesSession({
   const router = useRouter();
   const uploads = useUploads();
   const action = useAsyncAction();
-  const [assignments, setAssignments] = useState<Record<number, string | null>>(
-    {},
-  );
-  const suggested = useRef(new Set<number>());
+  const [choices, setChoices] = useState<Record<number, string | null>>({});
   const vacantUnits = useMemo(
     () => units.filter((unit) => !assigned.has(unit.id)),
     [units, assigned],
@@ -75,39 +72,9 @@ function AssignImagesSession({
     const free = stored.filter((photo) => !conflicts.has(photo.id));
     return { conflicts, free };
   }, [images, placed]);
-
-  /**
-   * Each photograph is guessed once, when it is stored and free to take a
-   * unit; a choice made is never undone.
-   */
-  useEffect(() => {
-    const arrived = free.filter((photo) => !suggested.current.has(photo.id));
-    if (arrived.length === 0) return;
-    for (const photo of arrived) suggested.current.add(photo.id);
-    setAssignments((current) => {
-      const claimed = new Set(
-        Object.values(current).filter((unit): unit is string => unit !== null),
-      );
-      const next = { ...current };
-      for (const photo of arrived) {
-        const code = suggestUnit(
-          photo.filename,
-          vacantUnits.map((unit) => unit.code),
-        );
-        const unit = vacantUnits.find((item) => item.code === code);
-        if (!unit || claimed.has(unit.id)) continue;
-        claimed.add(unit.id);
-        next[photo.id] = unit.id;
-      }
-      return next;
-    });
-  }, [free, vacantUnits]);
-
-  const chosen = new Map(
-    free.flatMap((photo) => {
-      const unit = assignments[photo.id];
-      return unit ? [[photo.id, unit] as const] : [];
-    }),
+  const chosen = useMemo(
+    () => matchPhotos(free, choices, vacantUnits),
+    [free, choices, vacantUnits],
   );
   const ready = free.flatMap((photo) => {
     const unit = chosen.get(photo.id);
@@ -118,18 +85,17 @@ function AssignImagesSession({
   const unassigned = free.length - ready.length;
 
   /** Camera names say nothing about dishes; shooting order does. */
-  const fillInOrder = () =>
-    setAssignments((current) => {
-      const claimed = new Set(free.flatMap((photo) => current[photo.id] ?? []));
-      const waiting = free.filter((photo) => !current[photo.id]);
-      const vacant = vacantUnits
-        .filter((unit) => !claimed.has(unit.id))
-        .map((unit) => unit.id);
-      return {
-        ...current,
-        ...Object.fromEntries(pairInOrder(waiting, vacant)),
-      };
+  const fillInOrder = () => {
+    const claimed = new Set(chosen.values());
+    const waiting = free.filter((photo) => !chosen.has(photo.id));
+    const vacant = vacantUnits
+      .filter((unit) => !claimed.has(unit.id))
+      .map((unit) => unit.id);
+    setChoices({
+      ...choices,
+      ...Object.fromEntries(pairInOrder(waiting, vacant)),
     });
+  };
   const vacantLeft = vacantUnits.length - ready.length;
 
   return (
@@ -169,7 +135,7 @@ function AssignImagesSession({
             .then(async (result) => {
               if (!result.ok) return;
               uploads.clearStored();
-              setAssignments({});
+              setChoices({});
               await router.invalidate();
               if (!uploads.failed) onClose();
             });
@@ -180,7 +146,7 @@ function AssignImagesSession({
           onAdd={uploads.add}
           onRemove={(id) => {
             uploads.remove(id);
-            setAssignments(({ [id]: _removed, ...rest }) => rest);
+            setChoices(({ [id]: _removed, ...rest }) => rest);
           }}
           disabled={action.busy}
           annotate={(image) => {
@@ -201,10 +167,7 @@ function AssignImagesSession({
                 value={chosen.get(image.id) ?? null}
                 disabled={action.busy}
                 onChange={(unit) =>
-                  setAssignments((current) => ({
-                    ...current,
-                    [image.id]: unit,
-                  }))
+                  setChoices((current) => ({ ...current, [image.id]: unit }))
                 }
               />
             );
@@ -234,6 +197,34 @@ interface StoredPhoto {
   id: number;
   digest: string;
   filename: string;
+}
+
+/**
+ * The unit each free photograph goes to: the reader's choice where there is
+ * one, otherwise the unit its file name suggests, unless an earlier photograph
+ * already holds that unit.
+ */
+function matchPhotos(
+  free: readonly StoredPhoto[],
+  choices: Readonly<Record<number, string | null>>,
+  vacantUnits: readonly Unit[],
+): Map<number, string> {
+  const claimed = new Set(free.flatMap((photo) => choices[photo.id] ?? []));
+  const codes = vacantUnits.map((unit) => unit.code);
+  const matched = new Map<number, string>();
+  for (const photo of free) {
+    if (photo.id in choices) {
+      const unit = choices[photo.id];
+      if (unit) matched.set(photo.id, unit);
+      continue;
+    }
+    const code = suggestUnit(photo.filename, codes);
+    const unit = vacantUnits.find((item) => item.code === code);
+    if (!unit || claimed.has(unit.id)) continue;
+    claimed.add(unit.id);
+    matched.set(photo.id, unit.id);
+  }
+  return matched;
 }
 
 function storedPhotos(images: readonly ListedImage[]): StoredPhoto[] {

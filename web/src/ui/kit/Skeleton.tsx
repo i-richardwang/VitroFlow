@@ -6,39 +6,45 @@ import { cn } from "./cn";
  * built from it. Each `Skeleton.Text` row takes exactly one line box of text
  * at a type-scale `size`, read from that step's font size and line height:
  * a quarter of the leading above and below, the block filling the rest, so
- * nothing shifts when the real text arrives. `Skeleton.Button` has the size
- * of a middle Button.
+ * nothing shifts when the real text arrives. `Skeleton.Inline` stands in
+ * for a value inside a line of text. `Skeleton.Button` has the size of a
+ * middle Button. A block fills its container's width and is 1em tall unless
+ * its props or classes size it.
  */
 
 type Length = number | string;
 
 export interface SkeletonProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
-  "children"
+  "children" | "style"
 > {
   height?: Length;
   width?: Length;
 }
 
-function SkeletonRoot({
-  width = "100%",
-  height = "1em",
-  className,
-  style,
-  ...rest
-}: SkeletonProps) {
+function SkeletonRoot({ width, height, className, ...rest }: SkeletonProps) {
   return (
     <div
       className={cn("ui-skeleton", className)}
-      style={{ height, width, ...style }}
+      style={{ height, width }}
       {...rest}
+    />
+  );
+}
+
+/** A bone sitting in a line of text, as wide as the value it stands for. */
+function SkeletonInline({ width }: { width: Length }) {
+  return (
+    <span
+      aria-hidden
+      className="ui-skeleton ui-skeleton-inline"
+      style={{ width }}
     />
   );
 }
 
 const LINE_SIZE = {
   xs: "ui-skeleton-line-xs",
-  sm: "ui-skeleton-line-sm",
   base: "ui-skeleton-line-base",
   lg: "ui-skeleton-line-lg",
 } as const;
@@ -79,5 +85,6 @@ function SkeletonButton({ className }: { className?: string }) {
 
 export const Skeleton = Object.assign(SkeletonRoot, {
   Button: SkeletonButton,
+  Inline: SkeletonInline,
   Text: SkeletonText,
 });

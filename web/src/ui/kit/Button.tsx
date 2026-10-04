@@ -28,8 +28,6 @@ export interface ButtonProps extends Omit<
   icon?: LucideIcon | ReactNode;
   iconPosition?: "start" | "end";
   loading?: boolean;
-  /** Text type only: a negative start margin cancels this size's inline padding so the label lines up with adjacent text. */
-  outdent?: boolean;
   size?: ButtonSize;
   type?: ButtonType;
 }
@@ -49,7 +47,6 @@ const ICON_ONLY = {
 const TAP = { scale: 0.98 };
 const TAP_SPRING = { damping: 26, mass: 0.6, stiffness: 600 };
 
-/** Shrinks to 0.98 while pressed and springs back on release; not attached while interaction is disabled. */
 function usePressScale(enabled: boolean) {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -81,7 +78,6 @@ export function Button({
   iconPosition = "start",
   loading,
   onClick,
-  outdent,
   ref,
   render,
   size = "middle",
@@ -106,7 +102,6 @@ export function Button({
       block && "ui-button-block",
       iconPosition === "end" && "ui-button-icon-end",
       iconOnly && ICON_ONLY[size],
-      type === "text" && outdent && "ui-button-outdent-start",
       className,
     ),
     children: (
@@ -119,7 +114,7 @@ export function Button({
             iconPosition === "end" && "ui-button-spinner-slot-end",
           )}
         >
-          <span className="ui-spinner" />
+          <span className="ui-button-spinner" />
         </span>
         {icon && !loading ? (
           <span className="ui-button-icon-box">{resolveIcon(icon)}</span>

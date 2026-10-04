@@ -58,7 +58,7 @@ function IntegrationsPage() {
   return (
     <Page
       title={m.integrations_title()}
-      actions={
+      action={
         <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
           {m.integrations_new_key()}
         </Button>

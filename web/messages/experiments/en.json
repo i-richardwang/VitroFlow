@@ -43,7 +43,14 @@
   "experiment_units_not_moved": "Could not switch",
   "experiment_column_treatment": "Treatment",
   "experiment_column_actions": "Actions",
-  "experiment_cell_analyzed": "Detected {value}",
+  "experiment_cell_analyzed": [
+    {
+      "declarations": ["input value", "local formattedValue = value: number"],
+      "match": {
+        "value=*": "Detected {formattedValue}"
+      }
+    }
+  ],
   "experiment_cell_excluded": "Excluded from analysis at this observation",
   "experiment_export": "Export spreadsheet",
   "workbook_column_factor": "Factor",
@@ -55,7 +62,14 @@
   "image_analysis_pending": "Pending detection",
   "image_analysis_analyzed": "Detected",
   "image_analysis_failed": "Failed",
-  "observation_day_label": "Day {day}",
+  "observation_day_label": [
+    {
+      "declarations": ["input day", "local formattedDay = day: number"],
+      "match": {
+        "day=*": "Day {formattedDay}"
+      }
+    }
+  ],
   "observation_label": "Observation",
   "observations_label": "Observations",
   "observation_new": "New observation",
@@ -78,20 +92,38 @@
   "observation_images_assign_failed": "Images could not be matched",
   "observation_images_remaining": [
     {
-      "declarations": ["input count", "local countPlural = count: plural"],
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural",
+        "local formattedCount = count: number"
+      ],
       "selectors": ["countPlural"],
       "match": {
         "countPlural=one": "Match the remaining image",
-        "countPlural=other": "Match the remaining {count} images"
+        "countPlural=other": "Match the remaining {formattedCount} images"
       }
     }
   ],
   "observation_images_uploading": "Uploading…",
-  "observation_images_assign_count": "Match {count}",
+  "observation_images_assign_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "Match {formattedCount}"
+      }
+    }
+  ],
   "observation_images_unassigned": "Unmatched",
   "observation_images_unit_label": "Unit shown by {file}",
   "observation_images_fill_in_order": "Match in order",
-  "observation_images_placed": "Already {unit}, day {day}",
+  "observation_images_placed": [
+    {
+      "declarations": ["input day", "local formattedDay = day: number"],
+      "match": {
+        "day=*": "Already {unit}, day {formattedDay}"
+      }
+    }
+  ],
   "observation_images_repeated": "Same as {file}",
   "unit_title": "Unit {code} of {experiment}",
   "unit_navigation": "Navigation",
@@ -174,18 +206,39 @@
   "treatment_deleted": "{name} deleted",
   "experiment_selection_count": [
     {
-      "declarations": ["input count", "local countPlural = count: plural"],
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural",
+        "local formattedCount = count: number"
+      ],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "{count} unit selected",
-        "countPlural=other": "{count} units selected"
+        "countPlural=one": "{formattedCount} unit selected",
+        "countPlural=other": "{formattedCount} units selected"
       }
     }
   ],
   "experiment_facts_joined": "{first} · {second}",
   "observation_heading": "{day} · {model}",
-  "experiment_summary_deviation": "± {deviation}",
-  "experiment_summary_sample": "n = {count}",
+  "experiment_summary_deviation": [
+    {
+      "declarations": [
+        "input deviation",
+        "local formattedDeviation = deviation: number maximumFractionDigits=1"
+      ],
+      "match": {
+        "deviation=*": "± {formattedDeviation}"
+      }
+    }
+  ],
+  "experiment_summary_sample": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "n = {formattedCount}"
+      }
+    }
+  ],
   "culture_event_at": "{event} · {observation}",
   "unit_no_image_description": "Match a photograph to it from an observation day in the experiment.",
   "unit_open_experiment": "Open experiment"

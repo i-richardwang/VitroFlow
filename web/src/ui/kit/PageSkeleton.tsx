@@ -8,10 +8,9 @@ import { Skeleton } from "./Skeleton";
  * like the page's content and announces the load in a polite live region.
  * The parts (`PageHeaderSkeleton`, `StatGridSkeleton`, `TableSkeleton`) are
  * laid out in the order the page draws them. Bones are sized by their
- * classes, so the Skeleton default size is cleared with `bone`.
+ * classes.
  */
 
-const bone = { height: undefined, width: undefined };
 const lineWidths = [
   ["68%", "36%"],
   ["52%", "28%"],
@@ -42,7 +41,7 @@ export function PageHeaderSkeleton({
   return (
     <div aria-hidden className="ui-page-skeleton-header">
       <div className="ui-page-skeleton-header-copy">
-        <Skeleton className="ui-page-skeleton-title" style={bone} />
+        <Skeleton className="ui-page-skeleton-title" />
         {description ? <Skeleton.Text width="46%" /> : null}
       </div>
       {action ? <Skeleton.Button className="ui-page-skeleton-action" /> : null}
@@ -57,7 +56,7 @@ export function StatGridSkeleton({ count }: { count: number }) {
       {Array.from({ length: count }, (_, index) => (
         <Card key={index}>
           <Skeleton.Text size="xs" width={72} />
-          <Skeleton className="ui-page-skeleton-stat-value" style={bone} />
+          <Skeleton className="ui-page-skeleton-stat-value" />
           <Skeleton.Text size="xs" width="68%" />
         </Card>
       ))}
@@ -74,7 +73,7 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
           <Skeleton
             className="ui-page-skeleton-thead-cell"
             key={width}
-            style={{ ...bone, width }}
+            width={width}
           />
         ))}
       </div>
@@ -86,8 +85,8 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
               width={[...lineWidths[index % lineWidths.length]]}
             />
           </div>
-          <Skeleton className="ui-page-skeleton-tag" style={bone} />
-          <Skeleton className="ui-page-skeleton-cell" style={bone} />
+          <Skeleton className="ui-page-skeleton-tag" />
+          <Skeleton className="ui-page-skeleton-cell" />
         </div>
       ))}
     </div>

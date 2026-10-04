@@ -7,6 +7,7 @@
   "ui_copy_button_failed": "复制失败，请选中文字后手动复制",
   "ui_date_picker_choose_month": "选择月份",
   "ui_date_picker_choose_year": "选择年份",
+  "ui_date_picker_decade": "{first}-{last}",
   "ui_date_picker_dialog": "选择日期",
   "ui_date_picker_next_decade": "下一年代",
   "ui_date_picker_next_month": "下个月",
@@ -21,8 +22,39 @@
   "ui_draggable_panel_size": "{size} 像素",
   "ui_drop_zone_progress": "{file} 的上传进度",
   "ui_drop_zone_remove": "移除 {file}",
-  "ui_drop_zone_select": "选择文件",
-  "ui_drop_zone_title": "将文件拖到此处",
+  "ui_file_size_bytes": [
+    {
+      "declarations": [
+        "input bytes",
+        "local formatted = bytes: number maximumFractionDigits=0"
+      ],
+      "match": {
+        "formatted=*": "{formatted} B"
+      }
+    }
+  ],
+  "ui_file_size_kib": [
+    {
+      "declarations": [
+        "input kibibytes",
+        "local formatted = kibibytes: number maximumFractionDigits=0"
+      ],
+      "match": {
+        "formatted=*": "{formatted} KiB"
+      }
+    }
+  ],
+  "ui_file_size_mib": [
+    {
+      "declarations": [
+        "input mebibytes",
+        "local formatted = mebibytes: number maximumFractionDigits=1"
+      ],
+      "match": {
+        "formatted=*": "{formatted} MiB"
+      }
+    }
+  ],
   "ui_input_hide_password": "隐藏密码",
   "ui_input_number_decrease": "减少",
   "ui_input_number_increase": "增加",
@@ -35,6 +67,6 @@
   "ui_shell_open_navigation": "打开导航",
   "ui_shell_skip_to_content": "跳到主要内容",
   "ui_table_select_all": "全选",
-  "ui_viewport_zoom": "缩放",
-  "ui_viewport_fill": "铺满画面"
+  "ui_viewport_fill": "铺满画面",
+  "ui_viewport_zoom": "缩放"
 }

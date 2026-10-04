@@ -2,9 +2,11 @@ import { Field } from "@base-ui/react/field";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import {
   type CalendarDate,
+  type DateDuration,
   endOfWeek,
   getLocalTimeZone,
   isSameDay,
+  parseDate,
   startOfMonth,
   startOfWeek,
   today,
@@ -20,6 +22,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { CalendarDay } from "../../domain/experiments/schema";
 import { m } from "../../paraglide/messages";
 import { getLocale } from "../../paraglide/runtime";
 import { Button } from "./Button";
@@ -31,40 +34,74 @@ import { shellClass } from "./Input";
 /*
  * A controlled single-day picker that always holds a day. The field shows the
  * day formatted for the active locale; pressing it opens a dialog with three
- * panels: days of a month, months of a year, years of a decade. The header's
- * month and year buttons switch to the coarser panels; picking a year leads
+ * views: days of a month, months of a year, years of a decade. The header's
+ * month and year buttons switch to the coarser views; picking a year leads
  * to its months, picking a month to its days.
  *
- * Each panel is an ARIA grid with one tab stop. Arrows move by a cell (a
+ * Each view is an ARIA grid with one tab stop. Arrows move by a cell (a
  * day, or a row of a week / three months / three years); PageUp and
- * PageDown move by a month (by a year with Shift) on the day panel and by a
- * year or a decade on the others; Home and End go to the start and end of
- * the row; Enter and Space pick. The grid follows the keyboard into
- * neighboring months.
+ * PageDown step the view like its innermost header arrows, Shift like its
+ * outermost; Home and End go to the start and end of the row; Enter and
+ * Space pick. The grid follows the keyboard into neighboring months.
  *
  * The trigger is the control of an enclosing Base UI Field: the field's
  * label names it, and the field's invalid state and errors apply to it.
  *
  * The field is the Input shell, so it looks and responds like the text
- * fields beside it. Today is read
- * only inside the open dialog, which renders only in the browser.
+ * fields beside it. Today is read only inside the open dialog, which renders
+ * only in the browser.
  */
 
 export interface DatePickerProps {
   disabled?: boolean;
   /** The earliest day that can be picked. */
-  minDate?: CalendarDate;
-  onChange: (date: CalendarDate) => void;
-  value: CalendarDate;
+  earliest?: CalendarDay;
+  onChange: (day: CalendarDay) => void;
+  value: CalendarDay;
 }
 
-type Mode = "date" | "month" | "year";
+type View = "day" | "month" | "year";
 
-const PANEL = {
-  date: "ui-date-picker-date-panel",
-  month: "ui-date-picker-month-panel",
-  year: "ui-date-picker-year-panel",
-} satisfies Record<Mode, string>;
+interface Step {
+  duration: DateDuration;
+  next: () => string;
+  previous: () => string;
+}
+
+/** How far each view's header arrows move it, outermost first. */
+const STEPS: Record<View, Step[]> = {
+  day: [
+    {
+      duration: { years: 1 },
+      next: m.ui_date_picker_next_year,
+      previous: m.ui_date_picker_prev_year,
+    },
+    {
+      duration: { months: 1 },
+      next: m.ui_date_picker_next_month,
+      previous: m.ui_date_picker_prev_month,
+    },
+  ],
+  month: [
+    {
+      duration: { years: 1 },
+      next: m.ui_date_picker_next_year,
+      previous: m.ui_date_picker_prev_year,
+    },
+  ],
+  year: [
+    {
+      duration: { years: 10 },
+      next: m.ui_date_picker_next_decade,
+      previous: m.ui_date_picker_prev_decade,
+    },
+  ],
+};
+
+function pageStep(view: View, outermost: boolean): DateDuration {
+  const steps = STEPS[view];
+  return steps[outermost ? 0 : steps.length - 1]!.duration;
+}
 
 const FORMAT: Intl.DateTimeFormatOptions = {
   dateStyle: "medium",
@@ -73,7 +110,7 @@ const FORMAT: Intl.DateTimeFormatOptions = {
 
 export function DatePicker({
   disabled = false,
-  minDate,
+  earliest,
   onChange,
   value,
 }: DatePickerProps) {
@@ -81,16 +118,18 @@ export function DatePicker({
   const [open, setOpenState] = useState(false);
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const date = parseDate(value);
+  const earliestDate = earliest === undefined ? undefined : parseDate(earliest);
 
   const setOpen = (next: boolean) => {
     if (disabled && next) return;
     setOpenState(next);
   };
-  const isDisabled = (date: CalendarDate) =>
-    minDate !== undefined && date.compare(minDate) < 0;
+  const isDisabled = (candidate: CalendarDate) =>
+    earliestDate !== undefined && candidate.compare(earliestDate) < 0;
   // Formatted in UTC so the runtime's time zone cannot move the day.
   const text = new Intl.DateTimeFormat(locale, FORMAT).format(
-    value.toDate("UTC"),
+    date.toDate("UTC"),
   );
   const openFromField = (event: MouseEvent<HTMLDivElement>) => {
     if (triggerRef.current?.contains(event.target as Node)) return;
@@ -115,7 +154,7 @@ export function DatePicker({
             <Field.Control
               disabled={disabled}
               render={<button type="button" />}
-              value={value.toString()}
+              value={value}
             />
           }
         >
@@ -135,18 +174,18 @@ export function DatePicker({
         >
           <BasePopover.Popup
             aria-label={m.ui_date_picker_dialog()}
-            className="ui-date-picker-dropdown"
+            className="ui-date-picker-popup"
             finalFocus={triggerRef}
             initialFocus={false}
           >
-            <Panels
+            <Calendar
               isDisabled={isDisabled}
               locale={locale}
-              onPick={(date) => {
-                onChange(date);
+              onPick={(picked) => {
+                onChange(picked.toString());
                 setOpen(false);
               }}
-              value={value}
+              value={date}
             />
           </BasePopover.Popup>
         </BasePopover.Positioner>
@@ -155,7 +194,7 @@ export function DatePicker({
   );
 }
 
-function Panels({
+function Calendar({
   isDisabled,
   locale,
   onPick,
@@ -167,7 +206,7 @@ function Panels({
   value: CalendarDate;
 }) {
   const now = today(getLocalTimeZone());
-  const [mode, setMode] = useState<Mode>("date");
+  const [view, setView] = useState<View>("day");
   const [focused, setFocused] = useState(value);
   const focusedCell = useRef<HTMLTableCellElement>(null);
   // Focus follows the keyboard position after every move, and lands on it when the dialog opens.
@@ -178,15 +217,16 @@ function Panels({
     if (!focusPending.current) return;
     focusPending.current = false;
     focusedCell.current?.focus({ preventScroll: true });
-  }, [focused, mode]);
+  }, [focused, view]);
 
   const moveTo = (date: CalendarDate) => {
     focusPending.current = true;
     setFocused(date);
   };
-  const switchMode = (next: Mode) => {
+  const showView = (next: View, date = focused) => {
     focusPending.current = true;
-    setMode(next);
+    setFocused(date);
+    setView(next);
   };
 
   const yearFormat = new Intl.DateTimeFormat(locale, {
@@ -197,8 +237,6 @@ function Panels({
     month: "short",
     timeZone: "UTC",
   });
-  const yearLabel = yearFormat.format(focused.toDate("UTC"));
-  const monthLabel = monthFormat.format(focused.toDate("UTC"));
   // Locales differ in whether the month or the year comes first.
   const parts = new Intl.DateTimeFormat(locale, {
     year: "numeric",
@@ -212,263 +250,179 @@ function Panels({
   const yearButton = (
     <button
       aria-label={m.ui_date_picker_choose_year()}
-      className="ui-date-picker-year-btn"
       key="year"
-      onClick={() => switchMode("year")}
+      onClick={() => showView("year")}
       type="button"
     >
-      {yearLabel}
+      {yearFormat.format(focused.toDate("UTC"))}
     </button>
   );
   const monthButton = (
     <button
       aria-label={m.ui_date_picker_choose_month()}
-      className="ui-date-picker-month-btn"
       key="month"
-      onClick={() => switchMode("month")}
+      onClick={() => showView("month")}
       type="button"
     >
-      {monthLabel}
+      {monthFormat.format(focused.toDate("UTC"))}
     </button>
   );
-
-  const header =
-    mode === "date" ? (
-      <Header
-        labelId={labelId}
-        nextMonth={{
-          label: m.ui_date_picker_next_month(),
-          onClick: () => setFocused(focused.add({ months: 1 })),
-        }}
-        prevMonth={{
-          label: m.ui_date_picker_prev_month(),
-          onClick: () => setFocused(focused.subtract({ months: 1 })),
-        }}
-        nextYears={{
-          label: m.ui_date_picker_next_year(),
-          onClick: () => setFocused(focused.add({ years: 1 })),
-        }}
-        prevYears={{
-          label: m.ui_date_picker_prev_year(),
-          onClick: () => setFocused(focused.subtract({ years: 1 })),
-        }}
-      >
-        {monthFirst ? [monthButton, yearButton] : [yearButton, monthButton]}
-      </Header>
-    ) : mode === "month" ? (
-      <Header
-        labelId={labelId}
-        nextYears={{
-          label: m.ui_date_picker_next_year(),
-          onClick: () => setFocused(focused.add({ years: 1 })),
-        }}
-        prevYears={{
-          label: m.ui_date_picker_prev_year(),
-          onClick: () => setFocused(focused.subtract({ years: 1 })),
-        }}
-      >
-        {yearButton}
-      </Header>
-    ) : (
-      <Header
-        labelId={labelId}
-        nextYears={{
-          label: m.ui_date_picker_next_decade(),
-          onClick: () => setFocused(focused.add({ years: 10 })),
-        }}
-        prevYears={{
-          label: m.ui_date_picker_prev_decade(),
-          onClick: () => setFocused(focused.subtract({ years: 10 })),
-        }}
-      >
-        <span className="ui-date-picker-decade-btn">
-          {decadeStart}-{decadeStart + 9}
-        </span>
-      </Header>
-    );
+  const title =
+    view === "day"
+      ? monthFirst
+        ? [monthButton, yearButton]
+        : [yearButton, monthButton]
+      : view === "month"
+        ? yearButton
+        : m.ui_date_picker_decade({
+            first: String(decadeStart),
+            last: String(decadeStart + 9),
+          });
 
   return (
-    <div className="ui-date-picker-panel-container">
-      <div className="ui-date-picker-panel-layout">
-        <div>
-          <div className="ui-date-picker-panel">
-            <div className={PANEL[mode]}>
-              {header}
-              <div className="ui-date-picker-body">
-                {mode === "date" ? (
-                  <DateGrid
-                    focused={focused}
-                    focusedCell={focusedCell}
-                    isDisabled={isDisabled}
-                    labelId={labelId}
-                    locale={locale}
-                    moveTo={moveTo}
-                    now={now}
-                    onPick={onPick}
-                    value={value}
-                  />
-                ) : mode === "month" ? (
-                  <CoarseGrid
-                    cells={Array.from({ length: 12 }, (_, index) =>
-                      focused.set({ month: index + 1 }),
-                    )}
-                    columns={3}
-                    focused={focused}
-                    focusedCell={focusedCell}
-                    format={(date) =>
-                      monthFormat.format(date.set({ day: 1 }).toDate("UTC"))
-                    }
-                    inView={() => true}
-                    isCurrent={(date) =>
-                      date.year === now.year && date.month === now.month
-                    }
-                    isSelected={(date) =>
-                      date.year === value.year && date.month === value.month
-                    }
-                    labelId={labelId}
-                    moveTo={moveTo}
-                    onPick={(date) => {
-                      focusPending.current = true;
-                      setFocused(date);
-                      setMode("date");
-                    }}
-                    page={(date, direction) => date.add({ years: direction })}
-                    step={(date, amount) => date.add({ months: amount })}
-                  />
-                ) : (
-                  <CoarseGrid
-                    cells={Array.from({ length: 12 }, (_, index) =>
-                      focused.set({ year: decadeStart - 1 + index }),
-                    )}
-                    columns={3}
-                    focused={focused}
-                    focusedCell={focusedCell}
-                    format={(date) =>
-                      yearFormat.format(date.set({ day: 1 }).toDate("UTC"))
-                    }
-                    inView={(date) =>
-                      date.year >= decadeStart && date.year <= decadeStart + 9
-                    }
-                    isCurrent={(date) => date.year === now.year}
-                    isSelected={(date) => date.year === value.year}
-                    labelId={labelId}
-                    moveTo={moveTo}
-                    onPick={(date) => {
-                      focusPending.current = true;
-                      setFocused(date);
-                      setMode("month");
-                    }}
-                    page={(date, direction) =>
-                      date.add({ years: 10 * direction })
-                    }
-                    step={(date, amount) => date.add({ years: amount })}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          {mode === "date" && (
-            <div className="ui-date-picker-footer">
-              <Button
-                className="ui-date-picker-today"
-                disabled={isDisabled(now)}
-                onClick={() => onPick(now)}
-                size="small"
-                type="text"
-              >
-                {m.ui_date_picker_today()}
-              </Button>
-            </div>
-          )}
-        </div>
+    <>
+      <Header
+        labelId={labelId}
+        onStep={(duration, direction) =>
+          setFocused(
+            direction === 1
+              ? focused.add(duration)
+              : focused.subtract(duration),
+          )
+        }
+        steps={STEPS[view]}
+      >
+        {title}
+      </Header>
+      <div
+        className={
+          view === "day"
+            ? "ui-date-picker-body-day"
+            : "ui-date-picker-body-coarse"
+        }
+      >
+        {view === "day" ? (
+          <DateGrid
+            focused={focused}
+            focusedCell={focusedCell}
+            isDisabled={isDisabled}
+            labelId={labelId}
+            locale={locale}
+            moveTo={moveTo}
+            now={now}
+            onPick={onPick}
+            value={value}
+          />
+        ) : view === "month" ? (
+          <CoarseGrid
+            cells={Array.from({ length: 12 }, (_, index) =>
+              focused.set({ month: index + 1 }),
+            )}
+            focused={focused}
+            focusedCell={focusedCell}
+            format={(date) =>
+              monthFormat.format(date.set({ day: 1 }).toDate("UTC"))
+            }
+            inView={() => true}
+            isCurrent={(date) =>
+              date.year === now.year && date.month === now.month
+            }
+            isSelected={(date) =>
+              date.year === value.year && date.month === value.month
+            }
+            labelId={labelId}
+            moveTo={moveTo}
+            onPick={(date) => showView("day", date)}
+            view="month"
+          />
+        ) : (
+          <CoarseGrid
+            cells={Array.from({ length: 12 }, (_, index) =>
+              focused.set({ year: decadeStart - 1 + index }),
+            )}
+            focused={focused}
+            focusedCell={focusedCell}
+            format={(date) =>
+              yearFormat.format(date.set({ day: 1 }).toDate("UTC"))
+            }
+            inView={(date) =>
+              date.year >= decadeStart && date.year <= decadeStart + 9
+            }
+            isCurrent={(date) => date.year === now.year}
+            isSelected={(date) => date.year === value.year}
+            labelId={labelId}
+            moveTo={moveTo}
+            onPick={(date) => showView("month", date)}
+            view="year"
+          />
+        )}
       </div>
-    </div>
+      {view === "day" && (
+        <div className="ui-date-picker-footer">
+          <Button
+            disabled={isDisabled(now)}
+            onClick={() => onPick(now)}
+            size="small"
+            type="text"
+          >
+            {m.ui_date_picker_today()}
+          </Button>
+        </div>
+      )}
+    </>
   );
-}
-
-interface HeaderAction {
-  label: string;
-  onClick: () => void;
 }
 
 /**
- * Arrows on both sides of the panel title. The outer pair steps by years (one
- * on the day and month panels, ten on the year panel); the inner pair, on the
- * day panel only, steps by a month.
+ * The view's title between its step arrows: previous arrows on the leading
+ * side, outermost first, and next arrows mirrored on the trailing side. The
+ * outermost arrow is drawn double.
  */
 function Header({
   children,
   labelId,
-  nextMonth,
-  nextYears,
-  prevMonth,
-  prevYears,
+  onStep,
+  steps,
 }: {
   children: ReactNode;
   labelId: string;
-  nextMonth?: HeaderAction;
-  nextYears: HeaderAction;
-  prevMonth?: HeaderAction;
-  prevYears: HeaderAction;
+  onStep: (duration: DateDuration, direction: 1 | -1) => void;
+  steps: Step[];
 }) {
+  const arrow = (step: Step, index: number, direction: 1 | -1) => (
+    <button
+      aria-label={direction === 1 ? step.next() : step.previous()}
+      className="ui-date-picker-step"
+      key={index}
+      onClick={() => onStep(step.duration, direction)}
+      tabIndex={-1}
+      type="button"
+    >
+      <span
+        className={cn(
+          "ui-date-picker-arrow",
+          index === 0 && "ui-date-picker-arrow-double",
+          direction === 1 && "ui-date-picker-arrow-next",
+        )}
+      />
+    </button>
+  );
   return (
     <div className="ui-date-picker-header">
-      <button
-        aria-label={prevYears.label}
-        className="ui-date-picker-header-prev-years-btn"
-        onClick={prevYears.onClick}
-        tabIndex={-1}
-        type="button"
-      >
-        <span className="ui-date-picker-prev-years-icon" />
-      </button>
-      {prevMonth && (
-        <button
-          aria-label={prevMonth.label}
-          className="ui-date-picker-header-prev-month-btn"
-          onClick={prevMonth.onClick}
-          tabIndex={-1}
-          type="button"
-        >
-          <span className="ui-date-picker-prev-month-icon" />
-        </button>
-      )}
-      <div
-        aria-live="polite"
-        className="ui-date-picker-header-view"
-        id={labelId}
-      >
+      {steps.map((step, index) => arrow(step, index, -1))}
+      <div aria-live="polite" className="ui-date-picker-title" id={labelId}>
         {children}
       </div>
-      {nextMonth && (
-        <button
-          aria-label={nextMonth.label}
-          className="ui-date-picker-header-next-month-btn"
-          onClick={nextMonth.onClick}
-          tabIndex={-1}
-          type="button"
-        >
-          <span className="ui-date-picker-next-month-icon" />
-        </button>
-      )}
-      <button
-        aria-label={nextYears.label}
-        className="ui-date-picker-header-next-years-btn"
-        onClick={nextYears.onClick}
-        tabIndex={-1}
-        type="button"
-      >
-        <span className="ui-date-picker-next-years-icon" />
-      </button>
+      {steps.map((step, index) => arrow(step, index, 1)).reverse()}
     </div>
   );
 }
 
 function cellClass({
+  current,
   disabled,
   inView,
   selected,
-  current,
 }: {
   current: boolean;
   disabled: boolean;
@@ -478,7 +432,7 @@ function cellClass({
   return cn(
     "ui-date-picker-cell",
     inView && "ui-date-picker-cell-in-view",
-    current && "ui-date-picker-cell-today",
+    current && "ui-date-picker-cell-current",
     selected && "ui-date-picker-cell-selected",
     disabled && "ui-date-picker-cell-disabled",
   );
@@ -505,7 +459,7 @@ function DateGrid({
   onPick: (date: CalendarDate) => void;
   value: CalendarDate;
 }) {
-  // Six weeks always, so the panel keeps its height from month to month.
+  // Six weeks always, so the view keeps its height from month to month.
   const first = startOfWeek(startOfMonth(focused), locale);
   const days = Array.from({ length: 42 }, (_, index) =>
     first.add({ days: index }),
@@ -527,18 +481,14 @@ function DateGrid({
   });
 
   const onKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
-    const shift = event.shiftKey;
+    const page = pageStep("day", event.shiftKey);
     const moves: Record<string, () => CalendarDate> = {
       ArrowLeft: () => focused.subtract({ days: 1 }),
       ArrowRight: () => focused.add({ days: 1 }),
       ArrowUp: () => focused.subtract({ weeks: 1 }),
       ArrowDown: () => focused.add({ weeks: 1 }),
-      PageUp: () =>
-        shift
-          ? focused.subtract({ years: 1 })
-          : focused.subtract({ months: 1 }),
-      PageDown: () =>
-        shift ? focused.add({ years: 1 }) : focused.add({ months: 1 }),
+      PageUp: () => focused.subtract(page),
+      PageDown: () => focused.add(page),
       Home: () => startOfWeek(focused, locale),
       End: () => endOfWeek(focused, locale),
     };
@@ -557,7 +507,7 @@ function DateGrid({
   return (
     <table
       aria-labelledby={labelId}
-      className="ui-date-picker-content"
+      className="ui-date-picker-grid"
       onKeyDown={onKeyDown}
       role="grid"
     >
@@ -614,9 +564,11 @@ function DateGrid({
   );
 }
 
+const CELL_UNIT = { month: "months", year: "years" } as const;
+
+/** Twelve months of a year, or the years of a decade with one on each side, three to a row. */
 function CoarseGrid({
   cells,
-  columns,
   focused,
   focusedCell,
   format,
@@ -626,11 +578,9 @@ function CoarseGrid({
   labelId,
   moveTo,
   onPick,
-  page,
-  step,
+  view,
 }: {
   cells: CalendarDate[];
-  columns: number;
   focused: CalendarDate;
   focusedCell: RefObject<HTMLTableCellElement | null>;
   format: (date: CalendarDate) => string;
@@ -640,25 +590,27 @@ function CoarseGrid({
   labelId: string;
   moveTo: (date: CalendarDate) => void;
   onPick: (date: CalendarDate) => void;
-  page: (date: CalendarDate, direction: 1 | -1) => CalendarDate;
-  step: (date: CalendarDate, amount: number) => CalendarDate;
+  view: "month" | "year";
 }) {
+  const columns = 3;
   const rows = Array.from({ length: cells.length / columns }, (_, row) =>
     cells.slice(row * columns, row * columns + columns),
   );
-  const index = cells.findIndex((cell) => isSameDay(cell, focused));
-  const column = index % columns;
+  const column = cells.findIndex((cell) => isSameDay(cell, focused)) % columns;
+  const step = (cellCount: number) =>
+    focused.add({ [CELL_UNIT[view]]: cellCount });
 
   const onKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
+    const page = pageStep(view, event.shiftKey);
     const moves: Record<string, () => CalendarDate> = {
-      ArrowLeft: () => step(focused, -1),
-      ArrowRight: () => step(focused, 1),
-      ArrowUp: () => step(focused, -columns),
-      ArrowDown: () => step(focused, columns),
-      PageUp: () => page(focused, -1),
-      PageDown: () => page(focused, 1),
-      Home: () => step(focused, -column),
-      End: () => step(focused, columns - 1 - column),
+      ArrowLeft: () => step(-1),
+      ArrowRight: () => step(1),
+      ArrowUp: () => step(-columns),
+      ArrowDown: () => step(columns),
+      PageUp: () => focused.subtract(page),
+      PageDown: () => focused.add(page),
+      Home: () => step(-column),
+      End: () => step(columns - 1 - column),
     };
     const move = moves[event.key];
     if (move) {
@@ -675,7 +627,7 @@ function CoarseGrid({
   return (
     <table
       aria-labelledby={labelId}
-      className="ui-date-picker-content"
+      className="ui-date-picker-grid"
       onKeyDown={onKeyDown}
       role="grid"
     >

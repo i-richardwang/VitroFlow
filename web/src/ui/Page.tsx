@@ -7,17 +7,17 @@ import { Skeleton } from "./kit/Skeleton";
 export function Page({
   title,
   description,
-  actions,
+  action,
   children,
 }: {
   title: ReactNode;
   description?: ReactNode;
-  actions?: ReactNode;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <>
-      <PageHeader title={title} description={description} action={actions} />
+      <PageHeader title={title} description={description} action={action} />
       {children}
     </>
   );

@@ -14,7 +14,7 @@ type ActionsMenuProps = {
 /** The "…" menu at the end of a table row or list item. */
 export function RowMenu({ label, items, disabled }: ActionsMenuProps) {
   return (
-    <DropdownMenu items={items} placement="bottomRight">
+    <DropdownMenu items={items} align="end">
       <ActionIcon
         icon={Ellipsis}
         size="small"
@@ -28,7 +28,7 @@ export function RowMenu({ label, items, disabled }: ActionsMenuProps) {
 /** The "…" menu beside a page's or workbench's primary actions. */
 export function PageMenu({ label, items, disabled }: ActionsMenuProps) {
   return (
-    <DropdownMenu items={items} placement="bottomRight">
+    <DropdownMenu items={items} align="end">
       <Button icon={Ellipsis} disabled={disabled} aria-label={label} />
     </DropdownMenu>
   );

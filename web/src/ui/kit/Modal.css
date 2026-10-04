@@ -74,7 +74,7 @@
 
 /* A refused backdrop click shakes the panel. */
 .ui-modal-deny-animation {
-  animation: ui-modal-deny 280ms var(--ease-shake);
+  animation: ui-modal-deny var(--duration-shake) var(--ease-shake);
 }
 
 .ui-modal-header {

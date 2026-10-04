@@ -7,6 +7,7 @@
   "ui_copy_button_failed": "Copy failed. Select the text and copy it manually.",
   "ui_date_picker_choose_month": "Choose a month",
   "ui_date_picker_choose_year": "Choose a year",
+  "ui_date_picker_decade": "{first}-{last}",
   "ui_date_picker_dialog": "Choose a date",
   "ui_date_picker_next_decade": "Next decade",
   "ui_date_picker_next_month": "Next month",
@@ -21,8 +22,39 @@
   "ui_draggable_panel_size": "{size} pixels",
   "ui_drop_zone_progress": "Upload progress for {file}",
   "ui_drop_zone_remove": "Remove {file}",
-  "ui_drop_zone_select": "Choose files",
-  "ui_drop_zone_title": "Drop files here",
+  "ui_file_size_bytes": [
+    {
+      "declarations": [
+        "input bytes",
+        "local formatted = bytes: number maximumFractionDigits=0"
+      ],
+      "match": {
+        "formatted=*": "{formatted} B"
+      }
+    }
+  ],
+  "ui_file_size_kib": [
+    {
+      "declarations": [
+        "input kibibytes",
+        "local formatted = kibibytes: number maximumFractionDigits=0"
+      ],
+      "match": {
+        "formatted=*": "{formatted} KiB"
+      }
+    }
+  ],
+  "ui_file_size_mib": [
+    {
+      "declarations": [
+        "input mebibytes",
+        "local formatted = mebibytes: number maximumFractionDigits=1"
+      ],
+      "match": {
+        "formatted=*": "{formatted} MiB"
+      }
+    }
+  ],
   "ui_input_hide_password": "Hide password",
   "ui_input_number_decrease": "Decrease",
   "ui_input_number_increase": "Increase",
@@ -35,6 +67,6 @@
   "ui_shell_open_navigation": "Open navigation",
   "ui_shell_skip_to_content": "Skip to content",
   "ui_table_select_all": "Select all",
-  "ui_viewport_zoom": "Zoom",
-  "ui_viewport_fill": "Fill frame"
+  "ui_viewport_fill": "Fill frame",
+  "ui_viewport_zoom": "Zoom"
 }

@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 
 import { m } from "../../paraglide/messages";
 import { ActionIcon } from "../kit/ActionIcon";
+import { AppShellFlush } from "../kit/AppShell";
 import { cn } from "../kit/cn";
 import { DraggablePanel } from "../kit/DraggablePanel";
 import { Drawer } from "../kit/Drawer";
@@ -17,7 +18,7 @@ import { Empty, type EmptyProps } from "../kit/Empty";
 import { useIsCompact } from "../kit/mediaQuery";
 import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
-import { ShellActions } from "./shell";
+import { ShellActions } from "./Shell";
 
 /** Where floating content over the subject's top edge lands. */
 const FloatSlots = createContext<{
@@ -76,7 +77,7 @@ export function Workbench({
     <FloatSlots value={{ toolbar: toolbarSlot, alert: alertSlot }}>
       <InspectorSlot value={{ node: inspectorNode, mount: inspector.mount }}>
         <h1 className="sr-only">{title}</h1>
-        <div data-page-layout="flush" className="flex min-h-0 flex-1">
+        <AppShellFlush>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-container-secondary">
             <div className="pointer-events-none absolute inset-x-0 top-3 z-raise flex flex-col items-center gap-2 px-3">
               <div
@@ -100,7 +101,7 @@ export function Workbench({
               {panel}
             </DraggablePanel>
           ) : null}
-        </div>
+        </AppShellFlush>
         {hasInspector && compact ? (
           <>
             <ShellActions>

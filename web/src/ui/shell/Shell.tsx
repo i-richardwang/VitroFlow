@@ -15,9 +15,22 @@ import { createPortal } from "react-dom";
 import { isAdmin, type WorkbenchUser } from "../../domain/auth/schema";
 import { m } from "../../paraglide/messages";
 import { BrandLogo } from "../BrandLogo";
-import { Breadcrumb, type BreadcrumbItem } from "../kit/Breadcrumb";
-import { AppNav, type AppNavGroup, matchesNavPath } from "../kit/AppNav";
-import { AppShell, AppShellBrand } from "../kit/AppShell";
+import {
+  Breadcrumb,
+  type BreadcrumbItem,
+  type BreadcrumbLinkProps,
+} from "../kit/Breadcrumb";
+import {
+  AppNav,
+  type AppNavGroup,
+  type AppNavLinkProps,
+  matchesNavPath,
+} from "../kit/AppNav";
+import {
+  AppShell,
+  AppShellBrand,
+  type AppShellBrandLinkProps,
+} from "../kit/AppShell";
 
 export type Crumb = { label: string; href?: string; mono?: boolean };
 
@@ -63,13 +76,25 @@ function navigation(user: WorkbenchUser): AppNavGroup[] {
   ];
   if (isAdmin(user)) {
     groups.push({
-      key: "workbench",
-      label: m.nav_group_workbench(),
+      key: "administration",
+      label: m.nav_group_administration(),
       items: [{ href: "/users", icon: Users, label: m.nav_users() }],
     });
   }
   return groups;
 }
+
+/*
+ * The router sets `aria-current="page"` on a link it counts as active, over
+ * the kit's own marking; matching exactly keeps it off the ancestors a
+ * breadcrumb or navigation group links to.
+ */
+const routerLink = ({
+  href,
+  ...props
+}: AppShellBrandLinkProps | AppNavLinkProps | BreadcrumbLinkProps) => (
+  <Link {...props} to={href} activeOptions={{ exact: true }} />
+);
 
 const ActionsSlot = createContext<HTMLElement | null>(null);
 
@@ -113,23 +138,11 @@ export function Shell({
             href="/experiments"
             logo={<BrandLogo className="size-6" />}
             title={m.app_name()}
-            renderLink={({ children: content, href, ...props }) => (
-              <Link {...props} to={href}>
-                {content}
-              </Link>
-            )}
+            renderLink={routerLink}
           />
         }
         navigation={
-          <AppNav
-            groups={groups}
-            pathname={pathname}
-            renderLink={({ children: content, href, ...props }) => (
-              <Link {...props} to={href} activeProps={{}}>
-                {content}
-              </Link>
-            )}
-          />
+          <AppNav groups={groups} pathname={pathname} renderLink={routerLink} />
         }
         footer={account}
         breadcrumb={<Trail group={sectionGroup(groups, pathname)} />}
@@ -163,16 +176,7 @@ function Trail({ group }: { group?: string }) {
     ),
   }));
   if (group) items.unshift({ label: group, optional: true });
-  return (
-    <Breadcrumb
-      items={items}
-      renderLink={({ children: content, href, ...props }) => (
-        <Link {...props} to={href}>
-          {content}
-        </Link>
-      )}
-    />
-  );
+  return <Breadcrumb items={items} renderLink={routerLink} />;
 }
 
 function trail(

@@ -7,8 +7,8 @@ import { SignedInUser } from "../features/account/SignedInUser";
 import { getSession } from "../functions/session";
 import { m } from "../paraglide/messages";
 import { errorMessage } from "../ui/errors";
-import { Shell } from "../ui/shell/shell";
-import { WorkbenchNotice } from "../ui/shell/WorkbenchNotice";
+import { Shell } from "../ui/shell/Shell";
+import { RouteNotice } from "../ui/RouteNotice";
 
 /** Remembers the navigation rail. The server reads it so the first frame matches. */
 const NAV_COOKIE = "vitroflow_nav";
@@ -45,7 +45,7 @@ function WorkbenchLayout() {
 function WorkbenchNotFound() {
   return (
     <WorkbenchShell>
-      <WorkbenchNotice title={m.not_found()} />
+      <RouteNotice title={m.not_found()} />
     </WorkbenchShell>
   );
 }
@@ -53,7 +53,7 @@ function WorkbenchNotFound() {
 function WorkbenchError({ error }: { error: Error }) {
   return (
     <WorkbenchShell>
-      <WorkbenchNotice
+      <RouteNotice
         title={m.something_went_wrong()}
         description={errorMessage(error)}
       />

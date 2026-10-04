@@ -1,7 +1,11 @@
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { ExperimentObservation } from "../../domain/experiments/schema";
+import {
+  type CalendarDay,
+  type ExperimentObservation,
+  today,
+} from "../../domain/experiments/schema";
 import type { Model } from "../../domain/models/schema";
 import {
   createObservation,
@@ -15,14 +19,14 @@ import {
 } from "../../ui/hooks/useAsyncAction";
 import { Form } from "../../ui/kit/Form";
 import { Input } from "../../ui/kit/Input";
-import { currentDay, DayField, fromDay, toDay } from "./DayField";
+import { DayField } from "./DayField";
 import { ModelField } from "./ModelField";
 
 const FORM_ID = "observation";
 
 type ObservationDialogProps = {
   experiment: string;
-  inoculatedOn: string;
+  inoculatedOn: CalendarDay;
   models: readonly Model[];
   open: boolean;
   onClose: () => void;
@@ -61,7 +65,7 @@ function ObservationForm(
   const router = useRouter();
   const editing = props.observation !== null;
   const [observedOn, setObservedOn] = useState(() =>
-    editing ? fromDay(props.observation.observedOn) : currentDay(),
+    editing ? props.observation.observedOn : today(),
   );
   const [note, setNote] = useState(editing ? props.observation.note : "");
   const [modelId, setModelId] = useState(() =>
@@ -77,7 +81,7 @@ function ObservationForm(
         event.preventDefault();
         const value = {
           experiment,
-          observedOn: toDay(observedOn),
+          observedOn,
           note,
           modelId,
         };
@@ -103,7 +107,7 @@ function ObservationForm(
         disabled={action.busy}
         value={observedOn}
         earliest={{
-          date: fromDay(inoculatedOn),
+          day: inoculatedOn,
           error: m.observation_before_inoculation(),
         }}
         onChange={setObservedOn}

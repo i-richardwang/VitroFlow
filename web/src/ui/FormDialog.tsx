@@ -45,32 +45,11 @@ export function FormDialog({
   afterClose?: () => void;
   children: ReactNode;
 } & FooterProps) {
-  const dialog = {
-    open,
-    title,
-    width,
-    onCancel: busy ? () => {} : onClose,
-    keyboard: !busy,
-    maskClosable: !busy,
-    afterClose,
-    children,
-  };
-  if (footer.formId === undefined) {
-    return <Modal {...dialog} footer={null} />;
-  }
-  return (
-    <Modal
-      {...dialog}
-      okText={footer.okText}
-      confirmLoading={busy}
-      okButtonProps={{
-        form: footer.formId,
-        htmlType: "submit",
-        danger: footer.danger,
-        disabled: footer.okDisabled,
-      }}
-      cancelButtonProps={{ disabled: busy }}
-    />
+  const dialog = { open, onClose, title, busy, width, afterClose, children };
+  return footer.formId === undefined ? (
+    <Modal {...dialog} footer={null} />
+  ) : (
+    <Modal {...dialog} {...footer} />
   );
 }
 

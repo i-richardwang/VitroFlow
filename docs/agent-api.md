@@ -86,34 +86,6 @@ redirects. Keep the Better Auth packages together at 1.7.7 or later: the
 an address array, causing `invalid_client` with “network error or redirect
 blocked” before a connection was made.
 
-Before deploying this upgrade over a database created with Better Auth
-1.7.0–1.7.2, follow its [account upgrade guide](https://better-auth.com/docs/guides/1-7-upgrade-guide).
-The repository maintains a single schema baseline; startup does not reapply
-that baseline to an existing database. Check for duplicate account keys:
-
-```sql
-SELECT provider_id, account_id, count(*)
-FROM accounts
-GROUP BY provider_id, account_id
-HAVING count(*) > 1;
-```
-
-Resolve any returned rows without merging different users. Then align the
-existing schema before deploying the new packages:
-
-```sql
-BEGIN;
-CREATE UNIQUE INDEX IF NOT EXISTS accounts_provider_account_idx
-  ON accounts (provider_id, account_id);
-ALTER TABLE accounts ALTER COLUMN issuer DROP NOT NULL;
-DROP INDEX IF EXISTS accounts_issuer_account_idx;
-COMMIT;
-```
-
-This retains account rows and legacy issuer values. New accounts no longer
-write `issuer`; both new account creation and existing password sign-in must
-work after alignment. Fresh databases already use this schema.
-
 For Codex, configure each URL and log in separately:
 
 ```bash

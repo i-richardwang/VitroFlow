@@ -1,6 +1,5 @@
-import { type MotionStyle, motion, useTransform } from "motion/react";
+import { motion, useTransform } from "motion/react";
 import {
-  type CSSProperties,
   type ReactNode,
   useEffect,
   useId,
@@ -12,10 +11,8 @@ import {
 import { m } from "../../paraglide/messages";
 import {
   createPanelController,
-  handleSize as getHandleSize,
   type PanelControllerOptions,
 } from "./draggablePanelController";
-import { coarsePointer, useMediaQuery } from "./mediaQuery";
 import { foldTransition } from "./motionToken";
 
 /*
@@ -49,9 +46,8 @@ const bowPath = (direction: 1 | -1) => {
 
 const BOW_PATHS = [bowPath(-1), bowPath(1)];
 
-/** Points right, the way a click folds the panel; turned around while folded. */
-const CHEVRON_TURN = 180;
-const CHEVRON_PATH = `M${BOW_CX + 2.4} ${BOW_CY - 4.8} L${BOW_CX - 2.4} ${BOW_CY} L${BOW_CX + 2.4} ${BOW_CY + 4.8}`;
+/** Points right, the way a click folds the panel; the stylesheet turns it while folded. */
+const CHEVRON_PATH = `M${BOW_CX - 2.4} ${BOW_CY - 4.8} L${BOW_CX + 2.4} ${BOW_CY} L${BOW_CX - 2.4} ${BOW_CY + 4.8}`;
 
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -107,34 +103,29 @@ export function DraggablePanel({
   const extent = useTransform(controller.motion.size, (value) =>
     Math.max(0, value),
   );
-  const handle = getHandleSize(useMediaQuery(coarsePointer));
   useEffect(() => () => controller.drag.cancel(), [controller]);
 
   const pressedRef = useRef<{ x: number; y: number } | null>(null);
   const draggingRef = useRef(false);
   const draggedRef = useRef(false);
-  const { max, min } = controller.bounds();
   const clipping = state.dragging || state.folding || target === 0;
 
   return (
     <aside
       aria-label={ariaLabel}
-      className="ui-draggable-panel ui-draggable-panel-fixed"
+      className="ui-draggable-panel"
       data-expand={expand}
       data-resizing={state.dragging}
       ref={elementRef}
-      style={{ flexDirection: "row" }}
     >
-      <div className="ui-draggable-panel-toggle-root ui-draggable-panel-toggle-left">
+      <div className="ui-draggable-panel-toggle-root">
         <button
           aria-label={
             expand
               ? m.ui_draggable_panel_collapse()
               : m.ui_draggable_panel_expand()
           }
-          // The class marks the button as component-owned, so the page-wide
-          // focus ring leaves it to the toggle's own outline.
-          className="ui-draggable-panel-toggle-button"
+          className="ui-draggable-panel-toggle"
           type="button"
           onClick={() => setExpand(!expand)}
         >
@@ -154,50 +145,28 @@ export function DraggablePanel({
                 strokeWidth={BOW.stroke}
               />
             ))}
-            <g
-              style={{
-                rotate: `${CHEVRON_TURN + (expand ? 0 : 180)}deg`,
-                transformOrigin: `${BOW_CX}px ${BOW_CY}px`,
-                transition: "rotate 0.25s var(--ease-out)",
-              }}
-            >
-              <path
-                d={CHEVRON_PATH}
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.6}
-              />
-            </g>
+            <path
+              className="ui-draggable-panel-chevron"
+              d={CHEVRON_PATH}
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.6}
+            />
           </svg>
         </button>
       </div>
       <motion.div
+        className="ui-draggable-panel-frame"
         inert={!expand}
-        style={
-          {
-            display: "flex",
-            flexDirection: "row",
-            flexShrink: 0,
-            justifyContent: "flex-end",
-            overflow: clipping ? "clip" : "visible",
-            height: "100%",
-            width: extent,
-          } as MotionStyle
-        }
+        style={{ overflow: clipping ? "clip" : "visible", width: extent }}
       >
         <motion.div
           animate={{ scale: expand ? 1 : COLLAPSED_SCALE }}
           className="ui-draggable-panel-content"
           id={contentId}
           transition={foldTransition()}
-          style={
-            {
-              transformOrigin: "right center",
-              height: "100%",
-              width: controller.motion.content,
-            } as MotionStyle
-          }
+          style={{ width: controller.motion.content }}
         >
           {children}
         </motion.div>
@@ -208,20 +177,14 @@ export function DraggablePanel({
           aria-controls={contentId}
           aria-label={m.ui_draggable_panel_resize({ panel: ariaLabel })}
           aria-orientation="vertical"
-          aria-valuemax={max}
-          aria-valuemin={min}
+          aria-valuemax={maxWidth}
+          aria-valuemin={minWidth}
           aria-valuenow={target}
           aria-valuetext={m.ui_draggable_panel_size({ size: target })}
-          className="ui-draggable-panel-handle ui-draggable-panel-handle-vertical"
+          className="ui-draggable-panel-handle"
           data-resizing={state.dragging || undefined}
           role="separator"
           tabIndex={0}
-          style={
-            {
-              "--ui-draggable-panel-handle-size": `${handle}px`,
-              insetInlineStart: -handle / 2,
-            } as CSSProperties
-          }
           onKeyDown={(event) => controller.resizeByKey(event)}
           onDoubleClick={() => {
             if (!draggedRef.current) controller.reset();

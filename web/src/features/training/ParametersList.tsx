@@ -29,11 +29,7 @@ export function ParametersList({
 export function ParametersListSkeleton() {
   return (
     <div aria-hidden>
-      <ParameterColumns
-        value={() => (
-          <Skeleton width="4em" className="inline-block align-middle" />
-        )}
-      />
+      <ParameterColumns value={() => <Skeleton.Inline width="4em" />} />
     </div>
   );
 }

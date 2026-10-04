@@ -5,12 +5,10 @@
  */
 
 :where(.ui-flex) {
-  --ui-flex: 0 1 auto;
   --ui-flex-direction: column;
   --ui-flex-wrap: nowrap;
   --ui-flex-justify: flex-start;
   --ui-flex-align: stretch;
-  --ui-flex-width: auto;
   --ui-flex-height: auto;
   --ui-flex-padding: 0;
   --ui-flex-padding-block: var(--ui-flex-padding);
@@ -18,13 +16,11 @@
 
   display: flex;
 
-  flex: var(--ui-flex);
   flex-direction: var(--ui-flex-direction);
   flex-wrap: var(--ui-flex-wrap);
   justify-content: var(--ui-flex-justify);
   align-items: var(--ui-flex-align);
 
-  width: var(--ui-flex-width);
   height: var(--ui-flex-height);
 
   padding: var(--ui-flex-padding);

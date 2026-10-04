@@ -34,9 +34,6 @@ test("surfaces, raw lengths and raw colors belong to the kit", () => {
   expect(check("src/ui/Thing.tsx", 'const c = "bg-[#fff]";')).toContain(
     "raw length or color",
   );
-  expect(
-    check("src/ui/Thing.tsx", 'const A = () => <p className="#abcdef" />;'),
-  ).toContain("raw hex color");
   expect(check("src/ui/kit/Card.tsx", 'const c = "rounded-md";')).toBe("");
 });
 

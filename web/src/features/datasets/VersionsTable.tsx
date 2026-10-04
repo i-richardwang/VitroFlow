@@ -35,13 +35,13 @@ export function VersionsTable({
           <TableHead>{m.versions_column_model()}</TableHead>
           <TableHead>{m.versions_column_kind()}</TableHead>
           <TableHead>{m.versions_column_published()}</TableHead>
-          <TableHead className="w-28 text-end">
+          <TableHead className="w-28" numeric>
             {m.versions_column_trained_on()}
           </TableHead>
-          <TableHead className="w-28 text-end">
+          <TableHead className="w-28" numeric>
             {m.epoch_series_map50()}
           </TableHead>
-          <TableHead className="w-28 text-end">
+          <TableHead className="w-28" numeric>
             {m.epoch_series_map50_95()}
           </TableHead>
         </tr>
@@ -68,10 +68,7 @@ export function VersionsTable({
               >
                 <Timestamp value={version.createdAt} />
               </TableCell>
-              <TableCell
-                cellLabel={m.versions_column_trained_on()}
-                className="text-end tabular-nums"
-              >
+              <TableCell cellLabel={m.versions_column_trained_on()} numeric>
                 {trainingImages === null ? (
                   <Absent />
                 ) : (
@@ -80,13 +77,15 @@ export function VersionsTable({
               </TableCell>
               <TableCell
                 cellLabel={m.epoch_series_map50()}
-                className="text-end font-mono tabular-nums"
+                className="font-mono"
+                numeric
               >
                 <Metric value={validationMetric(version.artifact, "map50")} />
               </TableCell>
               <TableCell
                 cellLabel={m.epoch_series_map50_95()}
-                className="text-end font-mono tabular-nums"
+                className="font-mono"
+                numeric
               >
                 <Metric
                   value={validationMetric(version.artifact, "map50To95")}

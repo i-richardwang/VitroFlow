@@ -34,7 +34,7 @@
 .ui-page-skeleton-action {
   @variant max-mobile {
     inline-size: 100%;
-    block-size: 44px;
+    block-size: var(--size-touch);
   }
 }
 

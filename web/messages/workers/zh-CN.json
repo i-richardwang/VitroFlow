@@ -14,10 +14,38 @@
   "worker_activity_idle": "空闲",
   "worker_activity_inference": "正在检测 {image}",
   "worker_activity_training": "正在训练 {dataset}",
-  "worker_age_seconds": "{count} 秒前",
-  "worker_age_minutes": "{count} 分钟前",
-  "worker_age_hours": "{count} 小时前",
-  "worker_age_days": "{count} 天前",
+  "worker_age_seconds": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 秒前"
+      }
+    }
+  ],
+  "worker_age_minutes": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 分钟前"
+      }
+    }
+  ],
+  "worker_age_hours": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 小时前"
+      }
+    }
+  ],
+  "worker_age_days": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 天前"
+      }
+    }
+  ],
   "worker_never_seen": "从未连接",
   "worker_enroll": "登记工作节点",
   "worker_enroll_title": "登记工作节点",

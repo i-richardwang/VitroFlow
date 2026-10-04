@@ -104,6 +104,14 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 /**
+ * The workspace card's content edge to edge: it cancels the card's padding
+ * and fills its height, for a page that lays out its own panes and scrolling.
+ */
+export function AppShellFlush({ children }: { children: ReactNode }) {
+  return <div className="ui-app-shell-flush">{children}</div>;
+}
+
+/**
  * App frame: a sidebar that collapses to an icon rail and becomes a drawer
  * below the laptop breakpoint, a top bar, and an inset workspace card.
  * Mod+B toggles the sidebar while focus is inside the shell.

@@ -1,6 +1,4 @@
-import type { CalendarDate } from "@internationalized/date";
-
-import type { Experiment } from "../../domain/experiments/schema";
+import type { CalendarDay, Experiment } from "../../domain/experiments/schema";
 import { Form } from "../../ui/kit/Form";
 import { Input, TextArea } from "../../ui/kit/Input";
 import { m } from "../../paraglide/messages";
@@ -31,8 +29,8 @@ export function ExperimentFields({
 }: {
   disabled: boolean;
   defaults?: NotebookPage;
-  inoculatedOn: CalendarDate;
-  onInoculatedOnChange: (value: CalendarDate) => void;
+  inoculatedOn: CalendarDay;
+  onInoculatedOnChange: (value: CalendarDay) => void;
 }) {
   return (
     <>

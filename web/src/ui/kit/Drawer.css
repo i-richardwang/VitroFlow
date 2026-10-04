@@ -92,66 +92,19 @@
   letter-spacing: -0.005em;
 }
 
-.ui-drawer-extra {
+.ui-drawer-close {
   display: flex;
   flex: none;
-  gap: 4px;
-  align-items: center;
-
   margin-inline-end: -4px;
 }
 
-.ui-drawer-extra-floating {
+.ui-drawer-close-floating {
   position: absolute;
   z-index: var(--z-index-raise);
   inset-block-start: 12px;
   inset-inline-end: 12px;
 
   margin-inline-end: 0;
-}
-
-.ui-drawer-close {
-  cursor: pointer;
-
-  position: relative;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-
-  color: var(--color-fg-tertiary);
-
-  background: transparent;
-
-  transition:
-    color var(--duration-base) var(--ease-soft),
-    background var(--duration-base) var(--ease-soft),
-    transform var(--duration-base) var(--ease-soft);
-
-  /* Extends the 32px button to a 40px hit area without changing the header layout. */
-  &::after {
-    content: "";
-    position: absolute;
-    inset: -4px;
-  }
-
-  &:hover {
-    transform: scale(1.04);
-    color: var(--color-fg);
-    background: var(--color-fill-secondary);
-  }
-
-  &:active {
-    transform: scale(0.96);
-  }
-
-  @apply focus-ring;
 }
 
 .ui-drawer-content {

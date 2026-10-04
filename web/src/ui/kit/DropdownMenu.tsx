@@ -2,12 +2,7 @@ import { Menu } from "@base-ui/react/menu";
 import type { LucideIcon } from "lucide-react";
 import type { Key, ReactElement } from "react";
 import { cn } from "./cn";
-import {
-  defaultPortalContainer,
-  type Placement,
-  placementMap,
-  triggerRender,
-} from "./floating";
+import { defaultPortalContainer, triggerRender } from "./floating";
 import { Icon } from "./Icon";
 import { resolveNativeButton } from "./nativeButton";
 
@@ -72,16 +67,15 @@ interface DropdownMenuProps {
   /** The trigger: a single element such as a Button or ActionIcon. */
   children: ReactElement;
   items: DropdownItem[];
-  placement?: Extract<Placement, "bottomLeft" | "bottomRight">;
+  /** The menu opens below the trigger, lined up with its start or end edge. */
+  align?: "start" | "end";
 }
 
 export function DropdownMenu({
   children,
   items,
-  placement = "bottomLeft",
+  align = "start",
 }: DropdownMenuProps) {
-  const { align, side } = placementMap[placement];
-
   return (
     <Menu.Root modal={false}>
       <Menu.Trigger
@@ -92,8 +86,7 @@ export function DropdownMenu({
         <Menu.Positioner
           align={align}
           className="ui-dropdown-menu-positioner"
-          data-placement={placement}
-          side={side}
+          side="bottom"
           sideOffset={6}
         >
           <Menu.Popup className="ui-dropdown-menu-popup">

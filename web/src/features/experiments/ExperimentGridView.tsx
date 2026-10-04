@@ -1,4 +1,4 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { CalendarPlus, Download, Plus, Sparkles } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
@@ -77,13 +77,12 @@ export function ExperimentGridView({
     models,
     datasets,
   } = data;
-  const router = useRouter();
   const [open, setOpen] = useState<Dialog | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const close = () => setOpen(null);
 
   const waiting = images.some((image) => image.state === "pending");
-  useRouteRefresh(router, 5000, waiting);
+  useRouteRefresh(5000, waiting);
 
   const cells = observationCells(images);
   const ordinals = observationOrdinals(observations);
@@ -120,7 +119,7 @@ export function ExperimentGridView({
           experiment.baseMedium,
         ].filter(Boolean),
       )}
-      actions={
+      action={
         <>
           <Button
             icon={Download}
@@ -372,9 +371,7 @@ function SummaryValue({ summary }: { summary: Summary }) {
       {formatCount(summary.value)}
       {summary.deviation === null ? null : (
         <span className="ms-1 font-normal text-fg-secondary">
-          {m.experiment_summary_deviation({
-            deviation: formatCount(summary.deviation),
-          })}
+          {m.experiment_summary_deviation({ deviation: summary.deviation })}
         </span>
       )}
       <span className="ms-2 text-xs font-normal text-fg-tertiary">
@@ -400,9 +397,7 @@ function UnitCell({
     const notes: string[] = [];
     if (reading.source === "proposal") notes.push(m.experiment_cell_proposed());
     if (reading.detected !== null) {
-      notes.push(
-        m.experiment_cell_analyzed({ value: formatCount(reading.detected) }),
-      );
+      notes.push(m.experiment_cell_analyzed({ value: reading.detected }));
     }
     if (!counted) notes.push(m.experiment_cell_excluded());
     const value = (

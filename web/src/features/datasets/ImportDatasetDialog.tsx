@@ -93,7 +93,7 @@ function ImportProgressPanel({ progress }: { progress: ImportProgress }) {
         <span className="flex min-w-0 items-center gap-2">
           <Icon
             icon={LoaderCircle}
-            size="small"
+            size={14}
             spin
             className="text-fg-tertiary"
           />

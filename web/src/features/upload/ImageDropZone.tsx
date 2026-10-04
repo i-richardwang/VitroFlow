@@ -98,7 +98,7 @@ export function ImageDropZone({
                     ? m.dropzone_ready()
                     : state.status === "failed"
                       ? state.reason
-                      : formatPercent(state.progress / 100)
+                      : formatPercent(state.progress)
                 }
                 actions={annotate?.(image)}
                 onRemove={disabled ? undefined : () => onRemove(id)}

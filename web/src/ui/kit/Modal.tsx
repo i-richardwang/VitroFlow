@@ -3,14 +3,12 @@ import { X } from "lucide-react";
 import { AnimatePresence, type MotionProps, motion } from "motion/react";
 import {
   type ReactNode,
-  useCallback,
   useEffect,
-  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import { m } from "../../paraglide/messages";
-import { Button, type ButtonProps } from "./Button";
+import { Button } from "./Button";
 import { cn } from "./cn";
 import {
   DialogPresenceBackdrop,
@@ -37,8 +35,6 @@ const modalMotionConfig = (): MotionProps => ({
   transition: panelTransition("modal", "enter"),
 });
 
-const DENY_DURATION = 300;
-
 /** Panel widths: `default` for a few fields, `wide` for tables and multi-column forms. */
 export type ModalWidth = "default" | "wide";
 
@@ -50,34 +46,35 @@ const WIDTH = {
 type ModalProps = {
   /** Called after the exit animation. */
   afterClose?: () => void;
-  cancelButtonProps?: ButtonProps;
+  /** While true, OK spins, Cancel is disabled, and Esc, the backdrop and the close button do nothing. */
+  busy?: boolean;
   children?: ReactNode;
-  /** Spins the OK button. */
-  confirmLoading?: boolean;
-  /** Esc closes. */
-  keyboard?: boolean;
-  /** A backdrop click closes; when not allowed the panel shakes. */
-  maskClosable?: boolean;
-  /**
-   * Props for the OK button. A form in the body is submitted from the footer
-   * with `{ form: formId, htmlType: "submit" }`.
-   */
-  okButtonProps?: ButtonProps;
+  /** False makes a backdrop click shake the panel instead of closing it. */
+  dismissOnBackdrop?: boolean;
   /** Cancel, the close button, Esc and the backdrop all call it. */
-  onCancel: () => void;
+  onClose: () => void;
   open: boolean;
   title: ReactNode;
   width?: ModalWidth;
 } & (
   | {
-      /** Omitted: Cancel and OK. */
+      /** Draws OK as destructive. */
+      danger?: boolean;
       footer?: undefined;
+      /** The form in the body that OK submits; without it OK calls `onOk`. */
+      formId?: string;
+      okDisabled?: boolean;
       okText: ReactNode;
+      onOk?: () => void;
     }
   | {
       /** The dialog's own buttons; `null` leaves the footer out. */
       footer: ReactNode;
+      danger?: never;
+      formId?: never;
+      okDisabled?: never;
       okText?: never;
+      onOk?: never;
     }
 );
 
@@ -85,37 +82,35 @@ export function Modal({
   open,
   title,
   children,
-  onCancel,
-  okText,
-  okButtonProps,
-  cancelButtonProps,
-  confirmLoading,
-  footer,
+  onClose,
+  busy = false,
+  dismissOnBackdrop = true,
   width = "default",
-  maskClosable = true,
-  keyboard = true,
   afterClose,
+  footer,
+  okText,
+  onOk,
+  formId,
+  danger,
+  okDisabled,
 }: ModalProps) {
   const [isDenying, setIsDenying] = useState(false);
-  const denyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-
-  useEffect(() => () => clearTimeout(denyTimerRef.current), []);
-
-  const triggerDeny = useCallback(() => {
-    clearTimeout(denyTimerRef.current);
-    setIsDenying(true);
-    denyTimerRef.current = setTimeout(() => setIsDenying(false), DENY_DURATION);
-  }, []);
 
   const footerNode =
     footer === undefined ? (
       <>
-        <Button {...cancelButtonProps} onClick={onCancel}>
+        <Button disabled={busy} onClick={onClose}>
           {m.ui_cancel()}
         </Button>
-        <Button loading={confirmLoading} type="primary" {...okButtonProps}>
+        <Button
+          danger={danger}
+          disabled={okDisabled}
+          form={formId}
+          htmlType={formId === undefined ? "button" : "submit"}
+          loading={busy}
+          onClick={onOk}
+          type="primary"
+        >
           {okText}
         </Button>
       </>
@@ -128,12 +123,15 @@ export function Modal({
       onExitComplete={afterClose}
       onOpenChange={(nextOpen, details) => {
         if (!open || nextOpen) return;
-        if (!keyboard && details.reason === "escape-key") return;
-        if (!maskClosable && details.reason === "outside-press") {
-          triggerDeny();
+        if (
+          details.reason === "outside-press" &&
+          (busy || !dismissOnBackdrop)
+        ) {
+          setIsDenying(true);
           return;
         }
-        onCancel();
+        if (busy) return;
+        onClose();
       }}
       open={open}
     >
@@ -141,6 +139,7 @@ export function Modal({
         <DialogPresenceBackdrop className="ui-modal-backdrop" />
         <ModalPopup
           className={cn(WIDTH[width], isDenying && "ui-modal-deny-animation")}
+          onDenyEnd={() => setIsDenying(false)}
         >
           <div className="ui-modal-header">
             <Dialog.Title className="ui-modal-title">{title}</Dialog.Title>
@@ -164,9 +163,11 @@ export function Modal({
 function ModalPopup({
   children,
   className,
+  onDenyEnd,
 }: {
   children: ReactNode;
   className?: string;
+  onDenyEnd: () => void;
 }) {
   const { onExitComplete, open } = useDialogPresence();
   return (
@@ -177,6 +178,9 @@ function ModalPopup({
             {...modalMotionConfig()}
             className={cn("ui-modal-popup-inner", className)}
             key="modal-popup-panel"
+            onAnimationEnd={(event) => {
+              if (event.animationName === "ui-modal-deny") onDenyEnd();
+            }}
           >
             {children}
           </motion.div>
@@ -255,7 +259,7 @@ export function confirmModal(config: ConfirmConfig): () => void {
 
 function ConfirmDialog({ entry }: { entry: ConfirmEntry }) {
   const { config, id, open } = entry;
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     mountedConfirms.add(id);
     return () => {
@@ -266,11 +270,11 @@ function ConfirmDialog({ entry }: { entry: ConfirmEntry }) {
     try {
       const result = config.onOk();
       if (result) {
-        setLoading(true);
+        setBusy(true);
         await result;
       }
     } catch {
-      setLoading(false);
+      setBusy(false);
       return;
     }
     closeConfirm(id);
@@ -279,20 +283,14 @@ function ConfirmDialog({ entry }: { entry: ConfirmEntry }) {
     <Modal
       open={open}
       title={config.title}
-      onCancel={
-        loading
-          ? () => {}
-          : () => {
-              closeConfirm(id);
-              config.onCancel?.();
-            }
-      }
-      keyboard={!loading}
-      maskClosable={!loading}
+      busy={busy}
+      onClose={() => {
+        closeConfirm(id);
+        config.onCancel?.();
+      }}
       okText={config.okText}
-      confirmLoading={loading}
-      okButtonProps={{ danger: config.danger, onClick: () => void ok() }}
-      cancelButtonProps={{ disabled: loading }}
+      danger={config.danger}
+      onOk={() => void ok()}
       afterClose={() =>
         setConfirmStack(confirmStack.filter((item) => item.id !== id))
       }

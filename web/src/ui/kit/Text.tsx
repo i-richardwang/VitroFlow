@@ -3,29 +3,22 @@ import { cn } from "./cn";
 
 /*
  * Body text in the text color, rendered as a `div` unless `as` says otherwise.
- * `type="secondary"` is description text, drawn in the tertiary text color;
- * `ellipsis` cuts the text to one line.
+ * `disabled` draws it in the tertiary text color, as the label of a disabled
+ * control; `ellipsis` cuts the text to one line.
  */
 
 export interface TextProps extends HTMLAttributes<HTMLDivElement> {
   as?: ElementType;
-  code?: boolean;
+  disabled?: boolean;
   ellipsis?: boolean;
-  type?: "secondary" | "danger";
 }
-
-const TYPE_CLASS = {
-  danger: "ui-text-danger",
-  secondary: "ui-text-secondary",
-} as const;
 
 export function Text({
   as: Container = "div",
   children,
   className,
-  code,
+  disabled,
   ellipsis,
-  type,
   ...rest
 }: TextProps): ReactNode {
   return (
@@ -33,9 +26,8 @@ export function Text({
       {...rest}
       className={cn(
         "ui-text",
-        code && "ui-text-code",
         ellipsis && "ui-text-ellipsis",
-        type && TYPE_CLASS[type],
+        disabled && "ui-text-disabled",
         className,
       )}
     >

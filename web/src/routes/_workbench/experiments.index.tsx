@@ -55,7 +55,7 @@ function ExperimentsPage() {
   return (
     <Page
       title={m.experiments_title()}
-      actions={
+      action={
         <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
           {m.experiment_new()}
         </Button>

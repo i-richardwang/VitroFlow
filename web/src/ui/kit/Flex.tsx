@@ -9,9 +9,8 @@ import { cn } from "./cn";
 
 /*
  * Layout props become `--ui-flex-*` variables on the element; Flex.css maps
- * them onto the matching properties. The default axis is vertical. A
- * horizontal box with a space-* distribution and no width takes 100% width.
- * Numbers are pixels.
+ * them onto the matching properties. The default axis is vertical. Numbers
+ * are pixels.
  */
 
 type ContentPosition =
@@ -27,7 +26,6 @@ export interface FlexboxProps extends HTMLAttributes<HTMLElement> {
   align?: ContentPosition;
   as?: ElementType;
   children?: ReactNode;
-  flex?: number | string;
   gap?: number | string;
   height?: number | string;
   horizontal?: boolean;
@@ -35,23 +33,18 @@ export interface FlexboxProps extends HTMLAttributes<HTMLElement> {
   padding?: number | string;
   paddingBlock?: number | string;
   ref?: Ref<HTMLElement>;
-  width?: number | string;
   wrap?: CSSProperties["flexWrap"];
 }
 
 const cssValue = (value: number | string) =>
   typeof value === "number" ? `${value}px` : value;
 
-const SPACE = ["space-between", "space-around", "space-evenly"];
-
 export function Flexbox({
-  flex,
   gap,
   horizontal,
   align,
   justify,
   height,
-  width,
   padding,
   paddingBlock,
   as: Container = "div",
@@ -62,20 +55,11 @@ export function Flexbox({
   ref,
   ...props
 }: FlexboxProps) {
-  const finalWidth =
-    horizontal && !width && justify && SPACE.includes(justify)
-      ? "100%"
-      : width === undefined
-        ? undefined
-        : cssValue(width);
-
   const vars: Record<string, string> = {};
-  if (flex !== undefined) vars["--ui-flex"] = String(flex);
   if (horizontal) vars["--ui-flex-direction"] = "row";
   if (wrap !== undefined) vars["--ui-flex-wrap"] = wrap;
   if (justify !== undefined) vars["--ui-flex-justify"] = justify;
   if (align !== undefined) vars["--ui-flex-align"] = align;
-  if (finalWidth !== undefined) vars["--ui-flex-width"] = finalWidth;
   if (height !== undefined) vars["--ui-flex-height"] = cssValue(height);
   if (padding !== undefined) vars["--ui-flex-padding"] = cssValue(padding);
   if (paddingBlock !== undefined)

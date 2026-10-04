@@ -6,7 +6,7 @@
   "nav_group_model": "模型",
   "nav_group_workers": "工作节点",
   "nav_group_settings": "设置",
-  "nav_group_workbench": "工作台",
+  "nav_group_administration": "管理",
   "nav_experiments": "实验",
   "nav_models": "模型",
   "nav_datasets": "数据集",
@@ -21,7 +21,19 @@
   "return_to_experiments": "返回实验列表",
   "action_failed": "{action}失败",
   "dropzone_label": "将图片拖到此处，或从文件夹选择",
-  "dropzone_limits": "JPEG、PNG 或 TIFF · {megabytes} MiB · {megapixels} MP",
+  "dropzone_limits": [
+    {
+      "declarations": [
+        "input megabytes",
+        "input megapixels",
+        "local formattedMegabytes = megabytes: number",
+        "local formattedMegapixels = megapixels: number"
+      ],
+      "match": {
+        "megabytes=*": "JPEG、PNG 或 TIFF · {formattedMegabytes} MiB · {formattedMegapixels} MP"
+      }
+    }
+  ],
   "dropzone_select": "选择图片",
   "dropzone_ready": "就绪",
   "quality_dish_detection_failed": "未检测到培养皿",
@@ -35,7 +47,14 @@
   "error_training_artifact": "训练产物不符合本次训练的要求。",
   "error_dataset_model": "图片和数据集必须使用同一个模型。",
   "error_image_already_used": "已在本实验中使用：{images}。",
-  "error_image_already_used_item": "{file}（{unit} · 第 {day} 天）",
+  "error_image_already_used_item": [
+    {
+      "declarations": ["input day", "local formattedDay = day: number"],
+      "match": {
+        "day=*": "{file}（{unit} · 第 {formattedDay} 天）"
+      }
+    }
+  ],
   "error_experiment_has_records": "此实验已有记录，无法进行此修改。",
   "error_user_rejected": "此修改会影响你自己的访问权限，或导致没有可用的管理员。",
   "error_model_id_taken": "该标识已被占用。",

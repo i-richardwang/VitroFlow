@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Play } from "lucide-react";
 import { useState } from "react";
 
@@ -63,16 +63,15 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
 function TrainingPage() {
   const console = Route.useLoaderData();
   const { reviewed, training, runs } = console;
-  const router = useRouter();
   const [starting, setStarting] = useState(false);
   const refusal = trainRefusal(console);
 
-  useRouteRefresh(router, 10_000);
+  useRouteRefresh(10_000);
 
   return (
     <Page
       title={m.training_title()}
-      actions={
+      action={
         <TrainButton
           type="primary"
           refusal={refusal}

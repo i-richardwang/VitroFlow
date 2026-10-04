@@ -1,20 +1,37 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
-import { performAction } from "./useAsyncAction";
+import { runAction } from "./useAsyncAction";
 import { errorMessage } from "../errors";
+import { toast } from "../kit/Toast";
 
-describe("performAction", () => {
+describe("runAction", () => {
   test("preserves success and failure as different results", async () => {
-    await expect(performAction(async () => 7)).resolves.toEqual({
+    await expect(runAction(async () => 7, "Save failed")).resolves.toEqual({
       ok: true,
       value: 7,
     });
     const error = new Error("not saved");
     await expect(
-      performAction(async () => {
+      runAction(async () => {
         throw error;
-      }),
+      }, "Save failed"),
     ).resolves.toEqual({ ok: false, error });
+  });
+
+  test("reports a failure only while the caller still waits on it", async () => {
+    const reported = spyOn(toast, "error").mockImplementation(() => {});
+    try {
+      const fail = async () => {
+        throw new Error("not opened");
+      };
+      await runAction(fail, "Open failed");
+      const left = new AbortController();
+      left.abort();
+      await runAction(fail, "Open failed", left.signal);
+      expect(reported).toHaveBeenCalledTimes(1);
+    } finally {
+      reported.mockRestore();
+    }
   });
 
   test("formats unknown failures", () => {

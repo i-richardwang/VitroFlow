@@ -9,9 +9,23 @@
   "dataset_download": "Download",
   "dataset_training": "Training",
   "dataset_kpi_reviewed": "Reviewed",
-  "dataset_kpi_reviewed_of": "of {count} images",
+  "dataset_kpi_reviewed_of": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "of {formattedCount} images"
+      }
+    }
+  ],
   "dataset_kpi_training_runs": "Training runs",
-  "dataset_reviewed_since_last_run": "{count} reviewed since the last run",
+  "dataset_reviewed_since_last_run": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} reviewed since the last run"
+      }
+    }
+  ],
   "dataset_images_table": "Images in {dataset}",
   "dataset_column_image": "Image",
   "dataset_column_boxes": "Marks",
@@ -21,8 +35,27 @@
   "dataset_remove": "Remove",
   "dataset_add_heading": "Add to dataset",
   "dataset_add_nothing_added": "Nothing was added",
-  "dataset_add_result": "{added} added to {dataset}",
-  "dataset_add_result_existing": "{added} added to {dataset}; {existing} already there",
+  "dataset_add_result": [
+    {
+      "declarations": ["input added", "local formattedAdded = added: number"],
+      "match": {
+        "added=*": "{formattedAdded} added to {dataset}"
+      }
+    }
+  ],
+  "dataset_add_result_existing": [
+    {
+      "declarations": [
+        "input added",
+        "input existing",
+        "local formattedAdded = added: number",
+        "local formattedExisting = existing: number"
+      ],
+      "match": {
+        "added=*": "{formattedAdded} added to {dataset}; {formattedExisting} already there"
+      }
+    }
+  ],
   "dataset_add_dataset_label": "Dataset",
   "dataset_add_new": "New dataset",
   "dataset_add_name_label": "Name",
@@ -49,7 +82,14 @@
   "dataset_archive_image_size": "Image {digest} has another size than the manifest declares",
   "dataset_archive_image_mismatch": "The workbench stored another image",
   "dataset_archive_no_dataset": "The archive holds no dataset",
-  "dataset_archive_images_missing": "The archive lacks {count} of the dataset's images",
+  "dataset_archive_images_missing": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "The archive lacks {formattedCount} of the dataset's images"
+      }
+    }
+  ],
   "model_kind_traditional": "Traditional",
   "model_kind_ultralytics": "YOLO",
   "versions_table": "Model versions",
@@ -73,9 +113,28 @@
   "datasets_empty_description": "Add photos from an experiment, or import a dataset archive.",
   "dataset_empty_images_description": "Add photos from an experiment's units.",
   "dataset_import_storing": "Storing {dataset}",
-  "dataset_import_storing_count": "{stored} of {total}",
+  "dataset_import_storing_count": [
+    {
+      "declarations": [
+        "input stored",
+        "input total",
+        "local formattedStored = stored: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "stored=*": "{formattedStored} of {formattedTotal}"
+      }
+    }
+  ],
   "versions_empty_description": "A version appears here when a training run succeeds.",
-  "versions_trained_images": "{count} images",
+  "versions_trained_images": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} images"
+      }
+    }
+  ],
   "dataset_remove_title": "Remove {file} from {dataset}?",
   "dataset_image_removed": "{file} removed from {dataset}",
   "dataset_open_experiments": "Open experiments"

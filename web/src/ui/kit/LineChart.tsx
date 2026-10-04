@@ -1,4 +1,4 @@
-import { type ReactNode, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import {
   CartesianGrid,
   Dot,
@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { AxisDomain } from "recharts/types/util/types";
 import { ChartTooltip } from "./ChartTooltip";
+import { useClientValue } from "./clientValue";
 import { chartColor, Legend } from "./Legend";
 
 /*
@@ -57,8 +58,6 @@ function textWidth(text: string): number {
   return width;
 }
 
-const subscribeNever = () => () => {};
-
 /**
  * Width of the value axis: the widest formatted value plus 16px. The text is
  * measured in the browser; the server and the first client frame use 16px.
@@ -75,12 +74,7 @@ function useValueAxisWidth(
       if (formatted.length > widest.length) widest = formatted;
     }
   }
-  const measured = useSyncExternalStore(
-    subscribeNever,
-    () => textWidth(widest),
-    () => 0,
-  );
-  return measured + 16;
+  return useClientValue(() => textWidth(widest), 0) + 16;
 }
 
 export function LineChart({

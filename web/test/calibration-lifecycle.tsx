@@ -47,7 +47,7 @@ mock.module("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: async () => {} }),
   useBlocker: () => ({ status: "idle" }),
 }));
-mock.module("../src/ui/shell/shell", () => ({
+mock.module("../src/ui/shell/Shell", () => ({
   ShellActions: Passthrough,
   ShellAside: ({ children }: { children?: ReactNode }) =>
     createElement("aside", null, children),

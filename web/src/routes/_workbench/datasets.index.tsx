@@ -49,7 +49,7 @@ function DatasetsPage() {
   return (
     <Page
       title={m.datasets_title()}
-      actions={
+      action={
         <Button icon={Upload} onClick={() => setImporting(true)}>
           {m.dataset_import()}
         </Button>
@@ -60,12 +60,8 @@ function DatasetsPage() {
           <tr>
             <TableHead>{m.datasets_column_dataset()}</TableHead>
             <TableHead>{m.datasets_column_model()}</TableHead>
-            <TableHead className="text-end">
-              {m.datasets_column_images()}
-            </TableHead>
-            <TableHead className="text-end">
-              {m.datasets_column_reviewed()}
-            </TableHead>
+            <TableHead numeric>{m.datasets_column_images()}</TableHead>
+            <TableHead numeric>{m.datasets_column_reviewed()}</TableHead>
           </tr>
         </TableHeader>
         <TableBody>
@@ -91,16 +87,10 @@ function DatasetsPage() {
                 >
                   {dataset.modelId}
                 </TableCell>
-                <TableCell
-                  cellLabel={m.datasets_column_images()}
-                  className="text-end tabular-nums"
-                >
+                <TableCell cellLabel={m.datasets_column_images()} numeric>
                   {formatCount(dataset.imageCount)}
                 </TableCell>
-                <TableCell
-                  cellLabel={m.datasets_column_reviewed()}
-                  className="text-end tabular-nums"
-                >
+                <TableCell cellLabel={m.datasets_column_reviewed()} numeric>
                   {dataset.reviewedCount === null ? (
                     <Absent />
                   ) : (

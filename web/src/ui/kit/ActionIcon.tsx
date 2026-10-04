@@ -4,14 +4,13 @@ import { Icon, type IconProps } from "./Icon";
 import { Tooltip, type TooltipProps } from "./Tooltip";
 
 /*
- * A borderless square Button with a tertiary glyph color. Sizes: small 24
- * with glyph 14, control 32 with glyph 16 (the height of a middle Input, for
- * a row of form controls), middle 36 with glyph 20. A `title` wraps it in a
- * tooltip that ignores the pointer. A `tabIndex` passed in wins, so a
- * Toolbar's roving focus is kept.
+ * A borderless square Button with a tertiary glyph color. `small` and
+ * `middle` are Button's sizes, 24 and 32, with glyphs 14 and 16; `bar`, 36
+ * with glyph 20, stands alone in the shell's bars and floating toolbars. A
+ * `title` wraps it in a tooltip.
  */
 
-export type ActionIconSize = "small" | "control" | "middle";
+export type ActionIconSize = "small" | "middle" | "bar";
 
 export interface ActionIconProps extends Omit<
   ButtonProps,
@@ -26,8 +25,8 @@ export interface ActionIconProps extends Omit<
 
 const SIZE = {
   small: { button: "small", className: "ui-action-icon-small", glyph: 14 },
-  control: { button: "middle", className: undefined, glyph: 16 },
-  middle: { button: "middle", className: "ui-action-icon-middle", glyph: 20 },
+  middle: { button: "middle", className: undefined, glyph: 16 },
+  bar: { button: "middle", className: "ui-action-icon-bar", glyph: 20 },
 } as const;
 
 export function ActionIcon({
@@ -35,7 +34,7 @@ export function ActionIcon({
   className,
   disabled,
   icon,
-  size = "middle",
+  size = "bar",
   title,
   tooltipProps,
   ...props
@@ -64,17 +63,12 @@ export function ActionIcon({
         />
       }
       size={preset.button}
-      tabIndex={props.tabIndex ?? (disabled ? -1 : 0)}
       type="text"
     />
   );
   if (!title) return button;
   return (
-    <Tooltip
-      title={title}
-      {...tooltipProps}
-      className={cn("pointer-events-none", tooltipProps?.className)}
-    >
+    <Tooltip title={title} {...tooltipProps}>
       {button}
     </Tooltip>
   );

@@ -9,7 +9,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { Modal } = await import("../src/ui/kit/Modal");
     function Dialog({ open }: { open: boolean }) {
       return (
-        <Modal open={open} title="Rename" okText="Save" onCancel={() => {}}>
+        <Modal open={open} title="Rename" okText="Save" onClose={() => {}}>
           <input data-field="name" />
         </Modal>
       );

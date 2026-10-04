@@ -7,10 +7,7 @@
  */
 
 .ui-dropdown-menu-positioner {
-  --ui-dropdown-animation-duration: 140ms;
-  --ui-dropdown-animation-scale-y: 0.92;
-  --ui-dropdown-animation-ease-in: var(--ease-accelerate);
-  --ui-dropdown-animation-ease-out: var(--ease-out);
+  --ui-dropdown-menu-closed-scale: 0.92;
 
   z-index: var(--z-index-popup);
 
@@ -24,36 +21,30 @@
     transform: scaleY(1);
     opacity: 1;
     transition:
-      opacity var(--ui-dropdown-animation-duration)
-        var(--ui-dropdown-animation-ease-out),
-      transform var(--ui-dropdown-animation-duration)
-        var(--ui-dropdown-animation-ease-out);
+      opacity var(--duration-menu-enter) var(--ease-out),
+      transform var(--duration-menu-enter) var(--ease-out);
   }
 
   &[data-open] > *[data-starting-style] {
-    transform: scaleY(var(--ui-dropdown-animation-scale-y));
+    transform: scaleY(var(--ui-dropdown-menu-closed-scale));
     opacity: 0;
   }
 
   &[data-closed] > * {
-    transform: scaleY(var(--ui-dropdown-animation-scale-y));
+    transform: scaleY(var(--ui-dropdown-menu-closed-scale));
     opacity: 0;
     transition:
-      opacity var(--ui-dropdown-animation-duration)
-        var(--ui-dropdown-animation-ease-in),
-      transform var(--ui-dropdown-animation-duration)
-        var(--ui-dropdown-animation-ease-in);
+      opacity var(--duration-menu-enter) var(--ease-accelerate),
+      transform var(--duration-menu-enter) var(--ease-accelerate);
   }
 }
 
 .ui-dropdown-menu-popup {
-  --ui-menu-popup-padding: 4px;
-
   overflow-y: auto;
 
   min-width: 220px;
   max-height: var(--available-height);
-  padding: var(--ui-menu-popup-padding);
+  padding: 4px;
   border-radius: var(--radius-md);
 
   background: var(--color-elevated);
@@ -121,7 +112,7 @@
 
 /* `&&` lifts the danger look over the item's own states; pointer and keyboard light it alike. */
 .ui-dropdown-menu-danger {
-  --ui-menu-icon-color: var(--color-error);
+  --ui-dropdown-menu-icon-color: var(--color-error);
 
   && {
     color: var(--color-error);
@@ -164,7 +155,7 @@
   height: 14px;
   margin-inline-end: 12px;
 
-  color: var(--ui-menu-icon-color, var(--color-fg-secondary));
+  color: var(--ui-dropdown-menu-icon-color, var(--color-fg-secondary));
 
   & svg {
     width: 100%;

@@ -1,22 +1,19 @@
 /*
  * The frame rounds its corners and clips the header background along with
- * them; `overflow: clip` clips without making the frame a scroller. Cell
- * padding is component tokens on `:root`.
+ * them; `overflow: clip` clips without making the frame a scroller.
  *
  * A cell paints `--ui-table-cell-bg`. Several of its values are translucent, so
  * a pinned cell lays the same color over the container color to hide what
  * scrolls under it.
  */
 
-:root {
+.ui-table-wrapper {
   --ui-table-padding-block: 8px;
   --ui-table-padding-inline: 8px;
   --ui-table-padding-edge: 24px;
   --ui-table-selection-column-width: 36px;
   --ui-table-z-index-fixed: 2;
-}
 
-.ui-table-wrapper {
   max-width: 100%;
 
   .ui-table {
@@ -50,8 +47,14 @@
     position: relative;
     padding: var(--ui-table-padding-block) var(--ui-table-padding-inline);
     overflow-wrap: break-word;
+    text-align: start;
     vertical-align: middle;
     background: var(--ui-table-cell-bg);
+  }
+
+  .ui-table-cell-numeric {
+    font-variant-numeric: tabular-nums;
+    text-align: end;
   }
 
   tr > .ui-table-cell:first-child {
@@ -66,7 +69,6 @@
     --ui-table-cell-bg: var(--color-fill-quaternary);
     color: var(--color-fg-secondary);
     font-weight: 500;
-    text-align: start;
     white-space: nowrap;
   }
 
@@ -93,12 +95,10 @@
 }
 
 .ui-table-wrapper .ui-table-tbody > tr.ui-table-placeholder {
-  text-align: center;
   color: var(--color-fg-quaternary);
 
-  &:hover > th,
-  &:hover > td {
-    --ui-table-cell-bg: var(--color-container);
+  > td {
+    text-align: center;
   }
 }
 
@@ -197,11 +197,8 @@
  * container's own edge shadow shows there instead.
  */
 .ui-table-wrapper {
-  .ui-table-cell.ui-table-cell-fix {
-    position: sticky;
-  }
-
   .ui-table-cell-fix {
+    position: sticky;
     z-index: var(--ui-table-z-index-fixed);
     background:
       linear-gradient(var(--ui-table-cell-bg), var(--ui-table-cell-bg)),
@@ -340,7 +337,6 @@
       padding-inline: 0;
       text-align: start;
       white-space: normal;
-      border-bottom: none;
 
       &,
       &:where(.ui-table-row:hover > *) {

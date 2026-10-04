@@ -22,11 +22,46 @@
   "model_deleted": "{name} deleted",
   "model_id_placeholder": "germination-detector",
   "model_classes_placeholder": "seed\ngerminated",
-  "model_records_versions": "{count} versions",
-  "model_records_observations": "{count} observations",
-  "model_records_annotations": "{count} reviews",
-  "model_records_datasets": "{count} datasets",
-  "model_records_training_runs": "{count} training runs",
+  "model_records_versions": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} versions"
+      }
+    }
+  ],
+  "model_records_observations": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} observations"
+      }
+    }
+  ],
+  "model_records_annotations": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} reviews"
+      }
+    }
+  ],
+  "model_records_datasets": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} datasets"
+      }
+    }
+  ],
+  "model_records_training_runs": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} training runs"
+      }
+    }
+  ],
   "model_annotation_label": "Annotation instructions",
   "model_annotation_placeholder": "Describe the bodies an AI agent should mark for each class, and what to leave out.",
   "model_menu_annotation": "Annotation instructions…",

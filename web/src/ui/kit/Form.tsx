@@ -8,8 +8,8 @@ import { cn } from "./cn";
  * A native `<form>` built on Base UI Form. Fields are plain controls that carry
  * a `name`; errors reach a field from its own validation, from Zod through
  * `validate`, or from the server through the form's `errors` map, keyed by
- * field name. Fields stack 16px apart, each with its label above the control
- * unless the field is `horizontal`.
+ * field name. Fields stack 16px apart, each with its label above the control;
+ * with `layout="horizontal"` the label starts the row and the control ends it.
  */
 
 export interface FormProps extends Omit<BaseForm.Props, "className"> {

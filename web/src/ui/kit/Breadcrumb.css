@@ -9,7 +9,7 @@
   font-size: var(--text-base);
   line-height: 1.4;
 
-  > span {
+  > :where(span) {
     display: flex;
     align-items: center;
     min-inline-size: 0;
@@ -32,10 +32,7 @@
   align-items: center;
 
   @variant max-mobile {
-    /* Outranks the root's direct-child span rule. */
-    &&& {
-      display: none;
-    }
+    display: none;
   }
 }
 

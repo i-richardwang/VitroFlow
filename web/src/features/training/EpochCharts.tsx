@@ -146,9 +146,7 @@ function EpochChart({
         xAxisDomain={[1, Math.max(total, 2)]}
         yAxisDomain={panel.unit ? [0, 1] : ["auto", "auto"]}
         valueFormatter={(value) => formatDecimal(value, 2)}
-        tooltipLabelFormatter={(epoch) =>
-          m.epoch_tooltip_epoch({ epoch: String(epoch) })
-        }
+        tooltipLabelFormatter={(epoch) => m.epoch_tooltip_epoch({ epoch })}
         tooltipValueFormatter={(value) => formatDecimal(value, 4)}
       >
         {best && (

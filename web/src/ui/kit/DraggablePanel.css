@@ -7,6 +7,7 @@
 .ui-draggable-panel {
   --ui-draggable-panel-gap: 0px;
 
+  position: relative;
   display: flex;
   flex-shrink: 0;
   min-width: 0;
@@ -38,10 +39,10 @@
   &[data-resizing="true"] .ui-draggable-panel-toggle-root svg {
     opacity: 0;
   }
-}
 
-.ui-draggable-panel-fixed {
-  position: relative;
+  &[data-expand="false"] .ui-draggable-panel-chevron {
+    rotate: 180deg;
+  }
 }
 
 .ui-draggable-panel-toggle-root {
@@ -49,34 +50,37 @@
 
   position: absolute;
   z-index: var(--z-index-stick);
+  inset-block: 0;
+  inset-inline-start: -13px;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  > button {
-    pointer-events: all;
-    cursor: pointer;
+  width: 26px;
+}
 
-    position: relative;
+.ui-draggable-panel-toggle {
+  --focus-ring-offset: 3px;
 
-    width: 26px;
-    height: 34px;
-    padding: 0;
-    border: none;
+  pointer-events: all;
+  cursor: pointer;
 
-    color: var(--color-fg-tertiary);
+  position: relative;
 
-    background: none;
+  width: 26px;
+  height: 34px;
+  padding: 0;
+  border: none;
 
-    &:hover {
-      color: var(--color-fg);
-    }
+  color: var(--color-fg-tertiary);
 
-    &:focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 3px;
-    }
+  background: none;
+
+  @apply focus-ring;
+
+  &:hover {
+    color: var(--color-fg);
   }
 
   svg {
@@ -92,8 +96,8 @@
     opacity: 0;
 
     transition:
-      opacity 0.18s var(--ease-out),
-      transform 0.24s var(--ease-out);
+      opacity var(--duration-handle-fade) var(--ease-out),
+      transform var(--duration-handle-move) var(--ease-out);
   }
 
   path {
@@ -105,35 +109,67 @@
     stroke: var(--color-border-secondary);
   }
 
-  button:hover path[data-bow] {
+  &:hover path[data-bow] {
     stroke: var(--color-border);
+  }
+
+  .ui-draggable-panel-chevron {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition:
+      rotate var(--duration-panel-fold) var(--ease-out),
+      stroke var(--duration-base) var(--ease-out);
   }
 }
 
-.ui-draggable-panel-toggle-left {
-  inset-block: 0;
-  inset-inline-start: -13px;
-  width: 26px;
+/* Lays the content out at its own width, pinned to the end, so a narrower frame clips it. */
+.ui-draggable-panel-frame {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+
+  height: 100%;
 }
 
 .ui-draggable-panel-content {
+  transform-origin: right center;
+
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
 
   min-width: 0;
+  height: 100%;
   min-height: 0;
 }
 
 .ui-draggable-panel-handle {
+  --ui-draggable-panel-handle-size: 16px;
+  --focus-ring-offset: calc(var(--focus-ring-width) * -1);
+
+  cursor: col-resize;
   touch-action: none;
+
   position: absolute;
   z-index: var(--z-index-raise);
+  inset-block: 0;
+  inset-inline-start: calc(var(--ui-draggable-panel-handle-size) / -2);
+
+  width: var(--ui-draggable-panel-handle-size);
+
+  @apply focus-ring;
+
+  @media (pointer: coarse) {
+    --ui-draggable-panel-handle-size: 20px;
+  }
 
   &::before,
   &::after {
     content: "";
     position: absolute;
+    inset-inline-start: 50%;
+    width: 1px;
+    margin-inline-start: -0.5px;
     background: var(--color-border-secondary);
     transition:
       width var(--duration-panel-fold) var(--ease-out),
@@ -149,24 +185,6 @@
   &[data-resizing]::before,
   &[data-resizing]::after {
     background: var(--color-primary);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
-  }
-}
-
-.ui-draggable-panel-handle-vertical {
-  cursor: col-resize;
-  inset-block: 0;
-  width: var(--ui-draggable-panel-handle-size);
-
-  &::before,
-  &::after {
-    inset-inline-start: 50%;
-    width: 1px;
-    margin-inline-start: -0.5px;
   }
 
   &::before {

@@ -14,7 +14,7 @@ import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { ToolbarSeparator } from "../../ui/kit/Toolbar";
-import { ShellActions } from "../../ui/shell/shell";
+import { ShellActions } from "../../ui/shell/Shell";
 import {
   Workbench,
   WorkbenchAlert,
@@ -27,7 +27,6 @@ import { BoxLayer, ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import { ReviewInspector } from "./ReviewInspector";
 import { sourceLabels } from "./labels";
 import { useCalibrationSession } from "./session";
-import { DiscardDraftDialog } from "./DiscardDraftDialog";
 import { CalibrationTools } from "./tools";
 import type { LayerKey } from "./controls";
 import type { ImageWorkbenchContext } from "./types";
@@ -210,7 +209,6 @@ export function ImageWorkbench({
         )}
         <ChecksLayer image={review} checks={checks} layers={display.layers} />
       </ImageViewport>
-      <DiscardDraftDialog discard={ready?.discard ?? null} />
     </Workbench>
   );
 }

@@ -33,8 +33,6 @@ export const prefersReducedMotion = createMediaQueryStore(
   () => "(prefers-reduced-motion: reduce)",
 );
 
-export const coarsePointer = createMediaQueryStore(() => "(pointer: coarse)");
-
 /*
  * Below the `--breakpoint-laptop` width in `app.css`, the same width the
  * stylesheets use through the `max-laptop` variant.

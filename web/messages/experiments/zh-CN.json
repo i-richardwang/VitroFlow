@@ -43,7 +43,14 @@
   "experiment_units_not_moved": "没有换成功",
   "experiment_column_treatment": "处理",
   "experiment_column_actions": "操作",
-  "experiment_cell_analyzed": "检测 {value}",
+  "experiment_cell_analyzed": [
+    {
+      "declarations": ["input value", "local formattedValue = value: number"],
+      "match": {
+        "value=*": "检测 {formattedValue}"
+      }
+    }
+  ],
   "experiment_cell_excluded": "本次观测不计入分析",
   "experiment_export": "导出表格",
   "workbook_column_factor": "因子",
@@ -55,7 +62,14 @@
   "image_analysis_pending": "待检测",
   "image_analysis_analyzed": "已检测",
   "image_analysis_failed": "失败",
-  "observation_day_label": "第 {day} 天",
+  "observation_day_label": [
+    {
+      "declarations": ["input day", "local formattedDay = day: number"],
+      "match": {
+        "day=*": "第 {formattedDay} 天"
+      }
+    }
+  ],
   "observation_label": "观测日",
   "observations_label": "观测日",
   "observation_new": "新建观测日",
@@ -76,13 +90,34 @@
   "observation_not_saved": "观测日未保存",
   "observation_images_heading": "{observation}的图片",
   "observation_images_assign_failed": "图片未能对应",
-  "observation_images_remaining": "请为剩余 {count} 张图片对应试验单元",
+  "observation_images_remaining": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "请为剩余 {formattedCount} 张图片对应试验单元"
+      }
+    }
+  ],
   "observation_images_uploading": "上传中…",
-  "observation_images_assign_count": "对应 {count} 张",
+  "observation_images_assign_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "对应 {formattedCount} 张"
+      }
+    }
+  ],
   "observation_images_unassigned": "未对应",
   "observation_images_unit_label": "{file} 对应的试验单元",
   "observation_images_fill_in_order": "按顺序对应",
-  "observation_images_placed": "已用作 {unit} · 第 {day} 天",
+  "observation_images_placed": [
+    {
+      "declarations": ["input day", "local formattedDay = day: number"],
+      "match": {
+        "day=*": "已用作 {unit} · 第 {formattedDay} 天"
+      }
+    }
+  ],
   "observation_images_repeated": "与 {file} 相同",
   "unit_title": "{experiment} 的试验单元 {code}",
   "unit_navigation": "导航",
@@ -163,11 +198,35 @@
   "experiment_no_observations": "还没有观测日",
   "experiment_no_observations_description": "添加观测日，再把当天的照片对应到试验单元。",
   "treatment_deleted": "已删除 {name}",
-  "experiment_selection_count": "已选 {count} 个试验单元",
+  "experiment_selection_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "已选 {formattedCount} 个试验单元"
+      }
+    }
+  ],
   "experiment_facts_joined": "{first} · {second}",
   "observation_heading": "{day} · {model}",
-  "experiment_summary_deviation": "± {deviation}",
-  "experiment_summary_sample": "n = {count}",
+  "experiment_summary_deviation": [
+    {
+      "declarations": [
+        "input deviation",
+        "local formattedDeviation = deviation: number maximumFractionDigits=1"
+      ],
+      "match": {
+        "deviation=*": "± {formattedDeviation}"
+      }
+    }
+  ],
+  "experiment_summary_sample": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "n = {formattedCount}"
+      }
+    }
+  ],
   "culture_event_at": "{event} · {observation}",
   "unit_no_image_description": "在实验表格中，从某个观测日把照片对应到这个试验单元。",
   "unit_open_experiment": "打开实验"

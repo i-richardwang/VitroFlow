@@ -29,11 +29,7 @@ export function CopyableCode({
 export function CopyableCodeSkeleton({ label }: { label: string }) {
   return (
     <Form.Field label={label} aria-hidden>
-      <Input
-        readOnly
-        tabIndex={-1}
-        prefix={<Skeleton width="16em" className="inline-block" />}
-      />
+      <Input readOnly tabIndex={-1} prefix={<Skeleton.Inline width="16em" />} />
     </Form.Field>
   );
 }

@@ -14,10 +14,38 @@
   "worker_activity_idle": "Idle",
   "worker_activity_inference": "Detecting {image}",
   "worker_activity_training": "Training {dataset}",
-  "worker_age_seconds": "{count}s ago",
-  "worker_age_minutes": "{count}m ago",
-  "worker_age_hours": "{count}h ago",
-  "worker_age_days": "{count}d ago",
+  "worker_age_seconds": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount}s ago"
+      }
+    }
+  ],
+  "worker_age_minutes": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount}m ago"
+      }
+    }
+  ],
+  "worker_age_hours": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount}h ago"
+      }
+    }
+  ],
+  "worker_age_days": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount}d ago"
+      }
+    }
+  ],
   "worker_never_seen": "Never connected",
   "worker_enroll": "Enroll worker",
   "worker_enroll_title": "Enroll a worker",

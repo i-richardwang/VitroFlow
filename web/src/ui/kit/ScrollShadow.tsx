@@ -1,12 +1,19 @@
-import { type Ref, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type CSSProperties,
+  type ElementType,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { cn } from "./cn";
-import { Flexbox, type FlexboxProps } from "./Flex";
-import { mergeRefs } from "./floating";
+import { mergeRefs } from "./refs";
 
-export interface ScrollShadowProps extends Omit<FlexboxProps, "ref"> {
-  ref?: Ref<HTMLDivElement>;
+export interface ScrollShadowProps extends ComponentProps<"div"> {
+  as?: ElementType;
   /** Fade length as a percentage of the box. */
-  size?: number;
+  size: number;
 }
 
 /** Pixels scrolled before an edge counts as overflowing. */
@@ -61,14 +68,12 @@ function useScrollEdges(
   return edges;
 }
 
-/**
- * Vertical scroll container that fades the edges with hidden content past
- * them. The active edges are also exposed as `data-*-scroll` attributes.
- */
+/** Vertical scroll container that fades the edges with hidden content past them. */
 export function ScrollShadow({
+  as: Container = "div",
   className,
   children,
-  size = 16,
+  size,
   style,
   ref,
   ...rest
@@ -87,26 +92,19 @@ export function ScrollShadow({
           : null;
 
   return (
-    <Flexbox
+    <Container
       className={cn(
         "ui-scroll-shadow",
-        "ui-scroll-shadow-vertical",
         position && POSITION[position],
         className,
       )}
-      ref={setRefs as Ref<HTMLElement>}
-      style={{
-        ...({ "--ui-scroll-shadow-size": `${size}%` } as Record<
-          string,
-          string
-        >),
-        ...style,
-      }}
-      data-orientation="vertical"
-      {...(position && { [`data-${position}-scroll`]: true })}
+      ref={setRefs}
+      style={
+        { "--ui-scroll-shadow-size": `${size}%`, ...style } as CSSProperties
+      }
       {...rest}
     >
       {children}
-    </Flexbox>
+    </Container>
   );
 }

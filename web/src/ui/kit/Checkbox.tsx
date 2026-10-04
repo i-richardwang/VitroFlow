@@ -10,7 +10,7 @@ import { Text } from "./Text";
  * group.
  */
 
-const MARK = { size: 16, strokeWidth: 3, style: { transform: "scale(0.75)" } };
+const MARK = { size: 12, strokeWidth: 3 };
 
 export interface CheckboxProps {
   "aria-label"?: string;
@@ -18,7 +18,6 @@ export interface CheckboxProps {
   children?: ReactNode;
   disabled?: boolean;
   indeterminate?: boolean;
-  name?: string;
   onChange?: (checked: boolean) => void;
   /** The value this box contributes inside a CheckboxGroup. */
   value?: string;
@@ -61,11 +60,7 @@ export function Checkbox({ children, ...rest }: CheckboxProps) {
   return (
     <label className="ui-checkbox-label">
       <CheckboxBox labelledBy={textId} {...rest} />
-      <Text
-        as="span"
-        id={textId}
-        type={rest.disabled ? "secondary" : undefined}
-      >
+      <Text as="span" id={textId} disabled={rest.disabled}>
         {children}
       </Text>
     </label>
@@ -99,7 +94,7 @@ export function CheckboxGroup({
       value={value}
     >
       {options.map((item) => (
-        <Checkbox key={item.value} name={item.value} value={item.value}>
+        <Checkbox key={item.value} value={item.value}>
           {item.label}
         </Checkbox>
       ))}

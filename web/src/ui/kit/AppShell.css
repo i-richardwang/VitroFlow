@@ -183,6 +183,8 @@
 }
 
 .ui-app-shell-main {
+  --ui-app-shell-main-padding: 24px;
+
   overflow: auto;
   display: flex;
   flex: 1;
@@ -191,7 +193,7 @@
 
   min-inline-size: 0;
   min-block-size: 0;
-  padding: 24px;
+  padding: var(--ui-app-shell-main-padding);
 
   /* Focus lands here when a click hits empty space; only the skip link draws a ring. */
   &:focus {
@@ -208,22 +210,23 @@
     flex-shrink: 0;
   }
 
-  /*
-   * A page that owns a full-height split sets data-page-layout="flush" and
-   * takes over padding and scrolling, so its sidebar can sit on the card edge.
-   */
-  &:has([data-page-layout="flush"]) {
-    overflow: hidden;
-    gap: 0;
-    padding: 0;
-
-    > * {
-      flex-shrink: 1;
-    }
-  }
-
   @variant max-mobile {
     gap: 16px;
-    padding: 16px;
   }
+}
+
+/* Read by the flush content as well, so its edge follows the card's padding. */
+@variant max-mobile {
+  .ui-app-shell-main {
+    --ui-app-shell-main-padding: 16px;
+  }
+}
+
+/* Its margin box is exactly the card's content box, so the card never scrolls. */
+.ui-app-shell-main > .ui-app-shell-flush {
+  display: flex;
+  flex: 1 1 0;
+
+  min-block-size: 0;
+  margin: calc(var(--ui-app-shell-main-padding) * -1);
 }

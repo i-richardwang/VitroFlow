@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
 
-import { m } from "../../paraglide/messages";
-import { Button } from "../kit/Button";
-import { WorkbenchEmpty } from "./Workbench";
+import { m } from "../paraglide/messages";
+import { Button } from "./kit/Button";
+import { WorkbenchEmpty } from "./shell/Workbench";
 
-/** A page that could not be shown, with the way back to the experiments. */
-export function WorkbenchNotice({
+/** A route that could not be shown, in place of the whole page, with the way back to the experiments. */
+export function RouteNotice({
   title,
   description,
 }: {

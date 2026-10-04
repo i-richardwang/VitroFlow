@@ -104,10 +104,7 @@ function ConsentPage() {
 /** The consent card while the client is looked up: its title and the two decisions. */
 function ConsentPending() {
   return (
-    <AuthLayout
-      brand={brand}
-      title={<Skeleton width="9em" className="inline-block align-middle" />}
-    >
+    <AuthLayout brand={brand} title={<Skeleton.Inline width="9em" />}>
       <PageSkeleton>
         <ConsentDecisions disabled />
       </PageSkeleton>

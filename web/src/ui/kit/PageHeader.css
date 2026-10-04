@@ -43,7 +43,7 @@
 
     button,
     a {
-      min-block-size: 44px;
+      min-block-size: var(--size-touch);
     }
   }
 }

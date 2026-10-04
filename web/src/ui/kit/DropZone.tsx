@@ -1,10 +1,8 @@
-import { FileUp, X } from "lucide-react";
+import { X } from "lucide-react";
 import { type DragEvent, type ReactNode, useId, useRef, useState } from "react";
 import { m } from "../../paraglide/messages";
-import { getLocale } from "../../paraglide/runtime";
 import { ActionIcon } from "./ActionIcon";
 import { Button } from "./Button";
-import { cn } from "./cn";
 import { Icon, type IconProps } from "./Icon";
 import { Progress } from "./Progress";
 
@@ -20,33 +18,31 @@ import { Progress } from "./Progress";
 
 export interface DropZoneProps {
   /** File types the chooser offers, as for `<input accept>`. Drops are not filtered. */
-  accept?: string;
+  accept: string;
   /** The file list, usually a `DropZoneFileList`. */
   children?: ReactNode;
-  className?: string;
   /** Limits or hints under the title. */
-  description?: ReactNode;
+  description: ReactNode;
   disabled?: boolean;
-  icon?: IconProps["icon"];
+  icon: IconProps["icon"];
   /**
    * Whether the chooser takes several files. A drop always passes every file
    * to `onFiles`, and the caller picks among them.
    */
-  multiple?: boolean;
+  multiple: boolean;
   onFiles: (files: File[]) => void;
   /** Label of the button that opens the chooser. */
-  selectText?: string;
-  title?: ReactNode;
+  selectText: string;
+  title: ReactNode;
 }
 
 export function DropZone({
   accept,
   children,
-  className,
   description,
   disabled = false,
-  icon = FileUp,
-  multiple = true,
+  icon,
+  multiple,
   onFiles,
   selectText,
   title,
@@ -55,7 +51,6 @@ export function DropZone({
   const depth = useRef(0);
   const [dragging, setDragging] = useState(false);
   const titleId = useId();
-  const select = selectText ?? m.ui_drop_zone_select();
 
   const take = (list: FileList | null) => {
     if (!list || list.length === 0) return;
@@ -65,7 +60,7 @@ export function DropZone({
     Array.from(event.dataTransfer.types).includes("Files");
 
   return (
-    <div className={cn("ui-drop-zone", className)}>
+    <div className="ui-drop-zone">
       <fieldset
         aria-labelledby={titleId}
         className="ui-drop-zone-area"
@@ -96,26 +91,24 @@ export function DropZone({
         }}
       >
         <span aria-hidden className="ui-drop-zone-icon">
-          <Icon icon={icon} size={{ size: 28, strokeWidth: 1.5 }} />
+          <Icon icon={icon} size={28} strokeWidth={1.5} />
         </span>
         <div className="ui-drop-zone-text">
           <div className="ui-drop-zone-title" id={titleId}>
-            {title ?? m.ui_drop_zone_title()}
+            {title}
           </div>
-          {description && (
-            <div className="ui-drop-zone-description">{description}</div>
-          )}
+          <div className="ui-drop-zone-description">{description}</div>
         </div>
         <Button
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
           size="small"
         >
-          {select}
+          {selectText}
         </Button>
         <input
           accept={accept}
-          aria-label={select}
+          aria-label={selectText}
           className="ui-drop-zone-input"
           disabled={disabled}
           multiple={multiple}
@@ -134,6 +127,13 @@ export function DropZone({
   );
 }
 
+/** A file size in the largest binary unit that keeps it at one or more, as the upload limits are stated. */
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return m.ui_file_size_bytes({ bytes });
+  if (bytes < 1024 ** 2) return m.ui_file_size_kib({ kibibytes: bytes / 1024 });
+  return m.ui_file_size_mib({ mebibytes: bytes / 1024 ** 2 });
+}
+
 export function DropZoneFileList({ children }: { children: ReactNode }) {
   return <ul className="ui-drop-zone-file-list">{children}</ul>;
 }
@@ -143,37 +143,15 @@ export type DropZoneFileStatus = "uploading" | "done" | "error";
 export interface DropZoneFileProps {
   /** Extra controls before the remove button. */
   actions?: ReactNode;
-  /** Shown in the tile at the start; defaults to the file's extension. */
-  icon?: ReactNode;
   name: string;
   onRemove?: () => void;
-  /** 0 to 100; the bar shows while the status is `uploading`. */
+  /** 0 to 1; the bar shows while the status is `uploading`. */
   progress?: number;
   /** Bytes. */
   size: number;
   status?: DropZoneFileStatus;
   /** Written after the size, colored by the status. */
   statusText?: ReactNode;
-}
-
-function formatSize(bytes: number, locale: string) {
-  if (bytes < 1024) {
-    return new Intl.NumberFormat(locale, {
-      style: "unit",
-      unit: "byte",
-      unitDisplay: "short",
-    }).format(bytes);
-  }
-  if (bytes < 1024 ** 2) {
-    const amount = new Intl.NumberFormat(locale, {
-      maximumFractionDigits: 0,
-    }).format(bytes / 1024);
-    return `${amount} KiB`;
-  }
-  const amount = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 1,
-  }).format(bytes / 1024 ** 2);
-  return `${amount} MiB`;
 }
 
 function extension(name: string) {
@@ -183,7 +161,6 @@ function extension(name: string) {
 
 export function DropZoneFile({
   actions,
-  icon,
   name,
   onRemove,
   progress,
@@ -191,18 +168,17 @@ export function DropZoneFile({
   status,
   statusText,
 }: DropZoneFileProps) {
-  const locale = getLocale();
   return (
     <li className="ui-drop-zone-file" data-status={status}>
       <span aria-hidden className="ui-drop-zone-file-icon">
-        {icon ?? extension(name).slice(0, 4)}
+        {extension(name).slice(0, 4)}
       </span>
       <div className="ui-drop-zone-file-info">
         <div className="ui-drop-zone-file-name" title={name}>
           {name}
         </div>
         <div className="ui-drop-zone-file-meta">
-          <span>{formatSize(size, locale)}</span>
+          <span>{fileSize(size)}</span>
           {statusText != null && (
             <span className="ui-drop-zone-file-status">{statusText}</span>
           )}
@@ -211,7 +187,7 @@ export function DropZoneFile({
           <Progress
             aria-label={m.ui_drop_zone_progress({ file: name })}
             className="ui-drop-zone-file-progress"
-            max={100}
+            max={1}
             value={progress}
           />
         )}

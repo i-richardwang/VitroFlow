@@ -30,8 +30,8 @@ export function AiSection({
             </span>
             <span className="tabular-nums">
               {m.calibration_ai_progress_count({
-                completed: formatCount(progress.completed),
-                total: formatCount(progress.total),
+                completed: progress.completed,
+                total: progress.total,
               })}
             </span>
           </div>

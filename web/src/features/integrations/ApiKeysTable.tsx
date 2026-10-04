@@ -21,7 +21,6 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
-import { Text } from "../../ui/kit/Text";
 import { toast } from "../../ui/kit/Toast";
 
 export function ApiKeysTable({
@@ -77,9 +76,9 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
     <TableRow>
       <TableCell cellSlot="title">{apiKey.name}</TableCell>
       <TableCell cellLabel={m.api_key_column_key()}>
-        <Text as="span" className="text-xs text-fg-secondary" code>
+        <span className="font-mono text-xs text-fg-secondary">
           {m.api_key_start({ start: apiKey.start })}
-        </Text>
+        </span>
       </TableCell>
       <TableCell cellLabel={m.api_key_column_scopes()}>
         <Flexbox horizontal gap={4} wrap="wrap">
@@ -94,9 +93,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
         {apiKey.expiresAt === null ? (
           <span className="text-fg-secondary">{m.api_key_expiry_never()}</span>
         ) : expired ? (
-          <Text as="span" type="danger">
-            {m.api_key_expired()}
-          </Text>
+          <span className="text-error">{m.api_key_expired()}</span>
         ) : (
           <span className="text-fg-secondary">
             <Timestamp value={apiKey.expiresAt} />

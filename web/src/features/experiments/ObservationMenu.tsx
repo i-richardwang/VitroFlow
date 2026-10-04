@@ -104,11 +104,11 @@ export function ObservationMenu({
 
   return (
     <>
-      <DropdownMenu items={items} placement="bottomLeft">
+      <DropdownMenu items={items}>
         <Button
           type="text"
           size="small"
-          outdent
+          className="-ms-2"
           icon={ChevronDown}
           iconPosition="end"
           aria-label={m.observation_actions({ observation: label })}

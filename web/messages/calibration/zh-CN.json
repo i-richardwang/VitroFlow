@@ -39,6 +39,18 @@
   "calibration_ai_section": "AI 建议",
   "calibration_ai_running": "标注中",
   "calibration_ai_progress": "标注进度",
-  "calibration_ai_progress_count": "{completed} / {total}",
+  "calibration_ai_progress_count": [
+    {
+      "declarations": [
+        "input completed",
+        "input total",
+        "local formattedCompleted = completed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "completed=*": "{formattedCompleted} / {formattedTotal}"
+      }
+    }
+  ],
   "calibration_ai_checks": "待确认"
 }

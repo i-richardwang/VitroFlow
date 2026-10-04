@@ -1,9 +1,4 @@
-import {
-  createFileRoute,
-  Link,
-  notFound,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ChartLine } from "lucide-react";
 
 import { Metric } from "../../ui/Metric";
@@ -95,10 +90,9 @@ export const Route = createFileRoute(
 function TrainingRunPage() {
   const { run, epochs, version } = Route.useLoaderData();
   const { dataset } = Route.useParams();
-  const router = useRouter();
   const live = isTrainingRunActive(run);
 
-  useRouteRefresh(router, 10_000, live);
+  useRouteRefresh(10_000, live);
 
   const current = epochs.filter((epoch) => epoch.attempt === run.attempt);
   const earlier = epochs.length - current.length;
@@ -111,7 +105,7 @@ function TrainingRunPage() {
     <Page
       title={<span className="font-mono">{trainingRunLabel(run)}</span>}
       description={<Timestamp value={run.createdAt} />}
-      actions={
+      action={
         run.state.status === "failed" ? null : <TrainingRunState run={run} />
       }
     >

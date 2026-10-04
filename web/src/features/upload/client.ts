@@ -3,7 +3,8 @@ import { storedImageResponseSchema } from "../../domain/images/schema";
 
 export function storeImage(
   file: File,
-  onProgress: (percent: number) => void,
+  /** The share of the file sent so far, 0 to 1. */
+  onProgress: (ratio: number) => void,
   signal: AbortSignal,
 ): Promise<{ digest: string }> {
   return new Promise((resolve, reject) => {
@@ -13,7 +14,7 @@ export function storeImage(
     request.open("POST", "/api/images");
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) {
-        onProgress(Math.round((event.loaded / event.total) * 100));
+        onProgress(event.loaded / event.total);
       }
     };
     request.onload = () => {

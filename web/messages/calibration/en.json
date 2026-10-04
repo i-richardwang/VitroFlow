@@ -39,6 +39,18 @@
   "calibration_ai_section": "AI proposal",
   "calibration_ai_running": "Annotating",
   "calibration_ai_progress": "Annotation progress",
-  "calibration_ai_progress_count": "{completed} / {total}",
+  "calibration_ai_progress_count": [
+    {
+      "declarations": [
+        "input completed",
+        "input total",
+        "local formattedCompleted = completed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "completed=*": "{formattedCompleted} / {formattedTotal}"
+      }
+    }
+  ],
   "calibration_ai_checks": "To check"
 }

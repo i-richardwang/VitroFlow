@@ -91,7 +91,7 @@ export function DesignField({
               <ActionIcon
                 title={removeLabel}
                 icon={X}
-                size="control"
+                size="middle"
                 disabled={disabled || rows.length === 1}
                 onClick={() => onChange(rows.filter((_, at) => at !== index))}
               />

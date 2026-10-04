@@ -51,7 +51,7 @@ function ModelsPage() {
   return (
     <Page
       title={m.models_title()}
-      actions={
+      action={
         <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
           {m.model_new()}
         </Button>

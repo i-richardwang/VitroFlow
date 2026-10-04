@@ -40,6 +40,13 @@ export function daysBetween(from: CalendarDay, to: CalendarDay): number {
   return Math.round((end - start) / 86_400_000);
 }
 
+/** Today on the calendar of the machine that asks. */
+export function today(): CalendarDay {
+  const now = new Date();
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 export const experimentNameSchema = z
   .string()
   .trim()

@@ -4,20 +4,12 @@
   color: var(--color-fg);
 }
 
-.ui-text-code {
-  font-family: var(--font-mono);
-}
-
 .ui-text-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ui-text-danger {
-  color: var(--color-error);
-}
-
-.ui-text-secondary {
+.ui-text-disabled {
   color: var(--color-fg-tertiary);
 }

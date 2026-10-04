@@ -23,7 +23,7 @@ import type {
   UnitSeries,
 } from "../../domain/experiments/contracts";
 import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
-import { ShellActions } from "../../ui/shell/shell";
+import { ShellActions } from "../../ui/shell/Shell";
 import {
   Workbench,
   WorkbenchEmpty,

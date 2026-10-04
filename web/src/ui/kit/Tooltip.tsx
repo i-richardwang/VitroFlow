@@ -1,12 +1,6 @@
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 import type { ReactElement, ReactNode } from "react";
-import { cn } from "./cn";
-import {
-  defaultPortalContainer,
-  type Placement,
-  placementMap,
-  triggerRender,
-} from "./floating";
+import { defaultPortalContainer, triggerRender } from "./floating";
 import { Hotkey } from "./Hotkey";
 
 /*
@@ -20,20 +14,20 @@ import { Hotkey } from "./Hotkey";
 const OPEN_DELAY = 400;
 const CLOSE_DELAY = 100;
 
+/** The side of the trigger the tooltip sits on, centered along it. */
+export type TooltipPlacement = "top" | "right" | "bottom";
+
 export interface TooltipProps {
   children: ReactElement;
-  /** Applied to the popup. */
-  className?: string;
   /** Written like Hotkey's `keys` (`mod+k`). */
   hotkey?: string;
-  placement?: Placement;
+  placement?: TooltipPlacement;
   title?: ReactNode;
 }
 
 export function Tooltip({
   children,
   title,
-  className,
   hotkey,
   placement = "top",
 }: TooltipProps) {
@@ -46,7 +40,6 @@ export function Tooltip({
     typeof child.props.id === "string"
       ? child.props.id
       : undefined;
-  const { align, side } = placementMap[placement];
 
   return (
     <BaseTooltip.Root>
@@ -64,13 +57,12 @@ export function Tooltip({
       />
       <BaseTooltip.Portal container={defaultPortalContainer()}>
         <BaseTooltip.Positioner
-          align={align}
           className="ui-tooltip-positioner"
           data-placement={placement}
-          side={side}
+          side={placement}
           sideOffset={6}
         >
-          <BaseTooltip.Popup className={cn("ui-tooltip-popup", className)}>
+          <BaseTooltip.Popup className="ui-tooltip-popup">
             <BaseTooltip.Viewport className="ui-tooltip-viewport">
               {title}
               {hotkey ? <Hotkey compact keys={hotkey} /> : null}

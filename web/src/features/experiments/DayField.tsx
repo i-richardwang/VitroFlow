@@ -1,25 +1,6 @@
-import {
-  type CalendarDate,
-  getLocalTimeZone,
-  parseDate,
-  today,
-} from "@internationalized/date";
-
 import type { CalendarDay } from "../../domain/experiments/schema";
 import { DatePicker } from "../../ui/kit/DatePicker";
 import { Form } from "../../ui/kit/Form";
-
-export function toDay(value: CalendarDate): CalendarDay {
-  return value.toString();
-}
-
-export function fromDay(day: CalendarDay): CalendarDate {
-  return parseDate(day);
-}
-
-export function currentDay(): CalendarDate {
-  return today(getLocalTimeZone());
-}
 
 /**
  * A required calendar day; it always holds one, so it cannot be cleared.
@@ -36,23 +17,24 @@ export function DayField({
 }: {
   label: string;
   disabled: boolean;
-  value: CalendarDate;
-  onChange: (value: CalendarDate) => void;
-  earliest?: { date: CalendarDate; error: string };
+  value: CalendarDay;
+  onChange: (value: CalendarDay) => void;
+  earliest?: { day: CalendarDay; error: string };
   className?: string;
 }) {
   return (
     <Form.Field
       className={className}
       label={label}
+      // Days written YYYY-MM-DD sort as text in calendar order.
       validate={() =>
-        earliest && value.compare(earliest.date) < 0 ? earliest.error : null
+        earliest && value < earliest.day ? earliest.error : null
       }
       required
     >
       <DatePicker
         disabled={disabled}
-        minDate={earliest?.date}
+        earliest={earliest?.day}
         value={value}
         onChange={onChange}
       />

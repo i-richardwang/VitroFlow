@@ -141,8 +141,8 @@
   /*
    * Transitions inside a component: `fast` for hover fills, `base` for control
    * states, `slow` for moving parts and larger areas, `slower` for progress,
-   * scroll shadows and link color. Panels entering and leaving have their own
-   * durations.
+   * scroll shadows and link color. Panels, popups and feedback that enter and
+   * leave have their own durations.
    */
   --duration-fast: 120ms;
   --duration-base: 160ms;
@@ -154,6 +154,18 @@
   --duration-drawer-exit: 220ms;
   --duration-backdrop: 180ms;
   --duration-panel-fold: 250ms;
+  --duration-menu-enter: 140ms;
+  --duration-tooltip-enter: 280ms;
+  --duration-tooltip-exit: 100ms;
+  --duration-toast: 400ms;
+  --duration-shake: 300ms;
+  --duration-spinner-grow: 380ms;
+  --duration-spinner-fade: 260ms;
+  --duration-handle-fade: 180ms;
+  --duration-handle-move: 240ms;
+
+  /* The smallest hit area a control keeps on a touch screen. */
+  --size-touch: 44px;
 
   /* Colors, light scheme. */
   --color-canvas: #f8f8f8;

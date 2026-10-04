@@ -15,7 +15,6 @@ import {
 import type { DropdownItem } from "../../ui/kit/DropdownMenu";
 import { Form } from "../../ui/kit/Form";
 import { toast } from "../../ui/kit/Toast";
-import { fromDay, toDay } from "./DayField";
 import { ExperimentFields, readExperimentFields } from "./ExperimentFields";
 
 const EDIT_FORM = "edit-experiment";
@@ -120,9 +119,7 @@ function EditExperimentForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const [inoculatedOn, setInoculatedOn] = useState(() =>
-    fromDay(experiment.inoculatedOn),
-  );
+  const [inoculatedOn, setInoculatedOn] = useState(experiment.inoculatedOn);
   return (
     <Form
       id={EDIT_FORM}
@@ -136,7 +133,7 @@ function EditExperimentForm({
                 data: {
                   experiment: experiment.id,
                   ...fields,
-                  inoculatedOn: toDay(inoculatedOn),
+                  inoculatedOn,
                 },
               }),
             m.experiment_not_saved(),

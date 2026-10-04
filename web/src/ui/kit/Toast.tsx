@@ -1,11 +1,5 @@
 import { Toast as BaseToast } from "@base-ui/react/toast";
-import {
-  CircleCheck,
-  CircleX,
-  type LucideIcon,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { CircleCheck, CircleX, type LucideIcon, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages";
 import { cn } from "./cn";
@@ -19,7 +13,7 @@ import { Icon } from "./Icon";
  * the bottom end of the viewport.
  */
 
-type ToastType = "success" | "warning" | "error";
+type ToastType = "success" | "error";
 
 interface ToastOptions {
   /** Without a title the description is the whole message, in body color. */
@@ -37,13 +31,11 @@ const manager = BaseToast.createToastManager();
 const ICONS: Record<ToastType, LucideIcon> = {
   error: CircleX,
   success: CircleCheck,
-  warning: TriangleAlert,
 };
 
 const ICON_COLORS: Record<ToastType, string> = {
   error: "var(--color-error)",
   success: "var(--color-success)",
-  warning: "var(--color-warning)",
 };
 
 function add(type: ToastType, input: ToastInput) {
@@ -59,7 +51,6 @@ function add(type: ToastType, input: ToastInput) {
 export const toast = {
   error: (input: ToastInput) => add("error", input),
   success: (input: ToastInput) => add("success", input),
-  warning: (input: ToastInput) => add("warning", input),
 };
 
 function CloseButton() {

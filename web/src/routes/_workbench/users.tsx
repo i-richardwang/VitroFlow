@@ -54,7 +54,7 @@ function UsersPage() {
   return (
     <Page
       title={m.users_title()}
-      actions={
+      action={
         <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
           {m.users_new()}
         </Button>

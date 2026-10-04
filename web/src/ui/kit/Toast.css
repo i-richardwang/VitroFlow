@@ -68,8 +68,8 @@
     0 0 0 1px var(--color-ring);
 
   transition:
-    transform 0.4s var(--ease-snap),
-    opacity 0.4s,
+    transform var(--duration-toast) var(--ease-snap),
+    opacity var(--duration-toast) var(--ease-snap),
     height var(--duration-base);
 
   /* Fills the gap between toasts so moving the pointer across it does not collapse the stack. */

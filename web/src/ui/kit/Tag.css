@@ -7,29 +7,22 @@
   align-items: center;
   justify-content: center;
   width: fit-content;
-  margin: 0;
   font-size: var(--text-xs);
   line-height: 1.2;
   color: var(--color-fg-secondary);
   white-space: nowrap;
   background: var(--color-fill-tertiary);
-
-  span {
-    margin: 0;
-    line-height: inherit;
-  }
+  border-radius: var(--radius-xs);
 }
 
 .ui-tag-small {
   height: 20px;
   padding-inline: 4px;
-  border-radius: var(--radius-xs);
 }
 
 .ui-tag-middle {
   height: 22px;
   padding-inline: 8px;
-  border-radius: var(--radius-xs);
 }
 
 .ui-tag-warning {

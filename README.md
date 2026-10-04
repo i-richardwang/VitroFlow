@@ -256,8 +256,6 @@ Compose runs the workbench, maintenance process, Postgres 18.6, RustFS, and the 
 
 `zeabur-template.yaml` deploys workbench and maintenance from the same repository and `Dockerfile.web`, plus marketplace PostgreSQL and MinIO. Maintenance runs `bun dist/maintenance.js`, shares the storage environment, and has no public port. Deploy both application roles from the same commit; image-based deployments pin the same image digest. Workers stay outside the platform. MinIO creates its bucket from its own start command.
 
-Template updates do not change existing Zeabur projects. Add the maintenance service to an existing project using the source, Dockerfile and storage variables declared in the template, its explicit startup command, and a dependency on workbench. Align the database separately before deploying a changed schema, preserving records and frozen annotation plans. See [Zeabur template maintenance](https://zeabur.com/docs/en-US/template/maintain-template).
-
 The root `.env.example` defines only Compose inputs and immutable container manifests. `web/.env.example` defines the workbench environment for source development. Registry mirrors can replace the three image values without changing the Compose file.
 
 ## Verification
@@ -268,7 +266,7 @@ Run the complete deterministic gate from the repository root:
 make check
 ```
 
-It runs Ruff, Python formatting, Pyright, Python tests, Prettier, TypeScript, Web tests, and the production Web build.
+It runs `make check-python` (the architecture check, Ruff lint and format check, Pyright and pytest) and `make check-web` (the production build, the architecture, contract and Prettier checks, Biome lint, TypeScript and the Web tests).
 
 Build the pinned production image:
 

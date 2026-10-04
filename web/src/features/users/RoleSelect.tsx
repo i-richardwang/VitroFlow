@@ -28,7 +28,7 @@ export function RoleSelect({
       disabled={disabled}
       size={size}
       variant={variant}
-      popupMatchSelectWidth={false}
+      popupWidth="content"
       options={USER_ROLES.map((role) => ({
         value: role,
         label: USER_ROLE_LABELS[role](),

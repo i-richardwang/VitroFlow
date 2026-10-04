@@ -1,7 +1,16 @@
-/* The thumb offset `--ui-switch-x` is written by Switch.tsx; `--ui-switch-dir` flips it in right-to-left text. */
+/*
+ * Switch.tsx writes `--ui-switch-on` and `--ui-switch-stretch` on the thumb,
+ * each from 0 to 1. Pressed, the thumb grows by `--ui-switch-stretch-width`
+ * toward the track's middle.
+ */
 
 .ui-switch {
-  --ui-switch-dir: 1;
+  --ui-switch-padding: 2px;
+  --ui-switch-stretch-width: 4px;
+  --ui-switch-travel: calc(
+    var(--ui-switch-width) - var(--ui-switch-padding) * 2 -
+      var(--ui-switch-thumb-size)
+  );
 
   cursor: pointer;
   user-select: none;
@@ -11,23 +20,19 @@
   align-items: center;
   justify-content: flex-start;
   box-sizing: border-box;
-  padding: 2px;
+  width: var(--ui-switch-width);
+  min-width: var(--ui-switch-width);
+  height: var(--ui-switch-height);
+  padding: var(--ui-switch-padding);
   border: 0;
   border-radius: 100px;
   background: var(--color-fill-secondary);
   outline: none;
-  box-shadow: inset 0 1.5px 2px rgb(0 0 0 / 8%);
+  box-shadow: inset 0 1.5px 2px
+    color-mix(in srgb, var(--color-shadow) 8%, transparent);
   transition:
     background var(--duration-slow) var(--ease-out),
     box-shadow var(--duration-slow) var(--ease-out);
-
-  &:dir(rtl) {
-    --ui-switch-dir: -1;
-  }
-
-  [dir="rtl"] & {
-    --ui-switch-dir: -1;
-  }
 
   @apply focus-ring;
 
@@ -37,7 +42,8 @@
 
   &[data-checked] {
     background: var(--color-primary);
-    box-shadow: inset 0 1.5px 3px rgb(0 0 0 / 18%);
+    box-shadow: inset 0 1.5px 3px
+      color-mix(in srgb, var(--color-shadow) 18%, transparent);
 
     &:hover:not([data-disabled]) {
       background: var(--color-primary-hover);
@@ -50,52 +56,53 @@
   }
 }
 
-.ui-switch-root-default {
-  width: 36px;
-  min-width: 36px;
-  height: 22px;
+.ui-switch-middle {
+  --ui-switch-width: 36px;
+  --ui-switch-height: 22px;
+  --ui-switch-thumb-size: 18px;
 }
 
-.ui-switch-root-small {
-  width: 28px;
-  min-width: 28px;
-  height: 16px;
+.ui-switch-small {
+  --ui-switch-width: 28px;
+  --ui-switch-height: 16px;
+  --ui-switch-thumb-size: 12px;
 }
 
 .ui-switch-thumb {
   transform: translateX(
-    calc(var(--ui-switch-x, 0px) * var(--ui-switch-dir, 1))
+    calc(
+      var(--ui-switch-on) *
+        (
+          var(--ui-switch-travel) - var(--ui-switch-stretch) *
+            var(--ui-switch-stretch-width)
+        )
+    )
   );
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  width: calc(
+    var(--ui-switch-thumb-size) + var(--ui-switch-stretch) *
+      var(--ui-switch-stretch-width)
+  );
+  height: var(--ui-switch-thumb-size);
   border-radius: 50%;
   background: var(--color-container);
   box-shadow:
-    0 0 0 0.5px rgb(0 0 0 / 4%),
-    0 1px 1px rgb(0 0 0 / 6%),
-    0 3px 8px rgb(0 0 0 / 16%);
+    0 0 0 0.5px color-mix(in srgb, var(--color-shadow) 4%, transparent),
+    0 1px 1px color-mix(in srgb, var(--color-shadow) 6%, transparent),
+    0 3px 8px color-mix(in srgb, var(--color-shadow) 16%, transparent);
   transition: box-shadow var(--duration-slow) var(--ease-out);
 
   [role="switch"]:hover:not([data-disabled]) > & {
     box-shadow:
-      0 0 0 0.5px rgb(0 0 0 / 4%),
-      0 1px 1px rgb(0 0 0 / 8%),
-      0 6px 14px rgb(0 0 0 / 24%);
+      0 0 0 0.5px color-mix(in srgb, var(--color-shadow) 4%, transparent),
+      0 1px 1px color-mix(in srgb, var(--color-shadow) 8%, transparent),
+      0 6px 14px color-mix(in srgb, var(--color-shadow) 24%, transparent);
   }
 
   [data-disabled] > & {
     box-shadow: none;
   }
-}
-
-.ui-switch-thumb-default {
-  width: 18px;
-  height: 18px;
-}
-
-.ui-switch-thumb-small {
-  width: 12px;
-  height: 12px;
 }

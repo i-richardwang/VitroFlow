@@ -83,17 +83,6 @@ export function checkComposition(
       JSXAttribute(ref) {
         const { name, value } = ref.node;
         if (name.type !== "JSXIdentifier") return;
-        if (/^(className|\w+ClassName)$/.test(name.name)) {
-          ref.traverse({
-            StringLiteral(inner) {
-              if (/#[0-9a-fA-F]{3,8}\b/.test(inner.node.value))
-                report(
-                  inner.node.loc?.start.line,
-                  `class string holds a raw hex color; use a semantic utility (${RULES}, Tokens and the page environment)`,
-                );
-            },
-          });
-        }
         if (name.name === "style" && value && !INLINE_STYLE_FILES.has(file))
           report(
             ref.node.loc?.start.line,

@@ -8,12 +8,33 @@
   "training_kpi_in_progress": "In progress",
   "training_kpi_workers": "Workers",
   "training_kpi_ready": "Ready",
-  "training_kpi_new_since_last_run": "{count} new since last run",
+  "training_kpi_new_since_last_run": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} new since last run"
+      }
+    }
+  ],
   "training_kpi_epochs": "Epochs",
-  "training_kpi_epochs_earlier_hidden": "{count} from earlier attempts hidden",
+  "training_kpi_epochs_earlier_hidden": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} from earlier attempts hidden"
+      }
+    }
+  ],
   "training_kpi_best_map": "Best mAP50-95",
   "training_kpi_published": "Published {version}",
-  "training_kpi_best_epoch": "Epoch {epoch}",
+  "training_kpi_best_epoch": [
+    {
+      "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
+      "match": {
+        "epoch=*": "Epoch {formattedEpoch}"
+      }
+    }
+  ],
   "training_failed_title": "Training failed",
   "training_curves": "Curves",
   "training_no_epochs_finished": "No epochs finished",
@@ -51,7 +72,14 @@
   "epoch_series_map50_95": "mAP50-95",
   "epoch_series_precision": "Precision",
   "epoch_series_recall": "Recall",
-  "epoch_tooltip_epoch": "Epoch {epoch}",
+  "epoch_tooltip_epoch": [
+    {
+      "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
+      "match": {
+        "epoch=*": "Epoch {formattedEpoch}"
+      }
+    }
+  ],
   "parameter_epochs": "Epochs",
   "parameter_patience": "Patience",
   "parameter_batch": "Batch",
@@ -70,7 +98,26 @@
   "parameter_on": "On",
   "parameter_off": "Off",
   "train_refused_active": "A run is already in progress",
-  "train_refused_reviewed": "Review at least {count} images first",
+  "train_refused_reviewed": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "Review at least {formattedCount} images first"
+      }
+    }
+  ],
   "train_dialog_recipe": "{model} · {framework} {version}",
-  "run_epochs_progress": "{completed} / {total}"
+  "run_epochs_progress": [
+    {
+      "declarations": [
+        "input completed",
+        "input total",
+        "local formattedCompleted = completed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "completed=*": "{formattedCompleted} / {formattedTotal}"
+      }
+    }
+  ]
 }

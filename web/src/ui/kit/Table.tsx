@@ -30,6 +30,8 @@ import { Empty } from "./Empty";
  * - Pinned columns: `fixed="start"` / `"end"` on every cell of a column keeps
  *   it in view while the table scrolls sideways; a shadow marks the edge
  *   content is passing under.
+ * - `numeric`: the column holds figures, set at the end edge in tabular digits
+ *   so they line up; header and body cells of the column both take it.
  * - `TableEmpty` is the single row of an empty body.
  * - `narrow="cards"`: below 600px of table width each row becomes a card
  *   whose cells carry their `cellLabel` on the left; the default `"scroll"`
@@ -226,12 +228,23 @@ function fixedClass(fixed: Fixed | undefined) {
 
 interface TableHeadProps extends ComponentProps<"th"> {
   fixed?: Fixed;
+  numeric?: boolean;
 }
 
-export function TableHead({ className, fixed, ...props }: TableHeadProps) {
+export function TableHead({
+  className,
+  fixed,
+  numeric,
+  ...props
+}: TableHeadProps) {
   return (
     <th
-      className={cn("ui-table-cell", fixedClass(fixed), className)}
+      className={cn(
+        "ui-table-cell",
+        fixedClass(fixed),
+        numeric && "ui-table-cell-numeric",
+        className,
+      )}
       scope="col"
       {...props}
     />
@@ -247,6 +260,7 @@ interface TableCellProps extends ComponentProps<"td"> {
    */
   cellSlot?: "title" | "extra";
   fixed?: Fixed;
+  numeric?: boolean;
 }
 
 export function TableCell({
@@ -254,11 +268,17 @@ export function TableCell({
   cellSlot,
   className,
   fixed,
+  numeric,
   ...props
 }: TableCellProps) {
   return (
     <td
-      className={cn("ui-table-cell", fixedClass(fixed), className)}
+      className={cn(
+        "ui-table-cell",
+        fixedClass(fixed),
+        numeric && "ui-table-cell-numeric",
+        className,
+      )}
       data-label={cellLabel}
       data-slot={cellSlot}
       {...props}

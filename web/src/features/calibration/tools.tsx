@@ -4,7 +4,6 @@ import type { ReviewSource } from "../../domain/annotation/schema";
 import { m } from "../../paraglide/messages";
 import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { DropdownMenu } from "../../ui/kit/DropdownMenu";
-import { Hotkey } from "../../ui/kit/Hotkey";
 import { Select } from "../../ui/kit/Select";
 import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import {
@@ -73,20 +72,12 @@ export function CalibrationTools({
             variant="borderless"
             size="small"
             value={boxClass}
-            popupMatchSelectWidth={false}
-            options={classes.map((name) => ({ value: name, label: name }))}
-            labelRender={(option) => (
-              <ClassLabel classes={classes} name={option.value} />
-            )}
-            optionRender={(option) => {
-              const shortcut = classShortcut(classes, option.value);
-              return (
-                <span className="flex w-full items-center justify-between gap-4">
-                  <ClassLabel classes={classes} name={option.value} />
-                  {shortcut ? <Hotkey keys={shortcut} /> : null}
-                </span>
-              );
-            }}
+            popupWidth="content"
+            options={classes.map((name) => ({
+              value: name,
+              label: <ClassLabel classes={classes} name={name} />,
+              hotkey: classShortcut(classes, name) ?? undefined,
+            }))}
             onChange={onClassChange}
           />
         </>
@@ -118,7 +109,7 @@ export function CalibrationTools({
       />
       {sources.length ? (
         <DropdownMenu
-          placement="bottomRight"
+          align="end"
           items={sources.map((source) => ({
             key: source,
             label: m.calibration_restart_from({

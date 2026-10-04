@@ -1,6 +1,6 @@
-import { getLocalTimeZone, today } from "@internationalized/date";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { today } from "../domain/experiments/schema";
 import {
   experimentWorkbook,
   experimentWorkbookFilename,
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/experiments/$experiment/workbook")({
         if (!grid) return new Response("Not found", { status: 404 });
         const workbook = experimentWorkbook(
           { ...grid, models: await listModels() },
-          today(getLocalTimeZone()).toString(),
+          today(),
         );
         return workbookResponse(
           workbook,

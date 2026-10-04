@@ -8,12 +8,6 @@ import { foldTransition } from "./motionToken";
  * instead of reflowing it.
  */
 
-const HANDLE_SIZE_WIDE = 16;
-const HANDLE_SIZE_COARSE = 20;
-
-export const handleSize = (coarse: boolean) =>
-  coarse ? HANDLE_SIZE_COARSE : HANDLE_SIZE_WIDE;
-
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -88,20 +82,19 @@ export interface PanelControllerOptions {
   size: number;
 }
 
-export interface PanelState {
+interface PanelState {
   dragging: boolean;
   folding: boolean;
 }
 
-export interface PanelKeyEvent {
+interface PanelKeyEvent {
   key: string;
   preventDefault: () => void;
   shiftKey: boolean;
 }
 
-export interface PanelController {
+interface PanelController {
   attach: (element: HTMLElement) => () => void;
-  bounds: () => { max: number; min: number };
   drag: {
     cancel: () => void;
     end: () => void;
@@ -140,11 +133,6 @@ export const createPanelController = (
       state = { ...state, ...next };
       notify();
     }
-  };
-
-  const bounds = () => {
-    const min = Math.max(0, options.min);
-    return { max: Math.max(min, options.max), min };
   };
 
   /** The panel grows toward inline-start: leftward, or rightward in RTL. */
@@ -190,7 +178,8 @@ export const createPanelController = (
     },
     start: () => {
       Object.assign(session, {
-        ...bounds(),
+        max: options.max,
+        min: options.min,
         sign: growSign(),
         start: size.get(),
       });
@@ -207,7 +196,7 @@ export const createPanelController = (
       return;
     }
 
-    const { max, min } = bounds();
+    const { max, min } = options;
     const fast =
       event.shiftKey || event.key === "PageUp" || event.key === "PageDown";
     const step = (fast ? KEY_STEP_FAST : KEY_STEP) * growSign();
@@ -264,7 +253,6 @@ export const createPanelController = (
         element = null;
       };
     },
-    bounds,
     drag,
     motion: { content, size },
     reset: () => {

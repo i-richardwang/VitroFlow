@@ -33,8 +33,8 @@ export function RevealOnceDialog<T>({
       open={revealed !== null}
       title={title}
       width="wide"
-      maskClosable={false}
-      onCancel={onClose}
+      dismissOnBackdrop={false}
+      onClose={onClose}
       afterClose={() => setShown(null)}
       footer={
         <Button type="primary" onClick={onClose}>

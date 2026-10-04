@@ -67,15 +67,14 @@ type WorkerStatus = Awaited<ReturnType<typeof getStatus>>["workers"][number];
 function StatusPage() {
   const { workers } = Route.useLoaderData();
   const { user } = Route.useRouteContext();
-  const router = useRouter();
   const [enrolling, setEnrolling] = useState(false);
   const administers = isAdmin(user);
-  useRouteRefresh(router, 5000);
+  useRouteRefresh(5000);
 
   return (
     <Page
       title={m.status_title()}
-      actions={
+      action={
         administers ? (
           <Button type="primary" icon={Plus} onClick={() => setEnrolling(true)}>
             {m.worker_enroll()}

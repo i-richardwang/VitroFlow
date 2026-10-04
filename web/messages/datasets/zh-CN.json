@@ -9,9 +9,23 @@
   "dataset_download": "下载",
   "dataset_training": "训练",
   "dataset_kpi_reviewed": "已复核",
-  "dataset_kpi_reviewed_of": "共 {count} 张图片",
+  "dataset_kpi_reviewed_of": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "共 {formattedCount} 张图片"
+      }
+    }
+  ],
   "dataset_kpi_training_runs": "训练次数",
-  "dataset_reviewed_since_last_run": "上次训练后新复核 {count} 张",
+  "dataset_reviewed_since_last_run": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "上次训练后新复核 {formattedCount} 张"
+      }
+    }
+  ],
   "dataset_images_table": "{dataset} 中的图片",
   "dataset_column_image": "图片",
   "dataset_column_boxes": "标记",
@@ -21,8 +35,27 @@
   "dataset_remove": "移除",
   "dataset_add_heading": "加入数据集",
   "dataset_add_nothing_added": "未加入任何图片",
-  "dataset_add_result": "已将 {added} 张加入 {dataset}",
-  "dataset_add_result_existing": "已将 {added} 张加入 {dataset}，{existing} 张已存在",
+  "dataset_add_result": [
+    {
+      "declarations": ["input added", "local formattedAdded = added: number"],
+      "match": {
+        "added=*": "已将 {formattedAdded} 张加入 {dataset}"
+      }
+    }
+  ],
+  "dataset_add_result_existing": [
+    {
+      "declarations": [
+        "input added",
+        "input existing",
+        "local formattedAdded = added: number",
+        "local formattedExisting = existing: number"
+      ],
+      "match": {
+        "added=*": "已将 {formattedAdded} 张加入 {dataset}，{formattedExisting} 张已存在"
+      }
+    }
+  ],
   "dataset_add_dataset_label": "数据集",
   "dataset_add_new": "新建数据集",
   "dataset_add_name_label": "名称",
@@ -49,7 +82,14 @@
   "dataset_archive_image_size": "图片 {digest} 的大小与清单声明不符",
   "dataset_archive_image_mismatch": "工作台存储的图片与上传的不一致",
   "dataset_archive_no_dataset": "压缩包中没有数据集",
-  "dataset_archive_images_missing": "压缩包缺少数据集的 {count} 张图片",
+  "dataset_archive_images_missing": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "压缩包缺少数据集的 {formattedCount} 张图片"
+      }
+    }
+  ],
   "model_kind_traditional": "传统算法",
   "model_kind_ultralytics": "YOLO",
   "versions_table": "模型版本",
@@ -73,9 +113,28 @@
   "datasets_empty_description": "从实验照片加入，或导入数据集归档。",
   "dataset_empty_images_description": "在实验的试验单元页加入照片。",
   "dataset_import_storing": "正在存储 {dataset}",
-  "dataset_import_storing_count": "{stored} / {total}",
+  "dataset_import_storing_count": [
+    {
+      "declarations": [
+        "input stored",
+        "input total",
+        "local formattedStored = stored: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "stored=*": "{formattedStored} / {formattedTotal}"
+      }
+    }
+  ],
   "versions_empty_description": "训练成功后，新版本会出现在这里。",
-  "versions_trained_images": "{count} 张",
+  "versions_trained_images": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 张"
+      }
+    }
+  ],
   "dataset_remove_title": "从 {dataset} 移除 {file}？",
   "dataset_image_removed": "已从 {dataset} 移除 {file}",
   "dataset_open_experiments": "打开实验"

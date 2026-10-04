@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { AnimatePresence, type MotionProps, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages";
+import { ActionIcon } from "./ActionIcon";
 import { cn } from "./cn";
 import {
   DialogPresenceBackdrop,
@@ -116,11 +117,11 @@ export function Drawer({
 }: DrawerProps) {
   const closeNode = (
     <div
-      className={cn("ui-drawer-extra", noHeader && "ui-drawer-extra-floating")}
+      className={cn("ui-drawer-close", noHeader && "ui-drawer-close-floating")}
     >
-      <Dialog.Close aria-label={m.ui_close()} className="ui-drawer-close">
-        <X size={16} />
-      </Dialog.Close>
+      <Dialog.Close
+        render={<ActionIcon aria-label={m.ui_close()} icon={X} size="middle" />}
+      />
     </div>
   );
 

@@ -11,7 +11,7 @@ import {
 import { ModalHost } from "../ui/kit/Modal";
 import { Toaster } from "../ui/kit/Toast";
 import { documentTitle } from "../ui/documentTitle";
-import { WorkbenchNotice } from "../ui/shell/WorkbenchNotice";
+import { RouteNotice } from "../ui/RouteNotice";
 import { m } from "../paraglide/messages";
 import { getLocale } from "../paraglide/runtime";
 import appCss from "../styles/app.css?url";
@@ -48,7 +48,7 @@ function RootComponent() {
 }
 
 function NotFoundPage() {
-  return <WorkbenchNotice title={m.not_found()} />;
+  return <RouteNotice title={m.not_found()} />;
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {

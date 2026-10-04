@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
@@ -72,12 +72,10 @@ export const Route = createFileRoute(
 function UnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
   const { show, calibrate } = Route.useSearch();
-  const router = useRouter();
   const navigate = Route.useNavigate();
   const { shown } = series;
 
   useRouteRefresh(
-    router,
     5000,
     shown !== null &&
       ((shown.review.detection === null && shown.failure === null) ||

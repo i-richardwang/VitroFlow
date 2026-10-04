@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { VersionsTable } from "../../features/datasets/VersionsTable";
 import { formatCount } from "../../ui/numbers";
@@ -41,9 +41,8 @@ export const Route = createFileRoute("/_workbench/training")({
 function TrainingPage() {
   const { versions, total, runs, inProgress, workersOnline } =
     Route.useLoaderData();
-  const router = useRouter();
 
-  useRouteRefresh(router, 10_000);
+  useRouteRefresh(10_000);
 
   return (
     <Page title={m.training_title()}>
