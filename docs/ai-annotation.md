@@ -109,7 +109,8 @@ Each region is then worked through four tools:
   server-issued and must be used verbatim.
 - `annotation_preview({taskId, instances, issues?})` validates the complete proposal,
   stores an immutable version, and returns `proposalId`, CLEAN and PROPOSED images.
-  Instances have `id`, `class`, `box_2d`, and optional `uncertain`/`truncated` flags.
+  Instances have `id`, `class`, `box_2d`, and an optional `uncertain`
+  flag for an edge the visible outline leaves undecided.
   Coordinates are `[ymin, xmin, ymax, xmax]`, normalized to 0–1000 relative to CLEAN.
   Preparation validates the response and projects its owned boxes into source
   coordinates for rendering. The immutable response is the content accepted by
@@ -212,9 +213,9 @@ region did not confirm is dropped. Issues follow the same rule. A scoped run
 reads the frozen input boxes of regions it did not redraw (those whose centers
 fall there) as retained readings, so its seams behave the same way. Overlaps
 within one region are never merged. Owned boxes touching internal patch edges
-are rejected. Uncertainty and boundary truncation
-remain in the proposal. Frozen input notes, when present, describe the input
-proposal; bare boxes carry no such assessment. Geometry validation does not
+are rejected. A box's uncertainty is the agent's own judgment and stays with
+the box chosen for its object. Frozen input notes, when present, describe the
+input proposal; bare boxes carry no such assessment. Geometry validation does not
 establish visual accuracy.
 
 A run stays open until completed or cancelled; an agent that stops leaves its

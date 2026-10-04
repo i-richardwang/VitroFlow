@@ -82,7 +82,6 @@ function drawn(
       ((x + width - p.x) * 1000) / p.width,
     ],
     uncertain: false,
-    truncated: false,
   };
 }
 
@@ -199,7 +198,6 @@ test("decimal source-edge boxes preview and collect identically, with halo-only 
       { taskId: "run/edge", region, response },
     ]);
     expect(collected.document.instances[0]!.bbox).toEqual(box);
-    expect(collected.uncertainIds).toEqual(["run/edge/edge"]);
   }
   const region = regions(definition)[0]!;
   const { response, content: preview } = prepareProposal(
@@ -278,7 +276,6 @@ test("a scope selects the regions it touches, and the result keeps the input box
             class: "ungerminated",
             box_2d: [200, 400, 400, 600],
             uncertain: false,
-            truncated: false,
           },
         ],
         issues: [],

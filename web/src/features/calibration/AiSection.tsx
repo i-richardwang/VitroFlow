@@ -1,29 +1,21 @@
-import { Description, Label, ListBox, ProgressBar } from "@heroui/react";
+import { ProgressBar } from "@heroui/react";
 
-import type { Check } from "../../domain/annotation/checks";
 import type { Review } from "../../domain/annotation/review";
 import { m } from "../../paraglide/messages";
 import { Timestamp } from "../../ui/Timestamp";
-import { Section } from "./inspector";
-
-const CHECK_LABELS: Record<Check["kind"], () => string> = {
-  uncertain: m.ai_check_uncertain,
-  issue: m.ai_check_issue,
-};
+import { Metrics, Section } from "./inspector";
 
 /**
  * The agent's reading of this image: the progress of a run at work, and the
- * proposal last left with the places it asks a person to look at.
+ * proposal last left with how many places it still asks a person to look at.
  */
 export function AiSection({
   review,
-  checks,
-  onCheck,
+  openChecks,
 }: {
   review: Review;
-  /** The proposal's open checks against the boxes in view. */
-  checks: Check[];
-  onCheck: (check: Check) => void;
+  /** How many of the proposal's checks remain open against the boxes in view. */
+  openChecks: number;
 }) {
   const { progress, proposal } = review;
   if (!progress && !proposal) return null;
@@ -49,29 +41,8 @@ export function AiSection({
           <Timestamp value={proposal.createdAt} />
         </p>
       ) : null}
-      {checks.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          <h3 className="text-xs text-muted">
-            {m.ai_checks()} · {checks.length}
-          </h3>
-          <ListBox
-            aria-label={m.ai_checks()}
-            onAction={(key) => onCheck(checks[Number(key)]!)}
-          >
-            {checks.map((check, index) => (
-              <ListBox.Item
-                key={index}
-                id={index}
-                textValue={CHECK_LABELS[check.kind]()}
-              >
-                <Label>{CHECK_LABELS[check.kind]()}</Label>
-                {check.kind === "issue" ? (
-                  <Description>{check.reason}</Description>
-                ) : null}
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </div>
+      {openChecks > 0 ? (
+        <Metrics rows={[{ label: m.ai_checks(), value: openChecks }]} />
       ) : null}
     </Section>
   );

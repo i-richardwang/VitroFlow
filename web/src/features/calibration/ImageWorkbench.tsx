@@ -2,14 +2,14 @@ import { Segment } from "@heroui-pro/react/segment";
 import { Button, Separator } from "@heroui/react";
 import { useState } from "react";
 
-import { openChecks, type Check } from "../../domain/annotation/checks";
+import { openChecks } from "../../domain/annotation/checks";
 import {
   availableSources,
   reviewInstances,
   sourceInstances,
   type Review,
 } from "../../domain/annotation/review";
-import type { BoundingBox, ReviewSource } from "../../domain/annotation/schema";
+import type { ReviewSource } from "../../domain/annotation/schema";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import {
@@ -32,7 +32,7 @@ import type { ImageWorkbenchContext } from "./types";
  * One frame. It shows one of the image's readings, best by default, and
  * calibration is session state on it that begins from the reading shown.
  * While the AI proposal is in view, or a draft begun from it, the places it
- * asks a person to check are outlined and listed; choosing one centers it.
+ * asks a person to check are outlined and counted.
  */
 export function ImageWorkbench({
   title,
@@ -56,7 +56,6 @@ export function ImageWorkbench({
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(["boxes", "checks"]),
   );
-  const [focus, setFocus] = useState<{ area: BoundingBox } | null>(null);
   const display = { layers, onLayersChange: setLayers };
   const sources = availableSources(review);
   const shown = source && sources.includes(source) ? source : sources[0];
@@ -78,10 +77,6 @@ export function ImageWorkbench({
     review.proposal && (ready ? ready.origin : shown) === "proposal"
       ? openChecks(review.proposal, instances)
       : [];
-  const inspect = (check: Check) => {
-    setFocus({ area: check.bbox });
-    if (ready && check.kind === "uncertain") ready.setSelectedId(check.id);
-  };
 
   return (
     <Workbench title={title}>
@@ -161,7 +156,7 @@ export function ImageWorkbench({
         </WorkbenchToolbar>
       ) : null}
       <WorkbenchInspector>
-        <AiSection review={review} checks={checks} onCheck={inspect} />
+        <AiSection review={review} openChecks={checks.length} />
         <ReviewInspector
           model={model}
           review={review}
@@ -177,7 +172,6 @@ export function ImageWorkbench({
           height: review.height,
         }}
         filename={review.filename}
-        focus={focus}
       >
         {ready && !saving ? (
           <EditableBoxLayer

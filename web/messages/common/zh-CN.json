@@ -48,8 +48,6 @@
   "ai_progress": "标注进度",
   "ai_running": "标注中",
   "ai_checks": "待确认",
-  "ai_check_uncertain": "边界不确定的标记",
-  "ai_check_issue": "可能的对象",
   "ai_section": "AI 建议",
   "error_worker_name_taken": "已有同名的工作节点。"
 }

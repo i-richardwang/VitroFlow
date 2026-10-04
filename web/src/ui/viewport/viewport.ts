@@ -1,24 +1,16 @@
-import type { BoundingBox, ImageSize } from "../../domain/annotation/schema";
+import type { ImageSize } from "../../domain/annotation/schema";
 
 /** Manual magnification limit; filling the frame always takes precedence. */
 export const MAX_SCALE = 40;
-
-/** How many times its own size a focused area spans of the frame around it. */
-const FOCUS_CONTEXT = 6;
 
 export interface Size {
   width: number;
   height: number;
 }
 
-/**
- * Where the image sits: filling the frame, zoomed and panned by hand, or
- * centered on an area with room around it.
- */
+/** Where the image sits: filling the frame, or zoomed and panned by hand. */
 export type ViewIntent =
-  | { kind: "fill" }
-  | { kind: "manual"; scale: number; x: number; y: number }
-  | { kind: "focus"; area: BoundingBox };
+  { kind: "fill" } | { kind: "manual"; scale: number; x: number; y: number };
 
 export const FILL: ViewIntent = { kind: "fill" };
 
@@ -75,28 +67,13 @@ function placement(
         x: intent.x,
         y: intent.y,
       };
-    case "focus": {
-      const { area } = intent;
-      const scale = constrainedScale(
-        Math.min(frame.width, frame.height) /
-          (FOCUS_CONTEXT * Math.max(area.width, area.height)),
-        frame,
-        image,
-      );
-      return {
-        scale,
-        x: frame.width / 2 - (area.x + area.width / 2) * scale,
-        y: frame.height / 2 - (area.y + area.height / 2) * scale,
-      };
-    }
   }
 }
 
 /**
  * Places the image for an intent. The image never shrinks past covering the
  * frame, and cannot be panned to expose the frame behind it. Filling
- * centers the overflowing side; focusing centers the area as nearly as the
- * image's edges allow; a frame not yet measured shows the image as is.
+ * centers the overflowing side; a frame not yet measured shows the image as is.
  */
 export function resolveView(
   intent: ViewIntent,

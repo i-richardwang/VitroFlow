@@ -25,7 +25,6 @@ const regionProposalSchema = z.strictObject({
         class: z.string().min(1).max(128),
         box_2d: box,
         uncertain: z.boolean().default(false),
-        truncated: z.boolean().default(false),
       }),
     )
     .max(10000),
@@ -124,10 +123,7 @@ export function regionBoxes(
       bbox,
       owned,
       cut,
-      uncertain:
-        item.uncertain ||
-        item.truncated ||
-        item.box_2d.some((edge) => edge === 0 || edge === 1000),
+      uncertain: item.uncertain,
     };
   });
 }

@@ -25,9 +25,9 @@ const proposal: AnnotationProposal = {
   issues: [{ bbox: area, reason: "Faint streak" }],
 };
 
-test("the proposal as drawn leaves every check open, in reading order", () => {
+test("the proposal as drawn leaves every check open", () => {
   expect(openChecks(proposal, [sure, unsure])).toEqual([
-    { kind: "uncertain", id: "unsure", bbox: unsure.bbox },
+    { kind: "uncertain", bbox: unsure.bbox },
     { kind: "issue", bbox: area, reason: "Faint streak" },
   ]);
 });

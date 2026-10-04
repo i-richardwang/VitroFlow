@@ -26,6 +26,7 @@ import {
   type LayerKey,
   type Tool,
 } from "./controls";
+import { Hint } from "../../ui/Hint";
 import { usePanGesture, useViewport } from "../../ui/viewport/ImageViewport";
 
 const HANDLE_SCREEN_SIZE = 8;
@@ -136,7 +137,8 @@ export function BoxLayer({
 
 /**
  * The places a proposal asks a person to look at, outlined over the boxes:
- * an unsure box is ringed, a questioned area is ringed and marked "?".
+ * an unsure box is ringed, a questioned area is ringed and marked "?", whose
+ * hover gives the agent's reason.
  */
 export function ChecksLayer({
   image,
@@ -151,10 +153,11 @@ export function ChecksLayer({
   if (!layers.has("checks") || checks.length === 0) return null;
   const gap = 3 / scale;
   return (
-    <Layer image={image} pointerEvents="none">
-      {checks.map(({ kind, bbox }, index) => (
-        <g key={index}>
+    <>
+      <Layer image={image} pointerEvents="none">
+        {checks.map(({ bbox }, index) => (
           <rect
+            key={index}
             x={bbox.x - gap}
             y={bbox.y - gap}
             width={bbox.width + 2 * gap}
@@ -165,20 +168,28 @@ export function ChecksLayer({
             strokeDasharray="4 3"
             vectorEffect="non-scaling-stroke"
           />
-          {kind === "issue" ? (
-            <text
-              x={bbox.x + bbox.width + gap}
-              y={bbox.y - gap}
-              fontSize={13 / scale}
-              fontWeight={600}
-              fill={CANVAS_COLORS.check}
-            >
-              ?
-            </text>
-          ) : null}
-        </g>
-      ))}
-    </Layer>
+        ))}
+      </Layer>
+      {checks.map((check, index) =>
+        check.kind === "issue" ? (
+          <div
+            key={index}
+            className="absolute origin-bottom-left"
+            style={{
+              left: check.bbox.x + check.bbox.width + gap,
+              top: check.bbox.y - gap,
+              transform: `translateY(-100%) scale(${1 / scale})`,
+            }}
+          >
+            <Hint text={check.reason}>
+              <span className="px-0.5 text-[13px] leading-none font-semibold text-warning">
+                ?
+              </span>
+            </Hint>
+          </div>
+        ) : null,
+      )}
+    </>
   );
 }
 

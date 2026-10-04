@@ -48,8 +48,6 @@
   "ai_progress": "Annotation progress",
   "ai_running": "Annotating",
   "ai_checks": "To check",
-  "ai_check_uncertain": "Uncertain mark",
-  "ai_check_issue": "Possible object",
   "ai_section": "AI proposal",
   "error_worker_name_taken": "A worker with this name is already enrolled."
 }

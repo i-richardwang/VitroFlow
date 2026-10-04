@@ -31,21 +31,6 @@ describe("resolveView", () => {
     expect(tall.scale).toBe(1);
     expect(wide.scale).toBe(2);
   });
-  test("focus centers an area with room around it, within the image", () => {
-    const frame = { width: 200, height: 300 };
-    const area = { x: 195, y: 145, width: 10, height: 10 };
-    const view = resolveView({ kind: "focus", area }, frame, image);
-    expect(view.scale).toBeCloseTo(200 / 60);
-    expect(view.x + 200 * view.scale).toBeCloseTo(100);
-    expect(view.y + 150 * view.scale).toBeCloseTo(150);
-    expect(view.filled).toBe(false);
-    const corner = resolveView(
-      { kind: "focus", area: { ...area, x: 0, y: 0 } },
-      frame,
-      image,
-    );
-    expect([corner.x, corner.y]).toEqual([0, 0]);
-  });
   test("manual cannot expose the frame behind the image", () => {
     const view = resolveView(
       { kind: "manual", scale: 2, x: 50, y: -1000 },

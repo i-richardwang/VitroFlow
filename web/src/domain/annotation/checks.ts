@@ -4,7 +4,7 @@ import type { AnnotationInstance, BoundingBox } from "./schema";
 
 /** A place an AI proposal asks a person to look at. */
 export type Check =
-  | { kind: "uncertain"; id: string; bbox: BoundingBox }
+  | { kind: "uncertain"; bbox: BoundingBox }
   | { kind: "issue"; bbox: BoundingBox; reason: string };
 
 function unchanged(
@@ -22,7 +22,7 @@ function unchanged(
 }
 
 /**
- * What a proposal still asks of the boxes in view, in reading order. A box
+ * What a proposal still asks of the boxes in view. A box
  * the agent was unsure of stays open until it is moved, resized, reclassified
  * or removed; an area it questioned stays open until the boxes centered in it
  * change. Saving a review retires them all, since the review outranks the
@@ -35,16 +35,12 @@ export function openChecks(
   const now = new Map(instances.map((item) => [item.id, item]));
   const proposed = proposal.document.instances;
   const uncertain = new Set(proposal.uncertainIds);
-  const checks: Check[] = [
+  return [
     ...proposed
       .filter(
         (item) => uncertain.has(item.id) && unchanged(item, now.get(item.id)),
       )
-      .map((item) => ({
-        kind: "uncertain" as const,
-        id: item.id,
-        bbox: item.bbox,
-      })),
+      .map(({ bbox }) => ({ kind: "uncertain" as const, bbox })),
     ...proposal.issues
       .filter(({ bbox }) => {
         const before = proposed.filter((item) => owns(bbox, item.bbox));
@@ -56,5 +52,4 @@ export function openChecks(
       })
       .map(({ bbox, reason }) => ({ kind: "issue" as const, bbox, reason })),
   ];
-  return checks.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
 }

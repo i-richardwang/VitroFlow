@@ -272,12 +272,12 @@ await act(async () => selections.get("review")!("proposal"));
 await render(false);
 assert.equal(boxes(), 3, "the page can show the agent's reading instead");
 assert.equal(checks(), 2, "the agent's reading outlines what it asks to check");
-const unfocused = surface.style.transform;
-await act(async () => item("0")!.click());
-assert.notEqual(
-  surface.style.transform,
-  unfocused,
-  "a chosen check is centered",
+assert.equal(
+  Array.from(surface.querySelectorAll("span")).filter(
+    (span) => span.textContent === "?",
+  ).length,
+  1,
+  "a questioned area carries a marker for the agent's reason",
 );
 source = undefined;
 await render(false);
@@ -332,7 +332,7 @@ await act(async () => {
   );
 });
 /** The view the person last chose, which calibration must hold. */
-let held = surface.style.transform;
+const held = surface.style.transform;
 assert.notEqual(held, zoomed, "the pointer must establish a manual pan");
 await render(true);
 assert.ok(
@@ -369,18 +369,6 @@ assert.equal(boxes(), 2, "an available proposal must not replace the draft");
 await act(async () => item("proposal")!.click());
 assert.equal(boxes(), 3, "resetting to the proposal replaces the draft");
 assert.equal(checks(), 2, "a draft from the proposal keeps its checks");
-await act(async () => item("0")!.click());
-assert.equal(
-  surface.querySelectorAll("rect[data-handle]").length,
-  8,
-  "choosing an unsure box selects it for editing",
-);
-assert.notEqual(
-  surface.style.transform,
-  held,
-  "choosing a check centers it while editing",
-);
-held = surface.style.transform;
 await act(async () => item("review")!.click());
 assert.equal(boxes(), 2, "resetting to the review restores the stored boxes");
 assert.equal(checks(), 0);
