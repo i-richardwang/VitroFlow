@@ -10,18 +10,18 @@ from typing import Any
 import httpx
 import pytest
 
-from vitroflow.annotations import BoundingBox
-from vitroflow.detectors.contract import (
+from vitroctl.annotations import BoundingBox
+from vitroctl.detectors.contract import (
     DetectionInstance,
     DetectionProducer,
     DetectionQuality,
     DetectionResult,
     RuntimeDescriptor,
 )
-from vitroflow.worker import session as worker_session
-from vitroflow.worker.inference import Assignment, InferenceClient, run_pass
-from vitroflow.worker.model_store import ModelManifest, ModelStore
-from vitroflow.worker.session import LeaseLostError, WorkerClient, WorkerSession
+from vitroctl.worker import session as worker_session
+from vitroctl.worker.inference import Assignment, InferenceClient, run_pass
+from vitroctl.worker.model_store import ModelManifest, ModelStore
+from vitroctl.worker.session import LeaseLostError, WorkerClient, WorkerSession
 
 RUNTIME = RuntimeDescriptor(adapter="traditional", fingerprint="b" * 64)
 IMAGE = b"source"

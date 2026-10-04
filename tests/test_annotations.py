@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from conftest import annotation_document, manifest_entry, write_manifest
 
-from vitroflow.annotations import parse_annotation
-from vitroflow.datasets.annotations import load_annotations
+from vitroctl.annotations import parse_annotation
+from vitroctl.datasets.annotations import load_annotations
 
 CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "annotation.json"
 

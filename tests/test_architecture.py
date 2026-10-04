@@ -15,8 +15,8 @@ SPEC.loader.exec_module(architecture)
 def test_contracts_cannot_depend_on_worker_or_algorithm_runtime() -> None:
     errors = architecture.check_architecture(
         {
-            "vitroflow.contracts.validation": "from vitroflow.worker.service import Worker\nimport torch",
-            "vitroflow.worker.service": "",
+            "vitroctl.contracts.validation": "from vitroctl.worker.service import Worker\nimport torch",
+            "vitroctl.worker.service": "",
         }
     )
     assert any("direction" in error for error in errors)
@@ -26,8 +26,8 @@ def test_contracts_cannot_depend_on_worker_or_algorithm_runtime() -> None:
 def test_local_and_type_only_cycles_are_checked() -> None:
     errors = architecture.check_architecture(
         {
-            "vitroflow.training.recipe": "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n from .parameters import Parameters",
-            "vitroflow.training.parameters": "def parse():\n from .recipe import Recipe",
+            "vitroctl.training.recipe": "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n from .parameters import Parameters",
+            "vitroctl.training.parameters": "def parse():\n from .recipe import Recipe",
         }
     )
     assert any("Dependency cycle" in error for error in errors)
@@ -36,8 +36,8 @@ def test_local_and_type_only_cycles_are_checked() -> None:
 def test_package_dependency_direction_is_checked_without_a_file_cycle() -> None:
     errors = architecture.check_architecture(
         {
-            "vitroflow.annotations": "from vitroflow.datasets.manifest import Manifest",
-            "vitroflow.datasets.manifest": "from vitroflow.annotations import Annotation",
+            "vitroctl.annotations": "from vitroctl.datasets.manifest import Manifest",
+            "vitroctl.datasets.manifest": "from vitroctl.annotations import Annotation",
         }
     )
     assert any("direction" in error for error in errors)
@@ -47,10 +47,10 @@ def test_package_dependency_direction_is_checked_without_a_file_cycle() -> None:
 def test_package_member_imports_participate_in_cycles() -> None:
     errors = architecture.check_architecture(
         {
-            "vitroflow.training": "",
-            "vitroflow.training.recipe": "from vitroflow.training import parameters",
-            "vitroflow.training.parameters": "from . import recipe",
+            "vitroctl.training": "",
+            "vitroctl.training.recipe": "from vitroctl.training import parameters",
+            "vitroctl.training.parameters": "from . import recipe",
         },
-        {"vitroflow.training"},
+        {"vitroctl.training"},
     )
     assert any("Dependency cycle" in error for error in errors)

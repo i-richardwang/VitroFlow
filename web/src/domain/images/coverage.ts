@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ImageFrame, ImageRectangle } from "./geometry";
 
-import recipe from "../../../../src/vitroflow/image_geometry/dish-recipe.json";
+import recipe from "../../../../src/vitroctl/image_geometry/dish-recipe.json";
 
 export const dishRecipeSchema = z.strictObject({
   thumbnailLongEdge: z.number().int().positive(),

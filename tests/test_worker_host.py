@@ -6,14 +6,14 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from vitroflow.worker.connection import WorkerHttpClient, WorkerNotEnrolledError
-from vitroflow.worker.host import operations as worker_host
-from vitroflow.worker.host.profiles import (
+from vitroctl.worker.connection import WorkerHttpClient, WorkerNotEnrolledError
+from vitroctl.worker.host import operations as worker_host
+from vitroctl.worker.host.profiles import (
     WorkerProfile,
     profile_directory,
     save_profile,
 )
-from vitroflow.worker.session import WorkerSettings
+from vitroctl.worker.session import WorkerSettings
 
 
 def _serve_ready(monkeypatch, respond) -> list[httpx.Request]:

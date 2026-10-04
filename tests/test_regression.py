@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vitroflow.detectors.traditional.pipeline import count_seeds
+from vitroctl.detectors.traditional.pipeline import count_seeds
 
 REFERENCE_MANIFEST = Path(__file__).parent / "fixtures" / "reference-images.json"
 

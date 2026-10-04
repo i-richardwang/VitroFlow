@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vitroflow.training.recipe import (
+from vitroctl.training.recipe import (
     load_training_recipe_manifest,
     parse_training_recipe,
     parse_training_recipe_manifest,

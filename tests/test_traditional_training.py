@@ -4,12 +4,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vitroflow.annotations import AnnotationDocument, AnnotationInstance, BoundingBox
-from vitroflow.detectors.traditional.candidates import FEATURE_NAMES, CandidateEvidence
-from vitroflow.detectors.traditional.config import DecisionConfig, PipelineConfig
-from vitroflow.detectors.traditional.proposals import SeedProposal
-from vitroflow.detectors.traditional.scoring import CandidateModel
-from vitroflow.detectors.traditional.training import (
+from vitroctl.annotations import AnnotationDocument, AnnotationInstance, BoundingBox
+from vitroctl.detectors.traditional.candidates import FEATURE_NAMES, CandidateEvidence
+from vitroctl.detectors.traditional.config import DecisionConfig, PipelineConfig
+from vitroctl.detectors.traditional.proposals import SeedProposal
+from vitroctl.detectors.traditional.scoring import CandidateModel
+from vitroctl.detectors.traditional.training import (
     PreparedImage,
     evaluate_candidate_model,
     label_candidates,
@@ -92,7 +92,7 @@ def test_every_candidate_inside_an_instance_is_positive() -> None:
 
 
 def test_every_annotated_class_is_a_seed_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    data = "vitroflow.detectors.traditional.training.data"
+    data = "vitroctl.detectors.traditional.training.data"
     monkeypatch.setattr(f"{data}.verified_blob", lambda root, digest: Path(digest))
     monkeypatch.setattr(
         f"{data}.analyze_candidates",

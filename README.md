@@ -93,12 +93,12 @@ Authentication is [Better Auth](https://better-auth.com) over the application da
 
 Workers communicate only with the workbench HTTP API. An administrator enrolls each machine under a name on the **Status** page, which shows its token once; the token is the worker's identity on every request, and removing the worker revokes it and returns its work to the queue. Each native Worker profile holds that token, a fresh process-session ID, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds. A Worker serves both queues: one that can train takes a queued training run before an inference pair, and one without the Ultralytics runtime only detects.
 
-The Python package is published on PyPI as [`vitroflow`](https://pypi.org/project/vitroflow/); its own README is [docs/package.md](docs/package.md). On macOS, install it and configure `launchd` services:
+The operator package is published on PyPI as [`vitroctl`](https://pypi.org/project/vitroctl/); its own README is [docs/vitroctl.md](docs/vitroctl.md). On macOS, install it and configure `launchd` services:
 
 ```bash
-uv tool install 'vitroflow[yolo]'
+uv tool install 'vitroctl[yolo]'
 
-vitroflow worker setup mac-studio \
+vitroctl worker setup mac-studio \
   --server http://localhost:3000 \
   --device mps
 ```
@@ -108,12 +108,12 @@ Setup asks for the token the Status page showed, then validates it, the runtime 
 Operational commands are:
 
 ```bash
-vitroflow worker list
-vitroflow worker status mac-studio
-vitroflow worker doctor mac-studio
-vitroflow worker logs mac-studio --follow
-vitroflow worker restart mac-studio
-vitroflow worker stop mac-studio
+vitroctl worker list
+vitroctl worker status mac-studio
+vitroctl worker doctor mac-studio
+vitroctl worker logs mac-studio --follow
+vitroctl worker restart mac-studio
+vitroctl worker stop mac-studio
 ```
 
 `launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Status page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
@@ -154,11 +154,11 @@ The same transfer runs from the command line over `/api/transfer/`, opened by a 
 export VITROFLOW_SERVER_URL=http://localhost:3000
 export VITROFLOW_API_KEY=<api-key>
 
-uv run vitroflow dataset pull \
+uv run vitroctl dataset pull \
   --dataset fixtures \
   --data-root data
 
-uv run vitroflow dataset push \
+uv run vitroctl dataset push \
   --dataset fixtures \
   --data-root data
 ```
@@ -180,7 +180,7 @@ A transferable manifest contains at most 10,000 images and 16 MiB of JSON; each 
 Run the bundled traditional detector over a pulled dataset:
 
 ```bash
-uv run vitroflow recognize \
+uv run vitroctl recognize \
   --dataset fixtures \
   --data-root data \
   --output output/recognition
@@ -189,11 +189,11 @@ uv run vitroflow recognize \
 Evaluate or train its candidate scorer from reviewed annotations:
 
 ```bash
-uv run vitroflow traditional evaluate \
+uv run vitroctl traditional evaluate \
   --dataset fixtures \
   --data-root data
 
-uv run vitroflow traditional train \
+uv run vitroctl traditional train \
   --dataset fixtures \
   --data-root data \
   --output output/models/traditional-candidate
@@ -202,7 +202,7 @@ uv run vitroflow traditional train \
 Export the reviewed annotations as a deterministic YOLO dataset:
 
 ```bash
-uv run vitroflow dataset export-yolo \
+uv run vitroctl dataset export-yolo \
   --dataset fixtures \
   --data-root data \
   --output output/datasets/fixtures-yolo \

@@ -11,9 +11,9 @@ from conftest import (
     write_manifest,
 )
 
-from vitroflow.cli import main
-from vitroflow.datasets.manifest import blob_path
-from vitroflow.io.image_io import CANONICAL_EXTENSION
+from vitroctl.cli import main
+from vitroctl.datasets.manifest import blob_path
+from vitroctl.io.image_io import CANONICAL_EXTENSION
 
 
 def _pulled_dataset(data_root: Path, count: int = 1) -> list[str]:

@@ -10,21 +10,21 @@ import httpx
 import pytest
 from conftest import annotation_document, encoded_image, write_blob
 
-from vitroflow.detectors.ultralytics import (
+from vitroctl.detectors.ultralytics import (
     DetectionLosses,
     EpochReport,
     YoloTrainingInterruptedError,
 )
-from vitroflow.io.image_io import CANONICAL_EXTENSION
-from vitroflow.worker import session as worker_session
-from vitroflow.worker import training as training_worker
-from vitroflow.worker.session import (
+from vitroctl.io.image_io import CANONICAL_EXTENSION
+from vitroctl.worker import session as worker_session
+from vitroctl.worker import training as training_worker
+from vitroctl.worker.session import (
     LeaseLostError,
     WorkerClient,
     WorkerSession,
     keep_lease,
 )
-from vitroflow.worker.training import (
+from vitroctl.worker.training import (
     TrainingClient,
     TrainingJob,
     materialize_snapshot,

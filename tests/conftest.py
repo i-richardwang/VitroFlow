@@ -8,7 +8,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from vitroflow.datasets.manifest import (
+from vitroctl.datasets.manifest import (
     MANIFEST_SCHEMA_VERSION,
     blob_path,
     manifest_path,

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vitroflow.worker.host import launchd as worker_launchd
-from vitroflow.worker.host.launchd import launch_agent_document, service_label
-from vitroflow.worker.host.profiles import WorkerProfile, save_profile
+from vitroctl.worker.host import launchd as worker_launchd
+from vitroctl.worker.host.launchd import launch_agent_document, service_label
+from vitroctl.worker.host.profiles import WorkerProfile, save_profile
 
 
 def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> None:
@@ -18,11 +18,11 @@ def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> N
         ),
     )
 
-    document = launch_agent_document("mps-trainer", "/opt/bin/vitroflow")
+    document = launch_agent_document("mps-trainer", "/opt/bin/vitroctl")
 
     assert service_label("mps-trainer") == "com.vitroflow.worker.mps-trainer"
     assert document["ProgramArguments"] == [
-        "/opt/bin/vitroflow",
+        "/opt/bin/vitroctl",
         "worker",
         "run",
         "mps-trainer",

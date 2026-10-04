@@ -60,7 +60,7 @@ function Editor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
                 </Modal.Header>
                 <Modal.Body className="flex flex-col gap-4">
                   <CopyableCode
-                    value={`vitroflow worker setup ${enrolled.workerId} --server ${window.location.origin}`}
+                    value={`vitroctl worker setup ${enrolled.workerId} --server ${window.location.origin}`}
                     label={m.worker_enroll_command_label()}
                     description={m.worker_enroll_command_description()}
                   />

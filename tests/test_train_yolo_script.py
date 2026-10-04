@@ -6,12 +6,12 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
 
-from vitroflow.detectors.ultralytics import DetectionLosses, EpochReport
+from vitroctl.detectors.ultralytics import DetectionLosses, EpochReport
 
 
 def _load_script() -> ModuleType:
     path = Path(__file__).resolve().parents[1] / "scripts" / "train_yolo.py"
-    spec = importlib.util.spec_from_file_location("vitroflow_train_yolo", path)
+    spec = importlib.util.spec_from_file_location("vitroctl_train_yolo", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)

@@ -11,8 +11,8 @@ from conftest import (
     write_manifest,
 )
 
-from vitroflow.datasets.annotations import load_annotations
-from vitroflow.detectors.ultralytics import export_yolo_dataset
+from vitroctl.datasets.annotations import load_annotations
+from vitroctl.detectors.ultralytics import export_yolo_dataset
 
 ultralytics = pytest.importorskip("ultralytics")
 

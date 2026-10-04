@@ -17,7 +17,7 @@ import {
 
 import { dishRecipeSchema } from "../src/domain/images/coverage";
 
-const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroflow/contracts");
+const OUTPUT = path.resolve(import.meta.dir, "../../src/vitroctl/contracts");
 const CHECK = process.argv.includes("--check");
 const contracts: ReadonlyArray<[string, ZodType]> = [
   ["dish-recipe", dishRecipeSchema],

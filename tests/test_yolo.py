@@ -10,16 +10,16 @@ from conftest import (
     write_manifest,
 )
 
-from vitroflow.annotations import AnnotationInstance, BoundingBox, parse_annotation
-from vitroflow.datasets.annotations import AnnotatedImage, load_annotations
-from vitroflow.datasets.manifest import BlobError, ManifestImage, blob_path
-from vitroflow.detectors.ultralytics import (
+from vitroctl.annotations import AnnotationInstance, BoundingBox, parse_annotation
+from vitroctl.datasets.annotations import AnnotatedImage, load_annotations
+from vitroctl.datasets.manifest import BlobError, ManifestImage, blob_path
+from vitroctl.detectors.ultralytics import (
     DatasetImage,
     assign_splits,
     export_dataset_images,
     export_yolo_dataset,
 )
-from vitroflow.io.image_io import CANONICAL_EXTENSION
+from vitroctl.io.image_io import CANONICAL_EXTENSION
 
 
 def _annotated(digest: str, split: str | None = None) -> AnnotatedImage:

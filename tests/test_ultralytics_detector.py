@@ -8,10 +8,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vitroflow.detectors.contract import DetectionProducer
-from vitroflow.detectors.ultralytics import detector as ultralytics_module
-from vitroflow.detectors.ultralytics.detector import UltralyticsDetector
-from vitroflow.worker.model_store import ModelManifest, ModelStore
+from vitroctl.detectors.contract import DetectionProducer
+from vitroctl.detectors.ultralytics import detector as ultralytics_module
+from vitroctl.detectors.ultralytics.detector import UltralyticsDetector
+from vitroctl.worker.model_store import ModelManifest, ModelStore
 
 PARAMETERS = {
     "epochs": 50,

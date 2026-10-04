@@ -5,18 +5,18 @@ from types import SimpleNamespace
 
 import pytest
 
-from vitroflow.annotations import BoundingBox
-from vitroflow.detectors.contract import (
+from vitroctl.annotations import BoundingBox
+from vitroctl.detectors.contract import (
     DetectionInstance,
     DetectionProducer,
     DetectionQuality,
     DetectionResult,
     RuntimeDescriptor,
 )
-from vitroflow.detectors.documents import parse_inference_outcome
-from vitroflow.detectors.traditional.config import DecisionConfig, PipelineConfig
-from vitroflow.detectors.traditional.detector import TraditionalDetector
-from vitroflow.detectors.traditional.scoring import DEFAULT_MODEL
+from vitroctl.detectors.documents import parse_inference_outcome
+from vitroctl.detectors.traditional.config import DecisionConfig, PipelineConfig
+from vitroctl.detectors.traditional.detector import TraditionalDetector
+from vitroctl.detectors.traditional.scoring import DEFAULT_MODEL
 
 CONTRACT_FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "detection.json"
 PRODUCER = DetectionProducer(
@@ -77,7 +77,7 @@ def test_traditional_detector_adapts_detections_to_boxes(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        "vitroflow.detectors.traditional.detector.count_seeds",
+        "vitroctl.detectors.traditional.detector.count_seeds",
         lambda *args, **kwargs: result,
     )
 

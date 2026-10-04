@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vitroflow.training.parameters import parse_training_parameters
+from vitroctl.training.parameters import parse_training_parameters
 
 
 def _parameters() -> dict[str, object]:

@@ -1,8 +1,8 @@
 [project]
-name = "vitroflow"
+name = "vitroctl"
 version = "0.1.0"
-description = "Command-line client and native Worker runtime for a VitroFlow workbench"
-readme = "docs/package.md"
+description = "Operator CLI and native Worker runtime for a VitroFlow workbench"
+readme = "docs/vitroctl.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Richard Wang" }]
@@ -33,7 +33,7 @@ yolo = [
 ]
 
 [project.scripts]
-vitroflow = "vitroflow.cli:main"
+vitroctl = "vitroctl.cli:main"
 
 [project.urls]
 Repository = "https://github.com/i-richardwang/VitroFlow"
@@ -63,17 +63,17 @@ pythonVersion = "3.11"
 typeCheckingMode = "basic"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vitroflow"]
+packages = ["src/vitroctl"]
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/configs",
-  "/docs/package.md",
+  "/docs/vitroctl.md",
   "/LICENSE",
   "/README.md",
   "/pyproject.toml",
   "/scripts",
-  "/src/vitroflow",
+  "/src/vitroctl",
   "/tests",
   "/uv.lock",
 ]

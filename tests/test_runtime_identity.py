@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from vitroflow.detectors.traditional.detector import TraditionalDetector
-from vitroflow.detectors.traditional.identity import pipeline_fingerprint
-from vitroflow.io import image_io
+from vitroctl.detectors.traditional.detector import TraditionalDetector
+from vitroctl.detectors.traditional.identity import pipeline_fingerprint
+from vitroctl.io import image_io
 
 
 def test_runtime_identity_covers_image_decoding_without_changing_artifact_identity(
