@@ -273,7 +273,7 @@
 /* The surface gutter (see app.css) is the inline padding; flush content resets it. */
 .ui-app-shell-main {
   --ui-app-shell-main-padding-block: 24px;
-  --ui-app-shell-main-padding-inline: 24px;
+  --ui-app-shell-main-padding-inline: 32px;
   --surface-gutter: var(--ui-app-shell-main-padding-inline);
 
   overflow: auto;

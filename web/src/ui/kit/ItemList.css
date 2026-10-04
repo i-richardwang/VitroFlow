@@ -1,24 +1,27 @@
 /*
- * The list reaches past the content box by the surface's gutter and pads
- * back so a row's 12px padding starts its name on the content edge; a list
- * on a surface without a gutter keeps 4px around its rows.
+ * The list is an outlined card padded 4px/8px; inside a settings group, which
+ * already frames it, it drops the outline.
  */
 .ui-item-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 
   min-inline-size: 0;
-  margin-block: 0;
-  margin-inline: calc(var(--surface-gutter) * -1);
-  padding-block: 0;
-  padding-inline: max(calc(var(--surface-gutter) - 12px), 4px);
+  margin: 0;
+  padding-block: 4px;
+  padding-inline: 8px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
 
   list-style: none;
+
+  background: var(--color-container);
 }
 
 .ui-settings-group-panel > .ui-item-list {
-  padding-block: 4px;
+  border: none;
+  border-radius: 0;
+  background: none;
 }
 
 .ui-item-list-empty {
@@ -27,43 +30,53 @@
   justify-content: center;
 
   min-block-size: 240px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.ui-settings-group-panel > .ui-item-list-empty {
+  border: none;
 }
 
 /*
- * Name, trailing cluster and actions sit in one row 12px apart; on a phone
- * the trailing cluster moves to a line of its own under the name.
+ * The name with its addon, and under it the facts; the trailing cluster and
+ * the actions sit at the row's end, 12px apart. On a phone the trailing
+ * cluster moves under the facts.
  */
 .ui-item {
   display: grid;
-  grid-template-areas: "heading trailing actions";
+  grid-template-areas:
+    "heading trailing actions"
+    "meta trailing actions";
   grid-template-columns: minmax(0, 1fr) auto auto;
   column-gap: 12px;
+  row-gap: 4px;
   align-items: center;
 
   min-inline-size: 0;
-  padding-block: 8px;
-  padding-inline: 12px;
-  border-radius: var(--radius-lg);
+  padding-block: 10px;
+  padding-inline: 4px;
+  border-radius: var(--radius-md);
 
   transition: background-color var(--duration-fast) var(--ease-out);
 
   &:hover {
-    background: var(--color-fill-tertiary);
+    background: var(--color-fill-quaternary);
   }
 
   @variant max-mobile {
     grid-template-areas:
       "heading actions"
+      "meta actions"
       "trailing trailing";
     grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 4px;
   }
 }
 
 .ui-item-heading {
   grid-area: heading;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 
   min-inline-size: 0;
@@ -84,6 +97,20 @@
   flex: none;
 }
 
+.ui-item-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  align-items: center;
+
+  min-inline-size: 0;
+
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-secondary);
+}
+
 .ui-item-trailing {
   grid-area: trailing;
   overflow: hidden;
@@ -99,12 +126,6 @@
     justify-content: flex-start;
     max-inline-size: none;
   }
-}
-
-.ui-item-meta {
-  font-size: var(--text-xs);
-  color: var(--color-fg-tertiary);
-  white-space: nowrap;
 }
 
 .ui-item-actions {

@@ -14,7 +14,6 @@ import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Button } from "../../ui/kit/Button";
 import { Flexbox } from "../../ui/kit/Flex";
 import { TableSkeleton } from "../../ui/kit/PageSkeleton";
-import { SettingsGroup, SettingsGroupSkeleton } from "../../ui/kit/Settings";
 import {
   Table,
   TableBody,
@@ -36,9 +35,7 @@ export const Route = createFileRoute("/_workbench/users")({
   }),
   pendingComponent: () => (
     <SettingsPageSkeleton>
-      <SettingsGroupSkeleton>
-        <TableSkeleton rows={3} />
-      </SettingsGroupSkeleton>
+      <TableSkeleton rows={3} />
     </SettingsPageSkeleton>
   ),
   component: UsersPage,
@@ -50,45 +47,38 @@ function UsersPage() {
   const [creating, setCreating] = useState(false);
 
   return (
-    <SettingsPage title={m.users_title()}>
-      <SettingsGroup
-        title={m.users_title()}
-        extra={
-          <>
-            {m.users_count({ count: accounts.length })}
-            <Button
-              size="small"
-              type="primary"
-              icon={Plus}
-              onClick={() => setCreating(true)}
-            >
-              {m.users_new()}
-            </Button>
-          </>
-        }
-      >
-        <Table narrow="cards" aria-label={m.users_title()}>
-          <TableHeader>
-            <tr>
-              <TableHead>{m.users_column_name()}</TableHead>
-              <TableHead>{m.users_column_email()}</TableHead>
-              <TableHead className="w-40">{m.users_column_role()}</TableHead>
-              <TableHead className="w-12">
-                <span className="sr-only">{m.users_column_actions()}</span>
-              </TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {accounts.map((account) => (
-              <UserRow
-                key={account.id}
-                account={account}
-                self={account.id === me.id}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </SettingsGroup>
+    <SettingsPage
+      title={m.users_title()}
+      extra={
+        <>
+          {m.users_count({ count: accounts.length })}
+          <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
+            {m.users_new()}
+          </Button>
+        </>
+      }
+    >
+      <Table narrow="cards" aria-label={m.users_title()}>
+        <TableHeader>
+          <tr>
+            <TableHead>{m.users_column_name()}</TableHead>
+            <TableHead>{m.users_column_email()}</TableHead>
+            <TableHead className="w-40">{m.users_column_role()}</TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">{m.users_column_actions()}</span>
+            </TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {accounts.map((account) => (
+            <UserRow
+              key={account.id}
+              account={account}
+              self={account.id === me.id}
+            />
+          ))}
+        </TableBody>
+      </Table>
       <NewUserDialog open={creating} onClose={() => setCreating(false)} />
     </SettingsPage>
   );

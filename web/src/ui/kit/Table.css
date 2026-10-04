@@ -1,7 +1,8 @@
 /*
- * The wrapper's negative margins take the table to the surface's edges and
- * the edge padding brings the first and last columns back in line with the
- * content; outside any surface padding the edge is 16px.
+ * Outlined, the table draws its own card and insets its first and last
+ * columns 16px. Borderless, the wrapper's negative margins take the table to
+ * the surface's edges and the edge padding brings the first and last columns
+ * back in line with the content; outside any surface padding the edge is 16px.
  *
  * A cell paints `--ui-table-cell-bg`. Several of its values are translucent, so
  * a pinned cell lays the same color over the container color to hide what
@@ -17,6 +18,21 @@
 
   min-inline-size: 0;
   margin-inline: calc(var(--surface-gutter) * -1);
+
+  &[data-variant="outlined"] {
+    --ui-table-padding-edge: 16px;
+    margin-inline: 0;
+
+    > .ui-table {
+      border: 1px solid var(--color-border-secondary);
+      border-radius: var(--radius-lg);
+      background: var(--color-container);
+    }
+
+    .ui-table-tbody > tr + tr > td {
+      border-block-start: 1px solid var(--color-border-secondary);
+    }
+  }
 
   .ui-table {
     box-sizing: border-box;
@@ -102,13 +118,18 @@
   border-block-start: 1px solid var(--color-border-secondary);
 }
 
-/* The place of a table with no rows: its empty state, centered. */
+/* The place of a table with no rows: its empty state, centered, in the card the table would draw. */
 .ui-table-empty {
   display: flex;
   align-items: center;
   justify-content: center;
 
   min-block-size: 240px;
+
+  &[data-variant="outlined"] {
+    border: 1px solid var(--color-border-secondary);
+    border-radius: var(--radius-lg);
+  }
 }
 
 /* Inherits the header cell's type; only the chevron has its own color until hover. */
@@ -362,6 +383,17 @@
 }
 
 @container (max-width: 600px) {
+  .ui-table-wrapper.ui-table-narrow-cards[data-variant="outlined"] > .ui-table {
+    padding-inline: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+  }
+
+  .ui-table-wrapper.ui-table-narrow-cards .ui-table-tbody > tr + tr > td {
+    border-block-start: none;
+  }
+
   .ui-table-wrapper.ui-table-narrow-cards .ui-table {
     padding-inline: var(--surface-gutter);
 

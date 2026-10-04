@@ -32,5 +32,15 @@
   "account_password": "Password",
   "sign_out_failed": "Not signed out",
   "login_description": "Use the account an administrator set up for you.",
-  "consent_description": "{client} wants to access your {product} account"
+  "consent_description": "{client} wants to access your {product} account",
+  "login_heading": "Sign in to {app}",
+  "login_email_placeholder": "Enter your email",
+  "login_next": "Continue",
+  "login_password_heading": "Enter your password",
+  "login_password_placeholder": "Enter your password",
+  "login_back_to_email": "Use a different email",
+  "account_color_scheme": "Appearance",
+  "account_color_scheme_system": "Auto",
+  "account_color_scheme_light": "Light",
+  "account_color_scheme_dark": "Dark"
 }

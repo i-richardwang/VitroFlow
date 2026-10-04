@@ -47,6 +47,7 @@ export function ApiKeysGroup({ apiKeys }: { apiKeys: ApiKey[] }) {
       >
         <Table
           narrow="cards"
+          variant="borderless"
           aria-label={m.integrations_api_keys()}
           empty={
             apiKeys.length === 0 && (

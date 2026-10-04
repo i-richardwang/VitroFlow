@@ -9,7 +9,7 @@ import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getTrainingConsole } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
-import { TableSkeleton } from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
   Statistic,
   StatisticGroup,
@@ -49,6 +49,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/training/")(
     }),
     pendingComponent: () => (
       <PageColumnSkeleton>
+        <PageHeaderSkeleton />
         <StatisticGroupSkeleton count={2} />
         <TableSkeleton />
       </PageColumnSkeleton>

@@ -14,11 +14,13 @@ import { DropdownMenu, type DropdownItem } from "./DropdownMenu";
 import { Icon } from "./Icon";
 
 /*
- * The table has no frame of its own: a header band and rows on the surface it
- * sits on. It runs to the surface's edges through `--surface-gutter` (see
- * app.css) and insets its first and last columns by the same amount, so
- * their text lines up with the content above. In the card layout each row is
- * its own outlined card.
+ * By default the table sits in an outlined card of its own: the header band
+ * runs to the card's edges, the first and last columns are inset 16px, and a
+ * hairline parts the rows. `variant="borderless"` is for a table inside a
+ * surface that already frames it, such as a settings group: a header band
+ * and rows on that surface, run to its edges through `--surface-gutter` (see
+ * app.css) with the first and last columns inset by the same amount. In the
+ * card layout each row is its own outlined card.
  *
  * - `size="small"`: the dense header of a data grid, 12px in the tertiary
  *   color; the default header is 13px in the secondary color.
@@ -60,6 +62,7 @@ interface TableProps extends Omit<
   fill?: boolean;
   narrow?: "scroll" | "cards";
   size?: "small" | "middle";
+  variant?: "outlined" | "borderless";
 }
 
 export function Table({
@@ -67,14 +70,20 @@ export function Table({
   fill,
   narrow = "scroll",
   size = "middle",
+  variant = "outlined",
   ...props
 }: TableProps) {
   const { contentRef, onScroll, shadow, tableRef } = useFixedColumns();
   if (empty != null && empty !== false) {
-    return <div className="ui-table-empty">{empty}</div>;
+    return (
+      <div className="ui-table-empty" data-variant={variant}>
+        {empty}
+      </div>
+    );
   }
   return (
     <div
+      data-variant={variant}
       className={cn(
         "ui-table-wrapper",
         size === "small" && "ui-table-small",

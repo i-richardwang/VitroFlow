@@ -72,7 +72,7 @@ export const Route = createFileRoute(
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton meta />
+      <PageHeaderSkeleton variant="subject" meta />
       <StatisticGroupSkeleton count={2} />
       <Panel title={m.training_curves()}>
         <EpochChartsSkeleton />
@@ -102,7 +102,7 @@ function TrainingRunPage() {
   return (
     <Page
       title={trainingRunLabel(run)}
-      headline
+      subject
       status={<TrainingRunState run={run} />}
       meta={[
         <TextLink

@@ -46,6 +46,8 @@ export interface FormFieldProps extends Omit<
   /** Names a group of controls, such as a CheckboxGroup, with a legend instead of a label. */
   fieldset?: boolean;
   label: ReactNode;
+  /** Keeps the label for assistive technology only, for a control whose placeholder and icon name it. */
+  labelHidden?: boolean;
   layout?: "horizontal" | "vertical";
   /** Marks the label and passes `required` to the control; a fieldset only marks its legend. */
   required?: boolean;
@@ -57,6 +59,7 @@ function FormField({
   desc,
   fieldset,
   label,
+  labelHidden,
   layout = "vertical",
   required,
   ...rest
@@ -83,7 +86,9 @@ function FormField({
       render={fieldset ? <Fieldset.Root /> : undefined}
       {...rest}
     >
-      <FieldLabel className="ui-form-field-label">
+      <FieldLabel
+        className={cn("ui-form-field-label", labelHidden && "sr-only")}
+      >
         <FormTitle
           desc={desc}
           title={

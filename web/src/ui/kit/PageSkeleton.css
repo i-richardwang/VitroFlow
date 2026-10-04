@@ -14,27 +14,31 @@
   gap: 4px;
 }
 
-.ui-page-skeleton-meta {
-  inline-size: 240px;
-  max-inline-size: 80%;
-  block-size: 22px;
-  margin-block-start: 8px;
-  border-radius: var(--radius-xs);
-}
-
 .ui-page-skeleton-title {
   inline-size: 220px;
   max-inline-size: 70%;
-  block-size: var(--text-2xl);
-  margin-block: calc((var(--text-2xl--line-height) - var(--text-2xl)) / 2);
+  block-size: var(--text-4xl);
+  margin-block: calc(var(--text-4xl) * 0.15);
 }
 
-/* The edges of `Table`: out to the surface's gutter, columns inset by it. */
+.ui-page-skeleton-header[data-variant="subject"] {
+  gap: 6px;
+
+  .ui-page-skeleton-title {
+    block-size: var(--text-2xl);
+    margin-block: calc((var(--text-2xl--line-height) - var(--text-2xl)) / 2);
+  }
+}
+
+/* An outlined `Table`: its card, columns inset 16px, rows parted by a hairline. */
 .ui-page-skeleton-table {
-  --ui-page-skeleton-edge: max(var(--surface-gutter), 16px);
+  --ui-page-skeleton-edge: 16px;
+
+  overflow: clip;
 
   min-inline-size: 0;
-  margin-inline: calc(var(--surface-gutter) * -1);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
 }
 
 .ui-page-skeleton-thead {
@@ -52,6 +56,10 @@
 .ui-page-skeleton-thead-cell {
   flex: none;
   block-size: 12px;
+}
+
+.ui-page-skeleton-row + .ui-page-skeleton-row {
+  border-block-start: 1px solid var(--color-border-secondary);
 }
 
 .ui-page-skeleton-row {

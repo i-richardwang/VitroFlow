@@ -1,38 +1,50 @@
 import type { ReactNode } from "react";
+import { cn } from "./cn";
 
 /*
- * The title block of a page about one subject: the title, followed on its
- * line by the subject's `status`; under it a description and a row of `meta`
- * facts, each in a small chip. Commands live in the shell's top bar.
+ * The title block at the top of a page's content, with the page's commands
+ * at its end. A `list` page names a kind of thing: a 30px title and a line
+ * of description. A `subject` page is about one thing: a 24px title followed
+ * by the subject's `status`, its description, and a line of `meta` facts.
  */
 export function PageHeader({
+  actions,
   description,
   meta,
   status,
   title,
+  variant = "list",
 }: {
+  /** At most one primary button, then a menu. */
+  actions?: ReactNode;
   description?: ReactNode;
   meta?: ReactNode[];
   status?: ReactNode;
   title: ReactNode;
+  variant?: "list" | "subject";
 }) {
   return (
-    <div className="ui-page-header">
-      <div className="ui-page-header-heading">
-        <h1 className="ui-page-header-title">{title}</h1>
-        {status}
+    <div className={cn("ui-page-header", `ui-page-header-${variant}`)}>
+      <div className="ui-page-header-main">
+        <div className="ui-page-header-heading">
+          <h1 className="ui-page-header-title">{title}</h1>
+          {status}
+        </div>
+        {description ? (
+          <div className="ui-page-header-description">{description}</div>
+        ) : null}
+        {meta?.length ? (
+          <ul className="ui-page-header-meta">
+            {meta.map((item, index) => (
+              <li className="ui-page-header-meta-item" key={index}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
-      {description ? (
-        <div className="ui-page-header-description">{description}</div>
-      ) : null}
-      {meta?.length ? (
-        <ul className="ui-page-header-meta">
-          {meta.map((item, index) => (
-            <li className="ui-page-header-meta-item" key={index}>
-              {item}
-            </li>
-          ))}
-        </ul>
+      {actions != null ? (
+        <div className="ui-page-header-actions">{actions}</div>
       ) : null}
     </div>
   );

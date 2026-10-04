@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChangePasswordDialog } from "../../features/account/ChangePasswordDialog";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
-import { LanguageSelect } from "../../ui/LanguageSelect";
+import { ColorSchemeSelect, LanguageSelect } from "../../ui/Preferences";
 import { SettingsPage } from "../../ui/Page";
 import { Button } from "../../ui/kit/Button";
 import { SettingsGroup, SettingsRow } from "../../ui/kit/Settings";
@@ -40,6 +40,11 @@ function AccountPage() {
         <SettingsRow label={m.account_language()}>
           <div className="w-40">
             <LanguageSelect aria-label={m.account_language()} />
+          </div>
+        </SettingsRow>
+        <SettingsRow label={m.account_color_scheme()}>
+          <div className="w-40">
+            <ColorSchemeSelect aria-label={m.account_color_scheme()} />
           </div>
         </SettingsRow>
       </SettingsGroup>

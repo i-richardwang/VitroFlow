@@ -13,6 +13,7 @@ import { Page, PageColumnSkeleton } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
 import { getModelCatalogue } from "../../functions/models";
 import { documentTitle } from "../../ui/documentTitle";
+import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
 import { m } from "../../paraglide/messages";
 
 export const Route = createFileRoute("/_workbench/models/")({
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/_workbench/models/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
+      <PageHeaderSkeleton />
       <ItemListSkeleton />
     </PageColumnSkeleton>
   ),

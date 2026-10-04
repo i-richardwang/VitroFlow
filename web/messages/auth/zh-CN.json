@@ -32,5 +32,15 @@
   "account_password": "密码",
   "sign_out_failed": "未能退出登录",
   "login_description": "使用管理员为你开设的账户。",
-  "consent_description": "{client} 想访问你的 {product} 账户"
+  "consent_description": "{client} 想访问你的 {product} 账户",
+  "login_heading": "登录 {app}",
+  "login_email_placeholder": "请输入邮箱",
+  "login_next": "下一步",
+  "login_password_heading": "请输入密码",
+  "login_password_placeholder": "请输入密码",
+  "login_back_to_email": "返回修改邮箱",
+  "account_color_scheme": "外观",
+  "account_color_scheme_system": "自动",
+  "account_color_scheme_light": "浅色",
+  "account_color_scheme_dark": "深色"
 }

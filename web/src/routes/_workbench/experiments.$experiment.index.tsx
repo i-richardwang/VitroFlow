@@ -34,8 +34,8 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
     meta: [{ title: documentTitle(loaderData?.experiment.name) }],
   }),
   pendingComponent: () => (
-    <PageColumnSkeleton wide>
-      <PageHeaderSkeleton meta />
+    <PageColumnSkeleton>
+      <PageHeaderSkeleton variant="subject" meta />
       <StatisticGroupSkeleton count={4} />
       <TableSkeleton />
     </PageColumnSkeleton>

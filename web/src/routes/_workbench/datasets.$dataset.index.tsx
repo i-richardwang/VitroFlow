@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton description />
+      <PageHeaderSkeleton variant="subject" description />
       <StatisticGroupSkeleton count={2} />
       <PageSectionSkeleton>
         <TableSkeleton />
@@ -75,7 +75,7 @@ function DatasetPage() {
   return (
     <Page
       title={dataset}
-      headline
+      subject
       description={modelName(model)}
       action={
         <>

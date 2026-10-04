@@ -1,11 +1,10 @@
 import type { ComponentProps } from "react";
 
-import { m } from "../../paraglide/messages";
 import { AppBrand } from "../../ui/BrandLogo";
-import { LanguageSelect } from "../../ui/LanguageSelect";
+import { ColorSchemeMenu, LanguageMenu } from "../../ui/Preferences";
 import { AuthLayout } from "../../ui/kit/AuthLayout";
 
-/** A page outside the signed-in shell: the brand above, the language below. */
+/** A page outside the signed-in shell: the brand above, the language and color scheme below. */
 export function AuthPage(
   props: Omit<ComponentProps<typeof AuthLayout>, "brand" | "footer">,
 ) {
@@ -14,8 +13,10 @@ export function AuthPage(
       {...props}
       brand={<AppBrand />}
       footer={
-        <div className="w-32">
-          <LanguageSelect aria-label={m.account_language()} quiet />
+        <div className="flex items-center gap-2">
+          <LanguageMenu />
+          <span aria-hidden className="h-6 w-px bg-border-secondary" />
+          <ColorSchemeMenu />
         </div>
       }
     />

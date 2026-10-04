@@ -3,7 +3,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { KeyRound, Mail } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
@@ -46,42 +46,86 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-const FORM_ID = "login";
-
+/**
+ * Sign-in in two steps: the email, then the password under the email it is
+ * for. Going back keeps the email for editing. The password step carries
+ * the email in a hidden username field, so a password manager files the
+ * pair together.
+ */
 function LoginPage() {
   const { returnTo } = Route.useSearch();
   const destination = returnPath(returnTo);
   const navigate = useNavigate();
   const router = useRouter();
   const { busy, run } = useAsyncAction();
+  const [email, setEmail] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [rejected, setRejected] = useState(false);
+
+  if (email === null) {
+    return (
+      <AuthPage
+        title={m.login_heading({ app: m.app_name() })}
+        actions={
+          <p className="text-center text-sm text-fg-secondary">
+            {m.login_description()}
+          </p>
+        }
+      >
+        <Form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setEmail(draft.trim());
+          }}
+        >
+          <Form.Field name="email" label={m.login_email()} labelHidden>
+            <Input
+              size="large"
+              required
+              autoFocus
+              type="email"
+              autoComplete="username"
+              placeholder={m.login_email_placeholder()}
+              prefix={<Icon icon={Mail} />}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          </Form.Field>
+          <Button block htmlType="submit" size="large" type="primary">
+            {m.login_next()}
+          </Button>
+        </Form>
+      </AuthPage>
+    );
+  }
 
   return (
     <AuthPage
-      title={m.login_title()}
-      description={m.login_description()}
+      title={m.login_password_heading()}
+      description={email}
       actions={
-        <Button
-          block
-          form={FORM_ID}
-          htmlType="submit"
-          size="large"
-          type="primary"
-          loading={busy}
-        >
-          {m.login_submit()}
-        </Button>
+        <p className="text-center text-sm text-fg-secondary">
+          <button
+            className="cursor-pointer underline"
+            type="button"
+            onClick={() => {
+              setRejected(false);
+              setEmail(null);
+            }}
+          >
+            {m.login_back_to_email()}
+          </button>
+        </p>
       }
     >
       <Form
-        id={FORM_ID}
         errors={rejected ? { password: m.login_rejected() } : undefined}
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
           void run(async () => {
             const { data, error } = await authClient.signIn.email({
-              email: String(form.get("email") ?? ""),
+              email,
               password: String(form.get("password") ?? ""),
             });
             if (error) {
@@ -100,28 +144,35 @@ function LoginPage() {
           });
         }}
       >
-        <Form.Field name="email" label={m.login_email()}>
-          <Input
-            size="large"
-            required
-            disabled={busy}
-            autoFocus
-            type="email"
-            autoComplete="email"
-            prefix={<Icon icon={Mail} />}
-            onChange={() => setRejected(false)}
-          />
-        </Form.Field>
-        <Form.Field name="password" label={m.login_password()}>
+        <input
+          hidden
+          readOnly
+          autoComplete="username"
+          name="username"
+          type="email"
+          value={email}
+        />
+        <Form.Field name="password" label={m.login_password()} labelHidden>
           <InputPassword
             size="large"
             required
             disabled={busy}
+            autoFocus
             autoComplete="current-password"
-            prefix={<Icon icon={KeyRound} />}
+            placeholder={m.login_password_placeholder()}
+            prefix={<Icon icon={Lock} />}
             onChange={() => setRejected(false)}
           />
         </Form.Field>
+        <Button
+          block
+          htmlType="submit"
+          size="large"
+          type="primary"
+          loading={busy}
+        >
+          {m.login_submit()}
+        </Button>
       </Form>
     </AuthPage>
   );

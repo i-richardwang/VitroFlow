@@ -145,9 +145,10 @@ export function Shell({
   );
 }
 
+/** The way back up to the current page; a top-level page's own header names it, so it shows no trail. */
 function Trail() {
   const crumbs = trail(useMatches());
-  if (crumbs.length === 0) return null;
+  if (crumbs.length < 2) return null;
   const items: BreadcrumbItem[] = crumbs.map((crumb, index) => ({
     href: index === crumbs.length - 1 ? undefined : crumb.href,
     label: crumb.label,

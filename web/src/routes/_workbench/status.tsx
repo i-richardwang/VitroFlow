@@ -17,7 +17,6 @@ import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
-import { SettingsGroup, SettingsGroupSkeleton } from "../../ui/kit/Settings";
 import { StatusDot, type StatusTone } from "../../ui/kit/Status";
 import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
@@ -30,9 +29,7 @@ export const Route = createFileRoute("/_workbench/status")({
   }),
   pendingComponent: () => (
     <SettingsPageSkeleton>
-      <SettingsGroupSkeleton>
-        <ItemListSkeleton rows={3} />
-      </SettingsGroupSkeleton>
+      <ItemListSkeleton rows={3} />
     </SettingsPageSkeleton>
   ),
   component: StatusPage,
@@ -58,62 +55,55 @@ function StatusPage() {
   useRouteRefresh(5000);
 
   return (
-    <SettingsPage title={m.status_title()}>
-      <SettingsGroup
-        title={m.status_workers()}
-        extra={
-          <>
-            {workers.length > 0 ? (
-              <>
-                {m.status_worker_count({ count: workers.length })}
-                {administers ? (
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={Plus}
-                    onClick={enroll}
-                  >
+    <SettingsPage
+      title={m.status_title()}
+      extra={
+        <>
+          <RefreshButton />
+          {workers.length > 0 ? (
+            <>
+              {m.status_worker_count({ count: workers.length })}
+              {administers ? (
+                <Button type="primary" icon={Plus} onClick={enroll}>
+                  {m.worker_enroll()}
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      }
+    >
+      <ItemList
+        aria-label={m.status_workers()}
+        empty={
+          workers.length === 0 && (
+            <Empty
+              icon={Server}
+              title={m.status_empty()}
+              description={
+                administers
+                  ? m.status_empty_description_admin()
+                  : m.status_empty_description_member()
+              }
+              action={
+                administers ? (
+                  <Button type="primary" icon={Plus} onClick={enroll}>
                     {m.worker_enroll()}
                   </Button>
-                ) : null}
-              </>
-            ) : null}
-            <RefreshButton />
-          </>
+                ) : null
+              }
+            />
+          )
         }
       >
-        <ItemList
-          aria-label={m.status_workers()}
-          empty={
-            workers.length === 0 && (
-              <Empty
-                icon={Server}
-                title={m.status_empty()}
-                description={
-                  administers
-                    ? m.status_empty_description_admin()
-                    : m.status_empty_description_member()
-                }
-                action={
-                  administers ? (
-                    <Button type="primary" icon={Plus} onClick={enroll}>
-                      {m.worker_enroll()}
-                    </Button>
-                  ) : null
-                }
-              />
-            )
-          }
-        >
-          {workers.map((worker) => (
-            <WorkerItem
-              key={worker.workerId}
-              worker={worker}
-              administers={administers}
-            />
-          ))}
-        </ItemList>
-      </SettingsGroup>
+        {workers.map((worker) => (
+          <WorkerItem
+            key={worker.workerId}
+            worker={worker}
+            administers={administers}
+          />
+        ))}
+      </ItemList>
       {administers ? (
         <EnrollWorkerDialog
           open={enrolling}

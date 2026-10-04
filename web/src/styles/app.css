@@ -100,8 +100,9 @@
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 
   /*
-   * Type scale. `sm` (13px) is the step for controls and dense tables, `2xl`
-   * (24px) for a statistic's value, `3xl` (28px) for the sign-in heading.
+   * Type scale. `sm` (13px) is the step for controls, dense tables and a
+   * page's facts, `2xl` (24px) for a statistic's value and a subject's title,
+   * `3xl` (28px) for the sign-in heading, `4xl` (30px) for a list page's title.
    */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.25rem;
@@ -114,6 +115,8 @@
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.75rem;
+  --text-4xl: 1.875rem;
+  --text-4xl--line-height: 1.3;
 
   /* Four radii; fully round is `rounded-full`. */
   --radius-xs: 0.25rem;

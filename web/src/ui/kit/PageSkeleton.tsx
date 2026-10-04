@@ -25,24 +25,28 @@ export function PageSkeleton({ children }: { children: ReactNode }) {
   );
 }
 
-/** The title block of a page about one subject; `description` and `meta` match what it shows. */
+/**
+ * A `PageHeader`; `variant`, `description` and `meta` match what it shows.
+ */
 export function PageHeaderSkeleton({
   description,
   meta,
+  variant = "list",
 }: {
   description?: boolean;
   meta?: boolean;
+  variant?: "list" | "subject";
 }) {
   return (
-    <div aria-hidden className="ui-page-skeleton-header">
+    <div aria-hidden className="ui-page-skeleton-header" data-variant={variant}>
       <Skeleton className="ui-page-skeleton-title" />
       {description ? <Skeleton.Text width="46%" /> : null}
-      {meta ? <Skeleton className="ui-page-skeleton-meta" /> : null}
+      {meta ? <Skeleton.Text size="xs" width="16em" /> : null}
     </div>
   );
 }
 
-/** A `Table`: its header band and `rows` rows, running to the same edges. */
+/** An outlined `Table`: its header band and `rows` rows in the same card. */
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div aria-hidden className="ui-page-skeleton-table">

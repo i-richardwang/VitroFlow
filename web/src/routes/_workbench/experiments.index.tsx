@@ -16,7 +16,7 @@ import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { TableSkeleton } from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
   Table,
   TableBody,
@@ -36,6 +36,7 @@ export const Route = createFileRoute("/_workbench/experiments/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
+      <PageHeaderSkeleton />
       <TableSkeleton />
     </PageColumnSkeleton>
   ),

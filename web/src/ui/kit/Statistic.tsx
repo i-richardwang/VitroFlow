@@ -2,11 +2,11 @@ import { Children, type CSSProperties, type ReactNode } from "react";
 import { Skeleton } from "./Skeleton";
 
 /*
- * A page's figures. A `Statistic` is a title over a value, with an optional
- * description under the value (a denominator, a thin `Progress`) and an
- * `extra` at the end of the title row. `StatisticGroup` lays its statistics
- * out side by side, one column each, until a column would fall under 240px;
- * then the row wraps.
+ * A page's figures. A `Statistic` is a card: a small title over the value,
+ * with an optional description under the value (a denominator, a thin
+ * `Progress`) and an `extra` at the end of the title row. `StatisticGroup`
+ * sets its cards side by side in equal columns until a column would fall
+ * under 200px; then the row wraps.
  */
 
 export function StatisticGroup({ children }: { children: ReactNode }) {

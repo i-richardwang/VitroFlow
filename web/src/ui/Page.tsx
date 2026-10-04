@@ -3,73 +3,55 @@ import type { ReactNode } from "react";
 import { PageHeader } from "./kit/PageHeader";
 import { PageSkeleton } from "./kit/PageSkeleton";
 import { Skeleton } from "./kit/Skeleton";
-import { ShellActions } from "./shell/Shell";
 
-/*
- * The reading column of a document page: at most 960px wide and centered.
- * A `wide` page, whose content grows sideways with the data, takes the card's
- * full width.
- */
-const COLUMN = "mx-auto flex w-full max-w-240 flex-col gap-6 max-mobile:gap-4";
-const WIDE = "flex w-full flex-col gap-6 max-mobile:gap-4";
+/* A document page runs the card's full width; its parts are 24px apart. */
+const COLUMN = "flex w-full flex-col gap-6 max-mobile:gap-4";
 
 /**
- * A document page in the shell's card. The top bar names it and carries its
- * `action`. A list leaves its title to the top bar; a page about one subject
- * sets `headline` and shows the title in the content too, with the subject's
- * `status`, `description` and `meta`.
+ * A document page in the shell's card, under a `PageHeader` that carries the
+ * page's `action`. A list page names a kind of thing, with a `description`;
+ * a `subject` page is about one thing and adds its `status` and `meta`.
  */
 export function Page({
   title,
-  headline = false,
+  subject = false,
   description,
   status,
   meta,
   action,
-  wide = false,
   children,
 }: {
   title: string;
-  headline?: boolean;
+  subject?: boolean;
   description?: ReactNode;
   /** The subject's state, right after the title. */
   status?: ReactNode;
-  /** Facts about the subject under the description, each in a chip. */
+  /** Facts about the subject under the description. */
   meta?: ReactNode[];
-  /** Commands in the top bar: at most one primary button, then a menu. */
+  /** Commands at the header's end: at most one primary button, then a menu. */
   action?: ReactNode;
-  wide?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className={wide ? WIDE : COLUMN}>
-      {headline ? (
-        <PageHeader
-          title={title}
-          description={description}
-          status={status}
-          meta={meta}
-        />
-      ) : (
-        <h1 className="sr-only">{title}</h1>
-      )}
-      {action ? <ShellActions>{action}</ShellActions> : null}
+    <div className={COLUMN}>
+      <PageHeader
+        variant={subject ? "subject" : "list"}
+        title={title}
+        description={description}
+        status={status}
+        meta={meta}
+        actions={action}
+      />
       {children}
     </div>
   );
 }
 
 /** A `Page` while it loads, in the same column. */
-export function PageColumnSkeleton({
-  wide = false,
-  children,
-}: {
-  wide?: boolean;
-  children: ReactNode;
-}) {
+export function PageColumnSkeleton({ children }: { children: ReactNode }) {
   return (
     <PageSkeleton>
-      <div className={wide ? WIDE : COLUMN}>{children}</div>
+      <div className={COLUMN}>{children}</div>
     </PageSkeleton>
   );
 }
@@ -113,7 +95,7 @@ export function PageSection({
 export function PageSectionSkeleton({ children }: { children: ReactNode }) {
   return (
     <section aria-hidden className="flex flex-col gap-3">
-      <Skeleton.Text size="lg" width="8em" />
+      <Skeleton.Text width="8em" />
       {children}
     </section>
   );
@@ -126,31 +108,72 @@ export function PageSectionSkeleton({ children }: { children: ReactNode }) {
  */
 const SETTINGS_COLUMN = "mx-auto flex w-full max-w-5xl flex-col gap-9 pb-26";
 
+/** The title block of a settings page, with `extra` at its end, ruled off from the content. */
+function SettingsHeader({
+  title,
+  description,
+  extra,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  extra?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-6 pt-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-2xl font-bold">{title}</h1>
+          {description ? (
+            <div className="text-fg-secondary">{description}</div>
+          ) : null}
+        </div>
+        {extra != null ? (
+          <div className="flex flex-none items-center gap-2 text-fg-secondary">
+            {extra}
+          </div>
+        ) : null}
+      </div>
+      <hr className="border-border-secondary" />
+    </div>
+  );
+}
+
 /**
  * A settings page: the reader's own account, keys and connections, or the
- * workspace's people and machines. The breadcrumb names it, so the title is
- * only announced; the content is a column of `SettingsGroup`s.
+ * workspace's people and machines. Its header names it and carries `extra`,
+ * such as a count and the page's one command; the content is a column of
+ * `SettingsGroup`s, or for a page that is one roster, the roster itself.
  */
 export function SettingsPage({
   title,
+  description,
+  extra,
   children,
 }: {
   title: string;
+  description?: ReactNode;
+  extra?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className={SETTINGS_COLUMN}>
-      <h1 className="sr-only">{title}</h1>
+      <SettingsHeader title={title} description={description} extra={extra} />
       {children}
     </div>
   );
 }
 
-/** A `SettingsPage` while it loads, holding `SettingsGroupSkeleton`s. */
+/** A `SettingsPage` while it loads: its header's bones, then `children` such as `SettingsGroupSkeleton`s. */
 export function SettingsPageSkeleton({ children }: { children: ReactNode }) {
   return (
     <PageSkeleton>
-      <div className={SETTINGS_COLUMN}>{children}</div>
+      <div className={SETTINGS_COLUMN}>
+        <div aria-hidden className="flex flex-col gap-6 pt-3">
+          <Skeleton className="my-1 h-6 w-32" />
+          <hr className="border-border-secondary" />
+        </div>
+        {children}
+      </div>
     </PageSkeleton>
   );
 }

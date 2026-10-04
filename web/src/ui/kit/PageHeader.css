@@ -1,10 +1,34 @@
 .ui-page-header {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
 
   inline-size: 100%;
   min-inline-size: 0;
+}
+
+.ui-page-header-list {
+  align-items: center;
+}
+
+/* On a phone the commands go under the title block. */
+.ui-page-header {
+  @variant max-mobile {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.ui-page-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.ui-page-header-subject .ui-page-header-main {
+  gap: 6px;
 }
 
 .ui-page-header-heading {
@@ -16,8 +40,18 @@
 
 .ui-page-header-title {
   margin: 0;
-  font-size: var(--text-2xl);
+  font-size: var(--text-4xl);
   font-weight: 600;
+  line-height: var(--text-4xl--line-height);
+
+  @variant max-mobile {
+    font-size: var(--text-2xl);
+    line-height: var(--text-2xl--line-height);
+  }
+}
+
+.ui-page-header-subject .ui-page-header-title {
+  font-size: var(--text-2xl);
   line-height: var(--text-2xl--line-height);
 }
 
@@ -29,11 +63,15 @@
 .ui-page-header-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  column-gap: 16px;
+  row-gap: 4px;
 
   margin: 0;
-  margin-block-start: 8px;
   padding: 0;
+
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-fg-tertiary);
 
   list-style: none;
 }
@@ -42,14 +80,11 @@
   display: inline-flex;
   gap: 4px;
   align-items: center;
+}
 
-  block-size: 22px;
-  padding-inline: 8px;
-  border-radius: var(--radius-xs);
-
-  font-size: var(--text-xs);
-  line-height: 1.2;
-  color: var(--color-fg-secondary);
-
-  background: var(--color-fill-tertiary);
+.ui-page-header-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
 }

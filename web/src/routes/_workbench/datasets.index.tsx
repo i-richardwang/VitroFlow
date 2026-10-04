@@ -6,7 +6,7 @@ import { formatCount } from "../../ui/numbers";
 import { ImportDatasetDialog } from "../../features/datasets/ImportDatasetDialog";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { TableSkeleton } from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import {
   Table,
   TableBody,
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/_workbench/datasets/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
+      <PageHeaderSkeleton />
       <TableSkeleton />
     </PageColumnSkeleton>
   ),

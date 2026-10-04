@@ -42,6 +42,7 @@ export function McpClientsGroup({
     >
       <Table
         narrow="cards"
+        variant="borderless"
         aria-label={m.integrations_mcp_clients()}
         empty={
           mcpClients.length === 0 && (

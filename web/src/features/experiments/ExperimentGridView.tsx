@@ -116,8 +116,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   return (
     <Page
       title={experiment.name}
-      headline
-      wide
+      subject
       meta={[
         experiment.plantMaterial,
         experiment.explantType,

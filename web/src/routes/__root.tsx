@@ -11,6 +11,7 @@ import {
 import { ModalHost } from "../ui/kit/Modal";
 import { Toaster } from "../ui/kit/Toast";
 import { documentTitle } from "../ui/documentTitle";
+import { COLOR_SCHEME_SCRIPT } from "../ui/colorScheme";
 import { RouteNotice } from "../ui/RouteNotice";
 import { m } from "../paraglide/messages";
 import { getLocale } from "../paraglide/runtime";
@@ -32,9 +33,6 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundPage,
 });
 
-/** Sets the `dark` class from the system preference before the first paint. */
-const SYNC_COLOR_SCHEME = `(()=>{try{const q=matchMedia("(prefers-color-scheme: dark)"),a=e=>document.documentElement.classList.toggle("dark",e.matches);a(q);q.addEventListener("change",a)}catch(e){}})()`;
-
 function RootComponent() {
   return (
     <RootDocument>
@@ -55,8 +53,8 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang={getLocale()} suppressHydrationWarning>
       <head>
-        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant script that sets the scheme before the first paint */}
-        <script dangerouslySetInnerHTML={{ __html: SYNC_COLOR_SCHEME }} />
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant script that sets the color scheme before the first paint */}
+        <script dangerouslySetInnerHTML={{ __html: COLOR_SCHEME_SCRIPT }} />
         <HeadContent />
       </head>
       <body className="flex h-dvh flex-col overflow-hidden">
