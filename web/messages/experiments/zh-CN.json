@@ -59,6 +59,7 @@
   "observation_not_added": "观测日未添加",
   "observation_date_label": "观测日期",
   "observation_before_inoculation": "观测日不能早于接种日",
+  "observation_day_taken": "这一天已经有观测日了",
   "observation_note_label": "备注",
   "observation_actions": "{observation} 的操作",
   "observation_menu_add_to_dataset": "图片加入训练集…",
@@ -101,6 +102,14 @@
     }
   ],
   "observation_images_repeated": "与 {file} 相同",
+  "observation_images_conflicting": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 张图片已经用过，移除后才能继续"
+      }
+    }
+  ],
   "unit_title": "{experiment} 的试验单元 {code}",
   "unit_no_image": "这个试验单元还没有照片",
   "unit_observed": "观测日期",

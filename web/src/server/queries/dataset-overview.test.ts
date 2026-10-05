@@ -56,10 +56,8 @@ test("the overview derives review progress and training readiness", async () => 
     null,
   ]);
   expect(overview.training).toEqual({
-    runs: 0,
     active: null,
     reviewedSinceLastRun: 2,
-    workersOnline: 0,
     workerMemoryBytes: null,
   });
 
@@ -79,7 +77,7 @@ test("the overview derives review progress and training readiness", async () => 
   await failTrainingRun(run.id, owner, "stopped");
   overview = await datasetOverview("overview", at);
   expect(overview?.training.active).toBeNull();
-  expect(overview?.training.workersOnline).toBe(1);
+  expect(overview?.training.workerMemoryBytes).toBe(24 * 1024 ** 3);
 
   const a = { digest: await imageDigest("ov-a"), modelId: version.modelId };
   const annotation = await readAnnotation(a);

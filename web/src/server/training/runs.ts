@@ -1,17 +1,6 @@
 import { DatasetNotFoundError } from "../../domain/datasets/errors";
 import { randomUUID } from "node:crypto";
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  gt,
-  inArray,
-  not,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, not, or, sql } from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../infra/db/client";
 import {
@@ -308,34 +297,6 @@ export async function listTrainingRunSummaries(
         ? null
         : { map50: row.bestMap50, map50To95: row.bestMap50To95 },
   }));
-}
-
-export async function countTrainingRuns(datasetId?: string): Promise<number> {
-  const db = await database();
-  const [row] = await db
-    .select({ count: count() })
-    .from(trainingRuns)
-    .innerJoin(
-      datasetSnapshots,
-      eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
-    )
-    .where(datasetId ? eq(datasetSnapshots.datasetId, datasetId) : undefined);
-  return row?.count ?? 0;
-}
-
-export async function countActiveTrainingRuns(
-  modelId?: string,
-): Promise<number> {
-  const db = await database();
-  const predicates = [
-    inArray(trainingRuns.status, [...ACTIVE_TRAINING_RUN_STATUSES]),
-  ];
-  if (modelId) predicates.push(eq(trainingRuns.modelId, modelId));
-  const [row] = await db
-    .select({ count: count() })
-    .from(trainingRuns)
-    .where(and(...predicates));
-  return row?.count ?? 0;
 }
 
 export async function latestTrainingRun(

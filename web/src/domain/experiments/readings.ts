@@ -19,7 +19,6 @@ import type { ExperimentObservation } from "./schema";
 export interface Reading {
   count: number;
   source: ReviewSource;
-  detected: number | null;
 }
 
 export function cellKey(unit: string, observation: string): string {
@@ -63,27 +62,16 @@ function cellReading(
   return null;
 }
 
-export function cellTally(
-  image: ObservationImageCell | undefined,
-): Tally | null {
-  return cellReading(image)?.tally ?? null;
-}
-
 /** What a unit read on a day, or nothing while its image has no reading. */
 export function unitReading(
   cells: ObservationCells,
   unit: string,
   observation: ExperimentObservation,
 ): Reading | null {
-  const image = cells.get(cellKey(unit, observation.id));
-  const reading = cellReading(image);
-  if (!image || !reading) return null;
-  const replaced = reading.source === "detection" ? null : image.detectionTally;
-  return {
-    count: count(reading.tally),
-    source: reading.source,
-    detected: replaced === null ? null : count(replaced),
-  };
+  const reading = cellReading(cells.get(cellKey(unit, observation.id)));
+  return reading
+    ? { count: count(reading.tally), source: reading.source }
+    : null;
 }
 
 export function summarize(values: readonly number[]): ReplicateSummary {

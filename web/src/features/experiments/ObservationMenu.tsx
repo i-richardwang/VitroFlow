@@ -31,6 +31,7 @@ export function ObservationMenu({
   experiment,
   inoculatedOn,
   observation,
+  observations,
   model,
   units,
   images,
@@ -41,6 +42,8 @@ export function ObservationMenu({
   experiment: string;
   inoculatedOn: string;
   observation: ExperimentObservation;
+  /** Every observation of the experiment, whose days this one cannot move to. */
+  observations: readonly ExperimentObservation[];
   /** The model the day reads for, named when the columns read for several. */
   model: Model | undefined;
   /** The units that can still be photographed at this observation. */
@@ -153,6 +156,7 @@ export function ObservationMenu({
         inoculatedOn={inoculatedOn}
         models={models}
         observation={observation}
+        observations={observations}
         open={open === "edit"}
         onClose={close}
       />

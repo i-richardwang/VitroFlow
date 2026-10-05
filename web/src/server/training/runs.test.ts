@@ -10,9 +10,8 @@ import { readDatasetSnapshot } from "./snapshots";
 import { collectUnreferencedModelWeights } from "./collection";
 import { readModelVersion } from "../models/registry";
 import {
+  activeTrainingRun,
   claimTrainingRun,
-  countActiveTrainingRuns,
-  countTrainingRuns,
   createTrainingRun,
   enterTrainingPhase,
   failTrainingRun,
@@ -127,8 +126,7 @@ const publication = {
 test("a model has at most one active training run", async () => {
   await reviewedDataset("exclusive-run");
   const run = await createTrainingRun("exclusive-run", recipe);
-  expect(await countTrainingRuns("exclusive-run")).toBe(1);
-  expect(await countActiveTrainingRuns(run.modelId)).toBe(1);
+  expect((await activeTrainingRun(run.modelId))?.id).toBe(run.id);
   await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
     /still active/,
   );
@@ -138,12 +136,16 @@ test("a model has at most one active training run", async () => {
     /still active/,
   );
   await failTrainingRun(run.id, trainerOwner, "stopped");
-  expect(await countActiveTrainingRuns(run.modelId)).toBe(0);
+  expect(await activeTrainingRun(run.modelId)).toBeNull();
   const next = await createTrainingRun("exclusive-run", recipe);
   expect(next.id).not.toBe(run.id);
   expect((await claimTrainingRun(trainerOwner))?.id).toBe(next.id);
   await failTrainingRun(next.id, trainerOwner, "stopped");
-  expect(await countTrainingRuns("exclusive-run")).toBe(2);
+  expect(
+    (await listTrainingRunSummaries({ datasetId: "exclusive-run" }))
+      .map((summary) => summary.run.id)
+      .sort(),
+  ).toEqual([next.id, run.id].sort());
   await expect(
     listTrainingRunSummaries({ datasetId: "exclusive-run" }, 101),
   ).rejects.toThrow(/between 1 and 100/);

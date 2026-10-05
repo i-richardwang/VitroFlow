@@ -8,11 +8,12 @@ export interface TrainingRunSummary {
   best: { map50: number; map50To95: number } | null;
 }
 
+/** Whether a training set can start a run now, and what the run would train on. */
 export interface TrainingSummary {
-  runs: number;
+  /** The model's run in progress, whichever training set feeds it. */
   active: TrainingRun | null;
   reviewedSinceLastRun: number;
-  workersOnline: number;
+  /** The least memory among the online trainers, or null when none is online. */
   workerMemoryBytes: number | null;
 }
 
@@ -22,7 +23,6 @@ export interface VersionOverview {
 }
 
 export interface TrainingRunDetail {
-  dataset: string;
   /** The model the run's training set trains. */
   model: Model;
   run: TrainingRun;

@@ -33,7 +33,7 @@ import {
 } from "../../domain/training/schema";
 
 export const Route = createFileRoute(
-  "/_workbench/datasets/$dataset/training/$runId",
+  "/_workbench/datasets/$dataset/runs/$runId",
 )({
   loader: async ({ params }) => {
     const detail = await getTrainingRun({

@@ -133,6 +133,7 @@ function RecordObservationSession({
           value={value}
           onChange={setValue}
           inoculatedOn={inoculatedOn}
+          taken={observations.map((observation) => observation.observedOn)}
           models={models}
           disabled={action.busy}
         />
@@ -148,6 +149,7 @@ export function EditObservationDialog({
   inoculatedOn,
   models,
   observation,
+  observations,
   open,
   onClose,
 }: {
@@ -155,6 +157,7 @@ export function EditObservationDialog({
   inoculatedOn: CalendarDay;
   models: readonly Model[];
   observation: ExperimentObservation;
+  observations: readonly ExperimentObservation[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -173,6 +176,7 @@ export function EditObservationDialog({
         inoculatedOn={inoculatedOn}
         models={models}
         observation={observation}
+        observations={observations}
         action={action}
         onClose={onClose}
       />
@@ -185,6 +189,7 @@ function EditObservationForm({
   inoculatedOn,
   models,
   observation,
+  observations,
   action,
   onClose,
 }: {
@@ -192,6 +197,7 @@ function EditObservationForm({
   inoculatedOn: CalendarDay;
   models: readonly Model[];
   observation: ExperimentObservation;
+  observations: readonly ExperimentObservation[];
   action: ReturnType<typeof useAsyncAction>;
   onClose: () => void;
 }) {
@@ -225,6 +231,9 @@ function EditObservationForm({
         value={value}
         onChange={setValue}
         inoculatedOn={inoculatedOn}
+        taken={observations
+          .filter((other) => other.id !== observation.id)
+          .map((other) => other.observedOn)}
         models={models}
         disabled={action.busy}
       />
@@ -236,12 +245,15 @@ function ObservationFields({
   value,
   onChange,
   inoculatedOn,
+  taken,
   models,
   disabled,
 }: {
   value: ObservationValue;
   onChange: (value: ObservationValue) => void;
   inoculatedOn: CalendarDay;
+  /** The days other observations already hold. */
+  taken: readonly CalendarDay[];
   models: readonly Model[];
   disabled: boolean;
 }) {
@@ -255,6 +267,7 @@ function ObservationFields({
           day: inoculatedOn,
           error: m.observation_before_inoculation(),
         }}
+        taken={{ days: taken, error: m.observation_day_taken() }}
         onChange={(observedOn) => onChange({ ...value, observedOn })}
       />
       <ModelField

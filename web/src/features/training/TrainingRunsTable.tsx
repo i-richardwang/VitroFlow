@@ -63,7 +63,7 @@ export function TrainingRunsTable({
                 <TextLink
                   render={
                     <Link
-                      to="/datasets/$dataset/training/$runId"
+                      to="/datasets/$dataset/runs/$runId"
                       params={{ dataset, runId: run.id }}
                     />
                   }

@@ -109,11 +109,12 @@ export function ShellTrail() {
 /**
  * The signed-in frame: navigation on the canvas, the page in a card whose
  * top bar shows only when it has something to hold: the sidebar's toggle
- * while the sidebar is hidden, and a workbench's breadcrumb and commands. The sidebar opens with
- * the signed-in person, lists the places and then the experiments, and ends
- * with the color scheme. A settings page swaps the person and
- * the places for a trail home and the settings section. Whether the sidebar
- * is hidden is owned by the caller so the server renders the stored choice.
+ * while the sidebar is hidden, and a workbench's breadcrumb and commands.
+ * The sidebar opens with the signed-in person, lists the places and then the
+ * experiments, and ends with the color scheme. A settings page swaps the
+ * person and the places for a trail home and the settings section. Whether
+ * the sidebar is hidden is owned by the caller so the server renders the
+ * stored choice.
  */
 export function Shell({
   children,

@@ -3,8 +3,6 @@ export { publishTrainingArtifact } from "./publication";
 export {
   activeTrainingRun,
   claimTrainingRun,
-  countActiveTrainingRuns,
-  countTrainingRuns,
   createTrainingRun,
   enterTrainingPhase,
   failTrainingRun,

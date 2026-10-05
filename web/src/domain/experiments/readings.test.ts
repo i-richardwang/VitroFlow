@@ -4,7 +4,6 @@ import type { ObservationImageCell, Unit } from "./contracts";
 import { observationOrdinals } from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 import {
-  cellTally,
   observationCells,
   summarize,
   treatmentSummary,
@@ -48,31 +47,6 @@ function observation(ordinal: number): ExperimentObservation {
 const unreviewed = (count: number) => ({
   count,
   source: "detection" as const,
-  detected: null,
-});
-
-describe("the tally a cell reads by", () => {
-  test("a reviewed annotation replaces the detection under it", () => {
-    expect(
-      cellTally(
-        cell("a", "b", {
-          detectionTally: { ungerminated: 19 },
-          annotationTally: { ungerminated: 20 },
-        }),
-      ),
-    ).toEqual({ ungerminated: 20 });
-  });
-
-  test("an unreviewed image reads by its detection", () => {
-    expect(
-      cellTally(cell("a", "b", { detectionTally: { ungerminated: 19 } })),
-    ).toEqual({ ungerminated: 19 });
-  });
-
-  test("an image with no reading has no tally", () => {
-    expect(cellTally(cell("a", "b"))).toBeNull();
-    expect(cellTally(undefined)).toBeNull();
-  });
 });
 
 describe("what a grid reads", () => {
@@ -87,34 +61,37 @@ describe("what a grid reads", () => {
     expect(unitReading(cells, "dish", day0)).toEqual(unreviewed(20));
   });
 
-  test("a reviewed cell carries the detection it replaced", () => {
+  test("a review replaces the AI's suggestion and the detection under it", () => {
     const cells = observationCells([
       cell("dish", day0.id, {
         detectionTally: { ungerminated: 19 },
+        proposalTally: { ungerminated: 21 },
         annotationTally: { ungerminated: 20 },
       }),
     ]);
     expect(unitReading(cells, "dish", day0)).toEqual({
       count: 20,
       source: "review",
-      detected: 19,
     });
   });
 
-  test("an annotation drawn where nothing was detected replaced nothing", () => {
+  test("an AI suggestion reads before the detection", () => {
     const cells = observationCells([
-      cell("dish", day0.id, { annotationTally: { ungerminated: 20 } }),
+      cell("dish", day0.id, {
+        detectionTally: { ungerminated: 19 },
+        proposalTally: { ungerminated: 21 },
+      }),
     ]);
     expect(unitReading(cells, "dish", day0)).toEqual({
-      count: 20,
-      source: "review",
-      detected: null,
+      count: 21,
+      source: "proposal",
     });
   });
 
-  test("a cell with no image reads nothing", () => {
-    const cells = observationCells([]);
+  test("a photograph not yet counted, or none, reads nothing", () => {
+    const cells = observationCells([cell("dish", day0.id)]);
     expect(unitReading(cells, "dish", day0)).toBeNull();
+    expect(unitReading(cells, "other", day0)).toBeNull();
   });
 });
 

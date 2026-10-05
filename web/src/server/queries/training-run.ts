@@ -20,7 +20,6 @@ export async function trainingRunDetail(
   const model = await readModel(dataset.modelId);
   if (!model) throw new Error(`Unknown model: ${dataset.modelId}`);
   return {
-    dataset: dataset.id,
     model,
     run,
     epochs: await listTrainingEpochs(runId),

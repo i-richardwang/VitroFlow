@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarPlus, FlaskConical, Plus } from "lucide-react";
+import { CalendarPlus, FlaskConical, ImageIcon, Plus } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
 import type {
@@ -32,6 +32,7 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { cn } from "../../ui/kit/cn";
 import { Empty } from "../../ui/kit/Empty";
+import { Icon } from "../../ui/kit/Icon";
 import { LineChart } from "../../ui/kit/LineChart";
 import { Panel } from "../../ui/kit/Panel";
 import { Status } from "../../ui/kit/Status";
@@ -180,6 +181,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
                   experiment={experiment.id}
                   inoculatedOn={experiment.inoculatedOn}
                   observation={observation}
+                  observations={observations}
                   model={namedModel(observation.modelId)}
                   units={units.filter((unit) =>
                     unitIsAvailableAt(unit.events, observation, ordinals),
@@ -422,8 +424,9 @@ function SummaryValue({ summary }: { summary: ReplicateSummary }) {
 
 /**
  * A unit's count on one day, or why there is none. A count nobody has
- * reviewed yet is shown provisional; a photograph not yet counted shows as
- * absent, and only a failed count asks for attention.
+ * reviewed yet is shown provisional; a photograph not yet counted shows as a
+ * photograph, no photograph as absent, and only a failed count asks for
+ * attention.
  */
 function UnitCell({
   image,
@@ -462,13 +465,20 @@ function UnitCell({
       link(<Status tone="error">{m.experiment_cell_failed()}</Status>),
     );
   }
+  const waiting =
+    image.state === "unread"
+      ? m.experiment_cell_unread()
+      : m.experiment_cell_waiting();
   return explain(
-    [
-      image.state === "unread"
-        ? m.experiment_cell_unread()
-        : m.experiment_cell_waiting(),
-    ],
-    link(<Absent />),
+    [waiting],
+    link(
+      <Icon
+        icon={ImageIcon}
+        size={14}
+        aria-label={waiting}
+        className="align-middle text-fg-tertiary"
+      />,
+    ),
   );
 }
 

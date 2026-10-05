@@ -59,6 +59,7 @@
   "observation_not_added": "Observation not added",
   "observation_date_label": "Observation date",
   "observation_before_inoculation": "An observation can't come before inoculation",
+  "observation_day_taken": "This day already has an observation",
   "observation_note_label": "Note",
   "observation_actions": "Actions for {observation}",
   "observation_menu_add_to_dataset": "Add images to dataset…",
@@ -107,6 +108,20 @@
     }
   ],
   "observation_images_repeated": "Same as {file}",
+  "observation_images_conflicting": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural",
+        "local formattedCount = count: number"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "This image is already in use; remove it to continue",
+        "countPlural=other": "{formattedCount} images are already in use; remove them to continue"
+      }
+    }
+  ],
   "unit_title": "Unit {code} of {experiment}",
   "unit_no_image": "No photographs of this unit yet",
   "unit_observed": "Observed",

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { Unit } from "../../domain/experiments/contracts";
 import { pairInOrder, suggestUnit } from "../../domain/experiments/naming";
@@ -33,7 +33,7 @@ export interface ObservationPhotos {
   unmatched: number;
   /** Units still without a photograph. */
   vacant: number;
-  /** Still uploading, a photograph failed to upload, or a stored one has no unit. */
+  /** Still uploading, a photograph failed to upload, is already used, or has no unit. */
   pending: boolean;
 }
 
@@ -56,21 +56,11 @@ export function useObservationPhotos({
 }): ObservationPhotos {
   const uploads = useUploads();
   const [choices, setChoices] = useState<Record<number, string | null>>({});
-  const vacantUnits = useMemo(
-    () => units.filter((unit) => !assigned.has(unit.id)),
-    [units, assigned],
-  );
-  const { images } = uploads;
-  const { conflicts, free } = useMemo(() => {
-    const stored = storedPhotos(images);
-    const conflicts = photoConflicts(stored, placed);
-    const free = stored.filter((photo) => !conflicts.has(photo.id));
-    return { conflicts, free };
-  }, [images, placed]);
-  const chosen = useMemo(
-    () => matchPhotos(free, choices, vacantUnits),
-    [free, choices, vacantUnits],
-  );
+  const vacantUnits = units.filter((unit) => !assigned.has(unit.id));
+  const stored = storedPhotos(uploads.images);
+  const conflicts = photoConflicts(stored, placed);
+  const free = stored.filter((photo) => !conflicts.has(photo.id));
+  const chosen = matchPhotos(free, choices, vacantUnits);
   const ready = free.flatMap((photo) => {
     const unit = chosen.get(photo.id);
     return unit
@@ -102,7 +92,8 @@ export function useObservationPhotos({
     ready,
     unmatched,
     vacant: vacantUnits.length - ready.length,
-    pending: uploads.storing || uploads.failed || unmatched > 0,
+    pending:
+      uploads.storing || uploads.failed || conflicts.size > 0 || unmatched > 0,
   };
 }
 
@@ -144,6 +135,14 @@ export function ObservationPhotosField({
           );
         }}
       />
+      {photos.conflicts.size > 0 ? (
+        <Alert
+          type="warning"
+          title={m.observation_images_conflicting({
+            count: photos.conflicts.size,
+          })}
+        />
+      ) : null}
       {photos.unmatched > 0 ? (
         <Alert
           type="warning"

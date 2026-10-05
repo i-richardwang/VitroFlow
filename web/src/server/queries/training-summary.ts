@@ -5,7 +5,6 @@ import type { TrainingSummary } from "../../domain/training/read-model";
 import {
   readDatasetSnapshot,
   activeTrainingRun,
-  countTrainingRuns,
   latestTrainingRun,
 } from "../training/public";
 import type { ImageRecord } from "../datasets/public";
@@ -48,28 +47,25 @@ function boxes(annotation: AnnotationDocument): string {
 }
 
 /**
- * Runs and readiness are the dataset's own; the active run is the model's,
- * because one run at a time trains a model whichever dataset feeds it.
+ * Readiness is the dataset's own; the active run is the model's, because one
+ * run at a time trains a model whichever dataset feeds it.
  */
 export async function trainingSummary(
   dataset: Dataset,
   records: ImageRecord[],
   at: Date,
 ): Promise<TrainingSummary> {
-  const [online, active, runs, latest] = await Promise.all([
+  const [online, active, latest] = await Promise.all([
     listOnlineTrainers(at),
     activeTrainingRun(dataset.modelId),
-    countTrainingRuns(dataset.id),
     latestTrainingRun(dataset.id),
   ]);
   return {
-    runs,
     active,
     reviewedSinceLastRun: await reviewedSinceLastRun(
       records,
       latest ?? undefined,
     ),
-    workersOnline: online.length,
     workerMemoryBytes: online.length
       ? Math.min(...online.map((worker) => worker.memoryBytes))
       : null,

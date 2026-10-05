@@ -198,7 +198,7 @@ function Activity({ activity }: { activity: WorkerActivity | null }) {
     <TextLink
       render={
         <Link
-          to="/datasets/$dataset/training/$runId"
+          to="/datasets/$dataset/runs/$runId"
           params={{ dataset: activity.dataset, runId: activity.runId }}
         />
       }

@@ -7,9 +7,7 @@ import {
 } from "../domain/datasets/schema";
 import {
   addExperimentObservationImages,
-  listDatasets,
   removeDatasetImage,
-  summarizeDataset,
 } from "../server/datasets/public";
 import { readDatasetImage, datasetOverview } from "../server/queries/public";
 
@@ -20,14 +18,6 @@ export const getDatasetOverview = createServerFn({ method: "GET" })
 export const getDatasetImage = createServerFn({ method: "GET" })
   .validator(datasetImageRefSchema)
   .handler(({ data }) => readDatasetImage(data));
-
-export const getDatasets = createServerFn({ method: "GET" }).handler(async () =>
-  Promise.all(
-    (await listDatasets()).map((dataset) =>
-      summarizeDataset(dataset.id, dataset.modelId),
-    ),
-  ),
-);
 
 export const addToDataset = createServerFn({ method: "POST" })
   .validator(datasetImageAdditionSchema)
