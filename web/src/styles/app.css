@@ -56,6 +56,11 @@
 @import "../ui/kit/PageSkeleton.css" layer(components);
 @import "../ui/kit/Statistic.css" layer(components);
 @import "../ui/kit/ItemList.css" layer(components);
+@import "../ui/kit/Avatar.css" layer(components);
+@import "../ui/kit/IconTile.css" layer(components);
+@import "../ui/kit/SegmentBar.css" layer(components);
+@import "../ui/kit/SummaryCard.css" layer(components);
+@import "../ui/kit/LogoTile.css" layer(components);
 @import "../ui/kit/Settings.css" layer(components);
 @import "../ui/kit/ChartTooltip.css" layer(components);
 @import "../ui/kit/ColorSwatch.css" layer(components);
@@ -217,6 +222,9 @@
 
   /* Status colors. Warning and info have a fill for status-colored tags. */
   --color-success: #379d4a;
+  /* The brand's two greens, the logo tile's gradient. */
+  --color-brand: #3fae6a;
+  --color-brand-deep: #167a52;
   --color-warning: #ee9e0b;
   --color-warning-fill: rgba(255, 155, 55, 0.08);
   --color-error: #ec5e41;
@@ -275,6 +283,8 @@
 
   /* Success, error and info shift hue in dark (yellow-green, rose, sky) to stand out on black. */
   --color-success: #c4f042;
+  --color-brand: #3fae6a;
+  --color-brand-deep: #167a52;
   --color-warning: #ffb224;
   --color-warning-fill: rgba(247, 159, 0, 0.17);
   --color-error: #f4416c;

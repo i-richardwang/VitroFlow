@@ -1,9 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "datasets_title": "Datasets",
-  "datasets_column_dataset": "Dataset",
-  "datasets_column_images": "Images",
-  "datasets_column_reviewed": "Reviewed",
   "datasets_empty": "No datasets yet",
   "dataset_download": "Download",
   "dataset_training": "Training",
@@ -143,5 +140,20 @@
     }
   ],
   "dataset_images_section": "Images",
-  "dataset_actions": "Actions for {dataset}"
+  "dataset_actions": "Actions for {dataset}",
+  "datasets_description": "Photos picked from experiments and annotated, to train new versions of a model.",
+  "dataset_card_facts": [
+    {
+      "declarations": [
+        "input model",
+        "input images",
+        "input reviewed",
+        "local formattedImages = images: number",
+        "local formattedReviewed = reviewed: number"
+      ],
+      "match": {
+        "images=*": "{model} · {formattedImages} images · {formattedReviewed} reviewed"
+      }
+    }
+  ]
 }

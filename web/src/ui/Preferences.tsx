@@ -12,7 +12,7 @@ import {
   useColorScheme,
   type ColorScheme,
 } from "./colorScheme";
-import { ActionIcon } from "./kit/ActionIcon";
+import { ActionIcon, type ActionIconProps } from "./kit/ActionIcon";
 import { Button } from "./kit/Button";
 import { DropdownMenu } from "./kit/DropdownMenu";
 import { Select } from "./kit/Select";
@@ -65,7 +65,7 @@ export function LanguageMenu() {
 }
 
 /** An icon button showing the current color scheme, opening the choices. */
-export function ColorSchemeMenu() {
+export function ColorSchemeMenu({ size }: { size?: ActionIconProps["size"] }) {
   const scheme = useColorScheme();
   const current = SCHEMES.find((each) => each.value === scheme)!;
   return (
@@ -77,7 +77,11 @@ export function ColorSchemeMenu() {
         onClick: () => setColorScheme(each.value),
       }))}
     >
-      <ActionIcon icon={current.icon} title={m.account_color_scheme()} />
+      <ActionIcon
+        icon={current.icon}
+        size={size}
+        title={m.account_color_scheme()}
+      />
     </DropdownMenu>
   );
 }

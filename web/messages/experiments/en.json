@@ -2,12 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "experiments_title": "Experiments",
   "experiments_empty": "No experiments yet",
-  "experiments_column_experiment": "Experiment",
-  "experiments_column_material": "Material",
-  "experiments_column_treatments": "Treatments",
-  "experiments_column_inoculated": "Inoculated",
-  "experiments_column_latest": "Latest",
-  "experiments_column_analysis": "Detection",
+  "experiment_card_latest": "Latest",
   "experiment_new": "New experiment",
   "experiment_not_started": "Experiment not started",
   "experiment_start": "Start",
@@ -268,5 +263,17 @@
       }
     }
   ],
-  "experiment_group_culture": "Culture"
+  "experiment_group_culture": "Culture",
+  "experiments_description": "Lay out treatments and units, photograph them on each observation day, and read the results.",
+  "experiment_card_photos": "Photos",
+  "experiment_card_more_treatments": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "+{formattedCount}"
+      }
+    }
+  ],
+  "experiment_card_no_photos": "No photos yet",
+  "experiment_card_no_photos_hint": "Detection progress shows here once an observation day has photos."
 }

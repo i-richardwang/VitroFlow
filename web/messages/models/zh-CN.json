@@ -67,5 +67,6 @@
   "model_annotation_dish_label": "跳过培养皿之外的空白区域",
   "model_annotation_dish_description": "自动识别培养皿并保留边缘区域，识别失败时标注整图。",
   "models_empty_description": "新建模型，定义它要检测的类别。",
-  "model_menu_delete_item": "删除模型…"
+  "model_menu_delete_item": "删除模型…",
+  "models_description": "每个模型定义一组要检测的类别；观测日按模型的版本读数。"
 }

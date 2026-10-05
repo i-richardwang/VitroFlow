@@ -73,6 +73,34 @@
   }
 }
 
+/* With an icon, the tile stands beside the name and the facts. */
+.ui-item[data-icon] {
+  grid-template-areas:
+    "icon heading trailing actions"
+    "icon meta trailing actions";
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding-inline: 8px 4px;
+
+  @variant max-mobile {
+    grid-template-areas:
+      "icon heading actions"
+      "icon meta actions"
+      "trailing trailing trailing";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+.ui-item-icon {
+  grid-area: icon;
+  display: flex;
+}
+
+.ui-item-icon-skeleton {
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 10px;
+}
+
 .ui-item-heading {
   grid-area: heading;
   display: flex;

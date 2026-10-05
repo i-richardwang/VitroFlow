@@ -1,0 +1,23 @@
+.ui-segment-bar {
+  overflow: hidden;
+  display: flex;
+
+  inline-size: 100%;
+  block-size: 8px;
+  border-radius: 999px;
+
+  background: var(--color-fill-secondary);
+
+  &[data-size="small"] {
+    block-size: 6px;
+  }
+}
+
+.ui-segment-bar-segment {
+  block-size: 100%;
+  transition: inline-size var(--duration-slow) var(--ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}

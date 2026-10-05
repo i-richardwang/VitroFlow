@@ -1,0 +1,15 @@
+.ui-avatar {
+  user-select: none;
+
+  overflow: hidden;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: bolder;
+  line-height: 1;
+  color: var(--color-fg);
+
+  background: var(--color-border);
+}

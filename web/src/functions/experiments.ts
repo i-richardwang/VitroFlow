@@ -37,6 +37,7 @@ import {
   addObservation,
   deleteObservation,
   updateObservation,
+  listExperimentNames,
   listExperiments,
   readExperimentGrid,
   readUnit,
@@ -52,6 +53,10 @@ async function datasetsTraining(modelId: string): Promise<string[]> {
 
 export const getExperiments = createServerFn({ method: "GET" }).handler(() =>
   listExperiments(),
+);
+
+export const getExperimentNames = createServerFn({ method: "GET" }).handler(
+  () => listExperimentNames(),
 );
 
 /**

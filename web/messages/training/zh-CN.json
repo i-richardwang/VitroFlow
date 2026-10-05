@@ -122,5 +122,6 @@
   "train_dialog_recipe_title": "配方",
   "parameter_group_training": "训练",
   "parameter_group_augmentation": "数据增强",
-  "parameter_group_validation": "验证与复现"
+  "parameter_group_validation": "验证与复现",
+  "training_description": "训练任务和它们产出的模型版本。"
 }

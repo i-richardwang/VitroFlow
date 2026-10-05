@@ -29,7 +29,7 @@ export const Route = createFileRoute("/_workbench/status")({
   }),
   pendingComponent: () => (
     <SettingsPageSkeleton>
-      <ItemListSkeleton rows={3} />
+      <ItemListSkeleton icon rows={3} />
     </SettingsPageSkeleton>
   ),
   component: StatusPage,
@@ -144,6 +144,7 @@ function WorkerItem({
 
   return (
     <Item
+      icon={Server}
       title={worker.workerId}
       addon={<StatusDot label={presence.label()} tone={presence.tone} />}
       meta={[

@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_workbench/training")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton />
+      <PageHeaderSkeleton description />
       <StatisticGroupSkeleton count={3} />
       <PageSectionSkeleton>
         <TableSkeleton rows={3} />
@@ -50,7 +50,7 @@ function TrainingPage() {
   useRouteRefresh(10_000);
 
   return (
-    <Page title={m.training_title()}>
+    <Page title={m.training_title()} description={m.training_description()}>
       <StatisticGroup>
         <Statistic title={m.training_kpi_runs()} value={formatCount(total)} />
         <Statistic

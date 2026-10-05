@@ -4,11 +4,95 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 1px;
+  gap: 8px;
 
   min-block-size: 0;
   padding-block-end: 8px;
   padding-inline: 4px;
+}
+
+.ui-app-nav-places,
+.ui-app-nav-group-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ui-app-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The heading folds its run: label, count, and a small triangle that turns when open. */
+.ui-app-nav-group-trigger {
+  cursor: pointer;
+
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
+  padding-block: 4px;
+  padding-inline: 8px 4px;
+  border: none;
+  border-radius: var(--radius-md);
+
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-secondary);
+
+  background: none;
+
+  transition: background var(--duration-fast) var(--ease-out);
+
+  @apply focus-ring;
+
+  &:hover {
+    background: var(--color-fill-tertiary);
+  }
+}
+
+.ui-app-nav-group-label {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-app-nav-group-indicator {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  inline-size: 18px;
+  block-size: 18px;
+
+  color: var(--color-fg-tertiary);
+
+  transition: transform var(--duration-slow) var(--ease-out);
+
+  [data-panel-open] > & {
+    transform: rotate(90deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.ui-app-nav-group-panel {
+  padding-block: 1px;
+}
+
+.ui-app-nav-group-empty {
+  margin: 0;
+  padding-block: 8px;
+  padding-inline: 12px;
+
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-secondary);
 }
 
 .ui-app-nav-item {

@@ -1,9 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "datasets_title": "数据集",
-  "datasets_column_dataset": "数据集",
-  "datasets_column_images": "图片",
-  "datasets_column_reviewed": "已复核",
   "datasets_empty": "还没有数据集",
   "dataset_download": "下载",
   "dataset_training": "训练",
@@ -143,5 +140,20 @@
     }
   ],
   "dataset_images_section": "图片",
-  "dataset_actions": "{dataset} 的操作"
+  "dataset_actions": "{dataset} 的操作",
+  "datasets_description": "从实验照片中挑选并标注，用来训练模型的新版本。",
+  "dataset_card_facts": [
+    {
+      "declarations": [
+        "input model",
+        "input images",
+        "input reviewed",
+        "local formattedImages = images: number",
+        "local formattedReviewed = reviewed: number"
+      ],
+      "match": {
+        "images=*": "{model} · {formattedImages} 张图像 · {formattedReviewed} 张已审核"
+      }
+    }
+  ]
 }

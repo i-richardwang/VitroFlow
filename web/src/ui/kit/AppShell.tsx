@@ -11,6 +11,7 @@ import {
 } from "react";
 import { m } from "../../paraglide/messages";
 import { ActionIcon } from "./ActionIcon";
+import { Avatar } from "./Avatar";
 import { cn } from "./cn";
 import { Drawer } from "./Drawer";
 import { DropdownMenu, type DropdownItem } from "./DropdownMenu";
@@ -38,33 +39,6 @@ export interface AppShellLinkProps {
   href: string;
   /** Closes the compact navigation drawer. */
   onClick: () => void;
-}
-
-/** Home link at the top of the sidebar: the mark in a 28px slot and the name. */
-export function AppShellBrand({
-  href,
-  logo,
-  renderLink,
-  title,
-}: {
-  href: string;
-  logo: ReactNode;
-  /** Renders the home link, for example as a router link. */
-  renderLink: (props: AppShellLinkProps) => ReactNode;
-  title: string;
-}) {
-  const shell = useAppShell();
-  return renderLink({
-    children: (
-      <>
-        <span className="ui-app-shell-brand-mark">{logo}</span>
-        <span className="ui-app-shell-brand-name">{title}</span>
-      </>
-    ),
-    className: "ui-app-shell-brand",
-    href,
-    onClick: shell.closeNavigation,
-  });
 }
 
 /**
@@ -103,7 +77,10 @@ export function AppShellTrail({
   );
 }
 
-/** The signed-in person at the bottom of the sidebar, opening their menu. */
+/**
+ * The signed-in person on the sidebar's top row, opening their menu: their
+ * avatar, their name and a chevron.
+ */
 export function AppShellAccount({
   items,
   label,
@@ -117,6 +94,7 @@ export function AppShellAccount({
   return (
     <DropdownMenu items={items}>
       <button aria-label={label} className="ui-app-shell-account" type="button">
+        <Avatar name={name} />
         <span className="ui-app-shell-account-name">{name}</span>
         <Icon
           className="ui-app-shell-account-chevron"
@@ -137,9 +115,9 @@ export interface AppShellProps extends Omit<
   children?: ReactNode;
   /** Hide the sidebar. Ignored while compact. */
   collapsed: boolean;
-  /** Pinned to the bottom of the sidebar, usually an `AppShellAccount`. */
+  /** Pinned to the bottom of the sidebar, a row of `ActionIcon`s. */
   footer: ReactNode;
-  /** The sidebar's top row: an `AppShellBrand` or an `AppShellTrail`. */
+  /** The sidebar's top row: an `AppShellAccount` or an `AppShellTrail`. */
   header: ReactNode;
   /** Navigation, usually an `AppNav`. */
   navigation: ReactNode;

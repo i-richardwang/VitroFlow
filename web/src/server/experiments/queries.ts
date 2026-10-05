@@ -243,6 +243,20 @@ export function listExperiments(): Promise<ExperimentSummary[]> {
   return snapshot(listExperimentSummaries);
 }
 
+/** Every experiment's id and name, newest first, for navigation. */
+export function listExperimentNames(): Promise<{ id: string; name: string }[]> {
+  return snapshot((db) =>
+    db
+      .select({ id: experiments.id, name: experiments.name })
+      .from(experiments)
+      .orderBy(
+        desc(experiments.createdAt),
+        asc(experiments.name),
+        asc(experiments.id),
+      ),
+  );
+}
+
 async function listExperimentSummaries(
   db: Executor,
 ): Promise<ExperimentSummary[]> {

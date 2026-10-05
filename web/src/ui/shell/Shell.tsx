@@ -1,5 +1,6 @@
 import { Link, useMatches, useRouterState } from "@tanstack/react-router";
 import {
+  Beaker,
   ChartLine,
   CircleUser,
   FlaskConical,
@@ -7,6 +8,7 @@ import {
   KeyRound,
   Network,
   Server,
+  Settings,
   Users,
 } from "lucide-react";
 import { createContext, use, useState, type ReactNode } from "react";
@@ -14,7 +16,8 @@ import { createPortal } from "react-dom";
 
 import { isAdmin, type WorkbenchUser } from "../../domain/auth/schema";
 import { m } from "../../paraglide/messages";
-import { BrandLogo } from "../BrandLogo";
+import { ColorSchemeMenu } from "../Preferences";
+import { ActionIcon } from "../kit/ActionIcon";
 import {
   Breadcrumb,
   type BreadcrumbItem,
@@ -22,15 +25,16 @@ import {
 } from "../kit/Breadcrumb";
 import {
   AppNav,
+  type AppNavGroup,
   type AppNavItem,
   type AppNavLinkProps,
   matchesNavPath,
 } from "../kit/AppNav";
 import {
   AppShell,
-  AppShellBrand,
   type AppShellLinkProps,
   AppShellTrail,
+  useAppShell,
 } from "../kit/AppShell";
 
 export type Crumb = { label: string; href?: string };
@@ -44,6 +48,22 @@ function places(): AppNavItem[] {
     { href: "/datasets", icon: Images, label: m.nav_datasets() },
     { href: "/training", icon: ChartLine, label: m.nav_training() },
   ];
+}
+
+/** The experiments, each a place of its own under the main ones. */
+function experimentGroup(
+  experiments: { id: string; name: string }[],
+): AppNavGroup {
+  return {
+    key: "experiments",
+    label: m.nav_experiments(),
+    empty: m.experiments_empty(),
+    items: experiments.map((experiment) => ({
+      href: `/experiments/${experiment.id}`,
+      icon: Beaker,
+      label: experiment.name,
+    })),
+  };
 }
 
 /** The settings section, which takes the sidebar's place while one of its pages is open. */
@@ -82,19 +102,23 @@ export function ShellActions({ children }: { children: ReactNode }) {
 
 /**
  * The signed-in frame: navigation on the canvas, the page in a card with a top
- * bar carrying the breadcrumb and the page's actions. A settings page swaps
- * the places for the settings section. Whether the sidebar is hidden is
- * owned by the caller so the server renders the stored choice.
+ * bar carrying the breadcrumb and the page's actions. The sidebar opens with
+ * the signed-in person, lists the places and then the experiments, and ends
+ * with settings and the color scheme. A settings page swaps the person and
+ * the places for a trail home and the settings section. Whether the sidebar
+ * is hidden is owned by the caller so the server renders the stored choice.
  */
 export function Shell({
   children,
   account,
+  experiments,
   user,
   collapsed,
   onCollapsedChange,
 }: {
   children: ReactNode;
   account: ReactNode;
+  experiments: { id: string; name: string }[];
   user: WorkbenchUser;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
@@ -120,28 +144,39 @@ export function Shell({
               renderLink={routerLink}
             />
           ) : (
-            <AppShellBrand
-              href={HOME}
-              logo={<BrandLogo className="size-5" />}
-              title={m.app_name()}
-              renderLink={routerLink}
-            />
+            account
           )
         }
         navigation={
           <AppNav
             items={inSettings ? settings : places()}
+            groups={inSettings ? [] : [experimentGroup(experiments)]}
             pathname={pathname}
             renderLink={routerLink}
           />
         }
-        footer={account}
+        footer={<SidebarFooter />}
         breadcrumb={<Trail />}
         tools={<div ref={setActionsSlot} className="flex items-center gap-1" />}
       >
         {children}
       </AppShell>
     </ActionsSlot>
+  );
+}
+
+function SidebarFooter() {
+  const shell = useAppShell();
+  return (
+    <>
+      <ActionIcon
+        icon={Settings}
+        size="middle"
+        title={m.nav_settings()}
+        render={<Link to="/account" onClick={shell.closeNavigation} />}
+      />
+      <ColorSchemeMenu size="middle" />
+    </>
   );
 }
 

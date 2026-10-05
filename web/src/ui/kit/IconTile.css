@@ -1,0 +1,26 @@
+.ui-icon-tile {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  &[data-size="large"] {
+    inline-size: 40px;
+    block-size: 40px;
+    border-radius: var(--radius-md);
+
+    color: var(--color-info);
+
+    background: var(--color-info-fill);
+  }
+
+  &[data-size="small"] {
+    inline-size: 32px;
+    block-size: 32px;
+    border-radius: 10px;
+
+    color: var(--color-fg-secondary);
+
+    background: var(--color-fill-tertiary);
+  }
+}

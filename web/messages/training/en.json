@@ -122,5 +122,6 @@
   "train_dialog_recipe_title": "Recipe",
   "parameter_group_training": "Training",
   "parameter_group_augmentation": "Augmentation",
-  "parameter_group_validation": "Validation and reproducibility"
+  "parameter_group_validation": "Validation and reproducibility",
+  "training_description": "Training runs and the model versions they produce."
 }

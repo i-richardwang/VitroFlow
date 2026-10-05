@@ -24,8 +24,8 @@ export const Route = createFileRoute("/_workbench/models/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton />
-      <ItemListSkeleton />
+      <PageHeaderSkeleton description />
+      <ItemListSkeleton icon />
     </PageColumnSkeleton>
   ),
   component: ModelsPage,
@@ -39,6 +39,7 @@ function ModelsPage() {
   return (
     <Page
       title={m.models_title()}
+      description={m.models_description()}
       action={
         entries.length > 0 ? (
           <Button type="primary" icon={Plus} onClick={create}>
@@ -69,6 +70,7 @@ function ModelsPage() {
           return (
             <Item
               key={entry.model.id}
+              icon={Network}
               title={modelName(entry.model)}
               addon={<Tag size="small">{entry.model.id}</Tag>}
               extra={entry.model.classes.map((each) => (

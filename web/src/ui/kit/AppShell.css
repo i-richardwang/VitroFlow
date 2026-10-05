@@ -60,7 +60,7 @@
   color: var(--color-fg-secondary);
 }
 
-/* Top row: the brand or a section trail, and the toggle at its end. */
+/* Top row: the signed-in person or a section trail, and the toggle at its end. */
 .ui-app-shell-sidebar-header {
   display: flex;
   flex: none;
@@ -77,40 +77,6 @@
   flex: 1;
   align-items: center;
   min-inline-size: 0;
-}
-
-.ui-app-shell-brand {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-
-  min-inline-size: 0;
-  padding-block: 2px;
-  padding-inline: 2px 8px;
-  border-radius: var(--radius-md);
-
-  color: var(--color-fg);
-  text-decoration: none;
-
-  @apply focus-ring;
-}
-
-.ui-app-shell-brand-mark {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-
-  inline-size: 28px;
-  block-size: 28px;
-}
-
-.ui-app-shell-brand-name {
-  overflow: hidden;
-
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ui-app-shell-trail {
@@ -155,8 +121,14 @@
   min-block-size: 0;
 }
 
+/* A row of small commands, the color scheme at its end. */
 .ui-app-shell-sidebar-footer {
+  display: flex;
   flex: none;
+  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+
   padding: 8px;
 }
 
@@ -165,13 +137,13 @@
   user-select: none;
 
   display: flex;
-  gap: 4px;
+  gap: 8px;
   align-items: center;
 
+  min-inline-size: 32px;
   max-inline-size: 100%;
-  min-block-size: 32px;
   padding-block: 2px;
-  padding-inline: 8px;
+  padding-inline: 2px 8px;
   border: none;
   border-radius: var(--radius-md);
 
@@ -199,6 +171,7 @@
 
 .ui-app-shell-account-chevron {
   flex: none;
+  margin-inline-start: -4px;
   color: var(--color-fg-tertiary);
 }
 

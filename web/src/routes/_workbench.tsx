@@ -4,6 +4,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
 import { SignedInUser } from "../features/account/SignedInUser";
+import { getExperimentNames } from "../functions/experiments";
 import { getSession } from "../functions/session";
 import { m } from "../paraglide/messages";
 import { errorMessage } from "../ui/errors";
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/_workbench")({
     ...(await getSession()),
     navCollapsed: readNavCollapsed(),
   }),
+  loader: () => getExperimentNames(),
   component: WorkbenchLayout,
   notFoundComponent: WorkbenchNotFound,
   errorComponent: WorkbenchError,
@@ -63,11 +65,13 @@ function WorkbenchError({ error }: { error: Error }) {
 
 function WorkbenchShell({ children }: { children: ReactNode }) {
   const { user, navCollapsed } = Route.useRouteContext();
+  const experiments = Route.useLoaderData();
   const [collapsed, setCollapsed] = useState(navCollapsed);
   return (
     <Shell
       user={user}
       account={<SignedInUser user={user} />}
+      experiments={experiments ?? []}
       collapsed={collapsed}
       onCollapsedChange={(next) => {
         setCollapsed(next);

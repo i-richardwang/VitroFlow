@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
+import type { IconProps } from "./Icon";
+import { IconTile } from "./IconTile";
 import { Skeleton } from "./Skeleton";
 
 /*
  * Things of one kind as rows rather than table columns, in an outlined card.
- * An `Item` is its name with an `addon` right after it (a tag, a status),
+ * An `Item` opens with an optional `icon` on a small tile beside both lines,
+ * then its name with an `addon` right after it (a tag, a status),
  * under that a line of `meta` (small facts such as a time or a count), then
  * at the row's end `extra` (tags) and `actions`, which show while the row is
  * hovered, holds focus or has its menu open, and always on a phone. On a
@@ -36,19 +39,26 @@ export function Item({
   actions,
   addon,
   extra,
+  icon,
   meta,
   title,
 }: {
   actions?: ReactNode;
   addon?: ReactNode;
   extra?: ReactNode;
+  icon?: IconProps["icon"];
   /** One fact, or several set side by side. */
   meta?: ReactNode | ReactNode[];
   title: ReactNode;
 }) {
   const facts = meta == null ? [] : Array.isArray(meta) ? meta : [meta];
   return (
-    <li className="ui-item">
+    <li className="ui-item" data-icon={icon ? "" : undefined}>
+      {icon ? (
+        <span className="ui-item-icon">
+          <IconTile icon={icon} size="small" />
+        </span>
+      ) : null}
       <div className="ui-item-heading">
         <span className="ui-item-title">{title}</span>
         {addon}
@@ -68,12 +78,21 @@ export function Item({
   );
 }
 
-/** An `ItemList` while it loads: `rows` rows of a name over its facts. */
-export function ItemListSkeleton({ rows = 3 }: { rows?: number }) {
+/** An `ItemList` while it loads: `rows` rows of a name over its facts, after a tile with `icon`. */
+export function ItemListSkeleton({
+  icon,
+  rows = 3,
+}: {
+  icon?: boolean;
+  rows?: number;
+}) {
   return (
     <div aria-hidden className="ui-item-list">
       {Array.from({ length: rows }, (_, index) => (
-        <div className="ui-item" key={index}>
+        <div className="ui-item" data-icon={icon ? "" : undefined} key={index}>
+          {icon ? (
+            <Skeleton className="ui-item-icon ui-item-icon-skeleton" />
+          ) : null}
           <div className="ui-item-heading">
             <Skeleton.Text width="32%" />
           </div>

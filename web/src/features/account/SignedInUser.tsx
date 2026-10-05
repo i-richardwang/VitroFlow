@@ -7,7 +7,7 @@ import { m } from "../../paraglide/messages";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { AppShellAccount, useAppShell } from "../../ui/kit/AppShell";
 
-/** The signed-in person at the foot of the sidebar: settings and signing out. */
+/** The signed-in person atop the sidebar: settings and signing out. */
 export function SignedInUser({ user }: { user: WorkbenchUser }) {
   const router = useRouter();
   const navigate = useNavigate();

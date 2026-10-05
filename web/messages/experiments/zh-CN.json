@@ -2,12 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "experiments_title": "实验",
   "experiments_empty": "还没有实验",
-  "experiments_column_experiment": "实验",
-  "experiments_column_material": "材料",
-  "experiments_column_treatments": "处理",
-  "experiments_column_inoculated": "接种日期",
-  "experiments_column_latest": "最新观测",
-  "experiments_column_analysis": "检测",
+  "experiment_card_latest": "最新观测",
   "experiment_new": "新建实验",
   "experiment_not_started": "实验未创建",
   "experiment_start": "创建",
@@ -256,5 +251,17 @@
       }
     }
   ],
-  "experiment_group_culture": "培养"
+  "experiment_group_culture": "培养",
+  "experiments_description": "按处理布置试验单元，在每个观测日拍照，读出萌发与再生的结果。",
+  "experiment_card_photos": "照片",
+  "experiment_card_more_treatments": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "+{formattedCount}"
+      }
+    }
+  ],
+  "experiment_card_no_photos": "还没有照片",
+  "experiment_card_no_photos_hint": "在观测日上传照片后，这里显示检测进度。"
 }

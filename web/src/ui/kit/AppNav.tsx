@@ -1,3 +1,5 @@
+import { Collapsible } from "@base-ui/react/collapsible";
+import { Play } from "lucide-react";
 import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages";
 import { useAppShell } from "./AppShell";
@@ -7,6 +9,19 @@ import { ScrollShadow } from "./ScrollShadow";
 export interface AppNavItem {
   href: string;
   icon: IconProps["icon"];
+  label: string;
+}
+
+/**
+ * A titled run of places under the main ones, such as the open experiments:
+ * its heading (12px, 500, secondary) with the count after it folds the run
+ * away. Its items carry 16px icons.
+ */
+export interface AppNavGroup {
+  /** Shown in place of the items when there are none. */
+  empty: string;
+  items: AppNavItem[];
+  key: string;
   label: string;
 }
 
@@ -35,12 +50,15 @@ function resolveActiveHref(pathname: string, items: readonly AppNavItem[]) {
 /**
  * The sidebar's list of places: each a 36px row with its icon in a 28px slot.
  * The current place is filled; the others stay secondary until hovered.
+ * `groups` follow the places, 8px apart, each open at first.
  */
 export function AppNav({
+  groups = [],
   items,
   pathname,
   renderLink,
 }: {
+  groups?: AppNavGroup[];
   items: AppNavItem[];
   pathname: string;
   /**
@@ -50,7 +68,28 @@ export function AppNav({
   renderLink: (props: AppNavLinkProps) => ReactNode;
 }) {
   const shell = useAppShell();
-  const activeHref = resolveActiveHref(pathname, items);
+  const activeHref = resolveActiveHref(pathname, [
+    ...items,
+    ...groups.flatMap((group) => group.items),
+  ]);
+  const link = (item: AppNavItem, iconSize: number) => {
+    const active = item.href === activeHref;
+    return renderLink({
+      "aria-current": active ? "page" : undefined,
+      children: (
+        <>
+          <span className="ui-app-nav-item-icon">
+            <Icon icon={item.icon} size={iconSize} />
+          </span>
+          <span className="ui-app-nav-item-label">{item.label}</span>
+        </>
+      ),
+      className: "ui-app-nav-item",
+      "data-active": active,
+      href: item.href,
+      onClick: shell.closeNavigation,
+    });
+  };
   return (
     <ScrollShadow
       aria-label={m.ui_nav_label()}
@@ -58,24 +97,35 @@ export function AppNav({
       className="ui-app-nav"
       size={4}
     >
-      {items.map((item) => {
-        const active = item.href === activeHref;
-        return renderLink({
-          "aria-current": active ? "page" : undefined,
-          children: (
-            <>
-              <span className="ui-app-nav-item-icon">
-                <Icon icon={item.icon} size={18} />
+      <div className="ui-app-nav-places">
+        {items.map((item) => link(item, 18))}
+      </div>
+      {groups.map((group) => (
+        <Collapsible.Root
+          className="ui-app-nav-group"
+          defaultOpen
+          key={group.key}
+        >
+          <Collapsible.Trigger className="ui-app-nav-group-trigger">
+            <span className="ui-app-nav-group-label">{group.label}</span>
+            {group.items.length > 0 ? (
+              <span className="ui-app-nav-group-count">
+                {group.items.length}
               </span>
-              <span className="ui-app-nav-item-label">{item.label}</span>
-            </>
-          ),
-          className: "ui-app-nav-item",
-          "data-active": active,
-          href: item.href,
-          onClick: shell.closeNavigation,
-        });
-      })}
+            ) : null}
+            <span aria-hidden className="ui-app-nav-group-indicator">
+              <Play fill="currentColor" size={7} strokeWidth={1} />
+            </span>
+          </Collapsible.Trigger>
+          <Collapsible.Panel className="ui-app-nav-group-panel">
+            {group.items.length > 0 ? (
+              group.items.map((item) => link(item, 16))
+            ) : (
+              <p className="ui-app-nav-group-empty">{group.empty}</p>
+            )}
+          </Collapsible.Panel>
+        </Collapsible.Root>
+      ))}
     </ScrollShadow>
   );
 }
