@@ -18,7 +18,6 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
-import { Progress } from "../../ui/kit/Progress";
 import {
   Statistic,
   StatisticGroup,
@@ -99,14 +98,6 @@ function DatasetPage() {
             reviewed: reviewedCount,
             total: images.length,
           })}
-          description={
-            <Progress
-              aria-label={m.dataset_kpi_reviewed()}
-              size="small"
-              value={reviewedCount}
-              max={Math.max(images.length, 1)}
-            />
-          }
         />
         <Statistic
           title={m.dataset_kpi_training_runs()}

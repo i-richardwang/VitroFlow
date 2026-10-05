@@ -274,7 +274,10 @@ export function AppShell({
         </aside>
       )}
       <div className="ui-app-shell-workspace">
-        <header className="ui-app-shell-topbar">
+        <header
+          className="ui-app-shell-topbar"
+          data-toggle={hidden || isCompact ? "" : undefined}
+        >
           {hidden || isCompact ? toggle : null}
           <div className="ui-app-shell-topbar-main">{breadcrumb}</div>
           <div className="ui-app-shell-tools">{tools}</div>

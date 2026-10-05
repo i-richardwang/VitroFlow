@@ -18,7 +18,7 @@ import { Empty, type EmptyProps } from "../kit/Empty";
 import { useIsCompact } from "../kit/mediaQuery";
 import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
-import { ShellActions } from "./Shell";
+import { ShellActions, ShellTrail } from "./Shell";
 
 /** Where floating content over the subject's top edge lands. */
 const FloatSlots = createContext<{
@@ -77,6 +77,7 @@ export function Workbench({
     <FloatSlots value={{ toolbar: toolbarSlot, alert: alertSlot }}>
       <InspectorSlot value={{ node: inspectorNode, mount: inspector.mount }}>
         <h1 className="sr-only">{title}</h1>
+        <ShellTrail />
         <AppShellFlush>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-container-secondary">
             <div className="pointer-events-none absolute inset-x-0 top-3 z-raise flex flex-col items-center gap-2 px-3">

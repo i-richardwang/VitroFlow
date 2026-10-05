@@ -52,6 +52,7 @@
 @import "../ui/kit/Breadcrumb.css" layer(components);
 @import "../ui/kit/AppNav.css" layer(components);
 @import "../ui/kit/AppShell.css" layer(components);
+@import "../ui/kit/BackLink.css" layer(components);
 @import "../ui/kit/PageHeader.css" layer(components);
 @import "../ui/kit/PageSkeleton.css" layer(components);
 @import "../ui/kit/Statistic.css" layer(components);
@@ -106,8 +107,9 @@
 
   /*
    * Type scale. `sm` (13px) is the step for controls, dense tables and a
-   * page's facts, `2xl` (24px) for a statistic's value and a subject's title,
-   * `3xl` (28px) for the sign-in heading, `4xl` (30px) for a list page's title.
+   * page's facts, `xl` (20px) for a figure in a statistics strip, `2xl`
+   * (24px) for a subject's title, `3xl` (28px) for the sign-in heading, `4xl`
+   * (30px) for a list page's title and a page's lead figure.
    */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.25rem;
@@ -117,6 +119,8 @@
   --text-base--line-height: 1.375rem;
   --text-lg: 1rem;
   --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.75rem;

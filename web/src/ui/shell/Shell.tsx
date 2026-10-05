@@ -1,4 +1,4 @@
-import { Link, useMatches, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Beaker,
   ChartLine,
@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 
 import { isAdmin, type WorkbenchUser } from "../../domain/auth/schema";
 import { m } from "../../paraglide/messages";
+import { useCrumbs } from "./crumbs";
 import { ColorSchemeMenu } from "../Preferences";
 import { ActionIcon } from "../kit/ActionIcon";
 import {
@@ -36,8 +37,6 @@ import {
   AppShellTrail,
   useAppShell,
 } from "../kit/AppShell";
-
-export type Crumb = { label: string; href?: string };
 
 const HOME = "/experiments";
 
@@ -91,18 +90,33 @@ const routerLink = ({
   <Link {...props} to={href} activeOptions={{ exact: true }} />
 );
 
-const ActionsSlot = createContext<HTMLElement | null>(null);
+const TopBarSlots = createContext<{
+  actions: HTMLElement | null;
+  trail: HTMLElement | null;
+}>({ actions: null, trail: null });
 
-/** Page actions rendered at the end of the shell's top bar. */
+/** A workbench's commands, at the end of the shell's top bar. */
 export function ShellActions({ children }: { children: ReactNode }) {
-  const slot = use(ActionsSlot);
+  const slot = use(TopBarSlots).actions;
   if (!slot) return null;
   return createPortal(children, slot);
 }
 
 /**
- * The signed-in frame: navigation on the canvas, the page in a card with a top
- * bar carrying the breadcrumb and the page's actions. The sidebar opens with
+ * The breadcrumb, at the start of the shell's top bar, for a workbench,
+ * which fills the card and has no header of its own; a document page shows
+ * a back link above its title instead.
+ */
+export function ShellTrail() {
+  const slot = use(TopBarSlots).trail;
+  if (!slot) return null;
+  return createPortal(<Trail />, slot);
+}
+
+/**
+ * The signed-in frame: navigation on the canvas, the page in a card whose
+ * top bar shows only when it has something to hold: the sidebar's toggle
+ * while the sidebar is hidden, and a workbench's breadcrumb and commands. The sidebar opens with
  * the signed-in person, lists the places and then the experiments, and ends
  * with settings and the color scheme. A settings page swaps the person and
  * the places for a trail home and the settings section. Whether the sidebar
@@ -129,9 +143,10 @@ export function Shell({
     matchesNavPath(pathname, item.href),
   );
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
+  const [trailSlot, setTrailSlot] = useState<HTMLDivElement | null>(null);
 
   return (
-    <ActionsSlot value={actionsSlot}>
+    <TopBarSlots value={{ actions: actionsSlot, trail: trailSlot }}>
       <AppShell
         className="isolate"
         collapsed={collapsed}
@@ -156,12 +171,12 @@ export function Shell({
           />
         }
         footer={<SidebarFooter />}
-        breadcrumb={<Trail />}
+        breadcrumb={<div ref={setTrailSlot} className="contents" />}
         tools={<div ref={setActionsSlot} className="flex items-center gap-1" />}
       >
         {children}
       </AppShell>
-    </ActionsSlot>
+    </TopBarSlots>
   );
 }
 
@@ -180,38 +195,13 @@ function SidebarFooter() {
   );
 }
 
-/** The way back up to the current page; a top-level page's own header names it, so it shows no trail. */
+/** The way back up to the current page. */
 function Trail() {
-  const crumbs = trail(useMatches());
+  const crumbs = useCrumbs();
   if (crumbs.length < 2) return null;
   const items: BreadcrumbItem[] = crumbs.map((crumb, index) => ({
     href: index === crumbs.length - 1 ? undefined : crumb.href,
     label: crumb.label,
   }));
   return <Breadcrumb items={items} renderLink={routerLink} />;
-}
-
-function trail(
-  matches: ReadonlyArray<{
-    status: string;
-    loaderData: unknown;
-    params: unknown;
-    staticData: {
-      crumbs?: (match: {
-        loaderData: unknown;
-        params: Record<string, string>;
-      }) => Crumb[];
-    };
-  }>,
-): Crumb[] {
-  for (let i = matches.length - 1; i >= 0; i--) {
-    const match = matches[i]!;
-    const spec = match.staticData.crumbs;
-    if (!spec || match.status !== "success") continue;
-    return spec({
-      loaderData: match.loaderData,
-      params: match.params as Record<string, string>,
-    });
-  }
-  return [];
 }

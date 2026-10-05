@@ -49,6 +49,7 @@ mock.module("@tanstack/react-router", () => ({
 }));
 mock.module("../src/ui/shell/Shell", () => ({
   ShellActions: Passthrough,
+  ShellTrail: () => null,
   ShellAside: ({ children }: { children?: ReactNode }) =>
     createElement("aside", null, children),
 }));

@@ -20,11 +20,7 @@ import { Empty } from "../../ui/kit/Empty";
 import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
 import { Panel } from "../../ui/kit/Panel";
 import { Progress } from "../../ui/kit/Progress";
-import {
-  Statistic,
-  StatisticGroup,
-  StatisticGroupSkeleton,
-} from "../../ui/kit/Statistic";
+import { StatisticHero, StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { TextLink } from "../../ui/kit/TextLink";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -73,7 +69,7 @@ export const Route = createFileRoute(
   pendingComponent: () => (
     <PageColumnSkeleton>
       <PageHeaderSkeleton variant="subject" meta />
-      <StatisticGroupSkeleton count={2} />
+      <StatisticHeroSkeleton />
       <Panel title={m.training_curves()}>
         <EpochChartsSkeleton />
       </Panel>
@@ -117,39 +113,38 @@ function TrainingRunPage() {
         <Timestamp key="created" value={run.createdAt} />,
       ]}
     >
-      <StatisticGroup>
-        <Statistic
-          title={m.training_kpi_best_map()}
-          value={<Metric value={best?.map50To95 ?? null} />}
-          description={
-            published
-              ? m.training_kpi_published({ version: published.id })
-              : best
-                ? m.training_kpi_best_epoch({ epoch: best.epoch })
-                : undefined
-          }
-        />
-        <Statistic
-          title={m.training_kpi_epochs()}
-          value={m.run_epochs_progress({
-            completed: current.length,
-            total,
-          })}
-          description={
-            <div className="flex flex-col gap-1">
-              <Progress
-                aria-label={m.training_kpi_epochs()}
-                size="small"
-                value={current.length}
-                max={total}
-              />
-              {earlier > 0
-                ? m.training_kpi_epochs_earlier_hidden({ count: earlier })
-                : null}
+      <StatisticHero
+        title={m.training_kpi_best_map()}
+        value={<Metric value={best?.map50To95 ?? null} />}
+        description={
+          published
+            ? m.training_kpi_published({ version: published.id })
+            : best
+              ? m.training_kpi_best_epoch({ epoch: best.epoch })
+              : undefined
+        }
+        aside={
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between gap-2 text-xs text-fg-tertiary">
+              <span>{m.training_kpi_epochs()}</span>
+              <span className="text-fg-secondary tabular-nums">
+                {m.run_epochs_progress({ completed: current.length, total })}
+              </span>
             </div>
-          }
-        />
-      </StatisticGroup>
+            <Progress
+              aria-label={m.training_kpi_epochs()}
+              size="small"
+              value={current.length}
+              max={total}
+            />
+            {earlier > 0 ? (
+              <span className="text-xs text-fg-tertiary">
+                {m.training_kpi_epochs_earlier_hidden({ count: earlier })}
+              </span>
+            ) : null}
+          </div>
+        }
+      />
 
       <Panel title={m.training_curves()}>
         {run.state.status === "failed" ? (

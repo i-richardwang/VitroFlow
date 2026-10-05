@@ -24,18 +24,24 @@
   background: none;
 }
 
+/* No items: the empty state on a dashed band of fill where the card would be. */
 .ui-item-list-empty {
   display: flex;
   align-items: center;
   justify-content: center;
 
   min-block-size: 240px;
-  border: 1px solid var(--color-border-secondary);
+  padding-block: 48px;
+  padding-inline: 24px;
+  border: 1px dashed var(--color-border-secondary);
   border-radius: var(--radius-lg);
+
+  background: var(--color-fill-quaternary);
 }
 
 .ui-settings-group-panel > .ui-item-list-empty {
   border: none;
+  background: none;
 }
 
 /*

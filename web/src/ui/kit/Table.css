@@ -118,7 +118,7 @@
   border-block-start: 1px solid var(--color-border-secondary);
 }
 
-/* The place of a table with no rows: its empty state, centered, in the card the table would draw. */
+/* The place of a table with no rows: its empty state, centered on a dashed band of fill where the card would be. */
 .ui-table-empty {
   display: flex;
   align-items: center;
@@ -127,8 +127,12 @@
   min-block-size: 240px;
 
   &[data-variant="outlined"] {
-    border: 1px solid var(--color-border-secondary);
+    padding-block: 48px;
+    padding-inline: 24px;
+    border: 1px dashed var(--color-border-secondary);
     border-radius: var(--radius-lg);
+
+    background: var(--color-fill-quaternary);
   }
 }
 

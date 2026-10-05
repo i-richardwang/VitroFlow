@@ -8,8 +8,10 @@ import { Skeleton } from "./Skeleton";
  * content runs to its edges: `SettingsRow`s, a table, a list.
  *
  * `SettingsRow` is one setting in the panel: its label, with an optional
- * line of description under it, and its value or control at the end of the
- * row; rows are ruled apart.
+ * line of description under it, and its control in a column at the end of
+ * the row at least 240px or a third of the row wide. `SettingsValueRow` is
+ * one fact about the reader: its label in a 160px column, the value right
+ * after it and an `action` at the row's end. Rows are ruled apart.
  */
 export function SettingsGroup({
   children,
@@ -64,6 +66,30 @@ export function SettingsRow({
       {children != null ? (
         <div className="ui-settings-row-control">{children}</div>
       ) : null}
+    </div>
+  );
+}
+
+export function SettingsValueRow({
+  action,
+  children,
+  label,
+}: {
+  action?: ReactNode;
+  children?: ReactNode;
+  label: ReactNode;
+}) {
+  return (
+    <div className="ui-settings-row ui-settings-value-row">
+      <span className="ui-settings-value-row-label">{label}</span>
+      <div className="ui-settings-value-row-body">
+        {children != null ? (
+          <span className="ui-settings-value-row-value">{children}</span>
+        ) : null}
+        {action != null ? (
+          <div className="ui-settings-value-row-action">{action}</div>
+        ) : null}
+      </div>
     </div>
   );
 }

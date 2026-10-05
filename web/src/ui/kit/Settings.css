@@ -131,8 +131,60 @@
   align-items: center;
   justify-content: flex-end;
 
+  inline-size: max(34%, 240px);
   max-inline-size: 100%;
   min-inline-size: 0;
 
   color: var(--color-fg-secondary);
+}
+
+/* A fact: label in a 160px column, the value after it, the action pushed to the end; stacked on a phone. */
+.ui-settings-value-row {
+  gap: 24px;
+  justify-content: flex-start;
+  min-block-size: 48px;
+
+  @variant max-mobile {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
+
+.ui-settings-value-row-label {
+  flex: 0 0 160px;
+  font-weight: 600;
+  color: var(--color-fg);
+
+  @variant max-mobile {
+    flex-basis: auto;
+  }
+}
+
+.ui-settings-value-row-body {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+
+  @variant max-mobile {
+    inline-size: 100%;
+  }
+}
+
+.ui-settings-value-row-value {
+  overflow: hidden;
+  min-inline-size: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-settings-value-row-action {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  margin-inline-start: auto;
 }

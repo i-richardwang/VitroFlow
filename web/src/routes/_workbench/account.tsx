@@ -7,7 +7,11 @@ import { m } from "../../paraglide/messages";
 import { ColorSchemeSelect, LanguageSelect } from "../../ui/Preferences";
 import { SettingsPage } from "../../ui/Page";
 import { Button } from "../../ui/kit/Button";
-import { SettingsGroup, SettingsRow } from "../../ui/kit/Settings";
+import {
+  SettingsGroup,
+  SettingsRow,
+  SettingsValueRow,
+} from "../../ui/kit/Settings";
 import { USER_ROLE_LABELS } from "../../ui/user-roles";
 
 export const Route = createFileRoute("/_workbench/account")({
@@ -25,27 +29,30 @@ function AccountPage() {
   return (
     <SettingsPage title={m.account_title()}>
       <SettingsGroup title={m.account_profile()}>
-        <SettingsRow label={m.account_name()}>{user.name}</SettingsRow>
-        <SettingsRow label={m.account_email()}>{user.email}</SettingsRow>
-        <SettingsRow label={m.role_label()}>
+        <SettingsValueRow label={m.account_name()}>
+          {user.name}
+        </SettingsValueRow>
+        <SettingsValueRow label={m.account_email()}>
+          {user.email}
+        </SettingsValueRow>
+        <SettingsValueRow label={m.role_label()}>
           {USER_ROLE_LABELS[user.role]()}
-        </SettingsRow>
-        <SettingsRow label={m.account_password()}>
-          <Button onClick={() => setChangingPassword(true)}>
-            {m.account_change_password()}
-          </Button>
-        </SettingsRow>
+        </SettingsValueRow>
+        <SettingsValueRow
+          label={m.account_password()}
+          action={
+            <Button size="small" onClick={() => setChangingPassword(true)}>
+              {m.account_change_password()}
+            </Button>
+          }
+        />
       </SettingsGroup>
       <SettingsGroup title={m.account_preferences()}>
         <SettingsRow label={m.account_language()}>
-          <div className="w-40">
-            <LanguageSelect aria-label={m.account_language()} />
-          </div>
+          <LanguageSelect aria-label={m.account_language()} />
         </SettingsRow>
         <SettingsRow label={m.account_color_scheme()}>
-          <div className="w-40">
-            <ColorSchemeSelect aria-label={m.account_color_scheme()} />
-          </div>
+          <ColorSchemeSelect aria-label={m.account_color_scheme()} />
         </SettingsRow>
       </SettingsGroup>
       <ChangePasswordDialog

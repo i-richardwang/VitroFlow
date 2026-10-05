@@ -1,3 +1,11 @@
+/* A back link stands 12px above the header. */
+.ui-page-header-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
 .ui-page-header {
   display: flex;
   gap: 16px;

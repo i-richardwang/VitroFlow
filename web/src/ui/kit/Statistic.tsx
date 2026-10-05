@@ -1,77 +1,92 @@
-import { Children, type CSSProperties, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Skeleton } from "./Skeleton";
 
 /*
- * A page's figures. A `Statistic` is a card: a small title over the value,
- * with an optional description under the value (a denominator, a thin
- * `Progress`) and an `extra` at the end of the title row. `StatisticGroup`
- * sets its cards side by side in equal columns until a column would fall
- * under 200px; then the row wraps.
+ * A page's figures. `StatisticGroup` is one strip of them under the page
+ * header, 24px apart with a hairline between: each `Statistic` is its value
+ * (20px, 600, tabular figures) over a small tertiary title, and an optional
+ * description under the title.
+ *
+ * `StatisticHero` is the one figure a page leads with, on a band of fill:
+ * the value large over its title, a status or description beside the title,
+ * and a small chart or progress as `aside` at the band's end.
  */
 
 export function StatisticGroup({ children }: { children: ReactNode }) {
-  return (
-    <dl
-      className="ui-statistic-group"
-      style={
-        {
-          "--ui-statistic-group-columns": Children.count(children),
-        } as CSSProperties
-      }
-    >
-      {children}
-    </dl>
-  );
+  return <dl className="ui-statistic-group">{children}</dl>;
 }
 
 export function Statistic({
   description,
-  extra,
   title,
   value,
 }: {
   description?: ReactNode;
-  extra?: ReactNode;
   title: ReactNode;
   value: ReactNode;
 }) {
   return (
     <div className="ui-statistic">
+      <dd className="ui-statistic-value">{value}</dd>
       <dt className="ui-statistic-title">{title}</dt>
-      {extra != null ? <dd className="ui-statistic-extra">{extra}</dd> : null}
-      <dd className="ui-statistic-body">
-        <div className="ui-statistic-value">{value}</div>
-        {description != null ? (
-          <div className="ui-statistic-description">{description}</div>
-        ) : null}
-      </dd>
+      {description != null ? (
+        <dd className="ui-statistic-description">{description}</dd>
+      ) : null}
     </div>
   );
 }
 
-/** `count` statistics of a `StatisticGroup` while they load: a title's bone over a value's. */
+export function StatisticHero({
+  aside,
+  description,
+  title,
+  value,
+}: {
+  aside?: ReactNode;
+  description?: ReactNode;
+  title: ReactNode;
+  value: ReactNode;
+}) {
+  return (
+    <section className="ui-statistic-hero">
+      <div className="ui-statistic-hero-main">
+        <div className="ui-statistic-hero-value">{value}</div>
+        <div className="ui-statistic-hero-title">
+          <span>{title}</span>
+          {description != null ? (
+            <span className="ui-statistic-hero-description">{description}</span>
+          ) : null}
+        </div>
+      </div>
+      {aside != null ? (
+        <div className="ui-statistic-hero-aside">{aside}</div>
+      ) : null}
+    </section>
+  );
+}
+
+/** `count` statistics of a `StatisticGroup` while they load: a value's bone over a title's. */
 export function StatisticGroupSkeleton({ count }: { count: number }) {
   return (
-    <div
-      aria-hidden
-      className="ui-statistic-group"
-      style={{ "--ui-statistic-group-columns": count } as CSSProperties}
-    >
+    <div aria-hidden className="ui-statistic-group">
       {Array.from(Array(count).keys(), (slot) => (
-        <StatisticSkeleton key={slot} />
+        <div className="ui-statistic" key={slot}>
+          <Skeleton className="ui-statistic-skeleton-value" />
+          <Skeleton className="ui-statistic-skeleton-title" />
+        </div>
       ))}
     </div>
   );
 }
 
-/** One `Statistic` while it loads. */
-export function StatisticSkeleton() {
+/** A `StatisticHero` while it loads. */
+export function StatisticHeroSkeleton() {
   return (
-    <div aria-hidden className="ui-statistic">
-      <div className="ui-statistic-title">
+    <div aria-hidden className="ui-statistic-hero">
+      <div className="ui-statistic-hero-main">
+        <Skeleton className="ui-statistic-skeleton-hero" />
         <Skeleton className="ui-statistic-skeleton-title" />
       </div>
-      <Skeleton className="ui-statistic-skeleton-value" />
     </div>
   );
 }

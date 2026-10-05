@@ -226,6 +226,13 @@
   padding-inline: 8px;
 }
 
+/* With nothing to hold, the top bar folds away and the page starts at the card's top. */
+.ui-app-shell-topbar:not([data-toggle]):not(
+    :has(.ui-app-shell-topbar-main :not(:empty), .ui-app-shell-tools :not(:empty))
+  ) {
+  display: none;
+}
+
 .ui-app-shell-topbar-main {
   display: flex;
   flex: 1;

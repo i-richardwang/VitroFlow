@@ -1,8 +1,12 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { m } from "../paraglide/messages";
+import { BackLink } from "./kit/BackLink";
 import { PageHeader } from "./kit/PageHeader";
 import { PageSkeleton } from "./kit/PageSkeleton";
 import { Skeleton } from "./kit/Skeleton";
+import { useCrumbs } from "./shell/crumbs";
 
 /* A document page runs the card's full width; its parts are 24px apart. */
 const COLUMN = "flex w-full flex-col gap-6 max-mobile:gap-4";
@@ -10,7 +14,9 @@ const COLUMN = "flex w-full flex-col gap-6 max-mobile:gap-4";
 /**
  * A document page in the shell's card, under a `PageHeader` that carries the
  * page's `action`. A list page names a kind of thing, with a `description`;
- * a `subject` page is about one thing and adds its `status` and `meta`.
+ * a `subject` page is about one thing and adds its `status` and `meta`. A
+ * page below another opens with a link back to the page above it, from the
+ * route's crumbs.
  */
 export function Page({
   title,
@@ -32,9 +38,17 @@ export function Page({
   action?: ReactNode;
   children: ReactNode;
 }) {
+  const parent = useCrumbs().at(-2);
   return (
     <div className={COLUMN}>
       <PageHeader
+        back={
+          parent?.href ? (
+            <BackLink render={<Link to={parent.href} />}>
+              {m.nav_back_to({ page: parent.label })}
+            </BackLink>
+          ) : undefined
+        }
         variant={subject ? "subject" : "list"}
         title={title}
         description={description}

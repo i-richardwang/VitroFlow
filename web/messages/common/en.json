@@ -58,5 +58,6 @@
   "error_model_id_taken": "That identifier is already taken.",
   "error_model_in_use": "Only a model nothing records against can be deleted.",
   "error_worker_name_taken": "A worker with this name is already enrolled.",
-  "workbench_inspector": "Details"
+  "workbench_inspector": "Details",
+  "nav_back_to": "Back to {page}"
 }

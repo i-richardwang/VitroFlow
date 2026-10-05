@@ -1,12 +1,12 @@
 import { createRouter } from "@tanstack/react-router";
 
-import type { Crumb } from "./ui/shell/Shell";
+import type { Crumb } from "./ui/shell/crumbs";
 import { routeTree } from "./routeTree.gen";
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     /**
-     * The breadcrumb trail the navbar shows while this route is the deepest
+     * The way down to this page while it is the deepest
      * match. Evaluated at render, so labels resolve in the request's locale.
      */
     crumbs?: (match: {
