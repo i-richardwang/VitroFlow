@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "experiments_title": "Experiments",
   "experiments_empty": "No experiments yet",
-  "experiment_card_latest": "Latest",
+  "experiment_card_latest": "{day} · mean count per unit",
   "experiment_new": "New experiment",
   "experiment_not_started": "Experiment not started",
   "experiment_start": "Start",
@@ -38,14 +38,6 @@
   "experiment_units_not_moved": "Could not switch",
   "experiment_column_treatment": "Treatment",
   "experiment_column_actions": "Actions",
-  "experiment_cell_analyzed": [
-    {
-      "declarations": ["input value", "local formattedValue = value: number"],
-      "match": {
-        "value=*": "Detected {formattedValue}"
-      }
-    }
-  ],
   "experiment_cell_excluded": "Excluded from analysis at this observation",
   "experiment_export": "Export spreadsheet",
   "workbook_column_factor": "Factor",
@@ -54,9 +46,6 @@
   "workbook_quantity_replicates": "Replicates",
   "workbook_row_mean": "Mean",
   "workbook_exported": "Exported on",
-  "image_analysis_pending": "Pending detection",
-  "image_analysis_analyzed": "Detected",
-  "image_analysis_failed": "Failed",
   "observation_day_label": [
     {
       "declarations": ["input day", "local formattedDay = day: number"],
@@ -67,13 +56,11 @@
   ],
   "observation_label": "Observation",
   "observations_label": "Observations",
-  "observation_new": "New observation",
   "observation_not_added": "Observation not added",
   "observation_date_label": "Observation date",
   "observation_before_inoculation": "An observation can't come before inoculation",
   "observation_note_label": "Note",
   "observation_actions": "Actions for {observation}",
-  "observation_menu_assign_images": "Match to units…",
   "observation_menu_add_to_dataset": "Add images to dataset…",
   "observation_add_to_dataset": "Add images to dataset",
   "observation_menu_edit": "Edit observation…",
@@ -188,12 +175,9 @@
   "treatment_unit_label": "Unit",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "Model",
-  "image_analysis_unread": "No detector",
-  "image_analysis_proposed": "AI proposal",
-  "experiment_cell_proposed": "AI proposal",
   "experiments_empty_description": "Start an experiment to lay out its treatments and units.",
   "experiment_no_observations": "No observations yet",
-  "experiment_no_observations_description": "Add an observation day, then match its photographs to units.",
+  "experiment_no_observations_description": "Record an observation day with the photographs taken on it.",
   "treatment_deleted": "{name} deleted",
   "experiment_selection_count": [
     {
@@ -235,30 +219,7 @@
   "unit_open_experiment": "Open experiment",
   "experiment_meta_inoculated": "Inoculated {day}",
   "experiment_stat_treatments": "Treatments",
-  "experiment_stat_units": "Units",
   "experiment_stat_observations": "Observation days",
-  "experiment_stat_images": "Images analyzed",
-  "experiment_stat_images_value": [
-    {
-      "declarations": [
-        "input analyzed",
-        "input total",
-        "local formattedAnalyzed = analyzed: number",
-        "local formattedTotal = total: number"
-      ],
-      "match": {
-        "analyzed=*": "{formattedAnalyzed} / {formattedTotal}"
-      }
-    }
-  ],
-  "experiment_stat_images_pending": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} pending detection"
-      }
-    }
-  ],
   "experiment_group_culture": "Culture",
   "experiments_description": "Lay out treatments and units, photograph them on each observation day, and read the results.",
   "experiment_card_photos": "Photos",
@@ -271,11 +232,6 @@
     }
   ],
   "experiment_card_no_photos": "No photos yet",
-  "experiment_card_no_photos_hint": "Detection progress shows here once an observation day has photos.",
-  "experiment_hero_title": "{day} · mean per unit",
-  "experiment_hero_leader": "Highest: {treatment} {value}",
-  "experiment_hero_trend": "Mean by observation day",
-  "experiment_hero_point": "{day}: {value}",
   "unit_steps": "Units and observation days",
   "unit_unreviewed_count": [
     {
@@ -287,5 +243,24 @@
   ],
   "unit_culture_status": "Culture status",
   "unit_no_image_on_day": "No photograph of this unit on this day",
-  "unit_no_image_on_day_description": "Match one to it from this day in the experiment."
+  "unit_no_image_on_day_description": "Match one to it from this day in the experiment.",
+  "observation_record": "Record observation",
+  "observation_record_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "Record with {formattedCount} photos"
+      }
+    }
+  ],
+  "observation_menu_add_photos": "Add photos…",
+  "experiment_trend_title": "Treatments compared",
+  "experiment_trend_title_model": "Treatments compared · {model}",
+  "experiment_trend_value": "Mean count per unit",
+  "experiment_cell_unreviewed": "Not reviewed yet",
+  "experiment_cell_failed": "Failed",
+  "experiment_cell_unread": "The model has no version yet; open the photo to count it by hand",
+  "experiment_cell_waiting": "Waiting for the model to count",
+  "experiment_card_no_readings": "No counts yet",
+  "experiment_card_more_treatments_label": "More treatments"
 }

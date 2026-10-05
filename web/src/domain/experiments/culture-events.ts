@@ -1,4 +1,5 @@
 import type {
+  CalendarDay,
   CultureEvent,
   CultureEventType,
   ExperimentObservation,
@@ -83,6 +84,26 @@ export function unitIsAvailableAt(
     (event) =>
       cultureEventIsTerminal(event.type) &&
       eventOrdinal(event, ordinals) < observation.ordinal,
+  );
+}
+
+/**
+ * Whether the unit can be photographed on a day not yet recorded: no
+ * terminal event was recorded on an earlier observation.
+ */
+export function unitIsAvailableOn(
+  events: readonly CultureEvent[],
+  observedOn: CalendarDay,
+  observations: readonly ExperimentObservation[],
+): boolean {
+  const earlier = new Set(
+    observations
+      .filter((observation) => observation.observedOn < observedOn)
+      .map((observation) => observation.id),
+  );
+  return !events.some(
+    (event) =>
+      cultureEventIsTerminal(event.type) && earlier.has(event.observation),
   );
 }
 

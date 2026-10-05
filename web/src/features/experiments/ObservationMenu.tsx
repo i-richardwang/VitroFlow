@@ -17,9 +17,9 @@ import { TableHeadMenu } from "../../ui/kit/Table";
 import { toast } from "../../ui/kit/Toast";
 import { modelName } from "../../ui/model-names";
 import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
-import { AssignImagesDialog } from "./AssignImagesDialog";
+import { AddPhotosDialog } from "./AddPhotosDialog";
 import { observationLabel } from "./labels";
-import { ObservationDialog } from "./ObservationDialog";
+import { EditObservationDialog } from "./ObservationDialog";
 
 type Action = "images" | "dataset" | "edit";
 
@@ -65,7 +65,7 @@ export function ObservationMenu({
     items.push({
       key: "images",
       icon: Images,
-      label: m.observation_menu_assign_images(),
+      label: m.observation_menu_add_photos(),
       onClick: () => setOpen("images"),
     });
   }
@@ -127,7 +127,7 @@ export function ObservationMenu({
         </span>
       </TableHeadMenu>
 
-      <AssignImagesDialog
+      <AddPhotosDialog
         experiment={experiment}
         observation={observation}
         units={units}
@@ -148,7 +148,7 @@ export function ObservationMenu({
         onClose={close}
       />
 
-      <ObservationDialog
+      <EditObservationDialog
         experiment={experiment}
         inoculatedOn={inoculatedOn}
         models={models}

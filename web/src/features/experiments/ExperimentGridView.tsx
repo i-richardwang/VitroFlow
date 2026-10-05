@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarPlus, FlaskConical, Plus, Sparkles } from "lucide-react";
+import { CalendarPlus, FlaskConical, Plus } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
 import type {
   ObservationImageCell,
+  Summary,
   Unit,
 } from "../../domain/experiments/contracts";
 import {
@@ -16,15 +17,11 @@ import {
   cellKey,
   observationCells,
   treatmentSummary,
+  treatmentTrend,
   unitReading,
   type Reading,
-  type Summary,
 } from "../../domain/experiments/readings";
-import {
-  formatFactor,
-  type ExperimentObservation,
-  type Treatment,
-} from "../../domain/experiments/schema";
+import { formatFactor, type Treatment } from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
@@ -33,13 +30,9 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { cn } from "../../ui/kit/cn";
 import { Empty } from "../../ui/kit/Empty";
-import { Icon } from "../../ui/kit/Icon";
-import { Sparkline } from "../../ui/kit/Sparkline";
-import {
-  Statistic,
-  StatisticGroup,
-  StatisticHero,
-} from "../../ui/kit/Statistic";
+import { LineChart } from "../../ui/kit/LineChart";
+import { Panel } from "../../ui/kit/Panel";
+import { Status } from "../../ui/kit/Status";
 import {
   Table,
   TableBody,
@@ -54,11 +47,10 @@ import {
 import { TextLink } from "../../ui/kit/TextLink";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { Page } from "../../ui/Page";
+import { modelName } from "../../ui/model-names";
 import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
-import { ImageAnalysisStatus } from "./ImageAnalysisStatus";
-import { observationLabel } from "./labels";
-import { ObservationDialog } from "./ObservationDialog";
+import { RecordObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
 import { TreatmentDialog } from "./TreatmentDialog";
 import { TreatmentDot } from "./TreatmentDot";
@@ -115,7 +107,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
 
   const newObservation = (
     <Button type="primary" icon={Plus} onClick={() => setOpen("observation")}>
-      {m.observation_new()}
+      {m.observation_record()}
     </Button>
   );
   // A column is one day; it names its model too when the days read for more
@@ -147,8 +139,13 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         </>
       }
     >
-      <ReadingsHero data={data} />
-      <ExperimentStats data={data} />
+      <TreatmentTrend
+        data={data}
+        model={(modelId) => {
+          const model = models.find((item) => item.id === modelId);
+          return asked.size > 1 && model ? modelName(model) : undefined;
+        }}
+      />
       <Table
         aria-label={m.experiment_grid_label({ experiment: experiment.name })}
         fill={observations.length > 0}
@@ -321,12 +318,14 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         open={open === "treatment"}
         onClose={close}
       />
-      <ObservationDialog
+      <RecordObservationDialog
         experiment={experiment.id}
         inoculatedOn={experiment.inoculatedOn}
         models={models}
-        observation={null}
         previous={observations.at(-1)}
+        observations={observations}
+        units={units}
+        placed={placed}
         open={open === "observation"}
         onClose={close}
       />
@@ -335,108 +334,58 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
 }
 
 /**
- * What the experiment reads so far: the mean count per unit on the latest
- * day with readings, the treatment highest that day, and the mean on each
- * earlier day that read for the same model. Nothing until a day has readings.
+ * How the treatments compare over the days that read: each treatment's mean
+ * per unit, one line each, in its own color. Nothing until a day reads.
  */
-function ReadingsHero({ data }: { data: ExperimentGridData }) {
-  const { treatments, units, observations, images } = data;
-  const cells = observationCells(images);
-  const ordinals = observationOrdinals(observations);
-  const mean = (
-    replicates: readonly Unit[],
-    observation: ExperimentObservation,
-  ) => treatmentSummary(cells, replicates, observation, ordinals).value;
-  const days = observations.flatMap((observation) => {
-    const value = mean(units, observation);
-    return value === null ? [] : [{ observation, value }];
-  });
-  const latest = days.at(-1);
-  if (!latest) return null;
-  const trend = days.filter(
-    (day) => day.observation.modelId === latest.observation.modelId,
-  );
-  const leader =
-    treatments.length > 1
-      ? treatments
-          .flatMap((treatment) => {
-            const value = mean(
-              units.filter((unit) => unit.treatment === treatment.id),
-              latest.observation,
-            );
-            return value === null ? [] : [{ treatment, value }];
-          })
-          .sort((a, b) => b.value - a.value)[0]
-      : undefined;
+function TreatmentTrend({
+  data,
+  model,
+}: {
+  data: ExperimentGridData;
+  /** The model the trend reads for, named when the days read for several. */
+  model: (modelId: string) => string | undefined;
+}) {
+  const trend = treatmentTrend(data);
+  const newest = trend.at(-1);
+  if (!newest) return null;
+  const named = model(newest.observation.modelId);
   return (
-    <StatisticHero
-      value={formatCount(latest.value)}
-      title={m.experiment_hero_title({
-        day: observationLabel(latest.observation),
-      })}
-      description={
-        leader
-          ? m.experiment_hero_leader({
-              treatment: leader.treatment.name,
-              value: formatCount(leader.value),
-            })
-          : undefined
+    <Panel
+      title={
+        named
+          ? m.experiment_trend_title_model({ model: named })
+          : m.experiment_trend_title()
       }
-      aside={
-        trend.length > 1 ? (
-          <Sparkline
-            aria-label={m.experiment_hero_trend()}
-            width={220}
-            points={trend.map((day) => ({
-              label: m.experiment_hero_point({
-                day: observationLabel(day.observation),
-                value: formatCount(day.value),
-              }),
-              value: day.value,
-            }))}
-          />
-        ) : undefined
-      }
-    />
+    >
+      <LineChart
+        title={m.experiment_trend_value()}
+        data={trend.map((day) => ({
+          day: day.observation.day,
+          ...Object.fromEntries(
+            day.treatments.flatMap(({ treatment, summary }) =>
+              summary.value === null ? [] : [[treatment, summary.value]],
+            ),
+          ),
+        }))}
+        index="day"
+        indexTicks={trend.map((day) => day.observation.day)}
+        indexFormatter={(day) => m.observation_day_label({ day })}
+        categories={data.treatments.map((treatment) => treatment.id)}
+        labels={Object.fromEntries(
+          data.treatments.map((treatment) => [treatment.id, treatment.name]),
+        )}
+        height={TREND_HEIGHT}
+        xAxisDomain={["dataMin", "dataMax"]}
+        yAxisDomain={[0, "auto"]}
+        valueFormatter={formatCount}
+        tooltipLabelFormatter={(day) => m.observation_day_label({ day })}
+        tooltipValueFormatter={formatCount}
+      />
+    </Panel>
   );
 }
 
-/** The size of the experiment and how far detection has got with its photographs. */
-function ExperimentStats({ data }: { data: ExperimentGridData }) {
-  const { treatments, units, observations, images } = data;
-  const analyzed = images.filter(
-    (image) => image.state === "analyzed" || image.state === "proposed",
-  ).length;
-  const pending = images.filter((image) => image.state === "pending").length;
-  return (
-    <StatisticGroup>
-      <Statistic
-        title={m.experiment_stat_treatments()}
-        value={formatCount(treatments.length)}
-      />
-      <Statistic
-        title={m.experiment_stat_units()}
-        value={formatCount(units.length)}
-      />
-      <Statistic
-        title={m.experiment_stat_observations()}
-        value={formatCount(observations.length)}
-      />
-      <Statistic
-        title={m.experiment_stat_images()}
-        value={m.experiment_stat_images_value({
-          analyzed,
-          total: images.length,
-        })}
-        description={
-          pending > 0
-            ? m.experiment_stat_images_pending({ count: pending })
-            : undefined
-        }
-      />
-    </StatisticGroup>
-  );
-}
+const TREND_HEIGHT = 240;
 
 function TreatmentName({ treatment }: { treatment: Treatment }) {
   const factor = formatFactor(treatment.factor);
@@ -471,6 +420,11 @@ function SummaryValue({ summary }: { summary: Summary }) {
   );
 }
 
+/**
+ * A unit's count on one day, or why there is none. A count nobody has
+ * reviewed yet is shown provisional; a photograph not yet counted shows as
+ * absent, and only a failed count asks for attention.
+ */
 function UnitCell({
   image,
   reading,
@@ -485,30 +439,36 @@ function UnitCell({
   if (!image) return <Absent />;
   if (reading) {
     const notes: string[] = [];
-    if (reading.source === "proposal") notes.push(m.experiment_cell_proposed());
-    if (reading.detected !== null) {
-      notes.push(m.experiment_cell_analyzed({ value: reading.detected }));
-    }
+    if (reading.source !== "review") notes.push(m.experiment_cell_unreviewed());
     if (!counted) notes.push(m.experiment_cell_excluded());
-    const value = (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 tabular-nums",
-          reading.source === "review" && "font-semibold",
-          !counted && "text-fg-quaternary line-through",
-        )}
-      >
-        {formatCount(reading.count)}
-        {reading.source === "proposal" ? (
-          <Icon icon={Sparkles} className="text-info" />
-        ) : null}
-      </span>
+    return explain(
+      notes,
+      link(
+        <span
+          className={cn(
+            "tabular-nums",
+            reading.source === "review" ? "font-medium" : "text-fg-tertiary",
+            !counted && "text-fg-quaternary line-through",
+          )}
+        >
+          {formatCount(reading.count)}
+        </span>,
+      ),
     );
-    return explain(notes, link(value));
+  }
+  if (image.state === "failed") {
+    return explain(
+      image.error ? [image.error] : [],
+      link(<Status tone="error">{m.experiment_cell_failed()}</Status>),
+    );
   }
   return explain(
-    image.state === "failed" && image.error ? [image.error] : [],
-    link(<ImageAnalysisStatus state={image.state} />),
+    [
+      image.state === "unread"
+        ? m.experiment_cell_unread()
+        : m.experiment_cell_waiting(),
+    ],
+    link(<Absent />),
   );
 }
 

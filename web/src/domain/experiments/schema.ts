@@ -366,19 +366,25 @@ const imageFilenameSchema = z
     "Invalid image filename",
   );
 
+/** A stored photograph and the unit it shows. */
+const unitPhotoSchema = z.strictObject({
+  unit: unitIdSchema,
+  digest: imageDigestSchema,
+  filename: imageFilenameSchema,
+});
+
 export const observationImageAssignmentSchema = z.strictObject({
   experiment: experimentIdSchema,
   observation: observationIdSchema,
-  images: z
-    .array(
-      z.strictObject({
-        unit: unitIdSchema,
-        digest: imageDigestSchema,
-        filename: imageFilenameSchema,
-      }),
-    )
-    .min(1, "No images to assign"),
+  images: z.array(unitPhotoSchema).min(1, "No images to assign"),
 });
+
+/** A new observation day with the photographs taken on it, each matched to its unit. */
+export const observationRecordSchema = observationRequestSchema.extend({
+  images: z.array(unitPhotoSchema),
+});
+
+export type ObservationRecord = z.infer<typeof observationRecordSchema>;
 
 export type ObservationImageAssignment = z.infer<
   typeof observationImageAssignmentSchema

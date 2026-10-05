@@ -6,41 +6,26 @@ import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
 import { formatDay } from "../../ui/Day";
 import { Icon } from "../../ui/kit/Icon";
-import { SegmentBar } from "../../ui/kit/SegmentBar";
 import {
   SummaryCard,
   SummaryCardBand,
-  SummaryCardMetric,
   SummaryCardStats,
 } from "../../ui/kit/SummaryCard";
-import { Tag } from "../../ui/kit/Tag";
 import { formatCount } from "../../ui/numbers";
-import {
-  ImageAnalysisStatus,
-  summarizedImageAnalysis,
-} from "./ImageAnalysisStatus";
-import { joinFacts } from "./labels";
+import { joinFacts, observationLabel } from "./labels";
+import { TreatmentDot } from "./TreatmentDot";
 
 const SHOWN_TREATMENTS = 4;
 
 /**
  * An experiment on the overview: what it grows and when it was inoculated,
- * how far detection has gone through its photographs, its counts, and its
- * treatments.
+ * how its treatments compare on the newest day that reads, and its size.
  */
 export function ExperimentCard({
-  summary: { experiment, treatmentNames, latestDay, counts },
+  summary: { experiment, treatments, observations, photos, latest },
 }: {
   summary: ExperimentSummary;
 }) {
-  const total =
-    counts.unread +
-    counts.pending +
-    counts.failed +
-    counts.analyzed +
-    counts.proposed;
-  const state = summarizedImageAnalysis(counts);
-  const hidden = treatmentNames.length - SHOWN_TREATMENTS;
   return (
     <SummaryCard
       icon={FlaskConical}
@@ -61,75 +46,74 @@ export function ExperimentCard({
         />
       }
       footer={
-        <>
-          <SummaryCardStats
-            items={[
-              {
-                label: m.experiment_stat_treatments(),
-                value: formatCount(treatmentNames.length),
-              },
-              {
-                label: m.experiment_card_latest(),
-                value:
-                  latestDay === null ? (
-                    <Absent />
-                  ) : (
-                    m.observation_day_label({ day: latestDay })
-                  ),
-              },
-              {
-                label: m.experiment_card_photos(),
-                value: formatCount(total),
-              },
-            ]}
-          />
-          {treatmentNames.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {treatmentNames.slice(0, SHOWN_TREATMENTS).map((name) => (
-                <Tag key={name} size="small">
-                  {name}
-                </Tag>
-              ))}
-              {hidden > 0 ? (
-                <Tag size="small">
-                  {m.experiment_card_more_treatments({ count: hidden })}
-                </Tag>
-              ) : null}
-            </div>
-          ) : null}
-        </>
+        <SummaryCardStats
+          items={[
+            {
+              label: m.experiment_stat_treatments(),
+              value: formatCount(treatments.length),
+            },
+            {
+              label: m.experiment_stat_observations(),
+              value: formatCount(observations),
+            },
+            {
+              label: m.experiment_card_photos(),
+              value: formatCount(photos),
+            },
+          ]}
+        />
       }
     >
-      {total > 0 ? (
-        <SummaryCardBand
-          aside={
-            <SegmentBar
-              aria-label={m.experiment_stat_images()}
-              size="small"
-              segments={[
-                { color: "var(--color-success)", value: counts.analyzed },
-                { color: "var(--color-info)", value: counts.proposed },
-                { color: "var(--color-warning)", value: counts.pending },
-                { color: "var(--color-error)", value: counts.failed },
+      {latest ? (
+        <SummaryCardBand>
+          <div className="flex min-w-0 flex-col gap-3">
+            <span className="text-xs text-fg-tertiary">
+              {m.experiment_card_latest({
+                day: observationLabel(latest.observation),
+              })}
+            </span>
+            <SummaryCardStats
+              items={[
+                ...treatments.slice(0, SHOWN_TREATMENTS).map((treatment) => {
+                  const value = latest.treatments.find(
+                    (item) => item.treatment === treatment.id,
+                  )?.summary.value;
+                  return {
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        <TreatmentDot position={treatment.position} />
+                        {treatment.name}
+                      </span>
+                    ),
+                    value:
+                      value === null || value === undefined ? (
+                        <Absent />
+                      ) : (
+                        formatCount(value)
+                      ),
+                  };
+                }),
+                ...(treatments.length > SHOWN_TREATMENTS
+                  ? [
+                      {
+                        label: m.experiment_card_more_treatments_label(),
+                        value: m.experiment_card_more_treatments({
+                          count: treatments.length - SHOWN_TREATMENTS,
+                        }),
+                      },
+                    ]
+                  : []),
               ]}
             />
-          }
-        >
-          <SummaryCardMetric
-            value={m.experiment_stat_images_value({
-              analyzed: counts.analyzed,
-              total,
-            })}
-            label={m.experiment_stat_images()}
-            status={state ? <ImageAnalysisStatus state={state} /> : null}
-          />
+          </div>
         </SummaryCardBand>
       ) : (
         <SummaryCardBand variant="empty">
           <Icon icon={ImageOff} size={24} className="text-fg-quaternary" />
-          <span>{m.experiment_card_no_photos()}</span>
-          <span className="text-xs text-fg-quaternary">
-            {m.experiment_card_no_photos_hint()}
+          <span>
+            {photos > 0
+              ? m.experiment_card_no_readings()
+              : m.experiment_card_no_photos()}
           </span>
         </SummaryCardBand>
       )}

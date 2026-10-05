@@ -8,7 +8,7 @@ import {
   observationImageAssignmentSchema,
   observationImageRefSchema,
   observationRefSchema,
-  observationRequestSchema,
+  observationRecordSchema,
   observationUpdateSchema,
   replicateRequestSchema,
   treatmentRefSchema,
@@ -34,7 +34,6 @@ import {
   updateUnit,
   deleteCultureEvent,
   recordCultureEvents,
-  addObservation,
   deleteObservation,
   updateObservation,
   listExperimentNames,
@@ -134,9 +133,9 @@ export const removeCultureEvent = createServerFn({ method: "POST" })
   .validator(cultureEventRefSchema)
   .handler(({ data }) => deleteCultureEvent(data));
 
-export const createObservation = createServerFn({ method: "POST" })
-  .validator(observationRequestSchema)
-  .handler(({ data }) => addObservation(data));
+export const recordObservation = createServerFn({ method: "POST" })
+  .validator(observationRecordSchema)
+  .handler(({ data }) => observationImages.recordObservation(data));
 
 export const editObservation = createServerFn({ method: "POST" })
   .validator(observationUpdateSchema)

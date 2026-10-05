@@ -22,7 +22,9 @@ import {
 } from "../../domain/experiments/errors";
 import {
   daysBetween,
+  type ExperimentObservation,
   type ObservationImageAssignment,
+  type ObservationRecord,
   type ObservationImageAssignmentResult,
   type ObservationImageRef,
 } from "../../domain/experiments/schema";
@@ -32,9 +34,30 @@ import {
   lockExperiment,
   requireObservation,
 } from "./records";
+import { addObservation } from "./observations";
 import { readExperimentObservationImage } from "./queries";
 import { lockImage } from "../images/public";
 import { clearDetectionFailure } from "../inference/public";
+
+/** Adds an observation day and matches the photographs taken on it to their units, together. */
+export async function recordObservation(
+  { images: photos, ...request }: ObservationRecord,
+  executor?: Executor,
+): Promise<ExperimentObservation> {
+  return inTransaction(executor, async (tx) => {
+    const observation = await addObservation(request, tx);
+    if (photos.length === 0) return observation;
+    const assigned = await assignObservationImages(
+      {
+        experiment: request.experiment,
+        observation: observation.id,
+        images: photos,
+      },
+      tx,
+    );
+    return assigned.observation;
+  });
+}
 
 export async function assignObservationImages(
   value: ObservationImageAssignment,
@@ -173,7 +196,13 @@ export async function assignObservationImages(
         filename: assignment.filename,
       })),
     );
-    return { observation, assigned: assignments.length };
+    return {
+      observation: requireObservation(
+        await listObservations(experiment, tx),
+        observationId,
+      ),
+      assigned: assignments.length,
+    };
   });
 }
 

@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "experiments_title": "实验",
   "experiments_empty": "还没有实验",
-  "experiment_card_latest": "最新观测",
+  "experiment_card_latest": "{day} · 每个试验单元的平均计数",
   "experiment_new": "新建实验",
   "experiment_not_started": "实验未创建",
   "experiment_start": "创建",
@@ -38,14 +38,6 @@
   "experiment_units_not_moved": "没有换成功",
   "experiment_column_treatment": "处理",
   "experiment_column_actions": "操作",
-  "experiment_cell_analyzed": [
-    {
-      "declarations": ["input value", "local formattedValue = value: number"],
-      "match": {
-        "value=*": "检测 {formattedValue}"
-      }
-    }
-  ],
   "experiment_cell_excluded": "本次观测不计入分析",
   "experiment_export": "导出表格",
   "workbook_column_factor": "因子",
@@ -54,9 +46,6 @@
   "workbook_quantity_replicates": "重复数",
   "workbook_row_mean": "均值",
   "workbook_exported": "导出日期",
-  "image_analysis_pending": "待检测",
-  "image_analysis_analyzed": "已检测",
-  "image_analysis_failed": "失败",
   "observation_day_label": [
     {
       "declarations": ["input day", "local formattedDay = day: number"],
@@ -67,13 +56,11 @@
   ],
   "observation_label": "观测日",
   "observations_label": "观测日",
-  "observation_new": "新建观测日",
   "observation_not_added": "观测日未添加",
   "observation_date_label": "观测日期",
   "observation_before_inoculation": "观测日不能早于接种日",
   "observation_note_label": "备注",
   "observation_actions": "{observation} 的操作",
-  "observation_menu_assign_images": "对应到试验单元…",
   "observation_menu_add_to_dataset": "图片加入数据集…",
   "observation_add_to_dataset": "图片加入数据集",
   "observation_menu_edit": "编辑观测日…",
@@ -182,12 +169,9 @@
   "treatment_unit_label": "单位",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "模型",
-  "image_analysis_unread": "无检测器",
-  "image_analysis_proposed": "有 AI 建议",
-  "experiment_cell_proposed": "AI 建议",
   "experiments_empty_description": "新建实验，布置处理与试验单元。",
   "experiment_no_observations": "还没有观测日",
-  "experiment_no_observations_description": "添加观测日，再把当天的照片对应到试验单元。",
+  "experiment_no_observations_description": "记录一个观测日，并上传当天拍的照片。",
   "treatment_deleted": "已删除 {name}",
   "experiment_selection_count": [
     {
@@ -223,30 +207,7 @@
   "unit_open_experiment": "打开实验",
   "experiment_meta_inoculated": "{day} 接种",
   "experiment_stat_treatments": "处理",
-  "experiment_stat_units": "试验单元",
   "experiment_stat_observations": "观测日",
-  "experiment_stat_images": "已分析图像",
-  "experiment_stat_images_value": [
-    {
-      "declarations": [
-        "input analyzed",
-        "input total",
-        "local formattedAnalyzed = analyzed: number",
-        "local formattedTotal = total: number"
-      ],
-      "match": {
-        "analyzed=*": "{formattedAnalyzed} / {formattedTotal}"
-      }
-    }
-  ],
-  "experiment_stat_images_pending": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 张待检测"
-      }
-    }
-  ],
   "experiment_group_culture": "培养",
   "experiments_description": "按处理布置试验单元，在每个观测日拍照，读出萌发与再生的结果。",
   "experiment_card_photos": "照片",
@@ -259,11 +220,6 @@
     }
   ],
   "experiment_card_no_photos": "还没有照片",
-  "experiment_card_no_photos_hint": "在观测日上传照片后，这里显示检测进度。",
-  "experiment_hero_title": "{day} · 试验单元均值",
-  "experiment_hero_leader": "最高：{treatment} {value}",
-  "experiment_hero_trend": "各观测日的均值",
-  "experiment_hero_point": "{day}：{value}",
   "unit_steps": "试验单元与观测日",
   "unit_unreviewed_count": [
     {
@@ -275,5 +231,24 @@
   ],
   "unit_culture_status": "培养状态",
   "unit_no_image_on_day": "这一天没有这个试验单元的照片",
-  "unit_no_image_on_day_description": "在实验表格中，把这一天的照片对应到这个试验单元。"
+  "unit_no_image_on_day_description": "在实验表格中，把这一天的照片对应到这个试验单元。",
+  "observation_record": "记录观测日",
+  "observation_record_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "记录并对应 {formattedCount} 张"
+      }
+    }
+  ],
+  "observation_menu_add_photos": "补传照片…",
+  "experiment_trend_title": "处理对比",
+  "experiment_trend_title_model": "处理对比 · {model}",
+  "experiment_trend_value": "每个试验单元的平均计数",
+  "experiment_cell_unreviewed": "待复核",
+  "experiment_cell_failed": "失败",
+  "experiment_cell_unread": "这个模型还没有版本，点开照片可以手动计数",
+  "experiment_cell_waiting": "等待模型计数",
+  "experiment_card_no_readings": "还没有计数",
+  "experiment_card_more_treatments_label": "其他处理"
 }

@@ -26,9 +26,14 @@ export interface LineChartProps {
   categories: string[];
   /** Recharts elements drawn inside the chart after the lines. */
   children?: ReactNode;
-  data: Record<string, number>[];
+  /** One row per x value; a category without a value there leaves a gap in its line. */
+  data: Partial<Record<string, number>>[];
   height: number;
   index: string;
+  /** Formats the x axis ticks; the bare number by default. */
+  indexFormatter?: (value: number) => string;
+  /** The x values to mark on the axis, in place of evenly spaced ones. */
+  indexTicks?: number[];
   /** Display names by category. */
   labels: Record<string, string>;
   title: string;
@@ -65,14 +70,16 @@ function textWidth(text: string): number {
  * measured in the browser; the server and the first client frame use 16px.
  */
 function useValueAxisWidth(
-  data: Record<string, number>[],
+  data: Partial<Record<string, number>>[],
   categories: string[],
   valueFormatter: (value: number) => string,
 ): number {
   let widest = "";
   for (const row of data) {
     for (const category of categories) {
-      const formatted = valueFormatter(row[category]!);
+      const value = row[category];
+      if (value === undefined) continue;
+      const formatted = valueFormatter(value);
       if (formatted.length > widest.length) widest = formatted;
     }
   }
@@ -85,6 +92,8 @@ export function LineChart({
   data,
   height,
   index,
+  indexFormatter,
+  indexTicks,
   labels,
   title,
   tooltipLabelFormatter,
@@ -122,7 +131,9 @@ export function LineChart({
                 className: "ui-line-chart-label",
                 transform: "translate(0, 6)",
               }}
+              tickFormatter={indexFormatter}
               tickLine={false}
+              ticks={indexTicks}
               type="number"
             />
             <YAxis

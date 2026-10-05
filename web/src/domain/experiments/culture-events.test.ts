@@ -11,6 +11,7 @@ import {
   exclusionAt,
   latestCultureEvent,
   unitIsAvailableAt,
+  unitIsAvailableOn,
   unitIsIncludedInAnalysis,
 } from "./culture-events";
 
@@ -77,6 +78,20 @@ describe("unit event effects", () => {
     expect(
       unitIsIncludedInAnalysis(events, observations[1]!, ordinals),
     ).toBeFalse();
+  });
+
+  test("a day not yet recorded follows the same rule by its date", () => {
+    const events = [event({ type: "harvested" })];
+
+    expect(unitIsAvailableOn(events, "2026-08-08", observations)).toBeTrue();
+    expect(unitIsAvailableOn(events, "2026-08-09", observations)).toBeFalse();
+    expect(
+      unitIsAvailableOn(
+        [event({ type: "contaminated" })],
+        "2026-08-09",
+        observations,
+      ),
+    ).toBeTrue();
   });
 
   test("an event the unit survives leaves it on the bench", () => {

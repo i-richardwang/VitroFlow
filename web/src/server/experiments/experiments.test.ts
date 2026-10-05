@@ -58,6 +58,7 @@ import {
 } from "./culture-events";
 import {
   assignObservationImages,
+  recordObservation,
   retryObservationImageAnalysis,
   unassignObservationImage,
 } from "./observation-images";
@@ -287,8 +288,9 @@ describe("experiments", () => {
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
-    expect(summary?.treatmentNames).toEqual(["CK", "T1"]);
-    expect(summary?.latestDay).toBeNull();
+    expect(summary?.treatments.map((item) => item.name)).toEqual(["CK", "T1"]);
+    expect(summary?.observations).toBe(0);
+    expect(summary?.latest).toBeNull();
   });
 
   test("an experiment cannot be created without a design", async () => {
@@ -895,14 +897,57 @@ describe("experiments", () => {
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
-    expect(summary?.latestDay).toBe(21);
-    expect(summary?.counts).toEqual({
-      unread: 0,
-      pending: 4,
-      failed: 0,
-      analyzed: 0,
-      proposed: 0,
+    expect(summary?.observations).toBe(3);
+    expect(summary?.photos).toBe(4);
+    expect(
+      summary?.latest,
+      "photographs not yet counted read nothing",
+    ).toBeNull();
+  });
+
+  test("an observation day is recorded with its photographs, or not at all", async () => {
+    const version = await trainedVersion("exp-record");
+    const experiment = await createExperiment({
+      name: "Record",
+      inoculatedOn: INOCULATED,
+      treatments: [{ name: "A", replicates: 2 }],
     });
+    const units = await unitsOf(experiment.id);
+    const [first, second] = await storeTexts(["record-a1", "record-a2"]);
+
+    const day = await recordObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-07",
+      note: "",
+      ...reading(version),
+      images: [
+        { unit: units.get("A-1")!, digest: first!, filename: "A-1.jpg" },
+        { unit: units.get("A-2")!, digest: second!, filename: "A-2.jpg" },
+      ],
+    });
+    expect(day.hasRecords).toBeTrue();
+    const grid = await readExperimentGrid(experiment.id);
+    expect(grid?.observations.map((item) => item.id)).toEqual([day.id]);
+    expect(grid?.images.map((image) => image.observation)).toEqual([
+      day.id,
+      day.id,
+    ]);
+
+    await expect(
+      recordObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-14",
+        note: "",
+        ...reading(version),
+        images: [
+          { unit: units.get("A-1")!, digest: first!, filename: "A-1.jpg" },
+        ],
+      }),
+    ).rejects.toThrow(ExperimentObservationImageAlreadyUsedError);
+    expect(
+      (await readExperimentGrid(experiment.id))?.observations,
+      "a refused photograph leaves no empty day behind",
+    ).toHaveLength(1);
   });
 
   test("observations cannot precede inoculation at either boundary", async () => {

@@ -1,7 +1,18 @@
 import type { ReviewSource } from "../annotation/schema";
 import { count, type Tally } from "../models/classes";
-import type { ImageReview, ObservationImageCell, Unit } from "./contracts";
-import { exclusionAt, type ObservationOrdinals } from "./culture-events";
+import type {
+  ExperimentGrid,
+  ImageReview,
+  ObservationImageCell,
+  Summary,
+  TrendDay,
+  Unit,
+} from "./contracts";
+import {
+  exclusionAt,
+  observationOrdinals,
+  type ObservationOrdinals,
+} from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 
 /** What a unit read on a day: the individuals found, and who stood behind the number. */
@@ -75,17 +86,6 @@ export function unitReading(
   };
 }
 
-/**
- * A quantity over the replicates of one treatment: the typical value and its
- * spread. Units without a value are absent. The spread is the sample standard
- * deviation, which a single replicate does not have.
- */
-export interface Summary {
-  value: number | null;
-  deviation: number | null;
-  sampleSize: number;
-}
-
 export function summarize(values: readonly number[]): Summary {
   if (values.length === 0) {
     return { value: null, deviation: null, sampleSize: 0 };
@@ -117,5 +117,40 @@ export function treatmentSummary(
       const reading = unitReading(cells, unit.id, observation);
       return reading ? [reading.count] : [];
     }),
+  );
+}
+
+/**
+ * How the treatments compare over time: every day with a reading that reads
+ * for the same model as the newest such day, since days that read for
+ * different models answer different questions. Empty until a day reads.
+ */
+export function treatmentTrend(
+  grid: Pick<
+    ExperimentGrid,
+    "treatments" | "units" | "observations" | "images"
+  >,
+): TrendDay[] {
+  const cells = observationCells(grid.images);
+  const ordinals = observationOrdinals(grid.observations);
+  const days = grid.observations.map((observation) => ({
+    observation,
+    treatments: grid.treatments.map((treatment) => ({
+      treatment: treatment.id,
+      summary: treatmentSummary(
+        cells,
+        grid.units.filter((unit) => unit.treatment === treatment.id),
+        observation,
+        ordinals,
+      ),
+    })),
+  }));
+  const read = days.filter((day) =>
+    day.treatments.some(({ summary }) => summary.value !== null),
+  );
+  const newest = read.at(-1);
+  if (!newest) return [];
+  return read.filter(
+    (day) => day.observation.modelId === newest.observation.modelId,
   );
 }

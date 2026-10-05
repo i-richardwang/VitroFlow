@@ -8,6 +8,7 @@ import {
   observationCells,
   summarize,
   treatmentSummary,
+  treatmentTrend,
   unitReading,
 } from "./readings";
 
@@ -192,5 +193,83 @@ describe("what a treatment read on a day", () => {
     const summary = treatment(germinated, [unit("A1"), unit("A2")])(sown);
     expect(summary.value).toBeNull();
     expect(summary.sampleSize).toBe(0);
+  });
+});
+
+describe("how the treatments compare over time", () => {
+  const first = observation(1);
+  const second = observation(2);
+  const recount = { ...observation(3), modelId: "seedling-detector" };
+  const treatments = ["control", "auxin"].map((id, index) => ({
+    id,
+    name: id,
+    factor: null,
+    note: "",
+    position: index + 1,
+  }));
+  const units: Unit[] = [
+    { id: "C1", code: "C1", treatment: "control", events: [] },
+    { id: "X1", code: "X1", treatment: "auxin", events: [] },
+  ];
+
+  test("follows every treatment over the days that read", () => {
+    const trend = treatmentTrend({
+      treatments,
+      units,
+      observations: [first, second],
+      images: [
+        cell("C1", first.id, { detectionTally: { germinated: 2 } }),
+        cell("C1", second.id, { detectionTally: { germinated: 4 } }),
+        cell("X1", second.id, { detectionTally: { germinated: 9 } }),
+      ],
+    });
+    expect(
+      trend.map((day) => [
+        day.observation.id,
+        day.treatments.map(({ treatment, summary }) => [
+          treatment,
+          summary.value,
+        ]),
+      ]),
+    ).toEqual([
+      [
+        first.id,
+        [
+          ["control", 2],
+          ["auxin", null],
+        ],
+      ],
+      [
+        second.id,
+        [
+          ["control", 4],
+          ["auxin", 9],
+        ],
+      ],
+    ]);
+  });
+
+  test("keeps to the model the newest reading day reads for", () => {
+    const trend = treatmentTrend({
+      treatments,
+      units,
+      observations: [first, second, recount],
+      images: [
+        cell("C1", first.id, { detectionTally: { germinated: 2 } }),
+        cell("C1", recount.id, { detectionTally: { seedling: 1 } }),
+      ],
+    });
+    expect(trend.map((day) => day.observation.id)).toEqual([recount.id]);
+  });
+
+  test("is empty until a day reads", () => {
+    expect(
+      treatmentTrend({
+        treatments,
+        units,
+        observations: [first],
+        images: [cell("C1", first.id, { state: "pending" })],
+      }),
+    ).toEqual([]);
   });
 });

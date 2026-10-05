@@ -16,7 +16,6 @@ export interface Uploads {
   images: ListedImage[];
   add: (files: File[]) => void;
   remove: (id: number) => void;
-  clearStored: () => void;
   storing: boolean;
   failed: boolean;
 }
@@ -99,17 +98,10 @@ export function useUploads(): Uploads {
     setImages((current) => current.filter((image) => image.id !== id));
   }, []);
 
-  const clearStored = useCallback(() => {
-    setImages((current) =>
-      current.filter((image) => image.state.status !== "stored"),
-    );
-  }, []);
-
   return {
     images,
     add,
     remove,
-    clearStored,
     storing: images.some((image) => image.state.status === "storing"),
     failed: images.some((image) => image.state.status === "failed"),
   };

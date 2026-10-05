@@ -17,6 +17,7 @@ export {
 } from "./design";
 export {
   assignObservationImages,
+  recordObservation,
   retryObservationImageAnalysis,
   unassignObservationImage,
 } from "./observation-images";

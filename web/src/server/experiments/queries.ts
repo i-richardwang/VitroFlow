@@ -1,20 +1,10 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  max,
-  sql,
-  type AnyColumn,
-  type SQL,
-} from "drizzle-orm";
+import { and, asc, desc, eq, sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 import { inSnapshot, snapshot, type Executor } from "../infra/db/client";
 import {
   annotations,
   experimentObservationImages,
   experimentObservations,
-  experimentTreatments,
   experimentUnits,
   experiments,
   inferenceOutcomes,
@@ -33,12 +23,13 @@ import {
   cellKey,
   imageReview,
   observationCells,
+  treatmentTrend,
 } from "../../domain/experiments/readings";
-import {
-  daysBetween,
-  type ImageAnalysisState,
-  type ObservationImageRef,
-  type UnitRef,
+import type {
+  Experiment,
+  ImageAnalysisState,
+  ObservationImageRef,
+  UnitRef,
 } from "../../domain/experiments/schema";
 import type { Tally } from "../../domain/models/classes";
 import {
@@ -156,26 +147,31 @@ async function listObservationImageCells(
   return rows.map(toCell);
 }
 
+async function readGrid(
+  experiment: Experiment,
+  db: Executor,
+): Promise<ExperimentGrid> {
+  const [treatments, units, observations, images] = await Promise.all([
+    listTreatments(experiment.id, db),
+    listUnits(experiment.id, db),
+    listObservations(experiment, db),
+    listObservationImageCells(experiment.id, db),
+  ]);
+  return {
+    experiment,
+    treatments,
+    units: unitOrder(units, treatments),
+    observations,
+    images,
+  };
+}
+
 export function readExperimentGrid(
   experimentId: string,
 ): Promise<ExperimentGrid | null> {
   return snapshot(async (db) => {
     const experiment = await readExperimentRecord(experimentId, db);
-    if (!experiment) return null;
-    const [treatments, units, observations, observationImages] =
-      await Promise.all([
-        listTreatments(experimentId, db),
-        listUnits(experimentId, db),
-        listObservations(experiment, db),
-        listObservationImageCells(experimentId, db),
-      ]);
-    return {
-      experiment,
-      treatments,
-      units: unitOrder(units, treatments),
-      observations,
-      images: observationImages,
-    };
+    return experiment ? readGrid(experiment, db) : null;
   });
 }
 
@@ -256,92 +252,26 @@ export function listExperimentNames(): Promise<{ id: string; name: string }[]> {
 async function listExperimentSummaries(
   db: Executor,
 ): Promise<ExperimentSummary[]> {
-  const [base, treatmentRows, observationRows, observationImageRows] =
-    await Promise.all([
-      db
-        .select()
-        .from(experiments)
-        .orderBy(
-          desc(experiments.createdAt),
-          asc(experiments.name),
-          asc(experiments.id),
-        ),
-      db
-        .select({
-          experimentId: experimentTreatments.experimentId,
-          name: experimentTreatments.name,
-          position: experimentTreatments.position,
-        })
-        .from(experimentTreatments)
-        .orderBy(asc(experimentTreatments.position)),
-      db
-        .select({
-          experimentId: experimentObservations.experimentId,
-          observedOn: max(experimentObservations.observedOn),
-        })
-        .from(experimentObservations)
-        .groupBy(experimentObservations.experimentId),
-      db
-        .select({
-          experimentId: experimentObservationImages.experimentId,
-          unread: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${modelVersions.id} is null)`,
-          pending: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${modelVersions.id} is not null and ${inferenceOutcomes.imageId} is null)`,
-          failed: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${inferenceOutcomes.status} = 'failed')`,
-          analyzed: sql<number>`count(*) filter (where ${proposalRuns.id} is null and ${inferenceOutcomes.status} = 'succeeded')`,
-          proposed: sql<number>`count(*) filter (where ${proposalRuns.id} is not null)`,
-        })
-        .from(experimentObservationImages)
-        .innerJoin(experimentObservations, atImageObservation())
-        .leftJoin(
-          modelVersions,
-          eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
-        )
-        .leftJoin(inferenceOutcomes, atImageOutcome())
-        .leftJoin(proposalRuns, atImageProposal())
-        .groupBy(experimentObservationImages.experimentId),
-    ]);
-  const names = new Map<string, string[]>();
-  for (const row of treatmentRows) {
-    const current = names.get(row.experimentId) ?? [];
-    current.push(row.name);
-    names.set(row.experimentId, current);
-  }
-  const latest = new Map(
-    observationRows.flatMap((row) =>
-      row.observedOn ? [[row.experimentId, row.observedOn] as const] : [],
-    ),
+  const rows = await db
+    .select()
+    .from(experiments)
+    .orderBy(
+      desc(experiments.createdAt),
+      asc(experiments.name),
+      asc(experiments.id),
+    );
+  return Promise.all(
+    rows.map(async (row) => {
+      const grid = await readGrid(toExperiment(row), db);
+      return {
+        experiment: grid.experiment,
+        treatments: grid.treatments,
+        observations: grid.observations.length,
+        photos: grid.images.length,
+        latest: treatmentTrend(grid).at(-1) ?? null,
+      };
+    }),
   );
-  const counts = new Map(
-    observationImageRows.map((row) => [
-      row.experimentId,
-      {
-        unread: Number(row.unread),
-        pending: Number(row.pending),
-        failed: Number(row.failed),
-        analyzed: Number(row.analyzed),
-        proposed: Number(row.proposed),
-      },
-    ]),
-  );
-  return base.map((row) => {
-    const experiment = toExperiment(row);
-    const observedOn = latest.get(experiment.id);
-    return {
-      experiment,
-      treatmentNames: names.get(experiment.id) ?? [],
-      latestDay:
-        observedOn === undefined
-          ? null
-          : daysBetween(experiment.inoculatedOn, observedOn),
-      counts: counts.get(experiment.id) ?? {
-        unread: 0,
-        pending: 0,
-        failed: 0,
-        analyzed: 0,
-        proposed: 0,
-      },
-    };
-  });
 }
 
 function atObservationImage(experimentId: string, observationImageId: string) {
