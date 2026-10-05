@@ -67,29 +67,19 @@ export function AppNav({
    */
   renderLink: (props: AppNavLinkProps) => ReactNode;
 }) {
-  const shell = useAppShell();
   const activeHref = resolveActiveHref(pathname, [
     ...items,
     ...groups.flatMap((group) => group.items),
   ]);
-  const link = (item: AppNavItem, iconSize: number) => {
-    const active = item.href === activeHref;
-    return renderLink({
-      "aria-current": active ? "page" : undefined,
-      children: (
-        <>
-          <span className="ui-app-nav-item-icon">
-            <Icon icon={item.icon} size={iconSize} />
-          </span>
-          <span className="ui-app-nav-item-label">{item.label}</span>
-        </>
-      ),
-      className: "ui-app-nav-item",
-      "data-active": active,
-      href: item.href,
-      onClick: shell.closeNavigation,
-    });
-  };
+  const link = (item: AppNavItem, iconSize: number) => (
+    <AppNavLink
+      active={item.href === activeHref}
+      iconSize={iconSize}
+      item={item}
+      key={item.href}
+      renderLink={renderLink}
+    />
+  );
   return (
     <ScrollShadow
       aria-label={m.ui_nav_label()}
@@ -128,4 +118,33 @@ export function AppNav({
       ))}
     </ScrollShadow>
   );
+}
+
+function AppNavLink({
+  active,
+  iconSize,
+  item,
+  renderLink,
+}: {
+  active: boolean;
+  iconSize: number;
+  item: AppNavItem;
+  renderLink: (props: AppNavLinkProps) => ReactNode;
+}) {
+  const shell = useAppShell();
+  return renderLink({
+    "aria-current": active ? "page" : undefined,
+    children: (
+      <>
+        <span className="ui-app-nav-item-icon">
+          <Icon icon={item.icon} size={iconSize} />
+        </span>
+        <span className="ui-app-nav-item-label">{item.label}</span>
+      </>
+    ),
+    className: "ui-app-nav-item",
+    "data-active": active,
+    href: item.href,
+    onClick: shell.closeNavigation,
+  });
 }
