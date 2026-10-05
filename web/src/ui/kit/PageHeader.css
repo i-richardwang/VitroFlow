@@ -28,6 +28,13 @@
   }
 }
 
+.ui-page-header-identity {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-inline-size: 0;
+}
+
 .ui-page-header-main {
   display: flex;
   flex-direction: column;

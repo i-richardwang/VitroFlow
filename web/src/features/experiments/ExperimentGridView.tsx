@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarPlus, Plus, Sparkles } from "lucide-react";
+import { CalendarPlus, FlaskConical, Plus, Sparkles } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
 import type {
@@ -20,7 +20,11 @@ import {
   type Reading,
   type Summary,
 } from "../../domain/experiments/readings";
-import { formatFactor, type Treatment } from "../../domain/experiments/schema";
+import {
+  formatFactor,
+  type ExperimentObservation,
+  type Treatment,
+} from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
@@ -30,7 +34,12 @@ import { Button } from "../../ui/kit/Button";
 import { cn } from "../../ui/kit/cn";
 import { Empty } from "../../ui/kit/Empty";
 import { Icon } from "../../ui/kit/Icon";
-import { Statistic, StatisticGroup } from "../../ui/kit/Statistic";
+import { Sparkline } from "../../ui/kit/Sparkline";
+import {
+  Statistic,
+  StatisticGroup,
+  StatisticHero,
+} from "../../ui/kit/Statistic";
 import {
   Table,
   TableBody,
@@ -48,6 +57,7 @@ import { Page } from "../../ui/Page";
 import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
 import { ImageAnalysisStatus } from "./ImageAnalysisStatus";
+import { observationLabel } from "./labels";
 import { ObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
 import { TreatmentDialog } from "./TreatmentDialog";
@@ -117,6 +127,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
     <Page
       title={experiment.name}
       subject
+      icon={FlaskConical}
       meta={[
         experiment.plantMaterial,
         experiment.explantType,
@@ -136,6 +147,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         </>
       }
     >
+      <ReadingsHero data={data} />
       <ExperimentStats data={data} />
       <Table
         aria-label={m.experiment_grid_label({ experiment: experiment.name })}
@@ -319,6 +331,73 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         onClose={close}
       />
     </Page>
+  );
+}
+
+/**
+ * What the experiment reads so far: the mean count per unit on the latest
+ * day with readings, the treatment highest that day, and the mean on each
+ * earlier day that read for the same model. Nothing until a day has readings.
+ */
+function ReadingsHero({ data }: { data: ExperimentGridData }) {
+  const { treatments, units, observations, images } = data;
+  const cells = observationCells(images);
+  const ordinals = observationOrdinals(observations);
+  const mean = (
+    replicates: readonly Unit[],
+    observation: ExperimentObservation,
+  ) => treatmentSummary(cells, replicates, observation, ordinals).value;
+  const days = observations.flatMap((observation) => {
+    const value = mean(units, observation);
+    return value === null ? [] : [{ observation, value }];
+  });
+  const latest = days.at(-1);
+  if (!latest) return null;
+  const trend = days.filter(
+    (day) => day.observation.modelId === latest.observation.modelId,
+  );
+  const leader =
+    treatments.length > 1
+      ? treatments
+          .flatMap((treatment) => {
+            const value = mean(
+              units.filter((unit) => unit.treatment === treatment.id),
+              latest.observation,
+            );
+            return value === null ? [] : [{ treatment, value }];
+          })
+          .sort((a, b) => b.value - a.value)[0]
+      : undefined;
+  return (
+    <StatisticHero
+      value={formatCount(latest.value)}
+      title={m.experiment_hero_title({
+        day: observationLabel(latest.observation),
+      })}
+      description={
+        leader
+          ? m.experiment_hero_leader({
+              treatment: leader.treatment.name,
+              value: formatCount(leader.value),
+            })
+          : undefined
+      }
+      aside={
+        trend.length > 1 ? (
+          <Sparkline
+            aria-label={m.experiment_hero_trend()}
+            width={220}
+            points={trend.map((day) => ({
+              label: m.experiment_hero_point({
+                day: observationLabel(day.observation),
+                value: formatCount(day.value),
+              }),
+              value: day.value,
+            }))}
+          />
+        ) : undefined
+      }
+    />
   );
 }
 

@@ -136,6 +136,28 @@
   }
 }
 
+/* Bands inside the card: a toolbar over the header, a footer under the rows. */
+.ui-table-wrapper .ui-table-toolbar,
+.ui-table-wrapper .ui-table-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+
+  padding-block: 12px;
+  padding-inline: var(--ui-table-padding-edge);
+}
+
+.ui-table-wrapper .ui-table-toolbar {
+  border-block-end: 1px solid var(--color-border-secondary);
+}
+
+.ui-table-wrapper .ui-table-footer {
+  justify-content: flex-end;
+  border-block-start: 1px solid var(--color-border-secondary);
+}
+
 /* Inherits the header cell's type; only the chevron has its own color until hover. */
 .ui-table-head-menu {
   cursor: pointer;

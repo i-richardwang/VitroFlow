@@ -25,7 +25,12 @@ import { Icon } from "./Icon";
  * - `size="small"`: the dense header of a data grid, 12px in the tertiary
  *   color; the default header is 13px in the secondary color.
  * - `empty`: drawn instead of the table, header and all, when there are no
- *   rows; usually an `Empty` with the one way forward.
+ *   rows; usually an `Empty` with the one way forward. Under a `toolbar` it
+ *   takes the rows' place inside the card instead, so the filters stay.
+ * - `toolbar` and `footer`: bands inside the card above the header and under
+ *   the last row, 12px by 16px and ruled off from the rows; the toolbar
+ *   holds a search and filters with commands at its end, the footer a
+ *   `Pagination`.
  * - Whole-row click: `TableRow`'s `clickable`. A click anywhere on the row
  *   that is not on a control is passed to the link in its `cellSlot="title"`
  *   cell, modifier keys included, so the link stays the row's one tab stop
@@ -60,6 +65,10 @@ interface TableProps extends Omit<
   empty?: ReactNode;
   /** Takes the height its flex parent leaves it; the rows scroll under a pinned header. */
   fill?: boolean;
+  /** Under the last row, inside the card. */
+  footer?: ReactNode;
+  /** Above the header, inside the card. */
+  toolbar?: ReactNode;
   narrow?: "scroll" | "cards";
   size?: "small" | "middle";
   variant?: "outlined" | "borderless";
@@ -68,13 +77,16 @@ interface TableProps extends Omit<
 export function Table({
   empty,
   fill,
+  footer,
   narrow = "scroll",
   size = "middle",
+  toolbar,
   variant = "outlined",
   ...props
 }: TableProps) {
   const { contentRef, onScroll, shadow, tableRef } = useFixedColumns();
-  if (empty != null && empty !== false) {
+  const isEmpty = empty != null && empty !== false;
+  if (isEmpty && toolbar == null) {
     return (
       <div className="ui-table-empty" data-variant={variant}>
         {empty}
@@ -99,15 +111,25 @@ export function Table({
           shadow.end && "ui-table-fix-end-shadow-show",
         )}
       >
-        <div className="ui-table-container">
-          <div
-            className="ui-table-content"
-            ref={contentRef}
-            onScroll={onScroll}
-          >
-            <table ref={tableRef} {...props} />
+        {toolbar != null ? (
+          <div className="ui-table-toolbar">{toolbar}</div>
+        ) : null}
+        {isEmpty ? (
+          <div className="ui-table-empty">{empty}</div>
+        ) : (
+          <div className="ui-table-container">
+            <div
+              className="ui-table-content"
+              ref={contentRef}
+              onScroll={onScroll}
+            >
+              <table ref={tableRef} {...props} />
+            </div>
           </div>
-        </div>
+        )}
+        {footer != null && !isEmpty ? (
+          <div className="ui-table-footer">{footer}</div>
+        ) : null}
       </div>
     </div>
   );

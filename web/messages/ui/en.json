@@ -70,5 +70,9 @@
   "ui_shell_skip_to_content": "Skip to content",
   "ui_table_select_all": "Select all",
   "ui_viewport_fill": "Fill frame",
-  "ui_viewport_zoom": "Zoom"
+  "ui_viewport_zoom": "Zoom",
+  "ui_pagination": "Pagination",
+  "ui_pagination_previous": "Previous page",
+  "ui_pagination_next": "Next page",
+  "ui_pagination_page": "Page {page}"
 }

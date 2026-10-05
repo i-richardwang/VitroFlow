@@ -60,6 +60,7 @@
 @import "../ui/kit/Avatar.css" layer(components);
 @import "../ui/kit/IconTile.css" layer(components);
 @import "../ui/kit/SegmentBar.css" layer(components);
+@import "../ui/kit/Sparkline.css" layer(components);
 @import "../ui/kit/SummaryCard.css" layer(components);
 @import "../ui/kit/LogoTile.css" layer(components);
 @import "../ui/kit/Settings.css" layer(components);
@@ -70,6 +71,8 @@
 @import "../ui/kit/Legend.css" layer(components);
 @import "../ui/kit/LineChart.css" layer(components);
 @import "../ui/kit/Table.css" layer(components);
+@import "../ui/kit/Pagination.css" layer(components);
+@import "../ui/kit/PreviewLayout.css" layer(components);
 
 /*
  * Dark mode is a class. The `dark` class on `<html>` is the only switch; the

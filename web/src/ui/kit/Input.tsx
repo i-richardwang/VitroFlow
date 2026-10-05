@@ -18,11 +18,12 @@ import { Icon } from "./Icon";
  * `.dark`, so rendering never reads the theme.
  */
 
-export type InputSize = "middle" | "large";
+export type InputSize = "small" | "middle" | "large";
 
 const SIZE = {
   large: "ui-input-size-large",
   middle: "ui-input-size-middle",
+  small: "ui-input-size-small",
 } as const;
 
 /** Class names of the field shell, also worn by DatePicker's field. */

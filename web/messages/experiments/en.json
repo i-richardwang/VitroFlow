@@ -275,5 +275,9 @@
     }
   ],
   "experiment_card_no_photos": "No photos yet",
-  "experiment_card_no_photos_hint": "Detection progress shows here once an observation day has photos."
+  "experiment_card_no_photos_hint": "Detection progress shows here once an observation day has photos.",
+  "experiment_hero_title": "{day} · mean per unit",
+  "experiment_hero_leader": "Highest: {treatment} {value}",
+  "experiment_hero_trend": "Mean by observation day",
+  "experiment_hero_point": "{day}: {value}"
 }

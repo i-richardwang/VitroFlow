@@ -263,5 +263,9 @@
     }
   ],
   "experiment_card_no_photos": "还没有照片",
-  "experiment_card_no_photos_hint": "在观测日上传照片后，这里显示检测进度。"
+  "experiment_card_no_photos_hint": "在观测日上传照片后，这里显示检测进度。",
+  "experiment_hero_title": "{day} · 试验单元均值",
+  "experiment_hero_leader": "最高：{treatment} {value}",
+  "experiment_hero_trend": "各观测日的均值",
+  "experiment_hero_point": "{day}：{value}"
 }

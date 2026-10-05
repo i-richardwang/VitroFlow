@@ -1,0 +1,56 @@
+.ui-pagination {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ui-pagination-item {
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-inline-size: 24px;
+  block-size: 24px;
+  padding-inline: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+
+  font: inherit;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg);
+
+  background: transparent;
+
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+
+  @apply focus-ring;
+
+  &:hover:not(:disabled, [aria-current]) {
+    background: var(--color-fill-secondary);
+  }
+
+  &[aria-current] {
+    cursor: default;
+    border-color: var(--color-primary);
+    font-weight: 600;
+    color: var(--color-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--color-fg-quaternary);
+  }
+}
+
+.ui-pagination-gap {
+  min-inline-size: 24px;
+  color: var(--color-fg-quaternary);
+  text-align: center;
+  letter-spacing: 2px;
+}

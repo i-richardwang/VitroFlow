@@ -53,6 +53,13 @@
   height: 32px;
 }
 
+.ui-input-size-small {
+  height: 24px;
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+}
+
 :where(.dark) .ui-input {
   border: 1px solid transparent;
   background: var(--color-fill-tertiary);

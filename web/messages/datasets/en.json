@@ -4,8 +4,6 @@
   "datasets_empty": "No datasets yet",
   "dataset_download": "Download",
   "dataset_training": "Training",
-  "dataset_kpi_reviewed": "Reviewed",
-  "dataset_kpi_training_runs": "Training runs",
   "dataset_reviewed_since_last_run": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
@@ -126,20 +124,6 @@
   "dataset_remove_title": "Remove {file} from {dataset}?",
   "dataset_image_removed": "{file} removed from {dataset}",
   "dataset_open_experiments": "Open experiments",
-  "dataset_kpi_reviewed_value": [
-    {
-      "declarations": [
-        "input reviewed",
-        "input total",
-        "local formattedReviewed = reviewed: number",
-        "local formattedTotal = total: number"
-      ],
-      "match": {
-        "reviewed=*": "{formattedReviewed} / {formattedTotal}"
-      }
-    }
-  ],
-  "dataset_images_section": "Images",
   "dataset_actions": "Actions for {dataset}",
   "datasets_description": "Photos picked from experiments and annotated, to train new versions of a model.",
   "dataset_card_facts": [
@@ -155,5 +139,21 @@
         "images=*": "{model} · {formattedImages} images · {formattedReviewed} reviewed"
       }
     }
-  ]
+  ],
+  "dataset_hero_images": "images",
+  "dataset_hero_mix": "Review progress",
+  "dataset_state_all": "All",
+  "dataset_state_reviewed": "Reviewed",
+  "dataset_state_proposed": "AI proposed",
+  "dataset_state_detected": "To review",
+  "dataset_state_unread": "Not detected",
+  "dataset_state_count": "{state} {count}",
+  "dataset_state_filter": "Filter by state",
+  "dataset_search": "Search file names",
+  "dataset_column_state": "State",
+  "dataset_no_matches": "No images match",
+  "dataset_no_matches_description": "Try another search or state.",
+  "dataset_preview_boxes": "Boxes",
+  "dataset_preview_quality": "Detection quality",
+  "dataset_preview_open": "Open to annotate"
 }

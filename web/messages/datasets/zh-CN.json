@@ -4,8 +4,6 @@
   "datasets_empty": "还没有数据集",
   "dataset_download": "下载",
   "dataset_training": "训练",
-  "dataset_kpi_reviewed": "已复核",
-  "dataset_kpi_training_runs": "训练次数",
   "dataset_reviewed_since_last_run": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
@@ -126,20 +124,6 @@
   "dataset_remove_title": "从 {dataset} 移除 {file}？",
   "dataset_image_removed": "已从 {dataset} 移除 {file}",
   "dataset_open_experiments": "打开实验",
-  "dataset_kpi_reviewed_value": [
-    {
-      "declarations": [
-        "input reviewed",
-        "input total",
-        "local formattedReviewed = reviewed: number",
-        "local formattedTotal = total: number"
-      ],
-      "match": {
-        "reviewed=*": "{formattedReviewed} / {formattedTotal}"
-      }
-    }
-  ],
-  "dataset_images_section": "图片",
   "dataset_actions": "{dataset} 的操作",
   "datasets_description": "从实验照片中挑选并标注，用来训练模型的新版本。",
   "dataset_card_facts": [
@@ -152,8 +136,24 @@
         "local formattedReviewed = reviewed: number"
       ],
       "match": {
-        "images=*": "{model} · {formattedImages} 张图像 · {formattedReviewed} 张已审核"
+        "images=*": "{model} · {formattedImages} 张图片 · {formattedReviewed} 张已复核"
       }
     }
-  ]
+  ],
+  "dataset_hero_images": "张图片",
+  "dataset_hero_mix": "复核进度",
+  "dataset_state_all": "全部",
+  "dataset_state_reviewed": "已复核",
+  "dataset_state_proposed": "AI 已标",
+  "dataset_state_detected": "待复核",
+  "dataset_state_unread": "未检测",
+  "dataset_state_count": "{state} {count}",
+  "dataset_state_filter": "按状态筛选",
+  "dataset_search": "搜索文件名",
+  "dataset_column_state": "状态",
+  "dataset_no_matches": "没有符合条件的图片",
+  "dataset_no_matches_description": "换个关键词或状态试试。",
+  "dataset_preview_boxes": "标记",
+  "dataset_preview_quality": "检测质量",
+  "dataset_preview_open": "打开标注"
 }

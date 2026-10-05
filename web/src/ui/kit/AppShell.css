@@ -306,3 +306,16 @@
   margin-block: calc(var(--ui-app-shell-main-padding-block) * -1);
   margin-inline: calc(var(--ui-app-shell-main-padding-inline) * -1);
 }
+
+.ui-app-shell-pane {
+  --surface-gutter: var(--ui-app-shell-main-padding-inline);
+
+  overflow-y: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  min-inline-size: 0;
+  padding-block: var(--ui-app-shell-main-padding-block);
+  padding-inline: var(--ui-app-shell-main-padding-inline);
+}

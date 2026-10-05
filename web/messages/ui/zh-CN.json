@@ -70,5 +70,9 @@
   "ui_shell_skip_to_content": "跳到主要内容",
   "ui_table_select_all": "全选",
   "ui_viewport_fill": "铺满画面",
-  "ui_viewport_zoom": "缩放"
+  "ui_viewport_zoom": "缩放",
+  "ui_pagination": "分页",
+  "ui_pagination_previous": "上一页",
+  "ui_pagination_next": "下一页",
+  "ui_pagination_page": "第 {page} 页"
 }

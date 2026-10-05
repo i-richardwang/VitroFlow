@@ -1,7 +1,11 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup as BaseToggleGroup } from "@base-ui/react/toggle-group";
 
-/* An exclusive group of compact toggles; once one is selected, clicking it again keeps it selected. */
+/*
+ * An exclusive group of compact toggles; once one is selected, clicking it
+ * again keeps it selected. `outlined` is a list's filter: the toggles share
+ * one 24px outlined box, parted by hairlines, the selected one on fill.
+ */
 
 export interface ToggleGroupOption<Value extends string> {
   disabled?: boolean;
@@ -16,6 +20,7 @@ export interface ToggleGroupProps<Value extends string> {
   options: ToggleGroupOption<Value>[];
   /** Nothing is selected while undefined. */
   value: Value | undefined;
+  variant?: "ghost" | "outlined";
 }
 
 export function ToggleGroup<Value extends string>({
@@ -23,11 +28,13 @@ export function ToggleGroup<Value extends string>({
   onChange,
   options,
   value,
+  variant = "ghost",
 }: ToggleGroupProps<Value>) {
   return (
     <BaseToggleGroup<Value>
       aria-label={ariaLabel}
       className="ui-toggle-group"
+      data-variant={variant}
       value={value === undefined ? [] : [value]}
       onValueChange={(next) => {
         const picked = next[0];

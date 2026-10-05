@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 
 import { m } from "../paraglide/messages";
 import { BackLink } from "./kit/BackLink";
+import type { IconProps } from "./kit/Icon";
 import { PageHeader } from "./kit/PageHeader";
 import { PageSkeleton } from "./kit/PageSkeleton";
+import { PreviewLayout, type Preview } from "./kit/PreviewLayout";
 import { Skeleton } from "./kit/Skeleton";
 import { useCrumbs } from "./shell/crumbs";
 
@@ -16,19 +18,24 @@ const COLUMN = "flex w-full flex-col gap-6 max-mobile:gap-4";
  * page's `action`. A list page names a kind of thing, with a `description`;
  * a `subject` page is about one thing and adds its `status` and `meta`. A
  * page below another opens with a link back to the page above it, from the
- * route's crumbs.
+ * route's crumbs. A page that previews its rows beside itself passes
+ * `preview`, null while nothing is open, and fills the card edge to edge.
  */
 export function Page({
   title,
   subject = false,
+  icon,
   description,
   status,
   meta,
   action,
+  preview,
   children,
 }: {
   title: string;
   subject?: boolean;
+  /** The subject's mark, as its card in the list carries it. */
+  icon?: IconProps["icon"];
   description?: ReactNode;
   /** The subject's state, right after the title. */
   status?: ReactNode;
@@ -36,10 +43,11 @@ export function Page({
   meta?: ReactNode[];
   /** Commands at the header's end: at most one primary button, then a menu. */
   action?: ReactNode;
+  preview?: Preview | null;
   children: ReactNode;
 }) {
   const parent = useCrumbs().at(-2);
-  return (
+  const column = (
     <div className={COLUMN}>
       <PageHeader
         back={
@@ -50,6 +58,7 @@ export function Page({
           ) : undefined
         }
         variant={subject ? "subject" : "list"}
+        icon={icon}
         title={title}
         description={description}
         status={status}
@@ -58,6 +67,11 @@ export function Page({
       />
       {children}
     </div>
+  );
+  return preview === undefined ? (
+    column
+  ) : (
+    <PreviewLayout preview={preview}>{column}</PreviewLayout>
   );
 }
 

@@ -145,6 +145,11 @@ export function AppShellFlush({ children }: { children: ReactNode }) {
   return <div className="ui-app-shell-flush">{children}</div>;
 }
 
+/** A column inside `AppShellFlush` that scrolls and pads its content as the card pads a page. */
+export function AppShellPane({ children }: { children: ReactNode }) {
+  return <div className="ui-app-shell-pane">{children}</div>;
+}
+
 /**
  * App frame: a sidebar on the canvas and the page in a bordered card with a
  * 44px top bar. The sidebar hides entirely when collapsed, and its toggle
