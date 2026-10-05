@@ -121,13 +121,13 @@
   min-block-size: 0;
 }
 
-/* A row of small commands, the color scheme at its end. */
+/* A row of small commands at the sidebar's end, such as the color scheme. */
 .ui-app-shell-sidebar-footer {
   display: flex;
   flex: none;
   gap: 2px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
 
   padding: 8px;
 }
@@ -228,7 +228,10 @@
 
 /* With nothing to hold, the top bar folds away and the page starts at the card's top. */
 .ui-app-shell-topbar:not([data-toggle]):not(
-    :has(.ui-app-shell-topbar-main :not(:empty), .ui-app-shell-tools :not(:empty))
+    :has(
+      .ui-app-shell-topbar-main :not(:empty),
+      .ui-app-shell-tools :not(:empty)
+    )
   ) {
   display: none;
 }

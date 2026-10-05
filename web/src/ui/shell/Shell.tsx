@@ -6,7 +6,6 @@ import {
   KeyRound,
   Network,
   Server,
-  Settings,
   Users,
 } from "lucide-react";
 import { createContext, use, useState, type ReactNode } from "react";
@@ -16,7 +15,6 @@ import { isAdmin, type WorkbenchUser } from "../../domain/auth/schema";
 import { m } from "../../paraglide/messages";
 import { useCrumbs } from "./crumbs";
 import { ColorSchemeMenu } from "../Preferences";
-import { ActionIcon } from "../kit/ActionIcon";
 import {
   Breadcrumb,
   type BreadcrumbItem,
@@ -33,7 +31,6 @@ import {
   AppShell,
   type AppShellLinkProps,
   AppShellTrail,
-  useAppShell,
 } from "../kit/AppShell";
 
 const HOME = "/experiments";
@@ -114,7 +111,7 @@ export function ShellTrail() {
  * top bar shows only when it has something to hold: the sidebar's toggle
  * while the sidebar is hidden, and a workbench's breadcrumb and commands. The sidebar opens with
  * the signed-in person, lists the places and then the experiments, and ends
- * with settings and the color scheme. A settings page swaps the person and
+ * with the color scheme. A settings page swaps the person and
  * the places for a trail home and the settings section. Whether the sidebar
  * is hidden is owned by the caller so the server renders the stored choice.
  */
@@ -166,28 +163,13 @@ export function Shell({
             renderLink={routerLink}
           />
         }
-        footer={<SidebarFooter />}
+        footer={<ColorSchemeMenu size="middle" />}
         breadcrumb={<div ref={setTrailSlot} className="contents" />}
         tools={<div ref={setActionsSlot} className="flex items-center gap-1" />}
       >
         {children}
       </AppShell>
     </TopBarSlots>
-  );
-}
-
-function SidebarFooter() {
-  const shell = useAppShell();
-  return (
-    <>
-      <ActionIcon
-        icon={Settings}
-        size="middle"
-        title={m.nav_settings()}
-        render={<Link to="/account" onClick={shell.closeNavigation} />}
-      />
-      <ColorSchemeMenu size="middle" />
-    </>
   );
 }
 

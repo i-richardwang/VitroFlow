@@ -11,10 +11,10 @@ import { SettingsPage, SettingsPageSkeleton } from "../../ui/Page";
 import {
   SettingsGroup,
   SettingsGroupSkeleton,
-  SettingsRow,
+  SettingsValueRow,
 } from "../../ui/kit/Settings";
 import { TableSkeleton } from "../../ui/kit/PageSkeleton";
-import { Snippet } from "../../ui/kit/Snippet";
+import { CopyButton } from "../../ui/kit/CopyButton";
 
 const MCP_SERVERS_ID = "mcp-servers";
 
@@ -46,9 +46,15 @@ function IntegrationsPage() {
       <ApiKeysGroup apiKeys={apiKeys} />
       <SettingsGroup id={MCP_SERVERS_ID} title={m.integrations_mcp_servers()}>
         {MCP_SERVERS.map((server) => (
-          <SettingsRow key={server} label={MCP_SERVER_LABELS[server]()}>
-            <Snippet>{mcpUrls[server]}</Snippet>
-          </SettingsRow>
+          <SettingsValueRow
+            key={server}
+            label={MCP_SERVER_LABELS[server]()}
+            action={<CopyButton content={mcpUrls[server]} />}
+          >
+            <code className="text-xs" title={mcpUrls[server]}>
+              {mcpUrls[server]}
+            </code>
+          </SettingsValueRow>
         ))}
       </SettingsGroup>
       <McpClientsGroup
