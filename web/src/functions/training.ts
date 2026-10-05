@@ -4,20 +4,8 @@ import { datasetRefSchema } from "../domain/datasets/schema";
 import { resourceIdSchema } from "../domain/identifiers/schema";
 import { trainingOverridesSchema } from "../domain/training/parameters";
 import { YOLO26_SEED_SMALL_RECIPE } from "../domain/training/recipes";
-import {
-  trainingConsole,
-  trainingOverview,
-  trainingRunDetail,
-} from "../server/queries/public";
+import { trainingRunDetail } from "../server/queries/public";
 import { createTrainingRun } from "../server/training/public";
-
-export const getTrainingConsole = createServerFn({ method: "GET" })
-  .validator(datasetRefSchema)
-  .handler(({ data }) => trainingConsole(data.dataset));
-
-export const getTrainingOverview = createServerFn({ method: "GET" }).handler(
-  () => trainingOverview(),
-);
 
 export const getTrainingRun = createServerFn({ method: "GET" })
   .validator(datasetRefSchema.extend({ runId: resourceIdSchema }))

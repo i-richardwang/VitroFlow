@@ -87,11 +87,11 @@ Everyone signs in with an email address and password; there is no self-service s
 
 A deployment whose directory is empty creates its first administrator from `VITROFLOW_ADMIN_EMAIL` and `VITROFLOW_ADMIN_PASSWORD` when it starts. Once any account exists those variables are inert. `BETTER_AUTH_SECRET` signs session cookies, and `BETTER_AUTH_URL` is the public workbench origin that browser requests must match.
 
-Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and dataset transfer surfaces and reviews the MCP clients it has authorized. Workers are machines, not accounts: an administrator enrolls each one on the **Status** page and it presents its own token.
+Authentication is [Better Auth](https://better-auth.com) over the application database, served at `/api/auth/*`. Programmatic access belongs to accounts too: under **Integrations** every account issues personal API keys for the agent and dataset transfer surfaces and reviews the MCP clients it has authorized. Workers are machines, not accounts: an administrator enrolls each one on the **Workers** settings page and it presents its own token.
 
 ## Workers
 
-Workers communicate only with the workbench HTTP API. An administrator enrolls each machine under a name on the **Status** page, which shows its token once; the token is the worker's identity on every request, and removing the worker revokes it and returns its work to the queue. Each native Worker profile holds that token, a fresh process-session ID, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds. A Worker serves both queues: one that can train takes a queued training run before an inference pair, and one without the Ultralytics runtime only detects.
+Workers communicate only with the workbench HTTP API. An administrator enrolls each machine under a name on the **Workers** settings page, which shows its token once; the token is the worker's identity on every request, and removing the worker revokes it and returns its work to the queue. Each native Worker profile holds that token, a fresh process-session ID, and a private work directory; every session heartbeats the runtimes it executes and the memory its accelerator offers, and what it is doing follows from the lease it holds. A Worker serves both queues: one that can train takes a queued training run before an inference pair, and one without the Ultralytics runtime only detects.
 
 The operator package is published on PyPI as [`vitroctl`](https://pypi.org/project/vitroctl/); its own README is [docs/vitroctl.md](docs/vitroctl.md). On macOS, install it and configure `launchd` services:
 
@@ -103,7 +103,7 @@ vitroctl worker setup mac-studio \
   --device mps
 ```
 
-Setup asks for the token the Status page showed, then validates it, the runtime imports, and the selected device before saving the profile. The token is prompted without echo and stored in `~/.vitroflow/profiles/<profile>/config.toml` with mode `0600`; LaunchAgent files contain no credentials.
+Setup asks for the token the Workers page showed, then validates it, the runtime imports, and the selected device before saving the profile. The token is prompted without echo and stored in `~/.vitroflow/profiles/<profile>/config.toml` with mode `0600`; LaunchAgent files contain no credentials.
 
 Operational commands are:
 
@@ -116,7 +116,7 @@ vitroctl worker restart mac-studio
 vitroctl worker stop mac-studio
 ```
 
-`launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Status page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
+`launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Workers page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
 
 Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. For inference they atomically claim one image/version pair, renew that lease while loading and predicting, download its canonical image and verified model artifact, and upload a succeeded or failed outcome. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
 

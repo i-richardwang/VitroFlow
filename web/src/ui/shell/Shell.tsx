@@ -1,10 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Beaker,
-  ChartLine,
   CircleUser,
   FlaskConical,
-  Images,
   KeyRound,
   Network,
   Server,
@@ -44,8 +42,6 @@ function places(): AppNavItem[] {
   return [
     { href: HOME, icon: FlaskConical, label: m.nav_experiments() },
     { href: "/models", icon: Network, label: m.nav_models() },
-    { href: "/datasets", icon: Images, label: m.nav_datasets() },
-    { href: "/training", icon: ChartLine, label: m.nav_training() },
   ];
 }
 

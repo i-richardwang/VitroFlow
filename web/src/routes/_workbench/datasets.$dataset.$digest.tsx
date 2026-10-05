@@ -14,6 +14,7 @@ import { Stepper } from "../../ui/Stepper";
 import { splitLabel } from "../../features/datasets/labels";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
+import { datasetCrumbs } from "../../features/models/crumbs";
 import type {
   DatasetImageStep,
   DatasetImageView,
@@ -35,12 +36,8 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
   },
   staticData: {
     crumbs: ({ loaderData }) => {
-      const { dataset, review } = loaderData as DatasetImageView;
-      return [
-        { label: m.datasets_title(), href: "/datasets" },
-        { label: dataset.id, href: `/datasets/${dataset.id}` },
-        { label: review.filename },
-      ];
+      const { dataset, model, review } = loaderData as DatasetImageView;
+      return [...datasetCrumbs(model, dataset.id), { label: review.filename }];
     },
   },
   head: ({ loaderData }) => ({

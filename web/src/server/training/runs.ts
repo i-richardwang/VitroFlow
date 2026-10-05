@@ -245,8 +245,9 @@ export async function readTrainingRun(
   return row ? toRun(row) : null;
 }
 
+/** The newest runs, of one training set or of every set training one model. */
 export async function listTrainingRunSummaries(
-  options: { datasetId?: string; limit?: number } = {},
+  options: { datasetId?: string; modelId?: string; limit?: number } = {},
 ): Promise<TrainingRunSummary[]> {
   const limit = options.limit ?? TRAINING_RUN_LIST_LIMIT;
   if (
@@ -292,9 +293,14 @@ export async function listTrainingRunSummaries(
       eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
     )
     .where(
-      options.datasetId
-        ? eq(datasetSnapshots.datasetId, options.datasetId)
-        : undefined,
+      and(
+        options.datasetId
+          ? eq(datasetSnapshots.datasetId, options.datasetId)
+          : undefined,
+        options.modelId
+          ? eq(datasetSnapshots.modelId, options.modelId)
+          : undefined,
+      ),
     )
     .orderBy(desc(trainingRuns.createdAt), desc(trainingRuns.id))
     .limit(limit);

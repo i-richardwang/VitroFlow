@@ -1,18 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import {
-  ChartLine,
-  ImagePlus,
-  Images,
-  PenLine,
-  Search,
-  SearchX,
-} from "lucide-react";
+import { ImagePlus, Images, PenLine, Search, SearchX } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
 import { QualityTags } from "../../ui/DetectionQuality";
 import { Absent } from "../../ui/Absent";
-import { Page, PageColumnSkeleton } from "../../ui/Page";
+import { Page, PageColumnSkeleton, PageSection } from "../../ui/Page";
 import { modelName } from "../../ui/model-names";
 import { DatasetMenu } from "../../features/datasets/DatasetMenu";
 import { RemoveImageButton } from "../../features/datasets/RemoveImageButton";
@@ -33,7 +26,6 @@ import { Input } from "../../ui/kit/Input";
 import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { Pagination } from "../../ui/kit/Pagination";
 import { PreviewField, PreviewMedia } from "../../ui/kit/PreviewLayout";
-import { SegmentBar } from "../../ui/kit/SegmentBar";
 import { StatisticHero, StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { Status } from "../../ui/kit/Status";
 import {
@@ -48,10 +40,16 @@ import { TextLink } from "../../ui/kit/TextLink";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
+import { modelCrumbs } from "../../features/models/crumbs";
+import { TrainButton } from "../../features/training/TrainButton";
+import { TrainDialog, trainRefusal } from "../../features/training/TrainDialog";
+import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 
-type DatasetOverviewImage = NonNullable<
+type DatasetOverview = NonNullable<
   Awaited<ReturnType<typeof getDatasetOverview>>
->["images"][number];
+>;
+
+type DatasetOverviewImage = DatasetOverview["images"][number];
 
 /** `image` names the image previewed beside the list. */
 const datasetSearchSchema = z.object({
@@ -68,8 +66,8 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
     return overview;
   },
   staticData: {
-    crumbs: ({ params }) => [
-      { label: m.datasets_title(), href: "/datasets" },
+    crumbs: ({ params, loaderData }) => [
+      ...modelCrumbs((loaderData as DatasetOverview).model),
       { label: params.dataset },
     ],
   },
@@ -88,20 +86,16 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
 
 const PAGE_SIZE = 20;
 
-const STATE_COLOR: Record<DatasetImageState, string> = {
-  reviewed: "var(--color-success)",
-  proposed: "var(--color-info)",
-  detected: "var(--color-warning)",
-  unread: "var(--color-fill-secondary)",
-};
-
 type Filter = DatasetImageState | "all";
 
 function DatasetPage() {
   const { dataset } = Route.useParams();
   const { image: previewed } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { model, images, training } = Route.useLoaderData();
+  const { model, images, reviewedCount, training, recipe, runs } =
+    Route.useLoaderData();
+  const [starting, setStarting] = useState(false);
+  const refusal = trainRefusal({ reviewed: reviewedCount, training });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
@@ -111,12 +105,6 @@ function DatasetPage() {
   const states = new Map(
     images.map((image) => [image.digest, datasetImageState(image)]),
   );
-  const tally = Object.fromEntries(
-    DATASET_IMAGE_STATES.map((state) => [
-      state,
-      images.filter((image) => states.get(image.digest) === state).length,
-    ]),
-  ) as Record<DatasetImageState, number>;
   const needle = query.trim().toLowerCase();
   const matches = images.filter(
     (image) =>
@@ -140,15 +128,7 @@ function DatasetPage() {
       description={modelName(model)}
       action={
         <>
-          <Button
-            type="primary"
-            icon={ChartLine}
-            render={
-              <Link to="/datasets/$dataset/training" params={{ dataset }} />
-            }
-          >
-            {m.dataset_training()}
-          </Button>
+          <TrainButton refusal={refusal} onClick={() => setStarting(true)} />
           <DatasetMenu dataset={dataset} />
         </>
       }
@@ -169,34 +149,18 @@ function DatasetPage() {
       }
     >
       <StatisticHero
-        value={formatCount(images.length)}
-        title={m.dataset_hero_images()}
-        description={
-          training.reviewedSinceLastRun > 0
-            ? m.dataset_reviewed_since_last_run({
-                count: training.reviewedSinceLastRun,
-              })
-            : undefined
-        }
-        aside={
-          images.length > 0 ? (
-            <SegmentBar
-              aria-label={m.dataset_hero_mix()}
-              legend
-              segments={DATASET_IMAGE_STATES.map((state) => ({
-                color: STATE_COLOR[state],
-                label:
-                  tally[state] > 0
-                    ? m.dataset_state_count({
-                        state: datasetImageStateLabel(state),
-                        count: formatCount(tally[state]),
-                      })
-                    : undefined,
-                value: tally[state],
-              }))}
-            />
-          ) : undefined
-        }
+        value={formatCount(reviewedCount)}
+        title={m.dataset_hero_reviewed()}
+        description={[
+          m.dataset_hero_images({ count: images.length }),
+          ...(training.reviewedSinceLastRun > 0
+            ? [
+                m.dataset_reviewed_since_last_run({
+                  count: training.reviewedSinceLastRun,
+                }),
+              ]
+            : []),
+        ].join(" · ")}
       />
       <Table
         aria-label={m.dataset_images_table({ dataset })}
@@ -333,6 +297,16 @@ function DatasetPage() {
           })}
         </TableBody>
       </Table>
+      {runs.length > 0 ? (
+        <PageSection title={m.run_table_label()}>
+          <TrainingRunsTable runs={runs} />
+        </PageSection>
+      ) : null}
+      <TrainDialog
+        set={{ dataset, reviewed: reviewedCount, recipe, training }}
+        open={starting}
+        onClose={() => setStarting(false)}
+      />
     </Page>
   );
 }

@@ -5,7 +5,7 @@ import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "../testing/inference";
 import { datasetOverview } from "./dataset-overview";
-import { trainingOverview } from "./training-console";
+import { modelOverview } from "./model-overview";
 import {
   claimTrainingRun,
   createTrainingRun,
@@ -103,16 +103,19 @@ test("the overview derives review progress and training readiness", async () => 
     (await datasetOverview("overview", at))?.training.reviewedSinceLastRun,
   ).toBe(1);
 
-  const training = await trainingOverview(at);
-  expect(training.versions.map(({ version }) => version.id)).toContain(
-    version.id,
-  );
-  expect(training.runs.map((summary) => summary.run.id)).toContain(run.id);
   expect(
-    training.runs.find((summary) => summary.run.id === run.id)?.dataset,
+    (await datasetOverview("overview", at))?.runs.map(({ run }) => run.id),
+  ).toEqual([run.id]);
+
+  const model = await modelOverview(version.modelId);
+  expect(model?.versions.map((item) => item.version.id)).toContain(version.id);
+  expect(model?.datasets.map((item) => item.dataset)).toContain("overview");
+  expect(
+    model?.runs.find((summary) => summary.run.id === run.id)?.dataset,
   ).toBe("overview");
 });
 
-test("the overview is absent for unknown datasets", async () => {
+test("the overview is absent for unknown datasets and models", async () => {
   expect(await datasetOverview("nowhere")).toBeNull();
+  expect(await modelOverview("nowhere")).toBeNull();
 });

@@ -1,11 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ChartLine } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { m } from "../../paraglide/messages";
 import type { TrainingRunSummary } from "../../domain/training/read-model";
 import { trainingRunLabel } from "../../domain/training/schema";
-import { Empty } from "../../ui/kit/Empty";
 import {
   Table,
   TableBody,
@@ -22,38 +20,24 @@ import { Metric } from "../../ui/Metric";
 import { TrainingRunState } from "./TrainingRunState";
 
 /**
- * Training runs, each named with its state after it; across datasets
- * (`datasetColumn`) each run names its dataset. `emptyAction` leads to a
- * first run.
+ * Training runs, each named with its state after it; across training sets
+ * (`datasetColumn`) each run names its set. `empty` stands in for no runs.
  */
 export function TrainingRunsTable({
   runs,
   datasetColumn = false,
-  emptyAction,
+  empty,
 }: {
   runs: TrainingRunSummary[];
   datasetColumn?: boolean;
-  emptyAction: ReactNode;
+  empty?: ReactNode;
 }) {
   return (
     <Table
       aria-label={m.run_table_label()}
       size="small"
       narrow="cards"
-      empty={
-        runs.length === 0 && (
-          <Empty
-            icon={ChartLine}
-            title={m.run_empty_title()}
-            description={
-              datasetColumn
-                ? m.run_empty_overview_description()
-                : m.run_empty_dataset_description()
-            }
-            action={emptyAction}
-          />
-        )
-      }
+      empty={runs.length === 0 && empty}
     >
       <TableHeader>
         <tr>

@@ -1,21 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "training_title": "训练",
-  "training_dataset_title": "{dataset} 的训练",
   "training_run_page_title": "{dataset} 的训练 {run}",
-  "training_datasets_crumb": "数据集",
-  "training_kpi_runs": "训练次数",
-  "training_kpi_in_progress": "进行中",
-  "training_kpi_workers": "工作节点",
-  "training_kpi_ready": "可用图片",
-  "training_kpi_new_since_last_run": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "上次训练后新增 {formattedCount} 张"
-      }
-    }
-  ],
   "training_kpi_epochs": "轮次",
   "training_kpi_epochs_earlier_hidden": [
     {
@@ -42,18 +27,17 @@
   "training_parameters": "参数",
   "train_button": "训练",
   "train_dialog_title": "训练新版本",
-  "train_dialog_no_worker": "没有在线的训练工作节点",
+  "train_dialog_no_worker": "没有在线的训练计算节点",
   "train_not_started": "训练未启动",
   "train_queued": "训练已加入队列",
   "run_table_label": "训练任务",
   "run_column_run": "训练任务",
-  "run_column_dataset": "数据集",
+  "run_column_dataset": "训练集",
   "run_column_epochs": "轮次",
   "run_column_best_map50": "最佳 mAP50",
   "run_column_map50_95": "mAP50-95",
   "run_column_version": "版本",
   "run_empty_title": "还没有训练任务",
-  "run_empty_open_datasets": "打开数据集",
   "run_state_queued": "排队中",
   "run_state_preparing": "准备中",
   "run_state_training": "训练中",
@@ -92,8 +76,6 @@
   "parameter_max_det": "最大检测数",
   "parameter_seed": "随机种子",
   "parameter_deterministic": "确定性",
-  "run_empty_overview_description": "在数据集的训练页发起训练。",
-  "run_empty_dataset_description": "审阅足够的图片后即可开始训练。",
   "parameter_on": "开",
   "parameter_off": "关",
   "train_refused_active": "已有训练正在进行",
@@ -101,7 +83,7 @@
     {
       "declarations": ["input count", "local formattedCount = count: number"],
       "match": {
-        "count=*": "请先审阅至少 {formattedCount} 张图片"
+        "count=*": "请先复核至少 {formattedCount} 张图片"
       }
     }
   ],
@@ -123,5 +105,5 @@
   "parameter_group_training": "训练",
   "parameter_group_augmentation": "数据增强",
   "parameter_group_validation": "验证与复现",
-  "training_description": "训练任务和它们产出的模型版本。"
+  "run_empty_description": "在模型的训练集页面开始训练。"
 }

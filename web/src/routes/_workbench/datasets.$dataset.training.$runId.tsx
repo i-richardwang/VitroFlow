@@ -24,6 +24,8 @@ import { StatisticHero, StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { TextLink } from "../../ui/kit/TextLink";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
+import type { TrainingRunDetail } from "../../domain/training/read-model";
+import { datasetCrumbs } from "../../features/models/crumbs";
 import { bestEpoch } from "../../domain/training/metrics";
 import {
   isTrainingRunActive,
@@ -41,16 +43,8 @@ export const Route = createFileRoute(
     return detail;
   },
   staticData: {
-    crumbs: ({ params }) => [
-      { label: m.training_datasets_crumb(), href: "/datasets" },
-      {
-        label: params.dataset,
-        href: `/datasets/${params.dataset}`,
-      },
-      {
-        label: m.training_title(),
-        href: `/datasets/${params.dataset}/training`,
-      },
+    crumbs: ({ params, loaderData }) => [
+      ...datasetCrumbs((loaderData as TrainingRunDetail).model, params.dataset),
       { label: trainingRunLabel({ id: params.runId }) },
     ],
   },

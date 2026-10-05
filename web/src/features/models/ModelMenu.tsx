@@ -16,11 +16,12 @@ import { Form } from "../../ui/kit/Form";
 import { TextArea } from "../../ui/kit/Input";
 import { toast } from "../../ui/kit/Toast";
 import { modelName } from "../../ui/model-names";
-import { RowMenu } from "../../ui/ActionsMenu";
+import { PageMenu } from "../../ui/ActionsMenu";
 import { AnnotationAreaField } from "./AnnotationAreaField";
 
 const FORM_ID = "model-annotation";
 
+/** A model page's secondary actions: its annotation guide, and deleting a model nothing has been recorded against. */
 export function ModelMenu({
   model,
   deletable,
@@ -55,7 +56,7 @@ export function ModelMenu({
             onConfirm: async () => {
               await removeModel({ data: { model: model.id } });
               toast.success(m.model_deleted({ name }));
-              await router.invalidate();
+              await router.navigate({ to: "/models" });
             },
           }),
       },
@@ -64,7 +65,7 @@ export function ModelMenu({
 
   return (
     <>
-      <RowMenu label={m.model_actions({ name })} items={items} />
+      <PageMenu label={m.model_actions({ name })} items={items} />
       <ModelAnnotationDialog
         model={model}
         open={editing}

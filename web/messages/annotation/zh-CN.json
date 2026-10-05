@@ -1,7 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "annotation_source_review": "复核",
-  "annotation_source_detected": "检测",
+  "annotation_source_detected": "模型计数",
   "annotation_section_metrics": "计数",
   "annotation_detection_version": "版本",
   "annotation_detection_threshold": "阈值",
@@ -46,7 +46,7 @@
   "annotation_standing_reviewed": "已复核",
   "annotation_standing_unreviewed": "待复核",
   "annotation_standing_proposal": "AI 建议 · 待复核",
-  "annotation_standing_detection": "检测结果 · 待复核",
+  "annotation_standing_detection": "模型计数 · 待复核",
   "annotation_standing_unread": "尚无读数",
   "annotation_readings": "读数",
   "annotation_named_count": [

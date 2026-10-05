@@ -1,10 +1,8 @@
-import { Network } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { validationMetric } from "../../domain/models/schema";
 import type { VersionOverview } from "../../domain/training/read-model";
 import { m } from "../../paraglide/messages";
-import { Empty } from "../../ui/kit/Empty";
 import {
   Table,
   TableBody,
@@ -18,33 +16,26 @@ import { Absent } from "../../ui/Absent";
 import { Metric } from "../../ui/Metric";
 import { ModelKindTag } from "./ModelKindTag";
 
-/** Published versions; `emptyAction` leads to where a first one is trained. */
+/**
+ * A model's published versions, with how many images trained each and how
+ * well it scored; `empty` stands in for none.
+ */
 export function VersionsTable({
   versions,
-  emptyAction,
+  empty,
 }: {
   versions: VersionOverview[];
-  emptyAction: ReactNode;
+  empty: ReactNode;
 }) {
   return (
     <Table
       aria-label={m.versions_table()}
       narrow="cards"
-      empty={
-        versions.length === 0 && (
-          <Empty
-            icon={Network}
-            title={m.versions_empty()}
-            description={m.versions_empty_description()}
-            action={emptyAction}
-          />
-        )
-      }
+      empty={versions.length === 0 && empty}
     >
       <TableHeader>
         <tr>
           <TableHead>{m.versions_column_version()}</TableHead>
-          <TableHead>{m.versions_column_model()}</TableHead>
           <TableHead>{m.versions_column_kind()}</TableHead>
           <TableHead>{m.versions_column_published()}</TableHead>
           <TableHead className="w-28" numeric>
@@ -62,12 +53,6 @@ export function VersionsTable({
         {versions.map(({ version, trainingImages }) => (
           <TableRow key={version.id}>
             <TableCell cellSlot="title">{version.id}</TableCell>
-            <TableCell
-              cellLabel={m.versions_column_model()}
-              className="text-xs text-fg-secondary"
-            >
-              {version.modelId}
-            </TableCell>
             <TableCell cellLabel={m.versions_column_kind()}>
               <ModelKindTag kind={version.artifact.kind} />
             </TableCell>

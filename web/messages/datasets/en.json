@@ -1,9 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "datasets_title": "Datasets",
   "datasets_empty": "No datasets yet",
   "dataset_download": "Download",
-  "dataset_training": "Training",
   "dataset_reviewed_since_last_run": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
@@ -79,13 +77,6 @@
   ],
   "model_kind_traditional": "Traditional",
   "model_kind_ultralytics": "YOLO",
-  "versions_table": "Model versions",
-  "versions_column_version": "Version",
-  "versions_column_model": "Model",
-  "versions_column_kind": "Kind",
-  "versions_column_published": "Published",
-  "versions_column_trained_on": "Trained on",
-  "versions_empty": "No versions",
   "image_title": "{file} in {dataset}",
   "image_previous": "Previous image",
   "image_next": "Next image",
@@ -95,7 +86,7 @@
   "image_file_unsupported": "Choose a JPEG, PNG, or TIFF image",
   "image_file_empty": "The file is empty",
   "image_file_too_large": "The file exceeds 64 MiB",
-  "datasets_empty_description": "Add photos from an experiment, or import a dataset archive.",
+  "datasets_empty_description": "Add photos to a dataset from an observation day of an experiment, or import an archive.",
   "dataset_empty_images_description": "Add photos from an experiment's units.",
   "dataset_import_storing": "Storing {dataset}",
   "dataset_import_storing_count": [
@@ -111,42 +102,36 @@
       }
     }
   ],
-  "versions_empty_description": "A version appears here when a training run succeeds.",
-  "versions_trained_images": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} images"
-      }
-    }
-  ],
   "dataset_remove_title": "Remove {file} from {dataset}?",
   "dataset_image_removed": "{file} removed from {dataset}",
   "dataset_open_experiments": "Open experiments",
   "dataset_actions": "Actions for {dataset}",
-  "datasets_description": "Photos picked from experiments and annotated, to train new versions of a model.",
   "dataset_card_facts": [
     {
       "declarations": [
-        "input model",
         "input images",
         "input reviewed",
         "local formattedImages = images: number",
         "local formattedReviewed = reviewed: number"
       ],
       "match": {
-        "images=*": "{model} · {formattedImages} images · {formattedReviewed} reviewed"
+        "images=*": "{formattedImages} images · {formattedReviewed} reviewed"
       }
     }
   ],
-  "dataset_hero_images": "images",
-  "dataset_hero_mix": "Review progress",
+  "dataset_hero_images": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} images in all"
+      }
+    }
+  ],
   "dataset_state_all": "All",
   "dataset_state_reviewed": "Reviewed",
-  "dataset_state_proposed": "AI proposed",
+  "dataset_state_proposed": "AI proposal",
   "dataset_state_detected": "To review",
-  "dataset_state_unread": "Not detected",
-  "dataset_state_count": "{state} {count}",
+  "dataset_state_unread": "Not counted",
   "dataset_state_filter": "Filter by state",
   "dataset_search": "Search file names",
   "dataset_column_state": "State",
@@ -155,5 +140,6 @@
   "dataset_preview_boxes": "Boxes",
   "dataset_preview_quality": "Detection quality",
   "dataset_preview_open": "Open to annotate",
-  "image_steps": "Images"
+  "image_steps": "Images",
+  "dataset_hero_reviewed": "reviewed, ready to train"
 }

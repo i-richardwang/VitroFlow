@@ -1,14 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Network, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { ModelDialog } from "../../features/models/ModelDialog";
-import { ModelMenu } from "../../features/models/ModelMenu";
 import { modelRecordsSummary } from "../../features/models/records";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
 import { Tag } from "../../ui/kit/Tag";
+import { TextLink } from "../../ui/kit/TextLink";
 import { Page, PageColumnSkeleton } from "../../ui/Page";
 import { className, modelName } from "../../ui/model-names";
 import { getModelCatalogue } from "../../functions/models";
@@ -71,13 +71,23 @@ function ModelsPage() {
             <Item
               key={entry.model.id}
               icon={Network}
-              title={modelName(entry.model)}
+              title={
+                <TextLink
+                  render={
+                    <Link
+                      to="/models/$model"
+                      params={{ model: entry.model.id }}
+                    />
+                  }
+                >
+                  {modelName(entry.model)}
+                </TextLink>
+              }
               addon={<Tag size="small">{entry.model.id}</Tag>}
               extra={entry.model.classes.map((each) => (
                 <Tag key={each}>{className(each)}</Tag>
               ))}
               meta={held ?? m.model_records_none()}
-              actions={<ModelMenu model={entry.model} deletable={!held} />}
             />
           );
         })}

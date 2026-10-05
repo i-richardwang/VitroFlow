@@ -14,7 +14,7 @@ The `yolo` extra installs the pinned Ultralytics runtime that Workers advertise.
 
 ## Workers
 
-An administrator enrolls each machine on the workbench's Status page, which shows the machine's token once. Each Worker profile holds that token and a private work directory; the workbench knows the worker by its token. Setup validates the token, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
+An administrator enrolls each machine on the workbench's Workers settings page, which shows the machine's token once. Each Worker profile holds that token and a private work directory; the workbench knows the worker by its token. Setup validates the token, runtime imports, and the selected device before saving the profile, then installs and starts a LaunchAgent:
 
 ```bash
 vitroctl worker setup mac-studio \
@@ -33,7 +33,7 @@ vitroctl worker restart mac-studio
 vitroctl worker stop mac-studio
 ```
 
-`launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Status page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
+`launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Workers page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
 
 `vitroctl worker run <profile>` runs a Worker in the foreground without `launchd`.
 

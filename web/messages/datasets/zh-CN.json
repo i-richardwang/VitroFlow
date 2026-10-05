@@ -1,9 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "datasets_title": "数据集",
-  "datasets_empty": "还没有数据集",
+  "datasets_empty": "还没有训练集",
   "dataset_download": "下载",
-  "dataset_training": "训练",
   "dataset_reviewed_since_last_run": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
@@ -19,8 +17,8 @@
   "dataset_column_actions": "操作",
   "dataset_empty_images": "还没有图片",
   "dataset_remove": "移除",
-  "dataset_add_heading": "加入数据集",
-  "dataset_add_menu": "加入数据集…",
+  "dataset_add_heading": "加入训练集",
+  "dataset_add_menu": "加入训练集…",
   "dataset_add_nothing_added": "未加入任何图片",
   "dataset_add_result": [
     {
@@ -43,49 +41,42 @@
       }
     }
   ],
-  "dataset_add_dataset_label": "数据集",
-  "dataset_add_new": "新建数据集",
+  "dataset_add_dataset_label": "训练集",
+  "dataset_add_new": "新建训练集",
   "dataset_add_name_label": "名称",
   "dataset_add_name_placeholder": "seeds-2026-09",
   "dataset_add_submit": "加入",
   "dataset_import": "导入",
-  "dataset_import_heading": "导入数据集",
+  "dataset_import_heading": "导入训练集",
   "dataset_import_failed": "导入失败",
-  "dataset_import_drop_label": "将数据集压缩包拖到此处",
-  "dataset_import_drop_description": "从工作台数据集下载的 ZIP 文件",
+  "dataset_import_drop_label": "将训练集压缩包拖到此处",
+  "dataset_import_drop_description": "从工作台训练集下载的 ZIP 文件",
   "dataset_import_select": "选择压缩包",
   "dataset_import_progress": "导入进度",
   "dataset_import_reading": "正在读取压缩包",
   "dataset_archive_unexpected_entry": "压缩包中有意外的条目：{entry}",
-  "dataset_archive_multiple_datasets": "压缩包包含多个数据集",
+  "dataset_archive_multiple_datasets": "压缩包包含多个训练集",
   "dataset_archive_manifest_too_large": "清单超过 16 MiB",
   "dataset_archive_manifest_not_json": "压缩包的清单不是 JSON",
   "dataset_archive_manifest_invalid": "压缩包的清单无效",
-  "dataset_archive_exists": "数据集 {dataset} 已存在",
+  "dataset_archive_exists": "训练集 {dataset} 已存在",
   "dataset_archive_destination_unchecked": "无法检查目标工作台",
   "dataset_archive_manifest_first": "压缩包不以清单开头",
   "dataset_archive_image_unnamed": "清单中没有图片 {digest}",
   "dataset_archive_image_duplicate": "压缩包中图片 {digest} 出现多次",
   "dataset_archive_image_size": "图片 {digest} 的大小与清单声明不符",
   "dataset_archive_image_mismatch": "工作台存储的图片与上传的不一致",
-  "dataset_archive_no_dataset": "压缩包中没有数据集",
+  "dataset_archive_no_dataset": "压缩包中没有训练集",
   "dataset_archive_images_missing": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
       "match": {
-        "count=*": "压缩包缺少数据集的 {formattedCount} 张图片"
+        "count=*": "压缩包缺少训练集的 {formattedCount} 张图片"
       }
     }
   ],
   "model_kind_traditional": "传统算法",
   "model_kind_ultralytics": "YOLO",
-  "versions_table": "模型版本",
-  "versions_column_version": "版本",
-  "versions_column_model": "模型",
-  "versions_column_kind": "类型",
-  "versions_column_published": "发布时间",
-  "versions_column_trained_on": "训练图片",
-  "versions_empty": "暂无版本",
   "image_title": "{dataset} 中的 {file}",
   "image_previous": "上一张图片",
   "image_next": "下一张图片",
@@ -95,7 +86,7 @@
   "image_file_unsupported": "请选择 JPEG、PNG 或 TIFF 图片",
   "image_file_empty": "文件为空",
   "image_file_too_large": "文件超过 64 MiB",
-  "datasets_empty_description": "从实验照片加入，或导入数据集归档。",
+  "datasets_empty_description": "在实验观测日的菜单里把照片加入训练集，或导入训练集归档。",
   "dataset_empty_images_description": "在实验的试验单元页加入照片。",
   "dataset_import_storing": "正在存储 {dataset}",
   "dataset_import_storing_count": [
@@ -111,42 +102,36 @@
       }
     }
   ],
-  "versions_empty_description": "训练成功后，新版本会出现在这里。",
-  "versions_trained_images": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 张"
-      }
-    }
-  ],
   "dataset_remove_title": "从 {dataset} 移除 {file}？",
   "dataset_image_removed": "已从 {dataset} 移除 {file}",
   "dataset_open_experiments": "打开实验",
   "dataset_actions": "{dataset} 的操作",
-  "datasets_description": "从实验照片中挑选并标注，用来训练模型的新版本。",
   "dataset_card_facts": [
     {
       "declarations": [
-        "input model",
         "input images",
         "input reviewed",
         "local formattedImages = images: number",
         "local formattedReviewed = reviewed: number"
       ],
       "match": {
-        "images=*": "{model} · {formattedImages} 张图片 · {formattedReviewed} 张已复核"
+        "images=*": "{formattedImages} 张图片 · {formattedReviewed} 张已复核"
       }
     }
   ],
-  "dataset_hero_images": "张图片",
-  "dataset_hero_mix": "复核进度",
+  "dataset_hero_images": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "共 {formattedCount} 张图片"
+      }
+    }
+  ],
   "dataset_state_all": "全部",
   "dataset_state_reviewed": "已复核",
-  "dataset_state_proposed": "AI 已标",
+  "dataset_state_proposed": "AI 建议",
   "dataset_state_detected": "待复核",
-  "dataset_state_unread": "未检测",
-  "dataset_state_count": "{state} {count}",
+  "dataset_state_unread": "未计数",
   "dataset_state_filter": "按状态筛选",
   "dataset_search": "搜索文件名",
   "dataset_column_state": "状态",
@@ -155,5 +140,6 @@
   "dataset_preview_boxes": "标记",
   "dataset_preview_quality": "检测质量",
   "dataset_preview_open": "打开标注",
-  "image_steps": "图片"
+  "image_steps": "图片",
+  "dataset_hero_reviewed": "张已复核，可用于训练"
 }

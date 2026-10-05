@@ -66,7 +66,23 @@
   "model_annotation_not_saved": "Instructions not saved",
   "model_annotation_dish_label": "Skip empty areas outside the dish",
   "model_annotation_dish_description": "Detect the dish and retain its boundary regions. If detection fails, annotate the full image.",
-  "models_empty_description": "Create a model to name the classes it detects.",
+  "models_empty_description": "Create a model to name the classes it counts.",
   "model_menu_delete_item": "Delete model…",
-  "models_description": "Each model defines the classes it detects; an observation day is read with one of its versions."
+  "models_description": "Each model names the classes it counts; its datasets train ever more accurate versions.",
+  "model_datasets": "Datasets",
+  "versions_table": "Model versions",
+  "versions_column_version": "Version",
+  "versions_column_kind": "Kind",
+  "versions_column_published": "Published",
+  "versions_column_trained_on": "Trained on",
+  "versions_empty": "No versions",
+  "versions_empty_description": "A version appears here when a training run succeeds.",
+  "versions_trained_images": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} images"
+      }
+    }
+  ]
 }

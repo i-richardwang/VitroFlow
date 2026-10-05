@@ -34,7 +34,7 @@ export interface ImageSummary extends DatasetImageRef {
   quality: DetectionQuality | null;
 }
 
-interface DatasetSummary {
+export interface DatasetSummary {
   dataset: string;
   modelId: string;
   imageCount: number;

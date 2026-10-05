@@ -6,7 +6,7 @@
   "integrations_mcp_clients": "MCP 客户端",
   "integrations_mcp_servers": "MCP 服务器",
   "api_key_scope_agent": "Agent 接口",
-  "api_key_scope_transfer": "数据集传输",
+  "api_key_scope_transfer": "训练集传输",
   "api_key_column_name": "名称",
   "api_key_column_key": "密钥",
   "api_key_column_scopes": "权限范围",

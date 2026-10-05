@@ -5,7 +5,8 @@ import { startTrainingRun } from "../../functions/training";
 import { DialogSession, FormDialog } from "../../ui/FormDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
-import type { TrainingConsole } from "../../domain/training/read-model";
+import type { TrainingSummary } from "../../domain/training/read-model";
+import type { TrainingRecipe } from "../../domain/training/schema";
 import { Alert } from "../../ui/kit/Alert";
 import { Form } from "../../ui/kit/Form";
 import { InputNumber } from "../../ui/kit/Input";
@@ -19,8 +20,20 @@ import { MIN_SNAPSHOT_IMAGES } from "../../domain/training/schema";
 
 const FORM_ID = "train";
 
+/** What starting a run from a training set needs to know. */
+interface TrainingSet {
+  dataset: string;
+  /** How many of its images are reviewed, and so train. */
+  reviewed: number;
+  recipe: TrainingRecipe;
+  training: TrainingSummary;
+}
+
 /** Why a new run cannot start now, or null when it can. */
-export function trainRefusal({ reviewed, training }: TrainingConsole) {
+export function trainRefusal({
+  reviewed,
+  training,
+}: Pick<TrainingSet, "reviewed" | "training">) {
   if (training.active !== null) return m.train_refused_active();
   if (reviewed < MIN_SNAPSHOT_IMAGES) {
     return m.train_refused_reviewed({ count: MIN_SNAPSHOT_IMAGES });
@@ -30,11 +43,11 @@ export function trainRefusal({ reviewed, training }: TrainingConsole) {
 
 /** The recipe's parameters, editable before a run is queued. */
 export function TrainDialog({
-  console,
+  set,
   open,
   onClose,
 }: {
-  console: TrainingConsole;
+  set: TrainingSet;
   open: boolean;
   onClose: () => void;
 }) {
@@ -42,7 +55,7 @@ export function TrainDialog({
     <DialogSession open={open}>
       {(afterClose) => (
         <TrainSession
-          console={console}
+          set={set}
           open={open}
           onClose={onClose}
           afterClose={afterClose}
@@ -53,12 +66,12 @@ export function TrainDialog({
 }
 
 function TrainSession({
-  console: { dataset, recipe, training },
+  set: { dataset, recipe, training },
   open,
   onClose,
   afterClose,
 }: {
-  console: TrainingConsole;
+  set: TrainingSet;
   open: boolean;
   onClose: () => void;
   afterClose: () => void;

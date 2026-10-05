@@ -4,13 +4,11 @@
   "document_title": "{page} · {app}",
   "nav_experiments": "实验",
   "nav_models": "模型",
-  "nav_datasets": "数据集",
-  "nav_training": "训练",
   "nav_account": "账户",
   "nav_integrations": "集成",
   "nav_users": "用户",
   "nav_settings": "设置",
-  "nav_workers": "工作节点",
+  "nav_workers": "计算节点",
   "nav_home": "首页",
   "nav_account_menu": "账户菜单",
   "sign_out": "退出登录",
@@ -43,7 +41,7 @@
   "error_invalid_request": "提交的数据不符合要求，请检查后重试。",
   "error_training_conflict": "当前状态无法启动或更新训练，请检查已复核的图片和进行中的训练。",
   "error_training_artifact": "训练产物不符合本次训练的要求。",
-  "error_dataset_model": "图片和数据集必须使用同一个模型。",
+  "error_dataset_model": "图片和训练集必须使用同一个模型。",
   "error_image_already_used": "已在本实验中使用：{images}。",
   "error_image_already_used_item": [
     {
@@ -57,7 +55,7 @@
   "error_user_rejected": "此修改会影响你自己的访问权限，或导致没有可用的管理员。",
   "error_model_id_taken": "该标识已被占用。",
   "error_model_in_use": "只有尚无任何记录的模型才能删除。",
-  "error_worker_name_taken": "已有同名的工作节点。",
+  "error_worker_name_taken": "已有同名的计算节点。",
   "workbench_inspector": "详情",
   "nav_back_to": "返回{page}"
 }

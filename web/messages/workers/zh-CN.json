@@ -1,7 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "status_title": "工作节点",
-  "status_empty": "还没有登记工作节点",
+  "status_title": "计算节点",
+  "status_empty": "还没有登记计算节点",
   "worker_presence_online": "在线",
   "worker_presence_stale": "失联",
   "worker_presence_offline": "离线",
@@ -41,15 +41,15 @@
     }
   ],
   "worker_never_seen": "从未连接",
-  "worker_enroll": "登记工作节点",
-  "worker_enroll_title": "登记工作节点",
+  "worker_enroll": "登记计算节点",
+  "worker_enroll_title": "登记计算节点",
   "worker_enroll_name_label": "名称",
   "worker_enroll_name_placeholder": "gpu-1",
   "worker_enroll_name_description": "字母、数字、点、连字符和下划线，例如机器名。",
   "worker_enroll_create": "登记",
-  "worker_enroll_failed": "未能登记工作节点",
+  "worker_enroll_failed": "未能登记计算节点",
   "worker_enroll_ready": "保存令牌",
-  "worker_enroll_shown_once": "只显示这一次。持有令牌即可以这个工作节点的身份连接。",
+  "worker_enroll_shown_once": "只显示这一次。持有令牌即可以这个计算节点的身份连接。",
   "worker_enroll_command_label": "安装命令",
   "worker_enroll_command_description": "在这台机器上运行，按提示粘贴令牌。",
   "worker_enroll_token_label": "令牌",
@@ -59,12 +59,12 @@
   "worker_removed": "已移除 {name}",
   "status_empty_description_admin": "登记一台机器，然后在机器上运行设置命令。",
   "status_empty_description_member": "运行检测与训练的机器由管理员登记。",
-  "status_workers": "工作节点",
+  "status_workers": "计算节点",
   "status_worker_count": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
       "match": {
-        "count=*": "{formattedCount} 个工作节点"
+        "count=*": "{formattedCount} 个计算节点"
       }
     }
   ],

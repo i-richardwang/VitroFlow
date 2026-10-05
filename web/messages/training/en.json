@@ -1,21 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "training_title": "Training",
-  "training_dataset_title": "Training of {dataset}",
   "training_run_page_title": "{run} of {dataset}",
-  "training_datasets_crumb": "Datasets",
-  "training_kpi_runs": "Runs",
-  "training_kpi_in_progress": "In progress",
-  "training_kpi_workers": "Workers",
-  "training_kpi_ready": "Ready",
-  "training_kpi_new_since_last_run": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} new since last run"
-      }
-    }
-  ],
   "training_kpi_epochs": "Epochs",
   "training_kpi_epochs_earlier_hidden": [
     {
@@ -53,7 +38,6 @@
   "run_column_map50_95": "mAP50-95",
   "run_column_version": "Version",
   "run_empty_title": "No training runs yet",
-  "run_empty_open_datasets": "Open datasets",
   "run_state_queued": "Queued",
   "run_state_preparing": "Preparing",
   "run_state_training": "Training",
@@ -92,8 +76,6 @@
   "parameter_max_det": "Max detections",
   "parameter_seed": "Seed",
   "parameter_deterministic": "Deterministic",
-  "run_empty_overview_description": "Train from a dataset's training page.",
-  "run_empty_dataset_description": "Start a run once enough images are reviewed.",
   "parameter_on": "On",
   "parameter_off": "Off",
   "train_refused_active": "A run is already in progress",
@@ -123,5 +105,5 @@
   "parameter_group_training": "Training",
   "parameter_group_augmentation": "Augmentation",
   "parameter_group_validation": "Validation and reproducibility",
-  "training_description": "Training runs and the model versions they produce."
+  "run_empty_description": "Start a run from one of the model's datasets."
 }

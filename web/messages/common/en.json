@@ -4,8 +4,6 @@
   "document_title": "{page} · {app}",
   "nav_experiments": "Experiments",
   "nav_models": "Models",
-  "nav_datasets": "Datasets",
-  "nav_training": "Training",
   "nav_account": "Account",
   "nav_integrations": "Integrations",
   "nav_users": "Users",

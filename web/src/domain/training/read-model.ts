@@ -1,5 +1,5 @@
-import type { ModelVersion } from "../models/schema";
-import type { TrainingEpoch, TrainingRecipe, TrainingRun } from "./schema";
+import type { Model, ModelVersion } from "../models/schema";
+import type { TrainingEpoch, TrainingRun } from "./schema";
 
 export interface TrainingRunSummary {
   dataset: string;
@@ -21,24 +21,10 @@ export interface VersionOverview {
   trainingImages: number | null;
 }
 
-export interface TrainingOverview {
-  versions: VersionOverview[];
-  total: number;
-  runs: TrainingRunSummary[];
-  inProgress: number;
-  workersOnline: number;
-}
-
-export interface TrainingConsole {
-  dataset: string;
-  reviewed: number;
-  recipe: TrainingRecipe;
-  training: TrainingSummary;
-  runs: TrainingRunSummary[];
-}
-
 export interface TrainingRunDetail {
   dataset: string;
+  /** The model the run's training set trains. */
+  model: Model;
   run: TrainingRun;
   epochs: TrainingEpoch[];
   version: ModelVersion | null;

@@ -10,11 +10,15 @@ import {
   deleteModel,
   setModelAnnotation,
 } from "../server/models/public";
-import { modelCatalogue } from "../server/queries/public";
+import { modelCatalogue, modelOverview } from "../server/queries/public";
 
 export const getModelCatalogue = createServerFn({ method: "GET" }).handler(() =>
   modelCatalogue(),
 );
+
+export const getModelOverview = createServerFn({ method: "GET" })
+  .validator(modelRefSchema)
+  .handler(({ data }) => modelOverview(data.model));
 
 export const addModel = createServerFn({ method: "POST" })
   .validator(modelRequestSchema)

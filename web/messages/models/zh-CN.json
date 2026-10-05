@@ -46,7 +46,7 @@
     {
       "declarations": ["input count", "local formattedCount = count: number"],
       "match": {
-        "count=*": "{formattedCount} 个数据集"
+        "count=*": "{formattedCount} 个训练集"
       }
     }
   ],
@@ -66,7 +66,23 @@
   "model_annotation_not_saved": "标注说明未保存",
   "model_annotation_dish_label": "跳过培养皿之外的空白区域",
   "model_annotation_dish_description": "自动识别培养皿并保留边缘区域，识别失败时标注整图。",
-  "models_empty_description": "新建模型，定义它要检测的类别。",
+  "models_empty_description": "新建模型，定义它要数的类别。",
   "model_menu_delete_item": "删除模型…",
-  "models_description": "每个模型定义一组要检测的类别；观测日按模型的版本读数。"
+  "models_description": "每个模型定义要数的类别；用训练集训练出越来越准的版本。",
+  "model_datasets": "训练集",
+  "versions_table": "模型版本",
+  "versions_column_version": "版本",
+  "versions_column_kind": "类型",
+  "versions_column_published": "发布时间",
+  "versions_column_trained_on": "训练图片",
+  "versions_empty": "暂无版本",
+  "versions_empty_description": "训练成功后，新版本会出现在这里。",
+  "versions_trained_images": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 张"
+      }
+    }
+  ]
 }
