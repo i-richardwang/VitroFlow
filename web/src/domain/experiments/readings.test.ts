@@ -51,7 +51,7 @@ const unreviewed = (count: number) => ({
 });
 
 describe("the tally a cell reads by", () => {
-  test("a calibrated annotation replaces the detection under it", () => {
+  test("a reviewed annotation replaces the detection under it", () => {
     expect(
       cellTally(
         cell("a", "b", {
@@ -86,7 +86,7 @@ describe("what a grid reads", () => {
     expect(unitReading(cells, "dish", day0)).toEqual(unreviewed(20));
   });
 
-  test("a calibrated cell carries the detection it replaced", () => {
+  test("a reviewed cell carries the detection it replaced", () => {
     const cells = observationCells([
       cell("dish", day0.id, {
         detectionTally: { ungerminated: 19 },

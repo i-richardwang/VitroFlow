@@ -13,6 +13,10 @@ export interface DatasetImageView {
   model: Model;
   review: Review;
   split: ImageSplit | null;
+  /** Where the image stands in the dataset's order, counted from 1. */
+  position: { index: number; total: number };
   previous: DatasetImageStep | null;
   next: DatasetImageStep | null;
+  /** The first image after this one, wrapping around, that nobody has reviewed. */
+  nextUnreviewed: DatasetImageStep | null;
 }

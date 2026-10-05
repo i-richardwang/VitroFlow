@@ -74,5 +74,18 @@
   "ui_pagination": "Pagination",
   "ui_pagination_previous": "Previous page",
   "ui_pagination_next": "Next page",
-  "ui_pagination_page": "Page {page}"
+  "ui_pagination_page": "Page {page}",
+  "ui_step_position": [
+    {
+      "declarations": [
+        "input index",
+        "input total",
+        "local formattedIndex = index: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "index=*": "{formattedIndex} / {formattedTotal}"
+      }
+    }
+  ]
 }

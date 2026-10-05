@@ -121,11 +121,7 @@
   ],
   "observation_images_repeated": "Same as {file}",
   "unit_title": "Unit {code} of {experiment}",
-  "unit_navigation": "Navigation",
   "unit_no_image": "No photographs of this unit yet",
-  "unit_image_section": "Image",
-  "unit_status": "Status",
-  "unit_file": "Filename",
   "unit_observed": "Observed",
   "unit_detection_failed": "Detection failed",
   "unit_retry": "Detect again",
@@ -192,7 +188,7 @@
   "treatment_unit_label": "Unit",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "Model",
-  "image_analysis_unread": "Not calibrated yet",
+  "image_analysis_unread": "No detector",
   "image_analysis_proposed": "AI proposal",
   "experiment_cell_proposed": "AI proposal",
   "experiments_empty_description": "Start an experiment to lay out its treatments and units.",
@@ -279,5 +275,17 @@
   "experiment_hero_title": "{day} · mean per unit",
   "experiment_hero_leader": "Highest: {treatment} {value}",
   "experiment_hero_trend": "Mean by observation day",
-  "experiment_hero_point": "{day}: {value}"
+  "experiment_hero_point": "{day}: {value}",
+  "unit_steps": "Units and observation days",
+  "unit_unreviewed_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} to review"
+      }
+    }
+  ],
+  "unit_culture_status": "Culture status",
+  "unit_no_image_on_day": "No photograph of this unit on this day",
+  "unit_no_image_on_day_description": "Match one to it from this day in the experiment."
 }

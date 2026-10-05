@@ -1,0 +1,64 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "annotation_source_review": "Review",
+  "annotation_source_detected": "Detected",
+  "annotation_section_metrics": "Counts",
+  "annotation_detection_version": "Version",
+  "annotation_detection_threshold": "Threshold",
+  "annotation_discard_confirm": "Discard unsaved changes?",
+  "annotation_discard": "Don't save",
+  "annotation_save_failed": "Save failed",
+  "annotation_box_class": "Mark class",
+  "annotation_undo": "Undo",
+  "annotation_redo": "Redo",
+  "annotation_delete": "Delete",
+  "annotation_layer_boxes": "Marks",
+  "annotation_layer_ids": "Numbers",
+  "annotation_layer_checks": "To check",
+  "annotation_source_proposal": "AI proposal",
+  "annotation_conflict": "This review changed in another page",
+  "annotation_conflict_description": "Saving is blocked. Reloading discards your changes and reads the latest review.",
+  "annotation_reload": "Reload",
+  "annotation_reload_failed": "Could not reload the review",
+  "annotation_discard_description": "Changes to this image that were not confirmed are lost.",
+  "annotation_ai_section": "AI proposal",
+  "annotation_ai_running": "Annotating",
+  "annotation_ai_progress": "Annotation progress",
+  "annotation_ai_progress_count": [
+    {
+      "declarations": [
+        "input completed",
+        "input total",
+        "local formattedCompleted = completed: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "completed=*": "{formattedCompleted} / {formattedTotal}"
+      }
+    }
+  ],
+  "annotation_ai_checks": "To check",
+  "annotation_confirm": "Confirm",
+  "annotation_confirm_next": "Confirm and next",
+  "annotation_next_unreviewed": "Next to review",
+  "annotation_discard_edits": "Discard changes",
+  "annotation_standing_edited": "Unsaved",
+  "annotation_standing_reviewed": "Reviewed",
+  "annotation_standing_unreviewed": "To review",
+  "annotation_standing_proposal": "AI proposal · to review",
+  "annotation_standing_detection": "Detection · to review",
+  "annotation_standing_unread": "Not read yet",
+  "annotation_readings": "Readings",
+  "annotation_named_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{name} {formattedCount}"
+      }
+    }
+  ],
+  "annotation_check_previous": "Previous check",
+  "annotation_check_next": "Next check",
+  "annotation_details": "Details",
+  "annotation_file": "Filename"
+}

@@ -74,5 +74,18 @@
   "ui_pagination": "分页",
   "ui_pagination_previous": "上一页",
   "ui_pagination_next": "下一页",
-  "ui_pagination_page": "第 {page} 页"
+  "ui_pagination_page": "第 {page} 页",
+  "ui_step_position": [
+    {
+      "declarations": [
+        "input index",
+        "input total",
+        "local formattedIndex = index: number",
+        "local formattedTotal = total: number"
+      ],
+      "match": {
+        "index=*": "{formattedIndex} / {formattedTotal}"
+      }
+    }
+  ]
 }

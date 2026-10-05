@@ -3,6 +3,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -16,8 +17,10 @@ import { m } from "../../paraglide/messages";
 import { Button } from "../kit/Button";
 import { formatPercent } from "../numbers";
 import { Toolbar } from "../kit/Toolbar";
+import { ToolbarSeparator } from "../kit/Toolbar";
 import {
   FILL,
+  focusedOn,
   pannedTo,
   resolveView,
   zoomedAbout,
@@ -105,18 +108,29 @@ export function usePanGesture(
   };
 }
 
+/** A region of the image to bring into view; a new `key` brings it again. */
+export interface ViewportFocus {
+  key: string;
+  region: { x: number; y: number; width: number; height: number };
+}
+
 /**
  * One image covering a frame until zoomed. Wheel zooms about the cursor,
  * dragging pans, and the image re-covers the frame whenever it changes size.
- * Children are drawn over the image in image pixels.
+ * Children are drawn over the image in image pixels. `focus` centers a region
+ * when it changes; `controls` join the zoom in the corner toolbar.
  */
 export function ImageViewport({
   image,
   filename,
+  focus,
+  controls,
   children,
 }: {
   image: ImageSize & { digest: string };
   filename: string;
+  focus?: ViewportFocus | null;
+  controls?: ReactNode;
   children?: ReactNode;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
@@ -160,6 +174,15 @@ export function ImageViewport({
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
   }, [frame, size]);
+
+  const focusKey = focus?.key;
+  const focusRegion = useEffectEvent(() => {
+    if (focus && frame) setIntent(focusedOn(focus.region, frame, size));
+  });
+  const measured = frame !== null;
+  useEffect(() => {
+    if (focusKey !== undefined && measured) focusRegion();
+  }, [focusKey, measured]);
 
   const panTo = useCallback(
     (x: number, y: number) =>
@@ -218,7 +241,7 @@ export function ImageViewport({
       </div>
       <Toolbar
         aria-label={m.ui_viewport_zoom()}
-        className="absolute bottom-3 left-1/2 -translate-x-1/2"
+        className="absolute right-3 bottom-3"
         onPointerDown={(event) => event.stopPropagation()}
       >
         <span className="w-12 text-center text-xs text-fg-secondary tabular-nums">
@@ -232,6 +255,12 @@ export function ImageViewport({
         >
           {m.ui_viewport_fill()}
         </Button>
+        {controls ? (
+          <>
+            <ToolbarSeparator />
+            {controls}
+          </>
+        ) : null}
       </Toolbar>
     </div>
   );

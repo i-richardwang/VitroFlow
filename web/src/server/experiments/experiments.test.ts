@@ -1586,7 +1586,7 @@ describe("experiments", () => {
     ).toHaveLength(3);
   });
 
-  test("a unit page shows its newest image and supports unit navigation", async () => {
+  test("a unit page shows its newest image and steps through units on its day", async () => {
     const version = await trainedVersion("exp-observation-unit");
     const experiment = await createExperiment({
       name: "Unit series",
@@ -1624,7 +1624,11 @@ describe("experiments", () => {
     expect(
       newest?.observations.map((item) => item.image?.state ?? null),
     ).toEqual(["pending", "pending"]);
-    expect(newest?.navigation.map((item) => item.code)).toEqual(["S-1", "S-2"]);
+    expect(newest?.observation).toBe(day14.id);
+    expect(newest?.navigation.map((item) => [item.code, item.image])).toEqual([
+      ["S-1", "unreviewed"],
+      ["S-2", null],
+    ]);
 
     const earlier = await readUnit(ref, day7.id);
     expect(earlier?.shown?.review.ref.digest).toBe(
@@ -1637,9 +1641,13 @@ describe("experiments", () => {
     });
     expect(lonely?.shown?.observation.id).toBe(day7.id);
     expect(lonely?.observations[1]?.image).toBeNull();
-    expect(
-      await readUnit({ ...ref, unit: units.get("S-2")! }, day14.id),
-    ).toBeNull();
+    const missing = await readUnit(
+      { ...ref, unit: units.get("S-2")! },
+      day14.id,
+    );
+    expect(missing?.observation).toBe(day14.id);
+    expect(missing?.shown).toBeNull();
+    expect(await readUnit(ref, randomUUID())).toBeNull();
     expect(
       await readUnit({
         ...ref,

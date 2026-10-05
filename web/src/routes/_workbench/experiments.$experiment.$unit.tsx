@@ -15,14 +15,12 @@ import { m } from "../../paraglide/messages";
 import type { UnitSeries } from "../../domain/experiments/contracts";
 
 /**
- * An observation the link cannot name is no observation: the newest shows.
- * `show` names the reading on view; the best shows otherwise. `calibrate`
- * opens the draft.
+ * An observation the link cannot name is no observation: the newest with a
+ * photograph shows. `show` names the reading on view; the best shows otherwise.
  */
 const unitSearchSchema = z.object({
   observation: observationIdSchema.optional().catch(undefined),
   show: z.enum(REVIEW_SOURCES).optional().catch(undefined),
-  calibrate: z.literal(true).optional().catch(undefined),
 });
 
 export const Route = createFileRoute(
@@ -71,7 +69,7 @@ export const Route = createFileRoute(
 
 function UnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
-  const { show, calibrate } = Route.useSearch();
+  const { show } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { shown } = series;
 
@@ -87,18 +85,9 @@ function UnitPage() {
       key={`${series.experiment.id}/${series.unit.id}`}
       series={series}
       datasets={datasets}
-      calibrating={calibrate === true}
       source={show}
       onSourceChange={(show) =>
         void navigate({ search: (previous) => ({ ...previous, show }) })
-      }
-      onCalibratingChange={(calibrating) =>
-        void navigate({
-          search: (previous) => ({
-            ...previous,
-            calibrate: calibrating ? true : undefined,
-          }),
-        })
       }
     />
   );

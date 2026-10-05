@@ -7,7 +7,7 @@ export interface DraftState {
   origin: ReviewSource | null;
 }
 
-/** The unsaved calibration of an image's annotation. */
+/** The unsaved edits to an image's annotation. */
 export interface AnnotationDraft extends DraftState {
   base: AnnotationInstance[] | null;
   past: DraftState[];

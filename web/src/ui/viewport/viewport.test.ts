@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   FILL,
+  focusedOn,
   MAX_SCALE,
   pannedTo,
   resolveView,
@@ -139,4 +140,13 @@ test("a small image still covers the frame during manual gestures and resizing",
     tiny,
   );
   expect(resized.scale).toBe(300);
+});
+
+test("focusing centers a region at a third of the frame", () => {
+  const frame = { width: 200, height: 150 };
+  const region = { x: 300, y: 200, width: 10, height: 5 };
+  const view = resolveView(focusedOn(region, frame, image), frame, image);
+  expect(view.scale).toBe(4.5);
+  expect(view.x + (region.x + region.width / 2) * view.scale).toBe(100);
+  expect(view.y + (region.y + region.height / 2) * view.scale).toBe(75);
 });

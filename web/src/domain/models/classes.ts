@@ -44,7 +44,7 @@ export function count(counts: Tally): number {
 
 /**
  * Each class keeps one color wherever its boxes are drawn, for the people who
- * calibrate them and the agents that propose them alike, taken in the order
+ * review them and the agents that propose them alike, taken in the order
  * its model declares its classes.
  */
 const CLASS_COLORS = [

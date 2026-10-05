@@ -7,7 +7,6 @@ import {
 } from "../domain/annotation/schema";
 import {
   AnnotationConflictError,
-  readAnnotation,
   storeAnnotation,
 } from "../server/annotations/public";
 
@@ -30,8 +29,3 @@ export const saveAnnotation = createServerFn({ method: "POST" })
       throw error;
     }
   });
-
-/** Reads the stored annotation as a save baseline, independently of the page cache. */
-export const getAnnotation = createServerFn({ method: "GET" })
-  .validator(annotationRefSchema)
-  .handler(({ data }) => readAnnotation(data));

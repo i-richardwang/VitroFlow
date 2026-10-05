@@ -20,10 +20,11 @@ import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
 import { ShellActions, ShellTrail } from "./Shell";
 
-/** Where floating content over the subject's top edge lands. */
+/** Where floating content over the subject's top edge, and the bar under it, land. */
 const FloatSlots = createContext<{
   toolbar: HTMLElement | null;
   alert: HTMLElement | null;
+  footer: HTMLElement | null;
 } | null>(null);
 
 const InspectorSlot = createContext<{
@@ -36,7 +37,8 @@ const INSPECTOR_WIDTH = { default: 360, min: 300, max: 600 };
 /**
  * A page built around one framed subject. It fills the shell's card edge to
  * edge: the subject on the left with its controls and lasting notices
- * floating over its top edge, facts in an inspector panel on the right.
+ * floating over its top edge and the way through its siblings in a bar under
+ * it, facts in an inspector panel on the right.
  * Actions belong in the shell's top bar. On narrow screens the inspector
  * moves into a drawer opened from the top bar.
  */
@@ -50,6 +52,7 @@ export function Workbench({
   const compact = useIsCompact();
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   const [alertSlot, setAlertSlot] = useState<HTMLDivElement | null>(null);
+  const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null);
   const [inspectorNode, setInspectorNode] = useState<HTMLDivElement | null>(
     null,
   );
@@ -74,7 +77,9 @@ export function Workbench({
   );
 
   return (
-    <FloatSlots value={{ toolbar: toolbarSlot, alert: alertSlot }}>
+    <FloatSlots
+      value={{ toolbar: toolbarSlot, alert: alertSlot, footer: footerSlot }}
+    >
       <InspectorSlot value={{ node: inspectorNode, mount: inspector.mount }}>
         <h1 className="sr-only">{title}</h1>
         <ShellTrail />
@@ -91,6 +96,10 @@ export function Workbench({
               />
             </div>
             {children}
+            <div
+              ref={setFooterSlot}
+              className="flex h-11 flex-none items-center gap-3 overflow-x-auto border-t bg-container px-3 empty:hidden"
+            />
           </div>
           {hasInspector && !compact ? (
             <DraggablePanel
@@ -140,33 +149,6 @@ export function WorkbenchInspector({ children }: { children: ReactNode }) {
   return createPortal(children, slot.node);
 }
 
-/**
- * The inspector's first block: what the subject is. The name of what holds
- * it above its own name, such as a unit's code over its treatment, and a line
- * of facts under it.
- */
-export function WorkbenchIdentity({
-  kicker,
-  title,
-  meta,
-}: {
-  kicker?: ReactNode;
-  title: ReactNode;
-  meta?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1 border-b pb-4">
-      {kicker != null ? (
-        <div className="text-xs font-medium text-fg-secondary">{kicker}</div>
-      ) : null}
-      <div className="text-base font-semibold">{title}</div>
-      {meta != null ? (
-        <div className="text-xs text-fg-tertiary">{meta}</div>
-      ) : null}
-    </div>
-  );
-}
-
 /** A titled group of the inspector, ruled off from the next. */
 export function WorkbenchSection({
   title,
@@ -205,6 +187,27 @@ export function WorkbenchToolbar({
   );
 }
 
+/**
+ * The bar under the subject: the way to the subjects beside it, such as the
+ * previous and next image, and along any other axis they are ordered on.
+ */
+export function WorkbenchFooter({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  const slot = use(FloatSlots)?.footer;
+  if (!slot) return null;
+  return createPortal(
+    <nav aria-label={label} className="contents">
+      {children}
+    </nav>,
+    slot,
+  );
+}
+
 /** A state of the subject that lasts while it is open, floating under its toolbar. */
 export function WorkbenchAlert({ children }: { children: ReactNode }) {
   const slot = use(FloatSlots)?.alert;
@@ -226,7 +229,7 @@ const INSPECTOR_BONES = [
   ["28%", "64%", "80%", "56%"],
 ] as const;
 
-/** The loading shape of a workbench: the framed subject and the inspector's groups. */
+/** The loading shape of a workbench: the framed subject and the inspector's sections. */
 export function WorkbenchSkeleton() {
   return (
     <Workbench title={m.ui_page_loading()}>
@@ -234,10 +237,6 @@ export function WorkbenchSkeleton() {
         <Skeleton.Button />
       </ShellActions>
       <WorkbenchInspector>
-        <div aria-hidden className="flex flex-col gap-1 border-b pb-4">
-          <Skeleton.Text size="xs" width="24%" />
-          <Skeleton.Text width="56%" />
-        </div>
         {INSPECTOR_BONES.map((widths, index) => (
           <div
             aria-hidden

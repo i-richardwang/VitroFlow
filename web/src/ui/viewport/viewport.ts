@@ -118,3 +118,26 @@ export function zoomedAbout(
     y: anchor.y - (anchor.y - view.y) * ratio,
   };
 }
+
+/** The share of the frame's shorter side a focused region spans. */
+const FOCUS_SPAN = 0.3;
+
+/** Centers a region of the image in the frame, magnified so it reads at a glance. */
+export function focusedOn(
+  region: { x: number; y: number; width: number; height: number },
+  frame: Size,
+  image: ImageSize,
+): ViewIntent {
+  const scale = constrainedScale(
+    (Math.min(frame.width, frame.height) * FOCUS_SPAN) /
+      Math.max(region.width, region.height, 1),
+    frame,
+    image,
+  );
+  return {
+    kind: "manual",
+    scale,
+    x: frame.width / 2 - (region.x + region.width / 2) * scale,
+    y: frame.height / 2 - (region.y + region.height / 2) * scale,
+  };
+}

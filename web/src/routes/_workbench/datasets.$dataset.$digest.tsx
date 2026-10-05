@@ -2,18 +2,15 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
-import { ImageWorkbench } from "../../features/calibration/ImageWorkbench";
+import { ImageWorkbench } from "../../features/annotation/ImageWorkbench";
 import { datasetImageRefSchema } from "../../domain/datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
-import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { DescriptionsItem } from "../../ui/kit/Descriptions";
 import { modelName } from "../../ui/model-names";
-import {
-  WorkbenchIdentity,
-  WorkbenchSection,
-  WorkbenchSkeleton,
-} from "../../ui/shell/Workbench";
-import { StepButton } from "../../ui/StepButton";
+import { useStepKeys } from "../../features/annotation/keys";
+import { WorkbenchFooter, WorkbenchSkeleton } from "../../ui/shell/Workbench";
+import { Stepper } from "../../ui/Stepper";
 import { splitLabel } from "../../features/datasets/labels";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
@@ -22,13 +19,9 @@ import type {
   DatasetImageView,
 } from "../../domain/datasets/image";
 
-/**
- * `show` names the reading on view; the best shows otherwise. `calibrate`
- * opens the draft.
- */
+/** `show` names the reading on view; the best shows otherwise. */
 const datasetImageSearchSchema = z.object({
   show: z.enum(REVIEW_SOURCES).optional().catch(undefined),
-  calibrate: z.literal(true).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
@@ -68,9 +61,17 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
 });
 
 function DatasetImagePage() {
-  const { dataset, model, review, split, previous, next } =
-    Route.useLoaderData();
-  const { show, calibrate } = Route.useSearch();
+  const {
+    dataset,
+    model,
+    review,
+    split,
+    position,
+    previous,
+    next,
+    nextUnreviewed,
+  } = Route.useLoaderData();
+  const { show } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { detection } = review;
 
@@ -80,11 +81,20 @@ function DatasetImagePage() {
       review.progress !== null,
   );
 
-  const stepTo = (step: DatasetImageStep) =>
-    void navigate({
-      params: (current) => ({ ...current, digest: step.digest }),
-      search: (current) => current,
-    });
+  const stepTo = (step: DatasetImageStep | null) =>
+    step
+      ? () =>
+          void navigate({
+            params: (current) => ({ ...current, digest: step.digest }),
+            search: {},
+          })
+      : undefined;
+  const toPrevious = stepTo(previous);
+  const toNext = stepTo(next);
+  useStepKeys({
+    ArrowLeft: toPrevious,
+    ArrowRight: toNext,
+  });
 
   return (
     <ImageWorkbench
@@ -92,51 +102,29 @@ function DatasetImagePage() {
       title={m.image_title({ file: review.filename, dataset: dataset.id })}
       model={model}
       review={review}
-      calibrating={calibrate === true}
       source={show}
       onSourceChange={(show) =>
         void navigate({ search: (previous) => ({ ...previous, show }) })
       }
-      onCalibratingChange={(calibrating) =>
-        void navigate({
-          search: (previous) => ({
-            ...previous,
-            calibrate: calibrating ? true : undefined,
-          }),
-        })
-      }
+      onNext={stepTo(nextUnreviewed)}
       context={{
-        toolbar: (
-          <>
-            <StepButton
-              direction="previous"
-              label={m.image_previous()}
-              disabled={previous === null}
-              onClick={() => previous && stepTo(previous)}
-            />
-            <StepButton
-              direction="next"
-              label={m.image_next()}
-              disabled={next === null}
-              onClick={() => next && stepTo(next)}
-            />
-          </>
+        steps: (
+          <WorkbenchFooter label={m.image_steps()}>
+            <Stepper
+              previous={{ label: m.image_previous(), onClick: toPrevious }}
+              next={{ label: m.image_next(), onClick: toNext }}
+            >
+              {m.ui_step_position(position)}
+            </Stepper>
+            <span className="truncate text-sm text-fg-secondary">
+              {modelName(model)}
+            </span>
+          </WorkbenchFooter>
         ),
-        identity: (
-          <WorkbenchIdentity
-            kicker={dataset.id}
-            title={review.filename}
-            meta={modelName(model)}
-          />
-        ),
-        details: split ? (
-          <WorkbenchSection title={m.image_section()}>
-            <Descriptions>
-              <DescriptionsItem label={m.image_split()}>
-                {splitLabel(split)}
-              </DescriptionsItem>
-            </Descriptions>
-          </WorkbenchSection>
+        facts: split ? (
+          <DescriptionsItem label={m.image_split()}>
+            {splitLabel(split)}
+          </DescriptionsItem>
         ) : undefined,
       }}
     />

@@ -115,11 +115,7 @@
   ],
   "observation_images_repeated": "与 {file} 相同",
   "unit_title": "{experiment} 的试验单元 {code}",
-  "unit_navigation": "导航",
   "unit_no_image": "这个试验单元还没有照片",
-  "unit_image_section": "图片",
-  "unit_status": "状态",
-  "unit_file": "文件名",
   "unit_observed": "观测日期",
   "unit_detection_failed": "检测失败",
   "unit_retry": "重新检测",
@@ -186,7 +182,7 @@
   "treatment_unit_label": "单位",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "模型",
-  "image_analysis_unread": "未校准",
+  "image_analysis_unread": "无检测器",
   "image_analysis_proposed": "有 AI 建议",
   "experiment_cell_proposed": "AI 建议",
   "experiments_empty_description": "新建实验，布置处理与试验单元。",
@@ -267,5 +263,17 @@
   "experiment_hero_title": "{day} · 试验单元均值",
   "experiment_hero_leader": "最高：{treatment} {value}",
   "experiment_hero_trend": "各观测日的均值",
-  "experiment_hero_point": "{day}：{value}"
+  "experiment_hero_point": "{day}：{value}",
+  "unit_steps": "试验单元与观测日",
+  "unit_unreviewed_count": [
+    {
+      "declarations": ["input count", "local formattedCount = count: number"],
+      "match": {
+        "count=*": "{formattedCount} 个待复核"
+      }
+    }
+  ],
+  "unit_culture_status": "培养状态",
+  "unit_no_image_on_day": "这一天没有这个试验单元的照片",
+  "unit_no_image_on_day_description": "在实验表格中，把这一天的照片对应到这个试验单元。"
 }

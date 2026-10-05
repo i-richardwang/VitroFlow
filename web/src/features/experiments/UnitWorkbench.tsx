@@ -1,6 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { FolderPlus, ImageOff } from "lucide-react";
-import { useState } from "react";
+import { ImageOff } from "lucide-react";
 
 import { observationLabel, cultureEventLabel } from "./labels";
 import type { ReviewSource } from "../../domain/annotation/schema";
@@ -11,65 +10,102 @@ import {
 } from "../../domain/experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
-import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
-import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { DescriptionsItem } from "../../ui/kit/Descriptions";
+import { StatusDot, type StatusTone } from "../../ui/kit/Status";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
-import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { Day } from "../../ui/Day";
 import { m } from "../../paraglide/messages";
 import type {
-  UnitNavigationEntry,
+  ImageReview,
   UnitSeries,
+  UnitStep,
 } from "../../domain/experiments/contracts";
-import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
+import { imageReview } from "../../domain/experiments/readings";
 import { ShellActions } from "../../ui/shell/Shell";
 import {
   Workbench,
   WorkbenchEmpty,
-  WorkbenchIdentity,
+  WorkbenchFooter,
   WorkbenchSection,
-  WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
-import { StepButton } from "../../ui/StepButton";
-import { ImageWorkbench } from "../calibration/ImageWorkbench";
-import { UnitMenu } from "./UnitMenu";
+import { Stepper } from "../../ui/Stepper";
+import { ImageWorkbench } from "../annotation/ImageWorkbench";
+import { useStepKeys } from "../annotation/keys";
+import { CultureMenu, UnitMenu } from "./UnitMenu";
 
+/**
+ * One unit's photograph on one observation day. The footer steps along both
+ * of the grid's axes: through the units on the same day, the way a day's
+ * photographs are reviewed, and through the days of the same unit, the way a
+ * dish is followed over time. Confirming a review moves on to the next unit
+ * still to review that day.
+ */
 export function UnitWorkbench({
   series,
   datasets,
-  calibrating,
   source,
   onSourceChange,
-  onCalibratingChange,
 }: {
   series: UnitSeries;
   datasets: string[];
-  calibrating: boolean;
   source?: ReviewSource;
-  onSourceChange: (source: ReviewSource) => void;
-  onCalibratingChange: (calibrating: boolean) => void;
+  onSourceChange: (source: ReviewSource | undefined) => void;
 }) {
   const { experiment, unit, treatments, navigation, shown } = series;
-  const [addingToDataset, setAddingToDataset] = useState(false);
+  const router = useRouter();
   const treatment = treatments.find((item) => item.id === unit.treatment)!;
   const at = navigation.findIndex((item) => item.id === unit.id);
   const title = m.unit_title({
     code: unit.code,
     experiment: experiment.name,
   });
+  const observations = series.observations.map((item) => item.observation);
   const latestEvent = latestCultureEvent(
     unit.events,
-    observationOrdinals(series.observations.map((item) => item.observation)),
+    observationOrdinals(observations),
   );
+
+  const toUnit = (target: UnitStep | undefined) =>
+    target
+      ? () =>
+          void router.navigate({
+            to: "/experiments/$experiment/$unit",
+            params: { experiment: experiment.id, unit: target.id },
+            search: { observation: series.observation ?? undefined },
+          })
+      : undefined;
+  const dayAt = observations.findIndex(
+    (item) => item.id === series.observation,
+  );
+  const toDay = (observation: string | undefined) =>
+    observation
+      ? () =>
+          void router.navigate({
+            to: "/experiments/$experiment/$unit",
+            params: { experiment: experiment.id, unit: unit.id },
+            search: { observation },
+          })
+      : undefined;
+  const previousUnit = toUnit(navigation[at - 1]);
+  const nextUnit = toUnit(navigation[at + 1]);
+  const toReview = [
+    ...navigation.slice(at + 1),
+    ...navigation.slice(0, at),
+  ].filter((item) => item.image === "unreviewed");
+  useStepKeys({
+    ArrowLeft: previousUnit,
+    ArrowRight: nextUnit,
+    ArrowUp: toDay(observations[dayAt - 1]?.id),
+    ArrowDown: toDay(observations[dayAt + 1]?.id),
+  });
 
   const menu = (
     <UnitMenu
       experiment={experiment.id}
       unit={unit}
       treatments={treatments}
-      observations={series.observations.map((item) => item.observation)}
       canRemove={
         unit.events.length === 0 &&
         !series.observations.some((item) => item.image) &&
@@ -78,37 +114,74 @@ export function UnitWorkbench({
         )
       }
       image={shown}
+      datasets={datasets}
     />
   );
-  const toolbar = (
-    <>
-      <UnitStepper
-        experiment={experiment.id}
-        calibrating={calibrating}
-        previous={navigation[at - 1] ?? null}
-        next={navigation[at + 1] ?? null}
-      />
-      {series.observations.some((item) => item.image) ? (
-        <ToolbarSeparator />
+  const steps = (
+    <WorkbenchFooter label={m.unit_steps()}>
+      <Stepper
+        previous={{ label: m.unit_previous(), onClick: previousUnit }}
+        next={{ label: m.unit_next(), onClick: nextUnit }}
+      >
+        {m.ui_step_position({ index: at + 1, total: navigation.length })}
+      </Stepper>
+      {toReview.length > 0 ? (
+        <span className="text-sm whitespace-nowrap text-fg-tertiary">
+          {m.unit_unreviewed_count({ count: toReview.length })}
+        </span>
       ) : null}
-      <ObservationSwitch
-        series={series}
-        shown={shown?.observation.id ?? null}
-      />
-    </>
+      <span className="flex-1" />
+      {series.observations.length > 0 ? (
+        <ToggleGroup
+          aria-label={m.observations_label()}
+          value={series.observation ?? undefined}
+          options={series.observations.map(({ observation, image }) => ({
+            value: observation.id,
+            label: observationLabel(observation),
+            mark: image ? <ReviewDot review={imageReview(image)} /> : undefined,
+          }))}
+          onChange={(observation) => toDay(observation)?.()}
+        />
+      ) : null}
+    </WorkbenchFooter>
+  );
+  const culture = (
+    <WorkbenchSection title={m.unit_culture_status()}>
+      <div className="flex">
+        <CultureMenu
+          experiment={experiment.id}
+          unit={unit}
+          observations={observations}
+          status={
+            latestEvent
+              ? cultureEventLabel(latestEvent.type)
+              : m.culture_status_active()
+          }
+        />
+      </div>
+    </WorkbenchSection>
   );
 
   if (!shown) {
+    // A day in view is one this unit was not photographed on; without one,
+    // it has not been photographed at all.
+    const missing = series.observation
+      ? {
+          title: m.unit_no_image_on_day(),
+          description: m.unit_no_image_on_day_description(),
+        }
+      : {
+          title: m.unit_no_image(),
+          description: m.unit_no_image_description(),
+        };
     return (
       <Workbench title={title}>
         <ShellActions>{menu}</ShellActions>
-        <WorkbenchToolbar label={m.unit_navigation()}>
-          {toolbar}
-        </WorkbenchToolbar>
+        {steps}
         <WorkbenchEmpty
           icon={ImageOff}
-          title={m.unit_no_image()}
-          description={m.unit_no_image_description()}
+          title={missing.title}
+          description={missing.description}
           action={
             <Button
               render={
@@ -132,137 +205,47 @@ export function UnitWorkbench({
       title={title}
       model={shown.model}
       review={shown.review}
-      calibrating={calibrating}
       source={source}
       onSourceChange={onSourceChange}
-      onCalibratingChange={onCalibratingChange}
+      onNext={toUnit(toReview[0])}
       context={{
-        identity: (
-          <WorkbenchIdentity
-            kicker={unit.code}
-            title={treatment.name}
-            meta={observationLabel(shown.observation)}
+        menu,
+        steps,
+        alert: shown.failure ? (
+          <Alert
+            type="error"
+            title={m.unit_detection_failed()}
+            detail={shown.failure.error}
+            action={<RetryButton image={shown.ref} />}
           />
-        ),
-        actions: (
+        ) : undefined,
+        sections: culture,
+        facts: (
           <>
-            <ActionIcon
-              icon={FolderPlus}
-              size="header"
-              title={m.dataset_add_heading()}
-              onClick={() => setAddingToDataset(true)}
-            />
-            <AddToDatasetDialog
-              open={addingToDataset}
-              images={[shown.ref]}
-              datasets={datasets}
-              onClose={() => setAddingToDataset(false)}
-            />
+            <DescriptionsItem label={m.treatment_label()}>
+              {treatment.name}
+            </DescriptionsItem>
+            <DescriptionsItem label={m.unit_observed()}>
+              <Day value={shown.observation.observedOn} />
+            </DescriptionsItem>
           </>
         ),
-        menu,
-        toolbar,
-        details: (
-          <WorkbenchSection title={m.unit_image_section()}>
-            <Descriptions>
-              <DescriptionsItem label={m.unit_status()}>
-                {latestEvent
-                  ? cultureEventLabel(latestEvent.type)
-                  : m.culture_status_active()}
-              </DescriptionsItem>
-              <DescriptionsItem label={m.unit_file()}>
-                {shown.review.filename}
-              </DescriptionsItem>
-              <DescriptionsItem label={m.unit_observed()}>
-                <Day value={shown.observation.observedOn} />
-              </DescriptionsItem>
-            </Descriptions>
-            {shown.failure ? (
-              <Alert
-                type="error"
-                title={m.unit_detection_failed()}
-                detail={shown.failure.error}
-                action={<RetryButton image={shown.ref} />}
-              />
-            ) : null}
-          </WorkbenchSection>
-        ),
       }}
     />
   );
 }
 
-function ObservationSwitch({
-  series,
-  shown,
-}: {
-  series: UnitSeries;
-  shown: string | null;
-}) {
-  const router = useRouter();
-  if (!series.observations.some((item) => item.image)) return null;
-  return (
-    <ToggleGroup
-      aria-label={m.observations_label()}
-      value={shown ?? undefined}
-      options={series.observations.map((item) => ({
-        value: item.observation.id,
-        label: observationLabel(item.observation),
-        disabled: !item.image,
-      }))}
-      onChange={(observation) => {
-        const item = series.observations.find(
-          (entry) => entry.observation.id === observation,
-        );
-        if (!item?.image) return;
-        void router.navigate({
-          to: "/experiments/$experiment/$unit",
-          params: {
-            experiment: series.experiment.id,
-            unit: series.unit.id,
-          },
-          search: (previous) => ({ ...previous, observation }),
-        });
-      }}
-    />
-  );
-}
+const REVIEW_DOTS: Record<
+  ImageReview,
+  { tone: StatusTone; label: () => string }
+> = {
+  reviewed: { tone: "success", label: m.annotation_standing_reviewed },
+  unreviewed: { tone: "neutral", label: m.annotation_standing_unreviewed },
+};
 
-function UnitStepper({
-  experiment,
-  calibrating,
-  previous,
-  next,
-}: {
-  experiment: string;
-  /** Stepping during calibration opens the next unit's image for calibration too. */
-  calibrating: boolean;
-  previous: UnitNavigationEntry | null;
-  next: UnitNavigationEntry | null;
-}) {
-  const router = useRouter();
-  const go = (unit: string) =>
-    void router.navigate({
-      to: "/experiments/$experiment/$unit",
-      params: { experiment, unit },
-      search: calibrating ? { calibrate: true } : {},
-    });
-  return (
-    <>
-      <StepButton
-        direction="previous"
-        label={m.unit_previous()}
-        disabled={previous === null}
-        onClick={() => previous && go(previous.id)}
-      />
-      <StepButton
-        direction="next"
-        label={m.unit_next()}
-        disabled={next === null}
-        onClick={() => next && go(next.id)}
-      />
-    </>
-  );
+function ReviewDot({ review }: { review: ImageReview }) {
+  const { tone, label } = REVIEW_DOTS[review];
+  return <StatusDot tone={tone} label={label()} />;
 }
 
 function RetryButton({ image }: { image: ObservationImageRef }) {

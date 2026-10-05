@@ -10,6 +10,7 @@
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
+  gap: 6px;
   justify-content: center;
   height: 24px;
   padding-inline: 6px;

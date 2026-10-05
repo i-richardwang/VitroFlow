@@ -30,6 +30,11 @@ import type {
 } from "../../domain/experiments/contracts";
 import { unitOrder } from "../../domain/experiments/naming";
 import {
+  cellKey,
+  imageReview,
+  observationCells,
+} from "../../domain/experiments/readings";
+import {
   daysBetween,
   type ImageAnalysisState,
   type ObservationImageRef,
@@ -188,39 +193,30 @@ async function readUnitSeries(
 ): Promise<UnitSeries | null> {
   const experiment = await readExperimentRecord(ref.experiment, db);
   if (!experiment) return null;
-  const [treatments, units, observations, cells] = await Promise.all([
+  const [treatments, units, observations, images] = await Promise.all([
     listTreatments(ref.experiment, db),
     listUnits(ref.experiment, db),
     listObservations(experiment, db),
-    observationImageGridQuery(db)
-      .where(
-        and(
-          eq(experimentObservationImages.experimentId, ref.experiment),
-          eq(experimentObservationImages.unitId, ref.unit),
-        ),
-      )
-      .then((rows) => rows.map(toCell)),
+    listObservationImageCells(ref.experiment, db),
   ]);
   const ordered = unitOrder(units, treatments);
   const unit = ordered.find((item) => item.id === ref.unit);
   if (!unit) return null;
-  const byObservation = new Map(cells.map((cell) => [cell.observation, cell]));
+  const cells = observationCells(images);
   const series = observations.map((observation) => ({
     observation,
-    image: byObservation.get(observation.id) ?? null,
+    image: cells.get(cellKey(unit.id, observation.id)) ?? null,
   }));
-  const chosen =
+  const viewing =
     observationId === undefined
       ? [...series].reverse().find((item) => item.image !== null)
-      : series.find(
-          (item) => item.observation.id === observationId && item.image,
-        );
-  if (observationId !== undefined && !chosen) return null;
-  const shown = chosen?.image
+      : series.find((item) => item.observation.id === observationId);
+  if (observationId !== undefined && !viewing) return null;
+  const shown = viewing?.image
     ? await readExperimentObservationImage(
         {
           experiment: ref.experiment,
-          observationImage: chosen.image.id,
+          observationImage: viewing.image.id,
         },
         db,
       )
@@ -229,12 +225,12 @@ async function readUnitSeries(
     experiment,
     unit,
     treatments,
-    navigation: ordered.map(({ id, code, treatment }) => ({
-      id,
-      code,
-      treatment,
-    })),
+    navigation: ordered.map(({ id, code, treatment }) => {
+      const image = viewing && cells.get(cellKey(id, viewing.observation.id));
+      return { id, code, treatment, image: image ? imageReview(image) : null };
+    }),
     observations: series,
+    observation: viewing?.observation.id ?? null,
     shown,
   };
 }

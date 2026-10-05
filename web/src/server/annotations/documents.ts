@@ -6,7 +6,7 @@ import {
   type AnnotationInstance,
   type AnnotationRef,
 } from "../../domain/annotation/schema";
-import { database, transaction } from "../infra/db/client";
+import { database, transaction, type Executor } from "../infra/db/client";
 import { annotations, images } from "../infra/db/schema";
 import { canonicalJson } from "../../lib/json/canonical";
 import { assertInstanceClasses } from "../../domain/models/classes";
@@ -19,19 +19,21 @@ export class AnnotationConflictError extends Error {
   }
 }
 
-function atAnnotation({ digest, modelId }: AnnotationRef) {
-  return and(eq(annotations.imageId, digest), eq(annotations.modelId, modelId));
-}
-
+/** The image's stored review for the model, if a person has made one. */
 export async function readAnnotation(
   ref: AnnotationRef,
+  executor?: Executor,
 ): Promise<AnnotationDocument | null> {
-  const [row] = await (
-    await database()
-  )
+  const db = executor ?? (await database());
+  const [row] = await db
     .select({ document: annotations.document })
     .from(annotations)
-    .where(atAnnotation(ref));
+    .where(
+      and(
+        eq(annotations.imageId, ref.digest),
+        eq(annotations.modelId, ref.modelId),
+      ),
+    );
   return row?.document ?? null;
 }
 
@@ -48,13 +50,8 @@ export async function storeAnnotation(
 ): Promise<AnnotationDocument> {
   return transaction(async (tx) => {
     await lockImage(ref.digest, tx);
-    const [current] = await tx
-      .select({ document: annotations.document })
-      .from(annotations)
-      .where(atAnnotation(ref));
-    if (
-      canonicalJson(current?.document.instances ?? null) !== canonicalJson(base)
-    ) {
+    const current = await readAnnotation(ref, tx);
+    if (canonicalJson(current?.instances ?? null) !== canonicalJson(base)) {
       throw new AnnotationConflictError();
     }
     const [image] = await tx

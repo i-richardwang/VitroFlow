@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { database } from "../infra/db/client";
-import { datasetImages } from "../infra/db/schema";
+import { annotations, datasetImages } from "../infra/db/schema";
 import type {
   DatasetImageStep,
   DatasetImageView,
@@ -24,8 +24,16 @@ export async function readDatasetImage(
       digest: datasetImages.imageId,
       filename: datasetImages.filename,
       split: datasetImages.split,
+      reviewed: sql<boolean>`${annotations.imageId} is not null`,
     })
     .from(datasetImages)
+    .leftJoin(
+      annotations,
+      and(
+        eq(annotations.imageId, datasetImages.imageId),
+        eq(annotations.modelId, dataset.modelId),
+      ),
+    )
     .where(eq(datasetImages.datasetId, ref.dataset))
     .orderBy(...membershipOrder());
   const at = members.findIndex((member) => member.digest === ref.digest);
@@ -37,18 +45,21 @@ export async function readDatasetImage(
     db,
   );
   if (!review) return null;
-  const step = (index: number): DatasetImageStep | null => {
-    const neighbour = members[index];
-    return neighbour
+  const toStep = (
+    neighbour: (typeof members)[number] | undefined,
+  ): DatasetImageStep | null =>
+    neighbour
       ? { digest: neighbour.digest, filename: neighbour.filename }
       : null;
-  };
+  const following = [...members.slice(at + 1), ...members.slice(0, at)];
   return {
     dataset,
     model,
     review,
     split: member.split,
-    previous: step(at - 1),
-    next: step(at + 1),
+    position: { index: at + 1, total: members.length },
+    previous: toStep(members[at - 1]),
+    next: toStep(members[at + 1]),
+    nextUnreviewed: toStep(following.find((item) => !item.reviewed)),
   };
 }

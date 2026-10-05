@@ -1,5 +1,1 @@
-export {
-  AnnotationConflictError,
-  readAnnotation,
-  storeAnnotation,
-} from "./documents";
+export { AnnotationConflictError, storeAnnotation } from "./documents";

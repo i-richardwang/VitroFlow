@@ -20,12 +20,7 @@ import type {
   ImageSize,
 } from "../../domain/annotation/schema";
 import { classColor } from "../../domain/models/classes";
-import {
-  CANVAS_COLORS,
-  TOOL_SPECS,
-  type LayerKey,
-  type Tool,
-} from "./controls";
+import { CANVAS_COLORS, nextClass, type LayerKey } from "./controls";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { usePanGesture, useViewport } from "../../ui/viewport/ImageViewport";
 
@@ -111,30 +106,9 @@ function Box({
   );
 }
 
-export function BoxLayer({
-  image,
-  classes,
-  instances,
-  layers,
-}: {
-  image: ImageSize;
-  classes: readonly string[];
-  instances: AnnotationInstance[];
-  layers: ReadonlySet<LayerKey>;
-}) {
-  if (!layers.has("boxes")) return null;
-  return (
-    <Layer image={image}>
-      {instances.map((instance, index) => (
-        <Box
-          key={instance.id}
-          box={instance.bbox}
-          color={classColor(classes, instance.class).hex}
-          ordinal={layers.has("ids") ? index + 1 : undefined}
-        />
-      ))}
-    </Layer>
-  );
+/** A check is identified by what it asks and where. */
+function checkKey({ kind, bbox }: Check): string {
+  return `${kind}:${bbox.x},${bbox.y},${bbox.width},${bbox.height}`;
 }
 
 /**
@@ -142,11 +116,6 @@ export function BoxLayer({
  * an unsure box is ringed, a questioned area is ringed and marked "?", whose
  * hover gives the agent's reason.
  */
-/** A check is identified by what it asks and where. */
-function checkKey({ kind, bbox }: Check): string {
-  return `${kind}:${bbox.x},${bbox.y},${bbox.width},${bbox.height}`;
-}
-
 export function ChecksLayer({
   image,
   checks,
@@ -207,6 +176,8 @@ type BoxGesture =
       id: string;
       start: Point;
       box: BoundingBox;
+      /** The box was selected before this press, so a press without a drag turns it over. */
+      wasSelected: boolean;
     }
   | {
       kind: "resize";
@@ -218,41 +189,44 @@ type BoxGesture =
     };
 
 /**
- * The boxes of a draft. Select and drag a box to move it, drag a handle to
- * resize it; press empty image to add a box or clear the selection. Holding
- * space pans instead, as does dragging empty image.
+ * The boxes of a draft. Press a box to select it and press it again to give
+ * it the next class; drag it to move it, drag a handle to resize it. Press
+ * empty image to add a box, or to clear the selection when one is selected.
+ * Dragging empty image pans, as does anything while space is held or the
+ * draft is being saved.
  */
 export function EditableBoxLayer({
   image,
   classes,
   instances,
   layers,
-  tool,
   panning,
   activeClass,
   selectedId,
   onSelect,
+  onClassChange,
   onInstancesChange,
 }: {
   image: ImageSize;
   classes: readonly string[];
   instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
-  tool: Tool;
+  /** True while space is held or the draft is saving: the pointer only pans. */
   panning: boolean;
   activeClass: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** Gives the selected box another class. */
+  onClassChange: (name: string) => void;
   onInstancesChange: (instances: AnnotationInstance[]) => void;
 }) {
   const viewport = useViewport();
   const [gesture, setGesture] = useState<BoxGesture | null>(null);
-  const editable = tool === "select" && !panning;
+  const editable = !panning;
 
   /**
    * Places a square the size of the boxes already on the image, so added
-   * boxes share one convention. The tool stays active for the next instance;
-   * switching to select exposes the resize handles.
+   * boxes share one convention, and selects it to show its handles.
    */
   const addBoxAt = (center: Point) => {
     const box = boxAround(center, initialBoxSide(instances, image), image);
@@ -264,8 +238,8 @@ export function EditableBoxLayer({
 
   const pan = usePanGesture(viewport, (point) => {
     if (panning) return;
-    if (tool === "add") addBoxAt(point);
-    else onSelect(null);
+    if (selectedId !== null) onSelect(null);
+    else addBoxAt(point);
   });
 
   const onPointerDown = (event: React.PointerEvent) => {
@@ -306,6 +280,7 @@ export function EditableBoxLayer({
       id: instance.id,
       start,
       box: instance.bbox,
+      wasSelected: instance.id === selectedId,
     });
   };
 
@@ -336,6 +311,14 @@ export function EditableBoxLayer({
     }
     if (gesture.pointerId !== event.pointerId) return;
     setGesture(null);
+    const instance = instances.find((item) => item.id === gesture.id);
+    if (!instance) return;
+    if (sameBox(instance.bbox, gesture.box)) {
+      if (gesture.kind === "move" && gesture.wasSelected) {
+        onClassChange(nextClass(classes, instance.class));
+      }
+      return;
+    }
     onInstancesChange(
       instances.map((item) =>
         item.id === gesture.id ? { ...item, bbox: gesture.box } : item,
@@ -349,11 +332,7 @@ export function EditableBoxLayer({
   };
 
   const handleSize = HANDLE_SCREEN_SIZE / viewport.scale;
-  const cursor = pan.dragging
-    ? "grabbing"
-    : panning
-      ? "grab"
-      : TOOL_SPECS[tool].cursor;
+  const cursor = pan.dragging ? "grabbing" : panning ? "grab" : "crosshair";
 
   return (
     <Layer
@@ -405,5 +384,11 @@ export function EditableBoxLayer({
           })
         : null}
     </Layer>
+  );
+}
+
+function sameBox(a: BoundingBox, b: BoundingBox): boolean {
+  return (
+    a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
   );
 }

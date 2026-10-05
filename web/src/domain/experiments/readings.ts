@@ -1,6 +1,6 @@
 import type { ReviewSource } from "../annotation/schema";
 import { count, type Tally } from "../models/classes";
-import type { ObservationImageCell, Unit } from "./contracts";
+import type { ImageReview, ObservationImageCell, Unit } from "./contracts";
 import { exclusionAt, type ObservationOrdinals } from "./culture-events";
 import type { ExperimentObservation } from "./schema";
 
@@ -24,6 +24,11 @@ export function observationCells(
   return new Map(
     images.map((image) => [cellKey(image.unit, image.observation), image]),
   );
+}
+
+/** A photograph is reviewed once a person has stored its boxes. */
+export function imageReview(image: ObservationImageCell): ImageReview {
+  return image.annotationTally ? "reviewed" : "unreviewed";
 }
 
 /**

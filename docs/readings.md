@@ -7,7 +7,7 @@ lives.
 ## What a model declares
 
 A model declares the classes it recognizes and nothing else. Classes are the
-model's identity: calibration offers them as the class of a new mark, the
+model's identity: the image page offers them as the class of a new box, the
 YOLO export indexes labels by them, dataset transfer requires both ends to
 agree on them, and a training snapshot freezes them alongside the images.
 
@@ -33,10 +33,10 @@ afresh.
 
 Every photograph yields a tally: how many instances of each class the reading
 found. An image can hold three readings, and they rank: a reviewer's
-calibration outranks an AI agent's proposal, which outranks the detector's
+review outranks an AI agent's proposal, which outranks the detector's
 result. A unit's tally is the best reading its photograph has. A proposal
 counts because an agent that sees the photograph reads it better than the
-detector, but it is still a machine's reading; only a calibration marks the
+detector, but it is still a machine's reading; only a review marks the
 image reviewed, and the grid shows the difference.
 
 **A count** is how many instances a unit's reading found, across every class it

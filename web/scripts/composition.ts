@@ -8,7 +8,7 @@ const RULES = "docs/interface.md";
  * follow the pointer and the image's own coordinates at render time.
  */
 const INLINE_STYLE_FILES = new Set([
-  "src/features/calibration/BoxLayer.tsx",
+  "src/features/annotation/BoxLayer.tsx",
   "src/ui/viewport/ImageViewport.tsx",
 ]);
 

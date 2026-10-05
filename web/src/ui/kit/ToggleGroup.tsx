@@ -1,15 +1,18 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup as BaseToggleGroup } from "@base-ui/react/toggle-group";
+import type { ReactNode } from "react";
 
 /*
  * An exclusive group of compact toggles; once one is selected, clicking it
- * again keeps it selected. `outlined` is a list's filter: the toggles share
+ * again keeps it selected. An option's `mark` leads its label, such as the
+ * dot of a state or the swatch of a color. `outlined` is a list's filter: the toggles share
  * one 24px outlined box, parted by hairlines, the selected one on fill.
  */
 
 export interface ToggleGroupOption<Value extends string> {
   disabled?: boolean;
   label: string;
+  mark?: ReactNode;
   value: Value;
 }
 
@@ -48,6 +51,7 @@ export function ToggleGroup<Value extends string>({
           key={option.value}
           value={option.value}
         >
+          {option.mark}
           {option.label}
         </Toggle>
       ))}

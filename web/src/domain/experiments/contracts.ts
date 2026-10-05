@@ -67,7 +67,21 @@ const unitNavigationEntrySchema = z.strictObject({
   treatment: treatmentIdSchema,
 });
 
-export type UnitNavigationEntry = z.infer<typeof unitNavigationEntrySchema>;
+/** Whether a person has reviewed a photograph's boxes. */
+const IMAGE_REVIEWS = ["reviewed", "unreviewed"] as const;
+
+export type ImageReview = (typeof IMAGE_REVIEWS)[number];
+
+/**
+ * A unit as the series steps through it on the observation in view, with
+ * whether its photograph of that day has been reviewed; a unit without one
+ * that day has none.
+ */
+const unitStepSchema = unitNavigationEntrySchema.extend({
+  image: z.enum(IMAGE_REVIEWS).nullable(),
+});
+
+export type UnitStep = z.infer<typeof unitStepSchema>;
 
 /**
  * An observation image with its review for the observation's model, and the
@@ -91,8 +105,10 @@ export const unitSeriesSchema = z.strictObject({
   experiment: experimentSchema,
   unit: unitSchema,
   treatments: z.array(treatmentSchema),
-  navigation: z.array(unitNavigationEntrySchema),
+  navigation: z.array(unitStepSchema),
   observations: z.array(unitObservationSchema),
+  /** The observation in view: the one asked for, or the newest with a photograph. */
+  observation: observationIdSchema.nullable(),
   shown: experimentObservationImageSchema.nullable(),
 });
 

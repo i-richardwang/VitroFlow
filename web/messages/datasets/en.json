@@ -20,6 +20,7 @@
   "dataset_empty_images": "No images yet",
   "dataset_remove": "Remove",
   "dataset_add_heading": "Add to dataset",
+  "dataset_add_menu": "Add to dataset…",
   "dataset_add_nothing_added": "Nothing was added",
   "dataset_add_result": [
     {
@@ -88,8 +89,6 @@
   "image_title": "{file} in {dataset}",
   "image_previous": "Previous image",
   "image_next": "Next image",
-  "image_boxes_shown": "Marks shown",
-  "image_section": "Image",
   "image_split": "Training split",
   "image_split_train": "Training",
   "image_split_val": "Validation",
@@ -155,5 +154,6 @@
   "dataset_no_matches_description": "Try another search or state.",
   "dataset_preview_boxes": "Boxes",
   "dataset_preview_quality": "Detection quality",
-  "dataset_preview_open": "Open to annotate"
+  "dataset_preview_open": "Open to annotate",
+  "image_steps": "Images"
 }

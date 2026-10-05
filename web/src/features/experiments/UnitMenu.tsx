@@ -1,7 +1,9 @@
 import { useRouter } from "@tanstack/react-router";
 import {
+  ChevronDown,
   CircleMinus,
   ClipboardPen,
+  FolderPlus,
   ImageMinus,
   ImageUp,
   Pencil,
@@ -30,33 +32,37 @@ import {
   useAsyncAction,
   type AsyncAction,
 } from "../../ui/hooks/useAsyncAction";
-import type { DropdownItem } from "../../ui/kit/DropdownMenu";
+import { Button } from "../../ui/kit/Button";
+import { DropdownMenu, type DropdownItem } from "../../ui/kit/DropdownMenu";
 import { Form } from "../../ui/kit/Form";
 import { Select } from "../../ui/kit/Select";
 import { toast } from "../../ui/kit/Toast";
+import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { cultureEventLabel, observationLabel } from "./labels";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 import { ReplaceObservationImageDialog } from "./ReplaceObservationImageDialog";
 import { UnitDialog } from "./UnitDialog";
 
-type Action = "replace" | "edit" | "record" | "remove-event";
+type Action = "replace" | "edit" | "dataset";
 
 const REMOVE_EVENT_FORM = "remove-culture-event";
 
+/** The unit's own commands and those on the photograph in view. */
 export function UnitMenu({
   experiment,
   unit,
   treatments,
-  observations,
   canRemove,
   image,
+  datasets,
 }: {
   experiment: string;
   unit: Unit;
   treatments: Treatment[];
-  observations: ExperimentObservation[];
   canRemove: boolean;
   image: ExperimentObservationImage | null;
+  /** The datasets the photograph could join. */
+  datasets: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
@@ -71,28 +77,20 @@ export function UnitMenu({
       onClick: () => setOpen("replace"),
     });
   }
+  if (image) {
+    items.push({
+      key: "dataset",
+      icon: FolderPlus,
+      label: m.dataset_add_menu(),
+      onClick: () => setOpen("dataset"),
+    });
+  }
   items.push({
     key: "edit",
     icon: Pencil,
     label: m.unit_menu_edit(),
     onClick: () => setOpen("edit"),
   });
-  if (observations.length > 0) {
-    items.push({
-      key: "record",
-      icon: ClipboardPen,
-      label: m.culture_event_menu_record(),
-      onClick: () => setOpen("record"),
-    });
-  }
-  if (unit.events.length > 0) {
-    items.push({
-      key: "remove-event",
-      icon: CircleMinus,
-      label: m.culture_event_menu_remove(),
-      onClick: () => setOpen("remove-event"),
-    });
-  }
   if (image || canRemove) items.push({ type: "divider" });
   if (image) {
     items.push({
@@ -150,6 +148,68 @@ export function UnitMenu({
         onClose={close}
       />
 
+      {image ? (
+        <>
+          <ReplaceObservationImageDialog
+            image={image}
+            open={open === "replace"}
+            onClose={close}
+          />
+          <AddToDatasetDialog
+            open={open === "dataset"}
+            images={[image.ref]}
+            datasets={datasets}
+            onClose={close}
+          />
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The unit's culture status, as a menu of what changes it: recording an
+ * event, or taking one back.
+ */
+export function CultureMenu({
+  experiment,
+  unit,
+  observations,
+  status,
+}: {
+  experiment: string;
+  unit: Unit;
+  observations: ExperimentObservation[];
+  /** The status as it reads now. */
+  status: string;
+}) {
+  const [open, setOpen] = useState<"record" | "remove" | null>(null);
+  const close = () => setOpen(null);
+  const items: DropdownItem[] = [];
+  if (observations.length > 0) {
+    items.push({
+      key: "record",
+      icon: ClipboardPen,
+      label: m.culture_event_menu_record(),
+      onClick: () => setOpen("record"),
+    });
+  }
+  if (unit.events.length > 0) {
+    items.push({
+      key: "remove",
+      icon: CircleMinus,
+      label: m.culture_event_menu_remove(),
+      onClick: () => setOpen("remove"),
+    });
+  }
+  if (items.length === 0) return <span className="text-sm">{status}</span>;
+  return (
+    <>
+      <DropdownMenu items={items} align="end">
+        <Button size="small" type="text" icon={ChevronDown} iconPosition="end">
+          {status}
+        </Button>
+      </DropdownMenu>
       <RecordCultureEventDialog
         experiment={experiment}
         units={[unit]}
@@ -157,22 +217,13 @@ export function UnitMenu({
         open={open === "record"}
         onClose={close}
       />
-
       <RemoveCultureEventDialog
         experiment={experiment}
         unit={unit}
         observations={observations}
-        open={open === "remove-event"}
+        open={open === "remove"}
         onClose={close}
       />
-
-      {image ? (
-        <ReplaceObservationImageDialog
-          image={image}
-          open={open === "replace"}
-          onClose={close}
-        />
-      ) : null}
     </>
   );
 }

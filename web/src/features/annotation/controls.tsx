@@ -1,9 +1,6 @@
-import { MousePointer2, SquarePlus, type LucideIcon } from "lucide-react";
-
 import { classColor } from "../../domain/models/classes";
 import { ColorSwatch } from "../../ui/kit/ColorSwatch";
 import { className } from "../../ui/model-names";
-import { m } from "../../paraglide/messages";
 
 /** Theme colors of the canvas drawing; boxes take their class's color. */
 export const CANVAS_COLORS = {
@@ -44,43 +41,10 @@ export function classForShortcut(
   return classes.find((name) => classShortcut(classes, name) === key) ?? null;
 }
 
-export const TOOLS = ["select", "add"] as const;
-export type Tool = (typeof TOOLS)[number];
-
-export const TOOL_SPECS: Record<
-  Tool,
-  {
-    label: () => string;
-    shortcut: string;
-    cursor: string;
-    icon: LucideIcon;
-  }
-> = {
-  select: {
-    label: m.calibration_tool_select,
-    shortcut: "V",
-    cursor: "default",
-    icon: MousePointer2,
-  },
-  add: {
-    label: m.calibration_tool_add,
-    shortcut: "B",
-    cursor: "crosshair",
-    icon: SquarePlus,
-  },
-};
-
-export function toolForShortcut(key: string): Tool | null {
-  return (
-    TOOLS.find(
-      (tool) => TOOL_SPECS[tool].shortcut.toLowerCase() === key.toLowerCase(),
-    ) ?? null
-  );
+/** The class after this one in the model's order, wrapping around: a pressed box's next state. */
+export function nextClass(classes: readonly string[], name: string): string {
+  return classes[(classes.indexOf(name) + 1) % classes.length]!;
 }
 
-export const LAYERS = [
-  { key: "boxes", label: m.calibration_layer_boxes },
-  { key: "ids", label: m.calibration_layer_ids },
-  { key: "checks", label: m.calibration_layer_checks },
-] as const;
-export type LayerKey = (typeof LAYERS)[number]["key"];
+/** What can be drawn over the image: the boxes, their numbers, and the places to check. */
+export type LayerKey = "boxes" | "ids" | "checks";
