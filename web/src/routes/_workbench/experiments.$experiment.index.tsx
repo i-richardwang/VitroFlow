@@ -8,7 +8,6 @@ import { documentTitle } from "../../ui/documentTitle";
 import { PageColumnSkeleton } from "../../ui/Page";
 import { m } from "../../paraglide/messages";
 import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
-import { StatisticGroupSkeleton } from "../../ui/kit/Statistic";
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   loader: async ({ params }) => {
@@ -36,7 +35,6 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   pendingComponent: () => (
     <PageColumnSkeleton>
       <PageHeaderSkeleton variant="subject" meta />
-      <StatisticGroupSkeleton count={4} />
       <TableSkeleton />
     </PageColumnSkeleton>
   ),

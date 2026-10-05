@@ -62,7 +62,7 @@ function experimentGroup(
 }
 
 /** The settings section, which takes the sidebar's place while one of its pages is open. */
-export function settingsPlaces(user: WorkbenchUser): AppNavItem[] {
+function settingsPlaces(user: WorkbenchUser): AppNavItem[] {
   const items: AppNavItem[] = [
     { href: "/account", icon: CircleUser, label: m.nav_account() },
     { href: "/integrations", icon: KeyRound, label: m.nav_integrations() },

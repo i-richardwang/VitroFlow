@@ -7,6 +7,7 @@ import {
   type PhotoConflict,
   type PlacedPhoto,
 } from "../../domain/experiments/photos";
+import type { UnitPhoto } from "../../domain/experiments/schema";
 import { m } from "../../paraglide/messages";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
@@ -15,13 +16,6 @@ import { Tag } from "../../ui/kit/Tag";
 import { ImageDropZone } from "../upload/ImageDropZone";
 import type { ListedImage } from "../upload/state";
 import { useUploads, type Uploads } from "../upload/useUploads";
-
-/** A stored photograph and the unit it shows, as an observation records it. */
-export interface UnitPhoto {
-  unit: string;
-  digest: string;
-  filename: string;
-}
 
 /** Photographs being uploaded for one observation day and matched to its units. */
 export interface ObservationPhotos {

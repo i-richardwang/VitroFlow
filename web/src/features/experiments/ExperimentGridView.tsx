@@ -4,7 +4,8 @@ import { useState, type ReactElement } from "react";
 
 import type {
   ObservationImageCell,
-  Summary,
+  ReplicateSummary,
+  TrendDay,
   Unit,
 } from "../../domain/experiments/contracts";
 import {
@@ -22,6 +23,7 @@ import {
   type Reading,
 } from "../../domain/experiments/readings";
 import { formatFactor, type Treatment } from "../../domain/experiments/schema";
+import type { Model } from "../../domain/models/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
@@ -114,6 +116,10 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   // than one, since values compare within a column and columns may ask
   // different questions.
   const asked = new Set(observations.map((item) => item.modelId));
+  const namedModel = (modelId: string) =>
+    asked.size > 1 ? models.find((item) => item.id === modelId) : undefined;
+  const trend = treatmentTrend(data);
+  const newest = trend.at(-1);
 
   return (
     <Page
@@ -139,13 +145,13 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         </>
       }
     >
-      <TreatmentTrend
-        data={data}
-        model={(modelId) => {
-          const model = models.find((item) => item.id === modelId);
-          return asked.size > 1 && model ? modelName(model) : undefined;
-        }}
-      />
+      {newest ? (
+        <TreatmentTrend
+          trend={trend}
+          treatments={treatments}
+          model={namedModel(newest.observation.modelId)}
+        />
+      ) : null}
       <Table
         aria-label={m.experiment_grid_label({ experiment: experiment.name })}
         fill={observations.length > 0}
@@ -174,11 +180,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
                   experiment={experiment.id}
                   inoculatedOn={experiment.inoculatedOn}
                   observation={observation}
-                  model={
-                    asked.size > 1
-                      ? models.find((item) => item.id === observation.modelId)
-                      : undefined
-                  }
+                  model={namedModel(observation.modelId)}
                   units={units.filter((unit) =>
                     unitIsAvailableAt(unit.events, observation, ordinals),
                   )}
@@ -335,25 +337,23 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
 
 /**
  * How the treatments compare over the days that read: each treatment's mean
- * per unit, one line each, in its own color. Nothing until a day reads.
+ * per unit, one line each, in its own color.
  */
 function TreatmentTrend({
-  data,
+  trend,
+  treatments,
   model,
 }: {
-  data: ExperimentGridData;
+  trend: readonly TrendDay[];
+  treatments: readonly Treatment[];
   /** The model the trend reads for, named when the days read for several. */
-  model: (modelId: string) => string | undefined;
+  model: Model | undefined;
 }) {
-  const trend = treatmentTrend(data);
-  const newest = trend.at(-1);
-  if (!newest) return null;
-  const named = model(newest.observation.modelId);
   return (
     <Panel
       title={
-        named
-          ? m.experiment_trend_title_model({ model: named })
+        model
+          ? m.experiment_trend_title_model({ model: modelName(model) })
           : m.experiment_trend_title()
       }
     >
@@ -370,9 +370,9 @@ function TreatmentTrend({
         index="day"
         indexTicks={trend.map((day) => day.observation.day)}
         indexFormatter={(day) => m.observation_day_label({ day })}
-        categories={data.treatments.map((treatment) => treatment.id)}
+        categories={treatments.map((treatment) => treatment.id)}
         labels={Object.fromEntries(
-          data.treatments.map((treatment) => [treatment.id, treatment.name]),
+          treatments.map((treatment) => [treatment.id, treatment.name]),
         )}
         height={TREND_HEIGHT}
         xAxisDomain={["dataMin", "dataMax"]}
@@ -403,7 +403,7 @@ function TreatmentName({ treatment }: { treatment: Treatment }) {
 }
 
 /** A treatment's mean at one observation, its spread and how many replicates it rests on. */
-function SummaryValue({ summary }: { summary: Summary }) {
+function SummaryValue({ summary }: { summary: ReplicateSummary }) {
   if (summary.value === null) return <Absent />;
   return (
     <span className="whitespace-nowrap tabular-nums">

@@ -119,23 +119,18 @@
 
 .ui-summary-card-band {
   display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 12px;
 
+  min-inline-size: 0;
   padding: 16px;
   border-radius: var(--radius-md);
 
   background: var(--color-fill-quaternary);
 
-  @variant max-mobile {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   &[data-variant="empty"] {
-    flex-direction: column;
     gap: 8px;
+    align-items: center;
     justify-content: center;
 
     padding-block: 24px;
@@ -145,41 +140,6 @@
     text-align: center;
     color: var(--color-fg-tertiary);
   }
-}
-
-.ui-summary-card-band-aside {
-  flex: none;
-  inline-size: 140px;
-
-  @variant max-mobile {
-    inline-size: 100%;
-  }
-}
-
-.ui-summary-card-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-inline-size: 0;
-}
-
-.ui-summary-card-metric-value {
-  font-size: var(--text-4xl);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  color: var(--color-fg);
-}
-
-.ui-summary-card-metric-label {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  color: var(--color-fg-tertiary);
 }
 
 .ui-summary-card-stats {

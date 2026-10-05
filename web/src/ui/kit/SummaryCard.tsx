@@ -32,7 +32,7 @@ export function CardGrid({
  * One thing at a glance, linking to its page: its icon tile, its name
  * (16px, 600) over a line of facts, an arrow at the end of that row; then
  * `children`, usually a `SummaryCardBand`, and at the foot `footer`, usually
- * `SummaryCardStats` over a line of tags, 16px apart. `render` is the link, a router `<Link>`; the name and
+ * `SummaryCardStats`. `render` is the link, a router `<Link>`; the name and
  * the arrow both follow it, the arrow hidden from assistive technology.
  */
 export function SummaryCard({
@@ -89,46 +89,19 @@ export function SummaryCard({
 }
 
 /*
- * The card's headline, on a band of fill: `metric` holds a figure and what
- * it measures, with a small chart as `aside` at its end (under it on a
- * phone); `empty`, dashed, says what is missing.
+ * The card's headline on a band of fill: what the thing has to show, or,
+ * `empty` and dashed, what it is missing.
  */
 export function SummaryCardBand({
-  aside,
   children,
-  variant = "metric",
+  variant = "content",
 }: {
-  aside?: ReactNode;
   children: ReactNode;
-  variant?: "metric" | "empty";
+  variant?: "content" | "empty";
 }) {
   return (
     <div className="ui-summary-card-band" data-variant={variant}>
       {children}
-      {aside != null ? (
-        <div className="ui-summary-card-band-aside">{aside}</div>
-      ) : null}
-    </div>
-  );
-}
-
-/** A figure in the band: the value over its label, with a status after the label. */
-export function SummaryCardMetric({
-  label,
-  status,
-  value,
-}: {
-  label: ReactNode;
-  status?: ReactNode;
-  value: ReactNode;
-}) {
-  return (
-    <div className="ui-summary-card-metric">
-      <span className="ui-summary-card-metric-value">{value}</span>
-      <span className="ui-summary-card-metric-label">
-        {label}
-        {status}
-      </span>
     </div>
   );
 }

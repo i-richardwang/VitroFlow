@@ -145,7 +145,7 @@ test("a model has at most one active training run", async () => {
   await failTrainingRun(next.id, trainerOwner, "stopped");
   expect(await countTrainingRuns("exclusive-run")).toBe(2);
   await expect(
-    listTrainingRunSummaries({ datasetId: "exclusive-run", limit: 101 }),
+    listTrainingRunSummaries({ datasetId: "exclusive-run" }, 101),
   ).rejects.toThrow(/between 1 and 100/);
 });
 
@@ -433,7 +433,7 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
     learningRate: 0.001,
   });
   expect(
-    await listTrainingRunSummaries({ datasetId: "epoch-history", limit: 1 }),
+    await listTrainingRunSummaries({ datasetId: "epoch-history" }, 1),
   ).toMatchObject([
     {
       dataset: "epoch-history",

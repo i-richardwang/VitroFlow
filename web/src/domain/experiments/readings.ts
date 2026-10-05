@@ -4,7 +4,7 @@ import type {
   ExperimentGrid,
   ImageReview,
   ObservationImageCell,
-  Summary,
+  ReplicateSummary,
   TrendDay,
   Unit,
 } from "./contracts";
@@ -86,7 +86,7 @@ export function unitReading(
   };
 }
 
-export function summarize(values: readonly number[]): Summary {
+export function summarize(values: readonly number[]): ReplicateSummary {
   if (values.length === 0) {
     return { value: null, deviation: null, sampleSize: 0 };
   }
@@ -110,7 +110,7 @@ export function treatmentSummary(
   replicates: readonly Unit[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
-): Summary {
+): ReplicateSummary {
   return summarize(
     replicates.flatMap((unit) => {
       if (exclusionAt(unit.events, observation, ordinals)) return [];

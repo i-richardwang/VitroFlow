@@ -373,6 +373,8 @@ const unitPhotoSchema = z.strictObject({
   filename: imageFilenameSchema,
 });
 
+export type UnitPhoto = z.infer<typeof unitPhotoSchema>;
+
 export const observationImageAssignmentSchema = z.strictObject({
   experiment: experimentIdSchema,
   observation: observationIdSchema,

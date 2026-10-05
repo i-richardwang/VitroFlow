@@ -59,8 +59,6 @@
 @import "../ui/kit/ItemList.css" layer(components);
 @import "../ui/kit/Avatar.css" layer(components);
 @import "../ui/kit/IconTile.css" layer(components);
-@import "../ui/kit/SegmentBar.css" layer(components);
-@import "../ui/kit/Sparkline.css" layer(components);
 @import "../ui/kit/SummaryCard.css" layer(components);
 @import "../ui/kit/LogoTile.css" layer(components);
 @import "../ui/kit/Settings.css" layer(components);
@@ -122,8 +120,6 @@
   --text-base--line-height: 1.375rem;
   --text-lg: 1rem;
   --text-lg--line-height: 1.5rem;
-  --text-xl: 1.25rem;
-  --text-xl--line-height: 1.75rem;
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.75rem;

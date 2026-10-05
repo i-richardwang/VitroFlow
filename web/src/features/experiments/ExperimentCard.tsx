@@ -66,46 +66,44 @@ export function ExperimentCard({
     >
       {latest ? (
         <SummaryCardBand>
-          <div className="flex min-w-0 flex-col gap-3">
-            <span className="text-xs text-fg-tertiary">
-              {m.experiment_card_latest({
-                day: observationLabel(latest.observation),
-              })}
-            </span>
-            <SummaryCardStats
-              items={[
-                ...treatments.slice(0, SHOWN_TREATMENTS).map((treatment) => {
-                  const value = latest.treatments.find(
-                    (item) => item.treatment === treatment.id,
-                  )?.summary.value;
-                  return {
-                    label: (
-                      <span className="flex items-center gap-1.5">
-                        <TreatmentDot position={treatment.position} />
-                        {treatment.name}
-                      </span>
+          <span className="text-xs text-fg-tertiary">
+            {m.experiment_card_latest({
+              day: observationLabel(latest.observation),
+            })}
+          </span>
+          <SummaryCardStats
+            items={[
+              ...treatments.slice(0, SHOWN_TREATMENTS).map((treatment) => {
+                const value = latest.treatments.find(
+                  (item) => item.treatment === treatment.id,
+                )?.summary.value;
+                return {
+                  label: (
+                    <span className="flex items-center gap-1.5">
+                      <TreatmentDot position={treatment.position} />
+                      {treatment.name}
+                    </span>
+                  ),
+                  value:
+                    value === null || value === undefined ? (
+                      <Absent />
+                    ) : (
+                      formatCount(value)
                     ),
-                    value:
-                      value === null || value === undefined ? (
-                        <Absent />
-                      ) : (
-                        formatCount(value)
-                      ),
-                  };
-                }),
-                ...(treatments.length > SHOWN_TREATMENTS
-                  ? [
-                      {
-                        label: m.experiment_card_more_treatments_label(),
-                        value: m.experiment_card_more_treatments({
-                          count: treatments.length - SHOWN_TREATMENTS,
-                        }),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
-          </div>
+                };
+              }),
+              ...(treatments.length > SHOWN_TREATMENTS
+                ? [
+                    {
+                      label: m.experiment_card_more_treatments_label(),
+                      value: m.experiment_card_more_treatments({
+                        count: treatments.length - SHOWN_TREATMENTS,
+                      }),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </SummaryCardBand>
       ) : (
         <SummaryCardBand variant="empty">
