@@ -27,6 +27,7 @@ import {
   type Size,
   type ViewIntent,
 } from "./viewport";
+import { Text } from "../kit/Text";
 
 const ZOOM_PER_WHEEL_PIXEL = 0.0015;
 const CLICK_SLOP = 3;
@@ -244,9 +245,14 @@ export function ImageViewport({
         className="absolute right-3 bottom-3"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <span className="w-12 text-center text-xs text-fg-secondary tabular-nums">
+        <Text
+          as="span"
+          size="xs"
+          type="secondary"
+          className="w-12 text-center tabular-nums"
+        >
           {formatPercent(view.scale)}
-        </span>
+        </Text>
         <Button
           type="text"
           size="small"

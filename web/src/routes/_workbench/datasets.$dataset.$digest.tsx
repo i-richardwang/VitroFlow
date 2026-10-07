@@ -19,6 +19,7 @@ import type {
   DatasetImageStep,
   DatasetImageView,
 } from "../../domain/datasets/image";
+import { Text } from "../../ui/kit/Text";
 
 /** `show` names the reading on view; the best shows otherwise. */
 const datasetImageSearchSchema = z.object({
@@ -113,9 +114,9 @@ function DatasetImagePage() {
             >
               {m.ui_step_position(position)}
             </Stepper>
-            <span className="truncate text-sm text-fg-secondary">
+            <Text as="span" size="sm" type="secondary" ellipsis>
               {modelName(model)}
-            </span>
+            </Text>
           </WorkbenchFooter>
         ),
         facts: split ? (

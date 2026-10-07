@@ -56,5 +56,5 @@
   "error_model_id_taken": "该标识已被占用。",
   "error_model_in_use": "只有尚无任何记录的模型才能删除。",
   "error_worker_name_taken": "已有同名的计算节点。",
-  "workbench_inspector": "详情"
+  "workbench_inspector": "信息"
 }

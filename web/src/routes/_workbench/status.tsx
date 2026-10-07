@@ -16,7 +16,7 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { TableSkeleton } from "../../ui/kit/PageSkeleton";
-import { StatusDot, type StatusTone } from "../../ui/kit/Status";
+import { Status, type StatusTone } from "../../ui/kit/Status";
 import {
   Table,
   TableBody,
@@ -27,6 +27,7 @@ import {
 } from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
+import { Text } from "../../ui/kit/Text";
 
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
@@ -140,21 +141,22 @@ function WorkerRow({
     <TableRow>
       <TableCell cellSlot="title">{worker.workerId}</TableCell>
       <TableCell cellLabel={m.status_column_presence()}>
-        <StatusDot label={presence.label()} tone={presence.tone} />
+        <Status tone={presence.tone}>{presence.label()}</Status>
       </TableCell>
-      <TableCell
-        cellLabel={m.status_column_activity()}
-        className="text-fg-secondary"
-      >
-        <Activity activity={worker.activity} />
+      <TableCell cellLabel={m.status_column_activity()}>
+        <Text as="span" type="secondary">
+          <Activity activity={worker.activity} />
+        </Text>
       </TableCell>
       <TableCell
         cellLabel={m.status_column_seen()}
-        className="whitespace-nowrap text-fg-tertiary"
+        className="whitespace-nowrap"
       >
-        {worker.lastSeenSeconds === null
-          ? m.worker_never_seen()
-          : formatAge(worker.lastSeenSeconds)}
+        <Text as="span" type="tertiary">
+          {worker.lastSeenSeconds === null
+            ? m.worker_never_seen()
+            : formatAge(worker.lastSeenSeconds)}
+        </Text>
       </TableCell>
       <TableCell cellSlot="actions" className="text-end">
         {administers ? <WorkerMenu workerId={worker.workerId} /> : null}

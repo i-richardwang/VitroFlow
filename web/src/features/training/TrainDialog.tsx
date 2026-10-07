@@ -17,6 +17,7 @@ import {
   trainingOverridesSchema,
 } from "../../domain/training/parameters";
 import { MIN_SNAPSHOT_IMAGES } from "../../domain/training/schema";
+import { Text } from "../../ui/kit/Text";
 
 const FORM_ID = "train";
 
@@ -116,13 +117,13 @@ function TrainSession({
         }}
       >
         <Form.Group title={m.train_dialog_recipe_title()}>
-          <div className="text-xs text-fg-secondary">
+          <Text size="sm" type="secondary">
             {m.train_dialog_recipe({
               model: recipe.baseModel.reference,
               framework: recipe.runtime.framework,
               version: recipe.runtime.version,
             })}
-          </div>
+          </Text>
         </Form.Group>
         {PARAMETER_FIELD_GROUPS.map((group) => (
           <Form.Group key={group.key} title={group.title()}>

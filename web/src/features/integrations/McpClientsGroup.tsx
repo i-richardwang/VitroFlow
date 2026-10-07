@@ -95,9 +95,7 @@ function McpClientRow({ client }: { client: McpClient }) {
         </Flexbox>
       </TableCell>
       <TableCell cellLabel={m.mcp_column_approved()}>
-        <span className="text-fg-tertiary">
-          <Timestamp value={client.lastGrantedAt} />
-        </span>
+        <Timestamp value={client.lastGrantedAt} />
       </TableCell>
       <TableCell cellSlot="actions" className="text-end">
         <ActionIcon

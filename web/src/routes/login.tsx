@@ -21,6 +21,7 @@ import { Input, InputPassword } from "../ui/kit/Input";
 import { documentTitle } from "../ui/documentTitle";
 import { m } from "../paraglide/messages";
 import { readSession, redirect } from "../server/transport/http/session";
+import { Text } from "../ui/kit/Text";
 
 /**
  * A signed-in visitor is sent on to their destination, unless the visit is
@@ -67,9 +68,9 @@ function LoginPage() {
       <AuthPage
         title={m.login_heading({ app: m.app_name() })}
         actions={
-          <p className="text-center text-sm text-fg-secondary">
+          <Text as="p" size="sm" type="secondary" className="text-center">
             {m.login_description()}
-          </p>
+          </Text>
         }
       >
         <Form
@@ -104,7 +105,7 @@ function LoginPage() {
       title={m.login_password_heading()}
       description={email}
       actions={
-        <p className="text-center text-sm text-fg-secondary">
+        <Text as="p" size="sm" type="secondary" className="text-center">
           <button
             className="cursor-pointer underline"
             type="button"
@@ -115,7 +116,7 @@ function LoginPage() {
           >
             {m.login_back_to_email()}
           </button>
-        </p>
+        </Text>
       }
     >
       <Form

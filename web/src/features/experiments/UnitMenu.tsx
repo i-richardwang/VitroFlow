@@ -42,6 +42,7 @@ import { cultureEventLabel, observationLabel } from "./labels";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 import { ReplaceObservationImageDialog } from "./ReplaceObservationImageDialog";
 import { UnitDialog } from "./UnitDialog";
+import { Text } from "../../ui/kit/Text";
 
 type Action = "replace" | "edit" | "dataset";
 
@@ -202,7 +203,12 @@ export function CultureMenu({
       onClick: () => setOpen("remove"),
     });
   }
-  if (items.length === 0) return <span className="text-sm">{status}</span>;
+  if (items.length === 0)
+    return (
+      <Text as="span" size="sm">
+        {status}
+      </Text>
+    );
   return (
     <>
       <DropdownMenu items={items} align="end">

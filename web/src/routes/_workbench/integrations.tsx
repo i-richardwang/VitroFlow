@@ -15,6 +15,7 @@ import {
 } from "../../ui/kit/Settings";
 import { TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { CopyButton } from "../../ui/kit/CopyButton";
+import { Text } from "../../ui/kit/Text";
 
 const MCP_SERVERS_ID = "mcp-servers";
 
@@ -51,9 +52,9 @@ function IntegrationsPage() {
             label={MCP_SERVER_LABELS[server]()}
             action={<CopyButton content={mcpUrls[server]} />}
           >
-            <code className="text-xs" title={mcpUrls[server]}>
+            <Text as="code" size="xs" title={mcpUrls[server]}>
               {mcpUrls[server]}
-            </code>
+            </Text>
           </SettingsValueRow>
         ))}
       </SettingsGroup>

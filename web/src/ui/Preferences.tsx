@@ -16,6 +16,7 @@ import { ActionIcon, type ActionIconProps } from "./kit/ActionIcon";
 import { Button } from "./kit/Button";
 import { DropdownMenu } from "./kit/DropdownMenu";
 import { Select } from "./kit/Select";
+import { Text } from "./kit/Text";
 
 /*
  * The reader's language and color scheme, as quiet menus for the footer of
@@ -58,7 +59,9 @@ export function LanguageMenu() {
         iconPosition="end"
         type="text"
       >
-        <span className="text-xs">{LOCALE_NAMES[current]()}</span>
+        <Text as="span" size="xs">
+          {LOCALE_NAMES[current]()}
+        </Text>
       </Button>
     </DropdownMenu>
   );

@@ -34,6 +34,7 @@ import { Stepper } from "../../ui/Stepper";
 import { ImageWorkbench } from "../annotation/ImageWorkbench";
 import { useStepKeys } from "../annotation/keys";
 import { CultureMenu, UnitMenu } from "./UnitMenu";
+import { Text } from "../../ui/kit/Text";
 
 /**
  * One unit's photograph on one observation day. The footer steps along both
@@ -126,9 +127,9 @@ export function UnitWorkbench({
         {m.ui_step_position({ index: at + 1, total: navigation.length })}
       </Stepper>
       {toReview.length > 0 ? (
-        <span className="text-sm whitespace-nowrap text-fg-tertiary">
+        <Text as="span" size="sm" type="tertiary" className="whitespace-nowrap">
           {m.unit_unreviewed_count({ count: toReview.length })}
-        </span>
+        </Text>
       ) : null}
       <span className="flex-1" />
       {series.observations.length > 0 ? (

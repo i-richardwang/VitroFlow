@@ -1,4 +1,5 @@
 import { Snippet } from "./kit/Snippet";
+import { Text } from "./kit/Text";
 
 /** A named read-only value with a copy button, such as an endpoint or a key shown once. */
 export function CopyableCode({
@@ -12,10 +13,12 @@ export function CopyableCode({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="font-medium">{label}</div>
+      <Text weight="medium">{label}</Text>
       <Snippet>{value}</Snippet>
       {description ? (
-        <div className="text-xs text-fg-secondary">{description}</div>
+        <Text size="xs" type="tertiary">
+          {description}
+        </Text>
       ) : null}
     </div>
   );

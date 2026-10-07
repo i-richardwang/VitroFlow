@@ -24,6 +24,7 @@ import {
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
 import { toast } from "../../ui/kit/Toast";
+import { Text } from "../../ui/kit/Text";
 
 /** The reader's API keys, and the one place a new key is created. */
 export function ApiKeysGroup({ apiKeys }: { apiKeys: ApiKey[] }) {
@@ -97,9 +98,9 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
     <TableRow>
       <TableCell cellSlot="title">{apiKey.name}</TableCell>
       <TableCell cellLabel={m.api_key_column_key()}>
-        <span className="font-mono text-xs text-fg-tertiary">
+        <Text as="span" size="xs" type="tertiary" className="font-mono">
           {m.api_key_start({ start: apiKey.start })}
-        </span>
+        </Text>
       </TableCell>
       <TableCell cellLabel={m.api_key_column_scopes()}>
         <Flexbox horizontal gap={4} wrap="wrap">
@@ -112,23 +113,25 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
       </TableCell>
       <TableCell cellLabel={m.api_key_column_expires()}>
         {apiKey.expiresAt === null ? (
-          <span className="text-fg-tertiary">{m.api_key_expiry_never()}</span>
+          <Text as="span" type="tertiary">
+            {m.api_key_expiry_never()}
+          </Text>
         ) : expired ? (
-          <span className="text-error">{m.api_key_expired()}</span>
+          <Text as="span" type="error">
+            {m.api_key_expired()}
+          </Text>
         ) : (
-          <span className="text-fg-tertiary">
-            <Timestamp value={apiKey.expiresAt} />
-          </span>
+          <Timestamp value={apiKey.expiresAt} />
         )}
       </TableCell>
       <TableCell cellLabel={m.api_key_column_last_used()}>
-        <span className="text-fg-tertiary">
-          {apiKey.lastUsedAt === null ? (
-            m.api_key_never_used()
-          ) : (
-            <Timestamp value={apiKey.lastUsedAt} />
-          )}
-        </span>
+        {apiKey.lastUsedAt === null ? (
+          <Text as="span" type="tertiary">
+            {m.api_key_never_used()}
+          </Text>
+        ) : (
+          <Timestamp value={apiKey.lastUsedAt} />
+        )}
       </TableCell>
       <TableCell cellSlot="actions" className="text-end">
         <ActionIcon

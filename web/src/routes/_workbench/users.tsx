@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
+import { Text } from "../../ui/kit/Text";
 
 export const Route = createFileRoute("/_workbench/users")({
   beforeLoad: ({ context }) => {
@@ -99,7 +100,9 @@ function UserRow({ account, self }: { account: UserAccount; self: boolean }) {
         </Flexbox>
       </TableCell>
       <TableCell cellLabel={m.users_column_email()}>
-        <span className="text-fg-secondary">{account.email}</span>
+        <Text as="span" type="secondary">
+          {account.email}
+        </Text>
       </TableCell>
       <TableCell cellLabel={m.users_column_role()}>
         <RoleSelect

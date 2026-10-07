@@ -6,6 +6,7 @@ import type { TrainingEpoch } from "../../domain/training/schema";
 import { LineChart } from "../../ui/kit/LineChart";
 import { Skeleton } from "../../ui/kit/Skeleton";
 import { formatDecimal } from "../../ui/numbers";
+import { Text } from "../../ui/kit/Text";
 
 interface Series {
   key: string;
@@ -126,9 +127,9 @@ function ChartFigure({
 }) {
   return (
     <figure className="flex min-w-0 flex-col gap-2">
-      <figcaption className="text-xs font-medium text-fg-secondary">
+      <Text as="figcaption" size="xs" type="secondary" weight="medium">
         {title}
-      </figcaption>
+      </Text>
       {children}
     </figure>
   );

@@ -10,7 +10,7 @@ test("feature classes compose semantic utilities and the two layout widths", () 
   expect(
     check(
       "src/features/a/A.tsx",
-      'export const A = () => <div className="grid gap-4 mobile:grid-cols-2 max-laptop:hidden text-fg-secondary" />;',
+      'export const A = () => <div className="grid gap-4 mobile:grid-cols-2 max-laptop:hidden text-success tabular-nums font-mono" />;',
     ),
   ).toBe("");
   expect(
@@ -19,6 +19,22 @@ test("feature classes compose semantic utilities and the two layout widths", () 
   expect(check("src/routes/a.tsx", "const c = `p-2 max-sm:hidden`;")).toContain(
     "stock breakpoint",
   );
+});
+
+test("type comes from Text", () => {
+  expect(check("src/features/a/A.tsx", 'const c = "text-xs";')).toContain(
+    "sets type",
+  );
+  expect(
+    check("src/routes/a.tsx", 'const c = "truncate text-fg-tertiary";'),
+  ).toContain("sets type");
+  expect(check("src/ui/Thing.tsx", 'const c = "font-medium";')).toContain(
+    "sets type",
+  );
+  expect(check("src/ui/kit/Text.tsx", 'const c = "text-xs";')).toBe("");
+  expect(
+    check("src/features/annotation/BoxLayer.tsx", 'const c = "text-sm";'),
+  ).toBe("");
 });
 
 test("surfaces, raw lengths and raw colors belong to the kit", () => {

@@ -65,6 +65,7 @@ import { TreatmentDialog } from "./TreatmentDialog";
 import { TreatmentDot } from "./TreatmentDot";
 import { TreatmentMenu } from "./TreatmentMenu";
 import { UnitSelectionBar } from "./UnitSelectionBar";
+import { Text } from "../../ui/kit/Text";
 
 type Dialog = "treatment" | "observation";
 
@@ -413,9 +414,9 @@ function TreatmentName({ treatment }: { treatment: Treatment }) {
       <TreatmentDot position={treatment.position} />
       <span className="truncate">{treatment.name}</span>
       {factor ? (
-        <span className="truncate text-xs font-normal text-fg-tertiary">
+        <Text as="span" size="xs" type="tertiary" weight="regular" ellipsis>
           {factor}
-        </span>
+        </Text>
       ) : null}
     </span>
   );
@@ -428,13 +429,19 @@ function SummaryValue({ summary }: { summary: ReplicateSummary }) {
     <span className="whitespace-nowrap tabular-nums">
       {formatCount(summary.value)}
       {summary.deviation === null ? null : (
-        <span className="ms-1 font-normal text-fg-secondary">
+        <Text as="span" type="secondary" weight="regular" className="ms-1">
           {m.experiment_summary_deviation({ deviation: summary.deviation })}
-        </span>
+        </Text>
       )}
-      <span className="ms-2 text-xs font-normal text-fg-tertiary">
+      <Text
+        as="span"
+        size="xs"
+        type="tertiary"
+        weight="regular"
+        className="ms-2"
+      >
         {m.experiment_summary_sample({ count: summary.sampleSize })}
-      </span>
+      </Text>
     </span>
   );
 }
@@ -464,15 +471,20 @@ function UnitCell({
     return explain(
       notes,
       link(
-        <span
-          className={cn(
-            "tabular-nums",
-            reading.source === "review" ? "font-medium" : "text-fg-tertiary",
-            !counted && "text-fg-quaternary line-through",
-          )}
+        <Text
+          as="span"
+          type={
+            !counted
+              ? "quaternary"
+              : reading.source === "review"
+                ? undefined
+                : "tertiary"
+          }
+          weight={reading.source === "review" ? "medium" : undefined}
+          className={cn("tabular-nums", !counted && "line-through")}
         >
           {formatCount(reading.count)}
-        </span>,
+        </Text>,
       ),
     );
   }
@@ -489,12 +501,14 @@ function UnitCell({
   return explain(
     [waiting],
     link(
-      <Icon
-        icon={ImageIcon}
-        size={14}
-        aria-label={waiting}
-        className="align-middle text-fg-tertiary"
-      />,
+      <Text as="span" type="tertiary">
+        <Icon
+          icon={ImageIcon}
+          size={14}
+          aria-label={waiting}
+          className="align-middle"
+        />
+      </Text>,
     ),
   );
 }

@@ -12,6 +12,7 @@ import { Button } from "../../ui/kit/Button";
 import { Toolbar, ToolbarButton, ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { MoveUnitsDialog } from "./MoveUnitsDialog";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
+import { Text } from "../../ui/kit/Text";
 
 /**
  * Commands for the selected units, shown while any unit is selected. With
@@ -43,9 +44,14 @@ export function UnitSelectionBar({
         aria-label={m.experiment_selection()}
         className={hidden ? "invisible" : undefined}
       >
-        <span className="px-3 text-sm font-medium whitespace-nowrap tabular-nums">
+        <Text
+          as="span"
+          size="sm"
+          weight="medium"
+          className="px-3 whitespace-nowrap tabular-nums"
+        >
           {m.experiment_selection_count({ count: units.length })}
-        </span>
+        </Text>
         <ToolbarSeparator />
         <ToolbarButton
           disabled={observations.length === 0}

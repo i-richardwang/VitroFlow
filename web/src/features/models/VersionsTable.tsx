@@ -58,7 +58,7 @@ export function VersionsTable({
             </TableCell>
             <TableCell
               cellLabel={m.versions_column_published()}
-              className="whitespace-nowrap text-fg-tertiary"
+              className="whitespace-nowrap"
             >
               <Timestamp value={version.createdAt} />
             </TableCell>

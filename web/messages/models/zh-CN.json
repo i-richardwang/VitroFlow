@@ -33,7 +33,7 @@
   "versions_column_kind": "类型",
   "versions_column_published": "发布时间",
   "versions_column_trained_on": "训练图片",
-  "versions_empty": "暂无版本",
+  "versions_empty": "还没有版本",
   "versions_empty_description": "训练成功后，新版本会出现在这里。",
   "versions_trained_images": [
     {

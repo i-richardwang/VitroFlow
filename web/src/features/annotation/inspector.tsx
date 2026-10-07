@@ -20,6 +20,7 @@ import { Stepper } from "../../ui/Stepper";
 import { WorkbenchSection } from "../../ui/shell/Workbench";
 import { ClassLabel } from "./controls";
 import { sourceLabels } from "./labels";
+import { Text } from "../../ui/kit/Text";
 
 /**
  * How many of each class the boxes on view hold, and their total, which is
@@ -117,8 +118,10 @@ export function ChecksSection({
         />
       ) : null}
       {checks > 0 ? (
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="text-fg-secondary">{m.annotation_ai_checks()}</span>
+        <div className="flex items-center justify-between gap-3">
+          <Text as="span" size="sm" type="secondary">
+            {m.annotation_ai_checks()}
+          </Text>
           <Stepper
             previous={{
               label: m.annotation_check_previous(),
@@ -129,11 +132,11 @@ export function ChecksSection({
               onClick: () => onStep(at === null ? 0 : at + 1),
             }}
           >
-            <span className="font-medium text-warning">
+            <Text as="span" type="warning" weight="medium">
               {at === null
                 ? formatCount(checks)
                 : m.ui_step_position({ index: at + 1, total: checks })}
-            </span>
+            </Text>
           </Stepper>
         </div>
       ) : null}

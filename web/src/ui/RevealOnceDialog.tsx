@@ -6,6 +6,7 @@ import { Button } from "./kit/Button";
 import { Flexbox } from "./kit/Flex";
 import { Icon } from "./kit/Icon";
 import { Modal } from "./kit/Modal";
+import { Text } from "./kit/Text";
 
 /**
  * Shows a secret the server hands out only once, such as a new key or token:
@@ -35,7 +36,7 @@ export function RevealOnceDialog<T>({
     <Modal
       open={revealed !== null}
       title={
-        <span className="flex items-center gap-2 font-medium">
+        <span className="flex items-center gap-2">
           <Icon icon={CircleCheck} size={18} className="text-success" />
           {title}
         </span>
@@ -51,7 +52,9 @@ export function RevealOnceDialog<T>({
     >
       <Flexbox gap={16}>
         {children(shown)}
-        <div className="text-xs text-fg-secondary">{hint}</div>
+        <Text size="xs" type="tertiary">
+          {hint}
+        </Text>
       </Flexbox>
     </Modal>
   );

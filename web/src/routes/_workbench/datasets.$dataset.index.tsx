@@ -56,6 +56,7 @@ import { modelCrumbs } from "../../features/models/crumbs";
 import { TrainButton } from "../../features/training/TrainButton";
 import { TrainDialog, trainRefusal } from "../../features/training/TrainDialog";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
+import { Text } from "../../ui/kit/Text";
 
 type DatasetOverview = NonNullable<
   Awaited<ReturnType<typeof getDatasetOverview>>
@@ -395,6 +396,8 @@ function BoxCount({
   return unreviewed === null ? (
     <Absent />
   ) : (
-    <span className="text-fg-tertiary">{formatCount(unreviewed)}</span>
+    <Text as="span" type="tertiary">
+      {formatCount(unreviewed)}
+    </Text>
   );
 }

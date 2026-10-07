@@ -12,6 +12,7 @@ import { DropZone } from "../../ui/kit/DropZone";
 import { Icon } from "../../ui/kit/Icon";
 import { Progress } from "../../ui/kit/Progress";
 import { m } from "../../paraglide/messages";
+import { Text } from "../../ui/kit/Text";
 
 export function ImportDatasetDialog({
   open,
@@ -89,14 +90,11 @@ function ImportProgressPanel({ progress }: { progress: ImportProgress }) {
       aria-live="polite"
       className="flex min-h-40 flex-col justify-center gap-3"
     >
-      <div className="flex items-center justify-between gap-3 text-sm">
+      <Text size="sm" className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
-          <Icon
-            icon={LoaderCircle}
-            size={14}
-            spin
-            className="text-fg-tertiary"
-          />
+          <Text as="span" type="tertiary" className="flex">
+            <Icon icon={LoaderCircle} size={14} spin />
+          </Text>
           {progress.phase === "reading" ? (
             m.dataset_import_reading()
           ) : (
@@ -108,11 +106,11 @@ function ImportProgressPanel({ progress }: { progress: ImportProgress }) {
           )}
         </span>
         {progress.phase === "reading" ? null : (
-          <span className="shrink-0 tabular-nums text-fg-secondary">
+          <Text as="span" type="secondary" className="shrink-0 tabular-nums">
             {m.dataset_import_storing_count({ stored: progress.stored, total })}
-          </span>
+          </Text>
         )}
-      </div>
+      </Text>
       <Progress
         aria-label={m.dataset_import_progress()}
         value={progress.phase === "reading" ? 0 : progress.stored}

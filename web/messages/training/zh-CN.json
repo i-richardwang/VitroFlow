@@ -105,5 +105,5 @@
   "parameter_group_training": "训练",
   "parameter_group_augmentation": "数据增强",
   "parameter_group_validation": "验证与复现",
-  "run_empty_description": "在模型的训练集页面开始训练。"
+  "run_empty_description": "在训练集页面开始训练。"
 }

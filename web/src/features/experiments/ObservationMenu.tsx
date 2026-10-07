@@ -20,6 +20,7 @@ import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { AddPhotosDialog } from "./AddPhotosDialog";
 import { observationLabel } from "./labels";
 import { EditObservationDialog } from "./ObservationDialog";
+import { Text } from "../../ui/kit/Text";
 
 type Action = "images" | "dataset" | "edit";
 
@@ -123,9 +124,9 @@ export function ObservationMenu({
         <span className="flex flex-col items-start">
           {name}
           {model ? (
-            <span className="text-xs font-normal text-fg-quaternary">
+            <Text as="span" size="xs" type="quaternary" weight="regular">
               {modelName(model)}
-            </span>
+            </Text>
           ) : null}
         </span>
       </TableHeadMenu>

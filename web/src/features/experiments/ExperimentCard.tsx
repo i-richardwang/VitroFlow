@@ -14,6 +14,7 @@ import {
 import { formatCount } from "../../ui/numbers";
 import { joinFacts, observationLabel } from "./labels";
 import { TreatmentDot } from "./TreatmentDot";
+import { Text } from "../../ui/kit/Text";
 
 const SHOWN_TREATMENTS = 4;
 
@@ -66,11 +67,11 @@ export function ExperimentCard({
     >
       {latest ? (
         <SummaryCardBand>
-          <span className="text-xs text-fg-tertiary">
+          <Text as="span" size="xs" type="tertiary">
             {m.experiment_card_latest({
               day: observationLabel(latest.observation),
             })}
-          </span>
+          </Text>
           <SummaryCardStats
             items={[
               ...treatments.slice(0, SHOWN_TREATMENTS).map((treatment) => {
@@ -107,7 +108,9 @@ export function ExperimentCard({
         </SummaryCardBand>
       ) : (
         <SummaryCardBand variant="empty">
-          <Icon icon={ImageOff} size={24} className="text-fg-quaternary" />
+          <Text as="span" type="quaternary" className="flex">
+            <Icon icon={ImageOff} size={24} />
+          </Text>
           <span>
             {photos > 0
               ? m.experiment_card_no_readings()

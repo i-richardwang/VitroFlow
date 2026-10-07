@@ -17,6 +17,7 @@ import { PageSkeleton } from "../ui/kit/PageSkeleton";
 import { Skeleton } from "../ui/kit/Skeleton";
 import { documentTitle } from "../ui/documentTitle";
 import { m } from "../paraglide/messages";
+import { Text } from "../ui/kit/Text";
 
 /**
  * The consent step of an MCP client's authorization request. The signed
@@ -91,9 +92,15 @@ function ConsentPage() {
             product: m.app_name(),
           })}
           {client.uri ? (
-            <span className="text-xs font-normal break-all text-fg-tertiary">
+            <Text
+              as="span"
+              size="xs"
+              type="tertiary"
+              weight="regular"
+              className="break-all"
+            >
               {client.uri}
-            </span>
+            </Text>
           ) : null}
         </Flexbox>
       }
@@ -103,9 +110,9 @@ function ConsentPage() {
     >
       {client.servers.length > 0 ? (
         <Flexbox gap={8}>
-          <span className="text-lg text-fg-secondary">
+          <Text as="span" size="lg" type="secondary">
             {m.consent_servers()}
-          </span>
+          </Text>
           <Flexbox gap={4}>
             {client.servers.map((server) => (
               <Block key={server} padding={16} variant="filled">

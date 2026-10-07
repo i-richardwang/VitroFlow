@@ -2,6 +2,54 @@
 
 .ui-text {
   color: var(--color-fg);
+
+  &[data-type="secondary"] {
+    color: var(--color-fg-secondary);
+  }
+
+  &[data-type="tertiary"] {
+    color: var(--color-fg-tertiary);
+  }
+
+  &[data-type="quaternary"] {
+    color: var(--color-fg-quaternary);
+  }
+
+  &[data-type="warning"] {
+    color: var(--color-warning);
+  }
+
+  &[data-type="error"] {
+    color: var(--color-error);
+  }
+
+  &[data-weight="regular"] {
+    font-weight: 400;
+  }
+
+  &[data-weight="medium"] {
+    font-weight: 500;
+  }
+}
+
+.ui-text-xs {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+.ui-text-sm {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+.ui-text-base {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+.ui-text-lg {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
 }
 
 .ui-text-ellipsis {

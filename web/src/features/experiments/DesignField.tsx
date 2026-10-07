@@ -10,6 +10,7 @@ import { Input } from "../../ui/kit/Input";
 import { m } from "../../paraglide/messages";
 import { DEFAULT_REPLICATES, ReplicatesInput } from "./ReplicatesField";
 import { TreatmentDot } from "./TreatmentDot";
+import { Text } from "../../ui/kit/Text";
 
 /** A treatment being designed; `id` keeps its inputs with it when rows are removed. */
 export type DesignRow = { id: number; name: string; replicates: number };
@@ -62,12 +63,12 @@ export function DesignField({
     >
       <div className="flex flex-col gap-3">
         <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2">
-          <div aria-hidden className="col-start-2 text-xs text-fg-secondary">
+          <Text aria-hidden size="xs" type="secondary" className="col-start-2">
             {m.treatment_name_label()}
-          </div>
-          <div aria-hidden className="col-span-2 text-xs text-fg-secondary">
+          </Text>
+          <Text aria-hidden size="xs" type="secondary" className="col-span-2">
             {m.treatment_replicates_label()}
-          </div>
+          </Text>
           {rows.map((row, index) => {
             const removeLabel = m.experiment_design_remove_treatment({
               name: row.name || String(index + 1),
