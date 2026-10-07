@@ -6,6 +6,12 @@ import sys
 from pathlib import Path
 
 from vitroflow.photos.photographs import Skipped
+from vitroflow.photos.review import (
+    has_confirmations,
+    load_review,
+    save_review,
+    serve_review,
+)
 from vitroflow.photos.selection import Selection, select
 from vitroflow.photos.suitability import Check, check
 
@@ -19,9 +25,26 @@ def _select(args: argparse.Namespace) -> int:
 
 def _check(args: argparse.Namespace) -> int:
     result = check(_folder(args.folder), progress=_progress)
-    json.dump(_check_document(result), sys.stdout, indent=2, ensure_ascii=False)
+    document = _check_document(result)
+    if args.output:
+        _write_check(Path(args.output).expanduser(), document)
+    json.dump(document, sys.stdout, indent=2, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0
+
+
+def _review(args: argparse.Namespace) -> int:
+    path = Path(args.file).expanduser()
+    if not path.is_file():
+        raise ValueError(f"{path} is not a file")
+    serve_review(path)
+    return 0
+
+
+def _write_check(path: Path, document: dict[str, object]) -> None:
+    if path.is_file() and has_confirmations(load_review(path)):
+        raise ValueError(f"{path} already holds confirmations")
+    save_review(path, document)
 
 
 def _folder(folder: str) -> Path:
@@ -106,7 +129,26 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     checking.add_argument("folder", metavar="FOLDER")
+    checking.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        help=(
+            "also write the JSON to FILE; refused when FILE already holds confirmations"
+        ),
+    )
     checking.set_defaults(handler=_check)
+    reviewing = photo_commands.add_parser(
+        "review",
+        help="Confirm or correct whether each photograph can be counted",
+        description=(
+            "Open a page to confirm or correct the suggestions in FILE. "
+            "Confirmations are written back into FILE. The photographs stay "
+            "where they are."
+        ),
+    )
+    reviewing.add_argument("file", metavar="FILE")
+    reviewing.set_defaults(handler=_review)
     return parser
 
 
