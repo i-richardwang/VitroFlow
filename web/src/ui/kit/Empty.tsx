@@ -105,3 +105,22 @@ export function Empty({
     </div>
   );
 }
+
+/**
+ * Where a collection with no items would be, holding its `Empty`: a dashed
+ * band of fill in place of its card when `outlined`, or bare inside a
+ * surface that already frames it.
+ */
+export function EmptyPlace({
+  children,
+  variant = "borderless",
+}: {
+  children: ReactNode;
+  variant?: "outlined" | "borderless";
+}) {
+  return (
+    <div className="ui-empty-place" data-variant={variant}>
+      {children}
+    </div>
+  );
+}

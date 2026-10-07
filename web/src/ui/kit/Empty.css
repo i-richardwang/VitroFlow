@@ -79,3 +79,25 @@
     color: var(--color-fg-secondary);
   }
 }
+
+/*
+ * The place of a collection with no items (a table's card, a grid of
+ * cards): its empty state centered at least 240px tall, on a dashed band of
+ * fill where the card would be when `outlined`.
+ */
+.ui-empty-place {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-block-size: 240px;
+
+  &[data-variant="outlined"] {
+    padding-block: 48px;
+    padding-inline: 24px;
+    border: 1px dashed var(--color-border-secondary);
+    border-radius: var(--radius-lg);
+
+    background: var(--color-fill-quaternary);
+  }
+}

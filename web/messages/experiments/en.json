@@ -277,5 +277,7 @@
   "experiment_cell_unread": "The model has no version yet; open the photo to count it by hand",
   "experiment_cell_waiting": "Waiting for the model to count",
   "experiment_card_no_readings": "No counts yet",
-  "experiment_card_more_treatments_label": "More treatments"
+  "experiment_card_more_treatments_label": "More treatments",
+  "experiment_units": "Units",
+  "experiment_trend_empty": "No counts to compare yet"
 }

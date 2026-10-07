@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { TrainingParameters } from "../../domain/training/parameters";
 import { m } from "../../paraglide/messages";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { SectionHeader } from "../../ui/kit/SectionHeader";
 import { Skeleton } from "../../ui/kit/Skeleton";
 import { formatNumber } from "../../ui/numbers";
 import { PARAMETER_GROUPS, PARAMETER_LABELS } from "./parameter-fields";
@@ -37,9 +38,7 @@ function ParameterGroups({
           key={group.key}
           className="mb-5 flex break-inside-avoid flex-col gap-1 last:mb-0"
         >
-          <h4 className="text-xs font-medium text-fg-secondary">
-            {group.title()}
-          </h4>
+          <SectionHeader level={3} size="compact" title={group.title()} />
           <Descriptions justified>
             {group.parameters.map((key) => (
               <DescriptionsItem key={key} label={PARAMETER_LABELS[key]()}>

@@ -239,6 +239,7 @@
 .ui-app-shell-topbar-main {
   display: flex;
   flex: 1;
+  gap: 8px;
   align-items: center;
   min-inline-size: 0;
   padding-inline-start: 4px;

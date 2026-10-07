@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "annotation_source_review": "复核",
   "annotation_source_detected": "模型计数",
-  "annotation_section_metrics": "计数",
+  "annotation_counts": "计数",
   "annotation_detection_version": "版本",
   "annotation_detection_threshold": "阈值",
   "annotation_discard_confirm": "放弃未保存的修改？",
@@ -23,7 +23,6 @@
   "annotation_discard_description": "这张图片上尚未确认的修改将会丢失。",
   "annotation_ai_section": "AI 建议",
   "annotation_ai_running": "标注中",
-  "annotation_ai_progress": "标注进度",
   "annotation_ai_progress_count": [
     {
       "declarations": [

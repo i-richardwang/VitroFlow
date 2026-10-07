@@ -3,8 +3,9 @@ import { ChartLine, Images, Network, Upload } from "lucide-react";
 import { useState } from "react";
 
 import { ImportDatasetDialog } from "../../features/datasets/ImportDatasetDialog";
+import { DatasetCard } from "../../features/datasets/DatasetCard";
 import { ModelMenu } from "../../features/models/ModelMenu";
-import { modelRecordsSummary } from "../../features/models/records";
+import { modelIsFree } from "../../features/models/records";
 import { VersionsTable } from "../../features/models/VersionsTable";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
 import { getModelOverview } from "../../functions/models";
@@ -14,7 +15,8 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
 import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
-import { CardGrid, RowCard } from "../../ui/kit/SummaryCard";
+import { CardGrid, CardGridSkeleton } from "../../ui/kit/SummaryCard";
+import { formatList } from "../../ui/lists";
 import { className, modelName } from "../../ui/model-names";
 import {
   Page,
@@ -42,9 +44,12 @@ export const Route = createFileRoute("/_workbench/models/$model")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton variant="subject" meta />
+      <PageHeaderSkeleton icon meta />
       <PageSectionSkeleton>
         <TableSkeleton rows={2} />
+      </PageSectionSkeleton>
+      <PageSectionSkeleton>
+        <CardGridSkeleton cards={1} />
       </PageSectionSkeleton>
       <PageSectionSkeleton>
         <TableSkeleton rows={2} />
@@ -68,14 +73,11 @@ function ModelPage() {
   return (
     <Page
       title={modelName(model)}
-      subject
       icon={Network}
-      meta={[model.id, model.classes.map(className).join(" · ")]}
-      action={
-        <ModelMenu model={model} deletable={!modelRecordsSummary(records)} />
-      }
+      meta={[model.id, formatList(model.classes.map(className))]}
+      action={<ModelMenu model={model} deletable={modelIsFree(records)} />}
     >
-      <PageSection title={m.versions_table()}>
+      <PageSection title={m.model_versions()}>
         <VersionsTable
           versions={versions}
           empty={
@@ -96,41 +98,35 @@ function ModelPage() {
           </Button>
         }
       >
-        {datasets.length === 0 ? (
-          <Empty
-            icon={Images}
-            title={m.datasets_empty()}
-            description={m.datasets_empty_description()}
-            action={
-              <Button render={<Link to="/experiments" />}>
-                {m.dataset_open_experiments()}
-              </Button>
-            }
-          />
-        ) : (
-          <CardGrid aria-label={m.model_datasets()} size="small">
-            {datasets.map((dataset) => (
-              <RowCard
-                key={dataset.dataset}
+        <CardGrid
+          aria-label={m.model_datasets()}
+          empty={
+            datasets.length === 0 && (
+              <Empty
                 icon={Images}
-                title={dataset.dataset}
-                description={m.dataset_card_facts({
-                  images: dataset.imageCount,
-                  reviewed: dataset.reviewedCount,
-                })}
-                render={
-                  <Link
-                    to="/datasets/$dataset"
-                    params={{ dataset: dataset.dataset }}
-                  />
+                title={m.datasets_empty()}
+                description={m.datasets_empty_description()}
+                action={
+                  <Button render={<Link to="/experiments" />}>
+                    {m.dataset_open_experiments()}
+                  </Button>
                 }
               />
-            ))}
-          </CardGrid>
-        )}
+            )
+          }
+        >
+          {datasets.map((dataset) => (
+            <DatasetCard
+              key={dataset.dataset}
+              dataset={dataset.dataset}
+              images={dataset.imageCount}
+              reviewed={dataset.reviewedCount}
+            />
+          ))}
+        </CardGrid>
       </PageSection>
 
-      <PageSection title={m.run_table_label()}>
+      <PageSection title={m.training_runs()}>
         <TrainingRunsTable
           runs={runs}
           datasetColumn

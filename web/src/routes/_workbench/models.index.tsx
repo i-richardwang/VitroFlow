@@ -1,20 +1,17 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Network, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { ModelCard } from "../../features/models/ModelCard";
 import { ModelDialog } from "../../features/models/ModelDialog";
-import { modelRecordsSummary } from "../../features/models/records";
+import { getModelCatalogue } from "../../functions/models";
+import { m } from "../../paraglide/messages";
+import { documentTitle } from "../../ui/documentTitle";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
-import { Tag } from "../../ui/kit/Tag";
-import { TextLink } from "../../ui/kit/TextLink";
-import { Page, PageColumnSkeleton } from "../../ui/Page";
-import { className, modelName } from "../../ui/model-names";
-import { getModelCatalogue } from "../../functions/models";
-import { documentTitle } from "../../ui/documentTitle";
 import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
-import { m } from "../../paraglide/messages";
+import { CardGrid, CardGridSkeleton } from "../../ui/kit/SummaryCard";
+import { Page, PageColumnSkeleton } from "../../ui/Page";
 
 export const Route = createFileRoute("/_workbench/models/")({
   loader: () => getModelCatalogue(),
@@ -25,7 +22,7 @@ export const Route = createFileRoute("/_workbench/models/")({
   pendingComponent: () => (
     <PageColumnSkeleton>
       <PageHeaderSkeleton description />
-      <ItemListSkeleton icon />
+      <CardGridSkeleton />
     </PageColumnSkeleton>
   ),
   component: ModelsPage,
@@ -34,21 +31,19 @@ export const Route = createFileRoute("/_workbench/models/")({
 function ModelsPage() {
   const entries = Route.useLoaderData();
   const [creating, setCreating] = useState(false);
-  const create = () => setCreating(true);
+  const create = (
+    <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
+      {m.model_new()}
+    </Button>
+  );
 
   return (
     <Page
       title={m.models_title()}
       description={m.models_description()}
-      action={
-        entries.length > 0 ? (
-          <Button type="primary" icon={Plus} onClick={create}>
-            {m.model_new()}
-          </Button>
-        ) : null
-      }
+      action={entries.length > 0 ? create : undefined}
     >
-      <ItemList
+      <CardGrid
         aria-label={m.models_title()}
         empty={
           entries.length === 0 && (
@@ -56,42 +51,19 @@ function ModelsPage() {
               icon={Network}
               title={m.models_empty()}
               description={m.models_empty_description()}
-              action={
-                <Button type="primary" icon={Plus} onClick={create}>
-                  {m.model_new()}
-                </Button>
-              }
+              action={create}
             />
           )
         }
       >
-        {entries.map((entry) => {
-          const held = modelRecordsSummary(entry.records);
-          return (
-            <Item
-              key={entry.model.id}
-              icon={Network}
-              title={
-                <TextLink
-                  render={
-                    <Link
-                      to="/models/$model"
-                      params={{ model: entry.model.id }}
-                    />
-                  }
-                >
-                  {modelName(entry.model)}
-                </TextLink>
-              }
-              addon={<Tag size="small">{entry.model.id}</Tag>}
-              extra={entry.model.classes.map((each) => (
-                <Tag key={each}>{className(each)}</Tag>
-              ))}
-              meta={held ?? m.model_records_none()}
-            />
-          );
-        })}
-      </ItemList>
+        {entries.map((entry) => (
+          <ModelCard
+            key={entry.model.id}
+            model={entry.model}
+            records={entry.records}
+          />
+        ))}
+      </CardGrid>
       <ModelDialog open={creating} onClose={() => setCreating(false)} />
     </Page>
   );

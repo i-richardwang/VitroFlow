@@ -10,24 +10,30 @@
 
 .ui-page-skeleton-header {
   display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ui-page-skeleton-icon {
+  flex: none;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--radius-md);
+}
+
+.ui-page-skeleton-heading {
+  display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  min-inline-size: 0;
 }
 
 .ui-page-skeleton-title {
   inline-size: 220px;
   max-inline-size: 70%;
-  block-size: var(--text-4xl);
-  margin-block: calc(var(--text-4xl) * 0.15);
-}
-
-.ui-page-skeleton-header[data-variant="subject"] {
-  gap: 6px;
-
-  .ui-page-skeleton-title {
-    block-size: var(--text-2xl);
-    margin-block: calc((var(--text-2xl--line-height) - var(--text-2xl)) / 2);
-  }
+  block-size: var(--text-2xl);
+  margin-block: calc((var(--text-2xl--line-height) - var(--text-2xl)) / 2);
 }
 
 /* An outlined `Table`: its card, columns inset 16px, rows parted by a hairline. */

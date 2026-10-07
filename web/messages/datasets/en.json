@@ -106,19 +106,6 @@
   "dataset_image_removed": "{file} removed from {dataset}",
   "dataset_open_experiments": "Open experiments",
   "dataset_actions": "Actions for {dataset}",
-  "dataset_card_facts": [
-    {
-      "declarations": [
-        "input images",
-        "input reviewed",
-        "local formattedImages = images: number",
-        "local formattedReviewed = reviewed: number"
-      ],
-      "match": {
-        "images=*": "{formattedImages} images · {formattedReviewed} reviewed"
-      }
-    }
-  ],
   "dataset_hero_images": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
@@ -141,5 +128,6 @@
   "dataset_preview_quality": "Detection quality",
   "dataset_preview_open": "Open to annotate",
   "image_steps": "Images",
-  "dataset_hero_reviewed": "reviewed, ready to train"
+  "dataset_hero_reviewed": "reviewed, ready to train",
+  "dataset_images": "Images"
 }

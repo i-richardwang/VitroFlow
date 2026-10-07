@@ -15,3 +15,32 @@
   background: var(--color-primary);
   transition: width var(--duration-slower) var(--ease-out);
 }
+
+.ui-progress-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.ui-progress-meter-line {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-tertiary);
+}
+
+.ui-progress-meter-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-secondary);
+}
+
+.ui-progress-meter-note {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--color-fg-tertiary);
+}

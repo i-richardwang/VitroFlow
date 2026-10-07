@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "annotation_source_review": "Review",
   "annotation_source_detected": "Model count",
-  "annotation_section_metrics": "Counts",
+  "annotation_counts": "Counts",
   "annotation_detection_version": "Version",
   "annotation_detection_threshold": "Threshold",
   "annotation_discard_confirm": "Discard unsaved changes?",
@@ -23,7 +23,6 @@
   "annotation_discard_description": "Changes to this image that were not confirmed are lost.",
   "annotation_ai_section": "AI proposal",
   "annotation_ai_running": "Annotating",
-  "annotation_ai_progress": "Annotation progress",
   "annotation_ai_progress_count": [
     {
       "declarations": [

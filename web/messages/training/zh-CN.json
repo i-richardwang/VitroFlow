@@ -30,7 +30,7 @@
   "train_dialog_no_worker": "没有在线的训练计算节点",
   "train_not_started": "训练未启动",
   "train_queued": "训练已加入队列",
-  "run_table_label": "训练任务",
+  "training_runs": "训练任务",
   "run_column_run": "训练任务",
   "run_column_dataset": "训练集",
   "run_column_epochs": "轮次",

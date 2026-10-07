@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_workbench/experiments/")({
   pendingComponent: () => (
     <PageColumnSkeleton>
       <PageHeaderSkeleton description />
-      <CardGridSkeleton />
+      <CardGridSkeleton band />
     </PageColumnSkeleton>
   ),
   component: ExperimentsPage,
@@ -43,20 +43,23 @@ function ExperimentsPage() {
       description={m.experiments_description()}
       action={experiments.length > 0 ? create : undefined}
     >
-      {experiments.length === 0 ? (
-        <Empty
-          icon={FlaskConical}
-          title={m.experiments_empty()}
-          description={m.experiments_empty_description()}
-          action={create}
-        />
-      ) : (
-        <CardGrid aria-label={m.experiments_title()}>
-          {experiments.map((summary) => (
-            <ExperimentCard key={summary.experiment.id} summary={summary} />
-          ))}
-        </CardGrid>
-      )}
+      <CardGrid
+        aria-label={m.experiments_title()}
+        empty={
+          experiments.length === 0 && (
+            <Empty
+              icon={FlaskConical}
+              title={m.experiments_empty()}
+              description={m.experiments_empty_description()}
+              action={create}
+            />
+          )
+        }
+      >
+        {experiments.map((summary) => (
+          <ExperimentCard key={summary.experiment.id} summary={summary} />
+        ))}
+      </CardGrid>
       <NewExperimentDialog open={creating} onClose={() => setCreating(false)} />
     </Page>
   );

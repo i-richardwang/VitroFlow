@@ -30,7 +30,7 @@
   "train_dialog_no_worker": "No training worker is online",
   "train_not_started": "Training not started",
   "train_queued": "Training run queued",
-  "run_table_label": "Training runs",
+  "training_runs": "Training runs",
   "run_column_run": "Run",
   "run_column_dataset": "Dataset",
   "run_column_epochs": "Epochs",

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { Plus, RefreshCw, Server, Trash2 } from "lucide-react";
+import { Plus, Server, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { EnrollWorkerDialog } from "../../features/workers/EnrollWorkerDialog";
@@ -13,11 +13,18 @@ import { RowMenu } from "../../ui/ActionsMenu";
 import { SettingsPage, SettingsPageSkeleton } from "../../ui/Page";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
-import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { Item, ItemList, ItemListSkeleton } from "../../ui/kit/ItemList";
+import { TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { StatusDot, type StatusTone } from "../../ui/kit/Status";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
 
@@ -29,7 +36,7 @@ export const Route = createFileRoute("/_workbench/status")({
   }),
   pendingComponent: () => (
     <SettingsPageSkeleton>
-      <ItemListSkeleton icon rows={3} />
+      <TableSkeleton rows={3} />
     </SettingsPageSkeleton>
   ),
   component: StatusPage,
@@ -57,23 +64,16 @@ function StatusPage() {
   return (
     <SettingsPage
       title={m.status_title()}
-      extra={
-        <>
-          <RefreshButton />
-          {workers.length > 0 ? (
-            <>
-              {m.status_worker_count({ count: workers.length })}
-              {administers ? (
-                <Button type="primary" icon={Plus} onClick={enroll}>
-                  {m.worker_enroll()}
-                </Button>
-              ) : null}
-            </>
-          ) : null}
-        </>
+      action={
+        administers && workers.length > 0 ? (
+          <Button type="primary" icon={Plus} onClick={enroll}>
+            {m.worker_enroll()}
+          </Button>
+        ) : null
       }
     >
-      <ItemList
+      <Table
+        narrow="cards"
         aria-label={m.status_workers()}
         empty={
           workers.length === 0 && (
@@ -96,14 +96,27 @@ function StatusPage() {
           )
         }
       >
-        {workers.map((worker) => (
-          <WorkerItem
-            key={worker.workerId}
-            worker={worker}
-            administers={administers}
-          />
-        ))}
-      </ItemList>
+        <TableHeader>
+          <tr>
+            <TableHead>{m.status_column_worker()}</TableHead>
+            <TableHead className="w-28">{m.status_column_presence()}</TableHead>
+            <TableHead>{m.status_column_activity()}</TableHead>
+            <TableHead className="w-36">{m.status_column_seen()}</TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">{m.status_column_actions()}</span>
+            </TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {workers.map((worker) => (
+            <WorkerRow
+              key={worker.workerId}
+              worker={worker}
+              administers={administers}
+            />
+          ))}
+        </TableBody>
+      </Table>
       {administers ? (
         <EnrollWorkerDialog
           open={enrolling}
@@ -114,26 +127,7 @@ function StatusPage() {
   );
 }
 
-/** Reloads the roster now rather than at the next periodic refresh. */
-function RefreshButton() {
-  const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
-
-  return (
-    <ActionIcon
-      icon={RefreshCw}
-      size="small"
-      title={m.status_refresh()}
-      loading={refreshing}
-      onClick={() => {
-        setRefreshing(true);
-        void router.invalidate().finally(() => setRefreshing(false));
-      }}
-    />
-  );
-}
-
-function WorkerItem({
+function WorkerRow({
   worker,
   administers,
 }: {
@@ -143,20 +137,29 @@ function WorkerItem({
   const presence = PRESENCE[worker.presence];
 
   return (
-    <Item
-      icon={Server}
-      title={worker.workerId}
-      addon={<StatusDot label={presence.label()} tone={presence.tone} />}
-      meta={[
-        <Activity key="activity" activity={worker.activity} />,
-        worker.lastSeenSeconds === null
+    <TableRow>
+      <TableCell cellSlot="title">{worker.workerId}</TableCell>
+      <TableCell cellLabel={m.status_column_presence()}>
+        <StatusDot label={presence.label()} tone={presence.tone} />
+      </TableCell>
+      <TableCell
+        cellLabel={m.status_column_activity()}
+        className="text-fg-secondary"
+      >
+        <Activity activity={worker.activity} />
+      </TableCell>
+      <TableCell
+        cellLabel={m.status_column_seen()}
+        className="whitespace-nowrap text-fg-tertiary"
+      >
+        {worker.lastSeenSeconds === null
           ? m.worker_never_seen()
-          : formatAge(worker.lastSeenSeconds),
-      ]}
-      actions={
-        administers ? <WorkerMenu workerId={worker.workerId} /> : undefined
-      }
-    />
+          : formatAge(worker.lastSeenSeconds)}
+      </TableCell>
+      <TableCell cellSlot="actions" className="text-end">
+        {administers ? <WorkerMenu workerId={worker.workerId} /> : null}
+      </TableCell>
+    </TableRow>
   );
 }
 

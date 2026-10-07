@@ -11,11 +11,10 @@ import { createPortal } from "react-dom";
 import { m } from "../../paraglide/messages";
 import { ActionIcon } from "../kit/ActionIcon";
 import { AppShellFlush } from "../kit/AppShell";
-import { cn } from "../kit/cn";
-import { DraggablePanel } from "../kit/DraggablePanel";
-import { Drawer } from "../kit/Drawer";
 import { Empty, type EmptyProps } from "../kit/Empty";
 import { useIsCompact } from "../kit/mediaQuery";
+import { SectionHeader } from "../kit/SectionHeader";
+import { SidePanel } from "../kit/SidePanel";
 import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
 import { ShellActions, ShellTrail } from "./Shell";
@@ -32,21 +31,23 @@ const InspectorSlot = createContext<{
   mount: () => () => void;
 } | null>(null);
 
-const INSPECTOR_WIDTH = { default: 360, min: 300, max: 600 };
-
 /**
  * A page built around one framed subject. It fills the shell's card edge to
  * edge: the subject on the left with its controls and lasting notices
  * floating over its top edge and the way through its siblings in a bar under
- * it, facts in an inspector panel on the right.
- * Actions belong in the shell's top bar. On narrow screens the inspector
- * moves into a drawer opened from the top bar.
+ * it, facts in an inspector panel on the right. The shell's top bar stands
+ * for the header a document page has: the way back up ending in the subject,
+ * the subject's `status` after it, and its commands at the bar's end. The
+ * inspector is a `SidePanel`; on narrow screens its drawer opens from the
+ * top bar.
  */
 export function Workbench({
   title,
+  status,
   children,
 }: {
   title: string;
+  status?: ReactNode;
   children: ReactNode;
 }) {
   const compact = useIsCompact();
@@ -65,16 +66,6 @@ export function Workbench({
     },
   }));
   const hasInspector = inspectors > 0;
-  // The drawer pads its own body; the panel pads itself.
-  const panel = (
-    <div
-      ref={setInspectorNode}
-      className={cn(
-        "flex min-h-0 flex-1 flex-col gap-4",
-        !compact && "overflow-y-auto p-4",
-      )}
-    />
-  );
 
   return (
     <FloatSlots
@@ -82,7 +73,7 @@ export function Workbench({
     >
       <InspectorSlot value={{ node: inspectorNode, mount: inspector.mount }}>
         <h1 className="sr-only">{title}</h1>
-        <ShellTrail />
+        <ShellTrail status={status} />
         <AppShellFlush>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-container-secondary">
             <div className="pointer-events-none absolute inset-x-0 top-3 z-raise flex flex-col items-center gap-2 px-3">
@@ -101,36 +92,26 @@ export function Workbench({
               className="flex h-11 flex-none items-center gap-3 overflow-x-auto border-t bg-container px-3 empty:hidden"
             />
           </div>
-          {hasInspector && !compact ? (
-            <DraggablePanel
-              aria-label={m.workbench_inspector()}
-              defaultWidth={INSPECTOR_WIDTH.default}
-              maxWidth={INSPECTOR_WIDTH.max}
-              minWidth={INSPECTOR_WIDTH.min}
+          {hasInspector ? (
+            <SidePanel
+              open={!compact || drawerOpen}
+              title={m.workbench_inspector()}
+              onClose={() => setDrawerOpen(false)}
             >
-              {panel}
-            </DraggablePanel>
+              {/* The inspector's sections are portaled here and stacked by the panel. */}
+              <div ref={setInspectorNode} className="contents" />
+            </SidePanel>
           ) : null}
         </AppShellFlush>
         {hasInspector && compact ? (
-          <>
-            <ShellActions>
-              <ActionIcon
-                icon={PanelRight}
-                size="header"
-                title={m.workbench_inspector()}
-                onClick={() => setDrawerOpen(true)}
-              />
-            </ShellActions>
-            <Drawer
-              open={drawerOpen}
+          <ShellActions>
+            <ActionIcon
+              icon={PanelRight}
+              size="header"
               title={m.workbench_inspector()}
-              width={INSPECTOR_WIDTH.default}
-              onClose={() => setDrawerOpen(false)}
-            >
-              {panel}
-            </Drawer>
-          </>
+              onClick={() => setDrawerOpen(true)}
+            />
+          </ShellActions>
         ) : null}
       </InspectorSlot>
     </FloatSlots>
@@ -149,19 +130,21 @@ export function WorkbenchInspector({ children }: { children: ReactNode }) {
   return createPortal(children, slot.node);
 }
 
-/** A titled group of the inspector, ruled off from the next. */
+/**
+ * A group of the inspector under its compact `SectionHeader`, ruled off from
+ * the next. The first group, which leads with the subject's figure on a
+ * `StatisticHero`, is named by the figure and has no `title`.
+ */
 export function WorkbenchSection({
   title,
   children,
 }: {
-  title: string;
+  title?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-1.5 border-b pb-4">
-      <h2 className="text-xs font-semibold tracking-[0.02em] text-fg-tertiary">
-        {title}
-      </h2>
+    <section className="flex flex-col gap-2 border-b pb-4">
+      {title ? <SectionHeader size="compact" title={title} /> : null}
       {children}
     </section>
   );
@@ -240,7 +223,7 @@ export function WorkbenchSkeleton() {
         {INSPECTOR_BONES.map((widths, index) => (
           <div
             aria-hidden
-            className="flex flex-col gap-1.5 border-b pb-4"
+            className="flex flex-col gap-2 border-b pb-4"
             key={index}
           >
             <Skeleton.Text size="xs" width={widths[0]} />

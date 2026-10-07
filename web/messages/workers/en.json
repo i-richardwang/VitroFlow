@@ -60,21 +60,11 @@
   "status_empty_description_admin": "Enroll a machine, then run the setup command on it.",
   "status_empty_description_member": "An administrator enrolls the machines that run detection and training.",
   "status_workers": "Workers",
-  "status_worker_count": [
-    {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural",
-        "local formattedCount = count: number"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{formattedCount} worker",
-        "countPlural=other": "{formattedCount} workers"
-      }
-    }
-  ],
-  "status_refresh": "Refresh",
   "worker_actions": "Actions for {name}",
-  "worker_remove_item": "Remove…"
+  "worker_remove_item": "Remove…",
+  "status_column_worker": "Worker",
+  "status_column_presence": "Status",
+  "status_column_activity": "Activity",
+  "status_column_seen": "Last seen",
+  "status_column_actions": "Actions"
 }

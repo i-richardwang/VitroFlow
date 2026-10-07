@@ -1,0 +1,37 @@
+.ui-side-panel-header {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+
+  padding-block: 12px;
+  padding-inline: 16px;
+  border-block-end: 1px solid var(--color-border-secondary);
+}
+
+.ui-side-panel-title {
+  overflow: hidden;
+
+  margin: 0;
+
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--text-sm--line-height);
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-side-panel-body {
+  overflow-y: auto;
+  flex: 1;
+  min-block-size: 0;
+  padding: 16px;
+}
+
+.ui-side-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

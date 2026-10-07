@@ -1,32 +1,11 @@
 import type { ReactNode } from "react";
-import { cn } from "./cn";
 
 /*
- * A surface on the page that stacks its content with 16px padding, optionally
- * under a small title. `outlined` (the default) is the container color inside
- * a thin border; `filled` is a band of fill, for the figure a page leads with.
+ * The outlined surface a section's content sits on when it is not a table or
+ * a grid of cards, such as a chart or a list of parameters: the container
+ * color in a thin border (radius 12, as a table's card), padded 20px, its
+ * content stacked 20px apart.
  */
-export function Card({
-  children,
-  className,
-  title,
-  variant = "outlined",
-}: {
-  children: ReactNode;
-  className?: string;
-  title?: string;
-  variant?: "outlined" | "filled";
-}) {
-  return (
-    <div
-      className={cn(
-        "ui-card",
-        variant === "filled" ? "ui-card-filled" : "ui-card-outlined",
-        className,
-      )}
-    >
-      {title ? <h3 className="ui-card-title">{title}</h3> : null}
-      {children}
-    </div>
-  );
+export function Card({ children }: { children: ReactNode }) {
+  return <div className="ui-card">{children}</div>;
 }

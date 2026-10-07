@@ -3,26 +3,30 @@ import { useRender } from "@base-ui/react/use-render";
 import { ArrowRight } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
+import { EmptyPlace } from "./Empty";
 import { Icon, type IconProps } from "./Icon";
 import { IconTile } from "./IconTile";
 import { Skeleton } from "./Skeleton";
 
 /*
- * Things a reader opens one at a time, laid out as cards: columns at least
- * 480px wide, 20px apart, one column on a phone.
+ * Things a reader opens one at a time, laid out as `SummaryCard`s: columns
+ * at least 480px wide, 20px apart, one column on a phone. With no things,
+ * its `empty` stands in its place on a dashed band of fill.
  */
 export function CardGrid({
   "aria-label": ariaLabel,
   children,
-  size = "large",
+  empty,
 }: {
   "aria-label": string;
   children: ReactNode;
-  /** `small` packs compact `RowCard`s. */
-  size?: "small" | "large";
+  empty?: ReactNode;
 }) {
+  if (empty != null && empty !== false) {
+    return <EmptyPlace variant="outlined">{empty}</EmptyPlace>;
+  }
   return (
-    <ul aria-label={ariaLabel} className="ui-card-grid" data-size={size}>
+    <ul aria-label={ariaLabel} className="ui-card-grid">
       {children}
     </ul>
   );
@@ -124,76 +128,29 @@ export function SummaryCardStats({
   );
 }
 
-/*
- * A compact link to one thing in a `CardGrid size="small"`: a small icon
- * tile, the name (500) over one line of facts (12px, secondary).
- */
-export function RowCard({
-  description,
-  icon,
-  render,
-  title,
-}: {
-  description?: ReactNode;
-  icon: IconProps["icon"];
-  render: ReactElement;
-  title: ReactNode;
-}) {
-  const link = useRender({
-    defaultTagName: "a",
-    props: mergeProps<"a">(
-      { className: "ui-row-card" },
-      {
-        children: (
-          <>
-            <IconTile icon={icon} size="small" />
-            <span className="ui-row-card-text">
-              <span className="ui-row-card-name">{title}</span>
-              {description != null ? (
-                <span className="ui-row-card-description">{description}</span>
-              ) : null}
-            </span>
-          </>
-        ),
-      },
-    ),
-    render,
-  });
-  return <li className="ui-row-card-item">{link}</li>;
-}
-
-/** A `CardGrid` while it loads: `SummaryCard`s, or `RowCard`s when `small`. */
+/** A `CardGrid` while it loads; `band` when its cards carry a `SummaryCardBand`. */
 export function CardGridSkeleton({
+  band,
   cards = 2,
-  size = "large",
 }: {
+  band?: boolean;
   cards?: number;
-  size?: "small" | "large";
 }) {
   return (
-    <div aria-hidden className="ui-card-grid" data-size={size}>
-      {Array.from({ length: cards }, (_, index) =>
-        size === "small" ? (
-          <div className="ui-row-card" key={index}>
-            <Skeleton className="ui-row-card-skeleton-tile" />
-            <span className="ui-row-card-text">
-              <Skeleton.Text width="8em" />
+    <div aria-hidden className="ui-card-grid">
+      {Array.from({ length: cards }, (_, index) => (
+        <div className="ui-summary-card" key={index}>
+          <div className="ui-summary-card-identity">
+            <Skeleton className="ui-summary-card-skeleton-tile" />
+            <div className="ui-summary-card-heading">
+              <Skeleton.Text size="lg" width="10em" />
               <Skeleton.Text size="xs" width="14em" />
-            </span>
-          </div>
-        ) : (
-          <div className="ui-summary-card" key={index}>
-            <div className="ui-summary-card-identity">
-              <Skeleton className="ui-summary-card-skeleton-tile" />
-              <div className="ui-summary-card-heading">
-                <Skeleton.Text size="lg" width="10em" />
-                <Skeleton.Text size="xs" width="14em" />
-              </div>
             </div>
-            <Skeleton className="ui-summary-card-skeleton-band" />
           </div>
-        ),
-      )}
+          {band ? <Skeleton className="ui-summary-card-skeleton-band" /> : null}
+          <Skeleton.Text width="12em" />
+        </div>
+      ))}
     </div>
   );
 }

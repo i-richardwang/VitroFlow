@@ -38,7 +38,7 @@ export function ApiKeysGroup({ apiKeys }: { apiKeys: ApiKey[] }) {
           apiKeys.length > 0 ? (
             <>
               {m.api_key_count({ count: apiKeys.length })}
-              <Button size="small" type="primary" icon={Plus} onClick={create}>
+              <Button size="small" icon={Plus} onClick={create}>
                 {m.integrations_new_key()}
               </Button>
             </>

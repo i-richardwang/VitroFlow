@@ -29,7 +29,7 @@ export function VersionsTable({
 }) {
   return (
     <Table
-      aria-label={m.versions_table()}
+      aria-label={m.model_versions()}
       narrow="cards"
       empty={versions.length === 0 && empty}
     >

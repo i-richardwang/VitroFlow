@@ -1,29 +1,26 @@
-import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { m } from "../paraglide/messages";
-import { BackLink } from "./kit/BackLink";
 import type { IconProps } from "./kit/Icon";
 import { PageHeader } from "./kit/PageHeader";
-import { PageSkeleton } from "./kit/PageSkeleton";
+import { PageHeaderSkeleton, PageSkeleton } from "./kit/PageSkeleton";
 import { PreviewLayout, type Preview } from "./kit/PreviewLayout";
+import { SectionHeader } from "./kit/SectionHeader";
 import { Skeleton } from "./kit/Skeleton";
-import { useCrumbs } from "./shell/crumbs";
+import { ShellTrail } from "./shell/Shell";
 
 /* A document page runs the card's full width; its parts are 24px apart. */
 const COLUMN = "flex w-full flex-col gap-6 max-mobile:gap-4";
 
 /**
- * A document page in the shell's card, under a `PageHeader` that carries the
- * page's `action`. A list page names a kind of thing, with a `description`;
- * a `subject` page is about one thing and adds its `status` and `meta`. A
- * page below another opens with a link back to the page above it, from the
- * route's crumbs. A page that previews its rows beside itself passes
- * `preview`, null while nothing is open, and fills the card edge to edge.
+ * A document page in the shell's card: a `PageHeader` carrying the page's
+ * `action`, then the page's figure and sections. A page about one thing sets
+ * its `icon`, `status` and `meta`. A page below another names the way back
+ * up in the shell's top bar, from the route's crumbs. A page that previews
+ * its rows beside itself passes `preview`, null while nothing is open, and
+ * fills the card edge to edge.
  */
 export function Page({
   title,
-  subject = false,
   icon,
   description,
   status,
@@ -33,7 +30,6 @@ export function Page({
   children,
 }: {
   title: string;
-  subject?: boolean;
   /** The subject's mark, as its card in the list carries it. */
   icon?: IconProps["icon"];
   description?: ReactNode;
@@ -46,18 +42,10 @@ export function Page({
   preview?: Preview | null;
   children: ReactNode;
 }) {
-  const parent = useCrumbs().at(-2);
   const column = (
     <div className={COLUMN}>
+      <ShellTrail />
       <PageHeader
-        back={
-          parent?.href ? (
-            <BackLink render={<Link to={parent.href} />}>
-              {m.nav_back_to({ page: parent.label })}
-            </BackLink>
-          ) : undefined
-        }
-        variant={subject ? "subject" : "list"}
         icon={icon}
         title={title}
         description={description}
@@ -85,35 +73,21 @@ export function PageColumnSkeleton({ children }: { children: ReactNode }) {
 }
 
 /**
- * A titled part of a document page; `id` makes it a link target. `extra`
- * sits at the end of the heading row: a count, or a small button.
+ * A titled part of a document page: its `SectionHeader`, with `extra` at the
+ * end of the heading row (a count, a small button), over its content.
  */
 export function PageSection({
-  id,
   title,
-  description,
   extra,
   children,
 }: {
-  id?: string;
   title: string;
-  description?: ReactNode;
   extra?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          {description ? (
-            <div className="text-sm text-fg-secondary">{description}</div>
-          ) : null}
-        </div>
-        {extra != null ? (
-          <div className="flex flex-none items-center gap-2">{extra}</div>
-        ) : null}
-      </div>
+    <section className="flex flex-col gap-3">
+      <SectionHeader title={title} extra={extra} />
       {children}
     </section>
   );
@@ -123,7 +97,7 @@ export function PageSection({
 export function PageSectionSkeleton({ children }: { children: ReactNode }) {
   return (
     <section aria-hidden className="flex flex-col gap-3">
-      <Skeleton.Text width="8em" />
+      <Skeleton.Text size="lg" width="8em" />
       {children}
     </section>
   );
@@ -136,56 +110,27 @@ export function PageSectionSkeleton({ children }: { children: ReactNode }) {
  */
 const SETTINGS_COLUMN = "mx-auto flex w-full max-w-5xl flex-col gap-9 pb-26";
 
-/** The title block of a settings page, with `extra` at its end, ruled off from the content. */
-function SettingsHeader({
-  title,
-  description,
-  extra,
-}: {
-  title: ReactNode;
-  description?: ReactNode;
-  extra?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-6 pt-3">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="text-2xl font-bold">{title}</h1>
-          {description ? (
-            <div className="text-fg-secondary">{description}</div>
-          ) : null}
-        </div>
-        {extra != null ? (
-          <div className="flex flex-none items-center gap-2 text-fg-secondary">
-            {extra}
-          </div>
-        ) : null}
-      </div>
-      <hr className="border-border-secondary" />
-    </div>
-  );
-}
-
 /**
  * A settings page: the reader's own account, keys and connections, or the
- * workspace's people and machines. Its header names it and carries `extra`,
- * such as a count and the page's one command; the content is a column of
+ * workspace's people and machines. Its `PageHeader` names it and carries the
+ * page's one command, ruled off from the content: a column of
  * `SettingsGroup`s, or for a page that is one roster, the roster itself.
  */
 export function SettingsPage({
   title,
-  description,
-  extra,
+  action,
   children,
 }: {
   title: string;
-  description?: ReactNode;
-  extra?: ReactNode;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className={SETTINGS_COLUMN}>
-      <SettingsHeader title={title} description={description} extra={extra} />
+      <div className="flex flex-col gap-6 pt-3">
+        <PageHeader title={title} actions={action} />
+        <hr className="border-border-secondary" />
+      </div>
       {children}
     </div>
   );
@@ -197,7 +142,7 @@ export function SettingsPageSkeleton({ children }: { children: ReactNode }) {
     <PageSkeleton>
       <div className={SETTINGS_COLUMN}>
         <div aria-hidden className="flex flex-col gap-6 pt-3">
-          <Skeleton className="my-1 h-6 w-32" />
+          <PageHeaderSkeleton />
           <hr className="border-border-secondary" />
         </div>
         {children}

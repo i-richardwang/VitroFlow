@@ -34,8 +34,7 @@ export function TrainingRunsTable({
 }) {
   return (
     <Table
-      aria-label={m.run_table_label()}
-      size="small"
+      aria-label={m.training_runs()}
       narrow="cards"
       empty={runs.length === 0 && empty}
     >

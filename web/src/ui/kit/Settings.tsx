@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
+import { SectionHeader } from "./SectionHeader";
 import { Skeleton } from "./Skeleton";
 
 /*
- * A group of a settings page: a tray with the group's heading, an optional
- * description and an `extra` at its end (a count, a small button), and an
- * inner panel lifted 3px inside it holding the group's content. The panel's
- * content runs to its edges: `SettingsRow`s, a table, a list.
+ * A group of a settings page: a tray with the group's `SectionHeader` (its
+ * title, an optional description and an `extra` at its end: a count, a small
+ * button), and an inner panel lifted 3px inside it holding the group's
+ * content, which runs to the panel's edges: `SettingsRow`s or a table.
  *
  * `SettingsRow` is one setting in the panel: its label, with an optional
  * line of description under it, and its control in a column at the end of
@@ -29,17 +30,9 @@ export function SettingsGroup({
 }) {
   return (
     <section className="ui-settings-group" id={id}>
-      <header className="ui-settings-group-header">
-        <div className="ui-settings-group-copy">
-          <h2 className="ui-settings-group-title">{title}</h2>
-          {description ? (
-            <div className="ui-settings-group-description">{description}</div>
-          ) : null}
-        </div>
-        {extra != null ? (
-          <div className="ui-settings-group-extra">{extra}</div>
-        ) : null}
-      </header>
+      <div className="ui-settings-group-header">
+        <SectionHeader title={title} description={description} extra={extra} />
+      </div>
       <div className="ui-settings-group-panel">{children}</div>
     </section>
   );
@@ -96,8 +89,7 @@ export function SettingsValueRow({
 
 /**
  * A `SettingsGroup` while it loads: the heading's bone over the panel's
- * content in its own shape (a `TableSkeleton`, an `ItemListSkeleton`), or
- * over `rows` setting rows.
+ * content in its own shape (a `TableSkeleton`), or over `rows` setting rows.
  */
 export function SettingsGroupSkeleton({
   children,

@@ -1,12 +1,23 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ImagePlus, Images, PenLine, Search, SearchX } from "lucide-react";
+import {
+  ChartLine,
+  ImagePlus,
+  Images,
+  PenLine,
+  Search,
+  SearchX,
+} from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
 import { QualityTags } from "../../ui/DetectionQuality";
 import { Absent } from "../../ui/Absent";
-import { Page, PageColumnSkeleton, PageSection } from "../../ui/Page";
-import { modelName } from "../../ui/model-names";
+import {
+  Page,
+  PageColumnSkeleton,
+  PageSection,
+  PageSectionSkeleton,
+} from "../../ui/Page";
 import { DatasetMenu } from "../../features/datasets/DatasetMenu";
 import { RemoveImageButton } from "../../features/datasets/RemoveImageButton";
 import {
@@ -25,7 +36,8 @@ import { Icon } from "../../ui/kit/Icon";
 import { Input } from "../../ui/kit/Input";
 import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { Pagination } from "../../ui/kit/Pagination";
-import { PreviewField, PreviewMedia } from "../../ui/kit/PreviewLayout";
+import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
+import { PreviewMedia } from "../../ui/kit/PreviewLayout";
 import { StatisticHero, StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { Status } from "../../ui/kit/Status";
 import {
@@ -76,9 +88,14 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton variant="subject" description />
+      <PageHeaderSkeleton icon />
       <StatisticHeroSkeleton />
-      <TableSkeleton />
+      <PageSectionSkeleton>
+        <TableSkeleton />
+      </PageSectionSkeleton>
+      <PageSectionSkeleton>
+        <TableSkeleton rows={2} />
+      </PageSectionSkeleton>
     </PageColumnSkeleton>
   ),
   component: DatasetPage,
@@ -92,7 +109,7 @@ function DatasetPage() {
   const { dataset } = Route.useParams();
   const { image: previewed } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { model, images, reviewedCount, training, recipe, runs } =
+  const { images, reviewedCount, training, recipe, runs } =
     Route.useLoaderData();
   const [starting, setStarting] = useState(false);
   const refusal = trainRefusal({ reviewed: reviewedCount, training });
@@ -123,9 +140,7 @@ function DatasetPage() {
   return (
     <Page
       title={dataset}
-      subject
       icon={Images}
-      description={modelName(model)}
       action={
         <>
           <TrainButton refusal={refusal} onClick={() => setStarting(true)} />
@@ -151,7 +166,7 @@ function DatasetPage() {
       <StatisticHero
         value={formatCount(reviewedCount)}
         title={m.dataset_hero_reviewed()}
-        description={[
+        facts={[
           m.dataset_hero_images({ count: images.length }),
           ...(training.reviewedSinceLastRun > 0
             ? [
@@ -160,148 +175,153 @@ function DatasetPage() {
                 }),
               ]
             : []),
-        ].join(" · ")}
+        ]}
       />
-      <Table
-        aria-label={m.dataset_images_table({ dataset })}
-        size="small"
-        narrow="cards"
-        toolbar={
-          images.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                aria-label={m.dataset_search()}
-                className="w-48"
-                placeholder={m.dataset_search()}
-                prefix={<Icon icon={Search} size={14} />}
-                size="small"
-                type="search"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(1);
-                }}
+      <PageSection title={m.dataset_images()}>
+        <Table
+          aria-label={m.dataset_images_table({ dataset })}
+          size="small"
+          narrow="cards"
+          toolbar={
+            images.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label={m.dataset_search()}
+                  className="w-48"
+                  placeholder={m.dataset_search()}
+                  prefix={<Icon icon={Search} size={14} />}
+                  size="small"
+                  type="search"
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                  }}
+                />
+                <ToggleGroup
+                  aria-label={m.dataset_state_filter()}
+                  variant="outlined"
+                  value={filter}
+                  options={[
+                    { value: "all", label: m.dataset_state_all() },
+                    ...DATASET_IMAGE_STATES.map((state) => ({
+                      value: state,
+                      label: datasetImageStateLabel(state),
+                    })),
+                  ]}
+                  onChange={(next) => {
+                    setFilter(next);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            ) : undefined
+          }
+          footer={
+            matches.length > PAGE_SIZE ? (
+              <Pagination
+                current={current}
+                pageSize={PAGE_SIZE}
+                total={matches.length}
+                onChange={setPage}
               />
-              <ToggleGroup
-                aria-label={m.dataset_state_filter()}
-                variant="outlined"
-                value={filter}
-                options={[
-                  { value: "all", label: m.dataset_state_all() },
-                  ...DATASET_IMAGE_STATES.map((state) => ({
-                    value: state,
-                    label: datasetImageStateLabel(state),
-                  })),
-                ]}
-                onChange={(next) => {
-                  setFilter(next);
-                  setPage(1);
-                }}
+            ) : undefined
+          }
+          empty={
+            images.length === 0 ? (
+              <Empty
+                icon={ImagePlus}
+                title={m.dataset_empty_images()}
+                description={m.dataset_empty_images_description()}
+                action={
+                  <Button render={<Link to="/experiments" />}>
+                    {m.dataset_open_experiments()}
+                  </Button>
+                }
               />
-            </div>
-          ) : undefined
-        }
-        footer={
-          matches.length > PAGE_SIZE ? (
-            <Pagination
-              current={current}
-              pageSize={PAGE_SIZE}
-              total={matches.length}
-              onChange={setPage}
-            />
-          ) : undefined
-        }
-        empty={
-          images.length === 0 ? (
-            <Empty
-              icon={ImagePlus}
-              title={m.dataset_empty_images()}
-              description={m.dataset_empty_images_description()}
-              action={
-                <Button render={<Link to="/experiments" />}>
-                  {m.dataset_open_experiments()}
-                </Button>
-              }
-            />
-          ) : matches.length === 0 ? (
-            <Empty
-              icon={SearchX}
-              title={m.dataset_no_matches()}
-              description={m.dataset_no_matches_description()}
-            />
-          ) : undefined
-        }
-      >
-        <TableHeader>
-          <tr>
-            <TableHead>{m.dataset_column_image()}</TableHead>
-            <TableHead className="w-28">{m.dataset_column_state()}</TableHead>
-            <TableHead className="w-1/4">
-              {m.dataset_column_quality()}
-            </TableHead>
-            <TableHead className="w-20" numeric>
-              {m.dataset_column_boxes()}
-            </TableHead>
-            <TableHead className="w-12">
-              <span className="sr-only">{m.dataset_column_actions()}</span>
-            </TableHead>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {shown.map((image) => {
-            const state = states.get(image.digest) ?? "unread";
-            return (
-              <TableRow
-                key={image.digest}
-                clickable
-                data-state={image.digest === previewed ? "selected" : undefined}
-              >
-                <TableCell cellSlot="title">
-                  <TextLink
-                    className="block max-w-80 truncate"
-                    render={
-                      <Link
-                        to="/datasets/$dataset"
-                        params={{ dataset }}
-                        search={{ image: image.digest }}
-                      />
-                    }
-                  >
-                    {image.filename}
-                  </TextLink>
-                </TableCell>
-                <TableCell cellLabel={m.dataset_column_state()}>
-                  <Status tone={DATASET_IMAGE_STATE_TONE[state]}>
-                    {datasetImageStateLabel(state)}
-                  </Status>
-                </TableCell>
-                <TableCell cellLabel={m.dataset_column_quality()}>
-                  {image.quality && image.quality.status !== "ok" ? (
-                    <QualityTags quality={image.quality} />
-                  ) : (
-                    <Absent />
-                  )}
-                </TableCell>
-                <TableCell cellLabel={m.dataset_column_boxes()} numeric>
-                  <BoxCount
-                    detected={image.detectionCount}
-                    proposed={image.proposalCount}
-                    boxes={image.instanceCount}
-                  />
-                </TableCell>
-                <TableCell cellSlot="actions" className="text-end">
-                  <RemoveImageButton dataset={dataset} image={image} />
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-      {runs.length > 0 ? (
-        <PageSection title={m.run_table_label()}>
-          <TrainingRunsTable runs={runs} />
-        </PageSection>
-      ) : null}
+            ) : matches.length === 0 ? (
+              <Empty
+                icon={SearchX}
+                title={m.dataset_no_matches()}
+                description={m.dataset_no_matches_description()}
+              />
+            ) : undefined
+          }
+        >
+          <TableHeader>
+            <tr>
+              <TableHead>{m.dataset_column_image()}</TableHead>
+              <TableHead className="w-28">{m.dataset_column_state()}</TableHead>
+              <TableHead className="w-1/4">
+                {m.dataset_column_quality()}
+              </TableHead>
+              <TableHead className="w-20" numeric>
+                {m.dataset_column_boxes()}
+              </TableHead>
+              <TableHead className="w-12">
+                <span className="sr-only">{m.dataset_column_actions()}</span>
+              </TableHead>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {shown.map((image) => {
+              const state = states.get(image.digest) ?? "unread";
+              return (
+                <TableRow
+                  key={image.digest}
+                  clickable
+                  data-state={
+                    image.digest === previewed ? "selected" : undefined
+                  }
+                >
+                  <TableCell cellSlot="title">
+                    <TextLink
+                      className="block max-w-80 truncate"
+                      render={
+                        <Link
+                          to="/datasets/$dataset"
+                          params={{ dataset }}
+                          search={{ image: image.digest }}
+                        />
+                      }
+                    >
+                      {image.filename}
+                    </TextLink>
+                  </TableCell>
+                  <TableCell cellLabel={m.dataset_column_state()}>
+                    <Status tone={DATASET_IMAGE_STATE_TONE[state]}>
+                      {datasetImageStateLabel(state)}
+                    </Status>
+                  </TableCell>
+                  <TableCell cellLabel={m.dataset_column_quality()}>
+                    {image.quality && image.quality.status !== "ok" ? (
+                      <QualityTags quality={image.quality} />
+                    ) : (
+                      <Absent />
+                    )}
+                  </TableCell>
+                  <TableCell cellLabel={m.dataset_column_boxes()} numeric>
+                    <BoxCount
+                      detected={image.detectionCount}
+                      proposed={image.proposalCount}
+                      boxes={image.instanceCount}
+                    />
+                  </TableCell>
+                  <TableCell cellSlot="actions" className="text-end">
+                    <RemoveImageButton dataset={dataset} image={image} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </PageSection>
+      <PageSection title={m.training_runs()}>
+        <TrainingRunsTable
+          runs={runs}
+          empty={<Empty icon={ChartLine} title={m.run_empty_title()} />}
+        />
+      </PageSection>
       <TrainDialog
         set={{ dataset, reviewed: reviewedCount, recipe, training }}
         open={starting}
@@ -324,23 +344,25 @@ function ImagePreview({
   return (
     <>
       <PreviewMedia src={`/img/${image.digest}`} alt={image.filename} />
-      <PreviewField label={m.dataset_column_state()}>
-        <Status tone={DATASET_IMAGE_STATE_TONE[state]}>
-          {datasetImageStateLabel(state)}
-        </Status>
-      </PreviewField>
-      <PreviewField label={m.dataset_preview_boxes()}>
-        <BoxCount
-          detected={image.detectionCount}
-          proposed={image.proposalCount}
-          boxes={image.instanceCount}
-        />
-      </PreviewField>
-      {image.quality && image.quality.status !== "ok" ? (
-        <PreviewField label={m.dataset_preview_quality()}>
-          <QualityTags quality={image.quality} />
-        </PreviewField>
-      ) : null}
+      <Descriptions>
+        <DescriptionsItem label={m.dataset_column_state()}>
+          <Status tone={DATASET_IMAGE_STATE_TONE[state]}>
+            {datasetImageStateLabel(state)}
+          </Status>
+        </DescriptionsItem>
+        <DescriptionsItem label={m.dataset_preview_boxes()}>
+          <BoxCount
+            detected={image.detectionCount}
+            proposed={image.proposalCount}
+            boxes={image.instanceCount}
+          />
+        </DescriptionsItem>
+        {image.quality && image.quality.status !== "ok" ? (
+          <DescriptionsItem label={m.dataset_preview_quality()}>
+            <QualityTags quality={image.quality} />
+          </DescriptionsItem>
+        ) : null}
+      </Descriptions>
       <Button
         block
         type="primary"

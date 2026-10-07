@@ -49,13 +49,10 @@ function UsersPage() {
   return (
     <SettingsPage
       title={m.users_title()}
-      extra={
-        <>
-          {m.users_count({ count: accounts.length })}
-          <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
-            {m.users_new()}
-          </Button>
-        </>
+      action={
+        <Button type="primary" icon={Plus} onClick={() => setCreating(true)}>
+          {m.users_new()}
+        </Button>
       }
     >
       <Table narrow="cards" aria-label={m.users_title()}>

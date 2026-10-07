@@ -112,9 +112,11 @@ export function ImageWorkbench({
   const badge = STANDING[standing];
 
   return (
-    <Workbench title={title}>
+    <Workbench
+      title={title}
+      status={<Status tone={badge.tone}>{badge.label()}</Status>}
+    >
       <ShellActions>
-        <Status tone={badge.tone}>{badge.label()}</Status>
         {standing === "edited" ? (
           <Button type="text" disabled={saving} onClick={session.discard}>
             {m.annotation_discard_edits()}

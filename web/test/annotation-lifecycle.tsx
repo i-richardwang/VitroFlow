@@ -47,9 +47,8 @@ mock.module("@tanstack/react-router", () => ({
 }));
 mock.module("../src/ui/shell/Shell", () => ({
   ShellActions: Passthrough,
-  ShellTrail: () => null,
-  ShellAside: ({ children }: { children?: ReactNode }) =>
-    createElement("aside", null, children),
+  ShellTrail: ({ status }: { status?: ReactNode }) =>
+    createElement("div", null, status),
 }));
 let saved: { data: { base: unknown; instances: unknown } } | undefined;
 let saves = 0;

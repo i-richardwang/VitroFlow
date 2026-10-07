@@ -60,15 +60,11 @@
   "status_empty_description_admin": "登记一台机器，然后在机器上运行设置命令。",
   "status_empty_description_member": "运行检测与训练的机器由管理员登记。",
   "status_workers": "计算节点",
-  "status_worker_count": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 个计算节点"
-      }
-    }
-  ],
-  "status_refresh": "刷新",
   "worker_actions": "{name} 的操作",
-  "worker_remove_item": "移除…"
+  "worker_remove_item": "移除…",
+  "status_column_worker": "计算节点",
+  "status_column_presence": "状态",
+  "status_column_activity": "当前工作",
+  "status_column_seen": "最近联系",
+  "status_column_actions": "操作"
 }

@@ -96,14 +96,20 @@ export function ShellActions({ children }: { children: ReactNode }) {
 }
 
 /**
- * The breadcrumb, at the start of the shell's top bar, for a workbench,
- * which fills the card and has no header of its own; a document page shows
- * a back link above its title instead.
+ * The way back up from a page below the top level: the breadcrumb at the
+ * start of the shell's top bar, its last crumb the page itself, followed by
+ * the `status` of a workbench's subject, which has no header of its own.
  */
-export function ShellTrail() {
+export function ShellTrail({ status }: { status?: ReactNode }) {
   const slot = use(TopBarSlots).trail;
   if (!slot) return null;
-  return createPortal(<Trail />, slot);
+  return createPortal(
+    <>
+      <Trail />
+      {status}
+    </>,
+    slot,
+  );
 }
 
 /**

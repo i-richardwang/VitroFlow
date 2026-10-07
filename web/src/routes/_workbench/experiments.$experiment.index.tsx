@@ -2,10 +2,13 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import type { ExperimentGrid } from "../../domain/experiments/contracts";
 import { experimentIdSchema } from "../../domain/experiments/schema";
-import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
+import {
+  ExperimentGridView,
+  TreatmentTrendSkeleton,
+} from "../../features/experiments/ExperimentGridView";
 import { getExperimentGrid } from "../../functions/experiments";
 import { documentTitle } from "../../ui/documentTitle";
-import { PageColumnSkeleton } from "../../ui/Page";
+import { PageColumnSkeleton, PageSectionSkeleton } from "../../ui/Page";
 import { m } from "../../paraglide/messages";
 import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 
@@ -34,8 +37,13 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
-      <PageHeaderSkeleton variant="subject" meta />
-      <TableSkeleton />
+      <PageHeaderSkeleton icon meta />
+      <PageSectionSkeleton>
+        <TreatmentTrendSkeleton />
+      </PageSectionSkeleton>
+      <PageSectionSkeleton>
+        <TableSkeleton />
+      </PageSectionSkeleton>
     </PageColumnSkeleton>
   ),
   component: ExperimentPage,

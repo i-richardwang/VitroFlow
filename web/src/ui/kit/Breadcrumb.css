@@ -1,7 +1,7 @@
 .ui-breadcrumb {
   overflow: hidden;
   display: flex;
-  flex: 1;
+  flex: 0 1 auto;
   align-items: center;
 
   min-inline-size: 0;

@@ -106,19 +106,6 @@
   "dataset_image_removed": "已从 {dataset} 移除 {file}",
   "dataset_open_experiments": "打开实验",
   "dataset_actions": "{dataset} 的操作",
-  "dataset_card_facts": [
-    {
-      "declarations": [
-        "input images",
-        "input reviewed",
-        "local formattedImages = images: number",
-        "local formattedReviewed = reviewed: number"
-      ],
-      "match": {
-        "images=*": "{formattedImages} 张图片 · {formattedReviewed} 张已复核"
-      }
-    }
-  ],
   "dataset_hero_images": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],
@@ -141,5 +128,6 @@
   "dataset_preview_quality": "检测质量",
   "dataset_preview_open": "打开标注",
   "image_steps": "图片",
-  "dataset_hero_reviewed": "张已复核，可用于训练"
+  "dataset_hero_reviewed": "张已复核，可用于训练",
+  "dataset_images": "图片"
 }

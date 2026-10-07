@@ -41,19 +41,5 @@
   "user_reset_password_changed": "Password changed",
   "user_reset_password_new_label": "New password",
   "user_dialog_save": "Save",
-  "users_you": "You",
-  "users_count": [
-    {
-      "declarations": [
-        "input count",
-        "local countPlural = count: plural",
-        "local formattedCount = count: number"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{formattedCount} user",
-        "countPlural=other": "{formattedCount} users"
-      }
-    }
-  ]
+  "users_you": "You"
 }

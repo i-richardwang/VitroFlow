@@ -12,7 +12,8 @@ import {
 import { m } from "../../paraglide/messages";
 import { QualityAlert } from "../../ui/DetectionQuality";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
-import { Progress } from "../../ui/kit/Progress";
+import { ProgressMeter } from "../../ui/kit/Progress";
+import { StatisticHero } from "../../ui/kit/Statistic";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { formatCount, formatNumber } from "../../ui/numbers";
 import { Stepper } from "../../ui/Stepper";
@@ -42,10 +43,12 @@ export function CountsSection({
   onSourceChange: (source: ReviewSource) => void;
 }) {
   return (
-    <WorkbenchSection title={m.annotation_section_metrics()}>
-      <div className="text-3xl font-semibold tabular-nums">
-        {formatCount(count(counts))}
-      </div>
+    <WorkbenchSection>
+      <StatisticHero
+        size="compact"
+        title={m.annotation_counts()}
+        value={formatCount(count(counts))}
+      />
       {classes.length > 1 ? (
         <Descriptions>
           {classes.map((name) => (
@@ -103,24 +106,15 @@ export function ChecksSection({
   return (
     <WorkbenchSection title={m.annotation_ai_section()}>
       {progress ? (
-        <div className="flex flex-col gap-1.5" role="status">
-          <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="text-fg-secondary">
-              {m.annotation_ai_running()}
-            </span>
-            <span className="tabular-nums">
-              {m.annotation_ai_progress_count({
-                completed: progress.completed,
-                total: progress.total,
-              })}
-            </span>
-          </div>
-          <Progress
-            value={progress.completed}
-            max={progress.total}
-            aria-label={m.annotation_ai_progress()}
-          />
-        </div>
+        <ProgressMeter
+          label={m.annotation_ai_running()}
+          count={m.annotation_ai_progress_count({
+            completed: progress.completed,
+            total: progress.total,
+          })}
+          value={progress.completed}
+          max={progress.total}
+        />
       ) : null}
       {checks > 0 ? (
         <div className="flex items-center justify-between gap-3 text-sm">

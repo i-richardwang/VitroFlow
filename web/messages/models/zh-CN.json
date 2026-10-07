@@ -5,7 +5,6 @@
   "builtin_class_germinated": "已萌发",
   "models_title": "模型",
   "models_empty": "还没有模型",
-  "model_records_none": "暂无",
   "model_actions": "{name} 的操作",
   "model_new": "新建模型",
   "model_id_label": "标识",
@@ -18,46 +17,6 @@
   "model_deleted": "已删除 {name}",
   "model_id_placeholder": "germination-detector",
   "model_classes_placeholder": "seed\ngerminated",
-  "model_records_versions": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 个版本"
-      }
-    }
-  ],
-  "model_records_observations": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 个观测日"
-      }
-    }
-  ],
-  "model_records_annotations": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 条复核"
-      }
-    }
-  ],
-  "model_records_datasets": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 个训练集"
-      }
-    }
-  ],
-  "model_records_training_runs": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 次训练"
-      }
-    }
-  ],
   "model_annotation_label": "标注说明",
   "model_annotation_placeholder": "描述每个类别下 AI 应圈出的个体，以及应排除的内容。",
   "model_menu_annotation": "标注说明…",
@@ -70,7 +29,6 @@
   "model_menu_delete_item": "删除模型…",
   "models_description": "每个模型定义要数的类别；用训练集训练出越来越准的版本。",
   "model_datasets": "训练集",
-  "versions_table": "模型版本",
   "versions_column_version": "版本",
   "versions_column_kind": "类型",
   "versions_column_published": "发布时间",
@@ -84,5 +42,6 @@
         "count=*": "{formattedCount} 张"
       }
     }
-  ]
+  ],
+  "model_versions": "版本"
 }

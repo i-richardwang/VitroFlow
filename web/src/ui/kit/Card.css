@@ -1,29 +1,23 @@
 /* Surfaces on the page carry no shadow; shadows belong to what floats over it. */
 .ui-card {
-  --surface-gutter: 16px;
+  --surface-gutter: 20px;
 
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 20px;
 
   min-inline-size: 0;
-  padding: 16px;
-  border-radius: var(--radius-md);
-}
-
-.ui-card-outlined {
+  padding: 20px;
   border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
+
   background: var(--color-container);
 }
 
-.ui-card-filled {
-  background: var(--color-fill-tertiary);
-}
+@variant max-mobile {
+  .ui-card {
+    --surface-gutter: 16px;
 
-.ui-card-title {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  line-height: var(--text-xs--line-height);
-  color: var(--color-fg-secondary);
+    padding: 16px;
+  }
 }

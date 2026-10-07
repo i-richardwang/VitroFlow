@@ -11,6 +11,7 @@ import { m } from "../../paraglide/messages";
 import { Checkbox } from "./Checkbox";
 import { cn } from "./cn";
 import { DropdownMenu, type DropdownItem } from "./DropdownMenu";
+import { EmptyPlace } from "./Empty";
 import { Icon } from "./Icon";
 
 /*
@@ -45,8 +46,6 @@ import { Icon } from "./Icon";
  *   group row; its own `TableSelectionCell` selects the group.
  * - `TableHeadMenu`: a column header that opens a menu of the column's
  *   commands, drawn in the header's own type.
- * - `fill`: the table takes the height its flex parent leaves it and scrolls
- *   its rows under a pinned header.
  * - Pinned columns: `fixed="start"` / `"end"` on every cell of a column keeps
  *   it in view while the table scrolls sideways; a shadow marks the edge
  *   content is passing under.
@@ -63,8 +62,6 @@ interface TableProps extends Omit<
 > {
   /** Shown in place of the table when it has no rows. */
   empty?: ReactNode;
-  /** Takes the height its flex parent leaves it; the rows scroll under a pinned header. */
-  fill?: boolean;
   /** Under the last row, inside the card. */
   footer?: ReactNode;
   /** Above the header, inside the card. */
@@ -76,7 +73,6 @@ interface TableProps extends Omit<
 
 export function Table({
   empty,
-  fill,
   footer,
   narrow = "scroll",
   size = "middle",
@@ -87,11 +83,7 @@ export function Table({
   const { contentRef, onScroll, shadow, tableRef } = useFixedColumns();
   const isEmpty = empty != null && empty !== false;
   if (isEmpty && toolbar == null) {
-    return (
-      <div className="ui-table-empty" data-variant={variant}>
-        {empty}
-      </div>
-    );
+    return <EmptyPlace variant={variant}>{empty}</EmptyPlace>;
   }
   return (
     <div
@@ -100,13 +92,11 @@ export function Table({
         "ui-table-wrapper",
         size === "small" && "ui-table-small",
         narrow === "cards" && "ui-table-narrow-cards",
-        fill && "ui-table-fill",
       )}
     >
       <div
         className={cn(
           "ui-table",
-          fill && "ui-table-scroll-y",
           shadow.start && "ui-table-fix-start-shadow-show",
           shadow.end && "ui-table-fix-end-shadow-show",
         )}
@@ -115,7 +105,7 @@ export function Table({
           <div className="ui-table-toolbar">{toolbar}</div>
         ) : null}
         {isEmpty ? (
-          <div className="ui-table-empty">{empty}</div>
+          <EmptyPlace>{empty}</EmptyPlace>
         ) : (
           <div className="ui-table-container">
             <div

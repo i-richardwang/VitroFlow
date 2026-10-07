@@ -5,7 +5,6 @@
   "builtin_class_germinated": "Germinated",
   "models_title": "Models",
   "models_empty": "No models yet",
-  "model_records_none": "Nothing yet",
   "model_actions": "Actions for {name}",
   "model_new": "New model",
   "model_id_label": "Identifier",
@@ -18,46 +17,6 @@
   "model_deleted": "{name} deleted",
   "model_id_placeholder": "germination-detector",
   "model_classes_placeholder": "seed\ngerminated",
-  "model_records_versions": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} versions"
-      }
-    }
-  ],
-  "model_records_observations": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} observations"
-      }
-    }
-  ],
-  "model_records_annotations": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} reviews"
-      }
-    }
-  ],
-  "model_records_datasets": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} datasets"
-      }
-    }
-  ],
-  "model_records_training_runs": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} training runs"
-      }
-    }
-  ],
   "model_annotation_label": "Annotation instructions",
   "model_annotation_placeholder": "Describe the bodies an AI agent should mark for each class, and what to leave out.",
   "model_menu_annotation": "Annotation instructions…",
@@ -70,7 +29,6 @@
   "model_menu_delete_item": "Delete model…",
   "models_description": "Each model names the classes it counts; its datasets train ever more accurate versions.",
   "model_datasets": "Datasets",
-  "versions_table": "Model versions",
   "versions_column_version": "Version",
   "versions_column_kind": "Kind",
   "versions_column_published": "Published",
@@ -84,5 +42,6 @@
         "count=*": "{formattedCount} images"
       }
     }
-  ]
+  ],
+  "model_versions": "Versions"
 }

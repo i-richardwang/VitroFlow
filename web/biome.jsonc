@@ -17,17 +17,16 @@
   "css": { "parser": { "tailwindDirectives": true } },
   "overrides": [
     {
-      // Placeholder bones, key caps, crumbs, menu dividers, a header's or row's facts, a card's counts and a bar's segments are positional lists that never reorder.
+      // Placeholder bones, key caps, crumbs, menu dividers, a header's or figure's facts and a card's counts are positional lists that never reorder.
       "includes": [
         "src/ui/kit/Breadcrumb.tsx",
         "src/ui/kit/DropdownMenu.tsx",
         "src/ui/kit/Hotkey.tsx",
-        "src/ui/kit/ItemList.tsx",
         "src/ui/kit/PageHeader.tsx",
         "src/ui/kit/PageSkeleton.tsx",
-        "src/ui/kit/SegmentBar.tsx",
         "src/ui/kit/Settings.tsx",
         "src/ui/kit/Skeleton.tsx",
+        "src/ui/kit/Statistic.tsx",
         "src/ui/kit/SummaryCard.tsx",
         "src/ui/shell/Workbench.tsx",
       ],

@@ -259,5 +259,7 @@
   "experiment_cell_unread": "这个模型还没有版本，点开照片可以手动计数",
   "experiment_cell_waiting": "等待模型计数",
   "experiment_card_no_readings": "还没有计数",
-  "experiment_card_more_treatments_label": "其他处理"
+  "experiment_card_more_treatments_label": "其他处理",
+  "experiment_units": "试验单元",
+  "experiment_trend_empty": "还没有可比较的计数"
 }

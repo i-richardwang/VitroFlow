@@ -8,11 +8,6 @@
 
   list-style: none;
 
-  &[data-size="small"] {
-    grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
-    gap: 12px;
-  }
-
   @variant max-mobile {
     gap: 12px;
   }
@@ -190,66 +185,4 @@
 .ui-summary-card-skeleton-band {
   block-size: 76px;
   border-radius: var(--radius-md);
-}
-
-.ui-row-card-item {
-  min-inline-size: 0;
-}
-
-.ui-row-card {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-
-  min-inline-size: 0;
-  padding-block: 14px;
-  padding-inline: 16px;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--radius-lg);
-
-  color: inherit;
-  text-decoration: none;
-
-  background: var(--color-container);
-
-  transition: border-color var(--duration-fast) var(--ease-out);
-
-  @apply focus-ring;
-
-  &:hover {
-    border-color: var(--color-border);
-  }
-}
-
-.ui-row-card-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-inline-size: 0;
-}
-
-.ui-row-card-name {
-  overflow: hidden;
-
-  font-weight: 500;
-  color: var(--color-fg);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ui-row-card-description {
-  overflow: hidden;
-
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  color: var(--color-fg-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ui-row-card-skeleton-tile {
-  flex: none;
-  inline-size: 32px;
-  block-size: 32px;
-  border-radius: 10px;
 }

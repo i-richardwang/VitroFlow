@@ -24,23 +24,24 @@ export function PageSkeleton({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * A `PageHeader`; `variant`, `description` and `meta` match what it shows.
- */
+/** A `PageHeader`; `icon`, `description` and `meta` match what it shows. */
 export function PageHeaderSkeleton({
   description,
+  icon,
   meta,
-  variant = "list",
 }: {
   description?: boolean;
+  icon?: boolean;
   meta?: boolean;
-  variant?: "list" | "subject";
 }) {
   return (
-    <div aria-hidden className="ui-page-skeleton-header" data-variant={variant}>
-      <Skeleton className="ui-page-skeleton-title" />
-      {description ? <Skeleton.Text width="46%" /> : null}
-      {meta ? <Skeleton.Text size="xs" width="16em" /> : null}
+    <div aria-hidden className="ui-page-skeleton-header">
+      {icon ? <Skeleton className="ui-page-skeleton-icon" /> : null}
+      <div className="ui-page-skeleton-heading">
+        <Skeleton className="ui-page-skeleton-title" />
+        {description ? <Skeleton.Text width="46%" /> : null}
+        {meta ? <Skeleton.Text size="xs" width="16em" /> : null}
+      </div>
     </div>
   );
 }

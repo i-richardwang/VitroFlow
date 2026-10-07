@@ -118,24 +118,6 @@
   border-block-start: 1px solid var(--color-border-secondary);
 }
 
-/* The place of a table with no rows: its empty state, centered on a dashed band of fill where the card would be. */
-.ui-table-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  min-block-size: 240px;
-
-  &[data-variant="outlined"] {
-    padding-block: 48px;
-    padding-inline: 24px;
-    border: 1px dashed var(--color-border-secondary);
-    border-radius: var(--radius-lg);
-
-    background: var(--color-fill-quaternary);
-  }
-}
-
 /* Bands inside the card: a toolbar over the header, a footer under the rows. */
 .ui-table-wrapper .ui-table-toolbar,
 .ui-table-wrapper .ui-table-footer {
@@ -265,43 +247,6 @@
     > [data-slot="title"] a {
       text-decoration: none;
     }
-  }
-}
-
-/*
- * Pinned header. The header's own fill is translucent, so the row group
- * under it is painted with the container color first. `scroll-y` makes the
- * content the scroller it pins to. The header stays above pinned body cells.
- */
-.ui-table-wrapper {
-  .ui-table-scroll-y .ui-table-thead {
-    position: sticky;
-    z-index: calc(var(--ui-table-z-index-fixed) + 2);
-    top: 0;
-    background: var(--color-container);
-  }
-
-  .ui-table-scroll-y .ui-table-content {
-    overflow: auto;
-  }
-}
-
-/* Fill: the table takes its content height up to what its flex parent leaves it, then scrolls. */
-.ui-table-wrapper.ui-table-fill {
-  display: flex;
-  flex: 0 1 auto;
-  flex-direction: column;
-  min-block-size: 0;
-
-  .ui-table,
-  .ui-table-container {
-    display: flex;
-    flex-direction: column;
-    min-block-size: 0;
-  }
-
-  .ui-table-content {
-    min-block-size: 0;
   }
 }
 
