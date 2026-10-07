@@ -24,8 +24,8 @@ from: none, so the agent draws from clean pixels, or a set of boxes it refits.
 Its **scope** is the part of the image it redraws: the whole image, or only the
 regions some source-pixel boxes touch, in which case every other region keeps
 its input boxes. When beginning from an AI proposal, untouched regions also keep
-their uncertainty and issues. The touched regions are replaced in full, including
-their associated notes. Model settings own classes, instructions, region
+which of their boxes await confirmation. The touched regions are replaced in full,
+including that mark. Model settings own classes, instructions, region
 geometry and the annotation area (`image` or `dish`). The server freezes these
 settings and the resulting coverage at creation. Seed detection defaults to
 `dish`; other models default to `image`.
@@ -80,7 +80,7 @@ when the run starts, or nothing to start from the image alone. Naming a
 reading the image lacks is refused. `scope` is an optional list of
 source-coordinate boxes `{x, y, width, height}`; the run then covers only the
 regions those boxes touch, and every other region keeps its `input` boxes in the
-result. With `input: "proposal"`, the run also freezes its uncertainty and issues
+result. With `input: "proposal"`, the run also freezes which boxes await confirmation
 and carries those of untouched regions into the result. This is a whole-region
 redraw, not an edit restricted to the exact scope rectangle. A scoped run requires
 `input`, and a scope touching no region or leaving the image is refused. While the
@@ -107,10 +107,13 @@ Each region is then worked through four tools:
   overview or shared rules. Core and patch rectangles are original image pixels;
   proposal coordinates remain normalized to CLEAN. Task identifiers are
   server-issued and must be used verbatim.
-- `annotation_preview({taskId, instances, issues?})` validates the complete proposal,
+- `annotation_preview({taskId, instances})` validates the complete proposal,
   stores an immutable version, and returns `proposalId`, CLEAN and PROPOSED images.
   Instances have `id`, `class`, `box_2d`, and an optional `uncertain`
-  flag for an edge the visible outline leaves undecided.
+  flag. Where the image leaves a body's class, outline or count undecided, the
+  agent draws its most likely reading and marks those boxes `uncertain`; a person
+  confirms them on the canvas, where each is ringed. A doubt never stays without
+  a box, so a person only ever confirms or corrects a concrete answer.
   Coordinates are `[ymin, xmin, ymax, xmax]`, normalized to 0–1000 relative to CLEAN.
   Preparation validates the response and projects its owned boxes into source
   coordinates for rendering. The immutable response is the content accepted by
@@ -153,7 +156,7 @@ Coverage expands the detected radius by 15%. A core is omitted only when its
 rectangle is wholly outside that coverage; crossing and tangent cores remain.
 Grid IDs, patches, halos and box ownership stay unchanged. Evidence and boxes are
 never masked or clipped to the circle. `scope` intersects coverage and retains its
-redraw semantics. Unassigned cores keep the input boxes, uncertainty and issues;
+redraw semantics. Unassigned cores keep the input boxes and which await confirmation;
 human reviews are never overwritten. Progress counts assigned tasks.
 
 Starting a run reads metadata in one transaction, freezes coverage and tasks, and
@@ -209,13 +212,13 @@ regions overlapping by IoU ≥ 0.5 as one object, whatever class each region
 judged it, at most one box per region, strongest overlaps first. Each object
 yields one box, its class included: a retained input box first, then a box its
 region owns, then a whole halo reading over a cut one. A halo reading its owning
-region did not confirm is dropped. Issues follow the same rule. A scoped run
+region did not confirm is dropped. A scoped run
 reads the frozen input boxes of regions it did not redraw (those whose centers
 fall there) as retained readings, so its seams behave the same way. Overlaps
 within one region are never merged. Owned boxes touching internal patch edges
 are rejected. A box's uncertainty is the agent's own judgment and stays with
-the box chosen for its object. Frozen input notes, when present, describe the
-input proposal; bare boxes carry no such assessment. Geometry validation does not
+the box chosen for its object. Frozen input uncertainty, when present, describes
+the input proposal; bare boxes carry no such assessment. Geometry validation does not
 establish visual accuracy.
 
 A run stays open until completed or cancelled; an agent that stops leaves its

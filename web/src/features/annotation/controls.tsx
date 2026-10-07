@@ -46,5 +46,5 @@ export function nextClass(classes: readonly string[], name: string): string {
   return classes[(classes.indexOf(name) + 1) % classes.length]!;
 }
 
-/** What can be drawn over the image: the boxes, their numbers, and the places to check. */
+/** What can be drawn over the image: the boxes, their numbers, and the boxes to confirm. */
 export type LayerKey = "boxes" | "ids" | "checks";

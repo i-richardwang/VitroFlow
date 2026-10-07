@@ -94,7 +94,6 @@ test("neighbors that read one seam object yield one box, whichever side they pla
         region: left,
         response: {
           instances: fromLeft.map((x, i) => drawn(left, `l${i}`, x, 14)),
-          issues: [],
         },
       },
       {
@@ -102,7 +101,6 @@ test("neighbors that read one seam object yield one box, whichever side they pla
         region: right,
         response: {
           instances: fromRight.map((x, i) => drawn(right, `r${i}`, x, 14)),
-          issues: [],
         },
       },
     ]).document.instances.map((item) => item.id);
@@ -130,7 +128,6 @@ test("neighbors that judge a seam object differently yield one box, as its owner
       region: left,
       response: {
         instances: [drawn(left, "l", 59, 14, "ungerminated")],
-        issues: [],
       },
     },
     {
@@ -138,7 +135,6 @@ test("neighbors that judge a seam object differently yield one box, as its owner
       region: right,
       response: {
         instances: [drawn(right, "r", 59, 14, "germinated")],
-        issues: [],
       },
     },
   ]);
@@ -156,7 +152,7 @@ test("a redrawn region's reading of a retained neighbor's object keeps the retai
   const scoped: AnnotationDefinition = {
     ...definition,
     input: [retained],
-    inputNotes: { uncertainIds: [], issues: [] },
+    inputUncertainIds: [],
     scope: [{ x: 0, y: 0, width: 10, height: 10 }],
   };
   const [left] = regions(scoped) as [Region];
@@ -164,7 +160,7 @@ test("a redrawn region's reading of a retained neighbor's object keeps the retai
     {
       taskId: "run/left",
       region: left,
-      response: { instances: [drawn(left, "s", 56, 14)], issues: [] },
+      response: { instances: [drawn(left, "s", 56, 14)] },
     },
   ]);
   expect(result.document.instances).toEqual([retained]);
@@ -278,7 +274,6 @@ test("a scope selects the regions it touches, and the result keeps the input box
             uncertain: false,
           },
         ],
-        issues: [],
       },
     },
   ]);
@@ -291,7 +286,7 @@ test("a scope selects the regions it touches, and the result keeps the input box
   ).toHaveLength(4);
 });
 
-test("dish-filtered cores retain their input boxes and notes; included boxes are not clipped to the circle", () => {
+test("dish-filtered cores retain their input boxes and which await confirmation; included boxes are not clipped to the circle", () => {
   const outside = {
     id: "keep",
     class: "ungerminated",
@@ -312,20 +307,16 @@ test("dish-filtered cores retain their input boxes and notes; included boxes are
       margin: 0.15,
     },
     input: [outside],
-    inputNotes: {
-      uncertainIds: [outside.id],
-      issues: [{ bbox: outside.bbox, reason: "Unresolved input" }],
-    },
+    inputUncertainIds: [outside.id],
   };
   const tasks = regions(dish).map((region) => ({
     taskId: region.id,
     region,
-    response: { instances: [], issues: [] },
+    response: { instances: [] },
   }));
   const result = collectRegions(dish, tasks);
   expect(result.document.instances).toEqual([outside]);
   expect(result.uncertainIds).toEqual([outside.id]);
-  expect(result.issues).toEqual(dish.inputNotes!.issues);
   const boundary = regions(dish).find(
     (region) => region.id === "tile-002-002",
   )!;

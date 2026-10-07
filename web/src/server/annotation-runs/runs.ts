@@ -92,7 +92,7 @@ export async function createAnnotationRun(
   });
 }
 
-/** Freeze a reading's boxes and, for an AI proposal, its unresolved questions. */
+/** Freeze a reading's boxes and, for an AI proposal, which await confirmation. */
 async function readingInput(
   ref: AnnotationRef,
   source: ReviewSource,
@@ -107,12 +107,7 @@ async function readingInput(
   return {
     input: instances,
     ...(source === "proposal" && readings?.proposal
-      ? {
-          inputNotes: {
-            issues: readings.proposal.issues,
-            uncertainIds: readings.proposal.uncertainIds,
-          },
-        }
+      ? { inputUncertainIds: readings.proposal.uncertainIds }
       : {}),
   };
 }

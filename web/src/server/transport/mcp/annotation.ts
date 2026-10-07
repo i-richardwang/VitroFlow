@@ -164,7 +164,6 @@ function registerAnnotationTools(server: McpServer) {
     async (args) => {
       const { panels, proposalId } = await previewAnnotationTask(args.taskId, {
         instances: args.instances,
-        issues: args.issues,
       });
       return {
         content: [textContent({ proposalId }), ...content(panels)],

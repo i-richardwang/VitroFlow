@@ -285,7 +285,7 @@ test("a run scoped to part of the image redraws only the regions it touches and 
   expect((await readAnnotation(ref))!.instances).toEqual([kept, stale]);
 });
 
-test("partial redraw preserves untouched proposal notes, replaces redrawn notes and reads seam objects once", async () => {
+test("partial redraw keeps untouched boxes awaiting confirmation, replaces redrawn ones and reads seam objects once", async () => {
   const { ref } = await setup("remote-partial-notes");
   await cancelAnnotationRun(ref);
   const model = await createModel({
@@ -327,21 +327,11 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
               },
             ]
           : [],
-      issues:
-        first || corner
-          ? [
-              {
-                box_2d,
-                reason: first ? "Check retained area" : "Check redrawn area",
-              },
-            ]
-          : [],
     });
     await submitProposal(taskId, preview.proposalId);
   }
   const before = (await readAnnotationReading(ref)).proposal!;
   expect(before.uncertainIds).toHaveLength(2);
-  expect(before.issues).toHaveLength(2);
   expect(before.document.instances).toHaveLength(2);
 
   const partial = await createAnnotationRun({
@@ -354,10 +344,7 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
     .select()
     .from(annotationRuns)
     .where(eq(annotationRuns.id, partial.id));
-  expect(frozen!.definition.inputNotes).toEqual({
-    issues: before.issues,
-    uncertainIds: before.uncertainIds,
-  });
+  expect(frozen!.definition.inputUncertainIds).toEqual(before.uncertainIds);
   const { taskId } = await nextAnnotationTask(ref);
   const preview = await savePreview(taskId, { instances: [] });
   await submitProposal(taskId, preview.proposalId);
@@ -369,9 +356,6 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   );
   expect(after.uncertainIds).toEqual(
     before.uncertainIds.filter((id) => !id.includes("tile-003-003")),
-  );
-  expect(after.issues).toEqual(
-    before.issues.filter((issue) => issue.reason === "Check retained area"),
   );
   expect(await readAnnotation(ref)).toBeNull();
 
@@ -387,6 +371,5 @@ test("partial redraw preserves untouched proposal notes, replaces redrawn notes 
   }
   const final = (await readAnnotationReading(ref)).proposal!;
   expect(final.document.instances).toEqual([]);
-  expect(final.issues).toEqual([]);
   expect(final.uncertainIds).toEqual([]);
 });

@@ -13,7 +13,6 @@ const unsure = {
   class: "seed",
   bbox: { x: 40, y: 0, width: 10, height: 10 },
 };
-const area = { x: 80, y: 40, width: 20, height: 20 };
 const proposal: AnnotationProposal = {
   createdAt: "2026-10-03T00:00:00.000Z",
   document: {
@@ -22,29 +21,20 @@ const proposal: AnnotationProposal = {
     instances: [sure, unsure],
   },
   uncertainIds: [unsure.id],
-  issues: [{ bbox: area, reason: "Faint streak" }],
 };
 
-test("the proposal as drawn leaves every check open", () => {
-  expect(openChecks(proposal, [sure, unsure])).toEqual([
-    { kind: "uncertain", bbox: unsure.bbox },
-    { kind: "issue", bbox: area, reason: "Faint streak" },
-  ]);
+test("the proposal as drawn asks to confirm its uncertain boxes", () => {
+  expect(openChecks(proposal, [sure, unsure])).toEqual([unsure]);
 });
 
-test("touching a box closes its check; editing an area closes its issue", () => {
+test("moving, reclassifying or removing a box confirms it", () => {
   const moved = { ...unsure, bbox: { ...unsure.bbox, x: 41 } };
-  expect(openChecks(proposal, [sure, moved]).map((c) => c.kind)).toEqual([
-    "issue",
+  expect(openChecks(proposal, [sure, moved])).toEqual([]);
+  expect(openChecks(proposal, [sure, { ...unsure, class: "other" }])).toEqual(
+    [],
+  );
+  expect(openChecks(proposal, [sure])).toEqual([]);
+  expect(openChecks(proposal, [{ ...sure, class: "other" }, unsure])).toEqual([
+    unsure,
   ]);
-  expect(openChecks(proposal, [sure]).map((c) => c.kind)).toEqual(["issue"]);
-  const added = {
-    id: "added",
-    class: "seed",
-    bbox: { x: 85, y: 45, width: 10, height: 10 },
-  };
-  expect(openChecks(proposal, [sure, unsure, added])).toHaveLength(1);
-  expect(
-    openChecks(proposal, [{ ...sure, class: "other" }, unsure]),
-  ).toHaveLength(2);
 });

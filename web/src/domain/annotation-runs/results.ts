@@ -3,7 +3,6 @@ import { annotationContentSchema, type AnnotationDefinition } from "./schema";
 import {
   owns,
   regionBoxes,
-  regionIssues,
   tiles,
   type Region,
   type RegionProposal,
@@ -112,7 +111,6 @@ export function collectRegions(
   tasks: { taskId: string; region: Region; response: RegionProposal }[],
 ) {
   const boxes: (Sighting & AnnotationInstance & { uncertain: boolean })[] = [];
-  const issues: (Sighting & { reason: string })[] = [];
   for (const { taskId, region, response } of tasks) {
     for (const { owned, cut, ...box } of regionBoxes(
       response,
@@ -125,15 +123,9 @@ export function collectRegions(
         region: region.id,
         standing: owned ? "owned" : cut ? "partial" : "context",
       });
-    for (const { owned, ...issue } of regionIssues(response, region))
-      issues.push({
-        ...issue,
-        region: region.id,
-        standing: owned ? "owned" : "context",
-      });
   }
   const redrawn = new Set(tasks.map((task) => task.region.id));
-  const inputUncertain = new Set(definition.inputNotes?.uncertainIds);
+  const inputUncertain = new Set(definition.inputUncertainIds);
   for (const tile of tiles(definition)) {
     if (redrawn.has(tile.id)) continue;
     const kept = { region: tile.id, standing: "retained" } as const;
@@ -144,9 +136,6 @@ export function collectRegions(
           ...kept,
           uncertain: inputUncertain.has(item.id),
         });
-    }
-    for (const issue of definition.inputNotes?.issues ?? []) {
-      if (owns(tile.core, issue.bbox)) issues.push({ ...issue, ...kept });
     }
   }
   const objects = sameObjects(boxes).flatMap(
@@ -162,10 +151,6 @@ export function collectRegions(
         bbox,
       })),
     },
-    issues: sameObjects(issues).flatMap((object) => {
-      const issue = representative(object);
-      return issue ? [{ bbox: issue.bbox, reason: issue.reason }] : [];
-    }),
     uncertainIds: objects.filter((box) => box.uncertain).map((box) => box.id),
   });
 }

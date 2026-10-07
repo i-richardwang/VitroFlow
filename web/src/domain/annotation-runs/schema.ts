@@ -51,16 +51,8 @@ export const annotationProgressSchema = z
   .refine((v) => v.completed <= v.total, "Completed exceeds total");
 export type AnnotationProgress = z.infer<typeof annotationProgressSchema>;
 
-/** Questions that remain attached to the boxes and areas an agent has read. */
-const annotationNotesSchema = z.strictObject({
-  issues: z.array(
-    z.strictObject({
-      bbox: boundingBoxSchema,
-      reason: z.string().min(1).max(2000),
-    }),
-  ),
-  uncertainIds: z.array(z.string().min(1)),
-});
+/** The boxes an agent drew as its best reading and asks a person to confirm. */
+const uncertainIdsSchema = z.array(z.string().min(1));
 
 export const annotationDefinitionSchema = z.strictObject({
   image: z.strictObject({
@@ -69,17 +61,18 @@ export const annotationDefinitionSchema = z.strictObject({
     height: z.number().int().positive(),
   }),
   input: z.array(annotationInstanceSchema).nullable(),
-  inputNotes: annotationNotesSchema.optional(),
+  /** Which input boxes still await confirmation, when the input is an AI proposal. */
+  inputUncertainIds: uncertainIdsSchema.optional(),
   scope: annotationScopeSchema,
   config: annotationConfigSchema,
   coverage: imageCoverageSchema.nullable(),
 });
 export type AnnotationDefinition = z.infer<typeof annotationDefinitionSchema>;
 
-/** Boxes with their notes: what a region saves and what a run leaves. */
+/** Boxes and which of them await confirmation: what a region saves and what a run leaves. */
 export const annotationContentSchema = z.strictObject({
   document: annotationSchema,
-  ...annotationNotesSchema.shape,
+  uncertainIds: uncertainIdsSchema,
 });
 export type AnnotationContent = z.infer<typeof annotationContentSchema>;
 

@@ -90,9 +90,6 @@ const proposal = {
       bbox: { x: 100 * index, y: 100, width: 40, height: 40 },
     })),
   },
-  issues: [
-    { bbox: { x: 600, y: 500, width: 30, height: 30 }, reason: "Faint streak" },
-  ],
   uncertainIds: ["ai-2"],
 };
 const review = {
@@ -196,20 +193,17 @@ await act(async () =>
 );
 await render();
 assert.equal(boxes(), 3, "the page can show the agent's reading instead");
-assert.equal(checks(), 2, "the agent's reading outlines what it asks to check");
+assert.equal(
+  checks(),
+  1,
+  "the agent's reading rings the box it asks to confirm",
+);
 assert.ok(says(m.annotation_standing_proposal()));
 assert.ok(button(m.annotation_confirm()), "a proposal can be confirmed as is");
-assert.equal(
-  Array.from(surface.querySelectorAll("span")).filter(
-    (span) => span.textContent === "?",
-  ).length,
-  1,
-  "a questioned area carries a marker for the agent's reason",
-);
 source = undefined;
 await render();
 assert.equal(boxes(), 1);
-assert.equal(checks(), 0, "the review outranks the agent's questions");
+assert.equal(checks(), 0, "the review outranks the agent's proposal");
 
 const initial = surface.style.transform;
 await act(async () => {
@@ -251,7 +245,7 @@ await tapEmpty();
 source = "proposal";
 await render();
 assert.equal(boxes(), 3, "showing a reading over edits begins again from it");
-assert.equal(checks(), 2, "a draft from the proposal keeps its checks");
+assert.equal(checks(), 1, "a draft from the proposal keeps its checks");
 await key({ key: "z", ctrlKey: true });
 assert.equal(boxes(), 2, "Undo restores the edits before the reading");
 assert.equal(checks(), 0, "Undo restores the draft's lineage with its boxes");

@@ -1,11 +1,6 @@
 import type { AnnotationProposal } from "../annotation-runs/schema";
-import { owns } from "../annotation-runs/tasks";
-import type { AnnotationInstance, BoundingBox } from "./schema";
-
-/** A place an AI proposal asks a person to look at. */
-export type Check =
-  | { kind: "uncertain"; bbox: BoundingBox }
-  | { kind: "issue"; bbox: BoundingBox; reason: string };
+import { sameBox } from "./geometry";
+import type { AnnotationInstance } from "./schema";
 
 function unchanged(
   item: AnnotationInstance,
@@ -14,42 +9,22 @@ function unchanged(
   return (
     now !== undefined &&
     now.class === item.class &&
-    now.bbox.x === item.bbox.x &&
-    now.bbox.y === item.bbox.y &&
-    now.bbox.width === item.bbox.width &&
-    now.bbox.height === item.bbox.height
+    sameBox(now.bbox, item.bbox)
   );
 }
 
 /**
- * What a proposal still asks of the boxes in view. A box
- * the agent was unsure of stays open until it is moved, resized, reclassified
- * or removed; an area it questioned stays open until the boxes centered in it
- * change. Saving a review retires them all, since the review outranks the
- * proposal.
+ * The boxes a proposal still asks a person to confirm, given the boxes in
+ * view. Each stays open until it is moved, resized, reclassified or removed;
+ * saving a review retires them all, since the review outranks the proposal.
  */
 export function openChecks(
   proposal: AnnotationProposal,
   instances: AnnotationInstance[],
-): Check[] {
+): AnnotationInstance[] {
   const now = new Map(instances.map((item) => [item.id, item]));
-  const proposed = proposal.document.instances;
   const uncertain = new Set(proposal.uncertainIds);
-  return [
-    ...proposed
-      .filter(
-        (item) => uncertain.has(item.id) && unchanged(item, now.get(item.id)),
-      )
-      .map(({ bbox }) => ({ kind: "uncertain" as const, bbox })),
-    ...proposal.issues
-      .filter(({ bbox }) => {
-        const before = proposed.filter((item) => owns(bbox, item.bbox));
-        return (
-          before.length ===
-            instances.filter((item) => owns(bbox, item.bbox)).length &&
-          before.every((item) => unchanged(item, now.get(item.id)))
-        );
-      })
-      .map(({ bbox, reason }) => ({ kind: "issue" as const, bbox, reason })),
-  ];
+  return proposal.document.instances.filter(
+    (item) => uncertain.has(item.id) && unchanged(item, now.get(item.id)),
+  );
 }

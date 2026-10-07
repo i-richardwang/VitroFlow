@@ -86,8 +86,8 @@ export function CountsSection({
 }
 
 /**
- * The agent's part: the progress of a run still at work, and the places its
- * proposal asks a person to look at, stepped through one at a time.
+ * The agent's part: the progress of a run still at work, and the boxes its
+ * proposal asks a person to confirm, stepped through one at a time.
  */
 export function ChecksSection({
   review,

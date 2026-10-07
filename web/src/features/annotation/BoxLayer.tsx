@@ -6,10 +6,10 @@ import {
   handlePositions,
   moveBox,
   resizeBox,
+  sameBox,
   type Handle,
   type Point,
 } from "../../domain/annotation/geometry";
-import type { Check } from "../../domain/annotation/checks";
 import {
   initialBoxSide,
   instanceFromBox,
@@ -21,7 +21,6 @@ import type {
 } from "../../domain/annotation/schema";
 import { classColor } from "../../domain/models/classes";
 import { CANVAS_COLORS, nextClass, type LayerKey } from "./controls";
-import { Tooltip } from "../../ui/kit/Tooltip";
 import { usePanGesture, useViewport } from "../../ui/viewport/ImageViewport";
 
 const HANDLE_SCREEN_SIZE = 8;
@@ -106,66 +105,36 @@ function Box({
   );
 }
 
-/** A check is identified by what it asks and where. */
-function checkKey({ kind, bbox }: Check): string {
-  return `${kind}:${bbox.x},${bbox.y},${bbox.width},${bbox.height}`;
-}
-
-/**
- * The places a proposal asks a person to look at, outlined over the boxes:
- * an unsure box is ringed, a questioned area is ringed and marked "?", whose
- * hover gives the agent's reason.
- */
+/** The boxes a proposal asks a person to confirm, ringed. */
 export function ChecksLayer({
   image,
   checks,
   layers,
 }: {
   image: ImageSize;
-  checks: Check[];
+  checks: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
 }) {
   const { scale } = useViewport();
   if (!layers.has("checks") || checks.length === 0) return null;
   const gap = 3 / scale;
   return (
-    <>
-      <Layer image={image} pointerEvents="none">
-        {checks.map((check) => (
-          <rect
-            key={checkKey(check)}
-            x={check.bbox.x - gap}
-            y={check.bbox.y - gap}
-            width={check.bbox.width + 2 * gap}
-            height={check.bbox.height + 2 * gap}
-            fill="none"
-            stroke={CANVAS_COLORS.check}
-            strokeWidth={1.5}
-            strokeDasharray="4 3"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </Layer>
-      {checks.map((check) =>
-        check.kind === "issue" ? (
-          <div
-            key={checkKey(check)}
-            className="absolute origin-bottom-left"
-            style={{
-              left: check.bbox.x + check.bbox.width + gap,
-              top: check.bbox.y - gap,
-              transform: `translateY(-100%) scale(${1 / scale})`,
-            }}
-          >
-            <Tooltip title={check.reason}>
-              <span className="px-0.5 text-sm leading-none font-bold text-warning">
-                ?
-              </span>
-            </Tooltip>
-          </div>
-        ) : null,
-      )}
-    </>
+    <Layer image={image} pointerEvents="none">
+      {checks.map(({ id, bbox }) => (
+        <rect
+          key={id}
+          x={bbox.x - gap}
+          y={bbox.y - gap}
+          width={bbox.width + 2 * gap}
+          height={bbox.height + 2 * gap}
+          fill="none"
+          stroke={CANVAS_COLORS.check}
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </Layer>
   );
 }
 
@@ -384,11 +353,5 @@ export function EditableBoxLayer({
           })
         : null}
     </Layer>
-  );
-}
-
-function sameBox(a: BoundingBox, b: BoundingBox): boolean {
-  return (
-    a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
   );
 }

@@ -28,10 +28,6 @@ const regionProposalSchema = z.strictObject({
       }),
     )
     .max(10000),
-  issues: z
-    .array(z.strictObject({ box_2d: box, reason: z.string().min(1).max(2000) }))
-    .max(10000)
-    .default([]),
 });
 export type RegionProposal = z.infer<typeof regionProposalSchema>;
 export type Region = ImageRegion;
@@ -128,15 +124,7 @@ export function regionBoxes(
   });
 }
 
-/** Every area a region questioned, in source pixels, owned like boxes. */
-export function regionIssues(proposal: RegionProposal, region: Region) {
-  return proposal.issues.map((issue) => {
-    const bbox = sourceBox(issue.box_2d, region.patch);
-    return { bbox, reason: issue.reason, owned: owns(region.core, bbox) };
-  });
-}
-
-/** What one region saves on its own: the boxes and issues its core owns. */
+/** What one region saves on its own: the boxes its core owns. */
 function projectProposal(
   proposal: RegionProposal,
   region: Region,
@@ -155,9 +143,6 @@ function projectProposal(
         bbox,
       })),
     }),
-    issues: regionIssues(proposal, region).flatMap(({ bbox, reason, owned }) =>
-      owned ? [{ bbox, reason }] : [],
-    ),
     uncertainIds: boxes.filter((box) => box.uncertain).map((box) => box.id),
   };
 }
