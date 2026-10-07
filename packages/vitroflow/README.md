@@ -38,3 +38,31 @@ Photographs show the same dish when one movement of the camera carries the layou
 ## How focus is judged
 
 Two photographs of one dish are compared at the same physical points within the central 60% of the dish's radius, where the seeds lie and the lid labels do not reach. At each point the finest detail is weighed against the seed's outline, which cancels exposure, so a photograph focused on the labels rather than the seeds ranks low.
+
+## Whether a photograph can be counted
+
+`vitroflow photos check` looks at each photograph on its own and says whether its seeds can be counted. Run it on the photographs you intend to keep, for example the ones `select` chose.
+
+```bash
+uvx vitroflow photos check ~/plates/chosen
+```
+
+The command prints JSON and leaves every file where it is:
+
+```json
+{
+  "photos": [
+    { "path": "/home/lab/plates/chosen/plate-02.jpg", "suitable": true, "reason": null },
+    {
+      "path": "/home/lab/plates/chosen/plate-18.jpg",
+      "suitable": false,
+      "reason": "seeds are out of focus"
+    }
+  ],
+  "skipped": [
+    { "path": "/home/lab/plates/chosen/notes.png", "reason": "no dish found" }
+  ]
+}
+```
+
+The seeds lie on the filter paper, inside the rim, where the lid labels do not reach. They can be counted when their own mark is crisp against the paper. `suitable` is false when that mark has gone soft (`seeds are out of focus`), or when tiny gray droplets are spread across the paper and the seeds themselves are not a crisp colored mark (`paper covered by droplets`). `reason` is `null` when the seeds can be told apart. A small seed that is still a separate mark stays, including a germinated seed.
