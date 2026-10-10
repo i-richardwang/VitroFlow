@@ -38,3 +38,55 @@ Photographs show the same dish when one movement of the camera carries the layou
 ## How focus is judged
 
 Two photographs of one dish are compared at the same physical points within the central 60% of the dish's radius, where the seeds lie and the lid labels do not reach. At each point the finest detail is weighed against the seed's outline, which cancels exposure, so a photograph focused on the labels rather than the seeds ranks low.
+
+## Whether a photograph can be counted
+
+`vitroflow photos check` looks at each photograph on its own and says whether its seeds can be counted. Run it on the photographs you intend to keep, for example the ones `select` chose.
+
+```bash
+uvx vitroflow photos check ~/plates/chosen
+```
+
+The command prints JSON and leaves every file where it is:
+
+```json
+{
+  "photos": [
+    { "path": "/home/lab/plates/chosen/plate-02.jpg", "suitable": true, "reason": null },
+    {
+      "path": "/home/lab/plates/chosen/plate-18.jpg",
+      "suitable": false,
+      "reason": "seeds are out of focus"
+    }
+  ],
+  "skipped": [
+    { "path": "/home/lab/plates/chosen/notes.png", "reason": "no dish found" }
+  ]
+}
+```
+
+The seeds lie on the filter paper, inside the rim, where the lid labels do not reach. They can be counted when their own mark is crisp against the paper. `suitable` is false when that mark has gone soft (`seeds are out of focus`), or when tiny gray droplets are spread across the paper and the seeds themselves are not a crisp colored mark (`paper covered by droplets`). `reason` is `null` when the seeds can be told apart. A small seed that is still a separate mark stays, including a germinated seed.
+
+## Confirming the suggestions
+
+`suitable` is a suggestion. A pale seed that is still in focus is left as countable, and the person who will count the dish has the last word. `vitroflow photos review` opens a page on this machine for the JSON that `check` wrote.
+
+```bash
+uvx vitroflow photos check ~/plates/chosen -o ~/plates/check.json
+uvx vitroflow photos review ~/plates/check.json
+```
+
+The page shows each photograph beside its suggestion. Accept the suggestion, mark the seeds as countable or not, or leave the photograph as not sure. A decision moves on to the next photograph that still has none. A note can be kept with that confirmation, and saving the note stays on the photograph. **Accept remaining suggestions** copies the suggestion onto every photograph that still has none, and leaves a correction that is already there as it is.
+
+The confirmation is stored beside the suggestion and does not replace it:
+
+```json
+{
+  "path": "/home/lab/plates/chosen/plate-18.jpg",
+  "suitable": false,
+  "reason": "seeds are out of focus",
+  "decision": { "suitable": true, "note": "thin, but each seed is separate" }
+}
+```
+
+`decision.suitable` is `true` when the seeds can be counted, `false` when they cannot, and `null` when the photograph was left as not sure. A later step trusts `decision`. The photographs stay where they are. Writing the check again to the same file is refused once any confirmation is present.
