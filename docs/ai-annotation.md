@@ -183,6 +183,14 @@ will process an entire dataset without interruption.
 
 Example instruction after connecting a client:
 
+For seed annotation, use the [worker](ai-annotation-prompts/annotator.md) and
+[parent batch dispatch](ai-annotation-prompts/coordinator.md) templates. A fresh
+worker handles one image for at most 12 accepted regions or 15 minutes, then ends;
+the next batch uses a new subagent on the same run. Initial annotation and maintenance
+share this workflow, with different run inputs. Project criteria include user-confirmed
+early plump germination. Workers inspect previews themselves; no separate reviewer
+or automatic full-image rerun is required. Human reviews retain precedence.
+
 > Use VitroFlow to annotate the images waiting for model MODEL. List them with
 > annotation_pending. For each image, continue its run if one is in progress,
 > otherwise start one, and get its next region. Call annotation_context
