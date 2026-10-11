@@ -124,10 +124,11 @@ For training they claim a queued run, download its immutable snapshot, materiali
 
 ## Preparing photographs
 
-Experimenters photograph each dish, often several times in a row, and copy the photographs into a folder. The [`vitroflow`](packages/vitroflow/README.md) command, published on PyPI, sorts that folder into dishes and chooses the photograph whose seeds are sharpest for each, without reading labels or touching the files. An agent then uploads the chosen photographs through the experiments MCP server:
+Experimenters photograph each dish, often several times in a row, and copy the photographs into a folder. The [`vitroflow`](packages/vitroflow/README.md) command, published on PyPI, sorts that folder into dishes, suggests the photograph whose seeds are sharpest for each and says whether its seeds can be counted, without reading labels or touching the files. A person confirms the suggestions on a page the command serves on their machine:
 
 ```bash
-uvx vitroflow photos select ~/plates
+uvx vitroflow photos sort ~/plates -o ~/plates/plates.json
+uvx vitroflow photos review ~/plates/plates.json
 ```
 
 ## Agent interface

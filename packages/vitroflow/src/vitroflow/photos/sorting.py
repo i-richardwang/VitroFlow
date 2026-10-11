@@ -1,8 +1,13 @@
-"""Turn a folder of photographs into one chosen photograph per dish."""
+"""Sort a folder of photographs into dishes, the sharpest of each first.
+
+Each photograph carries its own judgment of whether its seeds can be counted:
+the sharpest photograph of a dish can still be too soft.
+"""
 
 from __future__ import annotations
 
 import itertools
+from collections import deque
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -15,10 +20,7 @@ from vitroflow.photos.dish import locate_dish
 from vitroflow.photos.fingerprint import Survey, dish_motion, survey
 from vitroflow.photos.photographs import Progress, Skipped, photographs_in
 from vitroflow.photos.sharpness import SeedView, relative_sharpness, seed_view
-
-# Photographs within this log ratio of the sharpest render the seeds about as
-# well; any of them would serve.
-COMPARABLE = 0.1
+from vitroflow.photos.suitability import uncountable
 
 Links = dict[tuple[int, int], np.ndarray]
 """Camera motions between photographs known to show the same dish."""
@@ -26,12 +28,25 @@ Links = dict[tuple[int, int], np.ndarray]
 Comparison = tuple[int, int, float]
 """Two photographs and the log ratio of their seed sharpness."""
 
+Alignment = tuple[tuple[float, float, float], tuple[float, float, float]]
+"""A camera motion, as the two rows of its affine matrix."""
+
+IN_PLACE: Alignment = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+
 
 @dataclass(frozen=True)
 class Shot:
     path: Path
     sharpness: float | None
-    """Log ratio of seed sharpness against the chosen shot; None when unmeasured."""
+    """Log ratio of seed sharpness against the first shot; None when unmeasured."""
+    reason: str | None
+    """Why the seeds cannot be counted; None when they can."""
+    alignment: Alignment
+    """The camera motion carrying this shot onto the first shot of its dish."""
+
+    @property
+    def suitable(self) -> bool:
+        return self.reason is None
 
 
 @dataclass(frozen=True)
@@ -39,63 +54,56 @@ class Dish:
     shots: tuple[Shot, ...]
     """Sharpest first."""
 
-    @property
-    def chosen(self) -> Path:
-        return self.shots[0].path
-
-    @property
-    def alternatives(self) -> tuple[Path, ...]:
-        return tuple(
-            shot.path
-            for shot in self.shots[1:]
-            if shot.sharpness is not None and shot.sharpness >= -COMPARABLE
-        )
-
 
 @dataclass(frozen=True)
-class Selection:
+class Sorted:
     dishes: tuple[Dish, ...]
     skipped: tuple[Skipped, ...]
 
 
-def select(folder: Path, progress: Progress = lambda _: None) -> Selection:
+@dataclass(frozen=True)
+class _Member:
+    survey: Survey
+    reason: str | None
+
+
+def sort_photographs(folder: Path, progress: Progress = lambda _: None) -> Sorted:
     paths = photographs_in(folder)
     with ThreadPoolExecutor() as pool:
         progress(f"Surveying {len(paths)} photographs")
-        outcomes = list(pool.map(_survey, paths))
-        surveys = [outcome for outcome in outcomes if isinstance(outcome, Survey)]
+        outcomes = list(pool.map(_member, paths))
+        members = [outcome for outcome in outcomes if isinstance(outcome, _Member)]
         skipped = tuple(outcome for outcome in outcomes if isinstance(outcome, Skipped))
 
         progress("Matching photographs of the same dish")
-        pairs = list(itertools.combinations(range(len(surveys)), 2))
-        motions = pool.map(lambda pair: dish_motion(*(surveys[i] for i in pair)), pairs)
+        pairs = list(itertools.combinations(range(len(members)), 2))
+        motions = pool.map(
+            lambda pair: dish_motion(*(members[i].survey for i in pair)), pairs
+        )
         links = {
             pair: motion
             for pair, motion in zip(pairs, motions, strict=True)
             if motion is not None
         }
 
-        groups = _groups(len(surveys), links)
+        groups = _groups(len(members), links)
         progress(f"Ranking {sum(len(group) > 1 for group in groups)} dishes by focus")
         dishes = pool.map(
-            lambda group: _rank([surveys[i] for i in group], _within(group, links)),
+            lambda group: _rank([members[i] for i in group], _within(group, links)),
             groups,
         )
-        return Selection(tuple(dishes), skipped)
+        return Sorted(tuple(dishes), skipped)
 
 
-def _survey(path: Path) -> Survey | Skipped:
-    gray = _read(path)
-    if gray is None:
+def _member(path: Path) -> _Member | Skipped:
+    color = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if color is None:
         return Skipped(path, "unreadable")
+    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
     dish = locate_dish(gray)
     if dish is None:
         return Skipped(path, "no dish found")
-    return survey(path, gray, dish)
-
-
-def _read(path: Path) -> np.ndarray | None:
-    return cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    return _Member(survey(path, gray, dish), uncountable(color, dish))
 
 
 def _groups(count: int, pairs: Iterable[tuple[int, int]]) -> list[list[int]]:
@@ -126,9 +134,10 @@ def _within(group: Sequence[int], links: Links) -> Links:
     }
 
 
-def _rank(members: Sequence[Survey], links: Links) -> Dish:
+def _rank(members: Sequence[_Member], links: Links) -> Dish:
     if len(members) == 1:
-        return Dish((Shot(members[0].path, None),))
+        only = members[0]
+        return Dish((Shot(only.survey.path, None, only.reason, IN_PLACE),))
 
     views = [_seed_view(member) for member in members]
     comparisons: list[Comparison] = []
@@ -144,19 +153,27 @@ def _rank(members: Sequence[Survey], links: Links) -> Dish:
     best = max(scores.values(), default=0.0)
     order = sorted(
         range(len(members)),
-        key=lambda i: (i not in scores, -scores.get(i, 0.0), members[i].path),
+        key=lambda i: (i not in scores, -scores.get(i, 0.0), members[i].survey.path),
     )
+    onto_first = _onto(order[0], len(members), links)
     return Dish(
         tuple(
-            Shot(members[i].path, scores[i] - best if i in scores else None)
+            Shot(
+                members[i].survey.path,
+                scores[i] - best if i in scores else None,
+                members[i].reason,
+                onto_first[i],
+            )
             for i in order
         )
     )
 
 
-def _seed_view(member: Survey) -> SeedView | None:
-    gray = _read(member.path)
-    return None if gray is None else seed_view(gray, member.dish)
+def _seed_view(member: _Member) -> SeedView | None:
+    color = cv2.imread(str(member.survey.path), cv2.IMREAD_COLOR)
+    if color is None:
+        return None
+    return seed_view(cv2.cvtColor(color, cv2.COLOR_BGR2GRAY), member.survey.dish)
 
 
 def _connected(count: int, comparisons: Sequence[Comparison]) -> list[Comparison]:
@@ -182,3 +199,30 @@ def _scores(comparisons: Sequence[Comparison]) -> dict[int, float]:
     rows[-1, :] = 1.0
     solution = np.linalg.lstsq(rows, values, rcond=None)[0]
     return {i: float(solution[k]) for i, k in column.items()}
+
+
+def _onto(target: int, count: int, links: Links) -> list[Alignment]:
+    """The motion carrying each photograph of a group onto ``target``.
+
+    A photograph linked to ``target`` only through others is carried along the
+    shortest chain of links.
+    """
+    steps: dict[tuple[int, int], np.ndarray] = {}
+    for (a, b), motion in links.items():
+        forward = np.vstack([motion, [0.0, 0.0, 1.0]])
+        steps[a, b] = forward
+        steps[b, a] = np.linalg.inv(forward)
+    onto = {target: np.eye(3)}
+    reached = deque([target])
+    while reached:
+        near = reached.popleft()
+        for (a, b), step in steps.items():
+            if b == near and a not in onto:
+                onto[a] = onto[near] @ step
+                reached.append(a)
+    return [_alignment(onto[i]) for i in range(count)]
+
+
+def _alignment(motion: np.ndarray) -> Alignment:
+    (a, b, e), (c, d, f) = motion[:2].tolist()
+    return (a, b, e), (c, d, f)

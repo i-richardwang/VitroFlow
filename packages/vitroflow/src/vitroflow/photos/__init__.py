@@ -1,1 +1,1 @@
-"""Group photographs of the same dish and choose the sharpest of each."""
+"""Sort a folder of dish photographs and confirm which of each dish to use."""

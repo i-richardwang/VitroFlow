@@ -9,35 +9,50 @@ import cv2
 import numpy as np
 import pytest
 from vitroflow.cli import main
-from vitroflow.photos.review import ReviewServer, bind_review, load_review
+from vitroflow.photos.record import load_record
+from vitroflow.photos.review import ReviewServer, bind_review
 
-DOCUMENT = {
-    "photos": [
-        {
-            "path": "",
-            "suitable": False,
-            "reason": "seeds are out of focus",
-        },
-        {"path": "", "suitable": True, "reason": None},
-    ],
-    "skipped": [],
-}
+IN_PLACE = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
 
 
-def _image(folder: Path, name: str) -> Path:
+def _image(folder: Path, name: str) -> str:
     path = folder / name
     cv2.imwrite(str(path), np.full((24, 32, 3), (40, 80, 120), np.uint8))
-    return path
+    return str(path)
 
 
-def _document(folder: Path) -> Path:
-    first = _image(folder, "soft.png")
-    second = _image(folder, "sharp.png")
-    document = json.loads(json.dumps(DOCUMENT))
-    document["photos"][0]["path"] = str(first)
-    document["photos"][1]["path"] = str(second)
-    path = folder / "check.json"
-    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+def _shot(path: str, sharpness: float | None, reason: str | None) -> dict:
+    return {
+        "path": path,
+        "sharpness": sharpness,
+        "suitable": reason is None,
+        "reason": reason,
+        "alignment": IN_PLACE,
+    }
+
+
+def _record(folder: Path) -> Path:
+    """Three dishes: a clear win that is soft, a close call, and a single shot."""
+    record = {
+        "dishes": [
+            {
+                "shots": [
+                    _shot(_image(folder, "soft.png"), 0.0, "seeds are out of focus"),
+                    _shot(_image(folder, "softer.png"), -0.4, "seeds are out of focus"),
+                ]
+            },
+            {
+                "shots": [
+                    _shot(_image(folder, "close.png"), 0.0, None),
+                    _shot(_image(folder, "rival.png"), -0.05, None),
+                ]
+            },
+            {"shots": [_shot(_image(folder, "single.png"), None, None)]},
+        ],
+        "skipped": [],
+    }
+    path = folder / "plates.json"
+    path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -63,7 +78,7 @@ def _open(
 
 @pytest.fixture
 def review(tmp_path: Path) -> Iterator[tuple[ReviewServer, str]]:
-    server = bind_review(_document(tmp_path))
+    server = bind_review(_record(tmp_path))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -74,119 +89,121 @@ def review(tmp_path: Path) -> Iterator[tuple[ReviewServer, str]]:
         thread.join(timeout=5)
 
 
-def test_a_correction_is_kept_and_the_rest_can_be_accepted(
-    tmp_path: Path, review: tuple[ReviewServer, str]
+def test_the_page_shows_each_dish_without_its_paths(
+    review: tuple[ReviewServer, str],
 ) -> None:
-    server, origin = review
-    path = server.review_path
-    before = {item.name: item.read_bytes() for item in tmp_path.glob("*.png")}
+    _, origin = review
+
     page, html = _open(f"{origin}/")
     assert page == 200
     assert b"Accept remaining suggestions" in html
-    assert b"/review.css" in html
-    style, css = _open(f"{origin}/review.css")
-    assert style == 200
-    assert b"--color-canvas" in css
-    script, code = _open(f"{origin}/review.js")
-    assert script == 200
-    assert b"accept-remaining" in code
+    assert _open(f"{origin}/review.css")[0] == 200
+    assert _open(f"{origin}/review.js")[0] == 200
 
-    status, body = _open(
-        f"{origin}/api/photos/0",
-        {"suitable": True, "note": " thin, but separate "},
-    )
+    status, body = _open(f"{origin}/api/review")
     assert status == 200
     view = json.loads(body)
-    assert view["photos"][0]["name"] == "soft.png"
-    assert view["photos"][0]["suitable"] is False
-    assert view["photos"][0]["decision"] == {
-        "suitable": True,
-        "note": "thin, but separate",
-    }
-    assert "path" not in view["photos"][0]
+    assert [[shot["name"] for shot in dish["shots"]] for dish in view["dishes"]] == [
+        ["soft.png", "softer.png"],
+        ["close.png", "rival.png"],
+        ["single.png"],
+    ]
+    assert [dish["doubtful"] for dish in view["dishes"]] == [True, True, False]
+    assert all(dish["decision"] is None for dish in view["dishes"])
+    assert "path" not in view["dishes"][0]["shots"][0]
 
-    status, body = _open(f"{origin}/api/accept-remaining", {})
-    assert status == 200
-    accepted = json.loads(body)["photos"]
-    assert accepted[0]["decision"]["suitable"] is True
-    assert accepted[0]["decision"]["note"] == "thin, but separate"
-    assert accepted[1]["decision"] == {"suitable": True, "note": ""}
-    assert accepted[1]["suitable"] is True
-    assert accepted[1]["reason"] is None
-
-    assert _open(f"{origin}/photo/99")[0] == 404
-    assert _open(f"{origin}/photo/../check.json")[0] == 404
-    assert _open(f"{origin}/api/photos/0", {"suitable": "yes"})[0] == 400
-    photo, image = _open(f"{origin}/photo/0")
+    photo, image = _open(f"{origin}/photo/1/1")
     assert photo == 200
     assert image.startswith(b"\x89PNG")
-    thumb, small = _open(f"{origin}/thumb/0")
+    thumb, small = _open(f"{origin}/thumb/0/0")
     assert thumb == 200
     assert small.startswith(b"\xff\xd8")
+    assert _open(f"{origin}/photo/2/1")[0] == 404
+    assert _open(f"{origin}/photo/9/0")[0] == 404
+    assert _open(f"{origin}/photo/../plates.json")[0] == 404
 
-    saved = json.loads(path.read_text(encoding="utf-8"))
-    assert saved["photos"][0]["suitable"] is False
-    assert saved["photos"][0]["reason"] == "seeds are out of focus"
-    assert saved["photos"][0]["decision"]["suitable"] is True
-    assert saved["photos"][1]["decision"]["suitable"] is True
+
+def test_another_photograph_is_chosen_and_the_rest_are_accepted(
+    tmp_path: Path, review: tuple[ReviewServer, str]
+) -> None:
+    server, origin = review
+    before = {item.name: item.read_bytes() for item in tmp_path.glob("*.png")}
+
+    status, body = _open(
+        f"{origin}/api/dishes/1",
+        {"shot": 1, "suitable": True, "note": " label is out of the way "},
+    )
+    assert status == 200
+    assert json.loads(body)["dishes"][1]["decision"] == {
+        "shot": 1,
+        "suitable": True,
+        "note": "label is out of the way",
+    }
+
+    assert _open(f"{origin}/api/accept-remaining", {})[0] == 200
+
+    saved = json.loads(server.record_path.read_text(encoding="utf-8"))
+    assert [dish["decision"] for dish in saved["dishes"]] == [
+        {"chosen": str(tmp_path / "soft.png"), "suitable": False, "note": ""},
+        {
+            "chosen": str(tmp_path / "rival.png"),
+            "suitable": True,
+            "note": "label is out of the way",
+        },
+        {"chosen": str(tmp_path / "single.png"), "suitable": True, "note": ""},
+    ]
+    assert saved["dishes"][0]["shots"][0]["reason"] == "seeds are out of focus"
     assert {item.name: item.read_bytes() for item in tmp_path.glob("*.png")} == before
+
+
+def test_a_confirmation_can_be_taken_back(review: tuple[ReviewServer, str]) -> None:
+    server, origin = review
+    before = server.record_path.read_text(encoding="utf-8")
+
+    assert _open(f"{origin}/api/dishes/2", {"shot": 0, "suitable": None})[0] == 200
+    assert load_record(server.record_path)["dishes"][2]["decision"] == {
+        "chosen": load_record(server.record_path)["dishes"][2]["shots"][0]["path"],
+        "suitable": None,
+        "note": "",
+    }
+
+    assert _open(f"{origin}/api/dishes/2", {"clear": True})[0] == 200
+    assert server.record_path.read_text(encoding="utf-8") == before
+
+
+def test_a_confirmation_names_a_photograph_of_the_dish(
+    review: tuple[ReviewServer, str],
+) -> None:
+    server, origin = review
+    before = server.record_path.read_text(encoding="utf-8")
+
+    assert _open(f"{origin}/api/dishes/2", {"shot": 1, "suitable": True})[0] == 400
+    assert _open(f"{origin}/api/dishes/0", {"shot": 0, "suitable": "yes"})[0] == 400
+    assert _open(f"{origin}/api/dishes/0", {"suitable": True})[0] == 400
+    assert _open(f"{origin}/api/dishes/9", {"shot": 0, "suitable": True})[0] == 404
+    assert server.record_path.read_text(encoding="utf-8") == before
 
 
 def test_only_the_page_itself_is_answered(review: tuple[ReviewServer, str]) -> None:
     server, origin = review
-    before = server.review_path.read_text(encoding="utf-8")
+    before = server.record_path.read_text(encoding="utf-8")
     elsewhere = "http://elsewhere.example"
 
-    assert _open(f"{origin}/photo/0", headers={"Host": "elsewhere.example"})[0] == 403
+    assert _open(f"{origin}/photo/0/0", headers={"Host": "elsewhere.example"})[0] == 403
     assert _open(f"{origin}/api/accept-remaining", {}, {"Origin": elsewhere})[0] == 403
-    assert server.review_path.read_text(encoding="utf-8") == before
+    assert server.record_path.read_text(encoding="utf-8") == before
 
     assert _open(f"{origin}/api/accept-remaining", {}, {"Origin": origin})[0] == 200
 
 
-def test_a_file_that_is_no_photograph_is_not_a_check_result(tmp_path: Path) -> None:
-    path = _document(tmp_path)
-    document = json.loads(path.read_text(encoding="utf-8"))
-    document["photos"][0]["path"] = str(tmp_path / "check.json")
-    path.write_text(json.dumps(document), encoding="utf-8")
+def test_a_record_names_photographs_only(tmp_path: Path) -> None:
+    path = _record(tmp_path)
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["dishes"][0]["shots"][0]["path"] = str(path)
+    path.write_text(json.dumps(record), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="is not a check result"):
-        load_review(path)
-
-
-def test_check_writes_the_same_json_it_prints(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    folder = tmp_path / "photos"
-    folder.mkdir()
-    cv2.imwrite(str(folder / "blank.png"), np.full((40, 40, 3), 90, np.uint8))
-    output = tmp_path / "check.json"
-
-    assert main(["photos", "check", str(folder), "-o", str(output)]) == 0
-    assert output.read_text(encoding="utf-8") == capsys.readouterr().out
-
-    assert main(["photos", "check", str(folder), "-o", str(output)]) == 0
-    assert output.read_text(encoding="utf-8") == capsys.readouterr().out
-
-
-def test_check_refuses_to_overwrite_confirmations(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    folder = tmp_path / "photos"
-    folder.mkdir()
-    cv2.imwrite(str(folder / "blank.png"), np.full((40, 40, 3), 90, np.uint8))
-    output = _document(tmp_path)
-    saved = json.loads(output.read_text(encoding="utf-8"))
-    saved["photos"][0]["decision"] = {"suitable": True, "note": "kept"}
-    output.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
-    before = output.read_text(encoding="utf-8")
-
-    assert main(["photos", "check", str(folder), "-o", str(output)]) == 2
-
-    error = capsys.readouterr().err
-    assert "already holds confirmations" in error
-    assert "Checking" not in error
-    assert output.read_text(encoding="utf-8") == before
+    with pytest.raises(ValueError, match="is not a record of sorted photographs"):
+        load_record(path)
 
 
 def test_review_refuses_a_missing_file(

@@ -9,7 +9,7 @@
 <body>
 <main class="stage">
   <div class="float">
-    <div class="toolbar" role="toolbar" aria-label="Photograph">
+    <div class="toolbar" role="toolbar" aria-label="Dish">
       <button class="button small text" id="prev" type="button">Previous</button>
       <button class="button small text" id="next" type="button">Next</button>
       <span class="sep"></span>
@@ -18,9 +18,7 @@
       <button class="button small text" id="actual" type="button">1:1</button>
     </div>
   </div>
-  <div class="frame" id="stage">
-    <img id="photo" alt="">
-  </div>
+  <div class="frame" id="stage"></div>
 </main>
 <aside class="inspector">
   <div>
@@ -29,8 +27,7 @@
   </div>
   <button class="button primary block" id="accept-all" type="button">Accept remaining suggestions</button>
   <section class="section">
-    <p class="label">Suggestion</p>
-    <p class="suggestion" id="suggestion"></p>
+    <ul class="rows" id="shots"></ul>
     <div class="choice" id="choice">
       <button class="button" id="accept" type="button">Accept suggestion</button>
       <button class="button" type="button" data-suitable="true">Can be counted</button>
@@ -43,14 +40,14 @@
   <div class="filters" id="filters">
     <button type="button" data-filter="all" aria-pressed="true">All</button>
     <button type="button" data-filter="unconfirmed">Unconfirmed</button>
-    <button type="button" data-filter="accepted">Accepted</button>
+    <button type="button" data-filter="doubtful">Worth a look</button>
     <button type="button" data-filter="changed">Changed</button>
     <button type="button" data-filter="not-sure">Not sure</button>
   </div>
   <label class="field">
     <input id="q" type="search" placeholder="Find a file" autocomplete="off" aria-label="Find a file">
   </label>
-  <ul class="list" id="list"></ul>
+  <ul class="rows list" id="list"></ul>
 </aside>
 <script src="/review.js"></script>
 </body>

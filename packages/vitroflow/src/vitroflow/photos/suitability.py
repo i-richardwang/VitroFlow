@@ -1,22 +1,17 @@
 """Decide whether the seeds in one photograph can be told apart.
 
 The seeds lie on the filter paper, inside the rim. They can be counted when
-their own mark is crisp against the paper. A photograph is set aside when that
-mark has gone soft, or when tiny droplets carpet the paper and would be counted
-in the seeds' place. A germinated seed is a mark of its own, and stays.
+their own mark is crisp against the paper. They cannot when that mark has gone
+soft, or when tiny droplets carpet the paper and would be counted in the seeds'
+place. A germinated seed is a mark of its own, and counts.
 """
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from pathlib import Path
-
 import cv2
 import numpy as np
 
-from vitroflow.photos.dish import DishCircle, locate_dish
-from vitroflow.photos.photographs import Progress, Skipped, photographs_in
+from vitroflow.photos.dish import DishCircle
 
 # The paper is judged where the dish has this radius, so a threshold expressed
 # in pixels holds at any camera distance.
@@ -56,43 +51,8 @@ MIN_SPOT_ASPECT = 0.7
 GRID = 8
 
 
-@dataclass(frozen=True)
-class Photograph:
-    path: Path
-    suitable: bool
-    reason: str | None
-    """Why the seeds cannot be counted; None when they can."""
-
-
-@dataclass(frozen=True)
-class Check:
-    photographs: tuple[Photograph, ...]
-    skipped: tuple[Skipped, ...]
-
-
-def check(folder: Path, progress: Progress = lambda _: None) -> Check:
-    paths = photographs_in(folder)
-    progress(f"Checking {len(paths)} photographs")
-    with ThreadPoolExecutor() as pool:
-        outcomes = list(pool.map(_judge, paths))
-    return Check(
-        tuple(item for item in outcomes if isinstance(item, Photograph)),
-        tuple(item for item in outcomes if isinstance(item, Skipped)),
-    )
-
-
-def _judge(path: Path) -> Photograph | Skipped:
-    color = cv2.imread(str(path), cv2.IMREAD_COLOR)
-    if color is None:
-        return Skipped(path, "unreadable")
-    dish = locate_dish(cv2.cvtColor(color, cv2.COLOR_BGR2GRAY))
-    if dish is None:
-        return Skipped(path, "no dish found")
-    reason = _reason(color, dish)
-    return Photograph(path, reason is None, reason)
-
-
-def _reason(color: np.ndarray, dish: DishCircle) -> str | None:
+def uncountable(color: np.ndarray, dish: DishCircle) -> str | None:
+    """Why the seeds in a photograph cannot be counted; None when they can."""
     view, paper, centre = _paper(color, dish)
     edge, chroma = _seed_edge(view, paper)
     spots = _spots(view, paper)

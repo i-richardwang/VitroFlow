@@ -1,8 +1,7 @@
-"""Confirm each suggestion from a check, and keep that confirmation.
+"""Serve the page on which a person confirms a record of sorted photographs.
 
-``photos check`` records whether a photograph looks countable. That record is a
-suggestion. The page opened here lets a person accept it or replace it. The
-suggestion stays; a later step trusts ``decision``.
+The page shows each dish with every photograph taken of it. The person takes
+the suggested photograph or another, and says whether its seeds can be counted.
 """
 
 from __future__ import annotations
@@ -17,7 +16,14 @@ from urllib.parse import urlparse
 
 import cv2
 
-from vitroflow.photos.photographs import PHOTO_SUFFIXES
+from vitroflow.photos.record import (
+    accept_remaining,
+    clear_confirmation,
+    confirm,
+    is_verdict,
+    load_record,
+    save_record,
+)
 
 ROOT = Path(__file__).parent
 PAGES = {
@@ -26,57 +32,20 @@ PAGES = {
     "/review.js": ("review.js", "text/javascript; charset=utf-8"),
 }
 THUMB_EDGE = 180
+# A photograph within this log ratio of the sharpest renders the seeds about as
+# well.
+COMPARABLE = 0.1
 MEDIA_CACHE = "private, max-age=86400"
 
 
-def load_review(path: Path) -> dict:
-    """The check document at ``path``, with each photograph's confirmation."""
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ValueError(f"{path} is not a check result") from error
-    if not _document(document):
-        raise ValueError(f"{path} is not a check result")
-    return document
-
-
-def has_confirmations(document: dict) -> bool:
-    return any(photo.get("decision") is not None for photo in document["photos"])
-
-
-def confirm(document: dict, index: int, suitable: bool | None, note: str) -> None:
-    document["photos"][index]["decision"] = {"suitable": suitable, "note": note}
-
-
-def clear_confirmation(document: dict, index: int) -> None:
-    document["photos"][index].pop("decision", None)
-
-
-def accept_remaining(document: dict) -> None:
-    """Copy the suggestion onto every photograph that has no confirmation yet."""
-    for photo in document["photos"]:
-        if photo.get("decision") is not None:
-            continue
-        photo["decision"] = {"suitable": photo["suitable"], "note": ""}
-
-
-def save_review(path: Path, document: dict) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(document, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
-
-
 def bind_review(path: Path) -> ReviewServer:
-    return ReviewServer(load_review(path), path)
+    return ReviewServer(load_record(path), path)
 
 
 def serve_review(path: Path) -> None:
     server = bind_review(path)
-    count = len(server.document["photos"])
-    print(f"Review {count} photographs at {server.origin}", flush=True)
+    count = len(server.record["dishes"])
+    print(f"Review {count} dishes at {server.origin}", flush=True)
     print(f"Confirmations are written to {path}", flush=True)
     try:
         server.serve_forever()
@@ -89,9 +58,9 @@ def serve_review(path: Path) -> None:
 class ReviewServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, document: dict, path: Path) -> None:
-        self.document = document
-        self.review_path = path
+    def __init__(self, record: dict, path: Path) -> None:
+        self.record = record
+        self.record_path = path
         self.lock = threading.Lock()
         super().__init__(("127.0.0.1", 0), ReviewHandler)
         host, port = self.server_address[:2]
@@ -130,19 +99,15 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self._send((ROOT / name).read_bytes(), content_type)
             return
         if path == "/api/review":
-            body = json.dumps(_view(self.server.document), ensure_ascii=False).encode()
+            body = json.dumps(_view(self.server.record), ensure_ascii=False).encode()
             self._send(body, "application/json; charset=utf-8")
             return
-        media = _media(path)
-        if media is None:
+        kind, _, place = path.removeprefix("/").partition("/")
+        shot = _shot_at(self.server.record, place)
+        if kind not in ("photo", "thumb") or shot is None:
             self.send_error(404)
             return
-        kind, index = media
-        photo = _photo_at(self.server.document, index)
-        if photo is None:
-            self.send_error(404)
-            return
-        file_path = Path(photo["path"])
+        file_path = Path(shot["path"])
         if not file_path.is_file():
             self.send_error(404)
             return
@@ -163,22 +128,22 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.send_error(400)
             return
         with self.server.lock:
-            document = self.server.document
+            record = self.server.record
             if path == "/api/accept-remaining":
-                accept_remaining(document)
-            elif path.startswith("/api/photos/"):
-                index = _index(path.removeprefix("/api/photos/"))
-                if index is None or _photo_at(document, index) is None:
+                accept_remaining(record)
+            elif path.startswith("/api/dishes/"):
+                dish = _index(path.removeprefix("/api/dishes/"))
+                if dish is None or dish >= len(record["dishes"]):
                     self.send_error(404)
                     return
-                if not _apply(document, index, payload):
+                if not _apply(record, dish, payload):
                     self.send_error(400)
                     return
             else:
                 self.send_error(404)
                 return
-            save_review(self.server.review_path, document)
-            body = json.dumps(_view(document), ensure_ascii=False).encode()
+            save_record(self.server.record_path, record)
+            body = json.dumps(_view(record), ensure_ascii=False).encode()
         self._send(body, "application/json; charset=utf-8")
 
     def _payload(self) -> dict | None:
@@ -198,64 +163,18 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def _document(document: object) -> bool:
-    if not isinstance(document, dict):
-        return False
-    return _photos(document.get("photos")) and _skipped(document.get("skipped"))
-
-
-def _photos(photos: object) -> bool:
-    return isinstance(photos, list) and all(_suggestion(photo) for photo in photos)
-
-
-def _suggestion(photo: object) -> bool:
-    if not isinstance(photo, dict):
-        return False
-    return (
-        _photograph(photo.get("path"))
-        and isinstance(photo.get("suitable"), bool)
-        and (photo.get("reason") is None or isinstance(photo.get("reason"), str))
-        and _decision(photo.get("decision"))
-    )
-
-
-def _photograph(path: object) -> bool:
-    return isinstance(path, str) and Path(path).suffix.lower() in PHOTO_SUFFIXES
-
-
-def _decision(decision: object) -> bool:
-    if decision is None:
-        return True
-    if not isinstance(decision, dict):
-        return False
-    return _flag(decision.get("suitable")) and isinstance(decision.get("note"), str)
-
-
-def _skipped(skipped: object) -> bool:
-    if not isinstance(skipped, list):
-        return False
-    return all(
-        isinstance(item, dict)
-        and isinstance(item.get("path"), str)
-        and isinstance(item.get("reason"), str)
-        for item in skipped
-    )
-
-
-def _flag(value: object) -> bool:
-    return value is True or value is False or value is None
-
-
-def _apply(document: dict, index: int, payload: dict) -> bool:
+def _apply(record: dict, dish: int, payload: dict) -> bool:
     if payload.get("clear") is True:
-        clear_confirmation(document, index)
+        clear_confirmation(record, dish)
         return True
-    if "suitable" not in payload or not _flag(payload["suitable"]):
+    shot, note = payload.get("shot"), payload.get("note", "")
+    if type(shot) is not int or not 0 <= shot < len(record["dishes"][dish]["shots"]):
         return False
-    note = payload.get("note", "")
+    if "suitable" not in payload or not is_verdict(payload["suitable"]):
+        return False
     if not isinstance(note, str):
         return False
-    confirm(document, index, payload["suitable"], note.strip())
+    confirm(record, dish, shot, payload["suitable"], note.strip())
     return True
 
 
@@ -263,35 +182,65 @@ def _index(text: str) -> int | None:
     return int(text) if text.isdigit() else None
 
 
-def _photo_at(document: dict, index: int) -> dict | None:
-    photos = document["photos"]
-    if not 0 <= index < len(photos):
+def _shot_at(record: dict, place: str) -> dict | None:
+    """The shot at ``dish/shot``, both counted from zero."""
+    dish, _, shot = place.partition("/")
+    dish_index, shot_index = _index(dish), _index(shot)
+    if dish_index is None or shot_index is None:
         return None
-    return photos[index]
+    dishes = record["dishes"]
+    if dish_index >= len(dishes) or shot_index >= len(dishes[dish_index]["shots"]):
+        return None
+    return dishes[dish_index]["shots"][shot_index]
 
 
-def _media(path: str) -> tuple[str, int] | None:
-    for name in ("photo", "thumb"):
-        prefix = f"/{name}/"
-        number = path.removeprefix(prefix)
-        if path.startswith(prefix) and number.isdigit():
-            return name, int(number)
-    return None
-
-
-def _view(document: dict) -> dict:
+def _view(record: dict) -> dict:
+    """What the page shows: the record with file names in place of paths."""
     return {
-        "photos": [
+        "dishes": [
             {
                 "index": index,
-                "name": Path(photo["path"]).name,
-                "suitable": photo["suitable"],
-                "reason": photo.get("reason"),
-                "decision": photo.get("decision"),
+                "shots": [
+                    {
+                        "name": Path(shot["path"]).name,
+                        "sharpness": shot["sharpness"],
+                        "suitable": shot["suitable"],
+                        "reason": shot["reason"],
+                        "alignment": shot["alignment"],
+                    }
+                    for shot in dish["shots"]
+                ],
+                "doubtful": _doubtful(dish["shots"]),
+                "decision": _decision(dish),
             }
-            for index, photo in enumerate(document["photos"])
+            for index, dish in enumerate(record["dishes"])
         ],
-        "skipped": len(document["skipped"]),
+        "skipped": len(record["skipped"]),
+    }
+
+
+def _doubtful(shots: list[dict]) -> bool:
+    """Whether the suggestion is one a person would want to look at.
+
+    Either the suggested photograph cannot be counted, or another photograph of
+    the dish renders the seeds about as well or was never compared.
+    """
+    suggested, *others = shots
+    return not suggested["suitable"] or any(
+        other["sharpness"] is None or other["sharpness"] >= -COMPARABLE
+        for other in others
+    )
+
+
+def _decision(dish: dict) -> dict | None:
+    decision = dish.get("decision")
+    if decision is None:
+        return None
+    paths = [shot["path"] for shot in dish["shots"]]
+    return {
+        "shot": paths.index(decision["chosen"]),
+        "suitable": decision["suitable"],
+        "note": decision["note"],
     }
 
 
