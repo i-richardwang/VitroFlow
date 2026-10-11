@@ -69,7 +69,7 @@
 
   transition:
     transform var(--duration-toast) var(--ease-snap),
-    opacity var(--duration-toast) var(--ease-snap),
+    opacity var(--duration-toast),
     height var(--duration-base);
 
   /* Fills the gap between toasts so moving the pointer across it does not collapse the stack. */

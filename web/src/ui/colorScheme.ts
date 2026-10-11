@@ -43,9 +43,15 @@ export function setColorScheme(scheme: ColorScheme) {
   } catch {
     // Without storage the choice lasts until the page reloads.
   }
-  document.documentElement.classList.toggle(
+  const root = document.documentElement;
+  // Held for one frame, so every element takes its new colors together.
+  root.classList.add("scheme-changing");
+  root.classList.toggle(
     "dark",
     scheme === "dark" || (scheme === "system" && matchMedia(QUERY).matches),
+  );
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => root.classList.remove("scheme-changing")),
   );
   for (const listener of listeners) listener();
 }

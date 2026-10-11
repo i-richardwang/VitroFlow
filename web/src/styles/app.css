@@ -176,6 +176,7 @@
   --duration-tooltip-enter: 280ms;
   --duration-tooltip-exit: 100ms;
   --duration-tooltip-glide: 380ms;
+  --duration-toggle-slide: 240ms;
   --duration-toast: 400ms;
   --duration-shake: 300ms;
   --duration-spinner-grow: 380ms;
@@ -366,6 +367,24 @@
   @keyframes pulse {
     50% {
       opacity: 0.5;
+    }
+  }
+
+  /* A mark springing in where a state has just changed. */
+  --animate-pop: pop 0.2s ease-out both;
+  @keyframes pop {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+
+    55% {
+      transform: scale(1);
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
     }
   }
 
@@ -568,14 +587,23 @@
 
 /*
  * Reduced motion. CSS transitions and animations finish at once here;
- * motion-driven ones do the same through `motionToken.ts`.
+ * motion-driven ones do the same through `motionToken.ts`. A turning ring
+ * keeps turning: it says work is under way, and still it reads as stuck.
  */
 @media (prefers-reduced-motion: reduce) {
-  *,
+  *:not(.ui-button-spinner, .ui-icon-spin),
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* While the color scheme changes, nothing fades: the page turns at once. */
+.scheme-changing,
+.scheme-changing *,
+.scheme-changing *::before,
+.scheme-changing *::after {
+  transition: none !important;
 }

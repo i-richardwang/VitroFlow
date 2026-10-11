@@ -22,7 +22,7 @@ const KEY_HANDLERS = "button, a[href], input, select, textarea, [role]";
  * Enter and the arrows move through the page's images, unless a control
  * holding focus answers them itself.
  */
-export function useStepKeys(bindings: Partial<Record<StepKey, () => void>>) {
+export function useStepKeys(bindings: Partial<Record<StepKey, () => unknown>>) {
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
       return;

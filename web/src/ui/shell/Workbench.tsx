@@ -26,6 +26,8 @@ const FloatSlots = createContext<{
   footer: HTMLElement | null;
 } | null>(null);
 
+const StatusSlot = createContext<HTMLElement | null>(null);
+
 const InspectorSlot = createContext<{
   node: HTMLElement | null;
   mount: () => () => void;
@@ -37,18 +39,20 @@ const InspectorSlot = createContext<{
  * floating over its top edge and the way through its siblings in a bar under
  * it, facts in an inspector panel on the right. The shell's top bar stands
  * for the header a document page has: the way back up ending in the subject,
- * the subject's `status` after it, and its commands at the bar's end, the
- * last of them folding the inspector away and bringing it back. The
- * inspector is a `SidePanel`; on narrow screens that command opens its
- * drawer.
+ * the subject's status after it (`WorkbenchStatus`), and its commands at the
+ * bar's end, the last of them folding the inspector away and bringing it
+ * back. The inspector is a `SidePanel`; on narrow screens that command opens
+ * its drawer.
+ *
+ * The frame outlives its subject: stepping to the next subject replaces what
+ * the slots hold and leaves the frame, its panel's width and its footer in
+ * place.
  */
 export function Workbench({
   title,
-  status,
   children,
 }: {
   title: string;
-  status?: ReactNode;
   children: ReactNode;
 }) {
   const compact = useIsCompact();
@@ -56,6 +60,7 @@ export function Workbench({
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   const [alertSlot, setAlertSlot] = useState<HTMLDivElement | null>(null);
   const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null);
+  const [statusSlot, setStatusSlot] = useState<HTMLSpanElement | null>(null);
   const [inspectorNode, setInspectorNode] = useState<HTMLDivElement | null>(
     null,
   );
@@ -74,57 +79,68 @@ export function Workbench({
       value={{ toolbar: toolbarSlot, alert: alertSlot, footer: footerSlot }}
     >
       <InspectorSlot value={{ node: inspectorNode, mount: inspector.mount }}>
-        <h1 className="sr-only">{title}</h1>
-        <ShellTrail status={status} />
-        <AppShellFlush>
-          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-container-secondary">
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-raise flex flex-col items-center gap-2 px-3">
+        <StatusSlot value={statusSlot}>
+          <h1 className="sr-only">{title}</h1>
+          <ShellTrail
+            status={<span ref={setStatusSlot} className="contents" />}
+          />
+          <AppShellFlush>
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-container-secondary">
+              <div className="pointer-events-none absolute inset-x-0 top-3 z-raise flex flex-col items-center gap-2 px-3">
+                <div
+                  ref={setToolbarSlot}
+                  className="pointer-events-auto flex max-w-full items-center gap-2"
+                />
+                <div
+                  ref={setAlertSlot}
+                  className="pointer-events-auto w-full max-w-md empty:hidden"
+                />
+              </div>
+              {children}
               <div
-                ref={setToolbarSlot}
-                className="pointer-events-auto flex max-w-full items-center gap-2"
-              />
-              <div
-                ref={setAlertSlot}
-                className="pointer-events-auto w-full max-w-md empty:hidden"
+                ref={setFooterSlot}
+                className="flex h-11 flex-none items-center gap-3 overflow-x-auto border-t bg-container px-3 empty:hidden"
               />
             </div>
-            {children}
-            <div
-              ref={setFooterSlot}
-              className="flex h-11 flex-none items-center gap-3 overflow-x-auto border-t bg-container px-3 empty:hidden"
-            />
-          </div>
+            {hasInspector ? (
+              <SidePanel
+                open={compact ? drawerOpen : !fold.collapsed}
+                title={m.workbench_inspector()}
+                onClose={() => setDrawerOpen(false)}
+              >
+                {/* The inspector's sections are portaled here and stacked by the panel. */}
+                <div ref={setInspectorNode} className="contents" />
+              </SidePanel>
+            ) : null}
+          </AppShellFlush>
           {hasInspector ? (
-            <SidePanel
-              open={compact ? drawerOpen : !fold.collapsed}
-              title={m.workbench_inspector()}
-              onClose={() => setDrawerOpen(false)}
-            >
-              {/* The inspector's sections are portaled here and stacked by the panel. */}
-              <div ref={setInspectorNode} className="contents" />
-            </SidePanel>
+            <ShellActions>
+              <ActionIcon
+                aria-expanded={compact ? drawerOpen : !fold.collapsed}
+                icon={
+                  compact || fold.collapsed ? PanelRightOpen : PanelRightClose
+                }
+                size="header"
+                title={m.workbench_inspector()}
+                onClick={() =>
+                  compact
+                    ? setDrawerOpen(true)
+                    : fold.onCollapsedChange(!fold.collapsed)
+                }
+              />
+            </ShellActions>
           ) : null}
-        </AppShellFlush>
-        {hasInspector ? (
-          <ShellActions>
-            <ActionIcon
-              aria-expanded={compact ? drawerOpen : !fold.collapsed}
-              icon={
-                compact || fold.collapsed ? PanelRightOpen : PanelRightClose
-              }
-              size="header"
-              title={m.workbench_inspector()}
-              onClick={() =>
-                compact
-                  ? setDrawerOpen(true)
-                  : fold.onCollapsedChange(!fold.collapsed)
-              }
-            />
-          </ShellActions>
-        ) : null}
+        </StatusSlot>
       </InspectorSlot>
     </FloatSlots>
   );
+}
+
+/** The state the framed subject is in, after its name in the top bar. */
+export function WorkbenchStatus({ children }: { children: ReactNode }) {
+  const slot = use(StatusSlot);
+  if (!slot) return null;
+  return createPortal(children, slot);
 }
 
 /** Facts about the framed subject, shown in the workbench's inspector. */

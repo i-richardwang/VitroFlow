@@ -5,6 +5,7 @@ import { m } from "../../paraglide/messages";
 import { useAppShell } from "./AppShell";
 import { Icon, type IconProps } from "./Icon";
 import { ScrollShadow } from "./ScrollShadow";
+import { OverflowTooltip } from "./Tooltip";
 
 export interface AppNavItem {
   href: string;
@@ -142,7 +143,9 @@ function AppNavLink({
         <span className="ui-app-nav-item-icon">
           <Icon icon={item.icon} size={iconSize} />
         </span>
-        <span className="ui-app-nav-item-label">{item.label}</span>
+        <OverflowTooltip placement="right" title={item.label}>
+          <span className="ui-app-nav-item-label">{item.label}</span>
+        </OverflowTooltip>
       </>
     ),
     className: "ui-app-nav-item",

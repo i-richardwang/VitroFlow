@@ -40,7 +40,7 @@ export function UserMenu({ account }: { account: UserAccount }) {
     <>
       <RowMenu
         label={m.user_actions({ name: account.name })}
-        disabled={busy}
+        busy={busy}
         items={[
           {
             key: "reset-password",

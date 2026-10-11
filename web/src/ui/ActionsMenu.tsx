@@ -11,14 +11,23 @@ type ActionsMenuProps = {
   disabled?: boolean;
 };
 
-/** The "…" menu at the end of a table row or list item. */
-export function RowMenu({ label, items, disabled }: ActionsMenuProps) {
+/**
+ * The "…" menu at the end of a table row or list item. While a command of
+ * its own is running it is `busy`: a turning ring in place of the dots.
+ */
+export function RowMenu({
+  label,
+  items,
+  disabled,
+  busy,
+}: ActionsMenuProps & { busy?: boolean }) {
   return (
     <DropdownMenu items={items} align="end">
       <ActionIcon
         icon={Ellipsis}
         size="small"
         disabled={disabled}
+        loading={busy}
         aria-label={label}
       />
     </DropdownMenu>

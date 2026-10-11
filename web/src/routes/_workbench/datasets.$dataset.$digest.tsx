@@ -1,4 +1,5 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, linkOptions, notFound } from "@tanstack/react-router";
+import { useEffect, useEffectEvent } from "react";
 import { z } from "zod";
 
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
@@ -6,6 +7,7 @@ import { ImageWorkbench } from "../../features/annotation/ImageWorkbench";
 import { datasetImageRefSchema } from "../../domain/datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
+import { useStep } from "../../ui/hooks/useStep";
 import { DescriptionsItem } from "../../ui/kit/Descriptions";
 import { modelName } from "../../ui/model-names";
 import { useStepKeys } from "../../features/annotation/keys";
@@ -58,6 +60,10 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
   component: DatasetImagePage,
 });
 
+/** The picture a dataset image's page frames. */
+const shownPicture = (loaderData: unknown) =>
+  (loaderData as DatasetImageView | undefined)?.review.ref.digest ?? null;
+
 function DatasetImagePage() {
   const {
     dataset,
@@ -79,14 +85,23 @@ function DatasetImagePage() {
       review.progress !== null,
   );
 
-  const stepTo = (step: DatasetImageStep | null) =>
-    step
-      ? () =>
-          void navigate({
-            params: (current) => ({ ...current, digest: step.digest }),
-            search: {},
-          })
-      : undefined;
+  const { pending, step, warm } = useStep(shownPicture);
+  const targetOf = (image: DatasetImageStep | null) =>
+    image &&
+    linkOptions({
+      to: "/datasets/$dataset/$digest",
+      params: { dataset: dataset.id, digest: image.digest },
+    });
+  const neighbors = [targetOf(previous), targetOf(next)];
+  // The images an arrow key leads to are fetched while this one is read.
+  const warmNeighbors = useEffectEvent(() => {
+    for (const target of neighbors) if (target) void warm(target);
+  });
+  useEffect(() => warmNeighbors(), [review.ref.digest]);
+  const stepTo = (image: DatasetImageStep | null) => {
+    const target = targetOf(image);
+    return target ? () => step(target) : undefined;
+  };
   const toPrevious = stepTo(previous);
   const toNext = stepTo(next);
   useStepKeys({
@@ -96,7 +111,6 @@ function DatasetImagePage() {
 
   return (
     <ImageWorkbench
-      key={review.ref.digest}
       title={m.image_title({ file: review.filename, dataset: dataset.id })}
       model={model}
       review={review}
@@ -105,6 +119,7 @@ function DatasetImagePage() {
         void navigate({ search: (previous) => ({ ...previous, show }) })
       }
       onNext={stepTo(nextUnreviewed)}
+      stepping={pending}
       context={{
         steps: (
           <WorkbenchFooter label={m.image_steps()}>

@@ -1,10 +1,13 @@
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 import {
+  cloneElement,
   createContext,
   type ReactElement,
   type ReactNode,
+  type Ref,
   use,
   useCallback,
+  useEffect,
   useState,
 } from "react";
 import { defaultPortalContainer, triggerRender } from "./floating";
@@ -25,6 +28,9 @@ import {
  *
  * Inside a `TooltipGroup` the triggers share one popup: once it is open,
  * moving to a neighbour shows that one's text without the opening delay.
+ *
+ * `OverflowTooltip` is for a name cut to one line with an ellipsis: it shows
+ * the whole name only while the child's box is cutting it.
  */
 
 const OPEN_DELAY = 400;
@@ -35,6 +41,8 @@ export type TooltipPlacement = "top" | "right" | "bottom";
 
 export interface TooltipProps {
   children: ReactElement;
+  /** The trigger stays in place and the tooltip does not open. */
+  disabled?: boolean;
   /** Written like Hotkey's `keys` (`mod+k`). */
   hotkey?: string;
   placement?: TooltipPlacement;
@@ -58,6 +66,7 @@ function TooltipContent({ hotkey, title }: TooltipItem) {
 
 export function Tooltip({
   children,
+  disabled,
   title,
   hotkey,
   placement = "top",
@@ -83,6 +92,7 @@ export function Tooltip({
       <BaseTooltip.Trigger
         closeDelay={CLOSE_DELAY}
         delay={OPEN_DELAY}
+        disabled={disabled}
         handle={group}
         id={popupTriggerId}
         payload={{ hotkey, placement, title }}
@@ -92,7 +102,7 @@ export function Tooltip({
   }
 
   return (
-    <BaseTooltip.Root>
+    <BaseTooltip.Root disabled={disabled}>
       <BaseTooltip.Trigger
         closeDelay={CLOSE_DELAY}
         delay={OPEN_DELAY}
@@ -114,6 +124,37 @@ export function Tooltip({
         </BaseTooltip.Positioner>
       </BaseTooltip.Portal>
     </BaseTooltip.Root>
+  );
+}
+
+export function OverflowTooltip({
+  children,
+  placement,
+  title,
+}: {
+  /** The element whose own box cuts the text. */
+  children: ReactElement;
+  placement?: TooltipPlacement;
+  title: string;
+}) {
+  const [node, setNode] = useState<HTMLElement | null>(null);
+  const [cut, setCut] = useState(false);
+
+  useEffect(() => {
+    if (!node) return;
+    const measure = () => setCut(node.scrollWidth > node.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node, title]);
+
+  return (
+    <Tooltip disabled={!cut} placement={placement} title={title}>
+      {cloneElement(children as ReactElement<{ ref?: Ref<HTMLElement> }>, {
+        ref: setNode,
+      })}
+    </Tooltip>
   );
 }
 

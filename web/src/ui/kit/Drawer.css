@@ -98,6 +98,50 @@
   margin-inline-end: -4px;
 }
 
+.ui-drawer-close-button {
+  cursor: pointer;
+
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+
+  color: var(--color-fg-tertiary);
+
+  background: transparent;
+
+  transition:
+    color var(--duration-base) var(--ease-soft),
+    background var(--duration-base) var(--ease-soft),
+    transform var(--duration-base) var(--ease-soft);
+
+  /* Restores the 40px target the 32px box gives up, without moving the header. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+
+  &:hover {
+    transform: scale(1.04);
+    color: var(--color-fg);
+    background: var(--color-fill-secondary);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  @apply focus-ring;
+}
+
 .ui-drawer-close-floating {
   position: absolute;
   z-index: var(--z-index-raise);

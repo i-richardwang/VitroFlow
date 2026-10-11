@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import { m } from "../../paraglide/messages";
+import { OverflowTooltip } from "./Tooltip";
 
 export interface BreadcrumbItem {
   href?: string;
@@ -25,24 +26,29 @@ export function Breadcrumb({
     <nav aria-label={m.ui_breadcrumb_label()} className="ui-breadcrumb">
       {items.map((item, index) => {
         const last = index === items.length - 1;
+        const crumb =
+          item.href && !last ? (
+            renderLink({
+              children: item.label,
+              className: "ui-breadcrumb-link",
+              href: item.href,
+            })
+          ) : (
+            <span
+              aria-current={last ? "page" : undefined}
+              className={last ? "ui-breadcrumb-page" : "ui-breadcrumb-ancestor"}
+            >
+              {item.label}
+            </span>
+          );
         return (
           <span key={`${index}`}>
-            {item.href && !last ? (
-              renderLink({
-                children: item.label,
-                className: "ui-breadcrumb-link",
-                href: item.href,
-              })
+            {typeof item.label === "string" && isValidElement(crumb) ? (
+              <OverflowTooltip placement="bottom" title={item.label}>
+                {crumb}
+              </OverflowTooltip>
             ) : (
-              <span
-                aria-current={last ? "page" : undefined}
-                className={
-                  last ? "ui-breadcrumb-page" : "ui-breadcrumb-ancestor"
-                }
-                title={typeof item.label === "string" ? item.label : undefined}
-              >
-                {item.label}
-              </span>
+              crumb
             )}
             {index < items.length - 1 ? (
               <span aria-hidden className="ui-breadcrumb-separator">

@@ -1,5 +1,6 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, linkOptions, useRouter } from "@tanstack/react-router";
 import { ImageOff } from "lucide-react";
+import { useEffect, useEffectEvent } from "react";
 
 import { observationLabel, cultureEventLabel } from "./labels";
 import type { ReviewSource } from "../../domain/annotation/schema";
@@ -10,6 +11,7 @@ import {
 } from "../../domain/experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
+import { useStep } from "../../ui/hooks/useStep";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { DescriptionsItem } from "../../ui/kit/Descriptions";
@@ -31,7 +33,7 @@ import {
   WorkbenchSection,
 } from "../../ui/shell/Workbench";
 import { Stepper } from "../../ui/Stepper";
-import { ImageWorkbench } from "../annotation/ImageWorkbench";
+import { ImageSubject } from "../annotation/ImageWorkbench";
 import { useStepKeys } from "../annotation/keys";
 import { CultureMenu, UnitMenu } from "./UnitMenu";
 import { Text } from "../../ui/kit/Text";
@@ -41,7 +43,8 @@ import { Text } from "../../ui/kit/Text";
  * of the grid's axes: through the units on the same day, the way a day's
  * photographs are reviewed, and through the days of the same unit, the way a
  * dish is followed over time. Confirming a review moves on to the next unit
- * still to review that day.
+ * still to review that day. The frame and its footer stay through every
+ * step; only what they hold is replaced.
  */
 export function UnitWorkbench({
   series,
@@ -55,7 +58,6 @@ export function UnitWorkbench({
   onSourceChange: (source: ReviewSource | undefined) => void;
 }) {
   const { experiment, unit, treatments, navigation, shown } = series;
-  const router = useRouter();
   const treatment = treatments.find((item) => item.id === unit.treatment)!;
   const at = navigation.findIndex((item) => item.id === unit.id);
   const title = m.unit_title({
@@ -68,27 +70,41 @@ export function UnitWorkbench({
     observationOrdinals(observations),
   );
 
-  const toUnit = (target: UnitStep | undefined) =>
-    target
-      ? () =>
-          void router.navigate({
-            to: "/experiments/$experiment/$unit",
-            params: { experiment: experiment.id, unit: target.id },
-            search: { observation: series.observation ?? undefined },
-          })
-      : undefined;
+  const { pending, step, warm } = useStep(shownPicture);
+  const unitTarget = (target: UnitStep | undefined) =>
+    target &&
+    linkOptions({
+      to: "/experiments/$experiment/$unit",
+      params: { experiment: experiment.id, unit: target.id },
+      search: { observation: series.observation ?? undefined },
+    });
   const dayAt = observations.findIndex(
     (item) => item.id === series.observation,
   );
+  const dayTarget = (observation: string | undefined) =>
+    observation === undefined
+      ? undefined
+      : linkOptions({
+          to: "/experiments/$experiment/$unit",
+          params: { experiment: experiment.id, unit: unit.id },
+          search: { observation },
+        });
+  const neighbors = [
+    unitTarget(navigation[at - 1]),
+    unitTarget(navigation[at + 1]),
+    dayTarget(observations[dayAt - 1]?.id),
+    dayTarget(observations[dayAt + 1]?.id),
+  ];
+  // The four subjects an arrow key leads to are fetched while this one is read.
+  const warmNeighbors = useEffectEvent(() => {
+    for (const target of neighbors) if (target) void warm(target);
+  });
+  useEffect(() => warmNeighbors(), [unit.id, series.observation]);
+  const toward = (target: (typeof neighbors)[number]) =>
+    target ? () => step(target) : undefined;
+  const toUnit = (target: UnitStep | undefined) => toward(unitTarget(target));
   const toDay = (observation: string | undefined) =>
-    observation
-      ? () =>
-          void router.navigate({
-            to: "/experiments/$experiment/$unit",
-            params: { experiment: experiment.id, unit: unit.id },
-            search: { observation },
-          })
-      : undefined;
+    toward(dayTarget(observation));
   const previousUnit = toUnit(navigation[at - 1]);
   const nextUnit = toUnit(navigation[at + 1]);
   const toReview = [
@@ -139,9 +155,12 @@ export function UnitWorkbench({
           options={series.observations.map(({ observation, image }) => ({
             value: observation.id,
             label: observationLabel(observation),
-            mark: image ? <ReviewDot review={imageReview(image)} /> : undefined,
+            // Keyed by unit: another unit's standing is not this one's changing.
+            mark: image ? (
+              <ReviewDot key={unit.id} review={imageReview(image)} />
+            ) : undefined,
           }))}
-          onChange={(observation) => toDay(observation)?.()}
+          onChange={(observation) => void toDay(observation)?.()}
         />
       ) : null}
     </WorkbenchFooter>
@@ -177,8 +196,8 @@ export function UnitWorkbench({
         };
     return (
       <Workbench title={title}>
-        <ShellActions>{menu}</ShellActions>
         {steps}
+        <ShellActions>{menu}</ShellActions>
         <WorkbenchEmpty
           icon={ImageOff}
           title={missing.title}
@@ -201,40 +220,46 @@ export function UnitWorkbench({
   }
 
   return (
-    <ImageWorkbench
-      key={`${shown.model.id}:${shown.review.ref.digest}`}
-      title={title}
-      model={shown.model}
-      review={shown.review}
-      source={source}
-      onSourceChange={onSourceChange}
-      onNext={toUnit(toReview[0])}
-      context={{
-        menu,
-        steps,
-        alert: shown.failure ? (
-          <Alert
-            type="error"
-            title={m.unit_detection_failed()}
-            detail={shown.failure.error}
-            action={<RetryButton image={shown.ref} />}
-          />
-        ) : undefined,
-        sections: culture,
-        facts: (
-          <>
-            <DescriptionsItem label={m.treatment_label()}>
-              {treatment.name}
-            </DescriptionsItem>
-            <DescriptionsItem label={m.unit_observed()}>
-              <Day value={shown.observation.observedOn} />
-            </DescriptionsItem>
-          </>
-        ),
-      }}
-    />
+    <Workbench title={title}>
+      {steps}
+      <ImageSubject
+        key={`${shown.model.id}:${shown.review.ref.digest}`}
+        model={shown.model}
+        review={shown.review}
+        source={source}
+        onSourceChange={onSourceChange}
+        onNext={toUnit(toReview[0])}
+        stepping={pending}
+        context={{
+          menu,
+          alert: shown.failure ? (
+            <Alert
+              type="error"
+              title={m.unit_detection_failed()}
+              detail={shown.failure.error}
+              action={<RetryButton image={shown.ref} />}
+            />
+          ) : undefined,
+          sections: culture,
+          facts: (
+            <>
+              <DescriptionsItem label={m.treatment_label()}>
+                {treatment.name}
+              </DescriptionsItem>
+              <DescriptionsItem label={m.unit_observed()}>
+                <Day value={shown.observation.observedOn} />
+              </DescriptionsItem>
+            </>
+          ),
+        }}
+      />
+    </Workbench>
   );
 }
+
+/** The photograph a unit's page frames, if it has one. */
+const shownPicture = (loaderData: unknown) =>
+  (loaderData as UnitSeries | undefined)?.shown?.review.ref.digest ?? null;
 
 const REVIEW_DOTS: Record<
   ImageReview,

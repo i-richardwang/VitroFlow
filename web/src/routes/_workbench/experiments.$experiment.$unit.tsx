@@ -82,7 +82,6 @@ function UnitPage() {
 
   return (
     <UnitWorkbench
-      key={`${series.experiment.id}/${series.unit.id}`}
       series={series}
       datasets={datasets}
       source={show}

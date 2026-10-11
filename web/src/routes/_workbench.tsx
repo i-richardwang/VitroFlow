@@ -8,6 +8,7 @@ import { getExperimentNames } from "../functions/experiments";
 import { getSession } from "../functions/session";
 import { m } from "../paraglide/messages";
 import { errorMessage } from "../ui/errors";
+import { useRefreshOnReturn } from "../ui/hooks/useRouteRefresh";
 import { Shell } from "../ui/shell/Shell";
 import { RouteNotice } from "../ui/RouteNotice";
 
@@ -70,6 +71,7 @@ function WorkbenchShell({ children }: { children: ReactNode }) {
   const experiments = Route.useLoaderData();
   const [collapsed, setCollapsed] = useState(navCollapsed);
   const [inspectorFolded, setInspectorFolded] = useState(inspectorCollapsed);
+  useRefreshOnReturn();
   return (
     <Shell
       user={user}

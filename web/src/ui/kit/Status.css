@@ -1,4 +1,4 @@
-/* Block order: root, tones, the dot, then the standalone dot and its tones. */
+/* Block order: root, tones, the mark and its dot, then the standalone dot and its tones. */
 
 .ui-status {
   display: inline-flex;
@@ -30,6 +30,15 @@
   color: var(--color-error);
 }
 
+.ui-status-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+
+  &[data-changed] {
+    animation: var(--animate-pop);
+  }
+}
+
 .ui-status-dot {
   flex-shrink: 0;
   width: 6px;
@@ -51,6 +60,10 @@
   background: var(--ui-status-dot-color);
   box-shadow: 0 0 0 3px
     color-mix(in srgb, var(--ui-status-dot-color) 20%, transparent);
+}
+
+.ui-status-dot-mark[data-changed] {
+  animation: var(--animate-pop);
 }
 
 .ui-status-dot-neutral {

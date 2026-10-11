@@ -1,3 +1,4 @@
+import { useRouter } from "@tanstack/react-router";
 import { Lock, LockOpen } from "lucide-react";
 import { useState } from "react";
 
@@ -17,6 +18,7 @@ import {
   Workbench,
   WorkbenchAlert,
   WorkbenchInspector,
+  WorkbenchStatus,
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
 import {
@@ -40,40 +42,65 @@ const STANDING: Record<Standing, { tone: StatusTone; label: () => string }> = {
   unread: { tone: "neutral", label: m.annotation_standing_unread },
 };
 
-/**
- * One image and its boxes, on view for review. The boxes begin as the
- * reading on view, the best one unless another is picked. They are locked
- * until the lock leading the toolbar is opened; then the editing tools show
- * and any edit begins a draft. Confirming stores the boxes as the image's review
- * and, when the page names one, moves on to the next image still to review.
- * Where an AI proposal is on view, the places it asks a person to check are
- * outlined, counted and stepped through.
- */
-export function ImageWorkbench({
-  title,
-  model,
-  review,
-  source,
-  onSourceChange,
-  onNext,
-  context = {},
-}: {
-  title: string;
+interface ImageSubjectProps {
   model: Model;
   review: Review;
   source?: ReviewSource;
   /** Shows another reading; none returns to the best. */
   onSourceChange: (source: ReviewSource | undefined) => void;
-  /** Opens the next image still to review, when there is one. */
-  onNext?: () => void;
+  /** Opens the next image still to review, when there is one; settles once it is on view. */
+  onNext?: () => Promise<void> | void;
+  /** Another image is on its way; this one stays until it can be replaced whole. */
+  stepping?: boolean;
   context?: ImageWorkbenchContext;
-}) {
+}
+
+/**
+ * A workbench framing one image for review. Its frame, and the way to the
+ * images beside this one in its footer, stay in place from one image to the
+ * next; the image, its boxes and everything said about them start afresh.
+ */
+export function ImageWorkbench({
+  title,
+  ...subject
+}: ImageSubjectProps & { title: string }) {
+  return (
+    <Workbench title={title}>
+      {subject.context?.steps}
+      <ImageSubject
+        key={`${subject.model.id}:${subject.review.ref.digest}`}
+        {...subject}
+      />
+    </Workbench>
+  );
+}
+
+/**
+ * One image and its boxes, on view for review inside a `Workbench`. The
+ * boxes begin as the reading on view, the best one unless another is picked.
+ * They are locked until the lock leading the toolbar is opened; then the
+ * editing tools show and any edit begins a draft. Confirming stores the
+ * boxes as the image's review and, when the page names one, moves on to the
+ * next image still to review. Where an AI proposal is on view, the places it
+ * asks a person to check are outlined, counted and stepped through. Mounted
+ * under a key of its image, so nothing of one image carries into the next.
+ */
+export function ImageSubject({
+  model,
+  review,
+  source,
+  onSourceChange,
+  onNext,
+  stepping = false,
+  context = {},
+}: ImageSubjectProps) {
   const [layers, setLayers] = useState<ReadonlySet<LayerKey>>(
     () => new Set(["boxes", "checks"]),
   );
   const sources = availableSources(review);
   const shown =
     source && sources.includes(source) ? source : (sources[0] ?? null);
+  const router = useRouter();
   const locked = useEditLocked();
   const session = useImageSession({ review, shown, model, locked });
   const { standing, saving, instances } = session;
@@ -97,9 +124,23 @@ export function ImageWorkbench({
     }));
 
   const confirm = async () => {
-    if (await session.confirm()) {
-      if (onNext) onNext();
-      else onSourceChange(undefined);
+    if (!(await session.confirm(onNext !== undefined))) return;
+    if (!onNext) {
+      onSourceChange(undefined);
+      return;
+    }
+    await onNext();
+    // Everything read before the save is stale; the next image is on view by now.
+    void router.invalidate();
+  };
+  // The primary command is at work until what it leads to is on view.
+  const [running, setRunning] = useState(false);
+  const run = async (command: () => Promise<void> | void) => {
+    setRunning(true);
+    try {
+      await command();
+    } finally {
+      setRunning(false);
     }
   };
   const reviewed = standing === "reviewed";
@@ -111,17 +152,17 @@ export function ImageWorkbench({
       };
   useStepKeys({
     Enter:
-      primary && !saving && !session.conflict
-        ? () => void primary.run()
+      primary && !saving && !running && !session.conflict
+        ? () => void run(primary.run)
         : undefined,
   });
   const badge = STANDING[standing];
 
   return (
-    <Workbench
-      title={title}
-      status={<Status tone={badge.tone}>{badge.label()}</Status>}
-    >
+    <>
+      <WorkbenchStatus>
+        <Status tone={badge.tone}>{badge.label()}</Status>
+      </WorkbenchStatus>
       <ShellActions>
         {standing === "edited" ? (
           <Button type="text" disabled={saving} onClick={session.discard}>
@@ -131,9 +172,9 @@ export function ImageWorkbench({
         {primary ? (
           <Button
             type="primary"
-            loading={saving}
+            loading={saving || running}
             disabled={session.conflict !== null}
-            onClick={() => void primary.run()}
+            onClick={() => void run(primary.run)}
           >
             {primary.label}
           </Button>
@@ -186,7 +227,6 @@ export function ImageWorkbench({
           </>
         )}
       </WorkbenchToolbar>
-      {context.steps}
       <WorkbenchInspector>
         <CountsSection
           classes={model.classes}
@@ -213,6 +253,7 @@ export function ImageWorkbench({
         }}
         filename={review.filename}
         focus={focus}
+        pending={stepping}
         controls={
           <LayerControls
             available={
@@ -237,6 +278,6 @@ export function ImageWorkbench({
         />
         <ChecksLayer image={review} checks={checks} layers={layers} />
       </ImageViewport>
-    </Workbench>
+    </>
   );
 }

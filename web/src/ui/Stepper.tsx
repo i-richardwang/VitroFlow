@@ -7,7 +7,7 @@ import { Text } from "./kit/Text";
 /** One way through a sequence; without `onClick` there is nothing further that way. */
 interface Step {
   label: string;
-  onClick?: () => void;
+  onClick?: () => unknown;
 }
 
 /** Where a sequence stands, such as images or units, between the steps back and forward through it. */

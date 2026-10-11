@@ -176,8 +176,9 @@
 }
 
 /*
- * Row actions wait for the row. They stay in the layout while hidden, so a
- * row does not change width when they appear.
+ * Row actions wait for the row, and stay while one of them is at work. They
+ * stay in the layout while hidden, so a row does not change width when they
+ * appear.
  */
 @media (hover: hover) {
   .ui-table-wrapper .ui-table-tbody > tr > td[data-slot="actions"] > * {
@@ -187,7 +188,7 @@
 
   .ui-table-wrapper
     .ui-table-tbody
-    > tr:is(:hover, :focus-within, :has([data-popup-open]))
+    > tr:is(:hover, :focus-within, :has([data-popup-open], [aria-busy]))
     > td[data-slot="actions"]
     > * {
     opacity: 1;

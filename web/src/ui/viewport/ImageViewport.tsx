@@ -28,6 +28,7 @@ import {
   type ViewIntent,
 } from "./viewport";
 import { Text } from "../kit/Text";
+import { pictureSrc } from "./picture";
 
 const ZOOM_PER_WHEEL_PIXEL = 0.0015;
 const CLICK_SLOP = 3;
@@ -119,18 +120,22 @@ export interface ViewportFocus {
  * One image covering a frame until zoomed. Wheel zooms about the cursor,
  * dragging pans, and the image re-covers the frame whenever it changes size.
  * Children are drawn over the image in image pixels. `focus` centers a region
- * when it changes; `controls` join the zoom in the corner toolbar.
+ * when it changes; `controls` join the zoom in the corner toolbar. While
+ * `pending`, another image is on its way and this one steps back if the wait
+ * grows long enough to notice.
  */
 export function ImageViewport({
   image,
   filename,
   focus,
+  pending = false,
   controls,
   children,
 }: {
   image: ImageSize & { digest: string };
   filename: string;
   focus?: ViewportFocus | null;
+  pending?: boolean;
   controls?: ReactNode;
   children?: ReactNode;
 }) {
@@ -228,13 +233,17 @@ export function ImageViewport({
           width,
           height,
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          opacity: pending ? 0.6 : 1,
+          transition: "opacity var(--duration-slow) var(--ease-out)",
+          transitionDelay: pending ? "var(--duration-slow)" : "0s",
         }}
       >
         <img
-          src={`/img/${image.digest}`}
+          src={pictureSrc(image.digest)}
           alt={filename}
           width={width}
           height={height}
+          decoding="sync"
           draggable={false}
           className="block h-full w-full"
         />

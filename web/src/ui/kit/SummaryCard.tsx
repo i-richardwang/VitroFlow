@@ -7,6 +7,7 @@ import { EmptyPlace } from "./Empty";
 import { Icon, type IconProps } from "./Icon";
 import { IconTile } from "./IconTile";
 import { Skeleton } from "./Skeleton";
+import { OverflowTooltip } from "./Tooltip";
 
 /*
  * Things a reader opens one at a time, laid out as `SummaryCard`s: columns
@@ -76,7 +77,11 @@ export function SummaryCard({
         <div className="ui-summary-card-identity">
           <IconTile icon={icon} />
           <div className="ui-summary-card-heading">
-            {name}
+            {typeof title === "string" ? (
+              <OverflowTooltip title={title}>{name}</OverflowTooltip>
+            ) : (
+              name
+            )}
             {description != null ? (
               <span className="ui-summary-card-description">{description}</span>
             ) : null}
