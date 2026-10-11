@@ -12,6 +12,7 @@ import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { Status, type StatusTone } from "../../ui/kit/Status";
 import { ToolbarSeparator } from "../../ui/kit/Toolbar";
+import { Tooltip } from "../../ui/kit/Tooltip";
 import { ShellActions } from "../../ui/shell/Shell";
 import {
   Workbench,
@@ -27,7 +28,7 @@ import {
 import { ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import type { LayerKey } from "./controls";
 import { ChecksSection, CountsSection, DetailsSection } from "./inspector";
-import { useStepKeys } from "./keys";
+import { useSaveKey, useStepKeys } from "./keys";
 import { setEditLocked, useEditLocked } from "./lock";
 import { useImageSession, type Standing } from "./session";
 import { EditTools, LayerControls } from "./tools";
@@ -80,7 +81,7 @@ export function ImageWorkbench({
  * They are locked until the lock leading the toolbar is opened; then the
  * editing tools show and any edit begins a draft. The primary command
  * stores the boxes as the image's review and stays: it saves edits, or
- * confirms a machine's reading taken as it is. On a reviewed image it leads
+ * confirms a machine's reading taken as it is, as Mod+S does. On a reviewed image it leads
  * to the next one still to review. Where an AI proposal is on view, the places it
  * asks a person to check are outlined, counted and stepped through. Mounted
  * under a key of its image, so nothing of one image carries into the next.
@@ -125,19 +126,17 @@ export function ImageSubject({
   const store = async () => {
     if (await session.confirm()) onSourceChange(undefined);
   };
-  const primary =
-    standing === "reviewed"
-      ? onNext && { label: m.annotation_next_unreviewed(), run: onNext }
-      : {
-          label:
-            standing === "edited"
-              ? m.annotation_save()
-              : m.annotation_confirm(),
-          run: store,
-        };
-  useStepKeys({
-    Enter: primary && !saving && !session.conflict ? primary.run : undefined,
-  });
+  const ready = !saving && !session.conflict;
+  const stores = standing !== "reviewed";
+  const primary = stores
+    ? {
+        label:
+          standing === "edited" ? m.annotation_save() : m.annotation_confirm(),
+        run: store,
+      }
+    : onNext && { label: m.annotation_next_unreviewed(), run: onNext };
+  useStepKeys({ Enter: primary && ready ? primary.run : undefined });
+  useSaveKey(stores && ready ? store : undefined);
   const badge = STANDING[standing];
 
   return (
@@ -152,14 +151,16 @@ export function ImageSubject({
           </Button>
         ) : null}
         {primary ? (
-          <Button
-            type="primary"
-            loading={saving}
-            disabled={session.conflict !== null}
-            onClick={primary.run}
-          >
-            {primary.label}
-          </Button>
+          <Tooltip hotkey={stores ? "mod+s" : undefined} placement="bottom">
+            <Button
+              type="primary"
+              loading={saving}
+              disabled={session.conflict !== null}
+              onClick={primary.run}
+            >
+              {primary.label}
+            </Button>
+          </Tooltip>
         ) : null}
         <div inert={saving || undefined} className="contents">
           {context.menu}

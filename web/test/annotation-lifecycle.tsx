@@ -310,7 +310,8 @@ assert.ok(
 await key({ key: "Enter" });
 assert.equal(nexts, 1, "Enter moves on");
 await tapEmpty();
-await act(async () => button(m.annotation_save())!.click());
+await key({ key: "s", ctrlKey: true });
+assert.ok(pending(button(m.annotation_save())), "Mod+S saves");
 await act(async () => releaseSave?.());
 assert.equal(nexts, 1, "saving stays on the image");
 assert.ok(

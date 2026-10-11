@@ -11,7 +11,7 @@ import { ColorSwatch } from "../../ui/kit/ColorSwatch";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { className } from "../../ui/model-names";
-import type { LayerKey } from "./controls";
+import { classShortcut, type LayerKey } from "./controls";
 
 /**
  * What a press on the image does next: the class a new box takes, or the
@@ -53,6 +53,7 @@ export function EditTools({
                 count: classCount(tally, name),
               }),
               mark: <ColorSwatch color={classColor(classes, name).hex} />,
+              hotkey: classShortcut(classes, name) ?? undefined,
             }))}
             onChange={onClassChange}
           />

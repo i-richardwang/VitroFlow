@@ -1,11 +1,13 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup as BaseToggleGroup } from "@base-ui/react/toggle-group";
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { Tooltip } from "./Tooltip";
 
 /*
  * An exclusive group of compact toggles; once one is selected, clicking it
  * again keeps it selected. An option's `mark` leads its label, such as the
- * dot of a state or the swatch of a color. `outlined` is a list's filter: the toggles share
+ * dot of a state or the swatch of a color, and the key that selects it shows
+ * on hover (`hotkey`; the caller binds the key). `outlined` is a list's filter: the toggles share
  * one 24px outlined box, parted by hairlines, the selected one on fill.
  *
  * The selected toggle's fill is one indicator that slides to the next
@@ -36,6 +38,8 @@ const place = (group: HTMLElement) => {
 
 export interface ToggleGroupOption<Value extends string> {
   disabled?: boolean;
+  /** Written like Hotkey's `keys` (`mod+k`). */
+  hotkey?: string;
   label: string;
   mark?: ReactNode;
   value: Value;
@@ -87,15 +91,16 @@ export function ToggleGroup<Value extends string>({
     >
       <span aria-hidden className="ui-toggle-group-indicator" />
       {options.map((option) => (
-        <Toggle<Value>
-          className="ui-toggle-group-item"
-          disabled={option.disabled}
-          key={option.value}
-          value={option.value}
-        >
-          {option.mark}
-          {option.label}
-        </Toggle>
+        <Tooltip hotkey={option.hotkey} key={option.value} placement="bottom">
+          <Toggle<Value>
+            className="ui-toggle-group-item"
+            disabled={option.disabled}
+            value={option.value}
+          >
+            {option.mark}
+            {option.label}
+          </Toggle>
+        </Tooltip>
       ))}
     </BaseToggleGroup>
   );

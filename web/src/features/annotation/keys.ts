@@ -45,4 +45,24 @@ export function useStepKeys(bindings: Partial<Record<StepKey, () => unknown>>) {
   }, []);
 }
 
+/**
+ * Mod+S stores the page's work, or does nothing while there is none to
+ * store; either way the browser's own saving of the page stays out of it.
+ */
+export function useSaveKey(save: (() => unknown) | undefined) {
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+      return;
+    }
+    if (event.key.toLowerCase() !== "s" || isOwnedKey(event.target)) return;
+    event.preventDefault();
+    if (!event.repeat) save?.();
+  });
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => onKeyDown(event);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
+}
+
 type StepKey = "Enter" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
