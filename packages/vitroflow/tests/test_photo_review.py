@@ -2,13 +2,14 @@ import json
 import threading
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
 
 import cv2
 import numpy as np
 import pytest
 from vitroflow.cli import main
-from vitroflow.photos.review import bind_review
+from vitroflow.photos.review import ReviewServer, bind_review, load_review
 
 DOCUMENT = {
     "photos": [
@@ -40,9 +41,11 @@ def _document(folder: Path) -> Path:
     return path
 
 
-def _open(url: str, body: dict | None = None) -> tuple[int, bytes]:
+def _open(
+    url: str, body: dict | None = None, headers: dict[str, str] | None = None
+) -> tuple[int, bytes]:
     data = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(url, data=data)
+    request = urllib.request.Request(url, data=data, headers=headers or {})
     if data is not None:
         request.add_header("Content-Type", "application/json")
     last: Exception | None = None
@@ -58,60 +61,68 @@ def _open(url: str, body: dict | None = None) -> tuple[int, bytes]:
     raise AssertionError(last)
 
 
-def test_a_correction_is_kept_and_the_rest_can_be_accepted(tmp_path: Path) -> None:
-    path = _document(tmp_path)
-    before = {item.name: item.read_bytes() for item in tmp_path.glob("*.png")}
-    server = bind_review(path)
+@pytest.fixture
+def review(tmp_path: Path) -> Iterator[tuple[ReviewServer, str]]:
+    server = bind_review(_document(tmp_path))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    host, port = server.server_address[:2]
     try:
-        page, html = _open(f"http://{host}:{port}/")
-        assert page == 200
-        assert b"Accept remaining suggestions" in html
-        assert b"/review.css" in html
-        style, css = _open(f"http://{host}:{port}/review.css")
-        assert style == 200
-        assert b"--color-canvas" in css
-        script, code = _open(f"http://{host}:{port}/review.js")
-        assert script == 200
-        assert b"accept-remaining" in code
-
-        status, body = _open(
-            f"http://{host}:{port}/api/photos/0",
-            {"suitable": True, "note": " thin, but separate "},
-        )
-        assert status == 200
-        view = json.loads(body)
-        assert view["photos"][0]["name"] == "soft.png"
-        assert view["photos"][0]["suitable"] is False
-        assert view["photos"][0]["decision"] == {
-            "suitable": True,
-            "note": "thin, but separate",
-        }
-        assert "path" not in view["photos"][0]
-
-        status, body = _open(f"http://{host}:{port}/api/accept-remaining", {})
-        assert status == 200
-        accepted = json.loads(body)["photos"]
-        assert accepted[0]["decision"]["suitable"] is True
-        assert accepted[0]["decision"]["note"] == "thin, but separate"
-        assert accepted[1]["decision"] == {"suitable": True, "note": ""}
-        assert accepted[1]["suitable"] is True
-        assert accepted[1]["reason"] is None
-
-        assert _open(f"http://{host}:{port}/photo/99")[0] == 404
-        assert _open(f"http://{host}:{port}/photo/../check.json")[0] == 404
-        assert (
-            _open(f"http://{host}:{port}/api/photos/0", {"suitable": "yes"})[0] == 400
-        )
-        photo, image = _open(f"http://{host}:{port}/photo/0")
-        assert photo == 200
-        assert image.startswith(b"\x89PNG")
+        yield server, server.origin
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_a_correction_is_kept_and_the_rest_can_be_accepted(
+    tmp_path: Path, review: tuple[ReviewServer, str]
+) -> None:
+    server, origin = review
+    path = server.review_path
+    before = {item.name: item.read_bytes() for item in tmp_path.glob("*.png")}
+    page, html = _open(f"{origin}/")
+    assert page == 200
+    assert b"Accept remaining suggestions" in html
+    assert b"/review.css" in html
+    style, css = _open(f"{origin}/review.css")
+    assert style == 200
+    assert b"--color-canvas" in css
+    script, code = _open(f"{origin}/review.js")
+    assert script == 200
+    assert b"accept-remaining" in code
+
+    status, body = _open(
+        f"{origin}/api/photos/0",
+        {"suitable": True, "note": " thin, but separate "},
+    )
+    assert status == 200
+    view = json.loads(body)
+    assert view["photos"][0]["name"] == "soft.png"
+    assert view["photos"][0]["suitable"] is False
+    assert view["photos"][0]["decision"] == {
+        "suitable": True,
+        "note": "thin, but separate",
+    }
+    assert "path" not in view["photos"][0]
+
+    status, body = _open(f"{origin}/api/accept-remaining", {})
+    assert status == 200
+    accepted = json.loads(body)["photos"]
+    assert accepted[0]["decision"]["suitable"] is True
+    assert accepted[0]["decision"]["note"] == "thin, but separate"
+    assert accepted[1]["decision"] == {"suitable": True, "note": ""}
+    assert accepted[1]["suitable"] is True
+    assert accepted[1]["reason"] is None
+
+    assert _open(f"{origin}/photo/99")[0] == 404
+    assert _open(f"{origin}/photo/../check.json")[0] == 404
+    assert _open(f"{origin}/api/photos/0", {"suitable": "yes"})[0] == 400
+    photo, image = _open(f"{origin}/photo/0")
+    assert photo == 200
+    assert image.startswith(b"\x89PNG")
+    thumb, small = _open(f"{origin}/thumb/0")
+    assert thumb == 200
+    assert small.startswith(b"\xff\xd8")
 
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert saved["photos"][0]["suitable"] is False
@@ -119,6 +130,28 @@ def test_a_correction_is_kept_and_the_rest_can_be_accepted(tmp_path: Path) -> No
     assert saved["photos"][0]["decision"]["suitable"] is True
     assert saved["photos"][1]["decision"]["suitable"] is True
     assert {item.name: item.read_bytes() for item in tmp_path.glob("*.png")} == before
+
+
+def test_only_the_page_itself_is_answered(review: tuple[ReviewServer, str]) -> None:
+    server, origin = review
+    before = server.review_path.read_text(encoding="utf-8")
+    elsewhere = "http://elsewhere.example"
+
+    assert _open(f"{origin}/photo/0", headers={"Host": "elsewhere.example"})[0] == 403
+    assert _open(f"{origin}/api/accept-remaining", {}, {"Origin": elsewhere})[0] == 403
+    assert server.review_path.read_text(encoding="utf-8") == before
+
+    assert _open(f"{origin}/api/accept-remaining", {}, {"Origin": origin})[0] == 200
+
+
+def test_a_file_that_is_no_photograph_is_not_a_check_result(tmp_path: Path) -> None:
+    path = _document(tmp_path)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["photos"][0]["path"] = str(tmp_path / "check.json")
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="is not a check result"):
+        load_review(path)
 
 
 def test_check_writes_the_same_json_it_prints(
@@ -150,7 +183,9 @@ def test_check_refuses_to_overwrite_confirmations(
 
     assert main(["photos", "check", str(folder), "-o", str(output)]) == 2
 
-    assert "already holds confirmations" in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert "already holds confirmations" in error
+    assert "Checking" not in error
     assert output.read_text(encoding="utf-8") == before
 
 

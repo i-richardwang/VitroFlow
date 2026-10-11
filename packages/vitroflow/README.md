@@ -69,7 +69,7 @@ The seeds lie on the filter paper, inside the rim, where the lid labels do not r
 
 ## Confirming the suggestions
 
-`suitable` is a suggestion. A pale seed that is still in focus is left as countable, and the person who will count the dish has the last word. `vitroflow photos review` opens a page on this machine for the JSON that `check` wrote.
+`suitable` is a suggestion. A pale seed that is still in focus is left as countable, and the person who will count the dish has the last word. `vitroflow photos review` serves a page on this machine for the JSON that `check` wrote, and prints the address to open.
 
 ```bash
 uvx vitroflow photos check ~/plates/chosen -o ~/plates/check.json

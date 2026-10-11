@@ -7,16 +7,17 @@ suggestion stays; a later step trusts ``decision``.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import mimetypes
-import tempfile
 import threading
+from functools import cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
 import cv2
+
+from vitroflow.photos.photographs import PHOTO_SUFFIXES
 
 ROOT = Path(__file__).parent
 PAGES = {
@@ -25,6 +26,7 @@ PAGES = {
     "/review.js": ("review.js", "text/javascript; charset=utf-8"),
 }
 THUMB_EDGE = 180
+MEDIA_CACHE = "private, max-age=86400"
 
 
 def load_review(path: Path) -> dict:
@@ -47,7 +49,7 @@ def confirm(document: dict, index: int, suitable: bool | None, note: str) -> Non
 
 
 def clear_confirmation(document: dict, index: int) -> None:
-    document["photos"][index]["decision"] = None
+    document["photos"][index].pop("decision", None)
 
 
 def accept_remaining(document: dict) -> None:
@@ -67,15 +69,14 @@ def save_review(path: Path, document: dict) -> None:
     temporary.replace(path)
 
 
-def bind_review(path: Path, port: int = 0) -> ReviewServer:
-    return ReviewServer(("127.0.0.1", port), load_review(path), path)
+def bind_review(path: Path) -> ReviewServer:
+    return ReviewServer(load_review(path), path)
 
 
 def serve_review(path: Path) -> None:
     server = bind_review(path)
-    host, port = server.server_address[:2]
     count = len(server.document["photos"])
-    print(f"Review {count} photographs at http://{host}:{port}", flush=True)
+    print(f"Review {count} photographs at {server.origin}", flush=True)
     print(f"Confirmations are written to {path}", flush=True)
     try:
         server.serve_forever()
@@ -88,11 +89,14 @@ def serve_review(path: Path) -> None:
 class ReviewServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], document: dict, path: Path) -> None:
+    def __init__(self, document: dict, path: Path) -> None:
         self.document = document
         self.review_path = path
         self.lock = threading.Lock()
-        super().__init__(address, ReviewHandler)
+        super().__init__(("127.0.0.1", 0), ReviewHandler)
+        host, port = self.server_address[:2]
+        self.netloc = f"{host}:{port}"
+        self.origin = f"http://{self.netloc}"
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
@@ -103,6 +107,20 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if str(code).startswith("2"):
             return
         super().log_request(code, size)
+
+    def parse_request(self) -> bool:
+        """Admit only requests made by the page this server serves.
+
+        A page on another site reaches this port under its own Origin, or
+        under a Host name it has pointed at this machine.
+        """
+        if not super().parse_request():
+            return False
+        host, origin = self.headers.get("Host"), self.headers.get("Origin")
+        if host != self.server.netloc or origin not in (None, self.server.origin):
+            self.send_error(403)
+            return False
+        return True
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
@@ -125,12 +143,18 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         file_path = Path(photo["path"])
-        if kind == "thumb":
-            file_path = _thumbnail(file_path) or file_path
         if not file_path.is_file():
             self.send_error(404)
             return
-        self._send_file(file_path)
+        if kind == "photo":
+            content_type = mimetypes.types_map[file_path.suffix.lower()]
+            self._send(file_path.read_bytes(), content_type, cache=MEDIA_CACHE)
+            return
+        thumbnail = _thumbnail(file_path)
+        if thumbnail is None:
+            self.send_error(404)
+            return
+        self._send(thumbnail, "image/jpeg", cache=MEDIA_CACHE)
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
@@ -165,23 +189,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return None
         return payload if isinstance(payload, dict) else None
 
-    def _send(self, body: bytes, content_type: str) -> None:
+    def _send(self, body: bytes, content_type: str, cache: str = "no-store") -> None:
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.end_headers()
         self.wfile.write(body)
-
-    def _send_file(self, path: Path) -> None:
-        data = path.read_bytes()
-        kind = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        self.send_response(200)
-        self.send_header("Content-Type", kind)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "private, max-age=86400")
-        self.end_headers()
-        self.wfile.write(data)
 
 
 def _document(document: object) -> bool:
@@ -198,11 +212,15 @@ def _suggestion(photo: object) -> bool:
     if not isinstance(photo, dict):
         return False
     return (
-        isinstance(photo.get("path"), str)
+        _photograph(photo.get("path"))
         and isinstance(photo.get("suitable"), bool)
         and (photo.get("reason") is None or isinstance(photo.get("reason"), str))
         and _decision(photo.get("decision"))
     )
+
+
+def _photograph(path: object) -> bool:
+    return isinstance(path, str) and Path(path).suffix.lower() in PHOTO_SUFFIXES
 
 
 def _decision(decision: object) -> bool:
@@ -277,16 +295,9 @@ def _view(document: dict) -> dict:
     }
 
 
-def _thumbnail(source: Path) -> Path | None:
-    if not source.is_file():
-        return None
-    folder = Path(tempfile.gettempdir()) / "vitroflow-review"
-    folder.mkdir(exist_ok=True)
-    digest = hashlib.sha256(str(source).encode()).hexdigest()[:16]
-    destination = folder / f"{digest}-{source.stat().st_mtime_ns}.jpg"
-    if destination.is_file():
-        return destination
-    image = cv2.imread(str(source), cv2.IMREAD_COLOR)
+@cache
+def _thumbnail(source: Path) -> bytes | None:
+    image = cv2.imread(str(source), cv2.IMREAD_REDUCED_COLOR_8)
     if image is None:
         return None
     height, width = image.shape[:2]
@@ -297,6 +308,4 @@ def _thumbnail(source: Path) -> Path | None:
             (max(1, round(width * scale)), max(1, round(height * scale))),
             interpolation=cv2.INTER_AREA,
         )
-    if not cv2.imwrite(str(destination), image):
-        return None
-    return destination
+    return cv2.imencode(".jpg", image)[1].tobytes()

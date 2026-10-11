@@ -31,13 +31,17 @@ function standing(item) {
   return { label: decision.suitable ? "can be counted" : "cannot be counted", tone };
 }
 
+function changed(item) {
+  return !!item.decision && item.decision.suitable !== item.suitable;
+}
+
 function shown(item) {
   if (query && !item.name.toLowerCase().includes(query.trim().toLowerCase())) return false;
   const decision = item.decision;
   if (filter === "unconfirmed") return !decision;
   if (filter === "not-sure") return !!decision && decision.suitable === null;
   if (filter === "accepted") return !!decision && decision.suitable === item.suitable;
-  if (filter === "changed") return !!decision && decision.suitable !== item.suitable;
+  if (filter === "changed") return changed(item);
   return true;
 }
 
@@ -69,13 +73,9 @@ function renderList() {
   }
   list.querySelector(".current")?.scrollIntoView({ block: "nearest" });
   const confirmed = photos.filter((item) => item.decision).length;
-  const changed = photos.filter((item) => shownChanged(item)).length;
+  const corrected = photos.filter(changed).length;
   document.getElementById("count").textContent =
-    `${confirmed} confirmed of ${photos.length}` + (changed ? `, ${changed} changed` : "");
-}
-
-function shownChanged(item) {
-  return item.decision && item.decision.suitable !== item.suitable;
+    `${confirmed} confirmed of ${photos.length}` + (corrected ? `, ${corrected} changed` : "");
 }
 
 function show(item) {
@@ -117,7 +117,7 @@ function move(step) {
 function nextOpen() {
   for (let step = 1; step <= photos.length; step++) {
     const item = photos[(index + step) % photos.length];
-    if (!item.decision) {
+    if (!item.decision && shown(item)) {
       select(item.index);
       return;
     }
@@ -174,10 +174,7 @@ function applyTransform() {
 
 function fit() {
   if (!photo.naturalWidth) return;
-  scale = Math.min(
-    stage.clientWidth / photo.naturalWidth,
-    stage.clientHeight / photo.naturalHeight,
-  );
+  scale = fittedScale();
   tx = (stage.clientWidth - photo.naturalWidth * scale) / 2;
   ty = (stage.clientHeight - photo.naturalHeight * scale) / 2;
   applyTransform();

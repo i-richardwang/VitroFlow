@@ -204,7 +204,7 @@ def _spots(view: np.ndarray, paper: np.ndarray) -> list[tuple[float, float]]:
         cv2.MORPH_OPEN,
         np.ones((SPOT_OPENING, SPOT_OPENING), np.uint8),
     )
-    count, _, stats, centres = cv2.connectedComponentsWithStats(spots, 8)
+    count, _, stats, centres = cv2.connectedComponentsWithStats(spots, connectivity=8)
     found = []
     for index in range(1, count):
         area = int(stats[index, cv2.CC_STAT_AREA])
