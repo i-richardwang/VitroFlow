@@ -1,4 +1,3 @@
-import { useRouter } from "@tanstack/react-router";
 import { Lock, LockOpen } from "lucide-react";
 import { useState } from "react";
 
@@ -48,8 +47,8 @@ interface ImageSubjectProps {
   source?: ReviewSource;
   /** Shows another reading; none returns to the best. */
   onSourceChange: (source: ReviewSource | undefined) => void;
-  /** Opens the next image still to review, when there is one; settles once it is on view. */
-  onNext?: () => Promise<void> | void;
+  /** Opens the next image still to review, when there is one. */
+  onNext?: () => unknown;
   /** Another image is on its way; this one stays until it can be replaced whole. */
   stepping?: boolean;
   context?: ImageWorkbenchContext;
@@ -79,9 +78,10 @@ export function ImageWorkbench({
  * One image and its boxes, on view for review inside a `Workbench`. The
  * boxes begin as the reading on view, the best one unless another is picked.
  * They are locked until the lock leading the toolbar is opened; then the
- * editing tools show and any edit begins a draft. Confirming stores the
- * boxes as the image's review and, when the page names one, moves on to the
- * next image still to review. Where an AI proposal is on view, the places it
+ * editing tools show and any edit begins a draft. The primary command
+ * stores the boxes as the image's review and stays: it saves edits, or
+ * confirms a machine's reading taken as it is. On a reviewed image it leads
+ * to the next one still to review. Where an AI proposal is on view, the places it
  * asks a person to check are outlined, counted and stepped through. Mounted
  * under a key of its image, so nothing of one image carries into the next.
  */
@@ -100,7 +100,6 @@ export function ImageSubject({
   const sources = availableSources(review);
   const shown =
     source && sources.includes(source) ? source : (sources[0] ?? null);
-  const router = useRouter();
   const locked = useEditLocked();
   const session = useImageSession({ review, shown, model, locked });
   const { standing, saving, instances } = session;
@@ -123,38 +122,21 @@ export function ImageSubject({
       count: (previous?.count ?? 0) + 1,
     }));
 
-  const confirm = async () => {
-    if (!(await session.confirm(onNext !== undefined))) return;
-    if (!onNext) {
-      onSourceChange(undefined);
-      return;
-    }
-    await onNext();
-    // Everything read before the save is stale; the next image is on view by now.
-    void router.invalidate();
+  const store = async () => {
+    if (await session.confirm()) onSourceChange(undefined);
   };
-  // The primary command is at work until what it leads to is on view.
-  const [running, setRunning] = useState(false);
-  const run = async (command: () => Promise<void> | void) => {
-    setRunning(true);
-    try {
-      await command();
-    } finally {
-      setRunning(false);
-    }
-  };
-  const reviewed = standing === "reviewed";
-  const primary = reviewed
-    ? onNext && { label: m.annotation_next_unreviewed(), run: onNext }
-    : {
-        label: onNext ? m.annotation_confirm_next() : m.annotation_confirm(),
-        run: confirm,
-      };
+  const primary =
+    standing === "reviewed"
+      ? onNext && { label: m.annotation_next_unreviewed(), run: onNext }
+      : {
+          label:
+            standing === "edited"
+              ? m.annotation_save()
+              : m.annotation_confirm(),
+          run: store,
+        };
   useStepKeys({
-    Enter:
-      primary && !saving && !running && !session.conflict
-        ? () => void run(primary.run)
-        : undefined,
+    Enter: primary && !saving && !session.conflict ? primary.run : undefined,
   });
   const badge = STANDING[standing];
 
@@ -172,9 +154,9 @@ export function ImageSubject({
         {primary ? (
           <Button
             type="primary"
-            loading={saving || running}
+            loading={saving}
             disabled={session.conflict !== null}
-            onClick={() => void run(primary.run)}
+            onClick={primary.run}
           >
             {primary.label}
           </Button>

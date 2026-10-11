@@ -41,7 +41,7 @@
   ],
   "annotation_ai_checks": "待确认",
   "annotation_confirm": "确认",
-  "annotation_confirm_next": "确认并下一个",
+  "annotation_save": "保存",
   "annotation_next_unreviewed": "下一个待复核",
   "annotation_discard_edits": "放弃修改",
   "annotation_standing_edited": "未保存",

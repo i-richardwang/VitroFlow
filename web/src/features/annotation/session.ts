@@ -1,6 +1,5 @@
 import { useBlocker, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
-import { flushSync } from "react-dom";
 
 import {
   openDraft,
@@ -117,12 +116,8 @@ export interface ImageSession {
   origin: ReviewSource | null;
   standing: Standing;
   saving: boolean;
-  /**
-   * Stores the boxes on view as the image's review; true once stored. A page
-   * that stays reloads its readings first; one about to be left leaves the
-   * reload to the caller.
-   */
-  confirm: (leaving: boolean) => Promise<boolean>;
+  /** Stores the boxes on view as the image's review; true once stored. */
+  confirm: () => Promise<boolean>;
   /** Drops the edits and shows the reading again. */
   discard: () => void;
   panning: boolean;
@@ -265,52 +260,43 @@ export function useImageSession({
   );
 
   const { run: runSave } = useAsyncAction();
-  const confirm = useCallback(
-    async (leaving: boolean) => {
-      if (draft.saving) return false;
-      dispatch({ type: "submit" });
-      const result = await runSave(
-        () =>
-          saveAnnotation({
-            data: {
-              ref: review.ref,
-              base: draft.base,
-              instances: draft.instances,
-            },
-          }),
-        m.annotation_save_failed(),
-      );
-      if (!result.ok) {
-        dispatch({ type: "failed" });
-        return false;
-      }
-      if (result.value.status === "conflict") {
-        dispatch({ type: "conflict" });
-        return false;
-      }
-      // The stored boxes are the review now. The readings on hand still predate
-      // it, so the draft holds until fresh ones arrive. The page must know it is
-      // saved before the caller moves on, or the leave would be questioned.
-      flushSync(() =>
-        dispatch({
-          type: "open",
-          opening: {
-            key: opening.key,
-            shown: "review",
-            base: draft.instances,
+  const confirm = useCallback(async () => {
+    if (draft.saving) return false;
+    dispatch({ type: "submit" });
+    const result = await runSave(
+      () =>
+        saveAnnotation({
+          data: {
+            ref: review.ref,
+            base: draft.base,
             instances: draft.instances,
           },
-          activeClass: session.activeClass,
         }),
-      );
-      // A page that stays shows its fresh readings before the save is done
-      // with; one being left is refreshed by whoever leaves it, once the next
-      // is on view.
-      if (!leaving) await router.invalidate();
-      return true;
-    },
-    [draft, review.ref, router, runSave, opening.key, session.activeClass],
-  );
+      m.annotation_save_failed(),
+    );
+    if (!result.ok) {
+      dispatch({ type: "failed" });
+      return false;
+    }
+    if (result.value.status === "conflict") {
+      dispatch({ type: "conflict" });
+      return false;
+    }
+    // The stored boxes are the review now. The readings on hand still predate
+    // it, so the draft holds until fresh ones arrive.
+    dispatch({
+      type: "open",
+      opening: {
+        key: opening.key,
+        shown: "review",
+        base: draft.instances,
+        instances: draft.instances,
+      },
+      activeClass: session.activeClass,
+    });
+    await router.invalidate();
+    return true;
+  }, [draft, review.ref, router, runSave, opening.key, session.activeClass]);
 
   const discard = useCallback(
     () => dispatch({ type: "open", opening, activeClass: session.activeClass }),
