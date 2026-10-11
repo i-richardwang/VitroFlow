@@ -11,24 +11,26 @@ import { errorMessage } from "../ui/errors";
 import { Shell } from "../ui/shell/Shell";
 import { RouteNotice } from "../ui/RouteNotice";
 
-/** Remembers the navigation rail. The server reads it so the first frame matches. */
+/** Remember which of the shell's side panels are folded. The server reads them so the first frame matches. */
 const NAV_COOKIE = "vitroflow_nav";
+const INSPECTOR_COOKIE = "vitroflow_inspector";
 
-const readNavCollapsed = createIsomorphicFn()
-  .server(() => getCookie(NAV_COOKIE) === "collapsed")
-  .client(() =>
-    document.cookie.split("; ").includes(`${NAV_COOKIE}=collapsed`),
+const readCollapsed = createIsomorphicFn()
+  .server((cookie: string) => getCookie(cookie) === "collapsed")
+  .client((cookie: string) =>
+    document.cookie.split("; ").includes(`${cookie}=collapsed`),
   );
 
-function writeNavCollapsed(collapsed: boolean) {
+function writeCollapsed(cookie: string, collapsed: boolean) {
   // biome-ignore lint/suspicious/noDocumentCookie: the next request's server render reads it, so the write is synchronous
-  document.cookie = `${NAV_COOKIE}=${collapsed ? "collapsed" : "expanded"}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `${cookie}=${collapsed ? "collapsed" : "expanded"}; path=/; max-age=31536000; samesite=lax`;
 }
 
 export const Route = createFileRoute("/_workbench")({
   beforeLoad: async () => ({
     ...(await getSession()),
-    navCollapsed: readNavCollapsed(),
+    navCollapsed: readCollapsed(NAV_COOKIE),
+    inspectorCollapsed: readCollapsed(INSPECTOR_COOKIE),
   }),
   loader: () => getExperimentNames(),
   component: WorkbenchLayout,
@@ -64,9 +66,10 @@ function WorkbenchError({ error }: { error: Error }) {
 }
 
 function WorkbenchShell({ children }: { children: ReactNode }) {
-  const { user, navCollapsed } = Route.useRouteContext();
+  const { user, navCollapsed, inspectorCollapsed } = Route.useRouteContext();
   const experiments = Route.useLoaderData();
   const [collapsed, setCollapsed] = useState(navCollapsed);
+  const [inspectorFolded, setInspectorFolded] = useState(inspectorCollapsed);
   return (
     <Shell
       user={user}
@@ -75,7 +78,12 @@ function WorkbenchShell({ children }: { children: ReactNode }) {
       collapsed={collapsed}
       onCollapsedChange={(next) => {
         setCollapsed(next);
-        writeNavCollapsed(next);
+        writeCollapsed(NAV_COOKIE, next);
+      }}
+      inspectorCollapsed={inspectorFolded}
+      onInspectorCollapsedChange={(next) => {
+        setInspectorFolded(next);
+        writeCollapsed(INSPECTOR_COOKIE, next);
       }}
     >
       {children}

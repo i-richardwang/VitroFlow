@@ -154,16 +154,19 @@ function openingOf(review: Review, shown: ReviewSource | null): Opening {
  * The image's boxes as a draft, open from the moment the page shows them. It
  * begins from the reading on view and follows that reading while nothing has
  * been edited; once edited it holds, and a save is checked against the review
- * it began from. Leaving with edits asks first.
+ * it began from. While `locked` the editing keys rest. Leaving with edits
+ * asks first.
  */
 export function useImageSession({
   review,
   shown,
   model,
+  locked,
 }: {
   review: Review;
   shown: ReviewSource | null;
   model: Model;
+  locked: boolean;
 }): ImageSession {
   const opening = useMemo(() => openingOf(review, shown), [review, shown]);
   const [session, dispatch] = useReducer(reduceSession, null, () =>
@@ -307,7 +310,7 @@ export function useImageSession({
   }, [discard, runReload, router]);
 
   useShortcuts({
-    enabled: !saving,
+    enabled: !saving && !locked,
     onPanChange: setPanning,
     onEscape: clearSelection,
     onDelete: deleteSelected,

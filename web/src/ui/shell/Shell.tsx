@@ -88,6 +88,16 @@ const TopBarSlots = createContext<{
   trail: HTMLElement | null;
 }>({ actions: null, trail: null });
 
+const InspectorFold = createContext<{
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+}>({ collapsed: false, onCollapsedChange: () => {} });
+
+/** Whether a workbench's inspector is folded, a choice kept from one subject to the next. */
+export function useInspectorFold() {
+  return use(InspectorFold);
+}
+
 /** A workbench's commands, at the end of the shell's top bar. */
 export function ShellActions({ children }: { children: ReactNode }) {
   const slot = use(TopBarSlots).actions;
@@ -119,8 +129,8 @@ export function ShellTrail({ status }: { status?: ReactNode }) {
  * The sidebar opens with the signed-in person, lists the places and then the
  * experiments, and ends with the color scheme. A settings page swaps the
  * person and the places for a trail home and the settings section. Whether
- * the sidebar is hidden is owned by the caller so the server renders the
- * stored choice.
+ * the sidebar is hidden, and whether a workbench's inspector is folded, are
+ * owned by the caller so the server renders the stored choices.
  */
 export function Shell({
   children,
@@ -129,6 +139,8 @@ export function Shell({
   user,
   collapsed,
   onCollapsedChange,
+  inspectorCollapsed,
+  onInspectorCollapsedChange,
 }: {
   children: ReactNode;
   account: ReactNode;
@@ -136,6 +148,8 @@ export function Shell({
   user: WorkbenchUser;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  inspectorCollapsed: boolean;
+  onInspectorCollapsedChange: (collapsed: boolean) => void;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const settings = settingsPlaces(user);
@@ -147,35 +161,44 @@ export function Shell({
 
   return (
     <TopBarSlots value={{ actions: actionsSlot, trail: trailSlot }}>
-      <AppShell
-        className="isolate"
-        collapsed={collapsed}
-        onCollapsedChange={onCollapsedChange}
-        header={
-          inSettings ? (
-            <AppShellTrail
-              home={{ href: HOME, label: m.nav_home() }}
-              title={m.nav_settings()}
+      <InspectorFold
+        value={{
+          collapsed: inspectorCollapsed,
+          onCollapsedChange: onInspectorCollapsedChange,
+        }}
+      >
+        <AppShell
+          className="isolate"
+          collapsed={collapsed}
+          onCollapsedChange={onCollapsedChange}
+          header={
+            inSettings ? (
+              <AppShellTrail
+                home={{ href: HOME, label: m.nav_home() }}
+                title={m.nav_settings()}
+                renderLink={routerLink}
+              />
+            ) : (
+              account
+            )
+          }
+          navigation={
+            <AppNav
+              items={inSettings ? settings : places()}
+              groups={inSettings ? [] : [experimentGroup(experiments)]}
+              pathname={pathname}
               renderLink={routerLink}
             />
-          ) : (
-            account
-          )
-        }
-        navigation={
-          <AppNav
-            items={inSettings ? settings : places()}
-            groups={inSettings ? [] : [experimentGroup(experiments)]}
-            pathname={pathname}
-            renderLink={routerLink}
-          />
-        }
-        footer={<ColorSchemeMenu size="middle" />}
-        breadcrumb={<div ref={setTrailSlot} className="contents" />}
-        tools={<div ref={setActionsSlot} className="flex items-center gap-1" />}
-      >
-        {children}
-      </AppShell>
+          }
+          footer={<ColorSchemeMenu size="middle" />}
+          breadcrumb={<div ref={setTrailSlot} className="contents" />}
+          tools={
+            <div ref={setActionsSlot} className="flex items-center gap-1" />
+          }
+        >
+          {children}
+        </AppShell>
+      </InspectorFold>
     </TopBarSlots>
   );
 }

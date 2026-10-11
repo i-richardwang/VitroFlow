@@ -13,12 +13,14 @@ const WIDTH = { default: 360, min: 300, max: 600 };
 /*
  * The one panel that stands beside a page's main content, at the end of the
  * shell's card: a workbench's inspector, a document page's preview of a row.
- * It is resized and folded at its seam (`DraggablePanel`), and its content is
- * stacked 16px apart in a padded column that scrolls on its own. A
+ * It is resized at its seam (`DraggablePanel`) and folds away while not
+ * `open`, and its content is stacked 16px apart in a padded column that
+ * scrolls on its own. A
  * `dismissible` panel, which shows something the reader chose, carries its
  * `title` and a close button over the content; one that stays is named by
- * its `title` for assistive technology only. Below the laptop breakpoint the
- * panel is a drawer, titled, shown while `open`.
+ * its `title` for assistive technology only, and is folded and brought back
+ * by its page. Below the laptop breakpoint the panel is a drawer, titled,
+ * shown while `open`.
  */
 export function SidePanel({
   children,
@@ -43,11 +45,11 @@ export function SidePanel({
       </Drawer>
     );
   }
-  if (!open) return null;
   return (
     <DraggablePanel
       aria-label={title}
       defaultWidth={WIDTH.default}
+      expand={open}
       maxWidth={WIDTH.max}
       minWidth={WIDTH.min}
     >

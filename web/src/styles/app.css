@@ -177,8 +177,6 @@
   --duration-shake: 300ms;
   --duration-spinner-grow: 380ms;
   --duration-spinner-fade: 260ms;
-  --duration-handle-fade: 180ms;
-  --duration-handle-move: 240ms;
 
   /* The smallest hit area a control keeps on a touch screen. */
   --size-touch: 44px;
@@ -380,7 +378,6 @@
    * one more step to stay above an open dialog.
    */
   --z-index-raise: 1;
-  --z-index-stick: 20;
   --z-index-popup: 50;
   --z-index-toast: 60;
 }

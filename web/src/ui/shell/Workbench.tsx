@@ -1,4 +1,4 @@
-import { PanelRight } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import {
   createContext,
   use,
@@ -17,7 +17,7 @@ import { SectionHeader } from "../kit/SectionHeader";
 import { SidePanel } from "../kit/SidePanel";
 import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
-import { ShellActions, ShellTrail } from "./Shell";
+import { ShellActions, ShellTrail, useInspectorFold } from "./Shell";
 
 /** Where floating content over the subject's top edge, and the bar under it, land. */
 const FloatSlots = createContext<{
@@ -37,9 +37,10 @@ const InspectorSlot = createContext<{
  * floating over its top edge and the way through its siblings in a bar under
  * it, facts in an inspector panel on the right. The shell's top bar stands
  * for the header a document page has: the way back up ending in the subject,
- * the subject's `status` after it, and its commands at the bar's end. The
- * inspector is a `SidePanel`; on narrow screens its drawer opens from the
- * top bar.
+ * the subject's `status` after it, and its commands at the bar's end, the
+ * last of them folding the inspector away and bringing it back. The
+ * inspector is a `SidePanel`; on narrow screens that command opens its
+ * drawer.
  */
 export function Workbench({
   title,
@@ -51,6 +52,7 @@ export function Workbench({
   children: ReactNode;
 }) {
   const compact = useIsCompact();
+  const fold = useInspectorFold();
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   const [alertSlot, setAlertSlot] = useState<HTMLDivElement | null>(null);
   const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null);
@@ -94,7 +96,7 @@ export function Workbench({
           </div>
           {hasInspector ? (
             <SidePanel
-              open={!compact || drawerOpen}
+              open={compact ? drawerOpen : !fold.collapsed}
               title={m.workbench_inspector()}
               onClose={() => setDrawerOpen(false)}
             >
@@ -103,13 +105,20 @@ export function Workbench({
             </SidePanel>
           ) : null}
         </AppShellFlush>
-        {hasInspector && compact ? (
+        {hasInspector ? (
           <ShellActions>
             <ActionIcon
-              icon={PanelRight}
+              aria-expanded={compact ? drawerOpen : !fold.collapsed}
+              icon={
+                compact || fold.collapsed ? PanelRightOpen : PanelRightClose
+              }
               size="header"
               title={m.workbench_inspector()}
-              onClick={() => setDrawerOpen(true)}
+              onClick={() =>
+                compact
+                  ? setDrawerOpen(true)
+                  : fold.onCollapsedChange(!fold.collapsed)
+              }
             />
           </ShellActions>
         ) : null}

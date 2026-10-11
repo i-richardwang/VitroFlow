@@ -1,3 +1,4 @@
+import { Lock, LockOpen } from "lucide-react";
 import { useState } from "react";
 
 import { openChecks } from "../../domain/annotation/checks";
@@ -6,9 +7,11 @@ import type { ReviewSource } from "../../domain/annotation/schema";
 import { tally } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { Status, type StatusTone } from "../../ui/kit/Status";
+import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { ShellActions } from "../../ui/shell/Shell";
 import {
   Workbench,
@@ -24,6 +27,7 @@ import { ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import type { LayerKey } from "./controls";
 import { ChecksSection, CountsSection, DetailsSection } from "./inspector";
 import { useStepKeys } from "./keys";
+import { setEditLocked, useEditLocked } from "./lock";
 import { useImageSession, type Standing } from "./session";
 import { EditTools, LayerControls } from "./tools";
 import type { ImageWorkbenchContext } from "./types";
@@ -37,9 +41,10 @@ const STANDING: Record<Standing, { tone: StatusTone; label: () => string }> = {
 };
 
 /**
- * One image and its boxes, open for review as soon as it shows. The boxes
- * begin as the reading on view, the best one unless another is picked, and
- * any edit begins a draft. Confirming stores the boxes as the image's review
+ * One image and its boxes, on view for review. The boxes begin as the
+ * reading on view, the best one unless another is picked. They are locked
+ * until the lock leading the toolbar is opened; then the editing tools show
+ * and any edit begins a draft. Confirming stores the boxes as the image's review
  * and, when the page names one, moves on to the next image still to review.
  * Where an AI proposal is on view, the places it asks a person to check are
  * outlined, counted and stepped through.
@@ -69,7 +74,8 @@ export function ImageWorkbench({
   const sources = availableSources(review);
   const shown =
     source && sources.includes(source) ? source : (sources[0] ?? null);
-  const session = useImageSession({ review, shown, model });
+  const locked = useEditLocked();
+  const session = useImageSession({ review, shown, model, locked });
   const { standing, saving, instances } = session;
   const checks =
     review.proposal && session.origin === "proposal"
@@ -151,18 +157,34 @@ export function ImageWorkbench({
         </WorkbenchAlert>
       ) : null}
       {context.alert ? <WorkbenchAlert>{context.alert}</WorkbenchAlert> : null}
-      <WorkbenchToolbar label={m.annotation_box_class()} inert={saving}>
-        <EditTools
-          classes={model.classes}
-          tally={tally(instances)}
-          boxClass={session.boxClass}
-          onClassChange={session.changeClass}
-          history={session.history}
-          onUndo={session.undo}
-          onRedo={session.redo}
-          canDelete={session.selectedId !== null}
-          onDelete={session.deleteSelected}
+      <WorkbenchToolbar label={m.annotation_tools()} inert={saving}>
+        <ActionIcon
+          icon={locked ? Lock : LockOpen}
+          size="small"
+          title={locked ? m.annotation_unlock() : m.annotation_lock()}
+          tooltipProps={{ placement: "bottom" }}
+          aria-pressed={locked}
+          onClick={() => {
+            session.setSelectedId(null);
+            setEditLocked(!locked);
+          }}
         />
+        {locked ? null : (
+          <>
+            <ToolbarSeparator />
+            <EditTools
+              classes={model.classes}
+              tally={tally(instances)}
+              boxClass={session.boxClass}
+              onClassChange={session.changeClass}
+              history={session.history}
+              onUndo={session.undo}
+              onRedo={session.redo}
+              canDelete={session.selectedId !== null}
+              onDelete={session.deleteSelected}
+            />
+          </>
+        )}
       </WorkbenchToolbar>
       {context.steps}
       <WorkbenchInspector>
@@ -206,7 +228,7 @@ export function ImageWorkbench({
           classes={model.classes}
           instances={instances}
           layers={layers}
-          panning={session.panning || saving}
+          panning={session.panning || saving || locked}
           activeClass={session.activeClass}
           selectedId={session.selectedId}
           onSelect={session.setSelectedId}

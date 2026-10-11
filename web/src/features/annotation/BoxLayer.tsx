@@ -161,8 +161,8 @@ type BoxGesture =
  * The boxes of a draft. Press a box to select it and press it again to give
  * it the next class; drag it to move it, drag a handle to resize it. Press
  * empty image to add a box, or to clear the selection when one is selected.
- * Dragging empty image pans, as does anything while space is held or the
- * draft is being saved.
+ * Dragging empty image pans, as does anything while space is held, the
+ * draft is being saved or the boxes are locked.
  */
 export function EditableBoxLayer({
   image,
@@ -180,7 +180,7 @@ export function EditableBoxLayer({
   classes: readonly string[];
   instances: AnnotationInstance[];
   layers: ReadonlySet<LayerKey>;
-  /** True while space is held or the draft is saving: the pointer only pans. */
+  /** True while space is held, the draft is saving or the boxes are locked: the pointer only pans. */
   panning: boolean;
   activeClass: string;
   selectedId: string | null;

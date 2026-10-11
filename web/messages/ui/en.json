@@ -18,8 +18,6 @@
   "ui_date_picker_prev_year": "Previous year",
   "ui_date_picker_today": "Today",
   "ui_done": "Done",
-  "ui_draggable_panel_collapse": "Collapse panel",
-  "ui_draggable_panel_expand": "Expand panel",
   "ui_draggable_panel_resize": "Resize {panel}",
   "ui_draggable_panel_size": "{size} pixels",
   "ui_drop_zone_progress": "Upload progress for {file}",

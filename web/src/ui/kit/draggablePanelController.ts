@@ -77,7 +77,6 @@ export interface PanelControllerOptions {
   expand: boolean;
   max: number;
   min: number;
-  onExpandChange: (expand: boolean) => void;
   onSizeChange: (size: number) => void;
   size: number;
 }
@@ -190,12 +189,6 @@ export const createPanelController = (
   };
 
   const resizeByKey = (event: PanelKeyEvent) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      options.onExpandChange(!options.expand);
-      return;
-    }
-
     const { max, min } = options;
     const fast =
       event.shiftKey || event.key === "PageUp" || event.key === "PageDown";
@@ -213,7 +206,6 @@ export const createPanelController = (
 
     event.preventDefault();
     const value = clamp(next, min, max);
-    if (!options.expand && value > 0) options.onExpandChange(true);
     options.onSizeChange(value);
   };
 
@@ -255,10 +247,7 @@ export const createPanelController = (
     },
     drag,
     motion: { content, size },
-    reset: () => {
-      if (!options.expand) options.onExpandChange(true);
-      options.onSizeChange(options.defaultSize);
-    },
+    reset: () => options.onSizeChange(options.defaultSize),
     resizeByKey,
     get state() {
       return state;

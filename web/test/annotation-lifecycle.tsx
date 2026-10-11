@@ -49,6 +49,7 @@ mock.module("../src/ui/shell/Shell", () => ({
   ShellActions: Passthrough,
   ShellTrail: ({ status }: { status?: ReactNode }) =>
     createElement("div", null, status),
+  useInspectorFold: () => ({ collapsed: false, onCollapsedChange: () => {} }),
 }));
 let saved: { data: { base: unknown; instances: unknown } } | undefined;
 let saves = 0;
@@ -177,6 +178,14 @@ const key = (init: Record<string, unknown>) =>
   });
 
 assert.equal(boxes(), 1, "the reviewer's boxes outrank the agent's");
+await tapEmpty();
+assert.equal(boxes(), 1, "locked boxes take no edits");
+const named = (label: string) =>
+  mount.ownerDocument.querySelector(`button[aria-label="${label}"]`);
+await act(async () =>
+  (named(m.annotation_unlock()) as unknown as { click(): void }).click(),
+);
+assert.ok(named(m.annotation_lock()), "the lock opens for editing");
 assert.ok(says(m.annotation_standing_reviewed()), "a review reads as reviewed");
 assert.equal(
   button(m.annotation_confirm()),

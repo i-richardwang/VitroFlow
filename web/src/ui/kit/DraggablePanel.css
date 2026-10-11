@@ -1,125 +1,10 @@
-/*
- * The seam between panel and page is the handle: two 1px strokes that part
- * around the toggle while the panel is hovered, focused within or collapsed.
- * The toggle is a bow in the seam with a chevron pointing the way a click
- * moves the panel.
- */
+/* The seam between panel and page is the handle, a 1px stroke down its middle. */
 .ui-draggable-panel {
-  --ui-draggable-panel-gap: 0px;
-
   position: relative;
   display: flex;
   flex-shrink: 0;
   min-width: 0;
   min-height: 0;
-
-  &:hover,
-  &:focus-within,
-  &[data-expand="false"] {
-    --ui-draggable-panel-gap: 45px;
-  }
-
-  /* Collapsed, the toggle shows only while the seam is hovered or focused. */
-  &[data-expand="false"]:not(:hover, :focus-within)
-    .ui-draggable-panel-toggle-root {
-    opacity: 0;
-  }
-
-  &:hover .ui-draggable-panel-toggle-root svg,
-  &:focus-within .ui-draggable-panel-toggle-root svg,
-  &[data-expand="false"] .ui-draggable-panel-toggle-root svg {
-    transform: translate(-50%, -50%) scaleX(1);
-    opacity: 1;
-  }
-
-  &[data-resizing="true"] {
-    --ui-draggable-panel-gap: 0px;
-  }
-
-  &[data-resizing="true"] .ui-draggable-panel-toggle-root svg {
-    opacity: 0;
-  }
-
-  &[data-expand="false"] .ui-draggable-panel-chevron {
-    rotate: 180deg;
-  }
-}
-
-.ui-draggable-panel-toggle-root {
-  pointer-events: none;
-
-  position: absolute;
-  z-index: var(--z-index-stick);
-  inset-block: 0;
-  inset-inline-start: -13px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 26px;
-}
-
-.ui-draggable-panel-toggle {
-  --focus-ring-offset: 3px;
-
-  pointer-events: all;
-  cursor: pointer;
-
-  position: relative;
-
-  width: 26px;
-  height: 34px;
-  padding: 0;
-  border: none;
-
-  color: var(--color-fg-tertiary);
-
-  background: none;
-
-  @apply focus-ring;
-
-  &:hover {
-    color: var(--color-fg);
-  }
-
-  svg {
-    pointer-events: none;
-
-    position: absolute;
-    inset-block-start: 50%;
-    inset-inline-start: 50%;
-    transform: translate(-50%, -50%) scaleX(0.45);
-
-    overflow: visible;
-
-    opacity: 0;
-
-    transition:
-      opacity var(--duration-handle-fade) var(--ease-out),
-      transform var(--duration-handle-move) var(--ease-out);
-  }
-
-  path {
-    transition: stroke var(--duration-base) var(--ease-out);
-  }
-
-  /* The bow is the seam bending, so it carries the seam's color, not the chevron's. */
-  path[data-bow] {
-    stroke: var(--color-border-secondary);
-  }
-
-  &:hover path[data-bow] {
-    stroke: var(--color-border);
-  }
-
-  .ui-draggable-panel-chevron {
-    transform-box: fill-box;
-    transform-origin: center;
-    transition:
-      rotate var(--duration-panel-fold) var(--ease-out),
-      stroke var(--duration-base) var(--ease-out);
-  }
 }
 
 /* Lays the content out at its own width, pinned to the end, so a narrower frame clips it. */
@@ -163,37 +48,26 @@
     --ui-draggable-panel-handle-size: 20px;
   }
 
-  &::before,
-  &::after {
+  &::before {
     content: "";
+
     position: absolute;
+    inset-block: 0;
     inset-inline-start: 50%;
+
     width: 1px;
     margin-inline-start: -0.5px;
+
     background: var(--color-border-secondary);
-    transition:
-      width var(--duration-panel-fold) var(--ease-out),
-      height var(--duration-panel-fold) var(--ease-out),
-      background var(--duration-base) var(--ease-out);
+
+    transition: background var(--duration-base) var(--ease-out);
   }
 
-  &:hover::before,
-  &:hover::after {
+  &:hover::before {
     background: var(--color-fill);
   }
 
-  &[data-resizing]::before,
-  &[data-resizing]::after {
+  &[data-resizing]::before {
     background: var(--color-primary);
-  }
-
-  &::before {
-    inset-block-start: 0;
-    height: calc(50% - var(--ui-draggable-panel-gap, 0px));
-  }
-
-  &::after {
-    inset-block-end: 0;
-    height: calc(50% - var(--ui-draggable-panel-gap, 0px));
   }
 }
