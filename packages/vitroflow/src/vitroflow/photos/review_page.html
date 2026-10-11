@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm photographs</title>
+<link rel="stylesheet" href="/review.css">
+</head>
+<body>
+<main class="stage">
+  <div class="float">
+    <div class="toolbar" role="toolbar" aria-label="Photograph">
+      <button class="button small text" id="prev" type="button">Previous</button>
+      <button class="button small text" id="next" type="button">Next</button>
+      <span class="sep"></span>
+      <span class="zoom" id="zoom"></span>
+      <button class="button small text" id="fit" type="button">Fit</button>
+      <button class="button small text" id="actual" type="button">1:1</button>
+    </div>
+  </div>
+  <div class="frame" id="stage">
+    <img id="photo" alt="">
+  </div>
+</main>
+<aside class="inspector">
+  <div>
+    <h1>Confirm photographs</h1>
+    <p class="count" id="count"></p>
+  </div>
+  <button class="button primary block" id="accept-all" type="button">Accept remaining suggestions</button>
+  <section class="section">
+    <p class="label">Suggestion</p>
+    <p class="suggestion" id="suggestion"></p>
+    <div class="choice" id="choice">
+      <button class="button" id="accept" type="button">Accept suggestion</button>
+      <button class="button" type="button" data-suitable="true">Can be counted</button>
+      <button class="button" type="button" data-suitable="false">Cannot be counted</button>
+      <button class="button" type="button" data-suitable="null">Not sure</button>
+    </div>
+    <textarea class="note" id="note" rows="2" placeholder="Note, optional" aria-label="Note, optional"></textarea>
+    <p class="notice" id="notice" hidden>Not saved</p>
+  </section>
+  <div class="filters" id="filters">
+    <button type="button" data-filter="all" aria-pressed="true">All</button>
+    <button type="button" data-filter="unconfirmed">Unconfirmed</button>
+    <button type="button" data-filter="accepted">Accepted</button>
+    <button type="button" data-filter="changed">Changed</button>
+    <button type="button" data-filter="not-sure">Not sure</button>
+  </div>
+  <label class="field">
+    <input id="q" type="search" placeholder="Find a file" autocomplete="off" aria-label="Find a file">
+  </label>
+  <ul class="list" id="list"></ul>
+</aside>
+<script src="/review.js"></script>
+</body>
+</html>

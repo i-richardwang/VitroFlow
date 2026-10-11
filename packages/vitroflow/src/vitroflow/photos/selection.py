@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,9 +13,9 @@ import numpy as np
 
 from vitroflow.photos.dish import locate_dish
 from vitroflow.photos.fingerprint import Survey, dish_motion, survey
+from vitroflow.photos.photographs import Progress, Skipped, photographs_in
 from vitroflow.photos.sharpness import SeedView, relative_sharpness, seed_view
 
-PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 # Photographs within this log ratio of the sharpest render the seeds about as
 # well; any of them would serve.
 COMPARABLE = 0.1
@@ -53,22 +53,13 @@ class Dish:
 
 
 @dataclass(frozen=True)
-class Skipped:
-    path: Path
-    reason: str
-
-
-@dataclass(frozen=True)
 class Selection:
     dishes: tuple[Dish, ...]
     skipped: tuple[Skipped, ...]
 
 
-Progress = Callable[[str], None]
-
-
 def select(folder: Path, progress: Progress = lambda _: None) -> Selection:
-    paths = _photos_in(folder)
+    paths = photographs_in(folder)
     with ThreadPoolExecutor() as pool:
         progress(f"Surveying {len(paths)} photographs")
         outcomes = list(pool.map(_survey, paths))
@@ -91,16 +82,6 @@ def select(folder: Path, progress: Progress = lambda _: None) -> Selection:
             groups,
         )
         return Selection(tuple(dishes), skipped)
-
-
-def _photos_in(folder: Path) -> list[Path]:
-    return sorted(
-        path
-        for path in folder.iterdir()
-        if path.is_file()
-        and not path.name.startswith(".")
-        and path.suffix.lower() in PHOTO_SUFFIXES
-    )
 
 
 def _survey(path: Path) -> Survey | Skipped:
