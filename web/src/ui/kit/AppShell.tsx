@@ -13,11 +13,13 @@ import { m } from "../../paraglide/messages";
 import { ActionIcon } from "./ActionIcon";
 import { Avatar } from "./Avatar";
 import { cn } from "./cn";
+import { DraggablePanel } from "./DraggablePanel";
 import { Drawer } from "./Drawer";
 import { DropdownMenu, type DropdownItem } from "./DropdownMenu";
 import { Flexbox } from "./Flex";
 import { Icon } from "./Icon";
 import { useIsCompact } from "./mediaQuery";
+import { TooltipGroup } from "./Tooltip";
 
 export interface AppShellState {
   /** Closes the compact navigation drawer. */
@@ -150,12 +152,17 @@ export function AppShellPane({ children }: { children: ReactNode }) {
   return <div className="ui-app-shell-pane">{children}</div>;
 }
 
+/** The sidebar opens 240px wide and is dragged at its seam up to 400px. */
+const SIDEBAR_WIDTH = { default: 240, min: 240, max: 400 };
+const TOGGLE_HOTKEY = "mod+b";
+
 /**
  * App frame: a sidebar on the canvas and the page in a bordered card with a
- * 44px top bar. The sidebar hides entirely when collapsed, and its toggle
- * moves from the sidebar's top row to the start of the top bar; below the
- * laptop breakpoint it is a drawer. Mod+B toggles it while focus is inside
- * the shell.
+ * 44px top bar. The sidebar is resized at its seam and folds away entirely
+ * when collapsed, its toggle moving from the sidebar's top row to the start
+ * of the top bar; below the laptop breakpoint it is a drawer. Mod+B toggles
+ * it while focus is inside the shell. The toggle and the account's chevron
+ * show while the pointer or focus is in the sidebar.
  */
 export function AppShell({
   breadcrumb,
@@ -223,18 +230,23 @@ export function AppShell({
             ? m.ui_shell_expand()
             : m.ui_shell_collapse()
       }
+      tooltipProps={isCompact ? undefined : { hotkey: TOGGLE_HOTKEY }}
       onClick={toggleNavigation}
     />
   );
 
   const sidebar = (
     <AppShellContext value={{ closeNavigation }}>
-      <div className="ui-app-shell-sidebar-header">
-        <div className="ui-app-shell-sidebar-header-main">{header}</div>
-        {isCompact ? null : toggle}
-      </div>
-      <div className="ui-app-shell-nav-slot">{navigation}</div>
-      <div className="ui-app-shell-sidebar-footer">{footer}</div>
+      <TooltipGroup>
+        <div className="ui-app-shell-sidebar-header">
+          <div className="ui-app-shell-sidebar-header-main">{header}</div>
+          {isCompact ? null : (
+            <span className="ui-app-shell-sidebar-toggle">{toggle}</span>
+          )}
+        </div>
+        <div className="ui-app-shell-nav-slot">{navigation}</div>
+        <div className="ui-app-shell-sidebar-footer">{footer}</div>
+      </TooltipGroup>
     </AppShellContext>
   );
 
@@ -270,22 +282,29 @@ export function AppShell({
           </Flexbox>
         </Drawer>
       ) : (
-        <aside
-          aria-hidden={hidden || undefined}
+        <DraggablePanel
+          aria-label={m.ui_shell_sidebar()}
+          border={false}
           className="ui-app-shell-sidebar"
-          inert={hidden}
+          defaultWidth={SIDEBAR_WIDTH.default}
+          expand={!hidden}
+          maxWidth={SIDEBAR_WIDTH.max}
+          minWidth={SIDEBAR_WIDTH.min}
+          placement="left"
         >
           {sidebar}
-        </aside>
+        </DraggablePanel>
       )}
       <div className="ui-app-shell-workspace">
         <header
           className="ui-app-shell-topbar"
           data-toggle={hidden || isCompact ? "" : undefined}
         >
-          {hidden || isCompact ? toggle : null}
-          <div className="ui-app-shell-topbar-main">{breadcrumb}</div>
-          <div className="ui-app-shell-tools">{tools}</div>
+          <TooltipGroup>
+            {hidden || isCompact ? toggle : null}
+            <div className="ui-app-shell-topbar-main">{breadcrumb}</div>
+            <div className="ui-app-shell-tools">{tools}</div>
+          </TooltipGroup>
         </header>
         <main
           className="ui-app-shell-main"

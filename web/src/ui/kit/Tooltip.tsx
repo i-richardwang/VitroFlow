@@ -1,7 +1,20 @@
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
-import type { ReactElement, ReactNode } from "react";
+import {
+  createContext,
+  type ReactElement,
+  type ReactNode,
+  use,
+  useCallback,
+  useState,
+} from "react";
 import { defaultPortalContainer, triggerRender } from "./floating";
 import { Hotkey } from "./Hotkey";
+import {
+  useDestroyOnLostTrigger,
+  useMarkPositionerAtOrigin,
+  usePopupHandleStore,
+  useRepopOnFarSwitch,
+} from "./popupHandle";
 
 /*
  * With neither `title` nor `hotkey`, children are returned as is. The trigger
@@ -9,6 +22,9 @@ import { Hotkey } from "./Hotkey";
  * wrapper (see floating.ts). A disabled control takes no pointer events, so
  * it is wrapped in a span that hosts the tooltip and can say why it is
  * disabled. Each tooltip has one trigger.
+ *
+ * Inside a `TooltipGroup` the triggers share one popup: once it is open,
+ * moving to a neighbour shows that one's text without the opening delay.
  */
 
 const OPEN_DELAY = 400;
@@ -25,12 +41,28 @@ export interface TooltipProps {
   title?: ReactNode;
 }
 
+type TooltipItem = Pick<TooltipProps, "hotkey" | "placement" | "title">;
+
+type TooltipHandle = ReturnType<typeof BaseTooltip.createHandle<TooltipItem>>;
+
+const TooltipGroupContext = createContext<TooltipHandle | null>(null);
+
+function TooltipContent({ hotkey, title }: TooltipItem) {
+  return (
+    <>
+      {title}
+      {hotkey ? <Hotkey compact keys={hotkey} /> : null}
+    </>
+  );
+}
+
 export function Tooltip({
   children,
   title,
   hotkey,
   placement = "top",
 }: TooltipProps) {
+  const group = use(TooltipGroupContext);
   if (title == null && !hotkey) return children;
 
   const child = children as ReactElement<Record<string, unknown>>;
@@ -40,6 +72,24 @@ export function Tooltip({
     typeof child.props.id === "string"
       ? child.props.id
       : undefined;
+  const render = child.props.disabled ? (
+    <span className="ui-tooltip-disabled-trigger">{children}</span>
+  ) : (
+    triggerRender(children)
+  );
+
+  if (group) {
+    return (
+      <BaseTooltip.Trigger
+        closeDelay={CLOSE_DELAY}
+        delay={OPEN_DELAY}
+        handle={group}
+        id={popupTriggerId}
+        payload={{ hotkey, placement, title }}
+        render={render}
+      />
+    );
+  }
 
   return (
     <BaseTooltip.Root>
@@ -47,13 +97,7 @@ export function Tooltip({
         closeDelay={CLOSE_DELAY}
         delay={OPEN_DELAY}
         id={popupTriggerId}
-        render={
-          child.props.disabled ? (
-            <span className="ui-tooltip-disabled-trigger">{children}</span>
-          ) : (
-            triggerRender(children)
-          )
-        }
+        render={render}
       />
       <BaseTooltip.Portal container={defaultPortalContainer()}>
         <BaseTooltip.Positioner
@@ -64,12 +108,83 @@ export function Tooltip({
         >
           <BaseTooltip.Popup className="ui-tooltip-popup">
             <BaseTooltip.Viewport className="ui-tooltip-viewport">
-              {title}
-              {hotkey ? <Hotkey compact keys={hotkey} /> : null}
+              <TooltipContent hotkey={hotkey} title={title} />
             </BaseTooltip.Viewport>
           </BaseTooltip.Popup>
         </BaseTooltip.Positioner>
       </BaseTooltip.Portal>
     </BaseTooltip.Root>
+  );
+}
+
+/**
+ * One popup for every `Tooltip` inside. With `layoutAnimation` it glides
+ * from trigger to trigger, its box morphing while the old text and the new
+ * crossfade, which suits controls that stand together, as in a toolbar;
+ * across more than 280px it reappears at the new trigger instead. Without,
+ * it only skips the opening delay, which suits a whole page. A group inside
+ * another takes over its own tooltips.
+ */
+export function TooltipGroup({
+  children,
+  layoutAnimation = true,
+}: {
+  children: ReactNode;
+  layoutAnimation?: boolean;
+}) {
+  const [{ handle, key }, setHandle] = useState(() => ({
+    handle: BaseTooltip.createHandle<TooltipItem>(),
+    key: 0,
+  }));
+  const destroy = useCallback(() => {
+    setHandle(({ key }) => ({
+      handle: BaseTooltip.createHandle<TooltipItem>(),
+      key: key + 1,
+    }));
+  }, []);
+
+  const store = usePopupHandleStore(handle);
+  useDestroyOnLostTrigger(store, destroy);
+  useMarkPositionerAtOrigin(store);
+  const repop = useRepopOnFarSwitch(store, layoutAnimation) || undefined;
+  const animated = layoutAnimation || undefined;
+
+  return (
+    <TooltipGroupContext value={handle}>
+      {/* The children stand outside Root: a new handle remounts Root, and they must outlive it. */}
+      {children}
+      <BaseTooltip.Root handle={handle} key={key}>
+        {({ payload }) => {
+          const item = payload as TooltipItem | undefined;
+          if (!item) return null;
+          const placement = item.placement ?? "top";
+          return (
+            <BaseTooltip.Portal container={defaultPortalContainer()}>
+              <BaseTooltip.Positioner
+                className="ui-tooltip-positioner"
+                data-layout-animation={animated}
+                data-placement={placement}
+                data-repop={repop}
+                side={placement}
+                sideOffset={6}
+              >
+                <BaseTooltip.Popup
+                  className="ui-tooltip-popup"
+                  data-layout-animation={animated}
+                  data-repop={repop}
+                >
+                  <BaseTooltip.Viewport
+                    className="ui-tooltip-viewport"
+                    data-repop={repop}
+                  >
+                    <TooltipContent hotkey={item.hotkey} title={item.title} />
+                  </BaseTooltip.Viewport>
+                </BaseTooltip.Popup>
+              </BaseTooltip.Positioner>
+            </BaseTooltip.Portal>
+          );
+        }}
+      </BaseTooltip.Root>
+    </TooltipGroupContext>
   );
 }

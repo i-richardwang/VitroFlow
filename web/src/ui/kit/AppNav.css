@@ -12,7 +12,7 @@
 }
 
 .ui-app-nav-places,
-.ui-app-nav-group-panel {
+.ui-app-nav-group-content {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -81,8 +81,53 @@
   }
 }
 
+/*
+ * The panel's height runs between 0 and its content's; the rows fade and
+ * shift 6px, in from below and out upward. Base UI marks a panel that is
+ * open from the start with `animation-name: none`, and it stands still.
+ */
 .ui-app-nav-group-panel {
+  overflow: hidden;
+  block-size: auto;
+  transition: block-size var(--duration-slow) var(--ease-out);
+
+  interpolate-size: allow-keywords;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    block-size: 0;
+  }
+
+  &[data-starting-style][style*="animation-name: none"],
+  &[data-starting-style][style*="animation-name:none"] {
+    block-size: auto;
+    transition: none;
+  }
+}
+
+.ui-app-nav-group-content {
   padding-block: 1px;
+
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    translate var(--duration-slow) var(--ease-out);
+
+  [data-starting-style] > & {
+    translate: 0 6px;
+    opacity: 0;
+  }
+
+  [data-ending-style] > & {
+    translate: 0 -6px;
+    opacity: 0;
+  }
+
+  [style*="animation-name: none"] > &,
+  [style*="animation-name:none"] > & {
+    translate: none;
+    opacity: 1;
+    transition: none;
+  }
 }
 
 .ui-app-nav-group-empty {

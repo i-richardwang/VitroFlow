@@ -171,8 +171,11 @@
   --duration-backdrop: 180ms;
   --duration-panel-fold: 250ms;
   --duration-menu-enter: 140ms;
+  --duration-popover-enter: 150ms;
+  --duration-popover-exit: 75ms;
   --duration-tooltip-enter: 280ms;
   --duration-tooltip-exit: 100ms;
+  --duration-tooltip-glide: 380ms;
   --duration-toast: 400ms;
   --duration-shake: 300ms;
   --duration-spinner-grow: 380ms;
@@ -349,8 +352,9 @@
 }
 
 @theme {
-  /* Shared by Icon's `spin` and the spinner. */
+  /* A button's spinner, and the slower turn of Icon's `spin`. */
   --animate-spin: spin 0.6s linear infinite;
+  --animate-turn: spin 1s linear infinite;
   @keyframes spin {
     to {
       transform: rotate(360deg);

@@ -1,12 +1,13 @@
 import { Toolbar as ToolbarPrimitive } from "@base-ui/react/toolbar";
 import { cn } from "./cn";
 import { Center } from "./Flex";
+import { TooltipGroup } from "./Tooltip";
 
 /*
  * A row of controls on an outlined surface with a raised edge shadow; callers
  * position it, for example over an image canvas. Arrow keys move focus between
  * `ToolbarButton`s; callers pass their buttons through `ToolbarButton`'s
- * `render`.
+ * `render`. Its controls share one tooltip, which glides between them.
  */
 
 export interface ToolbarProps extends Omit<
@@ -16,14 +17,16 @@ export interface ToolbarProps extends Omit<
   className?: string;
 }
 
-export function Toolbar({ className, ...props }: ToolbarProps) {
+export function Toolbar({ children, className, ...props }: ToolbarProps) {
   return (
     <ToolbarPrimitive.Root
       className={cn("ui-toolbar", className)}
       orientation="horizontal"
       render={<Center horizontal padding={2} />}
       {...props}
-    />
+    >
+      <TooltipGroup>{children}</TooltipGroup>
+    </ToolbarPrimitive.Root>
   );
 }
 

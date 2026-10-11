@@ -16,5 +16,5 @@
 }
 
 .ui-icon-spin {
-  animation: var(--animate-spin);
+  animation: var(--animate-turn);
 }

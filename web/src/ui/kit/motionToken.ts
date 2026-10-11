@@ -15,6 +15,7 @@ type Easing = [number, number, number, number];
 
 type DurationToken =
   | "--duration-base"
+  | "--duration-slow"
   | "--duration-backdrop"
   | "--duration-drawer-enter"
   | "--duration-drawer-exit"
@@ -22,7 +23,7 @@ type DurationToken =
   | "--duration-modal-exit"
   | "--duration-panel-fold";
 
-type EaseToken = "--ease-accelerate" | "--ease-soft";
+type EaseToken = "--ease-accelerate" | "--ease-fade" | "--ease-soft";
 
 const tokens = new Map<string, string>();
 
@@ -100,3 +101,9 @@ export const springTransition = (spring: {
   mass?: number;
   stiffness: number;
 }): Transition => honor({ ...spring, type: "spring" });
+
+/** A shared popup replaying its entrance at a trigger far from the last one. */
+export const repopTiming = (): KeyframeAnimationOptions => ({
+  duration: durationMs("--duration-slow"),
+  easing: read("--ease-fade") || undefined,
+});

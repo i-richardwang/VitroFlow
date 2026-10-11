@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { m } from "../../paraglide/messages";
+import { cn } from "./cn";
 import {
   createPanelController,
   type PanelControllerOptions,
@@ -16,11 +17,15 @@ import {
 import { foldTransition } from "./motionToken";
 
 /*
- * A panel on the inline-end side of the page, resized by dragging its seam.
- * The seam is a separator: drag to resize, double-click to return to
- * `defaultWidth`, arrow keys to step. Whether it stands open is the caller's
- * to say with `expand`; folded, it leaves no trace in the page.
+ * A panel at one side of the page, `right` unless placed `left`, resized by
+ * dragging its seam. The seam is a separator: drag to resize, double-click
+ * to return to `defaultWidth`, arrow keys to step. It draws a 1px stroke
+ * unless `border` is off, for a panel the page already frames. Whether it
+ * stands open is the caller's to say with `expand`; folded, it leaves no
+ * trace in the page.
  */
+
+export type DraggablePanelPlacement = "left" | "right";
 
 const PAN_THRESHOLD = 3;
 const COLLAPSED_SCALE = 0.97;
@@ -35,18 +40,24 @@ const useStore = <T,>(
 
 export function DraggablePanel({
   "aria-label": ariaLabel,
+  border = true,
   children,
+  className,
   defaultWidth,
   expand,
   maxWidth,
   minWidth,
+  placement = "right",
 }: {
   "aria-label": string;
+  border?: boolean;
   children: ReactNode;
+  className?: string;
   defaultWidth: number;
   expand: boolean;
   maxWidth: number;
   minWidth: number;
+  placement?: DraggablePanelPlacement;
 }) {
   const contentId = useId();
   const [width, setWidth] = useState(defaultWidth);
@@ -57,6 +68,7 @@ export function DraggablePanel({
     max: maxWidth,
     min: minWidth,
     onSizeChange: setWidth,
+    placement,
     size: width,
   };
 
@@ -89,7 +101,8 @@ export function DraggablePanel({
   return (
     <aside
       aria-label={ariaLabel}
-      className="ui-draggable-panel"
+      className={cn("ui-draggable-panel", className)}
+      data-placement={placement}
       ref={elementRef}
     >
       <motion.div
@@ -118,6 +131,7 @@ export function DraggablePanel({
           aria-valuenow={target}
           aria-valuetext={m.ui_draggable_panel_size({ size: target })}
           className="ui-draggable-panel-handle"
+          data-border={border}
           data-resizing={state.dragging || undefined}
           role="separator"
           tabIndex={0}

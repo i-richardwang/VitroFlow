@@ -2,7 +2,7 @@ import { animate, type MotionValue, motionValue } from "motion/react";
 import { foldTransition } from "./motionToken";
 
 /*
- * Width state of a DraggablePanel on the inline-end side, outside React. Two
+ * Width state of a DraggablePanel, outside React. Two
  * motion values drive the panel: `size` is the visible width and `content`
  * the width the children are laid out at, so a fold clips the content
  * instead of reflowing it.
@@ -78,6 +78,7 @@ export interface PanelControllerOptions {
   max: number;
   min: number;
   onSizeChange: (size: number) => void;
+  placement: "left" | "right";
   size: number;
 }
 
@@ -134,8 +135,9 @@ export const createPanelController = (
     }
   };
 
-  /** The panel grows toward inline-start: leftward, or rightward in RTL. */
-  const growSign = () => (isRtl(element) ? 1 : -1);
+  /** A panel grows away from its side: one on the right leftward, mirrored in RTL. */
+  const growSign = () =>
+    (options.placement === "right" ? -1 : 1) * (isRtl(element) ? -1 : 1);
 
   const fold = (to: number) => {
     foldTo = to;

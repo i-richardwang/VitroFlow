@@ -10,6 +10,7 @@ import {
 
 import { ModalHost } from "../ui/kit/Modal";
 import { Toaster } from "../ui/kit/Toast";
+import { TooltipGroup } from "../ui/kit/Tooltip";
 import { documentTitle } from "../ui/documentTitle";
 import { COLOR_SCHEME_SCRIPT } from "../ui/colorScheme";
 import { RouteNotice } from "../ui/RouteNotice";
@@ -36,9 +37,11 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <RootDocument>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <Outlet />
-      </div>
+      <TooltipGroup layoutAnimation={false}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <Outlet />
+        </div>
+      </TooltipGroup>
       <Toaster />
       <ModalHost />
     </RootDocument>

@@ -51,17 +51,25 @@
   outline: none;
   transform-origin: var(--transform-origin);
   transition:
-    opacity var(--duration-slow) var(--ease-snap),
-    transform var(--duration-slow) var(--ease-snap);
+    opacity var(--duration-popover-enter) var(--ease-out),
+    transform var(--duration-popover-enter) var(--ease-out);
+
+  /* It enters from 6px nearer its field, at 0.96, and leaves the same way in half the time. */
+  --ui-date-picker-shift: -6px;
+
+  &[data-side="top"] {
+    --ui-date-picker-shift: 6px;
+  }
 
   &[data-starting-style],
   &[data-ending-style] {
     opacity: 0;
-    transform: scaleY(0.8);
+    transform: translate3d(0, var(--ui-date-picker-shift), 0) scale(0.96);
   }
 
   &[data-ending-style] {
-    transition-timing-function: var(--ease-accelerate);
+    transition-timing-function: ease-in;
+    transition-duration: var(--duration-popover-exit);
   }
 }
 

@@ -15,7 +15,8 @@ export interface AppNavItem {
 /**
  * A titled run of places under the main ones, such as the open experiments:
  * its heading (12px, 500, secondary) with the count after it folds the run
- * away. Its items carry 16px icons.
+ * away, the panel closing over its rows as they fade. Its items carry 16px
+ * icons.
  */
 export interface AppNavGroup {
   /** Shown in place of the items when there are none. */
@@ -108,11 +109,13 @@ export function AppNav({
             </span>
           </Collapsible.Trigger>
           <Collapsible.Panel className="ui-app-nav-group-panel">
-            {group.items.length > 0 ? (
-              group.items.map((item) => link(item, 16))
-            ) : (
-              <p className="ui-app-nav-group-empty">{group.empty}</p>
-            )}
+            <div className="ui-app-nav-group-content">
+              {group.items.length > 0 ? (
+                group.items.map((item) => link(item, 16))
+              ) : (
+                <p className="ui-app-nav-group-empty">{group.empty}</p>
+              )}
+            </div>
           </Collapsible.Panel>
         </Collapsible.Root>
       ))}

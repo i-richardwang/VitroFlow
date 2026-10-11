@@ -1,4 +1,9 @@
-import { type LucideIcon, TriangleAlert, XCircle } from "lucide-react";
+import {
+  ChevronRight,
+  type LucideIcon,
+  TriangleAlert,
+  XCircle,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages";
 import { cn } from "./cn";
@@ -64,6 +69,11 @@ export function Alert({
         {detail ? (
           <details className="ui-alert-detail">
             <summary className="ui-alert-detail-summary">
+              <Icon
+                className="ui-alert-detail-indicator"
+                icon={ChevronRight}
+                size={12}
+              />
               {m.ui_alert_detail()}
             </summary>
             <Snippet>{detail}</Snippet>

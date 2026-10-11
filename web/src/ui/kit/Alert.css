@@ -95,6 +95,10 @@
 .ui-alert-detail-summary {
   cursor: pointer;
 
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
   inline-size: fit-content;
   border-radius: var(--radius-xs);
 
@@ -104,11 +108,27 @@
 
   transition: color var(--duration-fast) var(--ease-out);
 
+  &::marker,
+  &::-webkit-details-marker {
+    content: "";
+    display: none;
+  }
+
   &:hover {
     color: var(--color-fg-secondary);
   }
 
   @apply focus-ring;
+}
+
+/* Its own chevron stands for the browser's marker and turns as the detail opens. */
+.ui-alert-detail-indicator {
+  flex-shrink: 0;
+  transition: transform var(--duration-base) var(--ease-out);
+
+  details[open] > summary > & {
+    transform: rotate(90deg);
+  }
 }
 
 .ui-alert-action {

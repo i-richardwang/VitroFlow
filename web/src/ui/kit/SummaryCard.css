@@ -104,10 +104,16 @@
 
   transition:
     color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
+    background var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+
+  /* The arrow leans toward the page while the pointer is anywhere on its card. */
+  .ui-summary-card:hover & {
+    transform: translateX(2px);
+    color: var(--color-fg);
+  }
 
   &:hover {
-    color: var(--color-fg);
     background: var(--color-fill-tertiary);
   }
 }

@@ -7,13 +7,17 @@
   min-height: 0;
 }
 
-/* Lays the content out at its own width, pinned to the end, so a narrower frame clips it. */
+/* Lays the content out at its own width, pinned to the panel's side, so a narrower frame clips it. */
 .ui-draggable-panel-frame {
   display: flex;
   flex-shrink: 0;
   justify-content: flex-end;
 
   height: 100%;
+
+  [data-placement="left"] > & {
+    justify-content: flex-start;
+  }
 }
 
 .ui-draggable-panel-content {
@@ -26,6 +30,10 @@
   min-width: 0;
   height: 100%;
   min-height: 0;
+
+  [data-placement="left"] & {
+    transform-origin: left center;
+  }
 }
 
 .ui-draggable-panel-handle {
@@ -46,6 +54,10 @@
 
   @media (pointer: coarse) {
     --ui-draggable-panel-handle-size: 20px;
+  }
+
+  [data-placement="left"] > & {
+    inset-inline: auto calc(var(--ui-draggable-panel-handle-size) / -2);
   }
 
   &::before {
@@ -69,5 +81,9 @@
 
   &[data-resizing]::before {
     background: var(--color-primary);
+  }
+
+  &[data-border="false"]::before {
+    background: transparent;
   }
 }

@@ -16,9 +16,18 @@ declare module "@tanstack/react-router" {
   }
 }
 
+/*
+ * A link starts loading its page when the pointer rests on it or focus
+ * reaches it, so most clicks land on data already fetched. A page that is
+ * still loading 200ms after the click gives way to its skeleton, which
+ * leaves as soon as the data arrives.
+ */
 export function getRouter() {
   return createRouter({
     routeTree,
     scrollRestoration: true,
+    defaultPreload: "intent",
+    defaultPendingMs: 200,
+    defaultPendingMinMs: 0,
   });
 }

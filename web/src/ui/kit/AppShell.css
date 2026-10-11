@@ -1,5 +1,5 @@
 /*
- * Sidebar 240px on the canvas, the page in a card beside it. Below 992px the
+ * The sidebar on the canvas, the page in a card beside it. Below 992px the
  * sidebar becomes a drawer and the workspace loses its card frame.
  */
 .ui-app-shell {
@@ -32,28 +32,10 @@
   }
 }
 
+/* A `DraggablePanel` on the left, its seam unruled beside the card's own border. */
 .ui-app-shell-sidebar {
-  overflow: hidden;
-  display: flex;
-  flex: none;
-  flex-direction: column;
-
-  inline-size: 240px;
   block-size: 100%;
-  min-block-size: 0;
-
   color: var(--color-fg-secondary);
-
-  transition: inline-size var(--duration-slow) var(--ease-out);
-
-  /* The content keeps its width while the column closes over it. */
-  > * {
-    inline-size: 240px;
-  }
-}
-
-.ui-app-shell[data-sidebar="hidden"] .ui-app-shell-sidebar {
-  inline-size: 0;
 }
 
 .ui-app-shell-drawer {
@@ -77,6 +59,45 @@
   flex: 1;
   align-items: center;
   min-inline-size: 0;
+}
+
+/*
+ * The toggle and the account's chevron take no room until the pointer or
+ * focus is in the sidebar, where they open to their width. A touch screen
+ * has no hover, and keeps them.
+ */
+.ui-app-shell-sidebar-toggle {
+  overflow: hidden;
+  display: flex;
+  flex: none;
+}
+
+@media (hover: hover) {
+  .ui-app-shell-sidebar {
+    .ui-app-shell-sidebar-toggle,
+    .ui-app-shell-account-chevron {
+      overflow: hidden;
+      inline-size: 0;
+      opacity: 0;
+      transition:
+        opacity,
+        inline-size var(--duration-slow) var(--ease-out);
+    }
+
+    &:hover,
+    &:focus-within,
+    &:has([data-popup-open]) {
+      .ui-app-shell-sidebar-toggle {
+        inline-size: 28px;
+        opacity: 1;
+      }
+
+      .ui-app-shell-account-chevron {
+        inline-size: 14px;
+        opacity: 1;
+      }
+    }
+  }
 }
 
 .ui-app-shell-trail {
@@ -195,7 +216,8 @@
 
   background: var(--color-container);
 
-  transition: margin var(--duration-slow) var(--ease-out);
+  /* In step with the sidebar's fold. */
+  transition: margin var(--duration-panel-fold) var(--ease-soft);
 
   .ui-app-shell[data-sidebar="hidden"] & {
     margin-inline-start: 8px;
