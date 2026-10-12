@@ -40,13 +40,17 @@ export function StatisticHero({
   );
 }
 
-/** A `StatisticHero` while it loads. */
-export function StatisticHeroSkeleton() {
+/** A `StatisticHero` of the same `size` while it loads. */
+export function StatisticHeroSkeleton({
+  size = "default",
+}: {
+  size?: "default" | "compact";
+}) {
   return (
-    <div aria-hidden className="ui-statistic-hero">
+    <div aria-hidden className="ui-statistic-hero" data-size={size}>
       <div className="ui-statistic-hero-main">
         <Skeleton className="ui-statistic-skeleton-hero" />
-        <Skeleton.Text width="8em" />
+        <Skeleton.Text size={size === "compact" ? "sm" : "base"} width="8em" />
       </div>
     </div>
   );

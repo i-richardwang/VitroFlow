@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ActionIcon } from "./kit/ActionIcon";
+import { Skeleton } from "./kit/Skeleton";
 import { Text } from "./kit/Text";
 
 /** One way through a sequence; without `onClick` there is nothing further that way. */
@@ -27,6 +28,17 @@ export function Stepper({
         {children}
       </Text>
       <StepButton icon={ChevronRight} step={next} />
+    </span>
+  );
+}
+
+/** A `Stepper` while its sequence loads. */
+export function StepperSkeleton() {
+  return (
+    <span aria-hidden className="flex flex-none items-center gap-1">
+      <Skeleton.Button icon size="small" />
+      <Skeleton.Inline width="2em" />
+      <Skeleton.Button icon size="small" />
     </span>
   );
 }

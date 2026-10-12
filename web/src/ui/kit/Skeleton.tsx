@@ -8,9 +8,8 @@ import { cn } from "./cn";
  * a quarter of the leading above and below, the block filling the rest, so
  * nothing shifts when the real text arrives. `Skeleton.Inline` stands in
  * for a value inside a line of text. `Skeleton.Button` has the size of a
- * middle Button. `Skeleton.Frame` fills a region edge to edge, as a picture
- * that covers its frame will. A block fills its container's width and is 1em tall unless
- * its props or classes size it.
+ * middle Button, or of a `small` or an `icon`-only one. A block fills its
+ * container's width and is 1em tall unless its props or classes size it.
  */
 
 type Length = number | string;
@@ -20,14 +19,22 @@ export interface SkeletonProps extends Omit<
   "children" | "style"
 > {
   height?: Length;
+  /** The corner radius, where the block stands for a shape that is not a rounded bar. */
+  radius?: Length;
   width?: Length;
 }
 
-function SkeletonRoot({ width, height, className, ...rest }: SkeletonProps) {
+function SkeletonRoot({
+  width,
+  height,
+  radius,
+  className,
+  ...rest
+}: SkeletonProps) {
   return (
     <div
       className={cn("ui-skeleton", className)}
-      style={{ height, width }}
+      style={{ borderRadius: radius, height, width }}
       {...rest}
     />
   );
@@ -46,6 +53,7 @@ function SkeletonInline({ width }: { width: Length }) {
 
 const LINE_SIZE = {
   xs: "ui-skeleton-line-xs",
+  sm: "ui-skeleton-line-sm",
   base: "ui-skeleton-line-base",
   lg: "ui-skeleton-line-lg",
 } as const;
@@ -75,22 +83,28 @@ function SkeletonText({
   );
 }
 
-function SkeletonButton({ className }: { className?: string }) {
+function SkeletonButton({
+  className,
+  icon,
+  size = "middle",
+}: {
+  className?: string;
+  /** An icon-only button, as wide as it is tall. */
+  icon?: boolean;
+  size?: "middle" | "small";
+}) {
   return (
     <div
       aria-hidden
       className={cn("ui-skeleton ui-skeleton-button", className)}
+      data-icon={icon || undefined}
+      data-size={size}
     />
   );
 }
 
-function SkeletonFrame() {
-  return <div aria-hidden className="ui-skeleton ui-skeleton-frame" />;
-}
-
 export const Skeleton = Object.assign(SkeletonRoot, {
   Button: SkeletonButton,
-  Frame: SkeletonFrame,
   Inline: SkeletonInline,
   Text: SkeletonText,
 });

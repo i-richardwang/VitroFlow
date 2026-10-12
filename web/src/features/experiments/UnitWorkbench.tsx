@@ -15,6 +15,7 @@ import { useStep } from "../../ui/hooks/useStep";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { DescriptionsItem } from "../../ui/kit/Descriptions";
+import { Skeleton } from "../../ui/kit/Skeleton";
 import { StatusDot, type StatusTone } from "../../ui/kit/Status";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { Day } from "../../ui/Day";
@@ -31,9 +32,13 @@ import {
   WorkbenchEmpty,
   WorkbenchFooter,
   WorkbenchSection,
+  WorkbenchSectionSkeleton,
 } from "../../ui/shell/Workbench";
 import { Stepper } from "../../ui/Stepper";
-import { ImageSubject } from "../annotation/ImageWorkbench";
+import {
+  ImageSubject,
+  ImageWorkbenchSkeleton,
+} from "../annotation/ImageWorkbench";
 import { useStepKeys } from "../annotation/keys";
 import { CultureMenu, UnitMenu } from "./UnitMenu";
 import { Text } from "../../ui/kit/Text";
@@ -254,6 +259,21 @@ export function UnitWorkbench({
         }}
       />
     </Workbench>
+  );
+}
+
+/** A `UnitWorkbench` while its unit is read. */
+export function UnitWorkbenchSkeleton() {
+  return (
+    <ImageWorkbenchSkeleton
+      actions={<Skeleton.Button icon />}
+      facts={2}
+      sections={
+        <WorkbenchSectionSkeleton>
+          <Skeleton.Button size="small" />
+        </WorkbenchSectionSkeleton>
+      }
+    />
   );
 }
 

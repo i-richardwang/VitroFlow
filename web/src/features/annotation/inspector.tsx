@@ -51,15 +51,13 @@ export function CountsSection({
         value={formatCount(count(counts))}
       />
       {classes.length > 1 ? (
-        <Descriptions>
+        <Descriptions justified>
           {classes.map((name) => (
             <DescriptionsItem
               key={name}
               label={<ClassLabel classes={classes} name={name} />}
             >
-              <span className="block text-end tabular-nums">
-                {formatCount(classCount(counts, name))}
-              </span>
+              {formatCount(classCount(counts, name))}
             </DescriptionsItem>
           ))}
         </Descriptions>

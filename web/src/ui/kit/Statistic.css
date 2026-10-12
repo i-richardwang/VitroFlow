@@ -76,3 +76,8 @@
   inline-size: 120px;
   block-size: var(--text-4xl);
 }
+
+.ui-statistic-hero[data-size="compact"] .ui-statistic-skeleton-hero {
+  inline-size: 48px;
+  block-size: var(--text-2xl);
+}

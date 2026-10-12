@@ -1,5 +1,5 @@
 import { Lock, LockOpen } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { openChecks } from "../../domain/annotation/checks";
 import { availableSources, type Review } from "../../domain/annotation/review";
@@ -10,6 +10,8 @@ import { m } from "../../paraglide/messages";
 import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
+import { DescriptionsSkeleton } from "../../ui/kit/Descriptions";
+import { StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { Status, type StatusTone } from "../../ui/kit/Status";
 import { ToolbarSeparator } from "../../ui/kit/Toolbar";
 import { Tooltip } from "../../ui/kit/Tooltip";
@@ -18,6 +20,9 @@ import {
   Workbench,
   WorkbenchAlert,
   WorkbenchInspector,
+  WorkbenchSection,
+  WorkbenchSectionSkeleton,
+  WorkbenchSkeleton,
   WorkbenchStatus,
   WorkbenchToolbar,
 } from "../../ui/shell/Workbench";
@@ -72,6 +77,34 @@ export function ImageWorkbench({
         {...subject}
       />
     </Workbench>
+  );
+}
+
+/**
+ * An `ImageWorkbench` while its image is read: the count over its classes,
+ * the page's own `sections`, and the details: the file, after as many
+ * `facts` as the page always adds.
+ */
+export function ImageWorkbenchSkeleton({
+  actions,
+  facts = 0,
+  sections,
+}: {
+  actions?: ReactNode;
+  facts?: number;
+  sections?: ReactNode;
+}) {
+  return (
+    <WorkbenchSkeleton actions={actions}>
+      <WorkbenchSection>
+        <StatisticHeroSkeleton size="compact" />
+        <DescriptionsSkeleton justified rows={2} />
+      </WorkbenchSection>
+      {sections}
+      <WorkbenchSectionSkeleton>
+        <DescriptionsSkeleton rows={facts + 1} />
+      </WorkbenchSectionSkeleton>
+    </WorkbenchSkeleton>
   );
 }
 

@@ -2,14 +2,16 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
-import { UnitWorkbench } from "../../features/experiments/UnitWorkbench";
+import {
+  UnitWorkbench,
+  UnitWorkbenchSkeleton,
+} from "../../features/experiments/UnitWorkbench";
 import {
   unitRefSchema,
   observationIdSchema,
 } from "../../domain/experiments/schema";
 import { getUnit } from "../../functions/experiments";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
-import { WorkbenchSkeleton } from "../../ui/shell/Workbench";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import type { UnitSeries } from "../../domain/experiments/contracts";
@@ -63,7 +65,7 @@ export const Route = createFileRoute(
       },
     ],
   }),
-  pendingComponent: WorkbenchSkeleton,
+  pendingComponent: UnitWorkbenchSkeleton,
   component: UnitPage,
 });
 

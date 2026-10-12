@@ -17,6 +17,7 @@ import { SectionHeader } from "../kit/SectionHeader";
 import { SidePanel } from "../kit/SidePanel";
 import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
+import { StepperSkeleton } from "../Stepper";
 import { ShellActions, ShellTrail, useInspectorFold } from "./Shell";
 
 /** Where floating content over the subject's top edge, and the bar under it, land. */
@@ -155,6 +156,8 @@ export function WorkbenchInspector({ children }: { children: ReactNode }) {
   return createPortal(children, slot.node);
 }
 
+const SECTION = "flex flex-col gap-2 border-b pb-4";
+
 /**
  * A group of the inspector under its compact `SectionHeader`, ruled off from
  * the next. The first group, which leads with the subject's figure on a
@@ -168,7 +171,7 @@ export function WorkbenchSection({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-2 border-b pb-4">
+    <section className={SECTION}>
       {title ? <SectionHeader size="compact" title={title} /> : null}
       {children}
     </section>
@@ -232,46 +235,46 @@ export function WorkbenchEmpty(props: Omit<EmptyProps, "type">) {
   );
 }
 
-const INSPECTOR_BONES = [
-  ["32%", "88%", "72%"],
-  ["28%", "64%", "80%", "56%"],
-] as const;
-
 /**
  * The loading shape of a workbench: the subject's frame filled edge to edge,
- * as the picture will fill it, over the footer's bar, beside the inspector's
- * sections.
+ * as the subject will fill it, over the steps in the footer's bar. `actions`
+ * stand where the page's commands will in the top bar, and the children are
+ * the inspector's sections, each the skeleton of the section it stands for.
  */
-export function WorkbenchSkeleton() {
+export function WorkbenchSkeleton({
+  actions,
+  children,
+}: {
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <Workbench title={m.ui_page_loading()}>
-      <ShellActions>
-        <Skeleton.Button />
-      </ShellActions>
-      <WorkbenchInspector>
-        {INSPECTOR_BONES.map((widths, index) => (
-          <div
-            aria-hidden
-            className="flex flex-col gap-2 border-b pb-4"
-            key={index}
-          >
-            <Skeleton.Text size="xs" width={widths[0]} />
-            <Skeleton.Text
-              rows={widths.length - 1}
-              width={[...widths.slice(1)]}
-            />
-          </div>
-        ))}
-      </WorkbenchInspector>
+      {actions ? <ShellActions>{actions}</ShellActions> : null}
+      <WorkbenchInspector>{children}</WorkbenchInspector>
       <WorkbenchFooter label={m.ui_page_loading()}>
-        <Skeleton aria-hidden width={96} height={20} />
+        <StepperSkeleton />
       </WorkbenchFooter>
       <div aria-busy="true" className="flex min-h-0 flex-1">
         <output aria-live="polite" className="sr-only">
           {m.ui_page_loading()}
         </output>
-        <Skeleton.Frame />
+        <Skeleton aria-hidden height="auto" radius={0} />
       </div>
     </Workbench>
+  );
+}
+
+/** A titled `WorkbenchSection` while it loads; the children are what it will hold. */
+export function WorkbenchSectionSkeleton({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <div aria-hidden className={SECTION}>
+      <Skeleton.Text size="xs" width="4em" />
+      {children}
+    </div>
   );
 }

@@ -32,6 +32,11 @@
   --ui-skeleton-line-height: var(--text-xs--line-height);
 }
 
+.ui-skeleton-line-sm {
+  --ui-skeleton-font-size: var(--text-sm);
+  --ui-skeleton-line-height: var(--text-sm--line-height);
+}
+
 .ui-skeleton-line-base {
   --ui-skeleton-font-size: var(--text-base);
   --ui-skeleton-line-height: var(--text-base--line-height);
@@ -51,11 +56,17 @@
   flex: none;
   inline-size: 96px;
   block-size: 32px;
-}
 
-.ui-skeleton-frame {
-  flex: 1;
-  height: auto;
-  min-height: 0;
-  border-radius: 0;
+  &[data-size="small"] {
+    inline-size: 72px;
+    block-size: 24px;
+  }
+
+  &[data-icon] {
+    inline-size: 32px;
+  }
+
+  &[data-icon][data-size="small"] {
+    inline-size: 24px;
+  }
 }

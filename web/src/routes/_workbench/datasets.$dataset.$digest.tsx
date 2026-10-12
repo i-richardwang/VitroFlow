@@ -3,7 +3,10 @@ import { useEffect, useEffectEvent } from "react";
 import { z } from "zod";
 
 import { REVIEW_SOURCES } from "../../domain/annotation/schema";
-import { ImageWorkbench } from "../../features/annotation/ImageWorkbench";
+import {
+  ImageWorkbench,
+  ImageWorkbenchSkeleton,
+} from "../../features/annotation/ImageWorkbench";
 import { datasetImageRefSchema } from "../../domain/datasets/schema";
 import { getDatasetImage } from "../../functions/datasets";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
@@ -11,7 +14,7 @@ import { useStep } from "../../ui/hooks/useStep";
 import { DescriptionsItem } from "../../ui/kit/Descriptions";
 import { modelName } from "../../ui/model-names";
 import { useStepKeys } from "../../features/annotation/keys";
-import { WorkbenchFooter, WorkbenchSkeleton } from "../../ui/shell/Workbench";
+import { WorkbenchFooter } from "../../ui/shell/Workbench";
 import { Stepper } from "../../ui/Stepper";
 import { splitLabel } from "../../features/datasets/labels";
 import { documentTitle } from "../../ui/documentTitle";
@@ -56,7 +59,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
       },
     ],
   }),
-  pendingComponent: WorkbenchSkeleton,
+  pendingComponent: ImageWorkbenchSkeleton,
   component: DatasetImagePage,
 });
 
