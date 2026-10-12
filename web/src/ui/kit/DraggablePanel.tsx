@@ -14,7 +14,6 @@ import {
   createPanelController,
   type PanelControllerOptions,
 } from "./draggablePanelController";
-import { foldTransition } from "./motionToken";
 
 /*
  * A panel at one side of the page, `right` unless placed `left`, resized by
@@ -28,7 +27,6 @@ import { foldTransition } from "./motionToken";
 export type DraggablePanelPlacement = "left" | "right";
 
 const PAN_THRESHOLD = 3;
-const COLLAPSED_SCALE = 0.97;
 
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -111,10 +109,8 @@ export function DraggablePanel({
         style={{ overflow: clipping ? "clip" : "visible", width: extent }}
       >
         <motion.div
-          animate={{ scale: expand ? 1 : COLLAPSED_SCALE }}
           className="ui-draggable-panel-content"
           id={contentId}
-          transition={foldTransition()}
           style={{ width: controller.motion.content }}
         >
           {children}

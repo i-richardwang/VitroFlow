@@ -21,8 +21,6 @@
 }
 
 .ui-draggable-panel-content {
-  transform-origin: right center;
-
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -30,10 +28,6 @@
   min-width: 0;
   height: 100%;
   min-height: 0;
-
-  [data-placement="left"] & {
-    transform-origin: left center;
-  }
 }
 
 .ui-draggable-panel-handle {
