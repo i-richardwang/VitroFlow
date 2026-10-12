@@ -237,7 +237,11 @@ const INSPECTOR_BONES = [
   ["28%", "64%", "80%", "56%"],
 ] as const;
 
-/** The loading shape of a workbench: the framed subject and the inspector's sections. */
+/**
+ * The loading shape of a workbench: the subject's frame filled edge to edge,
+ * as the picture will fill it, over the footer's bar, beside the inspector's
+ * sections.
+ */
 export function WorkbenchSkeleton() {
   return (
     <Workbench title={m.ui_page_loading()}>
@@ -259,19 +263,14 @@ export function WorkbenchSkeleton() {
           </div>
         ))}
       </WorkbenchInspector>
-      <div
-        aria-busy="true"
-        className="flex min-h-0 flex-1 items-center justify-center p-12"
-      >
+      <WorkbenchFooter label={m.ui_page_loading()}>
+        <Skeleton aria-hidden width={96} height={20} />
+      </WorkbenchFooter>
+      <div aria-busy="true" className="flex min-h-0 flex-1">
         <output aria-live="polite" className="sr-only">
           {m.ui_page_loading()}
         </output>
-        <Skeleton
-          aria-hidden
-          className="aspect-square max-w-full"
-          width="auto"
-          height="80%"
-        />
+        <Skeleton.Frame />
       </div>
     </Workbench>
   );

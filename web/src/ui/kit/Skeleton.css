@@ -52,3 +52,10 @@
   inline-size: 96px;
   block-size: 32px;
 }
+
+.ui-skeleton-frame {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  border-radius: 0;
+}

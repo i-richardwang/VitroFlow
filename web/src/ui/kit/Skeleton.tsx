@@ -8,7 +8,8 @@ import { cn } from "./cn";
  * a quarter of the leading above and below, the block filling the rest, so
  * nothing shifts when the real text arrives. `Skeleton.Inline` stands in
  * for a value inside a line of text. `Skeleton.Button` has the size of a
- * middle Button. A block fills its container's width and is 1em tall unless
+ * middle Button. `Skeleton.Frame` fills a region edge to edge, as a picture
+ * that covers its frame will. A block fills its container's width and is 1em tall unless
  * its props or classes size it.
  */
 
@@ -83,8 +84,13 @@ function SkeletonButton({ className }: { className?: string }) {
   );
 }
 
+function SkeletonFrame() {
+  return <div aria-hidden className="ui-skeleton ui-skeleton-frame" />;
+}
+
 export const Skeleton = Object.assign(SkeletonRoot, {
   Button: SkeletonButton,
+  Frame: SkeletonFrame,
   Inline: SkeletonInline,
   Text: SkeletonText,
 });
