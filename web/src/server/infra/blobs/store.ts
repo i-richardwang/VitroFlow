@@ -343,6 +343,10 @@ export function openBlob(key: string): Promise<OpenBlob | null> {
   return blobs().open(key);
 }
 
+export function blobExists(key: string): Promise<boolean> {
+  return blobs().exists(key);
+}
+
 export function putImmutableBlob(
   key: string,
   contents: Uint8Array | string,

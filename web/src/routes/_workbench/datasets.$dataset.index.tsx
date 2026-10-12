@@ -38,6 +38,7 @@ import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { Pagination } from "../../ui/kit/Pagination";
 import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { PreviewMedia } from "../../ui/kit/PreviewLayout";
+import { previewSrc } from "../../ui/viewport/picture";
 import { StatisticHero, StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { Status } from "../../ui/kit/Status";
 import {
@@ -344,7 +345,7 @@ function ImagePreview({
 }) {
   return (
     <>
-      <PreviewMedia src={`/img/${image.digest}`} alt={image.filename} />
+      <PreviewMedia src={previewSrc(image.digest)} alt={image.filename} />
       <Descriptions>
         <DescriptionsItem label={m.dataset_column_state()}>
           <Status tone={DATASET_IMAGE_STATE_TONE[state]}>

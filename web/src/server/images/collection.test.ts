@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { blobExists } from "../testing/blobs";
-import { putImmutableBlob, listBlobs } from "../infra/blobs/store";
-import { imageBlobKey, imageRegionsPrefix } from "./keys";
+import { blobExists, putImmutableBlob, listBlobs } from "../infra/blobs/store";
+import { imageBlobKey, imagePreviewKey, imageRegionsPrefix } from "./keys";
 
 import { collectImages } from "./collection";
 import { canonicalize } from "./ingest";
@@ -33,6 +32,7 @@ describe("collection", () => {
     ).toBeGreaterThan(0);
     expect(await collectImages(later())).toContain(digest);
     expect(await blobExists(imageBlobKey(digest))).toBe(false);
+    expect(await blobExists(imagePreviewKey(digest))).toBe(false);
     expect(await listBlobs(imageRegionsPrefix(digest))).toEqual([]);
   });
 

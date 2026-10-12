@@ -13,6 +13,7 @@ import {
 } from "./ingest";
 import { lockImage } from "./lock";
 import { analyzeImage } from "./analysis";
+import { prepareImagePreview } from "./preview";
 import { DISH_RECIPE_ID } from "./dish-recipe";
 import type { DishAnalysis } from "../../domain/images/coverage";
 import { createSingleFlight } from "../../lib/async/work";
@@ -108,6 +109,10 @@ function store(image: CanonicalImage): Promise<StoredImage> {
     const current = existing?.analysis?.recipe === DISH_RECIPE_ID;
     const analysis = current ? existing.analysis : await analyzeImage(image);
     const attemptedAt = current ? null : new Date();
-    return transaction((tx) => recordImage(image, analysis, attemptedAt, tx));
+    const stored = await transaction((tx) =>
+      recordImage(image, analysis, attemptedAt, tx),
+    );
+    await prepareImagePreview(image.digest);
+    return stored;
   });
 }

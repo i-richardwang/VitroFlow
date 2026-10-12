@@ -28,7 +28,7 @@ import {
   type ViewIntent,
 } from "./viewport";
 import { Text } from "../kit/Text";
-import { pictureSrc } from "./picture";
+import { loadPicture, pictureSrc, previewSrc } from "./picture";
 
 const ZOOM_PER_WHEEL_PIXEL = 0.0015;
 const CLICK_SLOP = 3;
@@ -110,6 +110,26 @@ export function usePanGesture(
   };
 }
 
+/**
+ * Whether a picture has arrived and can be painted at once. It is fetched
+ * from the moment it is asked for, and given up when another takes its place.
+ */
+function usePictureArrived(digest: string): boolean {
+  const [arrived, setArrived] = useState<string | null>(null);
+  useEffect(() => {
+    const picture = loadPicture(pictureSrc(digest));
+    let wanted = true;
+    void picture.ready.then((ready) => {
+      if (ready && wanted) setArrived(digest);
+    });
+    return () => {
+      wanted = false;
+      picture.release();
+    };
+  }, [digest]);
+  return arrived === digest;
+}
+
 /** A region of the image to bring into view; a new `key` brings it again. */
 export interface ViewportFocus {
   key: string;
@@ -119,6 +139,8 @@ export interface ViewportFocus {
 /**
  * One image covering a frame until zoomed. Wheel zooms about the cursor,
  * dragging pans, and the image re-covers the frame whenever it changes size.
+ * Its preview stands in for it from the first frame, and the image is laid
+ * over the preview as soon as it has arrived.
  * Children are drawn over the image in image pixels. `focus` centers a region
  * when it changes; `controls` join the zoom in the corner toolbar. While
  * `pending`, another image is on its way and this one steps back if the wait
@@ -143,6 +165,7 @@ export function ImageViewport({
   const [frame, setFrame] = useState<Size | null>(null);
   const [intent, setIntent] = useState<ViewIntent>(FILL);
   const { width, height } = image;
+  const arrived = usePictureArrived(image.digest);
   const size = useMemo(() => ({ width, height }), [width, height]);
   const view = useMemo(
     () => resolveView(intent, frame, size),
@@ -239,7 +262,7 @@ export function ImageViewport({
         }}
       >
         <img
-          src={pictureSrc(image.digest)}
+          src={previewSrc(image.digest)}
           alt={filename}
           width={width}
           height={height}
@@ -247,6 +270,17 @@ export function ImageViewport({
           draggable={false}
           className="block h-full w-full"
         />
+        {arrived ? (
+          <img
+            src={pictureSrc(image.digest)}
+            alt=""
+            width={width}
+            height={height}
+            decoding="sync"
+            draggable={false}
+            className="absolute inset-0 h-full w-full"
+          />
+        ) : null}
         <ViewportContext value={handle}>{children}</ViewportContext>
       </div>
       <Toolbar

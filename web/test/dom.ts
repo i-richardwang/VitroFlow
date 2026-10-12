@@ -15,6 +15,7 @@ for (const key of [
   "navigator",
   "HTMLElement",
   "HTMLInputElement",
+  "Image",
   "Element",
   "Node",
   "Event",

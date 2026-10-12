@@ -10,7 +10,7 @@ import {
   annotationRuns,
 } from "../infra/db/schema";
 import { imageDigestSchema } from "../../domain/images/schema";
-import { imageBlobKey, imageRegionsPrefix } from "./keys";
+import { imageBlobKey, imagePreviewKey, imageRegionsPrefix } from "./keys";
 import { listBlobs, removeBlob } from "../infra/blobs/store";
 import { lockImage } from "./lock";
 
@@ -56,22 +56,24 @@ async function forgetExpiredImages(now: Date): Promise<void> {
   }
 }
 
-/** Canonical bytes and derived regions share the lifetime of their Image row. */
+/** Canonical bytes and everything derived from them share the lifetime of their Image row. */
 async function sweepImageBlobs(): Promise<string[]> {
   const objects = new Map<string, string[]>();
-  const [sources, regions] = await Promise.all([
+  const [sources, previews, regions] = await Promise.all([
     listBlobs("images/"),
+    listBlobs("image-previews/"),
     listBlobs("image-regions/"),
   ]);
-  for (const key of [...sources, ...regions]) {
-    const candidate = key.startsWith("images/")
-      ? key.split("/").at(-1)
-      : key.split("/")[1];
+  for (const key of [...sources, ...previews, ...regions]) {
+    const candidate = key.startsWith("image-regions/")
+      ? key.split("/")[1]
+      : key.split("/").at(-1);
     const parsed = imageDigestSchema.safeParse(candidate);
     if (!parsed.success) continue;
     const digest = parsed.data;
     if (
       key !== imageBlobKey(digest) &&
+      key !== imagePreviewKey(digest) &&
       !key.startsWith(imageRegionsPrefix(digest))
     )
       continue;

@@ -2,6 +2,7 @@ export { collectImages } from "./collection";
 export { assertDocumentImage } from "./documents";
 export { ImageSourceError } from "./ingest";
 export { imageBlobKey } from "./keys";
+export { openImagePreview } from "./preview";
 export {
   readImageRegion,
   readImageOverview,

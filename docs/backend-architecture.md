@@ -63,7 +63,10 @@ Database checks, foreign keys, uniqueness constraints, advisory locks, immutable
 
 The blob driver only knows object keys and immutable bytes. `images/keys.ts` and `training/keys.ts` own their respective key formats. `images/lock.ts` coordinates writes and references to each digest. `images/collection.ts` first expires unreferenced database rows, then sweeps objects under that lock; `training/collection.ts` checks the active attempt and published version under the run lock. `maintenance/collection.ts` invokes both collectors. Collection runs outside request handling and upload transactions.
 
-The images module owns canonical sources, dish analysis and regional evidence.
+The images module owns canonical sources, their previews, dish analysis and
+regional evidence. `images/preview.ts` derives one small rendition of the whole
+frame per image; ingestion prepares it once the Image row is committed, a read
+prepares one that is missing, and collection removes it with its image.
 `images/dish.ts` owns one lazy compute thread per process for bounded OpenCV.js
 thumbnail detection. Ordinary and canonical ingestion persist completed analysis
 on the Image row, independently of region layout and annotation state. The recipe

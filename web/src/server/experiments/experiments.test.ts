@@ -37,7 +37,7 @@ import {
 import { storeAnnotation } from "../annotations/documents";
 import { imageBlobKey } from "../images/keys";
 import { collectImages } from "../images/collection";
-import { blobExists } from "../testing/blobs";
+import { blobExists } from "../infra/blobs/store";
 import { seedInferenceOutcome } from "../testing/inference";
 import {
   addReplicates,

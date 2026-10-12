@@ -6,8 +6,7 @@ import { database } from "../infra/db/client";
 import { inferenceOutcomes } from "../infra/db/schema";
 
 import type { Worker } from "../../domain/workers/schema";
-import { blobExists } from "../testing/blobs";
-import { requireBlob } from "../infra/blobs/store";
+import { blobExists, requireBlob } from "../infra/blobs/store";
 import { imageBlobKey } from "../images/keys";
 import { contentDigest } from "../infra/digest";
 import {
