@@ -104,7 +104,7 @@ introduce a separate service or job lifecycle.
 
 ## Security boundary
 
-API keys, MCP OAuth, browser sessions, and worker tokens authenticate different principals. The worker API's parent route admits only an enrolled worker's token and hands the worker it proves to every route beneath it. The experiment and annotation MCP servers are separate OAuth protected resources: a token's audience names the one server it opens. MCP access is rechecked against the account, client, consent, and originating browser session on every request so revocation is immediate. Authorization is decided at the adapter and answers only whether the request may proceed; the operation catalog runs without an identity.
+API keys, MCP OAuth, browser sessions, and worker tokens authenticate different principals. The worker API's parent route admits only an enrolled worker's token and hands the worker it proves to every route beneath it. The experiment and annotation MCP servers are separate OAuth protected resources: a token's audience names the one server it opens, and each also opens to a personal API key holding that server's scope. OAuth access is rechecked against the account, client, consent, and originating browser session on every request, and a key against its own state and its owner's, so revocation is immediate. Authorization is decided at the adapter and answers only whether the request may proceed; the operation catalog runs without an identity.
 
 ## Module rule
 

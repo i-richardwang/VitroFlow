@@ -1,7 +1,5 @@
 import { requireMcpAuth } from "@better-auth/mcp";
-import { parseAccessTokenAuthorization } from "better-auth/oauth2";
 import {
-  type AuthInfo,
   bearerAuthChallengeResponse,
   hostHeaderValidationResponse,
   localhostAllowedHostnames,
@@ -11,8 +9,17 @@ import {
   originValidationResponse,
 } from "@modelcontextprotocol/server";
 
-import type { McpServerName } from "../../../domain/auth/integrations";
-import { auth, mcpAuthorizationIsLive, mcpClientId } from "../../auth/public";
+import {
+  API_KEY_PREFIX,
+  type McpServerName,
+} from "../../../domain/auth/integrations";
+import {
+  auth,
+  authorizeApiKey,
+  bearerToken,
+  mcpAuthorizationIsLive,
+  mcpClientId,
+} from "../../auth/public";
 import { deploymentEndpoint } from "../../infra/deployment";
 
 /**
@@ -51,53 +58,45 @@ function rejectUnsupportedMcpMethod(request: Request): Response | null {
 
 const METADATA_PATH = "/.well-known/oauth-protected-resource";
 
-type GrantHandler = (request: Request, grant: AuthInfo) => Promise<Response>;
+type AdmittedHandler = (request: Request) => Promise<Response>;
 
 /**
- * One MCP server behind OAuth: a request without a valid access token for
- * that server's resource is answered with the RFC 9728 challenge that points
- * clients at the authorization server.
+ * One MCP server behind its two credentials. A client an account approved
+ * presents an OAuth access token bound to that server's resource; a script or
+ * an agent configured by hand presents a personal API key holding the scope
+ * named after the server. Any other request is answered with the RFC 9728
+ * challenge that points clients at the authorization server.
  */
-export async function serveWithOAuth(
+export async function serveAuthorized(
   server: McpServerName,
   request: Request,
-  handle: GrantHandler,
+  handle: AdmittedHandler,
 ): Promise<Response> {
-  const instance = await auth();
   const deployment = deploymentEndpoint();
   const resource = deployment.mcpResources[server];
+  const refuse = (message: string): Response =>
+    bearerAuthChallengeResponse(
+      new OAuthError(OAuthErrorCode.InvalidToken, message),
+      {
+        resourceMetadataUrl: `${deployment.origin}${METADATA_PATH}${new URL(resource).pathname}`,
+      },
+    );
+  const admit = async (accepted: Request): Promise<Response> =>
+    rejectUnsupportedMcpMethod(accepted) ?? handle(accepted);
+
+  if (bearerToken(request)?.startsWith(API_KEY_PREFIX)) {
+    return (await authorizeApiKey(request, server))
+      ? admit(request)
+      : refuse("The API key is not active or does not open this MCP server");
+  }
   return requireMcpAuth(
-    instance,
-    async (accepted, claims) => {
-      const clientId = mcpClientId(claims);
-      if (!clientId || !claims.sub || !(await mcpAuthorizationIsLive(claims))) {
-        return bearerAuthChallengeResponse(
-          new OAuthError(
-            OAuthErrorCode.InvalidToken,
-            "The account or MCP authorization is no longer active",
-          ),
-          {
-            resourceMetadataUrl: `${deployment.origin}${METADATA_PATH}${new URL(resource).pathname}`,
-          },
-        );
-      }
-      const methodRefusal = rejectUnsupportedMcpMethod(accepted);
-      if (methodRefusal) return methodRefusal;
-      const token = parseAccessTokenAuthorization(
-        accepted.headers.get("authorization"),
-      )?.token;
-      if (!token) throw new Error("Verified MCP request has no access token");
-      return handle(accepted, {
-        clientId,
-        token,
-        scopes:
-          typeof claims.scope === "string"
-            ? claims.scope.split(" ").filter(Boolean)
-            : [],
-        expiresAt: claims.exp,
-        resource: new URL(resource),
-      });
-    },
+    await auth(),
+    async (accepted, claims) =>
+      mcpClientId(claims) &&
+      claims.sub &&
+      (await mcpAuthorizationIsLive(claims))
+        ? admit(accepted)
+        : refuse("The account or MCP authorization is no longer active"),
     { resource },
   )(request);
 }

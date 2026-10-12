@@ -42,9 +42,11 @@ agent, in any conversation, continues it from the first region still waiting.
 
 ## Authorization
 
-A person's agent authenticates with user OAuth for the annotation resource. The
-annotation server carries no experiment or model tools, and the experiment server
-accepts no OAuth tokens bound to the annotation resource.
+A person's agent authenticates with user OAuth for the annotation resource, or
+with a personal API key that holds the **Image annotation** scope, presented as
+a bearer token. The annotation server carries no experiment or model tools, and
+the experiment server accepts neither OAuth tokens bound to the annotation
+resource nor keys issued for annotation alone.
 
 OAuth discovery follows RFC 9728: an unauthenticated request is challenged
 toward `/.well-known/oauth-protected-resource/api/annotation/mcp`, which names

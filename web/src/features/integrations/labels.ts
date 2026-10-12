@@ -2,7 +2,8 @@ import { m } from "../../paraglide/messages";
 import type { ApiScope, McpServerName } from "../../domain/auth/integrations";
 
 export const API_SCOPE_LABELS: Record<ApiScope, () => string> = {
-  agent: m.api_key_scope_agent,
+  experiments: m.api_key_scope_experiments,
+  annotation: m.api_key_scope_annotation,
   transfer: m.api_key_scope_transfer,
 };
 

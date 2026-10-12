@@ -28,12 +28,12 @@ describe("API credentials", () => {
     const { user } = await signInAs("member");
     const agent = await issueApiKey(user.id, {
       name: "Agent",
-      scopes: ["agent"],
+      scopes: ["experiments"],
       expiresInDays: null,
     });
     const both = await issueApiKey(user.id, {
       name: "Both",
-      scopes: ["agent", "transfer"],
+      scopes: ["experiments", "transfer"],
       expiresInDays: 30,
     });
     expect(

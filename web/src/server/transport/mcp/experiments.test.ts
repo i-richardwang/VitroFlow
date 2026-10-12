@@ -19,13 +19,6 @@ async function rpc(method: string, params?: unknown): Promise<unknown> {
       method,
       params as Record<string, unknown> | undefined,
     ),
-    {
-      authInfo: {
-        token: "test",
-        clientId: "test-client",
-        scopes: [],
-      },
-    },
   );
   expect(response.status).toBe(200);
   return (await rpcMessage(response)).result;

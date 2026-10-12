@@ -94,7 +94,7 @@ function NewApiKeySession({
   onIssued: (apiKey: IssuedApiKey) => void;
 }) {
   const action = useAsyncAction();
-  const [scopes, setScopes] = useState<ApiScope[]>(["agent"]);
+  const [scopes, setScopes] = useState<ApiScope[]>(["experiments"]);
   const [expiry, setExpiry] = useState<string>(EXPIRY_OPTIONS[0].id);
 
   return (

@@ -22,12 +22,12 @@ describe("API keys", () => {
     const { user } = await signInAs("member");
     const issued = await issueApiKey(user.id, {
       name: "Laptop",
-      scopes: ["agent"],
+      scopes: ["experiments"],
       expiresInDays: 30,
     });
     expect(issued.secret.startsWith(API_KEY_PREFIX)).toBe(true);
     expect(issued.start).toBe(issued.secret.slice(0, issued.start.length));
-    expect(issued.scopes).toEqual(["agent"]);
+    expect(issued.scopes).toEqual(["experiments"]);
     expect(issued.expiresAt).not.toBeNull();
 
     const listed = await listApiKeys(user.id);
@@ -46,9 +46,9 @@ describe("API keys", () => {
     expect(await authorizeApiKey(requestWith(issued.secret), "transfer")).toBe(
       true,
     );
-    expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
-      false,
-    );
+    expect(
+      await authorizeApiKey(requestWith(issued.secret), "experiments"),
+    ).toBe(false);
     expect(await authorizeApiKey(requestWith(null), "transfer")).toBe(false);
     expect(await authorizeApiKey(requestWith("vf_nonsense"), "transfer")).toBe(
       false,
@@ -62,7 +62,7 @@ describe("API keys", () => {
     const other = await signInAs("member");
     const issued = await issueApiKey(owner.user.id, {
       name: "Mine",
-      scopes: ["agent"],
+      scopes: ["experiments"],
       expiresInDays: null,
     });
     expect(await listApiKeys(other.user.id)).toEqual([]);
@@ -71,9 +71,9 @@ describe("API keys", () => {
     );
     await revokeApiKey(owner.user.id, issued.id);
     expect(await listApiKeys(owner.user.id)).toEqual([]);
-    expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
-      false,
-    );
+    expect(
+      await authorizeApiKey(requestWith(issued.secret), "experiments"),
+    ).toBe(false);
   });
 
   test("a suspended owner's keys admit nobody", async () => {
@@ -81,12 +81,12 @@ describe("API keys", () => {
     const { user } = await signInAs("member");
     const issued = await issueApiKey(user.id, {
       name: "Agent",
-      scopes: ["agent"],
+      scopes: ["experiments"],
       expiresInDays: null,
     });
     await banUser(admin.headers, { user: user.id });
-    expect(await authorizeApiKey(requestWith(issued.secret), "agent")).toBe(
-      false,
-    );
+    expect(
+      await authorizeApiKey(requestWith(issued.secret), "experiments"),
+    ).toBe(false);
   });
 });

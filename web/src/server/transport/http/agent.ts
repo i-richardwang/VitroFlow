@@ -23,15 +23,15 @@ function failureResponse(code: HttpFailureCode, message: string): Response {
   );
 }
 
-/** The refusal a request without a live agent-scoped API key gets, or null. */
+/** The refusal a request without a live experiments-scoped API key gets, or null. */
 export async function refuseWithoutAgentKey(
   request: Request,
 ): Promise<Response | null> {
-  return (await authorizeApiKey(request, "agent"))
+  return (await authorizeApiKey(request, "experiments"))
     ? null
     : failureResponse(
         "unauthorized",
-        "An API key with the agent scope is required",
+        "An API key with the experiments scope is required",
       );
 }
 

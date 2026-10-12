@@ -27,7 +27,7 @@ import {
   type AnnotationPanel,
 } from "../../annotation-runs/public";
 import { listPendingAnnotations } from "../../queries/public";
-import { guardMcpRequest, serveWithOAuth } from "./access";
+import { guardMcpRequest, serveAuthorized } from "./access";
 
 const textContent = (value: unknown) => ({
   type: "text" as const,
@@ -203,12 +203,12 @@ const annotationMcpHandler = createMcpHandler(buildServer, {
   legacy: "stateless",
 });
 
-/** The annotation server opens to the accounts' authorized MCP clients. */
+/** The annotation server opens to an account's MCP clients and API keys. */
 export async function serveAnnotationMcp(request: Request): Promise<Response> {
   return (
     guardMcpRequest(request) ??
-    serveWithOAuth("annotation", request, (accepted, grant) =>
-      annotationMcpHandler.fetch(accepted, { authInfo: grant }),
+    serveAuthorized("annotation", request, (accepted) =>
+      annotationMcpHandler.fetch(accepted),
     )
   );
 }

@@ -31,7 +31,7 @@ describe("agent HTTP surface", () => {
     ]);
   });
 
-  test("the public routes require a live agent-scoped key", async () => {
+  test("the public routes require a live experiments-scoped key", async () => {
     const denied = await serveAgentInterface(
       new Request("http://workbench/api/agent/operations"),
     );
@@ -42,7 +42,7 @@ describe("agent HTTP surface", () => {
     const { user } = await signInAs("member");
     const issued = await issueApiKey(user.id, {
       name: "Agent HTTP",
-      scopes: ["agent"],
+      scopes: ["experiments"],
       expiresInDays: null,
     });
     const headers = apiKeyHeaders(issued.secret);

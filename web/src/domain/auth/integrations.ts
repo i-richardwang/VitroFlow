@@ -2,12 +2,25 @@ import { z } from "zod";
 
 /**
  * Programmatic access to the workbench belongs to accounts. A personal API
- * key opens the HTTP surfaces its scopes name on behalf of the account that
- * issued it; an MCP client holds an OAuth grant the account approved on the
- * consent page. Both are listed and withdrawn on the Integrations page.
+ * key opens the surfaces its scopes name on behalf of the account that issued
+ * it; an MCP client holds an OAuth grant the account approved on the consent
+ * page. Both are listed and withdrawn on the Integrations page.
  */
 
-export const API_SCOPES = ["agent", "transfer"] as const;
+/**
+ * The workbench serves two MCP servers for two jobs: maintaining experiment
+ * records, and drawing boxes on images. An agent is configured with the one
+ * its job needs, and each is authorized on its own.
+ */
+export const MCP_SERVERS = ["experiments", "annotation"] as const;
+export type McpServerName = (typeof MCP_SERVERS)[number];
+
+/**
+ * What a key may do. A scope named after an MCP server opens that server, and
+ * `experiments` opens the agent API over the same operations; `transfer`
+ * opens dataset transfer.
+ */
+export const API_SCOPES = [...MCP_SERVERS, "transfer"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];
 const apiScopeSchema = z.enum(API_SCOPES);
 
@@ -62,14 +75,6 @@ export function permissionScopes(permissions: unknown): ApiScope[] {
     return Array.isArray(actions) && actions.includes("access");
   });
 }
-
-/**
- * The workbench serves two MCP servers for two jobs: maintaining experiment
- * records, and drawing boxes on images. An agent is configured with the one
- * its job needs, and each is authorized on its own.
- */
-export const MCP_SERVERS = ["experiments", "annotation"] as const;
-export type McpServerName = (typeof MCP_SERVERS)[number];
 
 /** An MCP client the account has authorized. */
 export const mcpClientSchema = z.object({

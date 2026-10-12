@@ -6,7 +6,7 @@ One operation registry (`web/src/server/agent/operations.ts`) defines the interf
 
 ## Authentication
 
-The HTTP surface is opened by a personal API key with the **Agent interface** scope, issued under Integrations in the workbench and presented as a bearer token:
+A personal API key with the **Experiment records** scope opens both surfaces. It is issued under Integrations in the workbench and presented as a bearer token:
 
 ```
 Authorization: Bearer vf_…
@@ -14,7 +14,7 @@ Authorization: Bearer vf_…
 
 The agent acts as the account that issued the key. Every request resolves the current account and credential state, so revoking the key, suspending the account, or deleting the account denies the next request.
 
-The MCP surface is opened by OAuth instead: see below.
+The MCP surface also opens to MCP clients the account approves through OAuth: see below.
 
 ## HTTP surface
 
@@ -27,7 +27,7 @@ The MCP surface is opened by OAuth instead: see below.
 Every result is validated against the operation's published output schema before it leaves the workbench; for commands this validation must succeed before the transaction commits, so the discovery document is the contract on both sides of a call. A successful call answers `{"result": ...}`. A failed call answers `{"error":{"code":"...","message":"..."}}`; HTTP maps the protocol-neutral code to the status describing what the agent can do about it:
 
 - `400` — the input does not satisfy the operation's schema; the message names the offending fields.
-- `401` — the request presents no live API key with the agent scope.
+- `401` — the request presents no live API key with the experiment records scope.
 - `404` — the operation or the addressed record does not exist.
 - `409` — a domain rule rejected the request, such as deleting an observation that has images.
 - `500` — a workbench defect; the body carries no detail, and the cause is in the server log.
@@ -59,7 +59,9 @@ authentication runs before either lifecycle. No session identifier or server-sid
 session store is created. This compatibility mode does not enable the old
 HTTP+SSE transport.
 
-The workbench is the OAuth 2.1 authorization server for its MCP servers. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/experiments/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/experiments/mcp`, so a token issued for the annotation server does not open this one. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call to either server. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
+An MCP client presents either credential. One configured with a request header sends the API key above; the key is checked as it is on the HTTP surface, and a key without the scope is challenged like a request with no credential.
+
+For every other client the workbench is the OAuth 2.1 authorization server for its MCP servers. A request without a valid access token answers 401 with a `WWW-Authenticate` challenge naming the protected resource metadata at `/.well-known/oauth-protected-resource/api/experiments/mcp`, from which a client discovers the authorization server, registers itself through a Client ID Metadata Document or dynamic registration, and sends the person to sign in and approve the connection. Tokens are bound to `<BETTER_AUTH_URL>/api/experiments/mcp`, so a token issued for the annotation server does not open this one. Every call also checks that the account, browser session, client, and consent remain active; disconnecting the client under Integrations denies its next call to either server. Host and browser Origin headers must name localhost or the `BETTER_AUTH_URL` hostname; non-browser MCP clients omit Origin, but their Host is still validated.
 
 Both routes forward all HTTP methods to the MCP adapter instead of allowing
 unhandled requests to fall through to page rendering. Host/Origin validation

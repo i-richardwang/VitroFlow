@@ -10,7 +10,7 @@ import {
   type AgentOperation,
   agentOperations,
 } from "../../agent/public";
-import { guardMcpRequest, serveWithOAuth } from "./access";
+import { guardMcpRequest, serveAuthorized } from "./access";
 
 /**
  * The experiment MCP server: the MCP face of the agent operations. Every tool
@@ -66,12 +66,12 @@ export const experimentsMcpHandler = createMcpHandler(buildServer, {
   legacy: "stateless",
 });
 
-/** The experiment server opens to the accounts' authorized MCP clients. */
+/** The experiment server opens to an account's MCP clients and API keys. */
 export async function serveExperimentsMcp(request: Request): Promise<Response> {
   return (
     guardMcpRequest(request) ??
-    serveWithOAuth("experiments", request, (accepted, grant) =>
-      experimentsMcpHandler.fetch(accepted, { authInfo: grant }),
+    serveAuthorized("experiments", request, (accepted) =>
+      experimentsMcpHandler.fetch(accepted),
     )
   );
 }
