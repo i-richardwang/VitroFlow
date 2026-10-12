@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ChangePasswordDialog } from "../../features/account/ChangePasswordDialog";
@@ -14,6 +14,8 @@ import {
 } from "../../ui/kit/Settings";
 import { USER_ROLE_LABELS } from "../../ui/user-roles";
 
+const workbench = getRouteApi("/_workbench");
+
 export const Route = createFileRoute("/_workbench/account")({
   staticData: { crumbs: () => [{ label: m.account_title() }] },
   head: () => ({
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/_workbench/account")({
 });
 
 function AccountPage() {
-  const { user } = Route.useRouteContext();
+  const { user } = workbench.useLoaderData();
   const [changingPassword, setChangingPassword] = useState(false);
 
   return (

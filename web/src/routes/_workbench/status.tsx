@@ -1,4 +1,9 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  getRouteApi,
+  Link,
+  useRouter,
+} from "@tanstack/react-router";
 import { Plus, Server, Trash2 } from "lucide-react";
 import { useState } from "react";
 
@@ -29,6 +34,8 @@ import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
 import { Text } from "../../ui/kit/Text";
 
+const workbench = getRouteApi("/_workbench");
+
 export const Route = createFileRoute("/_workbench/status")({
   loader: () => getStatus(),
   staticData: { crumbs: () => [{ label: m.status_title() }] },
@@ -56,7 +63,7 @@ type WorkerStatus = Awaited<ReturnType<typeof getStatus>>["workers"][number];
 
 function StatusPage() {
   const { workers } = Route.useLoaderData();
-  const { user } = Route.useRouteContext();
+  const { user } = workbench.useLoaderData();
   const [enrolling, setEnrolling] = useState(false);
   const administers = isAdmin(user);
   const enroll = () => setEnrolling(true);

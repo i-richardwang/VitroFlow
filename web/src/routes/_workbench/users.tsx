@@ -1,4 +1,9 @@
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  getRouteApi,
+  notFound,
+  useRouter,
+} from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -25,11 +30,14 @@ import {
 import { Tag } from "../../ui/kit/Tag";
 import { Text } from "../../ui/kit/Text";
 
+const workbench = getRouteApi("/_workbench");
+
 export const Route = createFileRoute("/_workbench/users")({
-  beforeLoad: ({ context }) => {
-    if (!isAdmin(context.user)) throw notFound();
+  loader: async ({ parentMatchPromise }) => {
+    const { loaderData } = await parentMatchPromise;
+    if (!loaderData || !isAdmin(loaderData.user)) throw notFound();
+    return getUsers();
   },
-  loader: () => getUsers(),
   staticData: { crumbs: () => [{ label: m.users_title() }] },
   head: () => ({
     meta: [{ title: documentTitle(m.users_title()) }],
@@ -44,7 +52,7 @@ export const Route = createFileRoute("/_workbench/users")({
 
 function UsersPage() {
   const accounts = Route.useLoaderData();
-  const { user: me } = Route.useRouteContext();
+  const { user: me } = workbench.useLoaderData();
   const [creating, setCreating] = useState(false);
 
   return (
