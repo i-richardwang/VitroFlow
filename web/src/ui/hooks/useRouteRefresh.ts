@@ -1,13 +1,21 @@
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-/** Reloads the current route's data every `intervalMs` while the tab is visible and `enabled` holds. */
+/**
+ * Reloads the current route's data every `intervalMs` while the tab is visible
+ * and `enabled` holds. A tick that falls while the router is loading, a
+ * reload still under way or the way to another page, is skipped: reloading
+ * then would begin that load again.
+ */
 export function useRouteRefresh(intervalMs: number, enabled = true): void {
   const router = useRouter();
   useEffect(() => {
     if (!enabled) return;
     const refresh = () => {
-      if (document.visibilityState === "visible") void router.invalidate();
+      if (document.visibilityState !== "visible" || router.state.isLoading) {
+        return;
+      }
+      void router.invalidate();
     };
     const timer = window.setInterval(refresh, intervalMs);
     return () => window.clearInterval(timer);
