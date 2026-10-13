@@ -81,10 +81,9 @@ function Box({
         y={box.y}
         width={box.width}
         height={box.height}
-        fill={paint}
-        fillOpacity={selected ? 0.18 : 0.06}
+        fill="transparent"
         stroke={paint}
-        strokeWidth={selected ? 2 : 1.5}
+        strokeWidth={1}
         vectorEffect="non-scaling-stroke"
         style={{ cursor }}
       />
@@ -129,7 +128,7 @@ export function ChecksLayer({
           height={bbox.height + 2 * gap}
           fill="none"
           stroke={CANVAS_COLORS.check}
-          strokeWidth={1.5}
+          strokeWidth={1}
           strokeDasharray="4 3"
           vectorEffect="non-scaling-stroke"
         />
