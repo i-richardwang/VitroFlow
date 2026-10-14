@@ -57,8 +57,7 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
  *
  * The sheet records what the dish did rather than what the workbench is doing.
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
- * event took out of the analysis is named by that event, in place of a number
- * nobody should average.
+ * event took out of the analysis is named by that event in place of its count.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,

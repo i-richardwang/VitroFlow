@@ -8,13 +8,8 @@ import {
 } from "./numbers";
 
 describe("formatting", () => {
-  test("counts read as whole numbers, averages to one decimal", () => {
+  test("counts carry the locale's digit grouping", () => {
     expect(formatCount(20)).toBe("20");
-    expect(formatCount(19.5)).toBe("19.5");
-    expect(formatCount(19.25)).toBe("19.3");
-  });
-
-  test("whole counts carry the locale's digit grouping", () => {
     expect(formatCount(12000)).toBe("12,000");
   });
 

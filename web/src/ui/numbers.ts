@@ -9,13 +9,9 @@ function format(value: number, options: Intl.NumberFormatOptions): string {
   return new Intl.NumberFormat(getLocale(), options).format(value);
 }
 
-/** A count or a mean of counts: whole numbers as they are, others to one decimal. */
+/** A count of things, whole. */
 export function formatCount(value: number): string {
-  const digits = Number.isInteger(value) ? 0 : 1;
-  return format(value, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
+  return format(value, { maximumFractionDigits: 0 });
 }
 
 /** A measured value to a fixed number of decimals, such as a metric. */

@@ -316,10 +316,7 @@ export function TableCell({
 
 interface SelectionProps {
   checked: boolean;
-  disabled?: boolean;
   fixed?: Fixed;
-  /** Some but not all of what this box covers is selected. */
-  indeterminate?: boolean;
   onChange: (checked: boolean) => void;
 }
 
@@ -330,7 +327,11 @@ export function TableSelectionHead({
   fixed,
   indeterminate,
   onChange,
-}: SelectionProps) {
+}: SelectionProps & {
+  disabled?: boolean;
+  /** Some but not all rows are selected. */
+  indeterminate?: boolean;
+}) {
   return (
     <th
       className={cn(
@@ -354,9 +355,7 @@ export function TableSelectionHead({
 export function TableSelectionCell({
   "aria-label": ariaLabel,
   checked,
-  disabled,
   fixed,
-  indeterminate,
   onChange,
 }: SelectionProps & { "aria-label": string }) {
   return (
@@ -366,13 +365,7 @@ export function TableSelectionCell({
         fixedClass(fixed),
       )}
     >
-      <Checkbox
-        aria-label={ariaLabel}
-        checked={checked}
-        disabled={disabled}
-        indeterminate={indeterminate}
-        onChange={onChange}
-      />
+      <Checkbox aria-label={ariaLabel} checked={checked} onChange={onChange} />
     </td>
   );
 }

@@ -221,7 +221,6 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
                   />
                 </TableHead>
               ))}
-              <TableHead className="w-full" />
             </tr>
           </TableHeader>
           <TableBody>
@@ -269,7 +268,6 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
                       />
                     </TableCell>
                   ))}
-                  <TableCell />
                 </TableRow>
               );
             })}
