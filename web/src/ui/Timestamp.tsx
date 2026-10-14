@@ -1,6 +1,5 @@
 import { getLocale } from "../paraglide/runtime";
 import { useClientValue } from "./kit/clientValue";
-import { Text } from "./kit/Text";
 
 const UTC = "UTC";
 
@@ -21,18 +20,14 @@ export function formatTimestamp(value: string, timeZone: string): string {
 }
 
 /**
- * An instant, in the tertiary color dates take, on the reader's clock. The
- * server knows no reader's zone, so the server and the first client frame
- * write it in UTC and the browser's own zone replaces it after hydration.
+ * An instant on the reader's clock. The server knows no reader's zone, so
+ * the server and the first client frame write it in UTC and the browser's
+ * own zone replaces it after hydration.
  */
 export function Timestamp({ value }: { value: string }) {
   const timeZone = useClientValue(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
     UTC,
   );
-  return (
-    <Text as="span" type="tertiary">
-      <time dateTime={value}>{formatTimestamp(value, timeZone)}</time>
-    </Text>
-  );
+  return <time dateTime={value}>{formatTimestamp(value, timeZone)}</time>;
 }

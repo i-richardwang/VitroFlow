@@ -28,7 +28,6 @@ import {
   TableRow,
 } from "../../ui/kit/Table";
 import { Tag } from "../../ui/kit/Tag";
-import { Text } from "../../ui/kit/Text";
 
 const workbench = getRouteApi("/_workbench");
 
@@ -107,11 +106,7 @@ function UserRow({ account, self }: { account: UserAccount; self: boolean }) {
           ) : null}
         </Flexbox>
       </TableCell>
-      <TableCell cellLabel={m.users_column_email()}>
-        <Text as="span" type="secondary">
-          {account.email}
-        </Text>
-      </TableCell>
+      <TableCell cellLabel={m.users_column_email()}>{account.email}</TableCell>
       <TableCell cellLabel={m.users_column_role()}>
         <RoleSelect
           aria-label={m.user_role_of({ name: account.name })}

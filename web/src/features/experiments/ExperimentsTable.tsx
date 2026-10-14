@@ -18,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "../../ui/kit/Table";
-import { Text } from "../../ui/kit/Text";
 import { TextLink } from "../../ui/kit/TextLink";
 import { formatCount } from "../../ui/numbers";
 import { joinFacts } from "./labels";
@@ -151,27 +150,16 @@ export function ExperimentsTable({
                   </TextLink>
                 </TableCell>
                 <TableCell cellLabel={m.experiments_column_material()}>
-                  {material ? (
-                    <Text as="span" type="secondary">
-                      {material}
-                    </Text>
-                  ) : (
-                    <Absent />
-                  )}
+                  {material || <Absent />}
                 </TableCell>
                 <TableCell cellLabel={m.experiments_column_medium()}>
-                  {experiment.baseMedium ? (
-                    <Text as="span" type="secondary">
-                      {experiment.baseMedium}
-                    </Text>
-                  ) : (
-                    <Absent />
-                  )}
+                  {experiment.baseMedium || <Absent />}
                 </TableCell>
-                <TableCell cellLabel={m.experiments_column_inoculated()}>
-                  <Text as="span" type="tertiary" className="whitespace-nowrap">
-                    <Day value={experiment.inoculatedOn} />
-                  </Text>
+                <TableCell
+                  cellLabel={m.experiments_column_inoculated()}
+                  className="whitespace-nowrap"
+                >
+                  <Day value={experiment.inoculatedOn} />
                 </TableCell>
                 <TableCell
                   cellLabel={m.experiments_column_treatments()}
@@ -188,16 +176,12 @@ export function ExperimentsTable({
                 >
                   {formatCount(observations)}
                 </TableCell>
-                <TableCell cellLabel={m.experiments_column_last_observed()}>
+                <TableCell
+                  cellLabel={m.experiments_column_last_observed()}
+                  className="whitespace-nowrap"
+                >
                   {lastObservation ? (
-                    <span className="flex items-baseline gap-2 whitespace-nowrap">
-                      <Text as="span" type="secondary">
-                        {m.observation_day_label({ day: lastObservation.day })}
-                      </Text>
-                      <Text as="span" type="tertiary">
-                        <Day value={lastObservation.observedOn} />
-                      </Text>
-                    </span>
+                    <Day value={lastObservation.observedOn} />
                   ) : (
                     <Absent />
                   )}

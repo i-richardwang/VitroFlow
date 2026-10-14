@@ -18,7 +18,6 @@ import { Tooltip } from "../../ui/kit/Tooltip";
 import { Absent } from "../../ui/Absent";
 import { Metric } from "../../ui/Metric";
 import { TrainingRunState } from "./TrainingRunState";
-import { Text } from "../../ui/kit/Text";
 
 /**
  * Training runs, each named with its state after it; across training sets
@@ -79,9 +78,7 @@ export function TrainingRunsTable({
             </TableCell>
             {datasetColumn && (
               <TableCell cellLabel={m.run_column_dataset()}>
-                <Text as="span" type="secondary">
-                  {dataset}
-                </Text>
+                {dataset}
               </TableCell>
             )}
             <TableCell cellLabel={m.run_column_epochs()} numeric>
@@ -98,9 +95,7 @@ export function TrainingRunsTable({
             </TableCell>
             <TableCell cellLabel={m.run_column_version()}>
               {run.state.status === "succeeded" ? (
-                <Text as="span" size="xs" type="tertiary">
-                  {run.state.modelVersionId}
-                </Text>
+                run.state.modelVersionId
               ) : (
                 <Absent />
               )}

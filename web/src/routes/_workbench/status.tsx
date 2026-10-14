@@ -32,7 +32,6 @@ import {
 } from "../../ui/kit/Table";
 import { TextLink } from "../../ui/kit/TextLink";
 import { toast } from "../../ui/kit/Toast";
-import { Text } from "../../ui/kit/Text";
 
 const workbench = getRouteApi("/_workbench");
 
@@ -151,19 +150,15 @@ function WorkerRow({
         <Status tone={presence.tone}>{presence.label()}</Status>
       </TableCell>
       <TableCell cellLabel={m.status_column_activity()}>
-        <Text as="span" type="secondary">
-          <Activity activity={worker.activity} />
-        </Text>
+        <Activity activity={worker.activity} />
       </TableCell>
       <TableCell
         cellLabel={m.status_column_seen()}
         className="whitespace-nowrap"
       >
-        <Text as="span" type="tertiary">
-          {worker.lastSeenSeconds === null
-            ? m.worker_never_seen()
-            : formatAge(worker.lastSeenSeconds)}
-        </Text>
+        {worker.lastSeenSeconds === null
+          ? m.worker_never_seen()
+          : formatAge(worker.lastSeenSeconds)}
       </TableCell>
       <TableCell cellSlot="actions" className="text-end">
         {administers ? <WorkerMenu workerId={worker.workerId} /> : null}

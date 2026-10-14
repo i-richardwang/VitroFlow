@@ -98,7 +98,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
     <TableRow>
       <TableCell cellSlot="title">{apiKey.name}</TableCell>
       <TableCell cellLabel={m.api_key_column_key()}>
-        <Text as="span" size="xs" type="tertiary" className="font-mono">
+        <Text as="span" size="xs" className="font-mono">
           {m.api_key_start({ start: apiKey.start })}
         </Text>
       </TableCell>
@@ -113,9 +113,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
       </TableCell>
       <TableCell cellLabel={m.api_key_column_expires()}>
         {apiKey.expiresAt === null ? (
-          <Text as="span" type="tertiary">
-            {m.api_key_expiry_never()}
-          </Text>
+          m.api_key_expiry_never()
         ) : expired ? (
           <Text as="span" type="error">
             {m.api_key_expired()}
@@ -126,9 +124,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKey }) {
       </TableCell>
       <TableCell cellLabel={m.api_key_column_last_used()}>
         {apiKey.lastUsedAt === null ? (
-          <Text as="span" type="tertiary">
-            {m.api_key_never_used()}
-          </Text>
+          m.api_key_never_used()
         ) : (
           <Timestamp value={apiKey.lastUsedAt} />
         )}
