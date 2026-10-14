@@ -5,8 +5,8 @@ import type { Workbook, WorkbookCell } from "../../../lib/spreadsheet/workbook";
 const CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-/** A tally is whole unless a mean falls between two. */
-const COUNT_FORMAT = "0.#";
+/** A count is whole. */
+const COUNT_FORMAT = "0";
 /** A day reads largest unit first, the order that sorts as it reads. */
 const DATE_FORMAT = "yyyy-mm-dd";
 

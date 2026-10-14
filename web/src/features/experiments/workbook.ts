@@ -7,7 +7,6 @@ import {
   sheetName,
   textCell,
   workbookFilename,
-  type CellStyle,
   type Workbook,
   type WorkbookCell,
 } from "../../lib/spreadsheet/workbook";
@@ -19,7 +18,6 @@ import {
 } from "../../domain/experiments/culture-events";
 import {
   observationCells,
-  treatmentSummary,
   unitReading,
   type ObservationCells,
 } from "../../domain/experiments/readings";
@@ -39,49 +37,28 @@ export type ExperimentWorkbookSource = ExperimentGrid & {
   models: readonly Model[];
 };
 
-type Quantity = "count" | "replicates";
-
-/** Every day is read for a tally, and for the replicates a mean of it is over. */
-const QUANTITIES: readonly Quantity[] = ["count", "replicates"];
-
-const QUANTITY_WIDTH: Record<Quantity, number> = {
-  count: 10,
-  replicates: 8,
-};
-
-function quantityLabel(quantity: Quantity): string {
-  switch (quantity) {
-    case "count":
-      return m.workbook_quantity_count();
-    case "replicates":
-      return m.workbook_quantity_replicates();
-  }
-}
-
 interface Day {
   observation: ExperimentObservation;
   model: Model | null;
 }
 
 const DESIGN_COLUMNS = [{ width: 22 }, { width: 16 }, { width: 14 }];
-const HEADING_ROWS = 3;
+const HEADING_ROWS = 2;
+const DAY_WIDTH = 14;
 
 export function experimentWorkbookFilename(experiment: Experiment): string {
   return workbookFilename(experiment.name, m.experiments_title());
 }
 
 /**
- * The grid as a spreadsheet: the design repeated down every row, the days
- * across the top, and every quantity left as a number for whatever charts or
+ * The grid as a spreadsheet: a row per unit with its design repeated, the
+ * days across the top, and every count left as a number for whatever charts or
  * computes on it.
  *
  * The sheet records what the dish did rather than what the workbench is doing.
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
  * event took out of the analysis is named by that event, in place of a number
  * nobody should average.
- *
- * A treatment states the replicates its mean is over. One dish is not a sample,
- * so a unit leaves that column to the treatment above it.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,
@@ -104,29 +81,24 @@ export function experimentWorkbook(
   const stickyRows = rows.length + HEADING_ROWS;
   rows.push(...heading(days));
   for (const treatment of treatments) {
-    const replicates = units.filter((unit) => unit.treatment === treatment.id);
-    rows.push(meanRow(treatment, replicates, days, cells, ordinals));
-    for (const unit of replicates) {
+    for (const unit of units.filter(
+      (item) => item.treatment === treatment.id,
+    )) {
       rows.push(unitRow(treatment, unit, days, cells, ordinals));
     }
   }
 
   return {
     sheet: sheetName(experiment.name, m.experiments_title()),
-    columns: [
-      ...DESIGN_COLUMNS,
-      ...days.flatMap(() =>
-        QUANTITIES.map((quantity) => ({ width: QUANTITY_WIDTH[quantity] })),
-      ),
-    ],
+    columns: [...DESIGN_COLUMNS, ...days.map(() => ({ width: DAY_WIDTH }))],
     rows,
     stickyRows,
     stickyColumns: DESIGN_COLUMNS.length,
   };
 }
 
-function calendarCell(day: CalendarDay, style: CellStyle = {}): WorkbookCell {
-  return dateCell(parseDate(day), style);
+function calendarCell(day: CalendarDay): WorkbookCell {
+  return dateCell(parseDate(day));
 }
 
 function fieldCell(value: string): WorkbookCell {
@@ -151,31 +123,18 @@ function provenance(
 
 function heading(days: readonly Day[]): WorkbookCell[][] {
   const covering = { strong: true, rows: HEADING_ROWS };
-  const names: WorkbookCell[] = [
-    textCell(m.experiment_column_treatment(), covering),
-    textCell(m.workbook_column_factor(), covering),
-    textCell(m.workbook_column_unit(), covering),
+  return [
+    [
+      textCell(m.experiment_column_treatment(), covering),
+      textCell(m.workbook_column_factor(), covering),
+      textCell(m.experiment_column_unit(), covering),
+      ...days.map((day) => textCell(dayHeading(day), { strong: true })),
+    ],
+    [
+      ...DESIGN_COLUMNS.map(() => blankCell),
+      ...days.map((day) => calendarCell(day.observation.observedOn)),
+    ],
   ];
-  const dates: WorkbookCell[] = DESIGN_COLUMNS.map(() => blankCell);
-  const quantities: WorkbookCell[] = DESIGN_COLUMNS.map(() => blankCell);
-  for (const day of days) {
-    const columns = QUANTITIES.length;
-    const covered = QUANTITIES.slice(1).map(() => blankCell);
-    names.push(
-      textCell(dayHeading(day), { strong: true, columns }),
-      ...covered,
-    );
-    dates.push(
-      calendarCell(day.observation.observedOn, { columns }),
-      ...covered,
-    );
-    quantities.push(
-      ...QUANTITIES.map((quantity) =>
-        textCell(quantityLabel(quantity), { strong: true }),
-      ),
-    );
-  }
-  return [names, dates, quantities];
 }
 
 /** A file outlives its workbench, so a day names the model it was read for. */
@@ -184,14 +143,10 @@ function dayHeading(day: Day): string {
   return day.model ? `${label} · ${modelName(day.model)}` : label;
 }
 
-function factorCell(treatment: Treatment, style: CellStyle = {}): WorkbookCell {
+function factorCell(treatment: Treatment): WorkbookCell {
   return treatment.factor
-    ? textCell(formatFactor(treatment.factor), style)
+    ? textCell(formatFactor(treatment.factor))
     : blankCell;
-}
-
-function dayCells(read: Record<Quantity, WorkbookCell>): WorkbookCell[] {
-  return QUANTITIES.map((quantity) => read[quantity]);
 }
 
 function unitRow(
@@ -205,61 +160,18 @@ function unitRow(
     textCell(treatment.name),
     factorCell(treatment),
     textCell(unit.code),
-    ...days.flatMap((day) => unitCells(unit, day, cells, ordinals)),
+    ...days.map((day) => unitCell(unit, day, cells, ordinals)),
   ];
 }
 
-function unitCells(
+function unitCell(
   unit: Unit,
   day: Day,
   cells: ObservationCells,
   ordinals: ObservationOrdinals,
-): WorkbookCell[] {
+): WorkbookCell {
   const excluded = exclusionAt(unit.events, day.observation, ordinals);
-  if (excluded) {
-    return dayCells({
-      count: textCell(cultureEventLabel(excluded.type)),
-      replicates: blankCell,
-    });
-  }
+  if (excluded) return textCell(cultureEventLabel(excluded.type));
   const reading = unitReading(cells, unit.id, day.observation);
-  if (!reading) {
-    return dayCells({ count: blankCell, replicates: blankCell });
-  }
-  return dayCells({ count: countCell(reading.count), replicates: blankCell });
-}
-
-function meanRow(
-  treatment: Treatment,
-  replicates: readonly Unit[],
-  days: readonly Day[],
-  cells: ObservationCells,
-  ordinals: ObservationOrdinals,
-): WorkbookCell[] {
-  const strong = { strong: true };
-  return [
-    textCell(treatment.name, strong),
-    factorCell(treatment, strong),
-    textCell(m.workbook_row_mean(), strong),
-    ...days.flatMap((day) => meanCells(replicates, day, cells, ordinals)),
-  ];
-}
-
-/** The treatment's day: what its replicates read, and how many read it. */
-function meanCells(
-  replicates: readonly Unit[],
-  day: Day,
-  cells: ObservationCells,
-  ordinals: ObservationOrdinals,
-): WorkbookCell[] {
-  const summary = treatmentSummary(
-    cells,
-    replicates,
-    day.observation,
-    ordinals,
-  );
-  return dayCells({
-    count: summary.value === null ? blankCell : countCell(summary.value),
-    replicates: countCell(summary.sampleSize),
-  });
+  return reading ? countCell(reading.count) : blankCell;
 }

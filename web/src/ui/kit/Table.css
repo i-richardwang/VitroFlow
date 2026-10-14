@@ -103,21 +103,6 @@
   }
 }
 
-/*
- * A group row is a heading for the rows below it: taller, heavier and ruled
- * off from the rows of the group before it, on the surface color so it never reads as the
- * header band. Hover and selection still show on it.
- */
-.ui-table-wrapper .ui-table-group-row > .ui-table-cell {
-  padding-block: 12px;
-  font-weight: 600;
-}
-
-/* The first group sits right under the header band, which already parts it from what is above. */
-.ui-table-wrapper .ui-table-group-row:not(:first-child) > .ui-table-cell {
-  border-block-start: 1px solid var(--color-border-secondary);
-}
-
 /* Bands inside the card: a toolbar over the header, a footer under the rows. */
 .ui-table-wrapper .ui-table-toolbar,
 .ui-table-wrapper .ui-table-footer {

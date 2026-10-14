@@ -1,17 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import {
-  CalendarPlus,
-  ChartLine,
-  FlaskConical,
-  ImageIcon,
-  Plus,
-} from "lucide-react";
+import { FlaskConical, ImageIcon, Plus } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
 import type {
   ObservationImageCell,
-  ReplicateSummary,
-  TrendDay,
   Unit,
 } from "../../domain/experiments/contracts";
 import {
@@ -23,12 +15,9 @@ import { placedPhotos } from "../../domain/experiments/photos";
 import {
   cellKey,
   observationCells,
-  treatmentSummary,
-  treatmentTrend,
   unitReading,
   type Reading,
 } from "../../domain/experiments/readings";
-import { formatFactor, type Treatment } from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
@@ -36,36 +25,30 @@ import { formatDay } from "../../ui/Day";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
 import { cn } from "../../ui/kit/cn";
-import { Card } from "../../ui/kit/Card";
-import { Empty, EmptyPlace } from "../../ui/kit/Empty";
 import { Icon } from "../../ui/kit/Icon";
-import { LineChart } from "../../ui/kit/LineChart";
-import { Skeleton } from "../../ui/kit/Skeleton";
+import { Select } from "../../ui/kit/Select";
 import { Status } from "../../ui/kit/Status";
 import {
   Table,
   TableBody,
   TableCell,
-  TableGroupRow,
   TableHead,
   TableHeader,
   TableRow,
   TableSelectionCell,
   TableSelectionHead,
 } from "../../ui/kit/Table";
+import { Text } from "../../ui/kit/Text";
 import { TextLink } from "../../ui/kit/TextLink";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { Page, PageSection } from "../../ui/Page";
-import { modelName } from "../../ui/model-names";
 import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
 import { RecordObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
 import { TreatmentDialog } from "./TreatmentDialog";
-import { TreatmentDot } from "./TreatmentDot";
-import { TreatmentMenu } from "./TreatmentMenu";
+import { TreatmentName, TreatmentsTable } from "./TreatmentsTable";
 import { UnitSelectionBar } from "./UnitSelectionBar";
-import { Text } from "../../ui/kit/Text";
 
 type Dialog = "treatment" | "observation";
 
@@ -73,6 +56,10 @@ type ExperimentGridData = NonNullable<
   Awaited<ReturnType<typeof getExperimentGrid>>
 >;
 
+/**
+ * One experiment: its design, a row per treatment, over its units, a row per
+ * unit with the treatment it belongs to and what it read on each day.
+ */
 export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   const {
     experiment,
@@ -85,6 +72,7 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   } = data;
   const [open, setOpen] = useState<Dialog | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [treatment, setTreatment] = useState<string | null>(null);
   const close = () => setOpen(null);
 
   const waiting = images.some((image) => image.state === "pending");
@@ -95,11 +83,14 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   const placed = placedPhotos(data);
   const hasRecords =
     images.length > 0 || units.some((unit) => unit.events.length > 0);
-  const groups = treatments.map((treatment) => ({
-    treatment,
-    units: units.filter((unit) => unit.treatment === treatment.id),
-  }));
-  const chosen = units.filter((unit) => selected.has(unit.id));
+  const treatmentOf = new Map(treatments.map((item) => [item.id, item]));
+  // A treatment's units stay together, in the design's order.
+  const rows = treatments.flatMap((item) =>
+    item.id === treatment || treatment === null
+      ? units.filter((unit) => unit.treatment === item.id)
+      : [],
+  );
+  const chosen = rows.filter((unit) => selected.has(unit.id));
   const select = (ids: readonly string[], on: boolean) =>
     setSelected((previous) => {
       const next = new Set(previous);
@@ -115,21 +106,12 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
     search: { observation },
   });
 
-  const newObservation = (
-    <Button type="primary" icon={Plus} onClick={() => setOpen("observation")}>
-      {m.observation_record()}
-    </Button>
-  );
   // A column is one day; it names its model too when the days read for more
   // than one, since values compare within a column and columns may ask
   // different questions.
   const asked = new Set(observations.map((item) => item.modelId));
   const namedModel = (modelId: string) =>
     asked.size > 1 ? models.find((item) => item.id === modelId) : undefined;
-  const trend = treatmentTrend(data);
-  const newest = trend.at(-1);
-  // The trend reads for the newest day's model, named when days differ.
-  const trendModel = newest && namedModel(newest.observation.modelId);
 
   return (
     <Page
@@ -145,61 +127,74 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
       ].filter(Boolean)}
       action={
         <>
-          {observations.length > 0 ? newObservation : null}
-          <ExperimentMenu
-            experiment={experiment}
-            hasRecords={hasRecords}
-            onNewTreatment={() => setOpen("treatment")}
-          />
+          <Button
+            type="primary"
+            icon={Plus}
+            onClick={() => setOpen("observation")}
+          >
+            {m.observation_record()}
+          </Button>
+          <ExperimentMenu experiment={experiment} hasRecords={hasRecords} />
         </>
       }
     >
       <PageSection
-        title={
-          trendModel
-            ? m.experiment_trend_title_model({ model: modelName(trendModel) })
-            : m.experiment_trend_title()
+        title={m.experiment_treatments()}
+        extra={
+          <Button size="small" icon={Plus} onClick={() => setOpen("treatment")}>
+            {m.treatment_new()}
+          </Button>
         }
       >
-        {newest ? (
-          <TreatmentTrend trend={trend} treatments={treatments} />
-        ) : (
-          <EmptyPlace variant="outlined">
-            {observations.length === 0 ? (
-              <Empty
-                icon={CalendarPlus}
-                title={m.experiment_no_observations()}
-                description={m.experiment_no_observations_description()}
-                action={newObservation}
-              />
-            ) : (
-              <Empty icon={ChartLine} title={m.experiment_trend_empty()} />
-            )}
-          </EmptyPlace>
-        )}
+        <TreatmentsTable
+          experiment={experiment.id}
+          treatments={treatments}
+          units={units}
+        />
       </PageSection>
       <PageSection title={m.experiment_units()}>
         <Table
           aria-label={m.experiment_grid_label({ experiment: experiment.name })}
           size="small"
+          toolbar={
+            treatments.length > 1 ? (
+              <Select
+                aria-label={m.experiment_column_treatment()}
+                allowClear
+                className="w-48"
+                options={treatments.map((item) => ({
+                  value: item.id,
+                  label: <TreatmentName treatment={item} />,
+                }))}
+                placeholder={m.experiment_units_all_treatments()}
+                size="small"
+                value={treatment}
+                onChange={(value) => {
+                  setTreatment(value);
+                  setSelected(new Set());
+                }}
+              />
+            ) : undefined
+          }
         >
           <TableHeader>
             <tr>
               <TableSelectionHead
                 fixed="start"
-                checked={units.length > 0 && chosen.length === units.length}
-                indeterminate={
-                  chosen.length > 0 && chosen.length < units.length
-                }
-                disabled={units.length === 0}
+                checked={rows.length > 0 && chosen.length === rows.length}
+                indeterminate={chosen.length > 0 && chosen.length < rows.length}
+                disabled={rows.length === 0}
                 onChange={(on) =>
                   select(
-                    units.map((unit) => unit.id),
+                    rows.map((unit) => unit.id),
                     on,
                   )
                 }
               />
-              <TableHead fixed="start" className="min-w-50">
+              <TableHead fixed="start" className="min-w-24">
+                {m.experiment_column_unit()}
+              </TableHead>
+              <TableHead fixed="start" className="min-w-36">
                 {m.experiment_column_treatment()}
               </TableHead>
               {observations.map((observation) => (
@@ -226,100 +221,57 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
                   />
                 </TableHead>
               ))}
-              <TableHead fixed="end" className="w-full">
-                <span className="sr-only">{m.experiment_column_actions()}</span>
-              </TableHead>
+              <TableHead className="w-full" />
             </tr>
           </TableHeader>
           <TableBody>
-            {groups.map(({ treatment, units: replicates }) => {
-              const ids = replicates.map((unit) => unit.id);
-              const count = ids.filter((id) => selected.has(id)).length;
-              const all = ids.length > 0 && count === ids.length;
-              return [
-                <TableGroupRow
-                  key={treatment.id}
-                  data-state={all ? "selected" : undefined}
+            {rows.map((unit) => {
+              const owner = treatmentOf.get(unit.treatment);
+              return (
+                <TableRow
+                  key={unit.id}
+                  data-state={selected.has(unit.id) ? "selected" : undefined}
+                  clickable
                 >
                   <TableSelectionCell
                     fixed="start"
-                    aria-label={treatment.name}
-                    checked={all}
-                    indeterminate={count > 0 && !all}
-                    disabled={ids.length === 0}
-                    onChange={(on) => select(ids, on)}
+                    aria-label={unit.code}
+                    checked={selected.has(unit.id)}
+                    onChange={(on) => select([unit.id], on)}
                   />
+                  <TableCell fixed="start" cellSlot="title">
+                    <TextLink render={<Link {...unitHref(unit)} />}>
+                      {unit.code}
+                    </TextLink>
+                  </TableCell>
                   <TableCell fixed="start">
-                    <TreatmentName treatment={treatment} />
+                    {owner ? <TreatmentName treatment={owner} /> : null}
                   </TableCell>
                   {observations.map((observation) => (
                     <TableCell key={observation.id}>
-                      <SummaryValue
-                        summary={treatmentSummary(
-                          cells,
-                          replicates,
+                      <UnitCell
+                        image={cells.get(cellKey(unit.id, observation.id))}
+                        reading={unitReading(cells, unit.id, observation)}
+                        counted={unitIsIncludedInAnalysis(
+                          unit.events,
                           observation,
                           ordinals,
+                        )}
+                        link={(content) => (
+                          <TextLink
+                            render={
+                              <Link {...unitHref(unit, observation.id)} />
+                            }
+                          >
+                            {content}
+                          </TextLink>
                         )}
                       />
                     </TableCell>
                   ))}
-                  <TableCell fixed="end">
-                    <div className="flex justify-end">
-                      <TreatmentMenu
-                        experiment={experiment.id}
-                        treatment={treatment}
-                        deletable={treatments.length > 1}
-                      />
-                    </div>
-                  </TableCell>
-                </TableGroupRow>,
-                ...replicates.map((unit) => (
-                  <TableRow
-                    key={unit.id}
-                    data-state={selected.has(unit.id) ? "selected" : undefined}
-                    clickable
-                  >
-                    <TableSelectionCell
-                      fixed="start"
-                      aria-label={unit.code}
-                      checked={selected.has(unit.id)}
-                      onChange={(on) => select([unit.id], on)}
-                    />
-                    <TableCell fixed="start" cellSlot="title">
-                      <TextLink
-                        className="ms-4"
-                        render={<Link {...unitHref(unit)} />}
-                      >
-                        {unit.code}
-                      </TextLink>
-                    </TableCell>
-                    {observations.map((observation) => (
-                      <TableCell key={observation.id}>
-                        <UnitCell
-                          image={cells.get(cellKey(unit.id, observation.id))}
-                          reading={unitReading(cells, unit.id, observation)}
-                          counted={unitIsIncludedInAnalysis(
-                            unit.events,
-                            observation,
-                            ordinals,
-                          )}
-                          link={(content) => (
-                            <TextLink
-                              render={
-                                <Link {...unitHref(unit, observation.id)} />
-                              }
-                            >
-                              {content}
-                            </TextLink>
-                          )}
-                        />
-                      </TableCell>
-                    ))}
-                    <TableCell fixed="end" />
-                  </TableRow>
-                )),
-              ];
+                  <TableCell />
+                </TableRow>
+              );
             })}
           </TableBody>
         </Table>
@@ -352,97 +304,6 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         onClose={close}
       />
     </Page>
-  );
-}
-
-/**
- * How the treatments compare over the days that read: each treatment's mean
- * per unit, one line each, in its own color.
- */
-function TreatmentTrend({
-  trend,
-  treatments,
-}: {
-  trend: readonly TrendDay[];
-  treatments: readonly Treatment[];
-}) {
-  return (
-    <Card>
-      <LineChart
-        title={m.experiment_trend_value()}
-        data={trend.map((day) => ({
-          day: day.observation.day,
-          ...Object.fromEntries(
-            day.treatments.flatMap(({ treatment, summary }) =>
-              summary.value === null ? [] : [[treatment, summary.value]],
-            ),
-          ),
-        }))}
-        index="day"
-        indexTicks={trend.map((day) => day.observation.day)}
-        indexFormatter={(day) => m.observation_day_label({ day })}
-        categories={treatments.map((treatment) => treatment.id)}
-        labels={Object.fromEntries(
-          treatments.map((treatment) => [treatment.id, treatment.name]),
-        )}
-        height={TREND_HEIGHT}
-        xAxisDomain={["dataMin", "dataMax"]}
-        yAxisDomain={[0, "auto"]}
-        valueFormatter={formatCount}
-        tooltipLabelFormatter={(day) => m.observation_day_label({ day })}
-        tooltipValueFormatter={formatCount}
-      />
-    </Card>
-  );
-}
-
-const TREND_HEIGHT = 240;
-
-/** The treatment comparison while it loads: its card holding the chart's place. */
-export function TreatmentTrendSkeleton() {
-  return (
-    <Card>
-      <Skeleton height={TREND_HEIGHT} />
-    </Card>
-  );
-}
-
-function TreatmentName({ treatment }: { treatment: Treatment }) {
-  const factor = formatFactor(treatment.factor);
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <TreatmentDot position={treatment.position} />
-      <span className="truncate">{treatment.name}</span>
-      {factor ? (
-        <Text as="span" size="xs" type="tertiary" weight="regular" ellipsis>
-          {factor}
-        </Text>
-      ) : null}
-    </span>
-  );
-}
-
-/** A treatment's mean at one observation, its spread and how many replicates it rests on. */
-function SummaryValue({ summary }: { summary: ReplicateSummary }) {
-  if (summary.value === null) return <Absent />;
-  return (
-    <span className="whitespace-nowrap tabular-nums">
-      {formatCount(summary.value)}
-      {summary.deviation === null ? null : (
-        <Text as="span" type="secondary" weight="regular" className="ms-1">
-          {m.experiment_summary_deviation({ deviation: summary.deviation })}
-        </Text>
-      )}
-      <Text
-        as="span"
-        size="xs"
-        type="tertiary"
-        weight="regular"
-        className="ms-2"
-      >
-        {m.experiment_summary_sample({ count: summary.sampleSize })}
-      </Text>
-    </span>
   );
 }
 

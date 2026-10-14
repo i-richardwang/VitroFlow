@@ -2,10 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import type { ExperimentGrid } from "../../domain/experiments/contracts";
 import { experimentIdSchema } from "../../domain/experiments/schema";
-import {
-  ExperimentGridView,
-  TreatmentTrendSkeleton,
-} from "../../features/experiments/ExperimentGridView";
+import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
 import { getExperimentGrid } from "../../functions/experiments";
 import { documentTitle } from "../../ui/documentTitle";
 import { PageColumnSkeleton, PageSectionSkeleton } from "../../ui/Page";
@@ -39,7 +36,7 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
     <PageColumnSkeleton>
       <PageHeaderSkeleton icon meta />
       <PageSectionSkeleton>
-        <TreatmentTrendSkeleton />
+        <TableSkeleton rows={3} />
       </PageSectionSkeleton>
       <PageSectionSkeleton>
         <TableSkeleton />

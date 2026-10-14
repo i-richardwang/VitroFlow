@@ -15,11 +15,7 @@ const WORKBOOK: Workbook = {
   columns: [{ width: 14 }, { width: 10 }, { width: 10 }],
   rows: [
     [textCell("萌发", { strong: true, columns: 3 }), blankCell, blankCell],
-    [
-      dateCell({ year: 2026, month: 9, day: 1 }),
-      countCell(15),
-      countCell(12.5),
-    ],
+    [dateCell({ year: 2026, month: 9, day: 1 }), countCell(15), countCell(12)],
   ],
   stickyRows: 1,
   stickyColumns: 1,
@@ -75,10 +71,10 @@ describe("the workbook a browser downloads", () => {
 });
 
 describe("what the spreadsheet holds", () => {
-  test("a tally and its mean are numbers", async () => {
+  test("a count is a number", async () => {
     const sheet = part(await written("trial.xlsx"), "xl/worksheets/sheet1.xml");
     expect(sheet).toContain("<v>15</v>");
-    expect(sheet).toContain("<v>12.5</v>");
+    expect(sheet).toContain("<v>12</v>");
   });
 
   test("a day is the day a spreadsheet counts, wherever it is opened", async () => {
@@ -98,7 +94,7 @@ describe("what the spreadsheet holds", () => {
 
   test("reads each quantity in the units it is measured in", async () => {
     const styles = part(await written("trial.xlsx"), "xl/styles.xml");
-    expect(styles).toContain(`formatCode="0.#"`);
+    expect(styles).toContain(`formatCode="0"`);
     expect(styles).toContain(`formatCode="yyyy-mm-dd"`);
   });
 });

@@ -18,7 +18,7 @@ import {
 } from "./workbook";
 import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
-const HEADING_ROWS = 3;
+const HEADING_ROWS = 2;
 
 const SEEDS: Model = {
   schemaVersion: 1,
@@ -169,87 +169,55 @@ describe("the experiment workbook", () => {
   });
 
   test("names the model of every day, and dates it underneath", () => {
-    const [names, dates, quantities] = heading(trial());
+    const [names, dates] = heading(trial());
     expect(names?.slice(3)).toEqual([
-      {
-        kind: "text",
-        text: "Day 0 · Seed germination",
-        strong: true,
-        columns: 2,
-      },
-      { kind: "blank" },
-      { kind: "text", text: "Day 14 · Rooting", strong: true, columns: 2 },
-      { kind: "blank" },
+      { kind: "text", text: "Day 0 · Seed germination", strong: true },
+      { kind: "text", text: "Day 14 · Rooting", strong: true },
     ]);
     expect(dates?.slice(3)).toEqual([
-      { kind: "date", date: new Date(Date.UTC(2026, 8, 1)), columns: 2 },
-      { kind: "blank" },
-      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)), columns: 2 },
-      { kind: "blank" },
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 1)) },
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)) },
     ]);
-    expect(
-      quantities?.slice(3).map((cell) => cell.kind === "text" && cell.text),
-    ).toEqual(["Count", "Replicates", "Count", "Replicates"]);
   });
 
-  test("every day reads a count and the replicates behind it", () => {
+  test("every day is one column of counts beside the design", () => {
     const workbook = trial();
-    expect(workbook.columns).toHaveLength(7);
+    expect(workbook.columns).toHaveLength(5);
     expect(workbook.stickyColumns).toBe(3);
   });
 
-  test("a unit reads its own tallies", () => {
-    const [, first] = readings(trial());
-    expect(first).toEqual([
+  test("a row per unit, each reading its own tallies", () => {
+    const rows = readings(trial());
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual([
       { kind: "text", text: "CK" },
       { kind: "text", text: "BA 0 mg/L" },
       { kind: "text", text: "A1" },
       { kind: "count", count: 20 },
-      { kind: "blank" },
       { kind: "count", count: 15 },
-      { kind: "blank" },
     ]);
   });
 
-  test("the treatment means its replicates, and states how many", () => {
-    const [summary] = readings(trial());
-    expect(summary?.slice(2)).toEqual([
-      { kind: "text", text: "Mean", strong: true },
-      { kind: "count", count: 20 },
-      { kind: "count", count: 2 },
-      { kind: "count", count: 12.5 },
-      { kind: "count", count: 2 },
-    ]);
-  });
-
-  test("an excluded unit is named by the event, and left out of the mean", () => {
+  test("an excluded unit is named by the event", () => {
     const workbook = trial({
       units: [unit("A1"), unit("A2", CONTAMINATED)],
     });
-    const [summary, , second] = readings(workbook);
-    expect(second?.slice(5)).toEqual([
+    const [, second] = readings(workbook);
+    expect(second?.slice(3)).toEqual([
+      { kind: "count", count: 20 },
       { kind: "text", text: "Contaminated" },
-      { kind: "blank" },
-    ]);
-    expect(summary?.slice(5)).toEqual([
-      { kind: "count", count: 15 },
-      { kind: "count", count: 1 },
     ]);
   });
 
-  test("a reading still to come leaves its cell empty, and its mean over none", () => {
+  test("a reading still to come leaves its cell empty", () => {
     const workbook = trial({
       images: [
         image("A1", SOWN.id, { ungerminated: 20 }),
         image("A2", SOWN.id, { ungerminated: 20 }),
       ],
     });
-    const [summary, first] = readings(workbook);
-    expect(first?.slice(5)).toEqual([{ kind: "blank" }, { kind: "blank" }]);
-    expect(summary?.slice(5)).toEqual([
-      { kind: "blank" },
-      { kind: "count", count: 0 },
-    ]);
+    const [first] = readings(workbook);
+    expect(first?.slice(4)).toEqual([{ kind: "blank" }]);
   });
 });
 

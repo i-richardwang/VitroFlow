@@ -42,8 +42,6 @@ import { Icon } from "./Icon";
  * - Selection: `TableSelectionHead` (select all, with the mixed state) and
  *   `TableSelectionCell` (one row) hold a checkbox each; a selected row is
  *   `data-state="selected"`. The caller owns the selected set.
- * - Groups: `TableGroupRow` heads the rows that follow it until the next
- *   group row; its own `TableSelectionCell` selects the group.
  * - `TableHeadMenu`: a column header that opens a menu of the column's
  *   commands, drawn in the header's own type.
  * - Pinned columns: `fixed="start"` / `"end"` on every cell of a column keeps
@@ -243,16 +241,6 @@ export function TableRow({
   );
 }
 
-/** Heads the rows after it up to the next group row. */
-export function TableGroupRow({ className, ...props }: ComponentProps<"tr">) {
-  return (
-    <tr
-      className={cn("ui-table-row ui-table-group-row", className)}
-      {...props}
-    />
-  );
-}
-
 type Fixed = "start" | "end";
 
 /** Classes of a cell pinned to one side of a horizontally scrolling table. */
@@ -362,7 +350,7 @@ export function TableSelectionHead({
   );
 }
 
-/** The selection cell of a row or group row, named after it. */
+/** The selection cell of a row, named after it. */
 export function TableSelectionCell({
   "aria-label": ariaLabel,
   checked,

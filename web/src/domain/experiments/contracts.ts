@@ -113,32 +113,6 @@ export const unitSeriesSchema = z.strictObject({
 
 export type UnitSeries = z.infer<typeof unitSeriesSchema>;
 
-/**
- * A quantity over the replicates of one treatment: the typical value and its
- * spread. Units without a value are absent. The spread is the sample standard
- * deviation, which a single replicate does not have.
- */
-export const replicateSummarySchema = z.strictObject({
-  value: z.number().nullable(),
-  deviation: z.number().nullable(),
-  sampleSize: z.number().int().min(0),
-});
-
-export type ReplicateSummary = z.infer<typeof replicateSummarySchema>;
-
-/** One observation day of a trend: each treatment's summary, in treatment order. */
-const trendDaySchema = z.strictObject({
-  observation: experimentObservationSchema,
-  treatments: z.array(
-    z.strictObject({
-      treatment: treatmentIdSchema,
-      summary: replicateSummarySchema,
-    }),
-  ),
-});
-
-export type TrendDay = z.infer<typeof trendDaySchema>;
-
 /** An experiment as the overview lists it: its design's size and how far its observations have come. */
 export const experimentSummarySchema = z.strictObject({
   experiment: experimentSchema,

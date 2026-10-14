@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { Experiment } from "../../domain/experiments/schema";
@@ -26,22 +26,14 @@ const EDIT_FORM = "edit-experiment";
 export function ExperimentMenu({
   experiment,
   hasRecords,
-  onNewTreatment,
 }: {
   experiment: Experiment;
   hasRecords: boolean;
-  onNewTreatment: () => void;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
 
   const items: DropdownItem[] = [
-    {
-      key: "treatment",
-      icon: Plus,
-      label: m.treatment_menu_new(),
-      onClick: onNewTreatment,
-    },
     {
       key: "export",
       icon: Download,

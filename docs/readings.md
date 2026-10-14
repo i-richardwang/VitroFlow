@@ -42,18 +42,11 @@ image reviewed, and the grid shows the difference.
 **A count** is how many instances a unit's reading found, across every class it
 recognizes.
 
-## What a treatment reads
-
-A treatment reads its replicates day by day, over the ones the analysis still
-counts — a population culture events move from one day to the next — as the
-mean of their counts.
-
 ## What the grid shows
 
-A column is the day, and names the model as well only when the days do not all
-read for the same one. A cell shows the unit's count. A treatment's row shows the
-mean of its counts, the sample standard deviation, and the number of replicates
-behind it.
+A row is a unit, beside the treatment it belongs to. A column is the day, and
+names the model as well only when the days do not all read for the same one. A
+cell shows the unit's count.
 
 ## What the spreadsheet carries
 
@@ -61,9 +54,7 @@ An experiment exports as one sheet. The block at the top names the experiment,
 its plant material, explant type and base medium, the day it was inoculated and
 the day the file was taken. Below that the design repeats down every row —
 treatment, factor, unit — so the table sorts, filters and pivots on it, and each
-observation heads the columns it reads: a count and the replicates behind it. A
-treatment's mean stands above its replicates and states how many it is over. One
-dish is not a sample, so a unit leaves that column to the treatment above it.
+observation heads the column of counts it read, one row per unit.
 
 Quantities stay quantities and days stay days. A count is a number, and a day is
 the day a spreadsheet counts rather than the text of one, so whatever opens the

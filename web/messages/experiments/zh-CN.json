@@ -36,14 +36,11 @@
   "experiment_move_units": "换处理",
   "experiment_units_not_moved": "没有换成功",
   "experiment_column_treatment": "处理",
+  "experiment_column_unit": "试验单元",
   "experiment_column_actions": "操作",
   "experiment_cell_excluded": "本次观测不计入分析",
   "experiment_export": "导出表格",
   "workbook_column_factor": "因子",
-  "workbook_column_unit": "试验单元",
-  "workbook_quantity_count": "计数",
-  "workbook_quantity_replicates": "重复数",
-  "workbook_row_mean": "均值",
   "workbook_exported": "导出日期",
   "observation_day_label": [
     {
@@ -153,7 +150,6 @@
   "culture_status_active": "培养中",
   "treatment_label": "处理",
   "treatment_new": "新建处理",
-  "treatment_menu_new": "新建处理…",
   "treatment_edit": "编辑 {name}",
   "treatment_menu_edit": "编辑处理…",
   "treatment_not_added": "处理未添加",
@@ -178,8 +174,6 @@
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "模型",
   "experiments_empty_description": "新建实验，布置处理与试验单元。",
-  "experiment_no_observations": "还没有观测日",
-  "experiment_no_observations_description": "记录一个观测日，并上传当天拍的照片。",
   "treatment_deleted": "已删除 {name}",
   "experiment_selection_count": [
     {
@@ -191,25 +185,6 @@
   ],
   "experiment_facts_joined": "{first} · {second}",
   "observation_heading": "{day} · {model}",
-  "experiment_summary_deviation": [
-    {
-      "declarations": [
-        "input deviation",
-        "local formattedDeviation = deviation: number maximumFractionDigits=1"
-      ],
-      "match": {
-        "deviation=*": "± {formattedDeviation}"
-      }
-    }
-  ],
-  "experiment_summary_sample": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "n = {formattedCount}"
-      }
-    }
-  ],
   "culture_event_at": "{event} · {observation}",
   "unit_no_image_description": "在实验表格中，从某个观测日把照片对应到这个试验单元。",
   "unit_open_experiment": "打开实验",
@@ -238,15 +213,13 @@
     }
   ],
   "observation_menu_add_photos": "补传照片…",
-  "experiment_trend_title": "处理对比",
-  "experiment_trend_title_model": "处理对比 · {model}",
-  "experiment_trend_value": "每个试验单元的平均计数",
   "experiment_cell_unreviewed": "待复核",
   "experiment_cell_failed": "失败",
   "experiment_cell_unread": "这个模型还没有版本，点开照片可以手动计数",
   "experiment_cell_waiting": "等待模型计数",
   "experiment_units": "试验单元",
-  "experiment_trend_empty": "还没有可比较的计数",
+  "experiment_treatments": "处理",
+  "experiment_units_all_treatments": "全部处理",
   "experiments_search": "搜索实验",
   "experiments_no_matches": "没有符合条件的实验",
   "experiments_no_matches_description": "换个名称、材料或培养基试试。",
