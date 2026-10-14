@@ -25,6 +25,7 @@ import {
   unassignObservationImage,
 } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
+import { useNavigateAfterWrite } from "../../ui/hooks/useNavigateAfterWrite";
 import { PageMenu } from "../../ui/ActionsMenu";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { FormDialog } from "../../ui/FormDialog";
@@ -66,6 +67,7 @@ export function UnitMenu({
   datasets: string[];
 }) {
   const router = useRouter();
+  const navigateAfterWrite = useNavigateAfterWrite();
   const [open, setOpen] = useState<Action | null>(null);
   const close = () => setOpen(null);
 
@@ -110,7 +112,7 @@ export function UnitMenu({
           onConfirm: async () => {
             await unassignObservationImage({ data: image.ref });
             toast.success(m.unit_image_unassigned());
-            await router.navigate({
+            await navigateAfterWrite({
               to: "/experiments/$experiment",
               params: { experiment: image.ref.experiment },
             });

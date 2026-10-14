@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Experiment } from "../../domain/experiments/schema";
 import { editExperiment, removeExperiment } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
+import { useNavigateAfterWrite } from "../../ui/hooks/useNavigateAfterWrite";
 import { PageMenu } from "../../ui/ActionsMenu";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { FormDialog } from "../../ui/FormDialog";
@@ -30,7 +31,7 @@ export function ExperimentMenu({
   experiment: Experiment;
   hasRecords: boolean;
 }) {
-  const router = useRouter();
+  const navigateAfterWrite = useNavigateAfterWrite();
   const [editing, setEditing] = useState(false);
 
   const items: DropdownItem[] = [
@@ -61,7 +62,7 @@ export function ExperimentMenu({
           onConfirm: async () => {
             await removeExperiment({ data: { experiment: experiment.id } });
             toast.success(m.experiment_deleted({ name: experiment.name }));
-            await router.navigate({ to: "/experiments" });
+            await navigateAfterWrite({ to: "/experiments" });
           },
         }),
     });

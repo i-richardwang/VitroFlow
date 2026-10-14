@@ -1,4 +1,3 @@
-import { useRouter } from "@tanstack/react-router";
 import { FileArchive, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 
@@ -12,6 +11,7 @@ import { DropZone } from "../../ui/kit/DropZone";
 import { Icon } from "../../ui/kit/Icon";
 import { Progress } from "../../ui/kit/Progress";
 import { m } from "../../paraglide/messages";
+import { useNavigateAfterWrite } from "../../ui/hooks/useNavigateAfterWrite";
 import { Text } from "../../ui/kit/Text";
 
 export function ImportDatasetDialog({
@@ -45,7 +45,7 @@ function ImportArchiveForm({
   action: AsyncAction;
   onDone: () => void;
 }) {
-  const router = useRouter();
+  const navigateAfterWrite = useNavigateAfterWrite();
   const [progress, setProgress] = useState<ImportProgress | null>(null);
 
   const importArchive = (file: File) =>
@@ -58,7 +58,7 @@ function ImportArchiveForm({
         return;
       }
       onDone();
-      await router.navigate({
+      await navigateAfterWrite({
         to: "/datasets/$dataset",
         params: { dataset: result.value.id },
       });

@@ -1,4 +1,3 @@
-import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { today } from "../../domain/experiments/schema";
@@ -7,6 +6,7 @@ import { DialogSession, FormDialog } from "../../ui/FormDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Form } from "../../ui/kit/Form";
 import { m } from "../../paraglide/messages";
+import { useNavigateAfterWrite } from "../../ui/hooks/useNavigateAfterWrite";
 import {
   DesignField,
   initialDesign,
@@ -38,7 +38,7 @@ function NewExperimentSession({
   onClose,
   afterClose,
 }: NewExperimentDialogProps & { afterClose: () => void }) {
-  const router = useRouter();
+  const navigateAfterWrite = useNavigateAfterWrite();
   const action = useAsyncAction();
   const [inoculatedOn, setInoculatedOn] = useState(today);
   const [design, setDesign] = useState<DesignRow[]>(initialDesign);
@@ -77,7 +77,7 @@ function NewExperimentSession({
             .then(async (result) => {
               if (!result.ok) return;
               onClose();
-              await router.navigate({
+              await navigateAfterWrite({
                 to: "/experiments/$experiment",
                 params: { experiment: result.value.id },
               });

@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Model, ModelAnnotation } from "../../domain/models/schema";
 import { removeModel, updateModelAnnotation } from "../../functions/models";
 import { m } from "../../paraglide/messages";
+import { useNavigateAfterWrite } from "../../ui/hooks/useNavigateAfterWrite";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { FormDialog } from "../../ui/FormDialog";
 import {
@@ -29,7 +30,7 @@ export function ModelMenu({
   model: Model;
   deletable: boolean;
 }) {
-  const router = useRouter();
+  const navigateAfterWrite = useNavigateAfterWrite();
   const [editing, setEditing] = useState(false);
   const name = modelName(model);
 
@@ -56,7 +57,7 @@ export function ModelMenu({
             onConfirm: async () => {
               await removeModel({ data: { model: model.id } });
               toast.success(m.model_deleted({ name }));
-              await router.navigate({ to: "/models" });
+              await navigateAfterWrite({ to: "/models" });
             },
           }),
       },
