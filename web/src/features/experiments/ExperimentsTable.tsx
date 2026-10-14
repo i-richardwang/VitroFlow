@@ -122,13 +122,7 @@ export function ExperimentsTable({
       </TableHeader>
       <TableBody>
         {shown.map(
-          ({
-            experiment,
-            treatments,
-            units,
-            observations,
-            lastObservation,
-          }) => {
+          ({ experiment, treatments, units, observations, lastObservedOn }) => {
             const material = joinFacts(
               [experiment.plantMaterial, experiment.explantType].filter(
                 Boolean,
@@ -180,11 +174,7 @@ export function ExperimentsTable({
                   cellLabel={m.experiments_column_last_observed()}
                   className="whitespace-nowrap"
                 >
-                  {lastObservation ? (
-                    <Day value={lastObservation.observedOn} />
-                  ) : (
-                    <Absent />
-                  )}
+                  {lastObservedOn ? <Day value={lastObservedOn} /> : <Absent />}
                 </TableCell>
               </TableRow>
             );

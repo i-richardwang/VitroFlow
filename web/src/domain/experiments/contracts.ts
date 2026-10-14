@@ -6,6 +6,7 @@ import { imageDigestSchema } from "../images/schema";
 import { tallySchema } from "../models/classes";
 import { modelSchema } from "../models/schema";
 import {
+  calendarDaySchema,
   cultureEventSchema,
   experimentNameSchema,
   experimentObservationSchema,
@@ -119,9 +120,7 @@ export const experimentSummarySchema = z.strictObject({
   treatments: z.number().int().min(0),
   units: z.number().int().min(0),
   observations: z.number().int().min(0),
-  lastObservation: experimentObservationSchema
-    .pick({ observedOn: true, day: true })
-    .nullable(),
+  lastObservedOn: calendarDaySchema.nullable(),
 });
 
 export type ExperimentSummary = z.infer<typeof experimentSummarySchema>;

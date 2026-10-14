@@ -25,12 +25,11 @@ import {
   imageReview,
   observationCells,
 } from "../../domain/experiments/readings";
-import {
-  daysBetween,
-  type Experiment,
-  type ImageAnalysisState,
-  type ObservationImageRef,
-  type UnitRef,
+import type {
+  Experiment,
+  ImageAnalysisState,
+  ObservationImageRef,
+  UnitRef,
 } from "../../domain/experiments/schema";
 import type { Tally } from "../../domain/models/classes";
 import {
@@ -287,19 +286,10 @@ async function listExperimentSummaries(
       asc(experiments.name),
       asc(experiments.id),
     );
-  return rows.map(({ lastObservedOn, ...row }) => {
-    const experiment = toExperiment(row.experiment);
-    return {
-      ...row,
-      experiment,
-      lastObservation: lastObservedOn
-        ? {
-            observedOn: lastObservedOn,
-            day: daysBetween(experiment.inoculatedOn, lastObservedOn),
-          }
-        : null,
-    };
-  });
+  return rows.map((row) => ({
+    ...row,
+    experiment: toExperiment(row.experiment),
+  }));
 }
 
 function atObservationImage(experimentId: string, observationImageId: string) {

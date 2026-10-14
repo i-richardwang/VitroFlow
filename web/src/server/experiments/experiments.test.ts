@@ -291,7 +291,7 @@ describe("experiments", () => {
     expect(summary?.treatments).toBe(2);
     expect(summary?.units).toBe(5);
     expect(summary?.observations).toBe(0);
-    expect(summary?.lastObservation).toBeNull();
+    expect(summary?.lastObservedOn).toBeNull();
   });
 
   test("an experiment cannot be created without a design", async () => {
@@ -900,7 +900,7 @@ describe("experiments", () => {
     );
     expect(summary?.units).toBe(11);
     expect(summary?.observations).toBe(3);
-    expect(summary?.lastObservation?.day).toBe(21);
+    expect(summary?.lastObservedOn).toBe("2026-08-22");
   });
 
   test("an observation day is recorded with its photographs, or not at all", async () => {
