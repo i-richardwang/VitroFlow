@@ -2,7 +2,6 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "experiments_title": "实验",
   "experiments_empty": "还没有实验",
-  "experiment_card_latest": "{day} · 每个试验单元的平均计数",
   "experiment_new": "新建实验",
   "experiment_not_started": "实验未创建",
   "experiment_start": "创建",
@@ -215,20 +214,8 @@
   "unit_no_image_description": "在实验表格中，从某个观测日把照片对应到这个试验单元。",
   "unit_open_experiment": "打开实验",
   "experiment_meta_inoculated": "{day} 接种",
-  "experiment_stat_treatments": "处理",
-  "experiment_stat_observations": "观测日",
   "experiment_group_culture": "培养",
   "experiments_description": "按处理布置试验单元，在每个观测日拍照，读出萌发与再生的结果。",
-  "experiment_card_photos": "照片",
-  "experiment_card_more_treatments": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "+{formattedCount}"
-      }
-    }
-  ],
-  "experiment_card_no_photos": "还没有照片",
   "unit_steps": "试验单元与观测日",
   "unit_unreviewed_count": [
     {
@@ -258,8 +245,17 @@
   "experiment_cell_failed": "失败",
   "experiment_cell_unread": "这个模型还没有版本，点开照片可以手动计数",
   "experiment_cell_waiting": "等待模型计数",
-  "experiment_card_no_readings": "还没有计数",
-  "experiment_card_more_treatments_label": "其他处理",
   "experiment_units": "试验单元",
-  "experiment_trend_empty": "还没有可比较的计数"
+  "experiment_trend_empty": "还没有可比较的计数",
+  "experiments_search": "搜索实验",
+  "experiments_no_matches": "没有符合条件的实验",
+  "experiments_no_matches_description": "换个名称、材料或培养基试试。",
+  "experiments_column_experiment": "实验",
+  "experiments_column_material": "材料",
+  "experiments_column_medium": "基础培养基",
+  "experiments_column_inoculated": "接种日期",
+  "experiments_column_treatments": "处理",
+  "experiments_column_units": "试验单元",
+  "experiments_column_observations": "观测日",
+  "experiments_column_last_observed": "最近观测"
 }

@@ -288,9 +288,10 @@ describe("experiments", () => {
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
-    expect(summary?.treatments.map((item) => item.name)).toEqual(["CK", "T1"]);
+    expect(summary?.treatments).toBe(2);
+    expect(summary?.units).toBe(5);
     expect(summary?.observations).toBe(0);
-    expect(summary?.latest).toBeNull();
+    expect(summary?.lastObservation).toBeNull();
   });
 
   test("an experiment cannot be created without a design", async () => {
@@ -897,12 +898,9 @@ describe("experiments", () => {
     const summary = (await listExperiments()).find(
       ({ experiment: item }) => item.id === experiment.id,
     );
+    expect(summary?.units).toBe(11);
     expect(summary?.observations).toBe(3);
-    expect(summary?.photos).toBe(4);
-    expect(
-      summary?.latest,
-      "photographs not yet counted read nothing",
-    ).toBeNull();
+    expect(summary?.lastObservation?.day).toBe(21);
   });
 
   test("an observation day is recorded with its photographs, or not at all", async () => {

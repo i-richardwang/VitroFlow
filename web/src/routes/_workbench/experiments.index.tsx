@@ -2,15 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FlaskConical, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { ExperimentCard } from "../../features/experiments/ExperimentCard";
+import { ExperimentsTable } from "../../features/experiments/ExperimentsTable";
 import { NewExperimentDialog } from "../../features/experiments/NewExperimentDialog";
 import { getExperiments } from "../../functions/experiments";
 import { documentTitle } from "../../ui/documentTitle";
 import { m } from "../../paraglide/messages";
 import { Button } from "../../ui/kit/Button";
 import { Empty } from "../../ui/kit/Empty";
-import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
-import { CardGrid, CardGridSkeleton } from "../../ui/kit/SummaryCard";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { Page, PageColumnSkeleton } from "../../ui/Page";
 
 export const Route = createFileRoute("/_workbench/experiments/")({
@@ -22,7 +21,7 @@ export const Route = createFileRoute("/_workbench/experiments/")({
   pendingComponent: () => (
     <PageColumnSkeleton>
       <PageHeaderSkeleton description />
-      <CardGridSkeleton band />
+      <TableSkeleton />
     </PageColumnSkeleton>
   ),
   component: ExperimentsPage,
@@ -43,23 +42,17 @@ function ExperimentsPage() {
       description={m.experiments_description()}
       action={experiments.length > 0 ? create : undefined}
     >
-      <CardGrid
-        aria-label={m.experiments_title()}
+      <ExperimentsTable
+        experiments={experiments}
         empty={
-          experiments.length === 0 && (
-            <Empty
-              icon={FlaskConical}
-              title={m.experiments_empty()}
-              description={m.experiments_empty_description()}
-              action={create}
-            />
-          )
+          <Empty
+            icon={FlaskConical}
+            title={m.experiments_empty()}
+            description={m.experiments_empty_description()}
+            action={create}
+          />
         }
-      >
-        {experiments.map((summary) => (
-          <ExperimentCard key={summary.experiment.id} summary={summary} />
-        ))}
-      </CardGrid>
+      />
       <NewExperimentDialog open={creating} onClose={() => setCreating(false)} />
     </Page>
   );

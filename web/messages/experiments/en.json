@@ -2,7 +2,6 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "experiments_title": "Experiments",
   "experiments_empty": "No experiments yet",
-  "experiment_card_latest": "{day} · mean count per unit",
   "experiment_new": "New experiment",
   "experiment_not_started": "Experiment not started",
   "experiment_start": "Start",
@@ -233,20 +232,8 @@
   "unit_no_image_description": "Match a photograph to it from an observation day in the experiment.",
   "unit_open_experiment": "Open experiment",
   "experiment_meta_inoculated": "Inoculated {day}",
-  "experiment_stat_treatments": "Treatments",
-  "experiment_stat_observations": "Observation days",
   "experiment_group_culture": "Culture",
   "experiments_description": "Lay out treatments and units, photograph them on each observation day, and read the results.",
-  "experiment_card_photos": "Photos",
-  "experiment_card_more_treatments": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "+{formattedCount}"
-      }
-    }
-  ],
-  "experiment_card_no_photos": "No photos yet",
   "unit_steps": "Units and observation days",
   "unit_unreviewed_count": [
     {
@@ -276,8 +263,17 @@
   "experiment_cell_failed": "Failed",
   "experiment_cell_unread": "The model has no version yet; open the photo to count it by hand",
   "experiment_cell_waiting": "Waiting for the model to count",
-  "experiment_card_no_readings": "No counts yet",
-  "experiment_card_more_treatments_label": "More treatments",
   "experiment_units": "Units",
-  "experiment_trend_empty": "No counts to compare yet"
+  "experiment_trend_empty": "No counts to compare yet",
+  "experiments_search": "Search experiments",
+  "experiments_no_matches": "No experiments match",
+  "experiments_no_matches_description": "Try another name, material or medium.",
+  "experiments_column_experiment": "Experiment",
+  "experiments_column_material": "Material",
+  "experiments_column_medium": "Base medium",
+  "experiments_column_inoculated": "Inoculated",
+  "experiments_column_treatments": "Treatments",
+  "experiments_column_units": "Units",
+  "experiments_column_observations": "Observation days",
+  "experiments_column_last_observed": "Last observed"
 }

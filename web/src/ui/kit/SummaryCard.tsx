@@ -35,20 +35,17 @@ export function CardGrid({
 
 /*
  * One thing at a glance, linking to its page: its icon tile, its name
- * (16px, 600) over a line of facts, an arrow at the end of that row; then
- * `children`, usually a `SummaryCardBand`, and at the foot `footer`, usually
- * `SummaryCardStats`. `render` is the link, a router `<Link>`; the name and
+ * (16px, 600) over a line of facts, an arrow at the end of that row; and
+ * at the foot `footer`, usually `SummaryCardStats`. `render` is the link, a router `<Link>`; the name and
  * the arrow both follow it, the arrow hidden from assistive technology.
  */
 export function SummaryCard({
-  children,
   description,
   footer,
   icon,
   render,
   title,
 }: {
-  children?: ReactNode;
   description?: ReactNode;
   footer?: ReactNode;
   icon: IconProps["icon"];
@@ -73,45 +70,24 @@ export function SummaryCard({
   });
   return (
     <li className="ui-summary-card">
-      <div className="ui-summary-card-body">
-        <div className="ui-summary-card-identity">
-          <IconTile icon={icon} />
-          <div className="ui-summary-card-heading">
-            {typeof title === "string" ? (
-              <OverflowTooltip title={title}>{name}</OverflowTooltip>
-            ) : (
-              name
-            )}
-            {description != null ? (
-              <span className="ui-summary-card-description">{description}</span>
-            ) : null}
-          </div>
-          {arrow}
+      <div className="ui-summary-card-identity">
+        <IconTile icon={icon} />
+        <div className="ui-summary-card-heading">
+          {typeof title === "string" ? (
+            <OverflowTooltip title={title}>{name}</OverflowTooltip>
+          ) : (
+            name
+          )}
+          {description != null ? (
+            <span className="ui-summary-card-description">{description}</span>
+          ) : null}
         </div>
-        {children}
+        {arrow}
       </div>
       {footer != null ? (
         <div className="ui-summary-card-foot">{footer}</div>
       ) : null}
     </li>
-  );
-}
-
-/*
- * The card's headline on a band of fill: what the thing has to show, or,
- * `empty` and dashed, what it is missing.
- */
-export function SummaryCardBand({
-  children,
-  variant = "content",
-}: {
-  children: ReactNode;
-  variant?: "content" | "empty";
-}) {
-  return (
-    <div className="ui-summary-card-band" data-variant={variant}>
-      {children}
-    </div>
   );
 }
 
@@ -133,14 +109,8 @@ export function SummaryCardStats({
   );
 }
 
-/** A `CardGrid` while it loads; `band` when its cards carry a `SummaryCardBand`. */
-export function CardGridSkeleton({
-  band,
-  cards = 2,
-}: {
-  band?: boolean;
-  cards?: number;
-}) {
+/** A `CardGrid` while it loads. */
+export function CardGridSkeleton({ cards = 2 }: { cards?: number }) {
   return (
     <div aria-hidden className="ui-card-grid">
       {Array.from({ length: cards }, (_, index) => (
@@ -152,7 +122,6 @@ export function CardGridSkeleton({
               <Skeleton.Text size="xs" width="14em" />
             </div>
           </div>
-          {band ? <Skeleton className="ui-summary-card-skeleton-band" /> : null}
           <Skeleton.Text width="12em" />
         </div>
       ))}

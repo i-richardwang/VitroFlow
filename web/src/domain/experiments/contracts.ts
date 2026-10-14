@@ -127,7 +127,7 @@ export const replicateSummarySchema = z.strictObject({
 export type ReplicateSummary = z.infer<typeof replicateSummarySchema>;
 
 /** One observation day of a trend: each treatment's summary, in treatment order. */
-export const trendDaySchema = z.strictObject({
+const trendDaySchema = z.strictObject({
   observation: experimentObservationSchema,
   treatments: z.array(
     z.strictObject({
@@ -139,13 +139,15 @@ export const trendDaySchema = z.strictObject({
 
 export type TrendDay = z.infer<typeof trendDaySchema>;
 
-/** An experiment as the overview lists it, with how its treatments compare on the newest day that reads. */
+/** An experiment as the overview lists it: its design's size and how far its observations have come. */
 export const experimentSummarySchema = z.strictObject({
   experiment: experimentSchema,
-  treatments: z.array(treatmentSchema),
+  treatments: z.number().int().min(0),
+  units: z.number().int().min(0),
   observations: z.number().int().min(0),
-  photos: z.number().int().min(0),
-  latest: trendDaySchema.nullable(),
+  lastObservation: experimentObservationSchema
+    .pick({ observedOn: true, day: true })
+    .nullable(),
 });
 
 export type ExperimentSummary = z.infer<typeof experimentSummarySchema>;

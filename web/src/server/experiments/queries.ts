@@ -5,6 +5,7 @@ import {
   annotations,
   experimentObservationImages,
   experimentObservations,
+  experimentTreatments,
   experimentUnits,
   experiments,
   inferenceOutcomes,
@@ -23,13 +24,13 @@ import {
   cellKey,
   imageReview,
   observationCells,
-  treatmentTrend,
 } from "../../domain/experiments/readings";
-import type {
-  Experiment,
-  ImageAnalysisState,
-  ObservationImageRef,
-  UnitRef,
+import {
+  daysBetween,
+  type Experiment,
+  type ImageAnalysisState,
+  type ObservationImageRef,
+  type UnitRef,
 } from "../../domain/experiments/schema";
 import type { Tally } from "../../domain/models/classes";
 import {
@@ -249,29 +250,56 @@ export function listExperimentNames(): Promise<{ id: string; name: string }[]> {
   );
 }
 
+/**
+ * The outer row's experiment id, qualified: a select from one table writes
+ * its columns bare, which inside a subquery would name the inner table's own.
+ */
+const outerExperimentId = sql`${experiments}.${sql.identifier(experiments.id.name)}`;
+
+/** How many rows of `table` belong to the experiment of the outer row. */
+function countOf(
+  table:
+    | typeof experimentTreatments
+    | typeof experimentUnits
+    | typeof experimentObservations,
+) {
+  return sql<number>`(select count(*) from ${table} where ${table.experimentId} = ${outerExperimentId})`.mapWith(
+    Number,
+  );
+}
+
 async function listExperimentSummaries(
   db: Executor,
 ): Promise<ExperimentSummary[]> {
   const rows = await db
-    .select()
+    .select({
+      experiment: experiments,
+      treatments: countOf(experimentTreatments),
+      units: countOf(experimentUnits),
+      observations: countOf(experimentObservations),
+      lastObservedOn: sql<
+        string | null
+      >`(select max(${experimentObservations.observedOn})::text from ${experimentObservations} where ${experimentObservations.experimentId} = ${outerExperimentId})`,
+    })
     .from(experiments)
     .orderBy(
       desc(experiments.createdAt),
       asc(experiments.name),
       asc(experiments.id),
     );
-  return Promise.all(
-    rows.map(async (row) => {
-      const grid = await readGrid(toExperiment(row), db);
-      return {
-        experiment: grid.experiment,
-        treatments: grid.treatments,
-        observations: grid.observations.length,
-        photos: grid.images.length,
-        latest: treatmentTrend(grid).at(-1) ?? null,
-      };
-    }),
-  );
+  return rows.map(({ lastObservedOn, ...row }) => {
+    const experiment = toExperiment(row.experiment);
+    return {
+      ...row,
+      experiment,
+      lastObservation: lastObservedOn
+        ? {
+            observedOn: lastObservedOn,
+            day: daysBetween(experiment.inoculatedOn, lastObservedOn),
+          }
+        : null,
+    };
+  });
 }
 
 function atObservationImage(experimentId: string, observationImageId: string) {
