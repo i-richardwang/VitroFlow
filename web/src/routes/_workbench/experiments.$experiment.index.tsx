@@ -1,15 +1,39 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  notFound,
+  stripSearchParams,
+} from "@tanstack/react-router";
+import { z } from "zod";
 
 import type { ExperimentGrid } from "../../domain/experiments/contracts";
 import { experimentIdSchema } from "../../domain/experiments/schema";
-import { ExperimentGridView } from "../../features/experiments/ExperimentGridView";
+import {
+  EXPERIMENT_TABS,
+  ExperimentGridView,
+} from "../../features/experiments/ExperimentGridView";
 import { getExperimentGrid } from "../../functions/experiments";
 import { documentTitle } from "../../ui/documentTitle";
-import { PageColumnSkeleton, PageSectionSkeleton } from "../../ui/Page";
+import { PageColumnSkeleton } from "../../ui/Page";
 import { m } from "../../paraglide/messages";
-import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
+import {
+  PageHeaderSkeleton,
+  TableSkeleton,
+  TabsSkeleton,
+} from "../../ui/kit/PageSkeleton";
+
+/** The units' tab is on show unless the address names another. */
+const searchDefaults = { tab: "units" } as const;
+
+const experimentSearchSchema = z.object({
+  tab: z
+    .enum(EXPERIMENT_TABS)
+    .default(searchDefaults.tab)
+    .catch(searchDefaults.tab),
+});
 
 export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
+  validateSearch: experimentSearchSchema,
+  search: { middlewares: [stripSearchParams(searchDefaults)] },
   loader: async ({ params }) => {
     if (!experimentIdSchema.safeParse(params.experiment).success) {
       throw notFound();
@@ -35,17 +59,21 @@ export const Route = createFileRoute("/_workbench/experiments/$experiment/")({
   pendingComponent: () => (
     <PageColumnSkeleton>
       <PageHeaderSkeleton icon meta />
-      <PageSectionSkeleton>
-        <TableSkeleton rows={3} />
-      </PageSectionSkeleton>
-      <PageSectionSkeleton>
-        <TableSkeleton />
-      </PageSectionSkeleton>
+      <TabsSkeleton tabs={2} />
+      <TableSkeleton />
     </PageColumnSkeleton>
   ),
   component: ExperimentPage,
 });
 
 function ExperimentPage() {
-  return <ExperimentGridView data={Route.useLoaderData()} />;
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  return (
+    <ExperimentGridView
+      data={Route.useLoaderData()}
+      tab={tab}
+      onTabChange={(next) => navigate({ search: { tab: next }, replace: true })}
+    />
+  );
 }

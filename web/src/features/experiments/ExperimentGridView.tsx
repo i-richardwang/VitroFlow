@@ -38,29 +38,44 @@ import {
   TableSelectionCell,
   TableSelectionHead,
 } from "../../ui/kit/Table";
+import { Tabs } from "../../ui/kit/Tabs";
 import { Text } from "../../ui/kit/Text";
 import { TextLink } from "../../ui/kit/TextLink";
 import { Tooltip } from "../../ui/kit/Tooltip";
-import { Page, PageSection } from "../../ui/Page";
+import { Page } from "../../ui/Page";
 import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
 import { RecordObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
-import { TreatmentDialog } from "./TreatmentDialog";
 import { TreatmentName, TreatmentsTable } from "./TreatmentsTable";
 import { UnitSelectionBar } from "./UnitSelectionBar";
 
-type Dialog = "treatment" | "observation";
+/**
+ * The parts of an experiment, one on show at a time: its units and what they
+ * read, then its design.
+ */
+export const EXPERIMENT_TABS = ["units", "treatments"] as const;
+
+export type ExperimentTab = (typeof EXPERIMENT_TABS)[number];
 
 type ExperimentGridData = NonNullable<
   Awaited<ReturnType<typeof getExperimentGrid>>
 >;
 
 /**
- * One experiment: its design, a row per treatment, over its units, a row per
- * unit with the treatment it belongs to and what it read on each day.
+ * One experiment, in two tabs: its units, a row per unit with the treatment
+ * it belongs to and what it read on each day, and its design, a row per
+ * treatment.
  */
-export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
+export function ExperimentGridView({
+  data,
+  tab,
+  onTabChange,
+}: {
+  data: ExperimentGridData;
+  tab: ExperimentTab;
+  onTabChange: (tab: ExperimentTab) => void;
+}) {
   const {
     experiment,
     treatments,
@@ -70,10 +85,9 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
     models,
     datasets,
   } = data;
-  const [open, setOpen] = useState<Dialog | null>(null);
+  const [recording, setRecording] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [treatment, setTreatment] = useState<string | null>(null);
-  const close = () => setOpen(null);
 
   const waiting = images.some((image) => image.state === "pending");
   useRouteRefresh(5000, waiting);
@@ -113,6 +127,140 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
   const namedModel = (modelId: string) =>
     asked.size > 1 ? models.find((item) => item.id === modelId) : undefined;
 
+  const unitsTab = (
+    <>
+      <Table
+        aria-label={m.experiment_grid_label({
+          experiment: experiment.name,
+        })}
+        size="small"
+        toolbar={
+          treatments.length > 1 ? (
+            <Select
+              aria-label={m.experiment_column_treatment()}
+              allowClear
+              className="w-48"
+              options={treatments.map((item) => ({
+                value: item.id,
+                label: <TreatmentName treatment={item} />,
+              }))}
+              placeholder={m.experiment_units_all_treatments()}
+              size="small"
+              value={treatment}
+              onChange={(value) => {
+                setTreatment(value);
+                setSelected(new Set());
+              }}
+            />
+          ) : undefined
+        }
+      >
+        <TableHeader>
+          <tr>
+            <TableSelectionHead
+              fixed="start"
+              checked={rows.length > 0 && chosen.length === rows.length}
+              indeterminate={chosen.length > 0 && chosen.length < rows.length}
+              disabled={rows.length === 0}
+              onChange={(on) =>
+                select(
+                  rows.map((unit) => unit.id),
+                  on,
+                )
+              }
+            />
+            <TableHead fixed="start" className="min-w-24">
+              {m.experiment_column_unit()}
+            </TableHead>
+            <TableHead fixed="start" className="min-w-36">
+              {m.experiment_column_treatment()}
+            </TableHead>
+            {observations.map((observation) => (
+              <TableHead key={observation.id} className="min-w-28">
+                <ObservationMenu
+                  experiment={experiment.id}
+                  inoculatedOn={experiment.inoculatedOn}
+                  observation={observation}
+                  observations={observations}
+                  model={namedModel(observation.modelId)}
+                  units={units.filter((unit) =>
+                    unitIsAvailableAt(unit.events, observation, ordinals),
+                  )}
+                  images={images.filter(
+                    (image) => image.observation === observation.id,
+                  )}
+                  placed={placed}
+                  models={models}
+                  datasets={datasets
+                    .filter(
+                      (dataset) => dataset.modelId === observation.modelId,
+                    )
+                    .map((dataset) => dataset.id)}
+                />
+              </TableHead>
+            ))}
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {rows.map((unit) => {
+            const owner = treatmentOf.get(unit.treatment);
+            return (
+              <TableRow
+                key={unit.id}
+                data-state={selected.has(unit.id) ? "selected" : undefined}
+                clickable
+              >
+                <TableSelectionCell
+                  fixed="start"
+                  aria-label={unit.code}
+                  checked={selected.has(unit.id)}
+                  onChange={(on) => select([unit.id], on)}
+                />
+                <TableCell fixed="start" cellSlot="title">
+                  <TextLink render={<Link {...unitHref(unit)} />}>
+                    {unit.code}
+                  </TextLink>
+                </TableCell>
+                <TableCell fixed="start">
+                  {owner ? <TreatmentName treatment={owner} /> : null}
+                </TableCell>
+                {observations.map((observation) => (
+                  <TableCell key={observation.id}>
+                    <UnitCell
+                      image={cells.get(cellKey(unit.id, observation.id))}
+                      reading={unitReading(cells, unit.id, observation)}
+                      counted={unitIsIncludedInAnalysis(
+                        unit.events,
+                        observation,
+                        ordinals,
+                      )}
+                      link={(content) => (
+                        <TextLink
+                          render={<Link {...unitHref(unit, observation.id)} />}
+                        >
+                          {content}
+                        </TextLink>
+                      )}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      <div className="pointer-events-none sticky bottom-0 flex shrink-0 justify-center *:pointer-events-auto">
+        <UnitSelectionBar
+          experiment={experiment.id}
+          units={chosen}
+          treatments={treatments}
+          observations={observations}
+          onClear={() => setSelected(new Set())}
+        />
+      </div>
+    </>
+  );
+
   return (
     <Page
       title={experiment.name}
@@ -127,169 +275,31 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
       ].filter(Boolean)}
       action={
         <>
-          <Button
-            type="primary"
-            icon={Plus}
-            onClick={() => setOpen("observation")}
-          >
+          <Button type="primary" icon={Plus} onClick={() => setRecording(true)}>
             {m.observation_record()}
           </Button>
           <ExperimentMenu experiment={experiment} hasRecords={hasRecords} />
         </>
       }
     >
-      <PageSection
-        title={m.experiment_treatments()}
-        extra={
-          <Button size="small" icon={Plus} onClick={() => setOpen("treatment")}>
-            {m.treatment_new()}
-          </Button>
-        }
-      >
+      <Tabs
+        activeKey={tab}
+        items={[
+          { key: "units", label: m.experiment_units() },
+          { key: "treatments", label: m.experiment_treatments() },
+        ]}
+        onChange={onTabChange}
+      />
+      {tab === "units" ? (
+        unitsTab
+      ) : (
         <TreatmentsTable
           experiment={experiment.id}
           treatments={treatments}
           units={units}
         />
-      </PageSection>
-      <PageSection title={m.experiment_units()}>
-        <Table
-          aria-label={m.experiment_grid_label({ experiment: experiment.name })}
-          size="small"
-          toolbar={
-            treatments.length > 1 ? (
-              <Select
-                aria-label={m.experiment_column_treatment()}
-                allowClear
-                className="w-48"
-                options={treatments.map((item) => ({
-                  value: item.id,
-                  label: <TreatmentName treatment={item} />,
-                }))}
-                placeholder={m.experiment_units_all_treatments()}
-                size="small"
-                value={treatment}
-                onChange={(value) => {
-                  setTreatment(value);
-                  setSelected(new Set());
-                }}
-              />
-            ) : undefined
-          }
-        >
-          <TableHeader>
-            <tr>
-              <TableSelectionHead
-                fixed="start"
-                checked={rows.length > 0 && chosen.length === rows.length}
-                indeterminate={chosen.length > 0 && chosen.length < rows.length}
-                disabled={rows.length === 0}
-                onChange={(on) =>
-                  select(
-                    rows.map((unit) => unit.id),
-                    on,
-                  )
-                }
-              />
-              <TableHead fixed="start" className="min-w-24">
-                {m.experiment_column_unit()}
-              </TableHead>
-              <TableHead fixed="start" className="min-w-36">
-                {m.experiment_column_treatment()}
-              </TableHead>
-              {observations.map((observation) => (
-                <TableHead key={observation.id} className="min-w-28">
-                  <ObservationMenu
-                    experiment={experiment.id}
-                    inoculatedOn={experiment.inoculatedOn}
-                    observation={observation}
-                    observations={observations}
-                    model={namedModel(observation.modelId)}
-                    units={units.filter((unit) =>
-                      unitIsAvailableAt(unit.events, observation, ordinals),
-                    )}
-                    images={images.filter(
-                      (image) => image.observation === observation.id,
-                    )}
-                    placed={placed}
-                    models={models}
-                    datasets={datasets
-                      .filter(
-                        (dataset) => dataset.modelId === observation.modelId,
-                      )
-                      .map((dataset) => dataset.id)}
-                  />
-                </TableHead>
-              ))}
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {rows.map((unit) => {
-              const owner = treatmentOf.get(unit.treatment);
-              return (
-                <TableRow
-                  key={unit.id}
-                  data-state={selected.has(unit.id) ? "selected" : undefined}
-                  clickable
-                >
-                  <TableSelectionCell
-                    fixed="start"
-                    aria-label={unit.code}
-                    checked={selected.has(unit.id)}
-                    onChange={(on) => select([unit.id], on)}
-                  />
-                  <TableCell fixed="start" cellSlot="title">
-                    <TextLink render={<Link {...unitHref(unit)} />}>
-                      {unit.code}
-                    </TextLink>
-                  </TableCell>
-                  <TableCell fixed="start">
-                    {owner ? <TreatmentName treatment={owner} /> : null}
-                  </TableCell>
-                  {observations.map((observation) => (
-                    <TableCell key={observation.id}>
-                      <UnitCell
-                        image={cells.get(cellKey(unit.id, observation.id))}
-                        reading={unitReading(cells, unit.id, observation)}
-                        counted={unitIsIncludedInAnalysis(
-                          unit.events,
-                          observation,
-                          ordinals,
-                        )}
-                        link={(content) => (
-                          <TextLink
-                            render={
-                              <Link {...unitHref(unit, observation.id)} />
-                            }
-                          >
-                            {content}
-                          </TextLink>
-                        )}
-                      />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </PageSection>
-      <div className="pointer-events-none sticky bottom-0 flex shrink-0 justify-center *:pointer-events-auto">
-        <UnitSelectionBar
-          experiment={experiment.id}
-          units={chosen}
-          treatments={treatments}
-          observations={observations}
-          onClear={() => setSelected(new Set())}
-        />
-      </div>
+      )}
 
-      <TreatmentDialog
-        experiment={experiment.id}
-        treatment={null}
-        open={open === "treatment"}
-        onClose={close}
-      />
       <RecordObservationDialog
         experiment={experiment.id}
         inoculatedOn={experiment.inoculatedOn}
@@ -298,8 +308,8 @@ export function ExperimentGridView({ data }: { data: ExperimentGridData }) {
         observations={observations}
         units={units}
         placed={placed}
-        open={open === "observation"}
-        onClose={close}
+        open={recording}
+        onClose={() => setRecording(false)}
       />
     </Page>
   );

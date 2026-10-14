@@ -1,7 +1,11 @@
+import { Plus } from "lucide-react";
+import { useState } from "react";
+
 import type { Unit } from "../../domain/experiments/contracts";
 import { formatFactor, type Treatment } from "../../domain/experiments/schema";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
+import { Button } from "../../ui/kit/Button";
 import {
   Table,
   TableBody,
@@ -10,12 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from "../../ui/kit/Table";
-import { Text } from "../../ui/kit/Text";
 import { formatCount } from "../../ui/numbers";
+import { TreatmentDialog } from "./TreatmentDialog";
 import { TreatmentDot } from "./TreatmentDot";
 import { TreatmentMenu } from "./TreatmentMenu";
 
-/** The experiment's design: each treatment, what sets it apart, and how many units it holds. */
+/**
+ * The experiment's design: each treatment, what sets it apart, and how many
+ * units it holds, with a new treatment added from the toolbar.
+ */
 export function TreatmentsTable({
   experiment,
   treatments,
@@ -25,65 +32,74 @@ export function TreatmentsTable({
   treatments: readonly Treatment[];
   units: readonly Unit[];
 }) {
+  const [adding, setAdding] = useState(false);
   return (
-    <Table aria-label={m.experiment_treatments()} narrow="cards">
-      <TableHeader>
-        <tr>
-          <TableHead>{m.experiment_column_treatment()}</TableHead>
-          <TableHead>{m.treatment_factor_label()}</TableHead>
-          <TableHead>{m.treatment_note_label()}</TableHead>
-          <TableHead className="w-24" numeric>
-            {m.experiment_units()}
-          </TableHead>
-          <TableHead className="w-12">
-            <span className="sr-only">{m.experiment_column_actions()}</span>
-          </TableHead>
-        </tr>
-      </TableHeader>
-      <TableBody>
-        {treatments.map((treatment) => {
-          const factor = formatFactor(treatment.factor);
-          return (
-            <TableRow key={treatment.id}>
-              <TableCell cellSlot="title">
-                <TreatmentName treatment={treatment} />
-              </TableCell>
-              <TableCell cellLabel={m.treatment_factor_label()}>
-                {factor ? (
-                  <Text as="span" type="secondary">
-                    {factor}
-                  </Text>
-                ) : (
-                  <Absent />
-                )}
-              </TableCell>
-              <TableCell cellLabel={m.treatment_note_label()}>
-                {treatment.note ? (
-                  <Text as="span" type="secondary" className="line-clamp-2">
-                    {treatment.note}
-                  </Text>
-                ) : (
-                  <Absent />
-                )}
-              </TableCell>
-              <TableCell cellLabel={m.experiment_units()} numeric>
-                {formatCount(
-                  units.filter((unit) => unit.treatment === treatment.id)
-                    .length,
-                )}
-              </TableCell>
-              <TableCell cellSlot="actions" className="text-end">
-                <TreatmentMenu
-                  experiment={experiment}
-                  treatment={treatment}
-                  deletable={treatments.length > 1}
-                />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+    <>
+      <Table
+        aria-label={m.experiment_treatments()}
+        narrow="cards"
+        toolbar={
+          <Button size="small" icon={Plus} onClick={() => setAdding(true)}>
+            {m.treatment_new()}
+          </Button>
+        }
+      >
+        <TableHeader>
+          <tr>
+            <TableHead>{m.experiment_column_treatment()}</TableHead>
+            <TableHead>{m.treatment_factor_label()}</TableHead>
+            <TableHead>{m.treatment_note_label()}</TableHead>
+            <TableHead className="w-24" numeric>
+              {m.experiment_units()}
+            </TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">{m.experiment_column_actions()}</span>
+            </TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {treatments.map((treatment) => {
+            const factor = formatFactor(treatment.factor);
+            return (
+              <TableRow key={treatment.id}>
+                <TableCell cellSlot="title">
+                  <TreatmentName treatment={treatment} />
+                </TableCell>
+                <TableCell cellLabel={m.treatment_factor_label()}>
+                  {factor || <Absent />}
+                </TableCell>
+                <TableCell cellLabel={m.treatment_note_label()}>
+                  {treatment.note ? (
+                    <span className="line-clamp-2">{treatment.note}</span>
+                  ) : (
+                    <Absent />
+                  )}
+                </TableCell>
+                <TableCell cellLabel={m.experiment_units()} numeric>
+                  {formatCount(
+                    units.filter((unit) => unit.treatment === treatment.id)
+                      .length,
+                  )}
+                </TableCell>
+                <TableCell cellSlot="actions" className="text-end">
+                  <TreatmentMenu
+                    experiment={experiment}
+                    treatment={treatment}
+                    deletable={treatments.length > 1}
+                  />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      <TreatmentDialog
+        experiment={experiment}
+        treatment={null}
+        open={adding}
+        onClose={() => setAdding(false)}
+      />
+    </>
   );
 }
 

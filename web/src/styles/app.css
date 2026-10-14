@@ -43,6 +43,7 @@
 @import "../ui/kit/Select.css" layer(components);
 @import "../ui/kit/Switch.css" layer(components);
 @import "../ui/kit/ToggleGroup.css" layer(components);
+@import "../ui/kit/Tabs.css" layer(components);
 @import "../ui/kit/DraggablePanel.css" layer(components);
 @import "../ui/kit/ScrollShadow.css" layer(components);
 @import "../ui/kit/Card.css" layer(components);

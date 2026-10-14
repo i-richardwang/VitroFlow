@@ -5,9 +5,10 @@ import { Skeleton } from "./Skeleton";
 /*
  * Loading shape of a page. `PageSkeleton` is the root: it stacks its parts
  * like the page's content and announces the load in a polite live region.
- * The parts (`PageHeaderSkeleton`, `TableSkeleton`, and the skeletons kept
- * beside other components, such as `StatisticHeroSkeleton`) are laid out
- * in the order the page draws them. Bones are sized by their classes.
+ * The parts (`PageHeaderSkeleton`, `TabsSkeleton`, `TableSkeleton`, and the
+ * skeletons kept beside other components, such as `StatisticHeroSkeleton`)
+ * are laid out in the order the page draws them. Bones are sized by their
+ * classes.
  */
 
 const lineWidths = ["68%", "52%", "76%", "58%"] as const;
@@ -41,6 +42,21 @@ export function PageHeaderSkeleton({
         <Skeleton className="ui-page-skeleton-title" />
         {description ? <Skeleton.Text width="46%" /> : null}
         {meta ? <Skeleton.Text size="xs" width="16em" /> : null}
+      </div>
+    </div>
+  );
+}
+
+/** `Tabs`, a bone for each of `tabs` labels. */
+export function TabsSkeleton({ tabs }: { tabs: number }) {
+  return (
+    <div aria-hidden className="ui-tabs">
+      <div className="ui-tabs-list">
+        {Array.from({ length: tabs }, (_, index) => (
+          <span className="ui-tabs-tab" key={index}>
+            <Skeleton.Inline width="4em" />
+          </span>
+        ))}
       </div>
     </div>
   );

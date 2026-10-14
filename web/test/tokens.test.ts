@@ -12,6 +12,9 @@ const THEME = "src/styles/app.css";
 
 /** Custom properties Base UI sets on its parts at runtime. */
 const BASE_UI_PROPERTIES = new Set([
+  "--active-tab-left",
+  "--active-tab-right",
+  "--active-tab-width",
   "--anchor-width",
   "--available-height",
   "--available-width",
