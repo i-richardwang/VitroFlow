@@ -4,13 +4,19 @@ import {
   modelAnnotationRequestSchema,
   modelRefSchema,
   modelRequestSchema,
+  modelVersionRefSchema,
 } from "../domain/models/schema";
 import {
   createModel,
   deleteModel,
+  setCurrentVersion,
   setModelAnnotation,
 } from "../server/models/public";
-import { modelCatalogue, modelOverview } from "../server/queries/public";
+import {
+  modelCatalogue,
+  modelOverview,
+  versionComparison,
+} from "../server/queries/public";
 
 export const getModelCatalogue = createServerFn({ method: "GET" }).handler(() =>
   modelCatalogue(),
@@ -19,6 +25,14 @@ export const getModelCatalogue = createServerFn({ method: "GET" }).handler(() =>
 export const getModelOverview = createServerFn({ method: "GET" })
   .validator(modelRefSchema)
   .handler(({ data }) => modelOverview(data.model));
+
+export const getVersionComparison = createServerFn({ method: "GET" })
+  .validator(modelVersionRefSchema)
+  .handler(({ data }) => versionComparison(data.model, data.version));
+
+export const chooseCurrentVersion = createServerFn({ method: "POST" })
+  .validator(modelVersionRefSchema)
+  .handler(({ data }) => setCurrentVersion(data));
 
 export const addModel = createServerFn({ method: "POST" })
   .validator(modelRequestSchema)

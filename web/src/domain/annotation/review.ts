@@ -19,7 +19,7 @@ import {
  *
  * Three readings can exist, and they rank: `annotation` is what a reviewer
  * decided, `proposal` is what an AI agent drew, `detection` is what the
- * model's newest version found. A reviewer's decision outranks the agent,
+ * model's current version found. A reviewer's decision outranks the agent,
  * and the agent outranks the detector. Each is looked up on its own; the
  * ranking decides which one an image reads by. `progress` is that of the
  * run an agent is still at work on.

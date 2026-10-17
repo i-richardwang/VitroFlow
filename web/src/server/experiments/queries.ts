@@ -52,7 +52,7 @@ import {
 } from "./records";
 import { toModel } from "../models/public";
 import { readReview, proposalRunId, proposalRuns } from "../readings/public";
-import { newestVersion } from "../inference/public";
+import { currentVersion } from "../inference/public";
 
 function tallyOf(document: SQL | AnyColumn) {
   return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
@@ -75,7 +75,7 @@ function observationImageGridQuery(db: Executor) {
     .innerJoin(experimentObservations, atImageObservation())
     .leftJoin(
       modelVersions,
-      eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
+      eq(modelVersions.id, currentVersion(experimentObservations.modelId)),
     )
     .leftJoin(
       annotations,
@@ -364,7 +364,7 @@ async function readObservationImage(
     .innerJoin(models, eq(models.id, experimentObservations.modelId))
     .leftJoin(
       modelVersions,
-      eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
+      eq(modelVersions.id, currentVersion(experimentObservations.modelId)),
     )
     .innerJoin(
       experimentUnits,

@@ -1,5 +1,5 @@
 {
-  "id": "27dc8b7f-53cf-4975-b029-633e1903f765",
+  "id": "38e352d6-3a1a-450b-a3e9-d1916239f7ce",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2579,10 +2579,32 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "current_version_id": {
+          "name": "current_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "models_current_version_id_id_model_versions_id_model_id_fk": {
+          "name": "models_current_version_id_id_model_versions_id_model_id_fk",
+          "tableFrom": "models",
+          "tableTo": "model_versions",
+          "columnsFrom": [
+            "current_version_id",
+            "id"
+          ],
+          "columnsTo": [
+            "id",
+            "model_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

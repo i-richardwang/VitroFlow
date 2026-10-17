@@ -1,4 +1,4 @@
-import { newestDetectingVersion } from "../inference/public";
+import { shownDetectingVersion } from "../inference/public";
 import { proposalRunId, proposalRuns } from "../readings/public";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 
@@ -100,7 +100,7 @@ function recordQuery(db: Executor) {
         eq(inferenceOutcomes.imageId, datasetImages.imageId),
         eq(
           inferenceOutcomes.modelVersionId,
-          newestDetectingVersion(datasetImages.imageId, datasets.modelId),
+          shownDetectingVersion(datasetImages.imageId, datasets.modelId),
         ),
         eq(inferenceOutcomes.status, "succeeded"),
       ),

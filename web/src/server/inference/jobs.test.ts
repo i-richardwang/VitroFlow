@@ -11,10 +11,13 @@ import {
   observeImages,
   observeImagesForModel,
   recordTestHeartbeat,
+  registerTrainedVersion,
+  snapshotImages,
   testHeartbeat,
+  traditionalVersion,
   ULTRALYTICS_RUNTIME,
 } from "../testing/fixtures";
-import { createModel } from "../models/public";
+import { createModel, setCurrentVersion } from "../models/public";
 
 function targetOf(
   assignment: NonNullable<Awaited<ReturnType<typeof claimInferenceAssignment>>>,
@@ -156,4 +159,48 @@ test("a model with no version demands no work of any worker", async () => {
     if (!candidate) break;
     expect(candidate.image).not.toBe(digests[0]);
   }
+});
+
+test("a candidate is compared with the current version on its held-out images alone, until it is current", async () => {
+  const baseline = await traditionalVersion("held-out-detector", "held-out-v1");
+  const candidate = await registerTrainedVersion(
+    "held-out-detector",
+    "held-out-v2",
+  );
+  const [first, second] = await snapshotImages(candidate, [
+    { content: "held-out-a", split: "val", reviewed: { ungerminated: 1 } },
+    { content: "held-out-b", split: "val", reviewed: { ungerminated: 2 } },
+    { content: "held-out-c", split: "train", reviewed: { ungerminated: 3 } },
+  ]);
+  const worker = await recordTestHeartbeat({
+    ...testHeartbeat("held-out-worker"),
+    runtimes: [
+      ...testHeartbeat("held-out-worker").runtimes,
+      ULTRALYTICS_RUNTIME,
+    ],
+  });
+  const claimedFor = async (at: Date) => {
+    const pairs: string[] = [];
+    for (let attempt = 0; attempt < 500; attempt += 1) {
+      const claimed = await claimInferenceAssignment(worker, at);
+      if (!claimed) break;
+      const { modelVersionId } = claimed.manifest;
+      if ([baseline.id, candidate.id].includes(modelVersionId)) {
+        pairs.push(`${modelVersionId}:${claimed.image}`);
+      }
+    }
+    return pairs.sort();
+  };
+
+  expect(await claimedFor(new Date("2026-09-05T12:00:00.000Z"))).toEqual(
+    [
+      `${baseline.id}:${first}`,
+      `${baseline.id}:${second}`,
+      `${candidate.id}:${first}`,
+      `${candidate.id}:${second}`,
+    ].sort(),
+  );
+
+  await setCurrentVersion({ model: candidate.modelId, version: candidate.id });
+  expect(await claimedFor(new Date("2026-09-06T12:00:00.000Z"))).toEqual([]);
 });

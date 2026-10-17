@@ -6,26 +6,38 @@ import {
   sameModelVersion,
 } from "../../domain/models/schema";
 
-import { SEED_DETECTOR_MODEL_ID } from "../../domain/models/builtins";
+import {
+  SEED_DETECTOR_BASELINE_VERSION_ID,
+  SEED_DETECTOR_MODEL_ID,
+} from "../../domain/models/builtins";
 import {
   ModelInUseError,
   ModelIdTakenError,
   ModelNotFoundError,
+  ModelVersionNotFoundError,
 } from "../../domain/models/errors";
 import {
   createModel,
   deleteModel,
+  installBuiltinModels,
   listAllModelVersions,
   listModels,
+  readCurrentVersionId,
   readModelVersion,
   registerModel,
   registerModelVersion,
+  setCurrentVersion,
 } from "./registry";
 import { storeAnnotation } from "../annotations/public";
 import { deleteObservation } from "../experiments/public";
 import { unassignObservationImage } from "../experiments/observation-images";
-import { observeImagesForModel } from "../testing/fixtures";
+import {
+  observeImagesForModel,
+  registerTrainedVersion,
+  traditionalVersion,
+} from "../testing/fixtures";
 import { connect } from "../infra/db/connection";
+import { database } from "../infra/db/client";
 import { modelVersions } from "../infra/db/schema";
 import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
@@ -262,3 +274,28 @@ contendedTest(
     expect((await listModels()).map(({ id }) => id)).toContain(model.id);
   },
 );
+
+test("the current version is one of the model's own, and a restart keeps the one chosen", async () => {
+  const other = await traditionalVersion("registry-other", "other-v1");
+  await expect(
+    setCurrentVersion({ model: SEED_DETECTOR_MODEL_ID, version: other.id }),
+  ).rejects.toBeInstanceOf(ModelVersionNotFoundError);
+
+  const trained = await registerTrainedVersion(
+    SEED_DETECTOR_MODEL_ID,
+    "registry-restart",
+  );
+  await setCurrentVersion({
+    model: SEED_DETECTOR_MODEL_ID,
+    version: trained.id,
+  });
+  try {
+    await installBuiltinModels(await database());
+    expect(await readCurrentVersionId(SEED_DETECTOR_MODEL_ID)).toBe(trained.id);
+  } finally {
+    await setCurrentVersion({
+      model: SEED_DETECTOR_MODEL_ID,
+      version: SEED_DETECTOR_BASELINE_VERSION_ID,
+    });
+  }
+});

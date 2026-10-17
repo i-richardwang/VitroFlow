@@ -69,6 +69,11 @@ export const modelAnnotationRequestSchema = z.strictObject({
 
 export const modelRefSchema = z.strictObject({ model: resourceIdSchema });
 
+export const modelVersionRefSchema = z.strictObject({
+  model: resourceIdSchema,
+  version: resourceIdSchema,
+});
+
 const inferenceSettingsSchema = z.strictObject({
   confidence: z.number().finite().min(0).max(1),
   imageSize: z.number().int().positive(),
@@ -133,6 +138,7 @@ export type ModelAnnotationRequest = z.infer<
   typeof modelAnnotationRequestSchema
 >;
 export type ModelRef = z.infer<typeof modelRefSchema>;
+export type ModelVersionRef = z.infer<typeof modelVersionRefSchema>;
 export type ModelVersion = z.infer<typeof modelVersionSchema>;
 export type ModelArtifact = z.infer<typeof modelArtifactSchema>;
 

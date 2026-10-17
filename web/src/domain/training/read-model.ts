@@ -1,4 +1,5 @@
 import type { Dataset, NamedDataset } from "../datasets/schema";
+import type { VersionComparison } from "../models/comparison";
 import type { Model, ModelVersion } from "../models/schema";
 import type { TrainingEpoch, TrainingRun } from "./schema";
 
@@ -21,6 +22,14 @@ export interface TrainingSummary {
 export interface VersionOverview {
   version: ModelVersion;
   trainingImages: number | null;
+  /** Whether this is the version that reads the model's images. */
+  current: boolean;
+  /**
+   * How the version counts the reviewed images it was held out from, beside
+   * the current version; null for the current version and for one that held
+   * nothing out.
+   */
+  comparison: VersionComparison | null;
 }
 
 export interface TrainingRunDetail {
@@ -30,4 +39,6 @@ export interface TrainingRunDetail {
   run: TrainingRun;
   epochs: TrainingEpoch[];
   version: ModelVersion | null;
+  /** Whether the published version is the one that reads the model's images. */
+  current: boolean;
 }

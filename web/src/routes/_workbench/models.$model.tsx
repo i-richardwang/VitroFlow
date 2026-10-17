@@ -1,14 +1,21 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useNavigate,
+} from "@tanstack/react-router";
 import { ChartLine, Images, Network, Upload } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 
 import { ImportDatasetDialog } from "../../features/datasets/ImportDatasetDialog";
 import { DatasetCard } from "../../features/datasets/DatasetCard";
 import { ModelMenu } from "../../features/models/ModelMenu";
 import { modelIsFree } from "../../features/models/records";
+import { VersionDialog } from "../../features/models/VersionDialog";
 import { VersionsTable } from "../../features/models/VersionsTable";
 import { TrainingRunsTable } from "../../features/training/TrainingRunsTable";
-import { getModelOverview } from "../../functions/models";
+import { getModelOverview, getVersionComparison } from "../../functions/models";
 import { m } from "../../paraglide/messages";
 import { documentTitle } from "../../ui/documentTitle";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
@@ -27,11 +34,25 @@ import {
 
 type ModelOverview = NonNullable<Awaited<ReturnType<typeof getModelOverview>>>;
 
+/** `compare` names the version whose comparison with the current one is open. */
+const modelSearchSchema = z.object({
+  compare: z.string().optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/_workbench/models/$model")({
-  loader: async ({ params }) => {
-    const overview = await getModelOverview({ data: { model: params.model } });
+  validateSearch: modelSearchSchema,
+  loaderDeps: ({ search }) => ({ compare: search.compare }),
+  loader: async ({ params, deps }) => {
+    const [overview, comparison] = await Promise.all([
+      getModelOverview({ data: { model: params.model } }),
+      deps.compare
+        ? getVersionComparison({
+            data: { model: params.model, version: deps.compare },
+          })
+        : null,
+    ]);
     if (!overview) throw notFound();
-    return overview;
+    return { ...overview, comparison };
   },
   staticData: {
     crumbs: ({ loaderData }) => [
@@ -60,13 +81,19 @@ export const Route = createFileRoute("/_workbench/models/$model")({
 });
 
 /**
- * One model, for whoever keeps it accurate: what it counts, the versions
- * that have read for it and how well each scored, the training sets that
- * train it, and their runs.
+ * One model, for whoever keeps it accurate: what it counts, its versions
+ * with the one that reads and how each candidate compares with it, the
+ * training sets that train it, and their runs.
  */
 function ModelPage() {
-  const { model, records, versions, datasets, runs } = Route.useLoaderData();
+  const { model, records, versions, datasets, runs, comparison } =
+    Route.useLoaderData();
+  const { compare } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
   const [importing, setImporting] = useState(false);
+  const compared = versions.find(
+    ({ version, current }) => version.id === compare && !current,
+  );
 
   useRouteRefresh(10_000);
 
@@ -139,6 +166,19 @@ function ModelPage() {
           }
         />
       </PageSection>
+
+      {compared ? (
+        <VersionDialog
+          key={compared.version.id}
+          model={model}
+          version={compared.version}
+          comparison={comparison}
+          open
+          onClose={() =>
+            void navigate({ search: {}, replace: true, resetScroll: false })
+          }
+        />
+      ) : null}
 
       <ImportDatasetDialog
         open={importing}

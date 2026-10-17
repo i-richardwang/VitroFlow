@@ -1,11 +1,14 @@
 import { and, asc, eq, gt, inArray, isNull, not, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { database, transaction, type Executor } from "../infra/db/client";
 import {
+  datasetSnapshotImages,
   experimentObservationImages,
   experimentObservations,
   inferenceJobs,
   inferenceOutcomes,
   modelVersions,
+  models,
 } from "../infra/db/schema";
 import type { InferenceOutcome } from "../../domain/detection/schema";
 import {
@@ -25,7 +28,7 @@ import {
   sessionIsCurrent,
 } from "../workers/public";
 import { storeInferenceOutcome, type DetectionTarget } from "./outcomes";
-import { newestVersion } from "./queries";
+import { currentVersion } from "./queries";
 
 export class InferenceClaimRejectedError extends Error {}
 
@@ -128,7 +131,7 @@ function claimableExperimentDemand(
     )
     .innerJoin(
       modelVersions,
-      eq(modelVersions.id, newestVersion(experimentObservations.modelId)),
+      eq(modelVersions.id, currentVersion(experimentObservations.modelId)),
     )
     .leftJoin(
       inferenceOutcomes,
@@ -156,9 +159,67 @@ function claimableExperimentDemand(
 }
 
 /**
+ * What a person needs to judge a candidate: every trained version that is not
+ * current reads the validation images it was held out from, and so does the
+ * current version, so both are compared on the same reviewed images.
+ */
+function claimableEvaluationDemand(
+  db: Executor,
+  at: Date,
+  artifactKinds: ("traditional" | "ultralytics")[],
+) {
+  const candidate = alias(modelVersions, "candidate");
+  return db
+    .selectDistinct({
+      digest: datasetSnapshotImages.imageId,
+      versionId: modelVersions.id,
+    })
+    .from(candidate)
+    .innerJoin(models, eq(models.id, candidate.modelId))
+    .innerJoin(
+      datasetSnapshotImages,
+      and(
+        eq(datasetSnapshotImages.snapshotId, candidate.sourceDatasetSnapshotId),
+        eq(datasetSnapshotImages.split, "val"),
+      ),
+    )
+    .innerJoin(
+      modelVersions,
+      or(
+        eq(modelVersions.id, candidate.id),
+        eq(modelVersions.id, models.currentVersionId),
+      ),
+    )
+    .leftJoin(
+      inferenceOutcomes,
+      and(
+        eq(inferenceOutcomes.imageId, datasetSnapshotImages.imageId),
+        eq(inferenceOutcomes.modelVersionId, modelVersions.id),
+      ),
+    )
+    .leftJoin(
+      inferenceJobs,
+      and(
+        eq(inferenceJobs.imageId, datasetSnapshotImages.imageId),
+        eq(inferenceJobs.modelVersionId, modelVersions.id),
+      ),
+    )
+    .where(
+      and(
+        sql`${models.currentVersionId} is distinct from ${candidate.id}`,
+        isNull(inferenceOutcomes.imageId),
+        inArray(sql`${modelVersions.artifact}->>'kind'`, artifactKinds),
+        or(isNull(inferenceJobs.imageId), not(leaseIsHeld(inferenceJobs, at))),
+      ),
+    )
+    .orderBy(asc(modelVersions.id), asc(datasetSnapshotImages.imageId))
+    .limit(CLAIM_CANDIDATE_LIMIT);
+}
+
+/**
  * Atomically claim one image-version pair for a worker's current session.
- * Experiments are the only source of demand; an expired task may be fenced to
- * a new worker session.
+ * Experiments come first, then the comparison of candidates against the
+ * current version; an expired task may be fenced to a new worker session.
  */
 export async function claimInferenceAssignment(
   owner: WorkerIdentity,
@@ -169,7 +230,10 @@ export async function claimInferenceAssignment(
     const artifactKinds = [
       ...new Set(worker.runtimes.map(({ adapter }) => adapter)),
     ];
-    const pairs = await claimableExperimentDemand(tx, at, artifactKinds);
+    const pairs = [
+      ...(await claimableExperimentDemand(tx, at, artifactKinds)),
+      ...(await claimableEvaluationDemand(tx, at, artifactKinds)),
+    ];
     if (pairs.length === 0) return null;
     const versionIds = [...new Set(pairs.map((pair) => pair.versionId))].sort();
     const versions = await tx

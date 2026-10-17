@@ -5,6 +5,7 @@ import { seedInferenceOutcome } from "../testing/inference";
 import { instancesFromDetection } from "../../domain/annotation/detection";
 import { storeAnnotation } from "../annotations/documents";
 import { readReview } from "./images";
+import { setCurrentVersion } from "../models/public";
 import {
   observeImages,
   recordTestHeartbeat,
@@ -16,7 +17,7 @@ import {
   ULTRALYTICS_RUNTIME,
 } from "../testing/fixtures";
 
-test("a review shows the newest detection and the stored annotation", async () => {
+test("a review shows the current version's detection and the stored annotation", async () => {
   const worker = await recordTestHeartbeat({
     ...testHeartbeat("review-worker"),
     runtimes: [TEST_RUNTIME, ULTRALYTICS_RUNTIME],
@@ -37,6 +38,8 @@ test("a review shows the newest detection and the stored annotation", async () =
   await seedInferenceOutcome({ versionId: next.id, digest }, newer, worker);
   const db = await database();
 
+  expect((await readReview(ref, "rv.jpg", db))?.detection).toEqual(older);
+  await setCurrentVersion({ model: next.modelId, version: next.id });
   expect((await readReview(ref, "rv.jpg", db))?.detection).toEqual(newer);
   expect((await readReview(ref, "rv.jpg", db))?.filename).toBe("rv.jpg");
 

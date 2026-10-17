@@ -89,7 +89,11 @@ import {
   storeTexts,
   testHeartbeat,
 } from "../testing/fixtures";
-import { createModel, registerModel } from "../models/registry";
+import {
+  createModel,
+  registerModel,
+  setCurrentVersion,
+} from "../models/registry";
 import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 const INOCULATED = "2026-08-01";
@@ -121,7 +125,9 @@ async function trainedVersion(modelId: string): Promise<ModelVersion> {
     classes: SEED_DETECTOR.classes,
     annotation: DEFAULT_MODEL_ANNOTATION,
   });
-  return registerTrainedVersion(modelId);
+  const version = await registerTrainedVersion(modelId);
+  await setCurrentVersion({ model: modelId, version: version.id });
+  return version;
 }
 
 function reading(version: ModelVersion) {
@@ -429,6 +435,7 @@ describe("experiments", () => {
       annotation: DEFAULT_MODEL_ANNOTATION,
     });
     const callus = await registerTrainedVersion("exp-stage-callus");
+    await setCurrentVersion({ model: callus.modelId, version: callus.id });
     const seeds = await trainedVersion("exp-stage-seeds");
     const experiment = await createExperiment({
       name: "Stages",
@@ -502,7 +509,7 @@ describe("experiments", () => {
     expect(restored.review.annotation).toEqual(before.review.annotation);
   });
 
-  test("a review begins from the newest version that has read the image", async () => {
+  test("a trained version reads only once it is made current, and the one left behind returns at once", async () => {
     const first = await trainedVersion("exp-retrained");
     const experiment = await createExperiment({
       name: "Retrained",
@@ -535,11 +542,18 @@ describe("experiments", () => {
     const read = (await readExperimentObservationImage(ref))!;
     expect(read.review.detection?.instances).toHaveLength(3);
 
-    await registerTrainedVersion("exp-retrained", "yolo-v2");
+    const next = await registerTrainedVersion("exp-retrained", "yolo-v2");
+    expect((await imageOf()).state).toBe("analyzed");
+
+    await setCurrentVersion({ model: "exp-retrained", version: next.id });
     expect((await imageOf()).state).toBe("pending");
     expect(
       (await readExperimentObservationImage(ref))!.review.detection?.instances,
     ).toHaveLength(3);
+
+    await setCurrentVersion({ model: "exp-retrained", version: first.id });
+    expect((await imageOf()).state).toBe("analyzed");
+    expect((await imageOf()).detectionTally).toEqual({ ungerminated: 3 });
   });
 
   test("an observation can be scheduled before any image exists", async () => {

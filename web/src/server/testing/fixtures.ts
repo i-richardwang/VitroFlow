@@ -20,6 +20,7 @@ import type {
 } from "../../domain/experiments/schema";
 import type { RuntimeDescriptor } from "../../domain/inference/schema";
 import type { ModelVersion } from "../../domain/models/schema";
+import type { Tally } from "../../domain/models/classes";
 import type { Worker, WorkerHeartbeat } from "../../domain/workers/schema";
 import { recordWorkerHeartbeat } from "../workers/sessions";
 import { canonicalize } from "../images/ingest";
@@ -45,14 +46,17 @@ import {
   SEED_DETECTOR_BASELINE_VERSION_ID,
 } from "../../domain/models/builtins";
 import {
+  readCurrentVersionId,
   readModel,
   readModelVersion,
   registerModel,
   registerModelVersion,
+  setCurrentVersion,
 } from "../models/registry";
 import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import { database, transaction } from "../infra/db/client";
 import {
+  datasetSnapshotImages,
   datasetSnapshots,
   experimentObservationImages,
   trainingRuns,
@@ -78,8 +82,8 @@ export async function baselineVersion(): Promise<ModelVersion> {
 }
 
 /**
- * A model of a test's own, with a traditional version the way a builtin ships.
- * An observation reads with its model's newest version, so a test that needs
+ * A model of a test's own, with a traditional version the way a builtin ships:
+ * the first one registered reads until another is chosen. A test that needs
  * several versions registers them here rather than against the builtin model
  * every other test observes with.
  */
@@ -96,7 +100,7 @@ export async function traditionalVersion(
     classes: SEED_DETECTOR.classes,
     annotation: DEFAULT_MODEL_ANNOTATION,
   });
-  return registerModelVersion({
+  const version = await registerModelVersion({
     schemaVersion: 1,
     id: `${modelId}.${slug}`,
     modelId,
@@ -104,9 +108,16 @@ export async function traditionalVersion(
     source: { kind: "builtin", definition: slug },
     artifact: { kind: "traditional", digest: "c".repeat(64) },
   });
+  if ((await readCurrentVersionId(modelId)) === null) {
+    await setCurrentVersion({ model: modelId, version: version.id });
+  }
+  return version;
 }
 
-/** Registers a trained version of `modelId`, as a training run would publish it. */
+/**
+ * Registers a trained version of `modelId`, as a training run would publish
+ * it: a candidate, which reads nothing until a test makes it current.
+ */
 export async function registerTrainedVersion(
   modelId: string,
   slug = "yolo-v1",
@@ -438,6 +449,68 @@ export async function reviewedDataset(
     await storeAnnotation(ref, instancesFromDetection(result), null);
   }
   return seeded;
+}
+
+/** One box per instance the tally counts, laid along the top of the image. */
+function countedInstances(counted: Tally) {
+  return Object.entries(counted)
+    .flatMap(([name, total]) => Array.from({ length: total }, () => name))
+    .map((name, index) => ({
+      id: String(index),
+      class: name,
+      bbox: { x: index, y: 0, width: 1, height: 1 },
+    }));
+}
+
+/** A detection by `version` that counts exactly the tally. */
+export async function countedResult(
+  version: ModelVersion,
+  content: string,
+  counted: Tally,
+  runtime = TEST_RUNTIME,
+): Promise<DetectionResult> {
+  const result = await resultFor(version, content, runtime);
+  return {
+    ...result,
+    instances: countedInstances(counted).map((instance) => ({
+      ...instance,
+      score: 0.9,
+    })),
+  };
+}
+
+/**
+ * Freezes the images into the snapshot a trained version was published from,
+ * each with its split and the counts its review holds, as a training snapshot
+ * would. Returns the digests in order.
+ */
+export async function snapshotImages(
+  version: ModelVersion,
+  images: { content: string; split: "train" | "val"; reviewed: Tally }[],
+): Promise<string[]> {
+  if (version.source.kind !== "training_run") {
+    throw new Error(`${version.id} was not trained`);
+  }
+  const { datasetSnapshotId: snapshotId } = version.source;
+  const digests = await storeTexts(images.map((image) => image.content));
+  await (await database()).insert(datasetSnapshotImages).values(
+    images.map((image, index) => ({
+      snapshotId,
+      modelId: version.modelId,
+      imageId: digests[index]!,
+      split: image.split,
+      annotation: {
+        schemaVersion: 1 as const,
+        image: {
+          digest: digests[index]!,
+          width: FIXTURE_EDGE,
+          height: FIXTURE_EDGE,
+        },
+        instances: countedInstances(image.reviewed),
+      },
+    })),
+  );
+  return digests;
 }
 
 export const TEST_PASSWORD = "correct-horse-battery";

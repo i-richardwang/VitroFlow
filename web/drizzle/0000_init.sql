@@ -303,7 +303,8 @@ CREATE TABLE "models" (
 	"name" text NOT NULL,
 	"task" text NOT NULL,
 	"classes" jsonb NOT NULL,
-	"annotation" jsonb NOT NULL
+	"annotation" jsonb NOT NULL,
+	"current_version_id" text
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_access_tokens" (
@@ -564,6 +565,7 @@ ALTER TABLE "inference_outcomes" ADD CONSTRAINT "inference_outcomes_model_versio
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_source_training_run_id_training_runs_id_fk" FOREIGN KEY ("source_training_run_id") REFERENCES "public"."training_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "model_versions" ADD CONSTRAINT "model_versions_source_dataset_snapshot_id_dataset_snapshots_id_fk" FOREIGN KEY ("source_dataset_snapshot_id") REFERENCES "public"."dataset_snapshots"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "models" ADD CONSTRAINT "models_current_version_id_id_model_versions_id_model_id_fk" FOREIGN KEY ("current_version_id","id") REFERENCES "public"."model_versions"("id","model_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

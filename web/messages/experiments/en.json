@@ -219,7 +219,7 @@
   "observation_menu_add_photos": "Add photos…",
   "experiment_cell_unreviewed": "Not reviewed yet",
   "experiment_cell_failed": "Failed",
-  "experiment_cell_unread": "The model has no version yet; open the photo to count it by hand",
+  "experiment_cell_unread": "The model has no current version yet; choose one on its page, or open the photo to count it by hand",
   "experiment_cell_waiting": "Waiting for the model to count",
   "experiment_units": "Units",
   "experiment_treatments": "Treatments",

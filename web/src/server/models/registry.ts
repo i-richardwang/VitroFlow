@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import {
   SEED_DETECTOR,
@@ -9,6 +9,7 @@ import {
   modelAnnotationRequestSchema,
   modelRequestSchema,
   modelSchema,
+  modelVersionRefSchema,
   modelVersionSchema,
   sameModel,
   sameModelVersion,
@@ -17,11 +18,13 @@ import {
   type ModelRef,
   type ModelRequest,
   type ModelVersion,
+  type ModelVersionRef,
 } from "../../domain/models/schema";
 import {
   ModelIdTakenError,
   ModelInUseError,
   ModelNotFoundError,
+  ModelVersionNotFoundError,
 } from "../../domain/models/errors";
 import { database, transaction, type Executor } from "../infra/db/client";
 import { modelVersions, models } from "../infra/db/schema";
@@ -212,6 +215,46 @@ export async function registerModelVersion(
   return existing;
 }
 
+/** The version that reads for the model, or null while none has been chosen. */
+export async function readCurrentVersionId(
+  modelId: string,
+  executor?: Executor,
+): Promise<string | null> {
+  const db = executor ?? (await database());
+  const [row] = await db
+    .select({ currentVersionId: models.currentVersionId })
+    .from(models)
+    .where(eq(models.id, modelId));
+  if (!row) throw new ModelNotFoundError(`Unknown model: ${modelId}`);
+  return row.currentVersionId;
+}
+
+/**
+ * Makes one of the model's versions the one that reads its images. Every
+ * observation for the model reads anew by it; detections of the version
+ * left behind are kept, so choosing it again shows them at once. Reviews
+ * and agent proposals belong to the image and model, not to a version, and
+ * are untouched.
+ */
+export async function setCurrentVersion(
+  value: ModelVersionRef,
+): Promise<ModelVersion> {
+  const ref = modelVersionRefSchema.parse(value);
+  return transaction(async (tx) => {
+    const version = await readModelVersion(ref.version, tx);
+    if (!version || version.modelId !== ref.model) {
+      throw new ModelVersionNotFoundError(
+        `${ref.model} has no version ${ref.version}`,
+      );
+    }
+    await tx
+      .update(models)
+      .set({ currentVersionId: version.id })
+      .where(eq(models.id, ref.model));
+    return version;
+  });
+}
+
 export async function listModels(): Promise<Model[]> {
   const db = await database();
   const rows = await db.select().from(models).orderBy(models.id);
@@ -220,7 +263,8 @@ export async function listModels(): Promise<Model[]> {
 
 /**
  * Every version of every model, newest first. Builtin baselines carry the
- * package's date, so they follow whatever has been trained since.
+ * package's date, so they follow whatever has been trained since; the order
+ * says nothing about which version reads.
  */
 export async function listAllModelVersions(): Promise<ModelVersion[]> {
   const db = await database();
@@ -231,8 +275,18 @@ export async function listAllModelVersions(): Promise<ModelVersion[]> {
   return rows.map(toModelVersion);
 }
 
-/** The models every deployment has: part of opening the database. */
+/**
+ * The models every deployment has: part of opening the database. The builtin
+ * baseline reads until a person chooses another version, and never takes the
+ * place of one they chose.
+ */
 export async function installBuiltinModels(db: Executor): Promise<void> {
   await registerModel(SEED_DETECTOR, db);
   await registerModelVersion(SEED_DETECTOR_BASELINE, db);
+  await db
+    .update(models)
+    .set({ currentVersionId: SEED_DETECTOR_BASELINE.id })
+    .where(
+      and(eq(models.id, SEED_DETECTOR.id), isNull(models.currentVersionId)),
+    );
 }

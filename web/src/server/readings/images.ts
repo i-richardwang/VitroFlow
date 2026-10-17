@@ -17,7 +17,7 @@ import {
 import type { AnnotationRef } from "../../domain/annotation/schema";
 import type { DetectionResult } from "../../domain/detection/schema";
 import { AnnotationRunNotFoundError } from "../../domain/annotation-runs/errors";
-import { newestDetectingVersion } from "../inference/public";
+import { shownDetectingVersion } from "../inference/public";
 
 type Row = typeof annotationRuns.$inferSelect;
 
@@ -67,15 +67,16 @@ export async function readAnnotationReading(ref: AnnotationRef) {
 }
 
 /**
- * The review joins each reading on its own: the newest of the model's
- * versions that has detected the image, the newest agent run that succeeded,
+ * The review joins each reading on its own: the detection of the current
+ * version, or of the newest that has detected the image while the current one
+ * has not, the newest agent run that succeeded,
  * and the stored annotation, with the progress of a run still at work.
  */
 export async function readReadings(
   ref: AnnotationRef,
   db: Executor,
 ): Promise<Readings | null> {
-  const shown = newestDetectingVersion(images.id, ref.modelId);
+  const shown = shownDetectingVersion(images.id, ref.modelId);
   const [row] = await db
     .select({
       width: images.width,

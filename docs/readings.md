@@ -25,9 +25,10 @@ reviewer, and those reviews are what a first version is eventually trained on.
 
 An observation declares the date it was made and the model its photographs are
 read for. Which version has read an image is recorded with that image's
-detection, and the version that reads for a model is its newest: a model with
-none leaves its images for a reviewer, and a model trained again reads them all
-afresh.
+detection, and the version that reads for a model is the one a person made
+current: a model with none leaves its images for a reviewer, a newly trained
+version waits as a candidate until someone chooses it, and choosing another
+version reads them all afresh.
 
 ## Where the numbers come from
 

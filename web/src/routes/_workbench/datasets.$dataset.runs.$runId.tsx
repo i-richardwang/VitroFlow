@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ChartLine } from "lucide-react";
 
 import { Metric } from "../../ui/Metric";
@@ -21,6 +21,7 @@ import { TrainingRunState } from "../../features/training/TrainingRunState";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Alert } from "../../ui/kit/Alert";
+import { Button } from "../../ui/kit/Button";
 import { Card } from "../../ui/kit/Card";
 import { Empty, EmptyPlace } from "../../ui/kit/Empty";
 import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
@@ -87,7 +88,7 @@ export const Route = createFileRoute(
 });
 
 function TrainingRunPage() {
-  const { run, epochs, version } = Route.useLoaderData();
+  const { run, epochs, version, model, current } = Route.useLoaderData();
   const live = isTrainingRunActive(run);
 
   useRouteRefresh(10_000, live);
@@ -102,6 +103,21 @@ function TrainingRunPage() {
       title={trainingRunLabel(run)}
       icon={ChartLine}
       status={<TrainingRunState run={run} />}
+      action={
+        published && !current ? (
+          <Button
+            render={
+              <Link
+                to="/models/$model"
+                params={{ model: model.id }}
+                search={{ compare: published.id }}
+              />
+            }
+          >
+            {m.versions_make_current()}
+          </Button>
+        ) : undefined
+      }
       meta={[
         run.recipe.baseModel.reference,
         <Timestamp key="created" value={run.createdAt} />,

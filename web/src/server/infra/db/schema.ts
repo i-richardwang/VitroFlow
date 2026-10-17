@@ -403,13 +403,29 @@ export const oauthClientAssertions = pgTable("oauth_client_assertions", {
   expiresAt: instant("expires_at"),
 });
 
-export const models = pgTable("models", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  task: text("task").notNull(),
-  classes: jsonb("classes").$type<string[]>().notNull(),
-  annotation: jsonb("annotation").$type<ModelAnnotation>().notNull(),
-});
+export const models = pgTable(
+  "models",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    task: text("task").notNull(),
+    classes: jsonb("classes").$type<string[]>().notNull(),
+    annotation: jsonb("annotation").$type<ModelAnnotation>().notNull(),
+    /**
+     * The version a person chose to read the model's images. A trained
+     * version waits here as a candidate until someone chooses it; none
+     * leaves the images for a reviewer.
+     */
+    currentVersionId: text("current_version_id"),
+  },
+  (table) => [
+    /** The current version is one of the model's own. */
+    foreignKey({
+      columns: [table.currentVersionId, table.id],
+      foreignColumns: [modelVersions.id, modelVersions.modelId],
+    }),
+  ],
+);
 
 export const modelVersions = pgTable(
   "model_versions",
@@ -417,7 +433,7 @@ export const modelVersions = pgTable(
     id: text("id").primaryKey(),
     modelId: text("model_id")
       .notNull()
-      .references(() => models.id),
+      .references((): AnyPgColumn => models.id),
     createdAt: instant("created_at"),
     source: jsonb("source").$type<ModelVersion["source"]>().notNull(),
     artifact: jsonb("artifact").$type<ModelArtifact>().notNull(),
