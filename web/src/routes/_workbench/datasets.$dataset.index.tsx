@@ -80,13 +80,13 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/")({
     return overview;
   },
   staticData: {
-    crumbs: ({ params, loaderData }) => [
+    crumbs: ({ loaderData }) => [
       ...modelCrumbs((loaderData as DatasetOverview).model),
-      { label: params.dataset },
+      { label: (loaderData as DatasetOverview).dataset.name },
     ],
   },
-  head: ({ params }) => ({
-    meta: [{ title: documentTitle(params.dataset) }],
+  head: ({ loaderData }) => ({
+    meta: [{ title: documentTitle(loaderData?.dataset.name) }],
   }),
   pendingComponent: () => (
     <PageColumnSkeleton>
@@ -111,8 +111,14 @@ function DatasetPage() {
   const { dataset } = Route.useParams();
   const { image: previewed } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { images, reviewedCount, training, recipe, runs } =
-    Route.useLoaderData();
+  const {
+    dataset: { name },
+    images,
+    reviewedCount,
+    training,
+    recipe,
+    runs,
+  } = Route.useLoaderData();
   const [starting, setStarting] = useState(false);
   const refusal = trainRefusal({ reviewed: reviewedCount, training });
   const [query, setQuery] = useState("");
@@ -141,12 +147,12 @@ function DatasetPage() {
 
   return (
     <Page
-      title={dataset}
+      title={name}
       icon={Images}
       action={
         <>
           <TrainButton refusal={refusal} onClick={() => setStarting(true)} />
-          <DatasetMenu dataset={dataset} />
+          <DatasetMenu dataset={{ id: dataset, name }} />
         </>
       }
       preview={
@@ -181,7 +187,7 @@ function DatasetPage() {
       />
       <PageSection title={m.dataset_images()}>
         <Table
-          aria-label={m.dataset_images_table({ dataset })}
+          aria-label={m.dataset_images_table({ dataset: name })}
           size="small"
           narrow="cards"
           toolbar={
@@ -310,7 +316,10 @@ function DatasetPage() {
                     />
                   </TableCell>
                   <TableCell cellSlot="actions" className="text-end">
-                    <RemoveImageButton dataset={dataset} image={image} />
+                    <RemoveImageButton
+                      dataset={{ id: dataset, name }}
+                      image={image}
+                    />
                   </TableCell>
                 </TableRow>
               );

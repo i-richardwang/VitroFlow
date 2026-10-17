@@ -85,7 +85,7 @@ CREATE TABLE "api_keys" (
 );
 --> statement-breakpoint
 CREATE TABLE "dataset_images" (
-	"dataset_id" text NOT NULL,
+	"dataset_id" uuid NOT NULL,
 	"image_id" text NOT NULL,
 	"filename" text NOT NULL,
 	"added_at" timestamp with time zone NOT NULL,
@@ -107,17 +107,19 @@ CREATE TABLE "dataset_snapshot_images" (
 --> statement-breakpoint
 CREATE TABLE "dataset_snapshots" (
 	"id" text PRIMARY KEY NOT NULL,
-	"dataset_id" text NOT NULL,
+	"dataset_id" uuid NOT NULL,
 	"model_id" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "dataset_snapshots_id_model" UNIQUE("id","model_id")
 );
 --> statement-breakpoint
 CREATE TABLE "datasets" (
-	"id" text PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
 	"model_id" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "datasets_id_model" UNIQUE("id","model_id")
+	CONSTRAINT "datasets_id_model" UNIQUE("id","model_id"),
+	CONSTRAINT "datasets_name_check" CHECK ("datasets"."name" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$')
 );
 --> statement-breakpoint
 CREATE TABLE "experiment_culture_events" (
@@ -590,6 +592,7 @@ CREATE INDEX "api_keys_key_idx" ON "api_keys" USING btree ("key");--> statement-
 CREATE INDEX "dataset_images_image_idx" ON "dataset_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshot_images_image_idx" ON "dataset_snapshot_images" USING btree ("image_id");--> statement-breakpoint
 CREATE INDEX "dataset_snapshots_dataset_idx" ON "dataset_snapshots" USING btree ("dataset_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "datasets_name" ON "datasets" USING btree (lower("name"));--> statement-breakpoint
 CREATE UNIQUE INDEX "experiment_culture_events_one_kind" ON "experiment_culture_events" USING btree ("experiment_id","unit_id","observation_id","type");--> statement-breakpoint
 CREATE UNIQUE INDEX "experiment_culture_events_one_terminal" ON "experiment_culture_events" USING btree ("experiment_id","unit_id") WHERE "experiment_culture_events"."type" in ('discarded', 'harvested', 'missing');--> statement-breakpoint
 CREATE INDEX "experiment_observation_images_image_idx" ON "experiment_observation_images" USING btree ("image_id");--> statement-breakpoint
@@ -600,8 +603,7 @@ CREATE UNIQUE INDEX "experiment_units_code" ON "experiment_units" USING btree ("
 CREATE INDEX "experiment_units_treatment_idx" ON "experiment_units" USING btree ("experiment_id","treatment_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "experiments_name" ON "experiments" USING btree (lower("name"));--> statement-breakpoint
 CREATE INDEX "images_received_idx" ON "images" USING btree ("received_at");--> statement-breakpoint
-CREATE INDEX "images_analysis_attempted_idx" ON "images" USING btree ("dish_analysis_attempted_at" ASC NULLS FIRST,"id");
---> statement-breakpoint
+CREATE INDEX "images_analysis_attempted_idx" ON "images" USING btree ("dish_analysis_attempted_at" NULLS FIRST,"id");--> statement-breakpoint
 CREATE INDEX "inference_jobs_claimable_idx" ON "inference_jobs" USING btree ("lease_expires_at");--> statement-breakpoint
 CREATE INDEX "inference_jobs_worker_idx" ON "inference_jobs" USING btree ("worker_id","session_id");--> statement-breakpoint
 CREATE INDEX "inference_outcomes_version_idx" ON "inference_outcomes" USING btree ("model_version_id");--> statement-breakpoint

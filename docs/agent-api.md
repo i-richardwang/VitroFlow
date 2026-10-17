@@ -40,7 +40,7 @@ Content-Type: application/json
 {"experiment":"…","observedOn":"2026-09-02"}
 ```
 
-Every record an agent can create is named by something it already knows: an experiment by its name, a treatment by its name within the experiment, an observation by its date, a unit by its code, an image by its digest. Repeating a create therefore answers 409 rather than making a second record, so a call whose response was lost is safe to send again.
+Every record an agent can create is named by something it already knows: an experiment by its name, a treatment by its name within the experiment, an observation by its date, a unit by its code, a dataset by its name, an image by its digest. Repeating a create therefore answers 409 rather than making a second record, so a call whose response was lost is safe to send again.
 
 Image upload posts the raw source bytes as the request body with an exact `Content-Length`, up to 64 MiB. The image is canonicalized on entry, and the returned digest identifies the canonical bytes; identical uploads are idempotent.
 
@@ -122,8 +122,11 @@ Analysis needs no request: assigned images are queued for the newest version of 
 Images that a reviewer has annotated become training material once they belong to a dataset for their observation's model:
 
 1. `get-experiment` reads the grid; each unit's image cell carries the observation image id that names it.
-2. `list-datasets` shows the datasets for a model, with how many images each holds and how many are reviewed. Training uses only reviewed images.
-3. `add-images-to-dataset` adds observation images to a dataset, creating it when the name is new. One call takes images observed for a single model; images already in the dataset are counted as `existing`, so repeating a call is safe.
+2. `list-datasets` shows the datasets for a model by id and name, with how many images each holds and how many are reviewed. Training uses only reviewed images.
+3. `create-dataset` names a new, empty dataset for a model. The name is unique whatever its case and stays filename-safe, because transfer and `vitroctl` data roots know a dataset by name; `update-dataset` renames it later without touching its images, splits, snapshots, or runs. Every other dataset tool addresses the dataset by its id.
+4. `add-images-to-dataset` adds observation images to a dataset. One call takes images observed for the dataset's model; images already in the dataset are counted as `existing`, so repeating a call is safe.
+5. `get-dataset` lists a dataset's images by digest, each with whether it is reviewed and its training split; the digests match the image cells of `get-experiment`.
+6. `remove-images-from-dataset` takes images out by digest, for example a blurred photo or a unit found contaminated. The images and their reviews remain, and snapshots already taken keep what they froze; digests not in the dataset are counted as `absent`, so repeating a call is safe.
 
 The train/validation split is not chosen here: a training snapshot gives each reviewed image a split it keeps from then on.
 

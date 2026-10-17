@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import type { Dataset } from "../../domain/datasets/schema";
 import type { ExperimentGrid } from "../../domain/experiments/contracts";
 import type {
   CultureEvent,
@@ -50,6 +51,7 @@ describe("agent operations", () => {
       "get-experiment",
       "get-unit",
       "list-datasets",
+      "get-dataset",
     ]);
     const additive = new Set([
       "create-experiment",
@@ -59,6 +61,7 @@ describe("agent operations", () => {
       "create-observation",
       "create-model",
       "assign-images-to-observation",
+      "create-dataset",
       "add-images-to-dataset",
     ]);
     const destructive = new Set([
@@ -75,6 +78,8 @@ describe("agent operations", () => {
       "retry-observation-image-analysis",
       "update-model-annotation",
       "delete-model",
+      "update-dataset",
+      "remove-images-from-dataset",
     ]);
     expect([...readOnly, ...additive, ...destructive].sort()).toEqual(
       [...agentOperations.keys()].sort(),
@@ -178,7 +183,7 @@ describe("agent operations", () => {
     expect(harvested.observation).toBe(observation.id);
   });
 
-  test("reviewed experiment images join a dataset and list with their counts", async () => {
+  test("experiment images join and leave a dataset, keeping their reviews", async () => {
     const model = await createModel({
       id: "agent-dataset-task",
       name: "Agent dataset task",
@@ -195,22 +200,33 @@ describe("agent operations", () => {
       null,
     );
 
+    const train = output(
+      await executeAgentOperation("create-dataset", {
+        name: "agent-train",
+        modelId: model.id,
+      }),
+    ) as Dataset;
+    expect(train).toEqual({
+      id: expect.any(String),
+      name: "agent-train",
+      modelId: model.id,
+    });
     expect(
       output(
         await executeAgentOperation("add-images-to-dataset", {
-          dataset: "agent-train",
+          dataset: train.id,
           images: images.slice(0, 2),
         }),
       ),
     ).toEqual({
-      dataset: { id: "agent-train", modelId: model.id },
+      dataset: train,
       added: 2,
       existing: 0,
     });
     expect(
       output(
         await executeAgentOperation("add-images-to-dataset", {
-          dataset: "agent-train",
+          dataset: train.id,
           images,
         }),
       ),
@@ -220,18 +236,107 @@ describe("agent operations", () => {
       output(
         await executeAgentOperation("list-datasets", { modelId: model.id }),
       ),
+    ).toEqual([{ dataset: train, imageCount: 3, reviewedCount: 1 }]);
+
+    const [a, b, c] = await Promise.all(
+      ["agent-a", "agent-b", "agent-c"].map(imageDigest),
+    );
+    const contents = output(
+      await executeAgentOperation("get-dataset", { dataset: train.id }),
+    ) as { images: { digest: string; reviewed: boolean }[] };
+    expect(
+      contents.images
+        .map(({ digest, reviewed }) => ({ digest, reviewed }))
+        .sort((x, y) => x.digest.localeCompare(y.digest)),
+    ).toEqual(
+      [
+        { digest: a, reviewed: false },
+        { digest: b, reviewed: true },
+        { digest: c, reviewed: false },
+      ].sort((x, y) => x.digest.localeCompare(y.digest)),
+    );
+
+    expect(
+      output(
+        await executeAgentOperation("remove-images-from-dataset", {
+          dataset: train.id,
+          digests: [b, b, "0".repeat(64)],
+        }),
+      ),
+    ).toEqual({
+      dataset: train,
+      removed: 1,
+      absent: 1,
+    });
+    expect(
+      output(
+        await executeAgentOperation("list-datasets", { modelId: model.id }),
+      ),
+    ).toMatchObject([{ imageCount: 2, reviewedCount: 0 }]);
+    await executeAgentOperation("add-images-to-dataset", {
+      dataset: train.id,
+      images,
+    });
+    expect(
+      output(
+        await executeAgentOperation("list-datasets", { modelId: model.id }),
+      ),
+    ).toMatchObject([{ imageCount: 3, reviewedCount: 1 }]);
+
+    expect(
+      output(
+        await executeAgentOperation("update-dataset", {
+          dataset: train.id,
+          name: "agent-trained",
+        }),
+      ),
+    ).toEqual({ ...train, name: "agent-trained" });
+    expect(
+      output(
+        await executeAgentOperation("list-datasets", { modelId: model.id }),
+      ),
     ).toEqual([
       {
-        dataset: "agent-train",
-        modelId: model.id,
+        dataset: { ...train, name: "agent-trained" },
         imageCount: 3,
         reviewedCount: 1,
       },
     ]);
+    const taken = await executeAgentOperation("create-dataset", {
+      name: "Agent-Trained",
+      modelId: model.id,
+    });
+    expect(failure(taken).code).toBe("conflict");
+    const spare = output(
+      await executeAgentOperation("create-dataset", {
+        name: "agent-spare",
+        modelId: model.id,
+      }),
+    ) as Dataset;
+    const renamedOnto = await executeAgentOperation("update-dataset", {
+      dataset: spare.id,
+      name: "AGENT-TRAINED",
+    });
+    expect(failure(renamedOnto).code).toBe("conflict");
+
+    const none = crypto.randomUUID();
+    for (const missing of [
+      await executeAgentOperation("get-dataset", { dataset: none }),
+      await executeAgentOperation("remove-images-from-dataset", {
+        dataset: none,
+        digests: [a],
+      }),
+      await executeAgentOperation("add-images-to-dataset", {
+        dataset: none,
+        images,
+      }),
+    ]) {
+      expect(failure(missing).code).toBe("not_found");
+    }
 
     const version = await baselineVersion();
     const mismatch = await executeAgentOperation("add-images-to-dataset", {
-      dataset: "agent-train",
+      dataset: train.id,
       images: (
         await observeImagesForModel(
           "Agent dataset other model",

@@ -48,17 +48,20 @@ export const Route = createFileRoute(
   },
   staticData: {
     crumbs: ({ params, loaderData }) => [
-      ...datasetCrumbs((loaderData as TrainingRunDetail).model, params.dataset),
+      ...datasetCrumbs(
+        (loaderData as TrainingRunDetail).model,
+        (loaderData as TrainingRunDetail).dataset,
+      ),
       { label: trainingRunLabel({ id: params.runId }) },
     ],
   },
-  head: ({ params }) => ({
+  head: ({ params, loaderData }) => ({
     meta: [
       {
         title: documentTitle(
           m.training_run_page_title({
             run: trainingRunLabel({ id: params.runId }),
-            dataset: params.dataset,
+            dataset: loaderData?.dataset.name ?? "",
           }),
         ),
       },

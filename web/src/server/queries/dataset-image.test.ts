@@ -10,7 +10,11 @@ import {
 } from "../testing/fixtures";
 
 test("a dataset image page steps through the dataset in its order", async () => {
-  const { version } = await uploadTexts("di", ["di-a", "di-b", "di-c"]);
+  const { version, dataset } = await uploadTexts("di", [
+    "di-a",
+    "di-b",
+    "di-c",
+  ]);
   const [a, b, c] = await Promise.all(
     ["di-a", "di-b", "di-c"].map((name) => imageDigest(name)),
   );
@@ -19,7 +23,7 @@ test("a dataset image page steps through the dataset in its order", async () => 
     runtimes: testHeartbeat("di-worker").runtimes,
   });
 
-  const middle = await readDatasetImage({ dataset: "di", digest: b! });
+  const middle = await readDatasetImage({ dataset: dataset.id, digest: b! });
   expect(middle?.model.id).toBe(version.modelId);
   expect(middle?.review).toEqual({
     ref: { digest: b!, modelId: version.modelId },
@@ -34,12 +38,14 @@ test("a dataset image page steps through the dataset in its order", async () => 
   expect(middle?.previous).toEqual({ digest: a!, filename: "di-a.jpg" });
   expect(middle?.next).toEqual({ digest: c!, filename: "di-c.jpg" });
 
-  const first = await readDatasetImage({ dataset: "di", digest: a! });
+  const first = await readDatasetImage({ dataset: dataset.id, digest: a! });
   expect(first?.previous).toBeNull();
   expect(first?.review.detection).toBeNull();
 
   expect(
-    await readDatasetImage({ dataset: "di", digest: "0".repeat(64) }),
+    await readDatasetImage({ dataset: dataset.id, digest: "0".repeat(64) }),
   ).toBeNull();
-  expect(await readDatasetImage({ dataset: "nowhere", digest: a! })).toBeNull();
+  expect(
+    await readDatasetImage({ dataset: crypto.randomUUID(), digest: a! }),
+  ).toBeNull();
 });

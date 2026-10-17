@@ -117,7 +117,7 @@ function ModelPage() {
         >
           {datasets.map((dataset) => (
             <DatasetCard
-              key={dataset.dataset}
+              key={dataset.dataset.id}
               dataset={dataset.dataset}
               images={dataset.imageCount}
               reviewed={dataset.reviewedCount}

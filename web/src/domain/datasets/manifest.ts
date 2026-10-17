@@ -7,7 +7,7 @@ import { MAX_IMAGE_BYTES } from "../images/canonical";
 import { imageDigestSchema } from "../images/schema";
 import { classListSchema } from "../models/classes";
 import { IMAGE_SPLITS } from "../training/schema";
-import { datasetIdSchema } from "./schema";
+import { datasetNameSchema } from "./schema";
 
 /** Keeps one manifest practical to validate and apply in a single transaction. */
 export const MAX_DATASET_IMAGES = 10_000;
@@ -62,7 +62,7 @@ const datasetManifestImageSchema = z
 export const datasetManifestSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
-    dataset: datasetIdSchema,
+    dataset: datasetNameSchema,
     model: z.strictObject({
       id: resourceIdSchema,
       classes: classListSchema,

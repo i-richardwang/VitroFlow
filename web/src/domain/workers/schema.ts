@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { NamedDataset } from "../datasets/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { runtimeDescriptorSchema } from "../inference/schema";
 
@@ -42,7 +43,7 @@ export const workerRefSchema = z.strictObject({ workerId: resourceIdSchema });
 
 export type WorkerActivity =
   | { kind: "inference"; image: string }
-  | { kind: "training"; runId: string; dataset: string };
+  | { kind: "training"; runId: string; dataset: NamedDataset };
 
 /** A worker session as the server knows it: the enrolled worker and its process. */
 export interface WorkerIdentity {

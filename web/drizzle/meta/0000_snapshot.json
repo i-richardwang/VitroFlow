@@ -1,5 +1,5 @@
 {
-  "id": "deb43cff-05cc-485b-837c-04135a0b5295",
+  "id": "27dc8b7f-53cf-4975-b029-633e1903f765",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -745,7 +745,7 @@
       "columns": {
         "dataset_id": {
           "name": "dataset_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -955,7 +955,7 @@
         },
         "dataset_id": {
           "name": "dataset_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -1027,8 +1027,14 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true
         },
         "model_id": {
@@ -1044,7 +1050,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "datasets_name": {
+          "name": "datasets_name",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "datasets_model_id_models_id_fk": {
           "name": "datasets_model_id_models_id_fk",
@@ -1072,7 +1094,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "datasets_name_check": {
+          "name": "datasets_name_check",
+          "value": "\"datasets\".\"name\" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.experiment_culture_events": {

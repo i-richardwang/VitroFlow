@@ -35,11 +35,19 @@ import {
   unitRequestSchema,
   unitUpdateSchema,
 } from "../../domain/experiments/schema";
+import { DatasetNotFoundError } from "../../domain/datasets/errors";
 import {
+  datasetContentsSchema,
   datasetImageAdditionResultSchema,
   datasetImageAdditionSchema,
+  datasetImageRemovalResultSchema,
+  datasetImageRemovalSchema,
   datasetListRequestSchema,
+  datasetRefSchema,
+  datasetRequestSchema,
+  datasetSchema,
   datasetSummarySchema,
+  datasetUpdateSchema,
 } from "../../domain/datasets/schema";
 import {
   modelRefSchema,
@@ -72,7 +80,11 @@ import {
 
 import {
   addExperimentObservationImages,
+  createDataset,
   listDatasetSummaries,
+  updateDataset,
+  readDatasetContents,
+  removeDatasetImages,
 } from "../datasets/public";
 import {
   createModel,
@@ -373,20 +385,61 @@ const operations: readonly AgentOperation[] = [
   query({
     name: "list-datasets",
     description:
-      "List the datasets that train each recognition task, optionally for one model, with how many images each holds and how many of those are reviewed; training uses only reviewed images",
+      "List the datasets that train each recognition task, optionally for one model, with each one's id and name, how many images it holds, and how many of those are reviewed; training uses only reviewed images",
     input: datasetListRequestSchema,
     output: z.array(datasetSummarySchema),
     handler: ({ modelId }) => listDatasetSummaries(modelId),
   }),
   command({
+    name: "create-dataset",
+    description:
+      "Create an empty dataset that trains one recognition task; its name is unique whatever its case and stays filename-safe, because transfer and data roots know a dataset by name",
+    destructive: false,
+    input: datasetRequestSchema,
+    output: datasetSchema,
+    handler: (input, executor) => createDataset(input, executor),
+  }),
+  command({
+    name: "update-dataset",
+    description:
+      "Rename a dataset; its images, training splits, snapshots, and runs stay with it",
+    destructive: true,
+    input: datasetUpdateSchema,
+    output: datasetSchema,
+    handler: (input, executor) => updateDataset(input, executor),
+  }),
+  query({
+    name: "get-dataset",
+    description:
+      "Read one dataset's images by digest, each with whether it is reviewed and the training split a snapshot gave it; match digests against get-experiment's image cells to see where an image was observed",
+    input: datasetRefSchema,
+    output: datasetContentsSchema,
+    handler: async ({ dataset }) => {
+      const contents = await readDatasetContents(dataset);
+      if (!contents) {
+        throw new DatasetNotFoundError(`Unknown dataset: ${dataset}`);
+      }
+      return contents;
+    },
+  }),
+  command({
     name: "add-images-to-dataset",
     description:
-      "Add experiment observation images to a dataset that trains their observation's model, creating the dataset when the name is new. All images must be observed for one model; images already in the dataset are counted as existing, so repeating a call is safe. Training splits are assigned when a snapshot is taken",
+      "Add experiment observation images to a dataset that trains their observation's model. All images must be observed for that model; images already in the dataset are counted as existing, so repeating a call is safe. Training splits are assigned when a snapshot is taken",
     destructive: false,
     input: datasetImageAdditionSchema,
     output: datasetImageAdditionResultSchema,
     handler: (input, executor) =>
       addExperimentObservationImages(input, executor),
+  }),
+  command({
+    name: "remove-images-from-dataset",
+    description:
+      "Take images out of a dataset by digest so later training leaves them out. The images, their reviews, and snapshots already taken remain; digests not in the dataset are counted as absent, so repeating a call is safe",
+    destructive: true,
+    input: datasetImageRemovalSchema,
+    output: datasetImageRemovalResultSchema,
+    handler: (input, executor) => removeDatasetImages(input, executor),
   }),
 ];
 

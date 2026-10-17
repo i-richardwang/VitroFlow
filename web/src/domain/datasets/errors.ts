@@ -12,3 +12,6 @@ export class DatasetModelError extends ConflictError {
 export class DatasetImportError extends ValidationError {
   readonly code = "dataset_import_rejected";
 }
+export class DatasetNameTakenError extends ConflictError {
+  readonly code = "dataset_name_taken";
+}

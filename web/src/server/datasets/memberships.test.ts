@@ -11,10 +11,13 @@ import { imageBlobKey } from "../images/keys";
 import { contentDigest } from "../infra/digest";
 import {
   addExperimentObservationImages,
+  addExperimentObservationImagesToNewDataset,
+  createDataset,
   listDatasets,
   listDatasetsForModel,
   readDataset,
-  removeDatasetImage,
+  readDatasetByName,
+  removeDatasetImages,
 } from "./memberships";
 
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
@@ -80,14 +83,21 @@ describe("datasets", () => {
     const { experiment } = await observeImages("loose images", ["loose-other"]);
     const missing = "11111111-1111-4111-8111-111111111111";
     await expect(
-      addExperimentObservationImages({
-        dataset: "loose",
+      addExperimentObservationImagesToNewDataset({
+        name: "loose",
         images: [{ experiment: experiment.id, observationImage: missing }],
       }),
     ).rejects.toThrow(
       `Not experiment observation images: ${experiment.id}/${missing}`,
     );
-    expect(await readDataset("loose")).toBeNull();
+    expect(await readDatasetByName("loose")).toBeNull();
+    const unknown = crypto.randomUUID();
+    await expect(
+      addExperimentObservationImages({
+        dataset: unknown,
+        images: [{ experiment: experiment.id, observationImage: missing }],
+      }),
+    ).rejects.toThrow(`Unknown dataset: ${unknown}`);
   });
 
   test("adds experiment images under their source filenames", async () => {
@@ -95,34 +105,33 @@ describe("datasets", () => {
       "one",
       "two",
     ]);
-    expect(
-      await addExperimentObservationImages({ dataset: "crop", images }),
-    ).toMatchObject({
-      added: 2,
-      existing: 0,
-    });
-    const listed = await listImageRecords("crop");
+    const { dataset, ...counts } =
+      await addExperimentObservationImagesToNewDataset({
+        name: "crop",
+        images,
+      });
+    expect(counts).toEqual({ added: 2, existing: 0 });
+    const listed = await listImageRecords(dataset.id);
     expect(listed.map(({ image }) => image.digest).sort()).toEqual(
       [...digests].sort(),
     );
     expect(
       listed.find(({ image }) => image.filename === "two.jpg")?.image,
     ).toMatchObject({
-      dataset: "crop",
+      dataset: dataset.id,
       width: FIXTURE_EDGE,
       height: FIXTURE_EDGE,
       split: null,
     });
-    expect((await listDatasets()).map((dataset) => dataset.id)).toContain(
-      "crop",
-    );
-    expect(await readDataset("crop")).toEqual({
-      id: "crop",
+    expect((await listDatasets()).map(({ name }) => name)).toContain("crop");
+    expect(await readDataset(dataset.id)).toEqual({
+      id: expect.any(String),
+      name: "crop",
       modelId: "seed-detector",
     });
     expect(
       await addExperimentObservationImages({
-        dataset: "crop",
+        dataset: dataset.id,
         images: [images[0]!],
       }),
     ).toMatchObject({ added: 0, existing: 1 });
@@ -139,22 +148,27 @@ describe("datasets", () => {
       ["bootstrapped"],
       model.id,
     );
-    const { dataset } = await addExperimentObservationImages({
-      dataset: "bootstrap",
+    const { dataset } = await addExperimentObservationImagesToNewDataset({
+      name: "bootstrap",
       images: observed.images,
     });
-    expect(dataset).toEqual({ id: "bootstrap", modelId: model.id });
-    expect((await listDatasetsForModel(model.id)).map(({ id }) => id)).toEqual([
-      "bootstrap",
-    ]);
+    expect(dataset).toEqual({
+      id: expect.any(String),
+      name: "bootstrap",
+      modelId: model.id,
+    });
+    expect(
+      (await listDatasetsForModel(model.id)).map(({ name }) => name),
+    ).toEqual(["bootstrap"]);
   });
 
   test("a dataset trains the model its experiment images were observed for", async () => {
     const seed = await observeImages("model images", ["modelled"]);
-    await addExperimentObservationImages({
-      dataset: "one-model",
-      images: seed.images,
-    });
+    const { dataset: oneModel } =
+      await addExperimentObservationImagesToNewDataset({
+        name: "one-model",
+        images: seed.images,
+      });
     await registerModel({
       schemaVersion: 1,
       id: "other-task",
@@ -171,29 +185,29 @@ describe("datasets", () => {
     );
     await expect(
       addExperimentObservationImages({
-        dataset: "one-model",
+        dataset: oneModel.id,
         images: other.images,
       }),
     ).rejects.toThrow(/trains seed-detector, not other-task/);
-    await addExperimentObservationImages({
-      dataset: "other-model",
+    await addExperimentObservationImagesToNewDataset({
+      name: "other-model",
       images: other.images,
     });
     const seedDatasets = (await listDatasetsForModel("seed-detector")).map(
-      ({ id }) => id,
+      ({ name }) => name,
     );
     expect(seedDatasets).toContain("one-model");
     expect(seedDatasets).not.toContain("other-model");
     expect(
-      (await listDatasetsForModel("other-task")).map(({ id }) => id),
+      (await listDatasetsForModel("other-task")).map(({ name }) => name),
     ).toContain("other-model");
     await expect(
-      addExperimentObservationImages({
-        dataset: "mixed",
+      addExperimentObservationImagesToNewDataset({
+        name: "mixed",
         images: [...seed.images, ...other.images],
       }),
     ).rejects.toThrow(/different models/);
-    expect(await readDataset("mixed")).toBeNull();
+    expect(await readDatasetByName("mixed")).toBeNull();
 
     const sameSeed = await observeImages(
       "same seed content",
@@ -207,35 +221,37 @@ describe("datasets", () => {
     );
     expect(sameSeed.digests).toEqual(sameOther.digests);
     await expect(
-      addExperimentObservationImages({
-        dataset: "mixed-same-content",
+      addExperimentObservationImagesToNewDataset({
+        name: "mixed-same-content",
         images: [...sameSeed.images, ...sameOther.images],
       }),
     ).rejects.toThrow(/different models/);
-    expect(await readDataset("mixed-same-content")).toBeNull();
+    expect(await readDatasetByName("mixed-same-content")).toBeNull();
 
     await expect(
-      addExperimentObservationImages({
-        dataset: "not a name",
+      addExperimentObservationImagesToNewDataset({
+        name: "not a name",
         images: seed.images,
       }),
-    ).rejects.toThrow(/Dataset names/);
+    ).rejects.toThrow();
+    expect(await readDatasetByName("not a name")).toBeNull();
   });
 
   test("one image can belong to several datasets", async () => {
     const { digests, images } = await observeImages("shared images", [
       "shared",
     ]);
-    for (const dataset of ["left", "right"]) {
-      await addExperimentObservationImages({ dataset, images });
-    }
     const digest = digests[0]!;
-    expect(
-      (await readImageRecord({ dataset: "left", digest }))?.image.filename,
-    ).toBe("shared.jpg");
-    expect(
-      (await readImageRecord({ dataset: "right", digest }))?.image.filename,
-    ).toBe("shared.jpg");
+    for (const name of ["left", "right"]) {
+      const { dataset } = await addExperimentObservationImagesToNewDataset({
+        name,
+        images,
+      });
+      expect(
+        (await readImageRecord({ dataset: dataset.id, digest }))?.image
+          .filename,
+      ).toBe("shared.jpg");
+    }
     expect(contentDigest(await requireBlob(imageBlobKey(digest)))).toBe(digest);
   });
 
@@ -249,27 +265,31 @@ describe("datasets", () => {
   test("serializes concurrent additions to a new dataset", async () => {
     const a = await observeImages("concurrent a", ["concurrent-a"]);
     const b = await observeImages("concurrent b", ["concurrent-b"]);
+    const dataset = await createDataset({
+      name: "concurrent",
+      modelId: "seed-detector",
+    });
     const [first, second] = await Promise.all([
       addExperimentObservationImages({
-        dataset: "concurrent",
+        dataset: dataset.id,
         images: a.images,
       }),
       addExperimentObservationImages({
-        dataset: "concurrent",
+        dataset: dataset.id,
         images: b.images,
       }),
     ]);
     expect(first.added).toBe(1);
     expect(second.added).toBe(1);
-    expect(await listImageRecords("concurrent")).toHaveLength(2);
+    expect(await listImageRecords(dataset.id)).toHaveLength(2);
   });
 });
 
 describe("removal", () => {
   test("removes the membership; the review and the detection stay with the image", async () => {
-    const { version, digests } = await uploadTexts("rm", ["rm-bytes"]);
+    const { version, digests, dataset } = await uploadTexts("rm", ["rm-bytes"]);
     const digest = digests[0]!;
-    const ref = { dataset: "rm", digest };
+    const ref = { dataset: dataset.id, digest };
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "rm-bytes");
     await seedInferenceOutcome(target, result, worker);
@@ -279,26 +299,36 @@ describe("removal", () => {
       null,
     );
 
-    await removeDatasetImage(ref);
+    expect(
+      await removeDatasetImages({ dataset: dataset.id, digests: [digest] }),
+    ).toMatchObject({ removed: 1, absent: 0 });
     expect(await readImageRecord(ref)).toBeNull();
     expect(
       await readAnnotation({ digest, modelId: version.modelId }),
     ).not.toBeNull();
     expect(await storedDetection(target)).toEqual(result);
-    await expect(removeDatasetImage(ref)).rejects.toThrow(/not in dataset/);
+    expect(
+      await removeDatasetImages({ dataset: dataset.id, digests: [digest] }),
+    ).toMatchObject({ removed: 0, absent: 1 });
   });
 
   test("a review keeps the image alive after its last membership and observation are gone", async () => {
-    const { digests, images } = await uploadTexts("share-a", ["shared-bytes"]);
+    const { digests, images, dataset } = await uploadTexts("share-a", [
+      "shared-bytes",
+    ]);
     const digest = digests[0]!;
-    await addExperimentObservationImages({ dataset: "share-b", images });
+    const { dataset: shareB } =
+      await addExperimentObservationImagesToNewDataset({
+        name: "share-b",
+        images,
+      });
     const later = new Date(Date.now() + 25 * 60 * 60 * 1000);
-    await removeDatasetImage({ dataset: "share-a", digest });
+    await removeDatasetImages({ dataset: dataset.id, digests: [digest] });
     expect(await collectImages(later)).not.toContain(digest);
     expect(
-      await readImageRecord({ dataset: "share-b", digest }),
+      await readImageRecord({ dataset: shareB.id, digest }),
     ).not.toBeNull();
-    await removeDatasetImage({ dataset: "share-b", digest });
+    await removeDatasetImages({ dataset: shareB.id, digests: [digest] });
     expect(await collectImages(later)).not.toContain(digest);
     expect(await blobExists(imageBlobKey(digest))).toBe(true);
   });

@@ -2,19 +2,23 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { archiveFilename } from "../domain/datasets/archive-format";
 import { DatasetManifestTooLargeError } from "../domain/datasets/manifest";
+import { datasetIdSchema } from "../domain/datasets/schema";
 import { datasetArchive } from "../server/datasets/public";
 
 export const Route = createFileRoute("/datasets/$dataset/archive")({
   server: {
     handlers: {
       GET: async ({ params }) => {
+        if (!datasetIdSchema.safeParse(params.dataset).success) {
+          return new Response("Not found", { status: 404 });
+        }
         try {
-          const archive = await datasetArchive(params.dataset);
-          if (!archive) return new Response("Not found", { status: 404 });
-          return new Response(archive, {
+          const found = await datasetArchive(params.dataset);
+          if (!found) return new Response("Not found", { status: 404 });
+          return new Response(found.archive, {
             headers: {
               "Content-Type": "application/zip",
-              "Content-Disposition": `attachment; filename="${archiveFilename(params.dataset)}"`,
+              "Content-Disposition": `attachment; filename="${archiveFilename(found.name)}"`,
               "Cache-Control": "no-store",
             },
           });

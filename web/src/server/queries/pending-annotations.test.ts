@@ -5,7 +5,7 @@ import {
   createAnnotationRun,
 } from "../annotation-runs/public";
 import { storeAnnotation } from "../annotations/documents";
-import { addExperimentObservationImages } from "../datasets/memberships";
+import { addExperimentObservationImagesToNewDataset } from "../datasets/memberships";
 import { createModel, setModelAnnotation } from "../models/public";
 import { observeImagesForModel } from "../testing/fixtures";
 import { listPendingAnnotations } from "./pending-annotations";
@@ -29,8 +29,8 @@ test("an image waits once per model until someone reads it or while a run on it 
     ["awaiting-agent-a", "awaiting-agent-b"],
     model.id,
   );
-  await addExperimentObservationImages({
-    dataset: "awaiting-agent",
+  await addExperimentObservationImagesToNewDataset({
+    name: "awaiting-agent",
     images: observed.images,
   });
   const listed = async () =>

@@ -6,7 +6,7 @@ import { contentDigest } from "../infra/digest";
 import { imageBlobKey } from "../images/keys";
 import { requireBlob } from "../infra/blobs/store";
 import { importDataset, readDatasetManifest } from "./transfer";
-import { readDataset } from "./memberships";
+import { readDatasetByName } from "./memberships";
 import { readAnnotation } from "../annotations/documents";
 import { ImageSourceError } from "../images/ingest";
 import { storeCanonicalImage } from "../images/store";
@@ -89,7 +89,7 @@ describe("dataset transfer", () => {
     expect(manifest.images.every((image) => image.annotation)).toBe(true);
 
     const other = await uploadTexts("transfer-fresh", ["ts-c"]);
-    const [otherRecord] = await listImageRecords("transfer-fresh");
+    const [otherRecord] = await listImageRecords(other.dataset.id);
     if (!otherRecord) throw new Error("no fresh image");
     const fresh = {
       ...manifest,
@@ -116,11 +116,12 @@ describe("dataset transfer", () => {
     };
     const created = await importDataset(fresh);
     expect(created).toEqual({
-      id: "transfer-copy",
+      id: expect.any(String),
+      name: "transfer-copy",
       modelId: seeded.version.modelId,
     });
-    expect(await readDataset("transfer-copy")).toEqual(created);
-    const [record] = await listImageRecords("transfer-copy");
+    expect(await readDatasetByName("transfer-copy")).toEqual(created);
+    const [record] = await listImageRecords(created.id);
     expect(record?.image.split).toBe("val");
     expect(record?.image.filename).toBe(fresh.images[0]!.filename);
     expect(record?.annotation).toEqual(fresh.images[0]!.annotation!);
@@ -194,7 +195,7 @@ describe("dataset transfer", () => {
     await expect(
       attempt({ dataset: "transfer-held-2" }),
     ).rejects.toBeInstanceOf(DatasetImportError);
-    expect(await readDataset("transfer-held-2")).toBeNull();
+    expect(await readDatasetByName("transfer-held-2")).toBeNull();
 
     expect(
       await importDataset({
@@ -203,7 +204,8 @@ describe("dataset transfer", () => {
         images: unreviewed,
       }),
     ).toEqual({
-      id: "transfer-held-2",
+      id: expect.any(String),
+      name: "transfer-held-2",
       modelId: manifest.model.id,
     });
     expect(await imageDigest("th-a")).toBe(unreviewed[0]!.digest);
@@ -233,8 +235,9 @@ describe("dataset transfer", () => {
     ).toHaveLength(1);
     const rejected = results.find((result) => result.status === "rejected");
     expect(rejected?.reason).toBeInstanceOf(DatasetImportError);
-    expect(await readDataset("transfer-race")).toEqual({
-      id: "transfer-race",
+    expect(await readDatasetByName("transfer-race")).toEqual({
+      id: expect.any(String),
+      name: "transfer-race",
       modelId: source.model.id,
     });
   });

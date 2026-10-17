@@ -63,7 +63,7 @@ export function TrainingRunsTable({
                   render={
                     <Link
                       to="/datasets/$dataset/runs/$runId"
-                      params={{ dataset, runId: run.id }}
+                      params={{ dataset: dataset.id, runId: run.id }}
                     />
                   }
                 >
@@ -78,7 +78,7 @@ export function TrainingRunsTable({
             </TableCell>
             {datasetColumn && (
               <TableCell cellLabel={m.run_column_dataset()}>
-                {dataset}
+                {dataset.name}
               </TableCell>
             )}
             <TableCell cellLabel={m.run_column_epochs()} numeric>

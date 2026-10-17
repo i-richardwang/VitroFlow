@@ -2,6 +2,7 @@ import { Link, linkOptions, useRouter } from "@tanstack/react-router";
 import { Columns2, ImageOff } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent } from "react";
 
+import type { NamedDataset } from "../../domain/datasets/schema";
 import { observationLabel, cultureEventLabel } from "./labels";
 import type { ReviewSource } from "../../domain/annotation/schema";
 import type { ObservationImageRef } from "../../domain/experiments/schema";
@@ -77,7 +78,7 @@ export function UnitWorkbench({
   onCompareChange,
 }: {
   series: UnitSeries;
-  datasets: string[];
+  datasets: NamedDataset[];
   source?: ReviewSource;
   onSourceChange: (source: ReviewSource | undefined) => void;
   /** The day the day in view stands beside, if any. */

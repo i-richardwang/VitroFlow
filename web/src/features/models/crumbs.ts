@@ -12,9 +12,12 @@ export function modelCrumbs(model: Model): Crumb[] {
 }
 
 /** The way down to one of a model's training sets. */
-export function datasetCrumbs(model: Model, dataset: string): Crumb[] {
+export function datasetCrumbs(
+  model: Model,
+  dataset: { id: string; name: string },
+): Crumb[] {
   return [
     ...modelCrumbs(model),
-    { label: dataset, href: `/datasets/${dataset}` },
+    { label: dataset.name, href: `/datasets/${dataset.id}` },
   ];
 }

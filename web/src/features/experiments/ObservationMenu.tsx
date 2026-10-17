@@ -2,6 +2,7 @@ import { useRouter } from "@tanstack/react-router";
 import { FolderPlus, Images, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import type { NamedDataset } from "../../domain/datasets/schema";
 import type {
   ObservationImageCell,
   Unit,
@@ -55,7 +56,7 @@ export function ObservationMenu({
   placed: readonly PlacedPhoto[];
   models: readonly Model[];
   /** The datasets training the observation's model. */
-  datasets: string[];
+  datasets: NamedDataset[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { database } from "../infra/db/client";
 import {
   datasetSnapshots,
+  datasets,
   inferenceJobs,
   trainingRuns,
 } from "../infra/db/schema";
@@ -46,13 +47,14 @@ async function trainingActivity(
     .select({
       workerId: trainingRuns.workerId,
       runId: trainingRuns.id,
-      dataset: datasetSnapshots.datasetId,
+      dataset: { id: datasets.id, name: datasets.name },
     })
     .from(trainingRuns)
     .innerJoin(
       datasetSnapshots,
       eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
     )
+    .innerJoin(datasets, eq(datasets.id, datasetSnapshots.datasetId))
     .where(leaseIsHeld(trainingRuns, at));
   return new Map(
     rows.flatMap((row) =>

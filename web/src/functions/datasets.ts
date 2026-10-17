@@ -3,11 +3,16 @@ import { createServerFn } from "@tanstack/react-start";
 import {
   datasetImageRefSchema,
   datasetImageAdditionSchema,
+  datasetImageRemovalSchema,
   datasetRefSchema,
+  datasetUpdateSchema,
+  newDatasetImageAdditionSchema,
 } from "../domain/datasets/schema";
 import {
   addExperimentObservationImages,
-  removeDatasetImage,
+  addExperimentObservationImagesToNewDataset,
+  removeDatasetImages,
+  updateDataset,
 } from "../server/datasets/public";
 import { readDatasetImage, datasetOverview } from "../server/queries/public";
 
@@ -23,8 +28,15 @@ export const addToDataset = createServerFn({ method: "POST" })
   .validator(datasetImageAdditionSchema)
   .handler(({ data }) => addExperimentObservationImages(data));
 
+/** Founds a dataset for the images' model and adds them, in one step. */
+export const addToNewDataset = createServerFn({ method: "POST" })
+  .validator(newDatasetImageAdditionSchema)
+  .handler(({ data }) => addExperimentObservationImagesToNewDataset(data));
+
+export const editDataset = createServerFn({ method: "POST" })
+  .validator(datasetUpdateSchema)
+  .handler(({ data }) => updateDataset(data));
+
 export const removeFromDataset = createServerFn({ method: "POST" })
-  .validator(datasetImageRefSchema)
-  .handler(async ({ data }) => {
-    await removeDatasetImage(data);
-  });
+  .validator(datasetImageRemovalSchema)
+  .handler(({ data }) => removeDatasetImages(data));

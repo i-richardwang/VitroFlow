@@ -1,17 +1,22 @@
 export { datasetArchive } from "./archive";
 export {
   addExperimentObservationImages,
+  addExperimentObservationImagesToNewDataset,
+  createDataset,
+  readDatasetByName,
+  updateDataset,
   listDatasets,
   listDatasetsForModel,
   membershipOrder,
   readDataset,
-  removeDatasetImage,
+  removeDatasetImages,
 } from "./memberships";
 export {
   countReviewed,
   listDatasetSummaries,
   listImageRecords,
   listReviewedRecords,
+  readDatasetContents,
   summarize,
   type ImageRecord,
   type ImageSummary,

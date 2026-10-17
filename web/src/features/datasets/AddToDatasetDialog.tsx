@@ -1,9 +1,12 @@
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { DATASET_NAME_PATTERN } from "../../domain/datasets/schema";
+import {
+  DATASET_NAME_PATTERN,
+  type NamedDataset,
+} from "../../domain/datasets/schema";
 import type { ObservationImageRef } from "../../domain/experiments/schema";
-import { addToDataset } from "../../functions/datasets";
+import { addToDataset, addToNewDataset } from "../../functions/datasets";
 import { FormDialog } from "../../ui/FormDialog";
 import {
   type AsyncAction,
@@ -27,7 +30,7 @@ export function AddToDatasetDialog({
 }: {
   open: boolean;
   images: ObservationImageRef[];
-  datasets: string[];
+  datasets: NamedDataset[];
   heading?: string;
   onClose: () => void;
 }) {
@@ -58,22 +61,25 @@ function AddToDatasetForm({
   onDone,
 }: {
   images: ObservationImageRef[];
-  datasets: string[];
+  datasets: NamedDataset[];
   action: AsyncAction;
   onDone: () => void;
 }) {
   const router = useRouter();
-  const [choice, setChoice] = useState(datasets[0] ?? NEW_DATASET);
+  const [choice, setChoice] = useState(datasets[0]?.id ?? NEW_DATASET);
   const [name, setName] = useState("");
 
   const submit = () => {
-    const dataset = choice === NEW_DATASET ? name : choice;
     void run(
-      () => addToDataset({ data: { dataset, images } }),
+      () =>
+        choice === NEW_DATASET
+          ? addToNewDataset({ data: { name, images } })
+          : addToDataset({ data: { dataset: choice, images } }),
       m.dataset_add_nothing_added(),
     ).then(async (result) => {
       if (!result.ok) return;
       const { added, existing } = result.value;
+      const dataset = result.value.dataset.name;
       onDone();
       toast.success(
         existing > 0
@@ -99,15 +105,15 @@ function AddToDatasetForm({
           onChange={setChoice}
           options={[
             ...datasets.map((dataset) => ({
-              value: dataset,
-              label: dataset,
+              value: dataset.id,
+              label: dataset.name,
             })),
             { value: NEW_DATASET, label: m.dataset_add_new() },
           ]}
         />
       </Form.Field>
       {choice === NEW_DATASET ? (
-        <Form.Field label={m.dataset_add_name_label()} required>
+        <Form.Field label={m.dataset_name_label()} required>
           <Input
             value={name}
             onValueChange={setName}

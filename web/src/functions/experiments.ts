@@ -20,6 +20,7 @@ import {
   unitUpdateSchema,
   cultureEventsRequestSchema,
 } from "../domain/experiments/schema";
+import type { NamedDataset } from "../domain/datasets/schema";
 import { listDatasets, listDatasetsForModel } from "../server/datasets/public";
 import {
   addReplicates,
@@ -46,8 +47,11 @@ import * as observationImages from "../server/experiments/public";
 
 import { listModels } from "../server/models/public";
 
-async function datasetsTraining(modelId: string): Promise<string[]> {
-  return (await listDatasetsForModel(modelId)).map((dataset) => dataset.id);
+async function datasetsTraining(modelId: string): Promise<NamedDataset[]> {
+  return (await listDatasetsForModel(modelId)).map(({ id, name }) => ({
+    id,
+    name,
+  }));
 }
 
 export const getExperiments = createServerFn({ method: "GET" }).handler(() =>

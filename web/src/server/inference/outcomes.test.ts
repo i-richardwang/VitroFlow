@@ -8,7 +8,7 @@ import { inferenceOutcomes } from "../infra/db/schema";
 
 import type { Worker } from "../../domain/workers/schema";
 
-import { addExperimentObservationImages } from "../datasets/memberships";
+import { addExperimentObservationImagesToNewDataset } from "../datasets/memberships";
 import { retryObservationImageAnalysis } from "../experiments/observation-images";
 
 import { storeAnnotation } from "../annotations/documents";
@@ -227,13 +227,17 @@ describe("detections", () => {
       "shown-v1",
       "2026-08-26T01:00:00.000Z",
     );
-    const { version: next, digests } = await uploadTexts(
+    const {
+      version: next,
+      digests,
+      dataset,
+    } = await uploadTexts(
       "shown",
       ["shown"],
       await outcomeVersion("shown-v2", "2026-08-27T02:00:00.000Z"),
     );
     const digest = digests[0]!;
-    const ref = { dataset: "shown", digest };
+    const ref = { dataset: dataset.id, digest };
     expect(await isReviewed(ref)).toBe(false);
     expect((await readImageRecord(ref))?.detection).toBeNull();
 
@@ -276,8 +280,16 @@ describe("detections", () => {
   });
 
   test("a review is one document per image and model, wherever it is opened", async () => {
-    const { version, digests, images } = await uploadTexts("ctx-one", ["ctx"]);
-    await addExperimentObservationImages({ dataset: "ctx-two", images });
+    const {
+      version,
+      digests,
+      images,
+      dataset: one,
+    } = await uploadTexts("ctx-one", ["ctx"]);
+    const { dataset: two } = await addExperimentObservationImagesToNewDataset({
+      name: "ctx-two",
+      images,
+    });
     const digest = digests[0]!;
     const result = await resultFor(version, "ctx");
     await seedInferenceOutcome(
@@ -287,7 +299,7 @@ describe("detections", () => {
     );
     const labelRef = { digest, modelId: version.modelId };
     await storeAnnotation(labelRef, instancesFromDetection(result), null);
-    expect(await isReviewed({ dataset: "ctx-one", digest })).toBe(true);
-    expect(await isReviewed({ dataset: "ctx-two", digest })).toBe(true);
+    expect(await isReviewed({ dataset: one.id, digest })).toBe(true);
+    expect(await isReviewed({ dataset: two.id, digest })).toBe(true);
   });
 });

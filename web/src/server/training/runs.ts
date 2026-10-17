@@ -5,6 +5,7 @@ import { and, asc, desc, eq, gt, inArray, not, or, sql } from "drizzle-orm";
 import { database, transaction, type Executor } from "../infra/db/client";
 import {
   datasetSnapshots,
+  datasets,
   trainingEpochs,
   trainingRuns,
 } from "../infra/db/schema";
@@ -251,7 +252,7 @@ export async function listTrainingRunSummaries(
   const db = await database();
   const rows = await db
     .select({
-      dataset: datasetSnapshots.datasetId,
+      dataset: { id: datasets.id, name: datasets.name },
       run: trainingRuns,
       completed: sql<number>`(
         select count(*)::integer
@@ -281,6 +282,7 @@ export async function listTrainingRunSummaries(
       datasetSnapshots,
       eq(datasetSnapshots.id, trainingRuns.datasetSnapshotId),
     )
+    .innerJoin(datasets, eq(datasets.id, datasetSnapshots.datasetId))
     .where(
       "datasetId" in of
         ? eq(datasetSnapshots.datasetId, of.datasetId)

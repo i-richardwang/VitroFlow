@@ -10,10 +10,14 @@ import { reviewedDataset } from "../testing/fixtures";
 
 test("an archive holds the manifest first and then every image by digest", async () => {
   const seeded = await reviewedDataset("archive-set", ["ar-a", "ar-b"]);
-  const stream = await datasetArchive("archive-set");
-  if (!stream) throw new Error("no archive");
+  const archived = await datasetArchive(seeded.dataset.id);
+  if (!archived) throw new Error("no archive");
+  expect(archived.name).toBe("archive-set");
   const entries = [];
-  for await (const entry of readStoredZip(stream, DATASET_ARCHIVE_LIMITS)) {
+  for await (const entry of readStoredZip(
+    archived.archive,
+    DATASET_ARCHIVE_LIMITS,
+  )) {
     entries.push(entry);
   }
 
@@ -30,5 +34,5 @@ test("an archive holds the manifest first and then every image by digest", async
       new Uint8Array(await requireBlob(imageBlobKey(digest))),
     );
   }
-  expect(await datasetArchive("archive-nowhere")).toBeNull();
+  expect(await datasetArchive(crypto.randomUUID())).toBeNull();
 });

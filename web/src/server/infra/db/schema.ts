@@ -482,7 +482,9 @@ export const modelVersions = pgTable(
 export const datasets = pgTable(
   "datasets",
   {
-    id: text("id").primaryKey(),
+    id: uuid("id").primaryKey(),
+    /** How people and transfer address the dataset; renaming keeps the id. */
+    name: text("name").notNull(),
     modelId: text("model_id")
       .notNull()
       .references(() => models.id),
@@ -491,6 +493,12 @@ export const datasets = pgTable(
   (table) => [
     /** Lets snapshot rows assert that they froze this dataset for its model. */
     unique("datasets_id_model").on(table.id, table.modelId),
+    /** Data roots keep a dataset in a folder of its name, on any file system. */
+    uniqueIndex("datasets_name").on(sql`lower(${table.name})`),
+    check(
+      "datasets_name_check",
+      sql`${table.name} ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$'`,
+    ),
   ],
 );
 
@@ -554,7 +562,7 @@ export const images = pgTable(
 export const datasetImages = pgTable(
   "dataset_images",
   {
-    datasetId: text("dataset_id")
+    datasetId: uuid("dataset_id")
       .notNull()
       .references(() => datasets.id, { onDelete: "cascade" }),
     imageId: text("image_id")
@@ -972,7 +980,7 @@ export const datasetSnapshots = pgTable(
   "dataset_snapshots",
   {
     id: text("id").primaryKey(),
-    datasetId: text("dataset_id").notNull(),
+    datasetId: uuid("dataset_id").notNull(),
     modelId: text("model_id").notNull(),
     createdAt: instant("created_at"),
   },

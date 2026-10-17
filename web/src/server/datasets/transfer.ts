@@ -1,4 +1,5 @@
 import { DatasetImportError } from "../../domain/datasets/errors";
+import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 
 import {
@@ -7,13 +8,14 @@ import {
 } from "../../domain/datasets/manifest";
 import type { Dataset } from "../../domain/datasets/schema";
 import { transaction } from "../infra/db/client";
+import { isUniqueViolation } from "../infra/db/errors";
 import {
   annotations,
   datasetImages,
   datasets,
   images,
 } from "../infra/db/schema";
-import { readDataset } from "./memberships";
+import { readDatasetByName } from "./memberships";
 import { lockImage } from "../images/public";
 import { readModel } from "../models/public";
 import { listImageRecords } from "./records";
@@ -26,18 +28,28 @@ import { listImageRecords } from "./records";
  * creates the whole dataset or nothing.
  */
 
-/** The dataset's manifest: its images with their detection and annotation documents. */
+/**
+ * The manifest of the dataset of this name: its images with their detection
+ * and annotation documents. Workbenches know a dataset by name; its id stays
+ * with the workbench that holds it.
+ */
 export async function readDatasetManifest(
-  datasetId: string,
+  name: string,
 ): Promise<DatasetManifest | null> {
-  const dataset = await readDataset(datasetId);
-  if (!dataset) return null;
+  const dataset = await readDatasetByName(name);
+  return dataset ? datasetManifest(dataset) : null;
+}
+
+/** The manifest of a dataset already read. */
+export async function datasetManifest(
+  dataset: Dataset,
+): Promise<DatasetManifest> {
   const model = await readModel(dataset.modelId);
   if (!model) throw new Error(`Unknown model: ${dataset.modelId}`);
-  const records = await listImageRecords(datasetId);
+  const records = await listImageRecords(dataset.id);
   return datasetManifestSchema.parse({
     schemaVersion: 1,
-    dataset: datasetId,
+    dataset: dataset.name,
     model: { id: model.id, classes: model.classes },
     images: records.map(({ image, detection, annotation }) => ({
       digest: image.digest,
@@ -83,12 +95,15 @@ export async function importDataset(
         `Model ${model.id} has classes ${listed(model.classes)}, not ${listed(manifest.model.classes)}`,
       );
     }
-    const [created] = await tx
-      .insert(datasets)
-      .values({ id: manifest.dataset, modelId: model.id, createdAt: addedAt })
-      .onConflictDoNothing({ target: datasets.id })
-      .returning({ id: datasets.id });
-    if (!created) {
+    const dataset: Dataset = {
+      id: randomUUID(),
+      name: manifest.dataset,
+      modelId: model.id,
+    };
+    try {
+      await tx.insert(datasets).values({ ...dataset, createdAt: addedAt });
+    } catch (error) {
+      if (!isUniqueViolation(error, "datasets_name")) throw error;
       throw new DatasetImportError(
         `Dataset ${manifest.dataset} already exists`,
       );
@@ -146,7 +161,7 @@ export async function importDataset(
     if (manifest.images.length > 0) {
       await tx.insert(datasetImages).values(
         manifest.images.map((image) => ({
-          datasetId: manifest.dataset,
+          datasetId: dataset.id,
           imageId: image.digest,
           filename: image.filename,
           split: image.split,
@@ -164,6 +179,6 @@ export async function importDataset(
         })),
       );
     }
-    return { id: manifest.dataset, modelId: model.id };
+    return dataset;
   });
 }

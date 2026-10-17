@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import type { NamedDataset } from "../../domain/datasets/schema";
 import type {
   ExperimentObservationImage,
   Unit,
@@ -64,7 +65,7 @@ export function UnitMenu({
   canRemove: boolean;
   image: ExperimentObservationImage | null;
   /** The datasets the photograph could join. */
-  datasets: string[];
+  datasets: NamedDataset[];
 }) {
   const router = useRouter();
   const navigateAfterWrite = useNavigateAfterWrite();

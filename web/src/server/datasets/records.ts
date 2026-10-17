@@ -11,6 +11,7 @@ import {
   annotations,
 } from "../infra/db/schema";
 import type {
+  DatasetContents,
   DatasetImageRef,
   DatasetSummary,
 } from "../../domain/datasets/schema";
@@ -23,6 +24,7 @@ import {
   listDatasets,
   listDatasetsForModel,
   membershipOrder,
+  readDataset,
   toDatasetImage,
   type DatasetImage,
   type MembershipRow,
@@ -181,11 +183,28 @@ export async function listDatasetSummaries(
     datasets.map(async (dataset) => {
       const records = await listImageRecords(dataset.id);
       return {
-        dataset: dataset.id,
-        modelId: dataset.modelId,
+        dataset,
         imageCount: records.length,
         reviewedCount: countReviewed(records),
       };
     }),
   );
+}
+
+/** One dataset's images, or null when no dataset has the id. */
+export async function readDatasetContents(
+  datasetId: string,
+): Promise<DatasetContents | null> {
+  const dataset = await readDataset(datasetId);
+  if (!dataset) return null;
+  const records = await listImageRecords(datasetId);
+  return {
+    dataset,
+    images: records.map(({ image, annotation }) => ({
+      digest: image.digest,
+      filename: image.filename,
+      reviewed: annotation !== null,
+      split: image.split,
+    })),
+  };
 }

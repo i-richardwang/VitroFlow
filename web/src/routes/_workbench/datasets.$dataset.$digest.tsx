@@ -43,7 +43,7 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
   staticData: {
     crumbs: ({ loaderData }) => {
       const { dataset, model, review } = loaderData as DatasetImageView;
-      return [...datasetCrumbs(model, dataset.id), { label: review.filename }];
+      return [...datasetCrumbs(model, dataset), { label: review.filename }];
     },
   },
   head: ({ loaderData }) => ({
@@ -116,7 +116,7 @@ function DatasetImagePage() {
 
   return (
     <ImageWorkbench
-      title={m.image_title({ file: review.filename, dataset: dataset.id })}
+      title={m.image_title({ file: review.filename, dataset: dataset.name })}
       model={model}
       review={review}
       source={show}

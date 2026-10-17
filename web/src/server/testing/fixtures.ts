@@ -23,7 +23,12 @@ import type { ModelVersion } from "../../domain/models/schema";
 import type { Worker, WorkerHeartbeat } from "../../domain/workers/schema";
 import { recordWorkerHeartbeat } from "../workers/sessions";
 import { canonicalize } from "../images/ingest";
-import { addExperimentObservationImages } from "../datasets/memberships";
+import {
+  addExperimentObservationImages,
+  addExperimentObservationImagesToNewDataset,
+  createDataset,
+  readDatasetByName,
+} from "../datasets/memberships";
 import { createExperiment } from "../experiments/design";
 import { assignObservationImages } from "../experiments/observation-images";
 import { addObservation } from "../experiments/observations";
@@ -49,7 +54,6 @@ import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
 import { database, transaction } from "../infra/db/client";
 import {
   datasetSnapshots,
-  datasets,
   experimentObservationImages,
   trainingRuns,
   workers,
@@ -107,7 +111,7 @@ export async function registerTrainedVersion(
   modelId: string,
   slug = "yolo-v1",
 ): Promise<ModelVersion> {
-  const datasetId = `${modelId}.${slug}.dataset`;
+  const datasetName = `${modelId}.${slug}.dataset`;
   const snapshotId = `${modelId}.${slug}.snapshot`;
   const runId = `${modelId}.${slug}.run`;
   const value: ModelVersion = {
@@ -142,10 +146,9 @@ export async function registerTrainedVersion(
     },
   };
   return transaction(async (tx) => {
-    await tx
-      .insert(datasets)
-      .values({ id: datasetId, modelId, createdAt: new Date() })
-      .onConflictDoNothing();
+    const { id: datasetId } =
+      (await readDatasetByName(datasetName, tx)) ??
+      (await createDataset({ name: datasetName, modelId }, tx));
     await tx
       .insert(datasetSnapshots)
       .values({ id: snapshotId, datasetId, modelId, createdAt: new Date() })
@@ -361,21 +364,30 @@ export interface SeededDataset extends ObservedImages {
   dataset: Dataset;
 }
 
-/** Creates observation images from the texts and adds them to the dataset. */
+/**
+ * Creates observation images from the texts and adds them to the dataset of
+ * this name, founding it on the first call.
+ */
 export async function uploadTexts(
-  datasetId: string,
+  datasetName: string,
   contents: string[],
   version?: ModelVersion,
 ): Promise<SeededDataset> {
   const observation = await observeImages(
-    `${datasetId} images`,
+    `${datasetName} images`,
     contents,
     version,
   );
-  const { dataset } = await addExperimentObservationImages({
-    dataset: datasetId,
-    images: observation.images,
-  });
+  const existing = await readDatasetByName(datasetName);
+  const { dataset } = existing
+    ? await addExperimentObservationImages({
+        dataset: existing.id,
+        images: observation.images,
+      })
+    : await addExperimentObservationImagesToNewDataset({
+        name: datasetName,
+        images: observation.images,
+      });
   return { ...observation, dataset };
 }
 
@@ -406,11 +418,11 @@ export async function resultFor(
  * keep the review they have.
  */
 export async function reviewedDataset(
-  datasetId: string,
+  datasetName: string,
   contents: string[],
   version?: ModelVersion,
 ): Promise<SeededDataset> {
-  const seeded = await uploadTexts(datasetId, contents, version);
+  const seeded = await uploadTexts(datasetName, contents, version);
   for (const content of contents) {
     const ref = {
       digest: await imageDigest(content),

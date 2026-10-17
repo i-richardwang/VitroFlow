@@ -31,13 +31,12 @@ test("the shared training claim fixture is the Web training contract", async () 
 });
 
 test("training HTTP routes publish a version and serve its weights idempotently", async () => {
-  const datasetId = "training-api";
-  const { version: sourceVersion } = await reviewedDataset(datasetId, [
-    "first",
-    "second",
-  ]);
+  const { version: sourceVersion, dataset } = await reviewedDataset(
+    "training-api",
+    ["first", "second"],
+  );
 
-  const created = await createTrainingRun(datasetId, YOLO26_SEED_SMALL_RECIPE);
+  const created = await createTrainingRun(dataset.id, YOLO26_SEED_SMALL_RECIPE);
   const { token } = await enrollWorker("api-trainer");
   const authorization = `Bearer ${token}`;
 

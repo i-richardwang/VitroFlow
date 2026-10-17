@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Images } from "lucide-react";
 
+import type { NamedDataset } from "../../domain/datasets/schema";
 import { m } from "../../paraglide/messages";
 import { SummaryCard, SummaryCardStats } from "../../ui/kit/SummaryCard";
 import { formatCount } from "../../ui/numbers";
@@ -12,15 +13,15 @@ export function DatasetCard({
   images,
   reviewed,
 }: {
-  dataset: string;
+  dataset: NamedDataset;
   images: number;
   reviewed: number;
 }) {
   return (
     <SummaryCard
       icon={Images}
-      title={dataset}
-      render={<Link to="/datasets/$dataset" params={{ dataset }} />}
+      title={dataset.name}
+      render={<Link to="/datasets/$dataset" params={{ dataset: dataset.id }} />}
       footer={
         <SummaryCardStats
           items={[

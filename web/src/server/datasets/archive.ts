@@ -6,7 +6,8 @@ import {
 import { encodeDatasetManifest } from "../../domain/datasets/manifest";
 import { imageBlobKey } from "../images/public";
 import { requireBlob } from "../infra/blobs/store";
-import { readDatasetManifest } from "./transfer";
+import { readDataset } from "./memberships";
+import { datasetManifest } from "./transfer";
 
 /**
  * The dataset as one archive: its manifest, then each image it names, read
@@ -15,14 +16,15 @@ import { readDatasetManifest } from "./transfer";
  */
 export async function datasetArchive(
   datasetId: string,
-): Promise<ReadableStream<Uint8Array> | null> {
-  const manifest = await readDatasetManifest(datasetId);
-  if (!manifest) return null;
+): Promise<{ name: string; archive: ReadableStream<Uint8Array> } | null> {
+  const dataset = await readDataset(datasetId);
+  if (!dataset) return null;
+  const manifest = await datasetManifest(dataset);
   const manifestBytes = encodeDatasetManifest(manifest);
-  return storedZip(
+  const archive = storedZip(
     (async function* () {
       yield {
-        name: manifestEntryName(datasetId),
+        name: manifestEntryName(manifest.dataset),
         bytes: manifestBytes,
       };
       for (const image of manifest.images) {
@@ -33,4 +35,5 @@ export async function datasetArchive(
       }
     })(),
   );
+  return { name: manifest.dataset, archive };
 }

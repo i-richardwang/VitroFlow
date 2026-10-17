@@ -206,11 +206,11 @@ function Activity({ activity }: { activity: WorkerActivity | null }) {
       render={
         <Link
           to="/datasets/$dataset/runs/$runId"
-          params={{ dataset: activity.dataset, runId: activity.runId }}
+          params={{ dataset: activity.dataset.id, runId: activity.runId }}
         />
       }
     >
-      {m.worker_activity_training({ dataset: activity.dataset })}
+      {m.worker_activity_training({ dataset: activity.dataset.name })}
     </TextLink>
   );
 }

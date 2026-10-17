@@ -40,9 +40,9 @@ import type {
 const CONTENTS = ["first-image", "second-image"];
 
 /** Publishing trains new versions, so these runs keep a model of their own. */
-async function reviewedDataset(datasetId: string) {
+async function reviewedDataset(name: string) {
   const { dataset } = await reviewed(
-    datasetId,
+    name,
     CONTENTS,
     await traditionalVersion("training-detector", "training-v1"),
   );
@@ -127,36 +127,36 @@ const publication = {
 };
 
 test("a model has at most one active training run", async () => {
-  await reviewedDataset("exclusive-run");
-  const run = await createTrainingRun("exclusive-run", recipe);
+  const dataset = await reviewedDataset("exclusive-run");
+  const run = await createTrainingRun(dataset.id, recipe);
   expect((await activeTrainingRun(run.modelId))?.id).toBe(run.id);
-  await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
+  await expect(createTrainingRun(dataset.id, recipe)).rejects.toThrow(
     /still active/,
   );
   const trainerOwner = await trainer("exclusive-trainer");
   expect((await claimTrainingRun(trainerOwner))?.id).toBe(run.id);
-  await expect(createTrainingRun("exclusive-run", recipe)).rejects.toThrow(
+  await expect(createTrainingRun(dataset.id, recipe)).rejects.toThrow(
     /still active/,
   );
   await failTrainingRun(run.id, trainerOwner, "stopped");
   expect(await activeTrainingRun(run.modelId)).toBeNull();
-  const next = await createTrainingRun("exclusive-run", recipe);
+  const next = await createTrainingRun(dataset.id, recipe);
   expect(next.id).not.toBe(run.id);
   expect((await claimTrainingRun(trainerOwner))?.id).toBe(next.id);
   await failTrainingRun(next.id, trainerOwner, "stopped");
   expect(
-    (await listTrainingRunSummaries({ datasetId: "exclusive-run" }))
+    (await listTrainingRunSummaries({ datasetId: dataset.id }))
       .map((summary) => summary.run.id)
       .sort(),
   ).toEqual([next.id, run.id].sort());
   await expect(
-    listTrainingRunSummaries({ datasetId: "exclusive-run" }, 101),
+    listTrainingRunSummaries({ datasetId: dataset.id }, 101),
   ).rejects.toThrow(/between 1 and 100/);
 });
 
 test("concurrent claims lease a run to exactly one worker", async () => {
-  await reviewedDataset("contended-run");
-  const run = await createTrainingRun("contended-run", recipe);
+  const dataset = await reviewedDataset("contended-run");
+  const run = await createTrainingRun(dataset.id, recipe);
   const workers = ["contender-1", "contender-2", "contender-3"];
   const owners = await Promise.all(workers.map(trainer));
   const claims = await Promise.all(
@@ -175,8 +175,8 @@ test("concurrent claims lease a run to exactly one worker", async () => {
 });
 
 test("a training run owns an immutable self-contained snapshot", async () => {
-  await reviewedDataset("snapshot-contract");
-  const run = await createTrainingRun("snapshot-contract", recipe);
+  const dataset = await reviewedDataset("snapshot-contract");
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("snapshot-trainer");
   const claimed = await claimTrainingRun(owner("snapshot-trainer"));
   expect(claimed?.id).toBe(run.id);
@@ -205,7 +205,7 @@ test("a training run owns an immutable self-contained snapshot", async () => {
 
 test("publication registers one immutable version per training run", async () => {
   const dataset = await reviewedDataset("publish-contract");
-  const run = await createTrainingRun("publish-contract", recipe);
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("publisher");
   expect((await claimTrainingRun(owner("publisher")))?.id).toBe(run.id);
   await enterTrainingPhase(run.id, owner("publisher"), "training");
@@ -275,8 +275,8 @@ test("publication registers one immutable version per training run", async () =>
 });
 
 test("an interrupted upload cannot constrain a reclaimed run", async () => {
-  await reviewedDataset("publication-reclaim");
-  const run = await createTrainingRun("publication-reclaim", recipe);
+  const dataset = await reviewedDataset("publication-reclaim");
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("original-publisher");
   await trainer("replacement-publisher");
   const started = new Date("2026-08-27T00:00:00.000Z");
@@ -319,8 +319,8 @@ test("an interrupted upload cannot constrain a reclaimed run", async () => {
 });
 
 test("model weights remain rooted by their active attempt", async () => {
-  await reviewedDataset("publication-active-root");
-  const run = await createTrainingRun("publication-active-root", recipe);
+  const dataset = await reviewedDataset("publication-active-root");
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("active-publisher");
   const active = await claimTrainingRun(owner("active-publisher"));
   if (!active) throw new Error("run was not claimed");
@@ -340,8 +340,8 @@ test("model weights remain rooted by their active attempt", async () => {
 });
 
 test("epochs carry the run's progress and survive a reclaimed attempt", async () => {
-  await reviewedDataset("epoch-history");
-  const run = await createTrainingRun("epoch-history", recipe);
+  const dataset = await reviewedDataset("epoch-history");
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("epoch-trainer");
   await trainer("epoch-successor");
   const start = new Date();
@@ -438,10 +438,10 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
     learningRate: 0.001,
   });
   expect(
-    await listTrainingRunSummaries({ datasetId: "epoch-history" }, 1),
+    await listTrainingRunSummaries({ datasetId: dataset.id }, 1),
   ).toMatchObject([
     {
-      dataset: "epoch-history",
+      dataset: { id: dataset.id, name: "epoch-history" },
       run: { id: run.id },
       completed: 1,
       best: { map50: 0.3, map50To95: 0.1 },
@@ -473,8 +473,8 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
 });
 
 test("a worker whose lease was reassigned can no longer report on the run", async () => {
-  await reviewedDataset("missing-lease");
-  const run = await createTrainingRun("missing-lease", recipe);
+  const dataset = await reviewedDataset("missing-lease");
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("slow-trainer");
   await trainer("fast-trainer");
   const start = new Date();
@@ -495,8 +495,8 @@ test("a worker whose lease was reassigned can no longer report on the run", asyn
 });
 
 test("a restarted worker reclaims its run as a new fenced attempt", async () => {
-  await reviewedDataset("restarted-worker");
-  const run = await createTrainingRun("restarted-worker", recipe);
+  const dataset = await reviewedDataset("restarted-worker");
+  const run = await createTrainingRun(dataset.id, recipe);
   const oldSession = owner("restarting-trainer", "session-old");
   const newSession = owner("restarting-trainer", "session-new");
   const started = new Date("2026-08-28T00:00:00.000Z");
@@ -521,8 +521,8 @@ test("a restarted worker reclaims its run as a new fenced attempt", async () => 
 });
 
 test("removing a worker frees its run for another worker at once", async () => {
-  await reviewedDataset("removed-worker");
-  const run = await createTrainingRun("removed-worker", recipe);
+  const dataset = await reviewedDataset("removed-worker");
+  const run = await createTrainingRun(dataset.id, recipe);
   await trainer("removed-trainer");
   await trainer("remaining-trainer");
   const at = new Date();

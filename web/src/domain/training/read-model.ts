@@ -1,8 +1,9 @@
+import type { Dataset, NamedDataset } from "../datasets/schema";
 import type { Model, ModelVersion } from "../models/schema";
 import type { TrainingEpoch, TrainingRun } from "./schema";
 
 export interface TrainingRunSummary {
-  dataset: string;
+  dataset: NamedDataset;
   run: TrainingRun;
   completed: number;
   best: { map50: number; map50To95: number } | null;
@@ -23,6 +24,7 @@ export interface VersionOverview {
 }
 
 export interface TrainingRunDetail {
+  dataset: Dataset;
   /** The model the run's training set trains. */
   model: Model;
   run: TrainingRun;

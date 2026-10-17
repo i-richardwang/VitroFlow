@@ -195,7 +195,7 @@ export function ExperimentGridView({
                     .filter(
                       (dataset) => dataset.modelId === observation.modelId,
                     )
-                    .map((dataset) => dataset.id)}
+                    .map(({ id, name }) => ({ id, name }))}
                 />
               </TableHead>
             ))}
