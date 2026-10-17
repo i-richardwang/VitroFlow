@@ -19,10 +19,13 @@ export function isOwnedKey(target: EventTarget | null): boolean {
 const KEY_HANDLERS = "button, a[href], input, select, textarea, [role]";
 
 /**
- * Enter and the arrows move through the page's images, unless a control
- * holding focus answers them itself.
+ * The single keys a workbench answers: Enter, the arrows and C, each bound
+ * by the page to what it does there, unless a control holding focus answers
+ * them itself.
  */
-export function useStepKeys(bindings: Partial<Record<StepKey, () => unknown>>) {
+export function useWorkbenchKeys(
+  bindings: Partial<Record<WorkbenchKey, () => unknown>>,
+) {
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
       return;
@@ -33,10 +36,10 @@ export function useStepKeys(bindings: Partial<Record<StepKey, () => unknown>>) {
     ) {
       return;
     }
-    const step = bindings[event.key as StepKey];
-    if (!step) return;
+    const action = bindings[event.key as WorkbenchKey];
+    if (!action) return;
     event.preventDefault();
-    step();
+    action();
   });
   useEffect(() => {
     const listener = (event: KeyboardEvent) => onKeyDown(event);
@@ -65,4 +68,5 @@ export function useSaveKey(save: (() => unknown) | undefined) {
   }, []);
 }
 
-type StepKey = "Enter" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
+type WorkbenchKey =
+  "Enter" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "c";

@@ -192,6 +192,8 @@
   "experiment_group_culture": "培养",
   "experiments_description": "按处理布置试验单元，在每个观测日拍照，读出萌发与再生的结果。",
   "unit_steps": "试验单元与观测日",
+  "unit_compare": "与另一天并排对比",
+  "unit_compare_reference": "对照的观测日",
   "unit_unreviewed_count": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],

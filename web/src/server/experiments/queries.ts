@@ -1,4 +1,13 @@
-import { and, asc, desc, eq, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 
 import { inSnapshot, snapshot, type Executor } from "../infra/db/client";
 import {
@@ -8,6 +17,7 @@ import {
   experimentTreatments,
   experimentUnits,
   experiments,
+  images as storedImages,
   inferenceOutcomes,
   modelVersions,
   models,
@@ -199,9 +209,17 @@ async function readUnitSeries(
   const unit = ordered.find((item) => item.id === ref.unit);
   if (!unit) return null;
   const cells = observationCells(images);
-  const series = observations.map((observation) => ({
+  const own = observations.map((observation) => ({
     observation,
-    image: cells.get(cellKey(unit.id, observation.id)) ?? null,
+    cell: cells.get(cellKey(unit.id, observation.id)),
+  }));
+  const sizes = await readImageSizes(
+    own.flatMap(({ cell }) => (cell ? [cell.digest] : [])),
+    db,
+  );
+  const series = own.map(({ observation, cell }) => ({
+    observation,
+    image: cell ? { ...cell, ...sizes.get(cell.digest)! } : null,
   }));
   const viewing =
     observationId === undefined
@@ -229,6 +247,25 @@ async function readUnitSeries(
     observation: viewing?.observation.id ?? null,
     shown,
   };
+}
+
+/**
+ * The size of each stored image named. An observation image refers to a
+ * stored image, so every digest it gives is found.
+ */
+async function readImageSizes(
+  digests: readonly string[],
+  db: Executor,
+): Promise<Map<string, { width: number; height: number }>> {
+  const rows = await db
+    .select({
+      digest: storedImages.id,
+      width: storedImages.width,
+      height: storedImages.height,
+    })
+    .from(storedImages)
+    .where(inArray(storedImages.id, [...digests]));
+  return new Map(rows.map(({ digest, ...size }) => [digest, size]));
 }
 
 export function listExperiments(): Promise<ExperimentSummary[]> {

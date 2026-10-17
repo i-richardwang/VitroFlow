@@ -33,7 +33,7 @@ import {
 import { ChecksLayer, EditableBoxLayer } from "./BoxLayer";
 import type { LayerKey } from "./controls";
 import { ChecksSection, CountsSection, DetailsSection } from "./inspector";
-import { useSaveKey, useStepKeys } from "./keys";
+import { useSaveKey, useWorkbenchKeys } from "./keys";
 import { setEditLocked, useEditLocked } from "./lock";
 import { useImageSession, type Standing } from "./session";
 import { EditTools, LayerControls } from "./tools";
@@ -168,7 +168,7 @@ export function ImageSubject({
         run: store,
       }
     : onNext && { label: m.annotation_next_unreviewed(), run: onNext };
-  useStepKeys({ Enter: primary && ready ? primary.run : undefined });
+  useWorkbenchKeys({ Enter: primary && ready ? primary.run : undefined });
   useSaveKey(stores && ready ? store : undefined);
   const badge = STANDING[standing];
 

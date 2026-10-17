@@ -5,22 +5,26 @@ import { loadPicture, previewSrc } from "../viewport/picture";
 
 /**
  * Steps from one framed subject to the next. The page on view stays until
- * the next one's data and the preview of its picture are on hand, and is then
- * replaced whole, so a step never passes through an empty frame. `warm`
+ * the next one's data and the previews of its pictures are on hand, and is
+ * then replaced whole, so a step never passes through an empty frame. `warm`
  * fetches a subject the reader is likely to step to, ahead of the step.
- * `pictureOf` names the picture in a page's loader data.
+ * `picturesOf` names the pictures a page frames from its loader data.
  */
-export function useStep(pictureOf: (loaderData: unknown) => string | null) {
+export function useStep(
+  picturesOf: (loaderData: unknown) => readonly string[],
+) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
   const warm = useCallback(
     async (target: NavigateOptions) => {
       const matches = await router.preloadRoute(target);
-      const digest = pictureOf(matches?.at(-1)?.loaderData);
-      if (digest) await loadPicture(previewSrc(digest)).ready;
+      const digests = picturesOf(matches?.at(-1)?.loaderData);
+      await Promise.all(
+        digests.map((digest) => loadPicture(previewSrc(digest)).ready),
+      );
     },
-    [router, pictureOf],
+    [router, picturesOf],
   );
 
   const step = useCallback(

@@ -210,6 +210,8 @@
   "experiment_group_culture": "Culture",
   "experiments_description": "Lay out treatments and units, photograph them on each observation day, and read the results.",
   "unit_steps": "Units and observation days",
+  "unit_compare": "Compare with another day",
+  "unit_compare_reference": "Day to compare with",
   "unit_unreviewed_count": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],

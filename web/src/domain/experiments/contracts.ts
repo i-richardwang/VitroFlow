@@ -55,9 +55,15 @@ export const experimentGridSchema = z.strictObject({
 
 export type ExperimentGrid = z.infer<typeof experimentGridSchema>;
 
+/** A unit's photograph of one day, with its size so it can be framed beside another. */
 const unitObservationSchema = z.strictObject({
   observation: experimentObservationSchema,
-  image: observationImageCellSchema.nullable(),
+  image: observationImageCellSchema
+    .extend({
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+    })
+    .nullable(),
 });
 
 /** A unit as the series steps through it: enough to name it and its treatment. */

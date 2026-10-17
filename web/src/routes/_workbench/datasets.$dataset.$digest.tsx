@@ -13,7 +13,7 @@ import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { useStep } from "../../ui/hooks/useStep";
 import { DescriptionsItem } from "../../ui/kit/Descriptions";
 import { modelName } from "../../ui/model-names";
-import { useStepKeys } from "../../features/annotation/keys";
+import { useWorkbenchKeys } from "../../features/annotation/keys";
 import { WorkbenchFooter } from "../../ui/shell/Workbench";
 import { Stepper } from "../../ui/Stepper";
 import { splitLabel } from "../../features/datasets/labels";
@@ -64,8 +64,10 @@ export const Route = createFileRoute("/_workbench/datasets/$dataset/$digest")({
 });
 
 /** The picture a dataset image's page frames. */
-const shownPicture = (loaderData: unknown) =>
-  (loaderData as DatasetImageView | undefined)?.review.ref.digest ?? null;
+const shownPictures = (loaderData: unknown) => {
+  const view = loaderData as DatasetImageView | undefined;
+  return view ? [view.review.ref.digest] : [];
+};
 
 function DatasetImagePage() {
   const {
@@ -88,7 +90,7 @@ function DatasetImagePage() {
       review.progress !== null,
   );
 
-  const { pending, step, warm } = useStep(shownPicture);
+  const { pending, step, warm } = useStep(shownPictures);
   const targetOf = (image: DatasetImageStep | null) =>
     image &&
     linkOptions({
@@ -107,7 +109,7 @@ function DatasetImagePage() {
   };
   const toPrevious = stepTo(previous);
   const toNext = stepTo(next);
-  useStepKeys({
+  useWorkbenchKeys({
     ArrowLeft: toPrevious,
     ArrowRight: toNext,
   });

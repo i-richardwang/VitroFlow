@@ -1,6 +1,6 @@
 import { Link, linkOptions, useRouter } from "@tanstack/react-router";
-import { ImageOff } from "lucide-react";
-import { useEffect, useEffectEvent } from "react";
+import { Columns2, ImageOff } from "lucide-react";
+import { useCallback, useEffect, useEffectEvent } from "react";
 
 import { observationLabel, cultureEventLabel } from "./labels";
 import type { ReviewSource } from "../../domain/annotation/schema";
@@ -13,8 +13,13 @@ import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { useStep } from "../../ui/hooks/useStep";
 import { Alert } from "../../ui/kit/Alert";
+import { ActionIcon } from "../../ui/kit/ActionIcon";
 import { Button } from "../../ui/kit/Button";
-import { DescriptionsItem } from "../../ui/kit/Descriptions";
+import {
+  Descriptions,
+  DescriptionsItem,
+  DescriptionsSkeleton,
+} from "../../ui/kit/Descriptions";
 import { Skeleton } from "../../ui/kit/Skeleton";
 import { StatusDot, type StatusTone } from "../../ui/kit/Status";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
@@ -31,15 +36,22 @@ import {
   Workbench,
   WorkbenchEmpty,
   WorkbenchFooter,
+  WorkbenchInspector,
   WorkbenchSection,
   WorkbenchSectionSkeleton,
+  WorkbenchSkeleton,
 } from "../../ui/shell/Workbench";
 import { Stepper } from "../../ui/Stepper";
 import {
   ImageSubject,
   ImageWorkbenchSkeleton,
 } from "../annotation/ImageWorkbench";
-import { useStepKeys } from "../annotation/keys";
+import { useWorkbenchKeys } from "../annotation/keys";
+import {
+  DayComparison,
+  DayComparisonSkeleton,
+  referenceDay,
+} from "./DayComparison";
 import { CultureMenu, UnitMenu } from "./UnitMenu";
 import { Text } from "../../ui/kit/Text";
 
@@ -50,17 +62,29 @@ import { Text } from "../../ui/kit/Text";
  * dish is followed over time. Confirming a review moves on to the next unit
  * still to review that day. The frame and its footer stay through every
  * step; only what they hold is replaced.
+ *
+ * With `compare`, the day in view stands beside another day of the same
+ * unit instead of under its boxes, the other day on the left: the two
+ * photographs zoom and pan as one, so a change in the dish is read in place.
+ * Each side names and chooses its own day, in place of the footer's days;
+ * steps keep both.
  */
 export function UnitWorkbench({
   series,
   datasets,
   source,
   onSourceChange,
+  compare,
+  onCompareChange,
 }: {
   series: UnitSeries;
   datasets: string[];
   source?: ReviewSource;
   onSourceChange: (source: ReviewSource | undefined) => void;
+  /** The day the day in view stands beside, if any. */
+  compare?: string;
+  /** Sets the day to stand beside the day in view; none returns to one day. */
+  onCompareChange: (observation: string | undefined) => void;
 }) {
   const { experiment, unit, treatments, navigation, shown } = series;
   const treatment = treatments.find((item) => item.id === unit.treatment)!;
@@ -75,13 +99,22 @@ export function UnitWorkbench({
     observationOrdinals(observations),
   );
 
-  const { pending, step, warm } = useStep(shownPicture);
+  const photographed = series.observations.filter((item) => item.image);
+  const reference = series.observations.find(
+    (item) => item.observation.id === compare,
+  );
+
+  const picturesOf = useCallback(
+    (loaderData: unknown) => framedPictures(loaderData, compare),
+    [compare],
+  );
+  const { pending, step, warm } = useStep(picturesOf);
   const unitTarget = (target: UnitStep | undefined) =>
     target &&
     linkOptions({
       to: "/experiments/$experiment/$unit",
       params: { experiment: experiment.id, unit: target.id },
-      search: { observation: series.observation ?? undefined },
+      search: { observation: series.observation ?? undefined, compare },
     });
   const dayAt = observations.findIndex(
     (item) => item.id === series.observation,
@@ -92,7 +125,7 @@ export function UnitWorkbench({
       : linkOptions({
           to: "/experiments/$experiment/$unit",
           params: { experiment: experiment.id, unit: unit.id },
-          search: { observation },
+          search: { observation, compare },
         });
   const neighbors = [
     unitTarget(navigation[at - 1]),
@@ -116,11 +149,21 @@ export function UnitWorkbench({
     ...navigation.slice(at + 1),
     ...navigation.slice(0, at),
   ].filter((item) => item.image === "unreviewed");
-  useStepKeys({
+  const toggleCompare =
+    reference || photographed.length > 1
+      ? () =>
+          onCompareChange(
+            reference
+              ? undefined
+              : referenceDay(series.observations, series.observation),
+          )
+      : undefined;
+  useWorkbenchKeys({
     ArrowLeft: previousUnit,
     ArrowRight: nextUnit,
     ArrowUp: toDay(observations[dayAt - 1]?.id),
     ArrowDown: toDay(observations[dayAt + 1]?.id),
+    c: toggleCompare,
   });
 
   const menu = (
@@ -153,7 +196,7 @@ export function UnitWorkbench({
         </Text>
       ) : null}
       <span className="flex-1" />
-      {series.observations.length > 0 ? (
+      {series.observations.length > 0 && !reference ? (
         <ToggleGroup
           aria-label={m.observations_label()}
           value={series.observation ?? undefined}
@@ -166,6 +209,16 @@ export function UnitWorkbench({
             ) : undefined,
           }))}
           onChange={(observation) => void toDay(observation)?.()}
+        />
+      ) : null}
+      {toggleCompare ? (
+        <ActionIcon
+          icon={Columns2}
+          size="small"
+          title={m.unit_compare()}
+          tooltipProps={{ hotkey: "c" }}
+          aria-pressed={reference !== undefined}
+          onClick={toggleCompare}
         />
       ) : null}
     </WorkbenchFooter>
@@ -186,6 +239,48 @@ export function UnitWorkbench({
       </div>
     </WorkbenchSection>
   );
+
+  if (reference) {
+    const inView = series.observations.find(
+      (item) => item.observation.id === series.observation,
+    );
+    return (
+      <Workbench title={title}>
+        {steps}
+        <ShellActions>{menu}</ShellActions>
+        <WorkbenchInspector>
+          {culture}
+          <WorkbenchSection title={m.annotation_details()}>
+            <Descriptions>
+              <DescriptionsItem label={m.treatment_label()}>
+                {treatment.name}
+              </DescriptionsItem>
+              {[reference, inView].map((item) =>
+                item ? (
+                  <DescriptionsItem
+                    key={item.observation.id}
+                    label={observationLabel(item.observation)}
+                  >
+                    <Day value={item.observation.observedOn} />
+                  </DescriptionsItem>
+                ) : null,
+              )}
+            </Descriptions>
+          </WorkbenchSection>
+        </WorkbenchInspector>
+        <DayComparison
+          // Another unit is another dish: its view starts afresh.
+          key={unit.id}
+          reference={reference}
+          inView={inView}
+          observations={series.observations}
+          pending={pending}
+          onReferenceChange={onCompareChange}
+          onInViewChange={(observation) => void toDay(observation)?.()}
+        />
+      </Workbench>
+    );
+  }
 
   if (!shown) {
     // A day in view is one this unit was not photographed on; without one,
@@ -262,8 +357,27 @@ export function UnitWorkbench({
   );
 }
 
-/** A `UnitWorkbench` while its unit is read. */
-export function UnitWorkbenchSkeleton() {
+/** A `UnitWorkbench` while its unit is read, `comparing` two of its days or framing one. */
+export function UnitWorkbenchSkeleton({
+  comparing = false,
+}: {
+  comparing?: boolean;
+}) {
+  if (comparing) {
+    return (
+      <WorkbenchSkeleton
+        actions={<Skeleton.Button icon />}
+        subject={<DayComparisonSkeleton />}
+      >
+        <WorkbenchSectionSkeleton>
+          <Skeleton.Button size="small" />
+        </WorkbenchSectionSkeleton>
+        <WorkbenchSectionSkeleton>
+          <DescriptionsSkeleton rows={3} />
+        </WorkbenchSectionSkeleton>
+      </WorkbenchSkeleton>
+    );
+  }
   return (
     <ImageWorkbenchSkeleton
       actions={<Skeleton.Button icon />}
@@ -277,9 +391,23 @@ export function UnitWorkbenchSkeleton() {
   );
 }
 
-/** The photograph a unit's page frames, if it has one. */
-const shownPicture = (loaderData: unknown) =>
-  (loaderData as UnitSeries | undefined)?.shown?.review.ref.digest ?? null;
+/**
+ * The photographs a unit's page frames: the day in view's, if it has one,
+ * and while `compare` names a day, that day's too.
+ */
+function framedPictures(
+  loaderData: unknown,
+  compare: string | undefined,
+): string[] {
+  const series = loaderData as UnitSeries | undefined;
+  if (!series) return [];
+  return series.observations.flatMap(({ observation, image }) =>
+    image &&
+    (observation.id === series.observation || observation.id === compare)
+      ? [image.digest]
+      : [],
+  );
+}
 
 const REVIEW_DOTS: Record<
   ImageReview,

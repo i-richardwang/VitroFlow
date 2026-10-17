@@ -5,7 +5,9 @@ import {
   focusedOn,
   MAX_SCALE,
   pannedTo,
+  placedView,
   resolveView,
+  relativeView,
   zoomedAbout,
 } from "./viewport";
 
@@ -149,4 +151,31 @@ test("focusing centers a region at a third of the frame", () => {
   expect(view.scale).toBe(4.5);
   expect(view.x + (region.x + region.width / 2) * view.scale).toBe(100);
   expect(view.y + (region.y + region.height / 2) * view.scale).toBe(75);
+});
+
+test("a relative view shows the same part of another image alike", () => {
+  const frame = { width: 200, height: 150 };
+  const view = resolveView(
+    { kind: "manual", scale: 1, x: -50, y: -25 },
+    frame,
+    image,
+  );
+  const relative = relativeView(view, frame, image);
+  // Twice the filling scale, centered on pixel (150, 100) of 400 × 300.
+  expect(relative).toEqual({ kind: "manual", zoom: 2, u: 0.375, v: 1 / 3 });
+  const larger = { width: 1600, height: 1200 };
+  expect(placedView(relative, frame, larger)).toEqual({
+    scale: 0.25,
+    x: -50,
+    y: -25,
+    filled: false,
+  });
+  const wider = { width: 800, height: 400 };
+  const placed = placedView(relative, frame, wider);
+  expect(placed.scale).toBe(0.75);
+  expect(placed.x).toBeCloseTo(-125);
+  expect(placed.y).toBeCloseTo(-25);
+  expect(relativeView(resolveView(FILL, frame, image), frame, image)).toEqual(
+    FILL,
+  );
 });

@@ -12,7 +12,7 @@ export interface Size {
 export type ViewIntent =
   { kind: "fill" } | { kind: "manual"; scale: number; x: number; y: number };
 
-export const FILL: ViewIntent = { kind: "fill" };
+export const FILL = { kind: "fill" } as const satisfies ViewIntent;
 
 /** The image placed in the frame, in screen pixels from its top-left corner. */
 export interface View {
@@ -140,4 +140,51 @@ export function focusedOn(
     x: frame.width / 2 - (region.x + region.width / 2) * scale,
     y: frame.height / 2 - (region.y + region.height / 2) * scale,
   };
+}
+
+/**
+ * A view as a share of its image rather than in pixels: how far it is
+ * magnified past filling the frame, and the point of the image, as a share
+ * of its width and height, at the frame's center. It is what a viewport
+ * holds, so the view outlives a change of frame, and two photographs of the
+ * same subject placed by one show the same part of it alike.
+ */
+export type RelativeView =
+  { kind: "fill" } | { kind: "manual"; zoom: number; u: number; v: number };
+
+/** The relative view of an image placed as `view` places it. */
+export function relativeView(
+  view: View,
+  frame: Size,
+  image: ImageSize,
+): RelativeView {
+  if (view.filled) return FILL;
+  return {
+    kind: "manual",
+    zoom: view.scale / fillScale(frame, image),
+    u: (frame.width / 2 - view.x) / (image.width * view.scale),
+    v: (frame.height / 2 - view.y) / (image.height * view.scale),
+  };
+}
+
+/** Places an image in its frame as a relative view says. */
+export function placedView(
+  relative: RelativeView,
+  frame: Size | null,
+  image: ImageSize,
+): View {
+  if (!frame || relative.kind === "fill") {
+    return resolveView(FILL, frame, image);
+  }
+  const scale = fillScale(frame, image) * relative.zoom;
+  return resolveView(
+    {
+      kind: "manual",
+      scale,
+      x: frame.width / 2 - relative.u * image.width * scale,
+      y: frame.height / 2 - relative.v * image.height * scale,
+    },
+    frame,
+    image,
+  );
 }

@@ -22,9 +22,13 @@ import {
   FILL,
   focusedOn,
   pannedTo,
+  placedView,
+  relativeView,
   resolveView,
   zoomedAbout,
+  type RelativeView,
   type Size,
+  type View,
   type ViewIntent,
 } from "./viewport";
 import { Text } from "../kit/Text";
@@ -136,9 +140,18 @@ export interface ViewportFocus {
   region: { x: number; y: number; width: number; height: number };
 }
 
+/** A view held outside the viewport, so that viewports given the same one move together. */
+export interface ViewportLink {
+  view: RelativeView;
+  onChange: (update: (view: RelativeView) => RelativeView) => void;
+}
+
 /**
  * One image covering a frame until zoomed. Wheel zooms about the cursor,
  * dragging pans, and the image re-covers the frame whenever it changes size.
+ * The view is held relative to the image, by the viewport itself or, with
+ * `link`, by the caller, so photographs of the same subject in viewports
+ * given one link zoom and pan as one, each in its own frame.
  * Its preview stands in for it from the first frame, and the image is laid
  * over the preview as soon as it has arrived.
  * Children are drawn over the image in image pixels. `focus` centers a region
@@ -151,6 +164,7 @@ export function ImageViewport({
   filename,
   focus,
   pending = false,
+  link,
   controls,
   children,
 }: {
@@ -158,18 +172,36 @@ export function ImageViewport({
   filename: string;
   focus?: ViewportFocus | null;
   pending?: boolean;
+  link?: ViewportLink;
   controls?: ReactNode;
   children?: ReactNode;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState<Size | null>(null);
-  const [intent, setIntent] = useState<ViewIntent>(FILL);
+  const [ownView, setOwnView] = useState<RelativeView>(FILL);
+  const relative = link?.view ?? ownView;
+  const onRelativeChange = link?.onChange ?? setOwnView;
   const { width, height } = image;
   const arrived = usePictureArrived(image.digest);
   const size = useMemo(() => ({ width, height }), [width, height]);
   const view = useMemo(
-    () => resolveView(intent, frame, size),
-    [intent, frame, size],
+    () => placedView(relative, frame, size),
+    [relative, frame, size],
+  );
+  // Each change is made to the latest view held, so wheel events arriving
+  // faster than the frames between them all count.
+  const change = useCallback(
+    (update: (current: View) => ViewIntent) => {
+      if (!frame) return;
+      onRelativeChange((previous) =>
+        relativeView(
+          resolveView(update(placedView(previous, frame, size)), frame, size),
+          frame,
+          size,
+        ),
+      );
+    },
+    [onRelativeChange, frame, size],
   );
 
   useLayoutEffect(() => {
@@ -193,20 +225,23 @@ export function ImageViewport({
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
       };
-      setIntent((current) => {
-        const from = resolveView(current, frame, size);
-        const scale =
-          from.scale * Math.exp(-event.deltaY * ZOOM_PER_WHEEL_PIXEL);
-        return zoomedAbout(from, anchor, scale, frame, size);
-      });
+      change((current) =>
+        zoomedAbout(
+          current,
+          anchor,
+          current.scale * Math.exp(-event.deltaY * ZOOM_PER_WHEEL_PIXEL),
+          frame,
+          size,
+        ),
+      );
     };
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
-  }, [frame, size]);
+  }, [frame, size, change]);
 
   const focusKey = focus?.key;
   const focusRegion = useEffectEvent(() => {
-    if (focus && frame) setIntent(focusedOn(focus.region, frame, size));
+    if (focus && frame) change(() => focusedOn(focus.region, frame, size));
   });
   const measured = frame !== null;
   useEffect(() => {
@@ -214,11 +249,8 @@ export function ImageViewport({
   }, [focusKey, measured]);
 
   const panTo = useCallback(
-    (x: number, y: number) =>
-      setIntent((current) =>
-        frame ? pannedTo(resolveView(current, frame, size), x, y) : current,
-      ),
-    [frame, size],
+    (x: number, y: number) => change((current) => pannedTo(current, x, y)),
+    [change],
   );
   const handle = useMemo<ViewportHandle>(
     () => ({
@@ -300,7 +332,7 @@ export function ImageViewport({
           type="text"
           size="small"
           disabled={view.filled}
-          onClick={() => setIntent(FILL)}
+          onClick={() => change(() => FILL)}
         >
           {m.ui_viewport_fill()}
         </Button>

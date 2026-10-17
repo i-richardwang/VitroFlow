@@ -1667,6 +1667,12 @@ describe("experiments", () => {
     expect(
       newest?.observations.map((item) => item.image?.state ?? null),
     ).toEqual(["pending", "pending"]);
+    // Each day's photograph carries its size, to be framed beside another.
+    const latest = newest?.observations[1]?.image;
+    expect(latest && [latest.width, latest.height]).toEqual([
+      newest!.shown!.review.width,
+      newest!.shown!.review.height,
+    ]);
     expect(newest?.observation).toBe(day14.id);
     expect(newest?.navigation.map((item) => [item.code, item.image])).toEqual([
       ["S-1", "unreviewed"],

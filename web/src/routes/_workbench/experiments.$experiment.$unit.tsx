@@ -19,9 +19,11 @@ import type { UnitSeries } from "../../domain/experiments/contracts";
 /**
  * An observation the link cannot name is no observation: the newest with a
  * photograph shows. `show` names the reading on view; the best shows otherwise.
+ * `compare` names the day shown beside the one in view.
  */
 const unitSearchSchema = z.object({
   observation: observationIdSchema.optional().catch(undefined),
+  compare: observationIdSchema.optional().catch(undefined),
   show: z.enum(REVIEW_SOURCES).optional().catch(undefined),
 });
 
@@ -65,13 +67,13 @@ export const Route = createFileRoute(
       },
     ],
   }),
-  pendingComponent: UnitWorkbenchSkeleton,
+  pendingComponent: UnitPageSkeleton,
   component: UnitPage,
 });
 
 function UnitPage() {
   const { datasets, ...series } = Route.useLoaderData();
-  const { show } = Route.useSearch();
+  const { show, compare } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { shown } = series;
 
@@ -90,6 +92,15 @@ function UnitPage() {
       onSourceChange={(show) =>
         void navigate({ search: (previous) => ({ ...previous, show }) })
       }
+      compare={compare}
+      onCompareChange={(compare) =>
+        void navigate({ search: (previous) => ({ ...previous, compare }) })
+      }
     />
   );
+}
+
+function UnitPageSkeleton() {
+  const { compare } = Route.useSearch();
+  return <UnitWorkbenchSkeleton comparing={compare !== undefined} />;
 }
