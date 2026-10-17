@@ -18,6 +18,7 @@ from vitroctl.detectors.ultralytics import (
 from vitroctl.io.image_io import CANONICAL_EXTENSION
 from vitroctl.worker import session as worker_session
 from vitroctl.worker import training as training_worker
+from vitroctl.worker.images import ImageCache
 from vitroctl.worker.session import (
     LeaseLostError,
     WorkerClient,
@@ -178,19 +179,25 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
         client.worker.heartbeat()
         job = client.claim()
         assert job is not None
-        dataset_yaml = materialize_snapshot(client, job, tmp_path / "dataset")
+        dataset_yaml = materialize_snapshot(
+            client, job, tmp_path / "dataset", images=ImageCache(tmp_path / "images")
+        )
     finally:
         client.worker.close()
 
     assert json.loads(requests[0].content)["memoryBytes"] == 24 * 1024**3
     assert json.loads(requests[0].content)["sessionId"] == "trainer-session"
-    assert [request.url.path for request in requests] == [
+    paths = [request.url.path for request in requests]
+    assert paths[:3] == [
         "/api/worker/heartbeat",
         "/api/worker/training/claim",
         "/api/worker/training/runs/train-one/snapshot",
-        f"/api/worker/training/runs/train-one/images/{train_digest}",
-        f"/api/worker/training/runs/train-one/images/{val_digest}",
     ]
+    # The images download concurrently, in no fixed order.
+    assert sorted(paths[3:]) == sorted(
+        f"/api/worker/training/runs/train-one/images/{digest}"
+        for digest in (train_digest, val_digest)
+    )
     train_image = next((tmp_path / "dataset/images/train").iterdir())
     train_label = next((tmp_path / "dataset/labels/train").iterdir())
     val_label = next((tmp_path / "dataset/labels/val").iterdir())
@@ -207,27 +214,31 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     )
 
 
-def test_materialization_resumes_from_what_an_interrupted_one_left(
+def test_a_run_fetches_only_the_images_this_machine_does_not_hold(
     tmp_path: Path,
 ) -> None:
     images = {}
     for variant in range(3):
         pixels = encoded_image(variant=variant)
         images[write_blob(tmp_path / "unused", pixels)] = pixels
-    kept, torn, missing = images
+    held, torn, missing = images
     snapshot = parse_training_snapshot(
         _snapshot(
             [
-                _snapshot_image(kept, "train", []),
+                _snapshot_image(held, "train", []),
                 _snapshot_image(torn, "train", []),
                 _snapshot_image(missing, "val", []),
             ]
         )
     )
-    downloads = tmp_path / "snapshot-images"
-    downloads.mkdir()
-    (downloads / f"{kept}{CANONICAL_EXTENSION}").write_bytes(images[kept])
-    (downloads / f"{torn}{CANONICAL_EXTENSION}").write_bytes(images[torn][:10])
+    cache_root = tmp_path / "images"
+    earlier = ImageCache(cache_root)
+    with earlier.holding([held], images.__getitem__) as pending:
+        pending[held].result()
+    earlier.close()
+    # A write a crash cut short never became an image.
+    (cache_root / ".partial").mkdir(exist_ok=True)
+    (cache_root / ".partial" / f"{torn}.cut").write_bytes(images[torn][:10])
     requested: list[str] = []
 
     class Client:
@@ -239,18 +250,21 @@ def test_materialization_resumes_from_what_an_interrupted_one_left(
             requested.append(digest)
             return images[digest]
 
+    cache = ImageCache(cache_root)
     job = TrainingJob.parse(_run())
-    dataset = materialize_snapshot(Client(), job, tmp_path / "dataset")  # type: ignore[arg-type]
+    dataset = materialize_snapshot(Client(), job, tmp_path / "one", images=cache)  # type: ignore[arg-type]
     first = list(requested)
-    again = materialize_snapshot(Client(), job, tmp_path / "dataset")  # type: ignore[arg-type]
+    again = materialize_snapshot(Client(), job, tmp_path / "one", images=cache)  # type: ignore[arg-type]
+    materialize_snapshot(Client(), job, tmp_path / "two", images=cache)  # type: ignore[arg-type]
+    cache.close()
 
-    assert first == ["snapshot", torn, missing]
-    assert requested == first
+    assert first[0] == "snapshot"
+    assert sorted(first[1:]) == sorted([torn, missing])
     assert again == dataset
-    assert (
-        tmp_path / f"dataset/images/train/{torn}{CANONICAL_EXTENSION}"
-    ).read_bytes() == images[torn]
-    assert not downloads.exists()
+    assert requested == [*first, "snapshot"]
+    linked = tmp_path / f"one/images/train/{torn}{CANONICAL_EXTENSION}"
+    assert linked.read_bytes() == images[torn]
+    assert linked.stat().st_ino == cache.path(torn).stat().st_ino
 
 
 def test_snapshot_parser_validates_every_image_entry() -> None:
@@ -382,6 +396,7 @@ def test_snapshot_materialization_honors_shutdown_before_network_access(
             UnexpectedClient(),  # type: ignore[arg-type]
             TrainingJob.parse(_run()),
             tmp_path / "dataset",
+            images=ImageCache(tmp_path / "images"),
             cancelled=lambda: True,
         )
 
@@ -443,7 +458,7 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         def report_failure(self, run_id: str, error: str) -> None:
             pytest.fail(f"unexpected failure report: {error}")
 
-    def materialize(_client, _job, output: Path, *, cancelled=None) -> Path:
+    def materialize(_client, _job, output: Path, **_options) -> Path:
         output.mkdir(parents=True)
         dataset = output / "dataset.yaml"
         dataset.write_text("train: images/train\nval: images/val\n")
@@ -496,7 +511,9 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     monkeypatch.setattr(training_worker, "train_yolo_detector", train)
     job = TrainingJob.parse(_run(parameters=_parameters(epochs=2)))
 
-    training_worker.process_training_job(Client(), job, tmp_path, "mps")  # type: ignore[arg-type]
+    training_worker.process_training_job(  # type: ignore[arg-type]
+        Client(), job, tmp_path, "mps", ImageCache(tmp_path / "images")
+    )
 
     assert [entry["phase"] for _, entry in posted if "phase" in entry] == [
         "preparing",
@@ -526,7 +543,7 @@ def test_interrupted_training_job_keeps_its_directory_for_the_next_claim(
         def report_failure(self, run_id: str, error: str) -> None:
             pytest.fail(f"an interruption is not a failure: {error}")
 
-    def materialize(_client, _job, output: Path, *, cancelled=None) -> Path:
+    def materialize(_client, _job, output: Path, **_options) -> Path:
         output.mkdir(parents=True, exist_ok=True)
         return output / "dataset.yaml"
 
@@ -541,7 +558,9 @@ def test_interrupted_training_job_keeps_its_directory_for_the_next_claim(
 
     for _ in range(2):
         with pytest.raises(YoloTrainingInterruptedError):
-            training_worker.process_training_job(Client(), job, tmp_path, "mps")  # type: ignore[arg-type]
+            training_worker.process_training_job(  # type: ignore[arg-type]
+                Client(), job, tmp_path, "mps", ImageCache(tmp_path / "images")
+            )
 
     assert outputs[0] == outputs[1] == tmp_path / "training-runs/train-one/run"
     assert outputs[0].is_dir()
@@ -572,7 +591,7 @@ def test_training_job_reports_an_unexpected_adapter_failure(
 
     with pytest.raises(KeyError, match="unexpected Ultralytics field"):
         training_worker.process_training_job(  # type: ignore[arg-type]
-            Client(), job, tmp_path, "mps"
+            Client(), job, tmp_path, "mps", ImageCache(tmp_path / "images")
         )
 
     assert failures == [("train-broken", "'unexpected Ultralytics field'")]

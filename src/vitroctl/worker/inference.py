@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 import threading
-from collections.abc import Callable
+import time
+from collections import deque
+from concurrent.futures import CancelledError, Future
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,13 +16,18 @@ from vitroctl.contracts.documents import as_digest, as_object, expect_fields
 from vitroctl.contracts.validation import validate_wire_contract
 from vitroctl.detectors.contract import DetectionFailure, DetectionProducer, Detector
 from vitroctl.detectors.documents import InferenceOutcome
-from vitroctl.io.image_io import CANONICAL_EXTENSION, verify_digest
+from vitroctl.io.image_io import verify_digest
+from vitroctl.worker.images import DOWNLOADS, ImageCache, wait_for
 from vitroctl.worker.model_store import ModelManifest, ModelStore
-from vitroctl.worker.session import LeaseLostError, WorkerClient, keep_lease
+from vitroctl.worker.session import Lease, LeaseKeeper, LeaseLostError, WorkerClient
 
 WORKER_ERRORS = (OSError, ValueError, RuntimeError, cv2.error, httpx.HTTPError)
 DETECTION_ERRORS = (OSError, ValueError, RuntimeError, cv2.error)
 _ERROR_MESSAGE_LIMIT = 2000
+# Tasks held beyond the one being detected: as many as the cache downloads
+# beside it, so downloads up to this many times slower than detection stay
+# hidden. Each is a lease other workers cannot take meanwhile.
+LOOKAHEAD = DOWNLOADS - 1
 LOGGER = logging.getLogger(__name__)
 
 
@@ -102,6 +108,14 @@ class InferenceClient:
         )
         self.worker.require_current_session(response)
 
+    def release_claim(self, assignment: Assignment) -> None:
+        response = self.worker.request(
+            "DELETE",
+            f"api/worker/inference/claims/{assignment.version_id}/{assignment.image}/lease",
+            json=self.identity,
+        )
+        response.raise_for_status()
+
     def renew_lease(self, assignment: Assignment) -> None:
         response = self.worker.request(
             "POST",
@@ -129,88 +143,136 @@ def inference_outcome(
     return result
 
 
-def process_image(
-    client: InferenceClient,
-    digest: str,
-    work_dir: Path,
-    producer: DetectionProducer,
-    detector: Detector,
-    cancelled: Callable[[], bool] | None = None,
-) -> InferenceOutcome:
-    image_path = work_dir / f"{digest}{CANONICAL_EXTENSION}"
-    image_path.write_bytes(client.download(digest))
-    try:
-        outcome = inference_outcome(digest, image_path, producer, detector)
-    finally:
-        image_path.unlink(missing_ok=True)
-    if cancelled and cancelled():
-        raise LeaseLostError("Inference lease is no longer active")
-    return outcome
+@dataclass(frozen=True)
+class _Held:
+    """A claimed task: its lease is kept and its image is on its way."""
+
+    assignment: Assignment
+    lease: Lease
+    image: Future[Path]
 
 
-def process_assignment(
-    client: InferenceClient,
-    assignment: Assignment,
-    work_dir: Path,
-    detector: Detector,
-    cancelled: Callable[[], bool] | None = None,
-) -> InferenceOutcome:
-    producer = DetectionProducer(
-        assignment.version_id, detector.artifact_digest, detector.runtime
-    )
-    return process_image(
-        client,
-        assignment.image,
-        work_dir,
-        producer,
-        detector,
-        cancelled=cancelled,
-    )
-
-
-def run_pass(
-    client: InferenceClient,
-    work_root: Path,
-    store: ModelStore,
-    stopped: threading.Event | None = None,
-) -> bool:
+class InferencePipeline:
     """
-    Claim and process at most one task. Returning whether work was claimed lets
-    the outer loop drain the queue without an idle polling delay.
+    Serves inference one image at a time while holding the next tasks: their
+    images download while this one is detected, so the worker waits on the
+    network only when a download takes longer than detecting the images
+    ahead of it. Images come from the machine's cache, so a version that
+    reads images another version already read fetches nothing.
     """
-    if stopped and stopped.is_set():
-        return False
-    assignment = client.claim()
-    if assignment is None:
-        return False
-    LOGGER.info("claimed %s with %s", assignment.image, assignment.version_id)
-    with (
-        tempfile.TemporaryDirectory(prefix="vitroflow-", dir=work_root) as temporary,
-        keep_lease(
-            client.worker,
-            lambda: client.renew_lease(assignment),
-            cancelled=stopped.is_set if stopped else None,
-        ) as cancelled,
-    ):
+
+    def __init__(
+        self, client: InferenceClient, models: ModelStore, images: ImageCache
+    ) -> None:
+        self.client = client
+        self.models = models
+        self.images = images
+        self._leases = LeaseKeeper(client.worker)
+        self._ahead: deque[_Held] = deque()
+
+    def run_once(self, stopped: threading.Event | None = None) -> bool:
+        """
+        Complete at most one task. Returning whether work was claimed lets
+        the outer loop drain the queue without an idle polling delay.
+        """
+        if stopped and stopped.is_set():
+            return False
+        current = self._ahead.popleft() if self._ahead else self._take(stopped)
+        if current is None:
+            return False
         try:
-            detector = store.load(assignment.manifest)
+            self._fill(stopped)
+            self._serve(current, stopped)
+        finally:
+            self._drop(current)
+        return True
+
+    def release(self) -> None:
+        """Release the tasks taken ahead, before other work or shutdown."""
+        while self._ahead:
+            held = self._ahead.popleft()
+            self._drop(held)
+            try:
+                self.client.release_claim(held.assignment)
+            except WORKER_ERRORS as error:
+                # The lease expires on its own; releasing it only hurries that.
+                LOGGER.warning("could not release %s: %s", held.assignment.image, error)
+
+    def close(self) -> None:
+        """Release what is held ahead and stop keeping leases."""
+        try:
+            self.release()
+        finally:
+            self._leases.close()
+
+    def _fill(self, stopped: threading.Event | None) -> None:
+        """Taking ahead is an optimization; failing to only costs the overlap."""
+        while len(self._ahead) < LOOKAHEAD:
+            try:
+                held = self._take(stopped)
+            except WORKER_ERRORS as error:
+                LOGGER.warning("could not claim ahead: %s", error)
+                return
+            if held is None:
+                return
+            self._ahead.append(held)
+
+    def _take(self, stopped: threading.Event | None) -> _Held | None:
+        if stopped and stopped.is_set():
+            return None
+        assignment = self.client.claim()
+        if assignment is None:
+            return None
+        LOGGER.info("claimed %s with %s", assignment.image, assignment.version_id)
+        lease = self._leases.hold(lambda: self.client.renew_lease(assignment))
+        image = self.images.fetch(assignment.image, self.client.download)
+        return _Held(assignment, lease, image)
+
+    def _serve(self, held: _Held, stopped: threading.Event | None) -> None:
+        assignment = held.assignment
+
+        def cancelled() -> bool:
+            return held.lease.lost or bool(stopped and stopped.is_set())
+
+        try:
+            detector = self.models.load(assignment.manifest)
         except WORKER_ERRORS as error:
             LOGGER.error("cannot load %s: %s", assignment.version_id, error)
-            return True
-        outcome = process_assignment(
-            client,
-            assignment,
-            Path(temporary),
-            detector,
-            cancelled=cancelled,
+            return
+        started = time.monotonic()
+        try:
+            image_path = wait_for(held.image, cancelled)
+        except CancelledError as error:
+            raise LeaseLostError("Inference lease is no longer active") from error
+        waited = time.monotonic() - started
+        producer = DetectionProducer(
+            assignment.version_id, detector.artifact_digest, detector.runtime
         )
-    client.put_result(assignment.version_id, assignment.image, outcome.to_dict())
-    if isinstance(outcome, DetectionFailure):
+        started = time.monotonic()
+        outcome = inference_outcome(assignment.image, image_path, producer, detector)
+        detected = time.monotonic() - started
+        if cancelled():
+            raise LeaseLostError("Inference lease is no longer active")
+        self._leases.end(held.lease)  # a failed refresh surfaces before the result
+        started = time.monotonic()
+        self.client.put_result(
+            assignment.version_id, assignment.image, outcome.to_dict()
+        )
         LOGGER.info(
-            "recorded failure for %s with %s",
+            "%s %s with %s (waited %.1fs for the image, detected in %.1fs, "
+            "reported in %.1fs)",
+            "failed" if isinstance(outcome, DetectionFailure) else "detected",
             assignment.image,
             assignment.version_id,
+            waited,
+            detected,
+            time.monotonic() - started,
         )
-    else:
-        LOGGER.info("detected %s with %s", assignment.image, assignment.version_id)
-    return True
+
+    def _drop(self, held: _Held) -> None:
+        try:
+            self._leases.end(held.lease)
+        except LeaseLostError:
+            pass  # the task is over either way; a lost lease changes nothing now
+        finally:
+            self.images.release(held.assignment.image)

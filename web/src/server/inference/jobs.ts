@@ -96,6 +96,22 @@ export async function renewInferenceClaim(
   return { leaseExpiresAt: renewed.leaseExpiresAt.toISOString() };
 }
 
+/**
+ * Give back a claim the worker took ahead of time but will not start, so
+ * another worker may take it now instead of when the lease would expire.
+ * Releasing what is no longer held is not an error: the work moved on.
+ */
+export async function releaseInferenceClaim(
+  target: DetectionTarget,
+  owner: Pick<Worker, "workerId" | "sessionId">,
+  at: Date = new Date(),
+): Promise<void> {
+  const db = await database();
+  await db
+    .delete(inferenceJobs)
+    .where(ownedActiveInferenceClaim(target, owner, at));
+}
+
 /** Whether one of the worker's runtimes executes this artifact. */
 function canExecute(
   worker: Pick<Worker, "runtimes">,

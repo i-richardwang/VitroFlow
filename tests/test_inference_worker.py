@@ -4,6 +4,7 @@ import hashlib
 import json
 import threading
 import time
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,13 @@ from vitroctl.detectors.contract import (
     RuntimeDescriptor,
 )
 from vitroctl.worker import session as worker_session
-from vitroctl.worker.inference import Assignment, InferenceClient, run_pass
+from vitroctl.worker.images import ImageCache
+from vitroctl.worker.inference import (
+    LOOKAHEAD,
+    Assignment,
+    InferenceClient,
+    InferencePipeline,
+)
 from vitroctl.worker.model_store import ModelManifest, ModelStore
 from vitroctl.worker.session import LeaseLostError, WorkerClient, WorkerSession
 
@@ -98,14 +105,17 @@ class Workbench:
         result_status: int = 200,
         lease_status: int = 200,
         lease_statuses: list[int] | None = None,
-        image: bytes = IMAGE,
+        images: dict[str, bytes] | None = None,
     ) -> None:
         self.assignments = list(assignments)
         self.result_status = result_status
         self.lease_status = lease_status
         self.lease_statuses = list(lease_statuses or [])
-        self.image = image
+        self.images = {DIGEST: IMAGE, **(images or {})}
         self.requests: list[httpx.Request] = []
+        self.downloaded: defaultdict[str, threading.Event] = defaultdict(
+            threading.Event
+        )
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -117,12 +127,16 @@ class Workbench:
             assignment = self.assignments.pop(0) if self.assignments else None
             return httpx.Response(200, json={"assignment": assignment})
         if path.startswith("/api/worker/inference/claims/") and path.endswith("/lease"):
+            if request.method == "DELETE":
+                return httpx.Response(204)
             status = (
                 self.lease_statuses.pop(0) if self.lease_statuses else self.lease_status
             )
             return httpx.Response(status, json={})
         if path.startswith("/api/worker/inference/images/"):
-            return httpx.Response(200, content=self.image)
+            digest = path.rsplit("/", 1)[1]
+            self.downloaded[digest].set()
+            return httpx.Response(200, content=self.images[digest])
         if path.startswith("/api/worker/inference/results/"):
             return httpx.Response(self.result_status, json={})
         return httpx.Response(404)
@@ -149,6 +163,21 @@ class Workbench:
 
 
 ASSIGNMENTS = [{"manifest": MANIFEST, "image": DIGEST}]
+
+
+def run_once(
+    client: InferenceClient,
+    work_dir: Path,
+    models: Any,
+    stopped: threading.Event | None = None,
+) -> bool:
+    images = ImageCache(work_dir / "images")
+    pipeline = InferencePipeline(client, models, images)
+    try:
+        return pipeline.run_once(stopped)
+    finally:
+        pipeline.close()
+        images.close()
 
 
 def test_assignment_image_is_a_digest() -> None:
@@ -222,22 +251,30 @@ def test_heartbeat_describes_what_the_session_can_do() -> None:
     }
 
 
-def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
+def test_a_claimed_image_is_detected_and_reported(tmp_path: Path) -> None:
     workbench = Workbench(ASSIGNMENTS)
     client = workbench.client()
     models = store()
     try:
-        run_pass(client, tmp_path, models)
+        assert run_once(client, tmp_path, models) is True
     finally:
         client.worker.close()
 
-    assert workbench.calls() == [
+    calls = workbench.calls()
+    # The image downloads beside the claim for the next task, so only the
+    # protocol's own order is fixed: claim, then lease, and the result last.
+    assert calls[:2] == [
         ("POST", "/api/worker/inference/claim"),
         (
             "POST",
             f"/api/worker/inference/claims/set.traditional-v1/{DIGEST}/lease",
         ),
+    ]
+    assert sorted(calls[2:4]) == [
         ("GET", f"/api/worker/inference/images/{DIGEST}"),
+        ("POST", "/api/worker/inference/claim"),
+    ]
+    assert calls[4:] == [
         ("PUT", f"/api/worker/inference/results/set.traditional-v1/{DIGEST}"),
     ]
     assert models.loads == ["set.traditional-v1"]
@@ -247,17 +284,16 @@ def test_pass_detects_one_claimed_image(tmp_path: Path) -> None:
     assert json.loads(workbench.requests[1].read()) == {
         "sessionId": "test-session",
     }
-    assert dict(workbench.requests[3].url.params) == {
+    assert dict(workbench.requests[-1].url.params) == {
         "sessionId": "test-session",
     }
     for body in workbench.result_bodies():
         assert body["schemaVersion"] == 1
         assert body["image"] == {"digest": DIGEST, "width": 100, "height": 80}
         assert body["producer"] == PRODUCER.to_dict()
-    assert list(tmp_path.iterdir()) == []
 
 
-def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
+def test_a_version_that_cannot_load_is_skipped(tmp_path: Path) -> None:
     workbench = Workbench(
         [
             {
@@ -269,10 +305,15 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
     )
     client = workbench.client()
     models = store()
+    images = ImageCache(tmp_path / "images")
+    pipeline = InferencePipeline(client, models, images)  # type: ignore[arg-type]
     try:
-        run_pass(client, tmp_path, models)
-        run_pass(client, tmp_path, models)
+        assert pipeline.run_once() is True
+        assert pipeline.run_once() is True
+        assert pipeline.run_once() is False
     finally:
+        pipeline.close()
+        images.close()
         client.worker.close()
     assert models.loads == ["set.traditional-v2", "set.traditional-v1"]
     assert [body["producer"] for body in workbench.result_bodies()] == [
@@ -280,25 +321,111 @@ def test_pass_skips_versions_it_cannot_load(tmp_path: Path) -> None:
     ]
 
 
-def test_pass_rejects_images_that_fail_digest_verification(tmp_path: Path) -> None:
+def test_the_next_image_downloads_while_this_one_is_detected(
+    tmp_path: Path,
+) -> None:
+    second = b"second source"
+    second_digest = hashlib.sha256(second).hexdigest()
+    workbench = Workbench(
+        [
+            {"manifest": MANIFEST, "image": DIGEST},
+            {"manifest": MANIFEST, "image": second_digest},
+        ],
+        images={second_digest: second},
+    )
+    overlapped: list[bool] = []
+
+    class WaitingDetector(FakeDetector):
+        def predict(
+            self, image_path: Path, digest: str, producer: DetectionProducer
+        ) -> DetectionResult:
+            if digest == DIGEST:
+                overlapped.append(workbench.downloaded[second_digest].wait(timeout=5))
+            return DetectionResult(
+                digest, 100, 80, producer, (), DetectionQuality("ok")
+            )
+
+    client = workbench.client()
+    images = ImageCache(tmp_path / "images")
+    pipeline = InferencePipeline(client, store(WaitingDetector()), images)  # type: ignore[arg-type]
+    try:
+        assert pipeline.run_once() is True
+        assert overlapped == [True]
+        assert pipeline.run_once() is True
+    finally:
+        pipeline.close()
+        images.close()
+        client.worker.close()
+    assert [body["image"]["digest"] for body in workbench.result_bodies()] == [
+        DIGEST,
+        second_digest,
+    ]
+
+
+def test_an_image_read_by_one_version_is_not_fetched_for_the_next(
+    tmp_path: Path,
+) -> None:
+    other = FakeDetector()
+    other.artifact_digest = "c" * 64
+    workbench = Workbench(
+        [
+            {"manifest": MANIFEST, "image": DIGEST},
+            {"manifest": OTHER_MANIFEST, "image": DIGEST},
+        ]
+    )
+    client = workbench.client()
+    models = FakeStore({"set.traditional-v1": DETECTOR, "set.traditional-v2": other})
+    try:
+        run_once(client, tmp_path, models)
+        workbench.assignments.append({"manifest": OTHER_MANIFEST, "image": DIGEST})
+        run_once(client, tmp_path, models)
+    finally:
+        client.worker.close()
+    fetches = [call for call in workbench.calls() if call[0] == "GET"]
+    assert fetches == [("GET", f"/api/worker/inference/images/{DIGEST}")]
+    assert len(workbench.result_bodies()) == 2
+
+
+def test_the_tasks_taken_ahead_are_released(tmp_path: Path) -> None:
+    others = {hashlib.sha256(bytes([n])).hexdigest(): bytes([n]) for n in range(4)}
+    workbench = Workbench(
+        [{"manifest": MANIFEST, "image": digest} for digest in [DIGEST, *others]],
+        images=others,
+    )
+    client = workbench.client()
+    try:
+        run_once(client, tmp_path, store())
+    finally:
+        client.worker.close()
+    released = [
+        path.removesuffix("/lease").rsplit("/", 1)[1]
+        for method, path in workbench.calls()
+        if method == "DELETE"
+    ]
+    assert released == list(others)[:LOOKAHEAD]
+    assert len(workbench.assignments) == len(others) - LOOKAHEAD
+    assert [body["image"]["digest"] for body in workbench.result_bodies()] == [DIGEST]
+
+
+def test_an_image_that_fails_digest_verification_is_refused(tmp_path: Path) -> None:
     workbench = Workbench(
         [{"manifest": MANIFEST, "image": DIGEST}],
-        image=b"tampered",
+        images={DIGEST: b"tampered"},
     )
     client = workbench.client()
     try:
         with pytest.raises(ValueError, match="digest verification"):
-            run_pass(client, tmp_path, store())
+            run_once(client, tmp_path, store())
     finally:
         client.worker.close()
     assert workbench.result_bodies() == []
 
 
-def test_pass_records_a_failure_document(tmp_path: Path) -> None:
+def test_a_detection_failure_is_recorded(tmp_path: Path) -> None:
     workbench = Workbench([{"manifest": MANIFEST, "image": DIGEST}])
     client = workbench.client()
     try:
-        run_pass(client, tmp_path, store(FailingDetector()))
+        run_once(client, tmp_path, store(FailingDetector()))
     finally:
         client.worker.close()
     assert workbench.result_bodies() == [
@@ -312,7 +439,7 @@ def test_pass_records_a_failure_document(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("status", [400, 422])
-def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
+def test_a_refused_result_surfaces(tmp_path: Path, status: int) -> None:
     workbench = Workbench(
         [{"manifest": MANIFEST, "image": DIGEST}],
         result_status=status,
@@ -320,12 +447,12 @@ def test_pass_surfaces_a_refused_result(tmp_path: Path, status: int) -> None:
     client = workbench.client()
     try:
         with pytest.raises(httpx.HTTPStatusError):
-            run_pass(client, tmp_path, store())
+            run_once(client, tmp_path, store())
     finally:
         client.worker.close()
 
 
-def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
+def test_a_lost_lease_surfaces(tmp_path: Path) -> None:
     workbench = Workbench(
         [{"manifest": MANIFEST, "image": DIGEST}],
         lease_status=409,
@@ -333,7 +460,7 @@ def test_pass_surfaces_a_lost_lease(tmp_path: Path) -> None:
     client = workbench.client()
     try:
         with pytest.raises(LeaseLostError):
-            run_pass(client, tmp_path, store())
+            run_once(client, tmp_path, store())
     finally:
         client.worker.close()
 
@@ -356,7 +483,7 @@ def test_refresh_failure_prevents_a_stale_result(
     client = workbench.client()
     try:
         with pytest.raises(LeaseLostError):
-            run_pass(client, tmp_path, store(SlowDetector()))
+            run_once(client, tmp_path, store(SlowDetector()))
     finally:
         client.worker.close()
     assert workbench.result_bodies() == []
@@ -370,28 +497,28 @@ def test_result_conflict_is_a_lost_lease(tmp_path: Path) -> None:
     client = workbench.client()
     try:
         with pytest.raises(LeaseLostError):
-            run_pass(client, tmp_path, store())
+            run_once(client, tmp_path, store())
     finally:
         client.worker.close()
 
 
-def test_pass_does_nothing_when_no_work_is_claimed(tmp_path: Path) -> None:
+def test_nothing_happens_when_no_work_is_claimed(tmp_path: Path) -> None:
     workbench = Workbench([])
     client = workbench.client()
     try:
-        run_pass(client, tmp_path, store())
+        run_once(client, tmp_path, store())
     finally:
         client.worker.close()
     assert workbench.calls() == [("POST", "/api/worker/inference/claim")]
 
 
-def test_pass_stops_before_starting_another_image(tmp_path: Path) -> None:
+def test_a_stopping_worker_starts_no_image(tmp_path: Path) -> None:
     workbench = Workbench(ASSIGNMENTS)
     client = workbench.client()
     stopped = threading.Event()
     stopped.set()
     try:
-        run_pass(client, tmp_path, store(), stopped=stopped)
+        run_once(client, tmp_path, store(), stopped)
     finally:
         client.worker.close()
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -98,7 +99,7 @@ def test_a_removed_worker_stops_instead_of_retrying(
     assert workbench.calls == ["/api/worker/heartbeat"]
 
 
-def test_training_releases_the_inference_model_and_its_own_allocations(
+def test_training_releases_the_inference_claim_and_its_own_allocations(
     tmp_path: Path, monkeypatch
 ) -> None:
     from vitroctl.worker import service as worker
@@ -109,7 +110,10 @@ def test_training_releases_the_inference_model_and_its_own_allocations(
     monkeypatch.setattr(served.training, "claim", lambda: next(jobs))
     monkeypatch.setattr(served.store, "unload", lambda: events.append("unload"))
     monkeypatch.setattr(
-        worker, "run_pass", lambda *args, **kwargs: events.append("inference") or True
+        served.pipeline, "run_once", lambda _stopped: events.append("inference") or True
+    )
+    monkeypatch.setattr(
+        served.pipeline, "release", lambda: events.append("release claim")
     )
     monkeypatch.setattr(worker, "release_accelerator", lambda: events.append("release"))
 
@@ -121,7 +125,7 @@ def test_training_releases_the_inference_model_and_its_own_allocations(
     try:
         assert served.serve_once(threading.Event()) is True
         assert served.serve_once(threading.Event()) is True
-        assert events == ["inference", "unload", "training", "release"]
+        assert events == ["inference", "release claim", "unload", "training", "release"]
 
         def fail(*args, **kwargs):
             raise RuntimeError("training failed")
@@ -132,3 +136,35 @@ def test_training_releases_the_inference_model_and_its_own_allocations(
         assert events[-2:] == ["unload", "release"]
     finally:
         served.close()
+
+
+def test_one_round_renews_every_lease_and_heartbeats_once(monkeypatch) -> None:
+    monkeypatch.setattr(worker_session, "LEASE_REFRESH_SECONDS", 0.001)
+    calls: list[str] = []
+
+    class Session:
+        def heartbeat(self) -> None:
+            calls.append("heartbeat")
+
+    def renew(name: str, fails_after: int | None = None):
+        def renew_once() -> None:
+            calls.append(name)
+            if fails_after is not None and calls.count(name) > fails_after:
+                raise OSError("claim moved on")
+
+        return renew_once
+
+    keeper = worker_session.LeaseKeeper(Session())  # type: ignore[arg-type]
+    kept = keeper.hold(renew("kept"))
+    lost = keeper.hold(renew("lost", fails_after=2))
+    deadline = time.monotonic() + 5
+    while calls.count("kept") < 5 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    keeper.close()
+
+    assert calls.count("heartbeat") == calls.count("kept") - 1
+    assert calls.count("lost") == 3
+    assert lost.lost and not kept.lost
+    keeper.end(kept)
+    with pytest.raises(worker_session.LeaseLostError, match="refresh failed"):
+        keeper.end(lost)

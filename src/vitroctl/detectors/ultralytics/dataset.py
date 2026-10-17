@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -77,6 +78,13 @@ def _image_file(image: DatasetImage, data_root: Path) -> Path:
     return image.file_path.resolve()
 
 
+def _link_or_copy(source: Path, destination: Path) -> None:
+    try:
+        os.link(source, destination)
+    except OSError:  # another volume, or a file system without hard links
+        shutil.copy2(source, destination)
+
+
 def assign_splits(
     images: Sequence[DatasetImage], validation_fraction: float, seed: int
 ) -> dict[str, str]:
@@ -111,8 +119,13 @@ def export_dataset_images(
     *,
     validation_fraction: float = 0.2,
     seed: int = 0,
+    link_images: bool = False,
 ) -> YoloDatasetManifest:
-    """Publish a self-contained YOLO detection dataset atomically."""
+    """
+    Publish a self-contained YOLO detection dataset atomically. A caller that
+    owns immutable sources may link them instead of copying; the dataset
+    still outlives the sources, because a hard link is the file itself.
+    """
     if len(images) < 2:
         raise ValueError("YOLO export requires at least two images")
     digests = [image.digest for image in images]
@@ -150,7 +163,10 @@ def export_dataset_images(
             label_destination = working / "labels" / split / f"{image.digest}.txt"
             image_destination.parent.mkdir(parents=True, exist_ok=True)
             label_destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, image_destination)
+            if link_images:
+                _link_or_copy(source, image_destination)
+            else:
+                shutil.copy2(source, image_destination)
             label_destination.write_text(
                 _label_text(image, class_indices), encoding="utf-8"
             )

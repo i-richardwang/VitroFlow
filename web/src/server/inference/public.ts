@@ -2,6 +2,7 @@ export {
   InferenceClaimRejectedError,
   claimInferenceAssignment,
   completeInferenceClaim,
+  releaseInferenceClaim,
   renewInferenceClaim,
 } from "./jobs";
 export {

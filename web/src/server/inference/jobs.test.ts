@@ -5,6 +5,7 @@ import {
   InferenceClaimRejectedError,
   claimInferenceAssignment,
   completeInferenceClaim,
+  releaseInferenceClaim,
   renewInferenceClaim,
 } from "./jobs";
 import {
@@ -133,6 +134,32 @@ test("only a live owner can renew an inference claim", async () => {
       new Date(renewedAt.getTime() + INFERENCE_LEASE_SECONDS * 1000 + 1),
     ),
   ).rejects.toBeInstanceOf(InferenceClaimRejectedError);
+});
+
+test("only the owner can give a claim back, and it is claimable at once", async () => {
+  await observeImages("claim-release", ["claim-release"]);
+  const owner = await recordTestHeartbeat(testHeartbeat("claim-release-a"));
+  const other = await recordTestHeartbeat(testHeartbeat("claim-release-b"));
+  const claimedAt = new Date("2026-09-03T12:00:00.000Z");
+  const held = await claimInferenceAssignment(owner, claimedAt);
+  expect(held).not.toBeNull();
+
+  await releaseInferenceClaim(targetOf(held!), other, claimedAt);
+  await renewInferenceClaim(targetOf(held!), owner, claimedAt);
+
+  await releaseInferenceClaim(targetOf(held!), owner, claimedAt);
+  await expect(
+    renewInferenceClaim(targetOf(held!), owner, claimedAt),
+  ).rejects.toBeInstanceOf(InferenceClaimRejectedError);
+  let reclaimed = false;
+  for (let attempt = 0; attempt < 500 && !reclaimed; attempt += 1) {
+    const candidate = await claimInferenceAssignment(other, claimedAt);
+    if (!candidate) break;
+    reclaimed =
+      candidate.image === held!.image &&
+      candidate.manifest.modelVersionId === held!.manifest.modelVersionId;
+  }
+  expect(reclaimed).toBe(true);
 });
 
 test("a model with no version demands no work of any worker", async () => {

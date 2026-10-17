@@ -120,9 +120,11 @@ vitroctl worker stop mac-studio
 
 `launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Workers page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
 
-Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. For inference they atomically claim one image/version pair, renew that lease while loading and predicting, download its canonical image and verified model artifact, and upload a succeeded or failed outcome. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
+Workers advertise the traditional runtime and, when installed and importable, the pinned Ultralytics runtime. For inference they atomically claim one image/version pair, renew that lease while loading and predicting, read its canonical image and verified model artifact, and upload a succeeded or failed outcome. While one pair is detected the Worker holds the next three and downloads their images, and releases those claims before it trains or stops. Completion consumes the current session's unexpired lease in the outcome transaction, so a reclaimed task fences the old process from writing.
 
-For training they claim a queued run, download its immutable snapshot, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
+A Worker keeps the canonical images it has read in its work directory, by digest, for inference and training alike: a new version reads the images an earlier one read without fetching them again, and a training run links its dataset to those files instead of copying them. Images an assignment or run is using stay; past a 20 GiB budget the least recently used of the rest are forgotten.
+
+For training they claim a queued run, fetch the snapshot images they do not hold, several at a time, materialize the canonical YOLO dataset, and advance through `preparing`, `training`, and `validating`. Every claim is fenced by worker ID, session ID, lease, and attempt. Completed epochs report losses, precision, recall, mAP50, mAP50-95, fitness, and learning rate. Publication registers verified `best.pt` bytes and their inference manifest as one candidate ModelVersion.
 
 ## Preparing photographs
 

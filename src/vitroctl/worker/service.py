@@ -1,7 +1,8 @@
 """One Worker process: it heartbeats, then serves whatever the workbench holds.
 
 Training takes priority over inference. The process executes one assignment at
-a time.
+a time, holding a few more inference tasks whose images download meanwhile; it
+releases those before it trains.
 """
 
 from __future__ import annotations
@@ -14,7 +15,8 @@ import httpx
 
 from vitroctl.detectors.ultralytics import YoloTrainingInterruptedError
 from vitroctl.detectors.ultralytics.runtime import release_accelerator
-from vitroctl.worker.inference import WORKER_ERRORS, InferenceClient, run_pass
+from vitroctl.worker.images import ImageCache
+from vitroctl.worker.inference import WORKER_ERRORS, InferenceClient, InferencePipeline
 from vitroctl.worker.model_store import ModelStore
 from vitroctl.worker.runtime import shutdown_signals
 from vitroctl.worker.session import WorkerClient, WorkerSession, WorkerSettings
@@ -42,10 +44,16 @@ class Worker:
         self.inference = InferenceClient(self.client)
         self.training = TrainingClient(self.client)
         self.store = ModelStore(self.inference, settings.work_dir, settings.device)
+        self.images = ImageCache(settings.work_dir / "images")
+        self.pipeline = InferencePipeline(self.inference, self.store, self.images)
 
     def close(self) -> None:
-        self.store.unload()
-        self.client.close()
+        try:
+            self.pipeline.close()
+        finally:
+            self.store.unload()
+            self.images.close()
+            self.client.close()
 
     def serve_once(self, stopped: threading.Event) -> bool:
         """Take at most one task; whether one was taken paces the outer loop."""
@@ -55,6 +63,7 @@ class Worker:
         if self.client.session.can_train:
             job = self.training.claim()
             if job is not None:
+                self.pipeline.release()
                 self.store.unload()
                 try:
                     process_training_job(
@@ -62,14 +71,13 @@ class Worker:
                         job,
                         self.settings.work_dir,
                         self.settings.device,
+                        self.images,
                         stopped=stopped,
                     )
                 finally:
                     release_accelerator()
                 return True
-        return run_pass(
-            self.inference, self.settings.work_dir, self.store, stopped=stopped
-        )
+        return self.pipeline.run_once(stopped)
 
 
 def run_worker(

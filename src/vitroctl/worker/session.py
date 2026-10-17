@@ -148,6 +148,76 @@ class WorkerClient(WorkerHttpClient):
         response.raise_for_status()
 
 
+class Lease:
+    """One lease a keeper renews, and whether it has been lost."""
+
+    def __init__(self, renew: Callable[[], None]) -> None:
+        self.renew = renew
+        self.error: Exception | None = None
+
+    @property
+    def lost(self) -> bool:
+        return self.error is not None
+
+
+class LeaseKeeper:
+    """
+    Keeps every lease the session holds live from one thread. Each round
+    renews the leases still held and heartbeats once; a lease whose renewal
+    fails is lost on its own, while a failed heartbeat loses them all, since
+    the session itself may be gone.
+    """
+
+    def __init__(self, client: WorkerClient) -> None:
+        self.client = client
+        self._lock = threading.Lock()
+        self._leases: set[Lease] = set()
+        self._closed = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def hold(self, renew: Callable[[], None]) -> Lease:
+        """Renew once now, so a claim that is already lost fails here."""
+        renew()
+        lease = Lease(renew)
+        with self._lock:
+            self._leases.add(lease)
+            if self._thread is None:
+                self._thread = threading.Thread(
+                    target=self._refresh, name="worker-lease", daemon=True
+                )
+                self._thread.start()
+        return lease
+
+    def end(self, lease: Lease) -> None:
+        """Stop renewing the lease; a renewal that failed surfaces here."""
+        with self._lock:
+            self._leases.discard(lease)
+        if lease.error is not None:
+            raise LeaseLostError("Lease refresh failed") from lease.error
+
+    def close(self) -> None:
+        self._closed.set()
+        if self._thread is not None:
+            self._thread.join()
+
+    def _refresh(self) -> None:
+        while not self._closed.wait(LEASE_REFRESH_SECONDS):
+            with self._lock:
+                held = [lease for lease in self._leases if not lease.lost]
+            if not held:
+                continue
+            for lease in held:
+                try:
+                    lease.renew()
+                except Exception as error:  # noqa: BLE001 - the lease owns its loss
+                    lease.error = error
+            try:
+                self.client.heartbeat()
+            except Exception as error:  # noqa: BLE001 - every lease shares the session
+                for lease in held:
+                    lease.error = lease.error or error
+
+
 @contextmanager
 def keep_lease(
     client: WorkerClient,
@@ -156,34 +226,16 @@ def keep_lease(
     cancelled: Callable[[], bool] | None = None,
 ) -> Iterator[Callable[[], bool]]:
     """
-    Keep one lease live while the work runs. The refresher renews the lease
-    and heartbeats on a schedule; the caller polls the yielded predicate and
-    stops when the lease is lost or the process is shutting down.
+    Keep one lease live while the work runs. The caller polls the yielded
+    predicate and stops when the lease is lost or the process is shutting
+    down; leaving surfaces a lost lease.
     """
-    closed = threading.Event()
-    lost = threading.Event()
-    refresh_errors: list[Exception] = []
-
-    def refresh() -> None:
-        while not closed.wait(LEASE_REFRESH_SECONDS):
-            try:
-                renew()
-                client.heartbeat()
-            except Exception as error:  # noqa: BLE001 - process boundary owns the lease
-                refresh_errors.append(error)
-                lost.set()
-                return
-
-    def should_stop() -> bool:
-        return lost.is_set() or bool(cancelled and cancelled())
-
-    renew()
-    thread = threading.Thread(target=refresh, name="worker-lease", daemon=True)
-    thread.start()
+    keeper = LeaseKeeper(client)
     try:
-        yield should_stop
+        lease = keeper.hold(renew)
+        try:
+            yield lambda: lease.lost or bool(cancelled and cancelled())
+        finally:
+            keeper.end(lease)
     finally:
-        closed.set()
-        thread.join()
-        if refresh_errors:
-            raise LeaseLostError("Lease refresh failed") from refresh_errors[0]
+        keeper.close()

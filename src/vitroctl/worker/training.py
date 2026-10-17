@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 from vitroctl.contracts.documents import as_object, expect_fields
@@ -16,13 +17,14 @@ from vitroctl.detectors.ultralytics import (
     export_dataset_images,
     train_yolo_detector,
 )
-from vitroctl.io.image_io import CANONICAL_EXTENSION, image_digest, verify_digest
+from vitroctl.io.image_io import verify_digest
 from vitroctl.training.documents import (
     TrainingJob,
     TrainingPhase,
     TrainingSnapshot,
     parse_training_snapshot,
 )
+from vitroctl.worker.images import ImageCache, wait_for
 from vitroctl.worker.session import LeaseLostError, WorkerClient, keep_lease
 
 LOGGER = logging.getLogger(__name__)
@@ -143,8 +145,15 @@ def materialize_snapshot(
     job: TrainingJob,
     output: Path,
     *,
+    images: ImageCache,
     cancelled: Callable[[], bool] | None = None,
 ) -> Path:
+    """
+    Build the run's dataset from the images this machine already holds,
+    fetching the rest concurrently. The dataset links the cached files, so
+    it costs no second copy and a later run over the same images fetches
+    nothing.
+    """
     if cancelled and cancelled():
         raise YoloTrainingInterruptedError("training interrupted")
     dataset = output / "dataset.yaml"
@@ -154,27 +163,40 @@ def materialize_snapshot(
     snapshot = client.fetch_snapshot(job.run_id)
     if len(snapshot.images) < 2:
         raise ValueError("Training snapshot must contain at least two images")
-    downloads = output.parent / "snapshot-images"
-    downloads.mkdir(parents=True, exist_ok=True)
-    dataset_images: list[DatasetImage] = []
-    for image in snapshot.images:
-        if cancelled and cancelled():
-            raise YoloTrainingInterruptedError("training interrupted")
-        downloaded = downloads / f"{image.digest}{CANONICAL_EXTENSION}"
-        if not downloaded.is_file() or image_digest(downloaded) != image.digest:
-            downloaded.write_bytes(client.download_image(job.run_id, image.digest))
-        dataset_images.append(
-            DatasetImage(
-                digest=image.digest,
-                width=image.annotation.width,
-                height=image.annotation.height,
-                instances=image.annotation.instances,
-                split=image.split,
-                file_path=downloaded,
+    started = time.monotonic()
+    with images.holding(
+        (image.digest for image in snapshot.images),
+        lambda digest: client.download_image(job.run_id, digest),
+    ) as pending:
+        dataset_images: list[DatasetImage] = []
+        for image in snapshot.images:
+            try:
+                path = wait_for(pending[image.digest], cancelled)
+            except CancelledError as error:
+                raise YoloTrainingInterruptedError("training interrupted") from error
+            dataset_images.append(
+                DatasetImage(
+                    digest=image.digest,
+                    width=image.annotation.width,
+                    height=image.annotation.height,
+                    instances=image.annotation.instances,
+                    split=image.split,
+                    file_path=path,
+                )
             )
+        LOGGER.info(
+            "gathered %d images for %s in %.1fs",
+            len(dataset_images),
+            job.run_id,
+            time.monotonic() - started,
         )
-    export_dataset_images(dataset_images, snapshot.classes, output.parent, output)
-    shutil.rmtree(downloads)
+        export_dataset_images(
+            dataset_images,
+            snapshot.classes,
+            output.parent,
+            output,
+            link_images=True,
+        )
     return dataset
 
 
@@ -193,6 +215,7 @@ def process_training_job(
     job: TrainingJob,
     work_root: Path,
     device: str | None,
+    images: ImageCache,
     stopped: threading.Event | None = None,
 ) -> None:
     def ensure_running() -> None:
@@ -216,6 +239,7 @@ def process_training_job(
                 client,
                 job,
                 root / "dataset",
+                images=images,
                 cancelled=cancelled,
             )
             result = train_yolo_detector(
