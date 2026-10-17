@@ -451,9 +451,11 @@ describe("experiments", () => {
     await assignImages(experiment.id, day14.id, units, { "A-1": "stage-d14" });
     const digest = await imageDigest("stage-d14");
     const grid = (await readExperimentGrid(experiment.id))!;
-    expect(grid.observations.map((item) => [item.day, item.modelId])).toEqual([
-      [7, callus.modelId],
-      [14, seeds.modelId],
+    expect(
+      grid.observations.map((item) => [item.observedOn, item.modelId]),
+    ).toEqual([
+      ["2026-08-08", callus.modelId],
+      ["2026-08-15", seeds.modelId],
     ]);
     const ref = {
       experiment: experiment.id,
@@ -553,7 +555,7 @@ describe("experiments", () => {
         note: "",
         ...reading(version),
       }),
-    ).resolves.toMatchObject({ day: 7 });
+    ).resolves.toMatchObject({ observedOn: "2026-08-08" });
     await expect(
       addObservation({
         experiment: experiment.id,
@@ -561,7 +563,7 @@ describe("experiments", () => {
         note: "",
         ...reading(version),
       }),
-    ).resolves.toMatchObject({ day: 14 });
+    ).resolves.toMatchObject({ observedOn: "2026-08-15" });
 
     await deleteExperiment({ experiment: experiment.id });
     expect(await readExperimentGrid(experiment.id)).toBeNull();
@@ -851,7 +853,11 @@ describe("experiments", () => {
       note: "First look",
       ...reading(version),
     });
-    expect([day7.ordinal, day7.day, day7.note]).toEqual([1, 7, "First look"]);
+    expect([day7.ordinal, day7.observedOn, day7.note]).toEqual([
+      1,
+      "2026-08-08",
+      "First look",
+    ]);
 
     const day21 = await addObservation({
       experiment: experiment.id,
@@ -884,10 +890,12 @@ describe("experiments", () => {
     });
 
     const grid = await readExperimentGrid(experiment.id);
-    expect(grid?.observations.map(({ id, day }) => [id, day])).toEqual([
-      [day7.id, 7],
-      [day14.id, 14],
-      [day21.id, 21],
+    expect(
+      grid?.observations.map(({ id, observedOn }) => [id, observedOn]),
+    ).toEqual([
+      [day7.id, "2026-08-08"],
+      [day14.id, "2026-08-15"],
+      [day21.id, "2026-08-22"],
     ]);
     expect(grid?.units.map((unit) => unit.code)).toEqual([
       ...Array.from({ length: 10 }, (_, index) => `A-${index + 1}`),
@@ -1147,7 +1155,7 @@ describe("experiments", () => {
         },
       ],
     });
-    expect([assigned.assigned, assigned.observation.day]).toEqual([1, 7]);
+    expect([assigned.assigned, assigned.observation.id]).toEqual([1, day7.id]);
 
     try {
       await assignObservationImages({
@@ -1171,7 +1179,7 @@ describe("experiments", () => {
           digest: first!,
           filename: "IMG_0413.jpg",
           unit: "A-1",
-          day: 7,
+          observedOn: "2026-08-08",
         },
       ]);
     }
@@ -1614,8 +1622,8 @@ describe("experiments", () => {
     expect(await stateOf(d2)).toBe("pending");
     expect((await readExperimentObservationImage(failed))?.failure).toBeNull();
     expect(
-      (await readExperimentObservationImage(failed))?.observation.day,
-    ).toBe(7);
+      (await readExperimentObservationImage(failed))?.observation.observedOn,
+    ).toBe("2026-08-08");
     expect((await readExperimentObservationImage(failed))?.unit.code).toBe(
       "D-2",
     );
@@ -1743,10 +1751,6 @@ describe("experiments", () => {
       "A-1": "m-a1-1",
       "A-2": "m-a2-1",
     });
-    expect(
-      (await readExperimentGrid(experiment.id))?.observations[0]?.day,
-    ).toBe(6);
-
     await expect(
       updateObservation({
         experiment: experiment.id,
@@ -1763,11 +1767,10 @@ describe("experiments", () => {
       note: "Final count",
       ...reading(version),
     });
-    expect([
-      redatedEmpty.observedOn,
-      redatedEmpty.day,
-      redatedEmpty.note,
-    ]).toEqual(["2026-08-29", 27, "Final count"]);
+    expect([redatedEmpty.observedOn, redatedEmpty.note]).toEqual([
+      "2026-08-29",
+      "Final count",
+    ]);
     const redatedRecorded = await updateObservation({
       experiment: experiment.id,
       observation: day7.id,
@@ -1775,11 +1778,10 @@ describe("experiments", () => {
       note: "Images checked",
       ...reading(version),
     });
-    expect([
-      redatedRecorded.observedOn,
-      redatedRecorded.day,
-      redatedRecorded.note,
-    ]).toEqual(["2026-08-09", 7, "Images checked"]);
+    expect([redatedRecorded.observedOn, redatedRecorded.note]).toEqual([
+      "2026-08-09",
+      "Images checked",
+    ]);
     expect((await readExperimentGrid(experiment.id))?.images).toHaveLength(2);
 
     await deleteObservation({

@@ -29,7 +29,6 @@ function observation(ordinal: number): ExperimentObservation {
     id: `observation-${ordinal}`,
     ordinal,
     observedOn: "2026-09-01",
-    day: ordinal - 1,
     note: "",
     modelId: "seed-detector",
     hasRecords: false,

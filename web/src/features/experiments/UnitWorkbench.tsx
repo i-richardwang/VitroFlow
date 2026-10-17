@@ -23,7 +23,6 @@ import {
 import { Skeleton } from "../../ui/kit/Skeleton";
 import { StatusDot, type StatusTone } from "../../ui/kit/Status";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
-import { Day } from "../../ui/Day";
 import { m } from "../../paraglide/messages";
 import type {
   ImageReview,
@@ -255,16 +254,6 @@ export function UnitWorkbench({
               <DescriptionsItem label={m.treatment_label()}>
                 {treatment.name}
               </DescriptionsItem>
-              {[reference, inView].map((item) =>
-                item ? (
-                  <DescriptionsItem
-                    key={item.observation.id}
-                    label={observationLabel(item.observation)}
-                  >
-                    <Day value={item.observation.observedOn} />
-                  </DescriptionsItem>
-                ) : null,
-              )}
             </Descriptions>
           </WorkbenchSection>
         </WorkbenchInspector>
@@ -342,14 +331,9 @@ export function UnitWorkbench({
           ) : undefined,
           sections: culture,
           facts: (
-            <>
-              <DescriptionsItem label={m.treatment_label()}>
-                {treatment.name}
-              </DescriptionsItem>
-              <DescriptionsItem label={m.unit_observed()}>
-                <Day value={shown.observation.observedOn} />
-              </DescriptionsItem>
-            </>
+            <DescriptionsItem label={m.treatment_label()}>
+              {treatment.name}
+            </DescriptionsItem>
           ),
         }}
       />
@@ -373,7 +357,7 @@ export function UnitWorkbenchSkeleton({
           <Skeleton.Button size="small" />
         </WorkbenchSectionSkeleton>
         <WorkbenchSectionSkeleton>
-          <DescriptionsSkeleton rows={3} />
+          <DescriptionsSkeleton rows={1} />
         </WorkbenchSectionSkeleton>
       </WorkbenchSkeleton>
     );
@@ -381,7 +365,7 @@ export function UnitWorkbenchSkeleton({
   return (
     <ImageWorkbenchSkeleton
       actions={<Skeleton.Button icon />}
-      facts={2}
+      facts={1}
       sections={
         <WorkbenchSectionSkeleton>
           <Skeleton.Button size="small" />

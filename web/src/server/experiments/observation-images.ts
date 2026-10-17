@@ -20,13 +20,12 @@ import {
   ObservationImageRejectedError,
   UnitNotFoundError,
 } from "../../domain/experiments/errors";
-import {
-  daysBetween,
-  type ExperimentObservation,
-  type ObservationImageAssignment,
-  type ObservationRecord,
-  type ObservationImageAssignmentResult,
-  type ObservationImageRef,
+import type {
+  ExperimentObservation,
+  ObservationImageAssignment,
+  ObservationRecord,
+  ObservationImageAssignmentResult,
+  ObservationImageRef,
 } from "../../domain/experiments/schema";
 import {
   listObservations,
@@ -82,8 +81,8 @@ export async function assignObservationImages(
   }
 
   return inTransaction(executor, async (tx) => {
-    const experiment = await lockExperiment(experimentId, tx);
-    const observations = await listObservations(experiment, tx);
+    await lockExperiment(experimentId, tx);
+    const observations = await listObservations(experimentId, tx);
     const observation = requireObservation(observations, observationId);
     const ordinals = observationOrdinals(observations);
     const units = await listUnits(experimentId, tx);
@@ -181,7 +180,7 @@ export async function assignObservationImages(
           digest: row.digest,
           filename: row.filename,
           unit: row.unit,
-          day: daysBetween(experiment.inoculatedOn, row.observedOn),
+          observedOn: row.observedOn,
         })),
       );
     }
@@ -198,7 +197,7 @@ export async function assignObservationImages(
     );
     return {
       observation: requireObservation(
-        await listObservations(experiment, tx),
+        await listObservations(experimentId, tx),
         observationId,
       ),
       assigned: assignments.length,

@@ -13,6 +13,7 @@ import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { Select } from "../../ui/kit/Select";
 import { Tag } from "../../ui/kit/Tag";
+import { formatDay } from "../../ui/Day";
 import { ImageDropZone } from "../upload/ImageDropZone";
 import type { ListedImage } from "../upload/state";
 import { useUploads, type Uploads } from "../upload/useUploads";
@@ -219,7 +220,7 @@ function ConflictTag({ conflict }: { conflict: PhotoConflict }) {
       {conflict.kind === "placed"
         ? m.observation_images_placed({
             unit: conflict.placed.unit,
-            day: conflict.placed.day,
+            day: formatDay(conflict.placed.observedOn),
           })
         : m.observation_images_repeated({ file: conflict.filename })}
     </Tag>

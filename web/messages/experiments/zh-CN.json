@@ -42,14 +42,6 @@
   "experiment_export": "导出表格",
   "workbook_column_factor": "因子",
   "workbook_exported": "导出日期",
-  "observation_day_label": [
-    {
-      "declarations": ["input day", "local formattedDay = day: number"],
-      "match": {
-        "day=*": "第 {formattedDay} 天"
-      }
-    }
-  ],
   "observation_label": "观测日",
   "observations_label": "观测日",
   "observation_not_added": "观测日未添加",
@@ -89,14 +81,7 @@
   "observation_images_unassigned": "未对应",
   "observation_images_unit_label": "{file} 对应的试验单元",
   "observation_images_fill_in_order": "按顺序对应",
-  "observation_images_placed": [
-    {
-      "declarations": ["input day", "local formattedDay = day: number"],
-      "match": {
-        "day=*": "已用作 {unit} · 第 {formattedDay} 天"
-      }
-    }
-  ],
+  "observation_images_placed": "已用作 {unit} · {day}",
   "observation_images_repeated": "与 {file} 相同",
   "observation_images_conflicting": [
     {
@@ -108,7 +93,6 @@
   ],
   "unit_title": "{experiment} 的试验单元 {code}",
   "unit_no_image": "这个试验单元还没有照片",
-  "unit_observed": "观测日期",
   "unit_detection_failed": "计数失败",
   "unit_retry": "重新计数",
   "unit_retry_failed": "无法重新计数",

@@ -42,14 +42,6 @@
   "experiment_export": "Export spreadsheet",
   "workbook_column_factor": "Factor",
   "workbook_exported": "Exported on",
-  "observation_day_label": [
-    {
-      "declarations": ["input day", "local formattedDay = day: number"],
-      "match": {
-        "day=*": "Day {formattedDay}"
-      }
-    }
-  ],
   "observation_label": "Observation",
   "observations_label": "Observations",
   "observation_not_added": "Observation not added",
@@ -95,14 +87,7 @@
   "observation_images_unassigned": "Unmatched",
   "observation_images_unit_label": "Unit shown by {file}",
   "observation_images_fill_in_order": "Match in order",
-  "observation_images_placed": [
-    {
-      "declarations": ["input day", "local formattedDay = day: number"],
-      "match": {
-        "day=*": "Already {unit}, day {formattedDay}"
-      }
-    }
-  ],
+  "observation_images_placed": "Already {unit}, {day}",
   "observation_images_repeated": "Same as {file}",
   "observation_images_conflicting": [
     {
@@ -120,7 +105,6 @@
   ],
   "unit_title": "Unit {code} of {experiment}",
   "unit_no_image": "No photographs of this unit yet",
-  "unit_observed": "Observed",
   "unit_detection_failed": "Counting failed",
   "unit_retry": "Count again",
   "unit_retry_failed": "Could not count again",

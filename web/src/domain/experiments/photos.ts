@@ -2,13 +2,14 @@ import { z } from "zod";
 
 import { imageDigestSchema } from "../images/schema";
 import type { ExperimentGrid } from "./contracts";
+import { calendarDaySchema } from "./schema";
 
 /** A photograph an experiment holds, named by the unit and day it shows. */
 export const placedPhotoSchema = z.strictObject({
   digest: imageDigestSchema,
   filename: z.string(),
   unit: z.string(),
-  day: z.number().int(),
+  observedOn: calendarDaySchema,
 });
 
 export type PlacedPhoto = z.infer<typeof placedPhotoSchema>;
@@ -24,13 +25,16 @@ export function placedPhotos(
 ): PlacedPhoto[] {
   const codes = new Map(grid.units.map((unit) => [unit.id, unit.code]));
   const days = new Map(
-    grid.observations.map((observation) => [observation.id, observation.day]),
+    grid.observations.map((observation) => [
+      observation.id,
+      observation.observedOn,
+    ]),
   );
   return grid.images.map((image) => ({
     digest: image.digest,
     filename: image.filename,
     unit: codes.get(image.unit)!,
-    day: days.get(image.observation)!,
+    observedOn: days.get(image.observation)!,
   }));
 }
 

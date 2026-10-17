@@ -90,7 +90,7 @@ export async function addObservation(
       })
       .returning();
     if (!row) throw new Error("Observation was not created");
-    return requireObservation(await listObservations(experiment, tx), row.id);
+    return requireObservation(await listObservations(experimentId, tx), row.id);
   });
 }
 
@@ -120,7 +120,7 @@ export async function updateObservation(
         `Unknown observation: ${observationId}`,
       );
     }
-    return requireObservation(await listObservations(experiment, tx), row.id);
+    return requireObservation(await listObservations(experimentId, tx), row.id);
   });
 }
 
@@ -130,9 +130,9 @@ export async function deleteObservation(
 ): Promise<void> {
   const { experiment: experimentId, observation: observationId } = value;
   await inTransaction(executor, async (tx) => {
-    const experiment = await lockExperiment(experimentId, tx);
+    await lockExperiment(experimentId, tx);
     const observation = requireObservation(
-      await listObservations(experiment, tx),
+      await listObservations(experimentId, tx),
       observationId,
     );
     if (observation.hasRecords) {

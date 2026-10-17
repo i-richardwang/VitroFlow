@@ -31,15 +31,6 @@ export const calendarDaySchema = z
 
 export type CalendarDay = z.infer<typeof calendarDaySchema>;
 
-/** Whole days between two calendar days, counted on the civil calendar. */
-export function daysBetween(from: CalendarDay, to: CalendarDay): number {
-  const [fromYear, fromMonth, fromDate] = calendarParts(from)!;
-  const [toYear, toMonth, toDate] = calendarParts(to)!;
-  const start = Date.UTC(fromYear, fromMonth - 1, fromDate);
-  const end = Date.UTC(toYear, toMonth - 1, toDate);
-  return Math.round((end - start) / 86_400_000);
-}
-
 /** Today on the calendar of the machine that asks. */
 export function today(): CalendarDay {
   const now = new Date();
@@ -316,7 +307,6 @@ export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,
   ordinal: z.number().int().min(1),
   observedOn: calendarDaySchema,
-  day: z.number().int(),
   note: observationNoteSchema,
   modelId: resourceIdSchema,
   hasRecords: z.boolean(),

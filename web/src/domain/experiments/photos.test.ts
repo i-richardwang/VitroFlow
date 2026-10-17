@@ -5,7 +5,12 @@ import { photoConflicts, placedPhotos, type PlacedPhoto } from "./photos";
 const digest = (char: string) => char.repeat(64);
 
 const placed: PlacedPhoto[] = [
-  { digest: digest("a"), filename: "IMG_0412.jpg", unit: "A-1", day: 5 },
+  {
+    digest: digest("a"),
+    filename: "IMG_0412.jpg",
+    unit: "A-1",
+    observedOn: "2026-09-06",
+  },
 ];
 
 describe("photographs an experiment holds", () => {
@@ -40,7 +45,6 @@ describe("photographs an experiment holds", () => {
             id: "o1",
             ordinal: 1,
             observedOn: "2026-09-06",
-            day: 5,
             note: "",
             modelId: "seed",
             hasRecords: true,

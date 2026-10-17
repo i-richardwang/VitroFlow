@@ -7,6 +7,7 @@ import {
   sheetName,
   textCell,
   workbookFilename,
+  type CellStyle,
   type Workbook,
   type WorkbookCell,
 } from "../../lib/spreadsheet/workbook";
@@ -29,7 +30,7 @@ import {
   type Treatment,
 } from "../../domain/experiments/schema";
 import type { Model } from "../../domain/models/schema";
-import { cultureEventLabel, observationLabel } from "./labels";
+import { cultureEventLabel } from "./labels";
 import { modelName } from "../../ui/model-names";
 import { m } from "../../paraglide/messages";
 
@@ -96,8 +97,8 @@ export function experimentWorkbook(
   };
 }
 
-function calendarCell(day: CalendarDay): WorkbookCell {
-  return dateCell(parseDate(day));
+function calendarCell(day: CalendarDay, style?: CellStyle): WorkbookCell {
+  return dateCell(parseDate(day), style);
 }
 
 function fieldCell(value: string): WorkbookCell {
@@ -127,19 +128,18 @@ function heading(days: readonly Day[]): WorkbookCell[][] {
       textCell(m.experiment_column_treatment(), covering),
       textCell(m.workbook_column_factor(), covering),
       textCell(m.experiment_column_unit(), covering),
-      ...days.map((day) => textCell(dayHeading(day), { strong: true })),
+      ...days.map((day) =>
+        calendarCell(day.observation.observedOn, { strong: true }),
+      ),
     ],
     [
       ...DESIGN_COLUMNS.map(() => blankCell),
-      ...days.map((day) => calendarCell(day.observation.observedOn)),
+      // A file outlives its workbench, so a day names the model it was read for.
+      ...days.map((day) =>
+        day.model ? textCell(modelName(day.model)) : blankCell,
+      ),
     ],
   ];
-}
-
-/** A file outlives its workbench, so a day names the model it was read for. */
-function dayHeading(day: Day): string {
-  const label = observationLabel(day.observation);
-  return day.model ? `${label} · ${modelName(day.model)}` : label;
 }
 
 function factorCell(treatment: Treatment): WorkbookCell {

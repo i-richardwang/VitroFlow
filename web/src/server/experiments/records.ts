@@ -16,7 +16,6 @@ import {
 } from "../../domain/experiments/errors";
 import {
   cultureEventSchema,
-  daysBetween,
   experimentObservationSchema,
   experimentSchema,
   treatmentSchema,
@@ -76,7 +75,6 @@ function toCultureEvent(
 
 function toObservation(
   row: typeof experimentObservations.$inferSelect,
-  experiment: Experiment,
   ordinal: number,
   hasRecords: boolean,
 ): ExperimentObservation {
@@ -84,7 +82,6 @@ function toObservation(
     id: row.id,
     ordinal,
     observedOn: row.observedOn,
-    day: daysBetween(experiment.inoculatedOn, row.observedOn),
     note: row.note,
     modelId: row.modelId,
     hasRecords,
@@ -179,35 +176,30 @@ export async function listUnits(
 }
 
 export async function listObservations(
-  experiment: Experiment,
+  experimentId: string,
   db: Executor,
 ): Promise<ExperimentObservation[]> {
   const [rows, observationImageRefs, eventRefs] = await Promise.all([
     db
       .select()
       .from(experimentObservations)
-      .where(eq(experimentObservations.experimentId, experiment.id))
+      .where(eq(experimentObservations.experimentId, experimentId))
       .orderBy(asc(experimentObservations.observedOn)),
     db
       .select({ observation: experimentObservationImages.observationId })
       .from(experimentObservationImages)
-      .where(eq(experimentObservationImages.experimentId, experiment.id)),
+      .where(eq(experimentObservationImages.experimentId, experimentId)),
     db
       .select({ observation: experimentCultureEvents.observationId })
       .from(experimentCultureEvents)
-      .where(eq(experimentCultureEvents.experimentId, experiment.id)),
+      .where(eq(experimentCultureEvents.experimentId, experimentId)),
   ]);
   const recorded = new Set([
     ...observationImageRefs.map((row) => row.observation),
     ...eventRefs.map((row) => row.observation),
   ]);
   return rows.map((observation, index) =>
-    toObservation(
-      observation,
-      experiment,
-      index + 1,
-      recorded.has(observation.id),
-    ),
+    toObservation(observation, index + 1, recorded.has(observation.id)),
   );
 }
 

@@ -39,7 +39,7 @@ An Observation is one day the units were photographed, and it names the Model th
 
 A CultureEvent records contamination, nonviability, discard, harvest, or a missing unit against the observation where it was identified. Discarded, harvested, and missing are terminal events: the unit is absent from every later observation and analysis denominator, and a unit has at most one. Whether an event excludes the unit from analysis follows from its type: contaminated, discarded, and missing do, while a nonviable unit is a result rather than a loss and a harvested unit was measured. An event recorded by mistake is removed. Each unit is a row beside its treatment. A unit's cell shows its count, provisional until a person has reviewed it; a photograph not yet counted shows as a photograph, a unit not photographed shows no value, and only a failed count is marked.
 
-An Observation is one occasion, dated by the day it happened and named by the days since inoculation. It cannot precede inoculation. An experiment is observed once a day at most, and observations are ordered by that day.
+An Observation is one occasion, named by the day it happened. It cannot precede inoculation. An experiment is observed once a day at most, and observations are ordered by that day.
 
 Observation images are assigned to the units they show, one per unit per observation. A source filename is retained for traceability but is not an identifier; it provides an initial code suggestion that the operator confirms. A cell that already has an image can be given a different one. An assignment can be removed without changing the canonical image, its inference outcome, or its annotation.
 

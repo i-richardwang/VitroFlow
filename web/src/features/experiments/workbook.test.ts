@@ -53,7 +53,6 @@ const SOWN: ExperimentObservation = {
   id: "sown",
   ordinal: 1,
   observedOn: "2026-09-01",
-  day: 0,
   note: "",
   modelId: SEEDS.id,
   hasRecords: true,
@@ -63,7 +62,6 @@ const ROOTED: ExperimentObservation = {
   id: "rooted",
   ordinal: 2,
   observedOn: "2026-09-15",
-  day: 14,
   note: "",
   modelId: ROOTS.id,
   hasRecords: true,
@@ -168,15 +166,15 @@ describe("the experiment workbook", () => {
     ]);
   });
 
-  test("names the model of every day, and dates it underneath", () => {
-    const [names, dates] = heading(trial());
-    expect(names?.slice(3)).toEqual([
-      { kind: "text", text: "Day 0 · Seed germination", strong: true },
-      { kind: "text", text: "Day 14 · Rooting", strong: true },
-    ]);
+  test("heads every day with its date, and names its model underneath", () => {
+    const [dates, models] = heading(trial());
     expect(dates?.slice(3)).toEqual([
-      { kind: "date", date: new Date(Date.UTC(2026, 8, 1)) },
-      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)) },
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 1)), strong: true },
+      { kind: "date", date: new Date(Date.UTC(2026, 8, 15)), strong: true },
+    ]);
+    expect(models?.slice(3)).toEqual([
+      { kind: "text", text: "Seed germination" },
+      { kind: "text", text: "Rooting" },
     ]);
   });
 

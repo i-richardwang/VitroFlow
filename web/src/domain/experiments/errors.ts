@@ -58,7 +58,7 @@ export class ExperimentObservationImageAlreadyUsedError extends ConflictError {
     const [first] = images;
     super(
       first
-        ? `${first.filename} already represents unit ${first.unit} on day ${first.day}`
+        ? `${first.filename} already represents unit ${first.unit} on ${first.observedOn}`
         : "An image was already used in this experiment",
     );
   }

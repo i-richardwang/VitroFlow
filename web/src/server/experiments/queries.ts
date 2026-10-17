@@ -164,7 +164,7 @@ async function readGrid(
   const [treatments, units, observations, images] = await Promise.all([
     listTreatments(experiment.id, db),
     listUnits(experiment.id, db),
-    listObservations(experiment, db),
+    listObservations(experiment.id, db),
     listObservationImageCells(experiment.id, db),
   ]);
   return {
@@ -202,7 +202,7 @@ async function readUnitSeries(
   const [treatments, units, observations, images] = await Promise.all([
     listTreatments(ref.experiment, db),
     listUnits(ref.experiment, db),
-    listObservations(experiment, db),
+    listObservations(ref.experiment, db),
     listObservationImageCells(ref.experiment, db),
   ]);
   const ordered = unitOrder(units, treatments);
@@ -381,7 +381,7 @@ async function readObservationImage(
   if (!row) return null;
   const experiment = toExperiment(row.experiment);
   const [observation, review] = await Promise.all([
-    listObservations(experiment, db).then((observations) =>
+    listObservations(ref.experiment, db).then((observations) =>
       requireObservation(observations, row.observationImage.observationId),
     ),
     readReview(

@@ -38,8 +38,8 @@ export async function recordCultureEvent(
     type,
   } = value;
   return inTransaction(executor, async (tx) => {
-    const experiment = await lockExperiment(experimentId, tx);
-    const observations = await listObservations(experiment, tx);
+    await lockExperiment(experimentId, tx);
+    const observations = await listObservations(experimentId, tx);
     const observation = observations.find((item) => item.id === observationId);
     if (!observation) {
       throw new ObservationNotFoundError(

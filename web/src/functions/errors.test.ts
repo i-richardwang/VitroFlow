@@ -64,7 +64,12 @@ test("framework redirects and other control values pass through unchanged", asyn
 
 test("business error details survive the wire without serializing exception internals", async () => {
   const images = [
-    { digest: "a".repeat(64), filename: "seed.avif", unit: "A1", day: 2 },
+    {
+      digest: "a".repeat(64),
+      filename: "seed.avif",
+      unit: "A1",
+      observedOn: "2026-08-03",
+    },
   ];
   let caught: unknown;
   try {

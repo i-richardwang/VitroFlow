@@ -1,11 +1,13 @@
 import { m } from "../../paraglide/messages";
+import { formatDay } from "../../ui/Day";
 import type {
   ExperimentObservation,
   CultureEventType,
 } from "../../domain/experiments/schema";
 
+/** An observation is named by the day it was made. */
 export function observationLabel(observation: ExperimentObservation): string {
-  return m.observation_day_label({ day: observation.day });
+  return formatDay(observation.observedOn);
 }
 
 const CULTURE_EVENT_LABELS: Record<CultureEventType, () => string> = {

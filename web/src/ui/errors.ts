@@ -1,6 +1,7 @@
 import { businessFailureSchema, type BusinessFailure } from "../domain/errors";
 import { imageAlreadyUsedDetailsSchema } from "../domain/experiments/errors";
 import { m } from "../paraglide/messages";
+import { formatDay } from "./Day";
 import { formatList } from "./lists";
 
 type Label = (details: BusinessFailure["details"]) => string | null;
@@ -28,7 +29,7 @@ function imageAlreadyUsed(details: BusinessFailure["details"]): string | null {
       m.error_image_already_used_item({
         file: image.filename,
         unit: image.unit,
-        day: image.day,
+        day: formatDay(image.observedOn),
       }),
     ),
   );

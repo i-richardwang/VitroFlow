@@ -43,14 +43,7 @@
   "error_training_artifact": "The training artifact does not match the run requirements.",
   "error_dataset_model": "The images and dataset must use the same model.",
   "error_image_already_used": "Already in this experiment: {images}.",
-  "error_image_already_used_item": [
-    {
-      "declarations": ["input day", "local formattedDay = day: number"],
-      "match": {
-        "day=*": "{file} ({unit}, day {formattedDay})"
-      }
-    }
-  ],
+  "error_image_already_used_item": "{file} ({unit}, {day})",
   "error_experiment_has_records": "This experiment has records that prevent this change.",
   "error_user_rejected": "This change would affect your own access or leave no usable administrator.",
   "error_model_id_taken": "That identifier is already taken.",
