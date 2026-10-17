@@ -18,7 +18,12 @@ import { SidePanel } from "../kit/SidePanel";
 import { Skeleton } from "../kit/Skeleton";
 import { Toolbar } from "../kit/Toolbar";
 import { StepperSkeleton } from "../Stepper";
-import { ShellActions, ShellTrail, useInspectorFold } from "./Shell";
+import {
+  ShellActions,
+  ShellInspectorToggle,
+  ShellTrail,
+  useInspectorFold,
+} from "./Shell";
 
 /** Where floating content over the subject's top edge, and the bar under it, land. */
 const FloatSlots = createContext<{
@@ -115,7 +120,7 @@ export function Workbench({
             ) : null}
           </AppShellFlush>
           {hasInspector ? (
-            <ShellActions>
+            <ShellInspectorToggle>
               <ActionIcon
                 aria-expanded={compact ? drawerOpen : !fold.collapsed}
                 icon={
@@ -129,7 +134,7 @@ export function Workbench({
                     : fold.onCollapsedChange(!fold.collapsed)
                 }
               />
-            </ShellActions>
+            </ShellInspectorToggle>
           ) : null}
         </StatusSlot>
       </InspectorSlot>
@@ -238,14 +243,17 @@ export function WorkbenchEmpty(props: Omit<EmptyProps, "type">) {
 /**
  * The loading shape of a workbench: the subject's frame filled edge to edge,
  * as the subject will fill it, over the steps in the footer's bar. `actions`
- * stand where the page's commands will in the top bar, and the children are
- * the inspector's sections, each the skeleton of the section it stands for.
+ * stand where the page's commands will in the top bar, `subject` stands for
+ * a subject laid out in parts of its own, and the children are the
+ * inspector's sections, each the skeleton of the section it stands for.
  */
 export function WorkbenchSkeleton({
   actions,
+  subject = <Skeleton aria-hidden height="auto" radius={0} />,
   children,
 }: {
   actions?: ReactNode;
+  subject?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -259,7 +267,7 @@ export function WorkbenchSkeleton({
         <output aria-live="polite" className="sr-only">
           {m.ui_page_loading()}
         </output>
-        <Skeleton aria-hidden height="auto" radius={0} />
+        {subject}
       </div>
     </Workbench>
   );

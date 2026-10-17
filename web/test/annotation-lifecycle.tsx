@@ -47,6 +47,7 @@ mock.module("@tanstack/react-router", () => ({
 }));
 mock.module("../src/ui/shell/Shell", () => ({
   ShellActions: Passthrough,
+  ShellInspectorToggle: Passthrough,
   ShellTrail: ({ status }: { status?: ReactNode }) =>
     createElement("div", null, status),
   useInspectorFold: () => ({ collapsed: false, onCollapsedChange: () => {} }),

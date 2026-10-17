@@ -85,8 +85,9 @@ const routerLink = ({
 
 const TopBarSlots = createContext<{
   actions: HTMLElement | null;
+  inspector: HTMLElement | null;
   trail: HTMLElement | null;
-}>({ actions: null, trail: null });
+}>({ actions: null, inspector: null, trail: null });
 
 const InspectorFold = createContext<{
   collapsed: boolean;
@@ -101,6 +102,13 @@ export function useInspectorFold() {
 /** A workbench's commands, at the end of the shell's top bar. */
 export function ShellActions({ children }: { children: ReactNode }) {
   const slot = use(TopBarSlots).actions;
+  if (!slot) return null;
+  return createPortal(children, slot);
+}
+
+/** The command folding a workbench's inspector, after every other command in the top bar. */
+export function ShellInspectorToggle({ children }: { children: ReactNode }) {
+  const slot = use(TopBarSlots).inspector;
   if (!slot) return null;
   return createPortal(children, slot);
 }
@@ -157,10 +165,19 @@ export function Shell({
     matchesNavPath(pathname, item.href),
   );
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
+  const [inspectorSlot, setInspectorSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [trailSlot, setTrailSlot] = useState<HTMLDivElement | null>(null);
 
   return (
-    <TopBarSlots value={{ actions: actionsSlot, trail: trailSlot }}>
+    <TopBarSlots
+      value={{
+        actions: actionsSlot,
+        inspector: inspectorSlot,
+        trail: trailSlot,
+      }}
+    >
       <InspectorFold
         value={{
           collapsed: inspectorCollapsed,
@@ -193,7 +210,10 @@ export function Shell({
           footer={<ColorSchemeMenu size="middle" />}
           breadcrumb={<div ref={setTrailSlot} className="contents" />}
           tools={
-            <div ref={setActionsSlot} className="flex items-center gap-1" />
+            <>
+              <div ref={setActionsSlot} className="contents" />
+              <div ref={setInspectorSlot} className="contents" />
+            </>
           }
         >
           {children}
