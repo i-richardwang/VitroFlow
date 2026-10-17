@@ -49,7 +49,7 @@
   "versions_comparison_reading": "对比中 {read}/{total}",
   "versions_comparison_error": "计数误差 {current} → {candidate}（{count} 张）",
   "versions_comparison_error_alone": "计数误差 {candidate}（{count} 张）",
-  "versions_make_current": "对比与启用…",
+  "versions_compare": "对比与启用…",
   "version_dialog_title": "对比与启用 {version}",
   "version_dialog_confirm": "设为当前版本",
   "version_dialog_effect": "设为当前版本后，使用这个模型的观测日图片会按它重新计数；已审核和 AI 提议的计数不变。随时可以换回其他版本，换回后立即恢复，不需要重跑。",

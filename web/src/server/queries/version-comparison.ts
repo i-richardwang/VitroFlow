@@ -1,11 +1,11 @@
-import { and, asc, eq, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import {
   compareVersions,
   type ComparedImage,
   type ComparedReading,
-  type VersionComparison,
+  type VersionComparisonDetail,
 } from "../../domain/models/comparison";
 import type { Tally } from "../../domain/models/classes";
 import { inSnapshot, type Executor } from "../infra/db/client";
@@ -17,21 +17,26 @@ import {
   modelVersions,
   models,
 } from "../infra/db/schema";
-
-function tallyOf(document: SQL | AnyColumn) {
-  return sql<Tally>`(select coalesce(jsonb_object_agg(instance.class, instance.total), '{}'::jsonb) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
-}
+import { documentTally } from "../readings/public";
 
 function reading(
   status: "succeeded" | "failed" | null,
-  counted: Tally | null,
+  counted: Tally,
 ): ComparedReading {
   if (status === "failed") return "failed";
-  return status === "succeeded" ? (counted ?? {}) : null;
+  return status === "succeeded" ? counted : null;
 }
 
-/** The validation images of every trained version of the model that is not current. */
-async function heldOutImages(modelId: string, db: Executor) {
+/**
+ * The validation images of the model's trained versions that are not
+ * current, or of the one version asked for, with what the reviewer and each
+ * version counted.
+ */
+function heldOutImages(
+  db: Executor,
+  modelId: string,
+  versionId: string | undefined,
+) {
   const candidateOutcome = alias(inferenceOutcomes, "candidate_outcome");
   const currentOutcome = alias(inferenceOutcomes, "current_outcome");
   return db
@@ -42,11 +47,11 @@ async function heldOutImages(modelId: string, db: Executor) {
       digest: datasetSnapshotImages.imageId,
       datasetId: datasetImages.datasetId,
       filename: datasetImages.filename,
-      reviewed: tallyOf(datasetSnapshotImages.annotation),
+      reviewed: documentTally(datasetSnapshotImages.annotation),
       candidateStatus: candidateOutcome.status,
-      candidateTally: sql<Tally | null>`case when ${candidateOutcome.status} = 'succeeded' then ${tallyOf(candidateOutcome.document)} end`,
+      candidateTally: documentTally(candidateOutcome.document),
       currentStatus: currentOutcome.status,
-      currentTally: sql<Tally | null>`case when ${currentOutcome.status} = 'succeeded' then ${tallyOf(currentOutcome.document)} end`,
+      currentTally: documentTally(currentOutcome.document),
     })
     .from(modelVersions)
     .innerJoin(models, eq(models.id, modelVersions.modelId))
@@ -88,32 +93,29 @@ async function heldOutImages(modelId: string, db: Executor) {
     .where(
       and(
         eq(modelVersions.modelId, modelId),
+        versionId === undefined ? undefined : eq(modelVersions.id, versionId),
         sql`${models.currentVersionId} is distinct from ${modelVersions.id}`,
       ),
     )
     .orderBy(asc(modelVersions.id), asc(datasetSnapshotImages.imageId));
 }
 
-export interface VersionComparisonDetail extends VersionComparison {
-  images: ComparedImage[];
-}
-
 /**
- * Every candidate of the model compared with its current version on the
- * reviewed images the candidate was held out from. The current version, and
- * a version that trained on nothing held out, have no comparison.
+ * Each candidate of the model compared with its current version on the
+ * reviewed images the candidate was held out from, or only the version
+ * asked for. The current version, and a version that held nothing out,
+ * have no comparison.
  */
-export async function versionComparisons(
+export function versionComparisons(
   modelId: string,
-  executor?: Executor,
+  { version, executor }: { version?: string; executor?: Executor } = {},
 ): Promise<Map<string, VersionComparisonDetail>> {
   return inSnapshot(executor, async (db) => {
-    const rows = await heldOutImages(modelId, db);
     const byVersion = new Map<
       string,
       { classes: string[]; current: string | null; images: ComparedImage[] }
     >();
-    for (const row of rows) {
+    for (const row of await heldOutImages(db, modelId, version)) {
       const entry = byVersion.get(row.versionId) ?? {
         classes: row.classes,
         current: row.currentVersionId,
@@ -127,20 +129,14 @@ export async function versionComparisons(
             : null,
         reviewed: row.reviewed,
         candidate: reading(row.candidateStatus, row.candidateTally),
-        current:
-          row.currentVersionId === null
-            ? null
-            : reading(row.currentStatus, row.currentTally),
+        current: reading(row.currentStatus, row.currentTally),
       });
       byVersion.set(row.versionId, entry);
     }
     return new Map(
       [...byVersion].map(([versionId, entry]) => [
         versionId,
-        {
-          ...compareVersions(entry.classes, entry.current, entry.images),
-          images: entry.images,
-        },
+        compareVersions(entry.classes, entry.current, entry.images),
       ]),
     );
   });
@@ -151,5 +147,9 @@ export async function versionComparison(
   modelId: string,
   versionId: string,
 ): Promise<VersionComparisonDetail | null> {
-  return (await versionComparisons(modelId)).get(versionId) ?? null;
+  return (
+    (await versionComparisons(modelId, { version: versionId })).get(
+      versionId,
+    ) ?? null
+  );
 }

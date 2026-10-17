@@ -1,17 +1,19 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
-import type {
-  ComparedReading,
-  CountAccuracy,
-  VersionComparison,
+import {
+  countError,
+  isCounted,
+  type ComparedImage,
+  type ComparedReading,
+  type CountAccuracy,
+  type VersionComparisonDetail,
 } from "../../domain/models/comparison";
-import { countError, type ComparedImage } from "../../domain/models/comparison";
 import { classCount, type Tally } from "../../domain/models/classes";
 import type { Model, ModelVersion } from "../../domain/models/schema";
 import { chooseCurrentVersion } from "../../functions/models";
 import { m } from "../../paraglide/messages";
-import { FormDialog } from "../../ui/FormDialog";
+import { DialogSession, FormDialog } from "../../ui/FormDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Flexbox } from "../../ui/kit/Flex";
 import {
@@ -31,27 +33,60 @@ import { formatError } from "./comparison";
 
 const FORM_ID = "make-version-current";
 
-export interface VersionComparisonView extends VersionComparison {
-  images: ComparedImage[];
-}
-
 /**
  * Where a person decides whether a version should read the model's images:
  * how it counts the reviewed images it never trained on beside the current
- * version, image by image, and what choosing it changes.
+ * version, image by image, and what choosing it changes. It is open while
+ * `version` names one, and keeps showing that version while it closes.
  */
 export function VersionDialog({
   model,
   version,
   comparison,
-  open,
   onClose,
 }: {
   model: Model;
+  version: ModelVersion | null;
+  comparison: VersionComparisonDetail | null;
+  onClose: () => void;
+}) {
+  const open = version !== null;
+  const [shown, setShown] = useState({ version, comparison });
+  if (open && (shown.version !== version || shown.comparison !== comparison)) {
+    setShown({ version, comparison });
+  }
+  return (
+    <DialogSession open={open}>
+      {(afterClose) =>
+        shown.version ? (
+          <VersionSession
+            model={model}
+            version={shown.version}
+            comparison={shown.comparison}
+            open={open}
+            onClose={onClose}
+            afterClose={afterClose}
+          />
+        ) : null
+      }
+    </DialogSession>
+  );
+}
+
+function VersionSession({
+  model,
+  version,
+  comparison,
+  open,
+  onClose,
+  afterClose,
+}: {
+  model: Model;
   version: ModelVersion;
-  comparison: VersionComparisonView | null;
+  comparison: VersionComparisonDetail | null;
   open: boolean;
   onClose: () => void;
+  afterClose: () => void;
 }) {
   const router = useRouter();
   const { busy, run } = useAsyncAction();
@@ -80,6 +115,7 @@ export function VersionDialog({
       formId={FORM_ID}
       busy={busy}
       width="wide"
+      afterClose={afterClose}
     >
       <form
         id={FORM_ID}
@@ -89,7 +125,7 @@ export function VersionDialog({
         }}
       >
         <Flexbox gap={16}>
-          {comparison && comparison.heldOut > 0 ? (
+          {comparison ? (
             <Comparison model={model} comparison={comparison} />
           ) : (
             <Text type="secondary">{m.version_dialog_no_comparison()}</Text>
@@ -106,7 +142,7 @@ function Comparison({
   comparison,
 }: {
   model: Model;
-  comparison: VersionComparisonView;
+  comparison: VersionComparisonDetail;
 }) {
   const { heldOut, candidate, current, accuracy, currentVersionId } =
     comparison;
@@ -146,9 +182,12 @@ function Comparison({
         <AccuracyTable
           classes={model.classes}
           scored={comparison.scored}
-          currentVersionId={currentVersionId}
           candidate={accuracy.candidate}
-          current={accuracy.current}
+          current={
+            currentVersionId && accuracy.current
+              ? { versionId: currentVersionId, accuracy: accuracy.current }
+              : null
+          }
         />
       ) : (
         <Text type="tertiary">{m.version_dialog_waiting()}</Text>
@@ -166,15 +205,13 @@ function Comparison({
 function AccuracyTable({
   classes,
   scored,
-  currentVersionId,
   candidate,
   current,
 }: {
   classes: readonly string[];
   scored: number;
-  currentVersionId: string | null;
   candidate: CountAccuracy;
-  current: CountAccuracy | null;
+  current: { versionId: string; accuracy: CountAccuracy } | null;
 }) {
   const rows = [
     ...classes.map((name) => ({
@@ -199,9 +236,9 @@ function AccuracyTable({
       <TableHeader>
         <tr>
           <TableHead>{m.version_dialog_metric()}</TableHead>
-          {current && currentVersionId ? (
+          {current ? (
             <TableHead numeric>
-              {m.version_dialog_column_current({ version: currentVersionId })}
+              {m.version_dialog_column_current({ version: current.versionId })}
             </TableHead>
           ) : null}
           <TableHead numeric>{m.version_dialog_column_candidate()}</TableHead>
@@ -215,9 +252,13 @@ function AccuracyTable({
               <TableCell numeric>
                 <Text
                   as="span"
-                  weight={row.better(current, candidate) ? "medium" : undefined}
+                  weight={
+                    row.better(current.accuracy, candidate)
+                      ? "medium"
+                      : undefined
+                  }
                 >
-                  {row.value(current)}
+                  {row.value(current.accuracy)}
                 </Text>
               </TableCell>
             ) : null}
@@ -225,7 +266,7 @@ function AccuracyTable({
               <Text
                 as="span"
                 weight={
-                  current && row.better(candidate, current)
+                  current && row.better(candidate, current.accuracy)
                     ? "medium"
                     : undefined
                 }
@@ -245,9 +286,7 @@ function errorOf(
   image: ComparedImage,
   reading: ComparedReading,
 ): number {
-  return reading === null || reading === "failed"
-    ? -1
-    : countError(classes, image.reviewed, reading);
+  return isCounted(reading) ? countError(classes, image.reviewed, reading) : -1;
 }
 
 /** The held-out images, the ones either version miscounts most first. */

@@ -7,3 +7,4 @@ export {
   activeRuns,
   atActiveRun,
 } from "./images";
+export { documentTally } from "./tally";

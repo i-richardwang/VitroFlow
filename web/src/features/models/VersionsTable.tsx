@@ -49,10 +49,10 @@ export function VersionsTable({
           <TableHead className="w-28" numeric>
             {m.versions_column_trained_on()}
           </TableHead>
-          <TableHead className="w-24" numeric>
+          <TableHead className="w-28" numeric>
             {m.epoch_series_map50()}
           </TableHead>
-          <TableHead className="w-24" numeric>
+          <TableHead className="w-28" numeric>
             {m.epoch_series_map50_95()}
           </TableHead>
           <TableHead>{m.versions_column_comparison()}</TableHead>
@@ -129,7 +129,7 @@ function ComparisonSummary({
 }: {
   comparison: VersionComparison | null;
 }) {
-  if (!comparison || comparison.heldOut === 0) return m.versions_choose();
+  if (!comparison) return m.versions_choose();
   const { accuracy } = comparison;
   if (!accuracy) {
     return m.versions_comparison_reading({

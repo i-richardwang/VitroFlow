@@ -49,7 +49,7 @@
   "versions_comparison_reading": "Comparing {read}/{total}",
   "versions_comparison_error": "Count error {current} → {candidate} ({count} images)",
   "versions_comparison_error_alone": "Count error {candidate} ({count} images)",
-  "versions_make_current": "Compare and choose…",
+  "versions_compare": "Compare and choose…",
   "version_dialog_title": "Compare and choose {version}",
   "version_dialog_confirm": "Make current",
   "version_dialog_effect": "Once current, the observation images of this model are counted again by it; reviewed and AI-proposed counts stay as they are. Any other version can be chosen back at any time, and its counts return at once without reading again.",

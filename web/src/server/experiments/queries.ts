@@ -1,13 +1,4 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  sql,
-  type AnyColumn,
-  type SQL,
-} from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { inSnapshot, snapshot, type Executor } from "../infra/db/client";
 import {
@@ -41,7 +32,6 @@ import type {
   ObservationImageRef,
   UnitRef,
 } from "../../domain/experiments/schema";
-import type { Tally } from "../../domain/models/classes";
 import {
   listObservations,
   listTreatments,
@@ -51,21 +41,22 @@ import {
   toExperiment,
 } from "./records";
 import { toModel } from "../models/public";
-import { readReview, proposalRunId, proposalRuns } from "../readings/public";
+import {
+  documentTally,
+  readReview,
+  proposalRunId,
+  proposalRuns,
+} from "../readings/public";
 import { currentVersion } from "../inference/public";
-
-function tallyOf(document: SQL | AnyColumn) {
-  return sql<Tally | null>`(select jsonb_object_agg(instance.class, instance.total) from (select item->>'class' as class, count(*) as total from jsonb_array_elements(${document}->'instances') as item group by 1) as instance)`;
-}
 
 function observationImageGridQuery(db: Executor) {
   return db
     .select({
       observationImage: experimentObservationImages,
       outcomeStatus: inferenceOutcomes.status,
-      detectionTally: tallyOf(inferenceOutcomes.document),
-      proposalTally: tallyOf(sql`${proposalRuns.result}->'document'`),
-      annotationTally: tallyOf(annotations.document),
+      detectionTally: documentTally(inferenceOutcomes.document),
+      proposalTally: documentTally(sql`${proposalRuns.result}->'document'`),
+      annotationTally: documentTally(annotations.document),
       proposed: sql<boolean>`${proposalRuns.id} is not null`,
       reviewed: sql<boolean>`${annotations.imageId} is not null`,
       reader: modelVersions.id,
@@ -140,9 +131,9 @@ function toCell(row: ObservationImageGridRow): ObservationImageCell {
     filename: row.observationImage.filename,
     state,
     detectionTally:
-      row.outcomeStatus === "succeeded" ? (row.detectionTally ?? {}) : null,
-    proposalTally: row.proposed ? (row.proposalTally ?? {}) : null,
-    annotationTally: row.reviewed ? (row.annotationTally ?? {}) : null,
+      row.outcomeStatus === "succeeded" ? row.detectionTally : null,
+    proposalTally: row.proposed ? row.proposalTally : null,
+    annotationTally: row.reviewed ? row.annotationTally : null,
     error: row.error,
   };
 }

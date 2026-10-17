@@ -167,18 +167,14 @@ function ModelPage() {
         />
       </PageSection>
 
-      {compared ? (
-        <VersionDialog
-          key={compared.version.id}
-          model={model}
-          version={compared.version}
-          comparison={comparison}
-          open
-          onClose={() =>
-            void navigate({ search: {}, replace: true, resetScroll: false })
-          }
-        />
-      ) : null}
+      <VersionDialog
+        model={model}
+        version={compared?.version ?? null}
+        comparison={comparison}
+        onClose={() =>
+          void navigate({ search: {}, replace: true, resetScroll: false })
+        }
+      />
 
       <ImportDatasetDialog
         open={importing}

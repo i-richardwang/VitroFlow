@@ -2,7 +2,7 @@ import { classCount, type Tally } from "./classes";
 
 /**
  * What one version read for a held-out image: its tally, `failed` when the
- * version could not read it, or null while it has not yet.
+ * version could not read it, or null while it has not.
  */
 export type ComparedReading = Tally | "failed" | null;
 
@@ -16,7 +16,7 @@ export interface ComparedImage {
   dataset: { id: string; filename: string } | null;
   reviewed: Tally;
   candidate: ComparedReading;
-  /** Null when the model has no current version. */
+  /** Always null when the model has no current version. */
   current: ComparedReading;
 }
 
@@ -51,16 +51,17 @@ export interface VersionComparison {
   } | null;
 }
 
-function progress(readings: ComparedReading[]): ReadProgress {
-  return {
-    read: readings.filter((reading) => reading !== null && reading !== "failed")
-      .length,
-    failed: readings.filter((reading) => reading === "failed").length,
-  };
+/** The comparison together with the images it was made on. */
+export interface VersionComparisonDetail extends VersionComparison {
+  images: ComparedImage[];
 }
 
-function isTally(reading: ComparedReading): reading is Tally {
+export function isCounted(reading: ComparedReading): reading is Tally {
   return reading !== null && reading !== "failed";
+}
+
+function classError(reviewed: Tally, reading: Tally, name: string): number {
+  return Math.abs(classCount(reading, name) - classCount(reviewed, name));
 }
 
 /** How far a reading is from the reviewer's count, summed over the classes. */
@@ -70,27 +71,33 @@ export function countError(
   reading: Tally,
 ): number {
   return classes.reduce(
-    (sum, name) =>
-      sum + Math.abs(classCount(reading, name) - classCount(reviewed, name)),
+    (sum, name) => sum + classError(reviewed, reading, name),
     0,
   );
+}
+
+function progress(readings: ComparedReading[]): ReadProgress {
+  return {
+    read: readings.filter(isCounted).length,
+    failed: readings.filter((reading) => reading === "failed").length,
+  };
 }
 
 function accuracy(
   classes: readonly string[],
   pairs: { reviewed: Tally; reading: Tally }[],
 ): CountAccuracy {
-  const meanError: Record<string, number> = {};
-  for (const name of classes) {
-    const total = pairs.reduce(
-      (sum, { reviewed, reading }) =>
-        sum + Math.abs(classCount(reading, name) - classCount(reviewed, name)),
-      0,
-    );
-    meanError[name] = total / pairs.length;
-  }
   return {
-    meanError,
+    meanError: Object.fromEntries(
+      classes.map((name) => [
+        name,
+        pairs.reduce(
+          (sum, { reviewed, reading }) =>
+            sum + classError(reviewed, reading, name),
+          0,
+        ) / pairs.length,
+      ]),
+    ),
     exact: pairs.filter(
       ({ reviewed, reading }) => countError(classes, reviewed, reading) === 0,
     ).length,
@@ -100,12 +107,12 @@ function accuracy(
 export function compareVersions(
   classes: readonly string[],
   currentVersionId: string | null,
-  images: readonly ComparedImage[],
-): VersionComparison {
-  const scored = images.filter(
-    (image) =>
-      isTally(image.candidate) &&
-      (currentVersionId === null || isTally(image.current)),
+  images: ComparedImage[],
+): VersionComparisonDetail {
+  const scored = images.flatMap(({ reviewed, candidate, current }) =>
+    isCounted(candidate) && (currentVersionId === null || isCounted(current))
+      ? [{ reviewed, candidate, current: isCounted(current) ? current : null }]
+      : [],
   );
   return {
     currentVersionId,
@@ -122,9 +129,9 @@ export function compareVersions(
         : {
             candidate: accuracy(
               classes,
-              scored.map((image) => ({
-                reviewed: image.reviewed,
-                reading: image.candidate as Tally,
+              scored.map(({ reviewed, candidate }) => ({
+                reviewed,
+                reading: candidate,
               })),
             ),
             current:
@@ -132,11 +139,11 @@ export function compareVersions(
                 ? null
                 : accuracy(
                     classes,
-                    scored.map((image) => ({
-                      reviewed: image.reviewed,
-                      reading: image.current as Tally,
-                    })),
+                    scored.flatMap(({ reviewed, current }) =>
+                      current ? [{ reviewed, reading: current }] : [],
+                    ),
                   ),
           },
+    images,
   };
 }

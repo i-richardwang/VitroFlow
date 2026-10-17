@@ -11,11 +11,11 @@ import {
   snapshotImageCounts,
 } from "../training/public";
 import { modelCatalogue } from "./model-catalogue";
-import {
-  versionComparisons,
-  type VersionComparisonDetail,
-} from "./version-comparison";
-import type { VersionComparison } from "../../domain/models/comparison";
+import { versionComparisons } from "./version-comparison";
+import type {
+  VersionComparison,
+  VersionComparisonDetail,
+} from "../../domain/models/comparison";
 
 /** A model with what has been built for it. */
 interface ModelOverview extends ModelCatalogueEntry {

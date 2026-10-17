@@ -114,7 +114,7 @@ function TrainingRunPage() {
               />
             }
           >
-            {m.versions_make_current()}
+            {m.versions_compare()}
           </Button>
         ) : undefined
       }
