@@ -2,14 +2,6 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "training_run_page_title": "{run} of {dataset}",
   "training_kpi_epochs": "Epochs",
-  "training_kpi_epochs_earlier_hidden": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} from earlier attempts hidden"
-      }
-    }
-  ],
   "training_kpi_best_map": "Best mAP50-95",
   "training_kpi_published": "Published {version}",
   "training_kpi_best_epoch": [

@@ -2,14 +2,6 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "training_run_page_title": "{dataset} 的训练 {run}",
   "training_kpi_epochs": "轮次",
-  "training_kpi_epochs_earlier_hidden": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "已隐藏此前尝试的 {formattedCount} 轮"
-      }
-    }
-  ],
   "training_kpi_best_map": "最佳 mAP50-95",
   "training_kpi_published": "已发布 {version}",
   "training_kpi_best_epoch": [

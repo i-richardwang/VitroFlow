@@ -102,7 +102,6 @@ function toRun(row: Row): TrainingRun {
 
 function toEpoch(row: EpochRow): TrainingEpoch {
   return trainingEpochSchema.parse({
-    attempt: row.attempt,
     epoch: row.epoch,
     recordedAt: row.recordedAt.toISOString(),
     train: {
@@ -601,16 +600,28 @@ export async function recordTrainingEpoch(
   });
 }
 
+/**
+ * The run's curve: the epochs of its current attempt. An attempt that resumes
+ * reports again the epochs it carries forward; an abandoned attempt's are not
+ * the run's.
+ */
 export async function listTrainingEpochs(
   runId: string,
 ): Promise<TrainingEpoch[]> {
   const db = await database();
   const rows = await db
-    .select()
+    .select({ epoch: trainingEpochs })
     .from(trainingEpochs)
+    .innerJoin(
+      trainingRuns,
+      and(
+        eq(trainingRuns.id, trainingEpochs.runId),
+        eq(trainingRuns.attempt, trainingEpochs.attempt),
+      ),
+    )
     .where(eq(trainingEpochs.runId, runId))
-    .orderBy(asc(trainingEpochs.attempt), asc(trainingEpochs.epoch));
-  return rows.map(toEpoch);
+    .orderBy(asc(trainingEpochs.epoch));
+  return rows.map(({ epoch }) => toEpoch(epoch));
 }
 
 export async function failTrainingRun(

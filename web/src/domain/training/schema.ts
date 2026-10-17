@@ -126,7 +126,6 @@ export const trainingEpochReportSchema = z.strictObject({
 });
 
 export const trainingEpochSchema = trainingEpochReportSchema.extend({
-  attempt: z.number().int().positive(),
   recordedAt: z.string().datetime({ offset: true }),
 });
 

@@ -5,7 +5,6 @@ import { bestEpoch } from "./metrics";
 
 function epoch(epoch: number, fitness: number): TrainingEpoch {
   return {
-    attempt: 1,
     epoch,
     recordedAt: "2026-08-28T00:00:00.000Z",
     train: { box: 1, classification: 1, regression: 1 },

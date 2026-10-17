@@ -92,9 +92,7 @@ function TrainingRunPage() {
 
   useRouteRefresh(10_000, live);
 
-  const current = epochs.filter((epoch) => epoch.attempt === run.attempt);
-  const earlier = epochs.length - current.length;
-  const best = bestEpoch(current);
+  const best = bestEpoch(epochs);
   const total = run.recipe.parameters.epochs;
   const published =
     version && version.artifact.kind === "ultralytics" ? version : null;
@@ -122,14 +120,9 @@ function TrainingRunPage() {
         aside={
           <ProgressMeter
             label={m.training_kpi_epochs()}
-            count={m.run_epochs_progress({ completed: current.length, total })}
-            value={current.length}
+            count={m.run_epochs_progress({ completed: epochs.length, total })}
+            value={epochs.length}
             max={total}
-            note={
-              earlier > 0
-                ? m.training_kpi_epochs_earlier_hidden({ count: earlier })
-                : undefined
-            }
           />
         }
       />
@@ -140,14 +133,14 @@ function TrainingRunPage() {
             type="error"
             title={m.training_failed_title()}
             description={
-              current.length === 0 ? m.training_no_epochs_finished() : undefined
+              epochs.length === 0 ? m.training_no_epochs_finished() : undefined
             }
             detail={run.state.error}
           />
         ) : null}
-        {current.length > 0 ? (
+        {epochs.length > 0 ? (
           <Card>
-            <EpochCharts epochs={current} total={total} best={best} />
+            <EpochCharts epochs={epochs} total={total} best={best} />
           </Card>
         ) : run.state.status === "failed" ? null : (
           <EmptyPlace variant="outlined">

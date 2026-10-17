@@ -339,7 +339,7 @@ test("model weights remain rooted by their active attempt", async () => {
   expect(await blobExists(key)).toBeFalse();
 });
 
-test("epochs carry the run's progress and survive a reclaimed attempt", async () => {
+test("epochs carry the run's progress and a reclaimed attempt draws its own curve", async () => {
   const dataset = await reviewedDataset("epoch-history");
   const run = await createTrainingRun(dataset.id, recipe);
   await trainer("epoch-trainer");
@@ -424,12 +424,8 @@ test("epochs carry the run's progress and survive a reclaimed attempt", async ()
   );
 
   const history = await listTrainingEpochs(run.id);
-  expect(
-    history.map(({ attempt, epoch, fitness }) => [attempt, epoch, fitness]),
-  ).toEqual([
-    [1, 1, 0.12],
-    [1, 2, 0.5],
-    [2, 1, 0.12],
+  expect(history.map(({ epoch, fitness }) => [epoch, fitness])).toEqual([
+    [1, 0.12],
   ]);
   expect(history[0]).toMatchObject({
     train: { box: 1.5, classification: 2, regression: 1 },
