@@ -29,6 +29,7 @@ def test_launch_agent_runs_the_profile_in_foreground(tmp_path, monkeypatch) -> N
     ]
     assert document["RunAtLoad"] is True
     assert document["KeepAlive"] == {"SuccessfulExit": False}
+    assert document["ExitTimeOut"] == 60
     assert document["EnvironmentVariables"] == {"VITROFLOW_HOME": str(tmp_path)}
     assert document["StandardOutPath"] == "/dev/null"
 
@@ -49,12 +50,18 @@ def test_start_kickstarts_an_already_loaded_service(monkeypatch) -> None:
     assert calls == [("kickstart", "gui/501/com.vitroflow.worker.trainer")]
 
 
-def test_restart_replaces_the_loaded_process_atomically(monkeypatch) -> None:
+def test_restart_waits_for_the_worker_to_stop_then_loads_its_definition(
+    monkeypatch,
+) -> None:
     calls: list[tuple[str, ...]] = []
+    loaded = iter([True, True, True, False, False])
+    monkeypatch.setattr(worker_launchd, "require_launchd", lambda: None)
+    monkeypatch.setattr(worker_launchd, "load_profile", lambda _name: None)
     monkeypatch.setattr(
         worker_launchd, "install_launch_agent", lambda _name: Path("/tmp/worker.plist")
     )
-    monkeypatch.setattr(worker_launchd, "service_loaded", lambda _name: True)
+    monkeypatch.setattr(worker_launchd, "service_loaded", lambda _name: next(loaded))
+    monkeypatch.setattr(worker_launchd.time, "sleep", lambda _seconds: None)
     monkeypatch.setattr(worker_launchd.os, "getuid", lambda: 501)
     monkeypatch.setattr(
         worker_launchd, "_launchctl", lambda *arguments: calls.append(arguments)
@@ -63,12 +70,15 @@ def test_restart_replaces_the_loaded_process_atomically(monkeypatch) -> None:
     worker_launchd.restart_service("trainer")
 
     assert calls == [
-        ("kickstart", "-k", "gui/501/com.vitroflow.worker.trainer"),
+        ("bootout", "gui/501/com.vitroflow.worker.trainer"),
+        ("bootstrap", "gui/501", "/tmp/worker.plist"),
     ]
 
 
 def test_restart_bootstraps_an_unloaded_service(monkeypatch) -> None:
     calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(worker_launchd, "require_launchd", lambda: None)
+    monkeypatch.setattr(worker_launchd, "load_profile", lambda _name: None)
     monkeypatch.setattr(
         worker_launchd, "install_launch_agent", lambda _name: Path("/tmp/worker.plist")
     )

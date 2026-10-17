@@ -2,6 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, ClassVar
 
 import pytest
 
@@ -161,17 +162,14 @@ def _dataset(tmp_path: Path) -> Path:
 def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None:
     class FakeYolo:
         def __init__(self, _source: str) -> None:
-            self.callback = None
+            self.callbacks: dict[str, object] = {}
 
         def add_callback(self, event: str, callback) -> None:
-            assert event == "on_train_batch_end"
-            self.callback = callback
+            self.callbacks[event] = callback
 
         def train(self, **_options: object) -> None:
-            trainer = SimpleNamespace(stop=False)
-            assert self.callback is not None
-            self.callback(trainer)
-            assert trainer.stop is True
+            self.callbacks["on_train_batch_end"](SimpleNamespace())
+            pytest.fail("training must stop at the cancelled batch boundary")
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
     monkeypatch.setattr(training, "version", lambda _: "8.4.131")
@@ -187,6 +185,125 @@ def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None
             runtime_version="8.4.131",
             cancelled=lambda: True,
         )
+
+
+def _checkpointing_yolo(monkeypatch: pytest.MonkeyPatch):
+    """A trainer that checkpoints like Ultralytics: every epoch, stripped at the end."""
+
+    class FakeYolo:
+        checkpoints: ClassVar[dict[Path, dict[str, object]]] = {}
+        instances: ClassVar[list[Any]] = []
+        interrupt_after = 0
+
+        def __init__(self, source: str) -> None:
+            self.source = Path(source)
+            self.callbacks: dict[str, object] = {}
+            self.train_options: dict[str, object] = {}
+            self.trainer = None
+            FakeYolo.instances.append(self)
+
+        def add_callback(self, event: str, callback) -> None:
+            self.callbacks[event] = callback
+
+        def train(self, **options: object) -> None:
+            self.train_options = options
+            if options.get("resume"):
+                save_dir = self.source.parent.parent
+                first = int(FakeYolo.checkpoints[self.source]["epoch"]) + 1
+            else:
+                save_dir = Path(str(options["project"])) / str(options["name"])
+                first = 0
+            weights = save_dir / "weights"
+            weights.mkdir(parents=True, exist_ok=True)
+            last = weights / "last.pt"
+            for epoch in range(first, PARAMETERS["epochs"]):
+                last.write_bytes(b"checkpoint")
+                (weights / "best.pt").write_bytes(b"weights")
+                FakeYolo.checkpoints[last] = {"epoch": epoch, "optimizer": {}}
+                self.callbacks["on_model_save"](_trainer_after_epoch(epoch + 1))
+                if epoch + 1 == FakeYolo.interrupt_after:
+                    raise YoloTrainingInterruptedError("training interrupted")
+            FakeYolo.checkpoints[last] = {"epoch": -1, "optimizer": None}
+            self.trainer = SimpleNamespace(
+                save_dir=save_dir,
+                best=weights / "best.pt",
+                args=SimpleNamespace(imgsz=768, max_det=500, device="mps"),
+            )
+
+        def val(self, **_options: object) -> _Metrics:
+            return _Metrics()
+
+    monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
+    monkeypatch.setattr(training, "_load_checkpoint", FakeYolo.checkpoints.__getitem__)
+    monkeypatch.setattr(training, "version", lambda _: "8.4.131")
+    return FakeYolo
+
+
+def test_interrupted_training_resumes_after_its_last_completed_epoch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    yolo = _checkpointing_yolo(monkeypatch)
+    model, digest = _base_model(tmp_path)
+    dataset = _dataset(tmp_path)
+    output = tmp_path / "run"
+
+    def train(reported: list[int]):
+        return train_yolo_detector(
+            dataset,
+            output,
+            parameters=PARAMETERS,
+            model=model,
+            model_digest=digest,
+            runtime_version="8.4.131",
+            device="mps",
+            on_epoch=lambda report: reported.append(report.epoch),
+        )
+
+    first: list[int] = []
+    yolo.interrupt_after = 2
+    with pytest.raises(YoloTrainingInterruptedError):
+        train(first)
+    resumed: list[int] = []
+    yolo.interrupt_after = 0
+    result = train(resumed)
+
+    assert first == [1, 2]
+    assert resumed == [1, 2, 3]
+    assert yolo.instances[1].source == output / "weights" / "last.pt"
+    assert yolo.instances[1].train_options == {
+        "resume": True,
+        "data": str(dataset),
+        "device": "mps",
+    }
+    assert result.best_weights == output / "weights" / "best.pt"
+
+
+def test_finished_training_left_behind_starts_over(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    yolo = _checkpointing_yolo(monkeypatch)
+    model, digest = _base_model(tmp_path)
+    output = tmp_path / "run"
+    options = {
+        "parameters": PARAMETERS,
+        "model": model,
+        "model_digest": digest,
+        "runtime_version": "8.4.131",
+    }
+    train_yolo_detector(_dataset(tmp_path), output, **options)
+    (output / "stale").write_text("left by the finished training")
+    reported: list[int] = []
+
+    train_yolo_detector(
+        _dataset(tmp_path),
+        output,
+        on_epoch=lambda report: reported.append(report.epoch),
+        **options,
+    )
+
+    assert reported == [1, 2, 3]
+    assert "resume" not in yolo.instances[1].train_options
+    assert not (output / "stale").exists()
 
 
 def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None:

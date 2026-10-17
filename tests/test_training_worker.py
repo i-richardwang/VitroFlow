@@ -207,6 +207,52 @@ def test_training_client_uses_its_own_control_plane_contract(tmp_path: Path) -> 
     )
 
 
+def test_materialization_resumes_from_what_an_interrupted_one_left(
+    tmp_path: Path,
+) -> None:
+    images = {}
+    for variant in range(3):
+        pixels = encoded_image(variant=variant)
+        images[write_blob(tmp_path / "unused", pixels)] = pixels
+    kept, torn, missing = images
+    snapshot = parse_training_snapshot(
+        _snapshot(
+            [
+                _snapshot_image(kept, "train", []),
+                _snapshot_image(torn, "train", []),
+                _snapshot_image(missing, "val", []),
+            ]
+        )
+    )
+    downloads = tmp_path / "snapshot-images"
+    downloads.mkdir()
+    (downloads / f"{kept}{CANONICAL_EXTENSION}").write_bytes(images[kept])
+    (downloads / f"{torn}{CANONICAL_EXTENSION}").write_bytes(images[torn][:10])
+    requested: list[str] = []
+
+    class Client:
+        def fetch_snapshot(self, _run_id: str):
+            requested.append("snapshot")
+            return snapshot
+
+        def download_image(self, _run_id: str, digest: str) -> bytes:
+            requested.append(digest)
+            return images[digest]
+
+    job = TrainingJob.parse(_run())
+    dataset = materialize_snapshot(Client(), job, tmp_path / "dataset")  # type: ignore[arg-type]
+    first = list(requested)
+    again = materialize_snapshot(Client(), job, tmp_path / "dataset")  # type: ignore[arg-type]
+
+    assert first == ["snapshot", torn, missing]
+    assert requested == first
+    assert again == dataset
+    assert (
+        tmp_path / f"dataset/images/train/{torn}{CANONICAL_EXTENSION}"
+    ).read_bytes() == images[torn]
+    assert not downloads.exists()
+
+
 def test_snapshot_parser_validates_every_image_entry() -> None:
     snapshot = parse_training_snapshot(
         _snapshot(
@@ -460,6 +506,45 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     assert [entry["epoch"] for _, entry in posted if "epoch" in entry] == [1, 2]
     assert [entry["lease"] for _, entry in posted if "lease" in entry] == ["renewed"]
     assert artifacts == [("train-one", b"weights", {"schemaVersion": 1})]
+    assert not (tmp_path / "training-runs" / "train-one").exists()
+
+
+def test_interrupted_training_job_keeps_its_directory_for_the_next_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outputs: list[Path] = []
+
+    class Client:
+        worker = SimpleNamespace(heartbeat=lambda: None)
+
+        def enter_phase(self, _run_id: str, _phase: str) -> None:
+            return None
+
+        def renew_lease(self, _run_id: str) -> None:
+            return None
+
+        def report_failure(self, run_id: str, error: str) -> None:
+            pytest.fail(f"an interruption is not a failure: {error}")
+
+    def materialize(_client, _job, output: Path, *, cancelled=None) -> Path:
+        output.mkdir(parents=True, exist_ok=True)
+        return output / "dataset.yaml"
+
+    def interrupted(_dataset, output_dir, **_options):
+        outputs.append(Path(output_dir))
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        raise YoloTrainingInterruptedError("training interrupted")
+
+    monkeypatch.setattr(training_worker, "materialize_snapshot", materialize)
+    monkeypatch.setattr(training_worker, "train_yolo_detector", interrupted)
+    job = TrainingJob.parse(_run())
+
+    for _ in range(2):
+        with pytest.raises(YoloTrainingInterruptedError):
+            training_worker.process_training_job(Client(), job, tmp_path, "mps")  # type: ignore[arg-type]
+
+    assert outputs[0] == outputs[1] == tmp_path / "training-runs/train-one/run"
+    assert outputs[0].is_dir()
 
 
 def test_training_job_reports_an_unexpected_adapter_failure(
@@ -491,3 +576,4 @@ def test_training_job_reports_an_unexpected_adapter_failure(
         )
 
     assert failures == [("train-broken", "'unexpected Ultralytics field'")]
+    assert not (tmp_path / "training-runs" / "train-broken").exists()

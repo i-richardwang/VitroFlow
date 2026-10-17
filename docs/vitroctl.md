@@ -35,6 +35,8 @@ vitroctl worker stop mac-studio
 
 `launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Workers page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
 
+`stop` and `restart` return once the Worker has exited; `restart` then loads the current LaunchAgent definition. A stopping Worker interrupts training at the next batch. The run keeps its directory under the profile's `work/training-runs/`, and when the same machine claims the run again, training resumes after the last completed epoch instead of starting over. A run that finishes or fails removes its directory; one untouched for a week is pruned.
+
 `vitroctl worker run <profile>` runs a Worker in the foreground without `launchd`.
 
 ## Datasets

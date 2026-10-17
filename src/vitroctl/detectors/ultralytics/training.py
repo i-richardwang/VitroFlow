@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
@@ -13,6 +14,8 @@ import numpy as np
 from vitroctl.detectors.ultralytics.runtime import load_yolo
 from vitroctl.io.files import write_text_atomically
 from vitroctl.training.parameters import parse_training_parameters
+
+EPOCH_JOURNAL = "epochs.jsonl"
 
 
 class BoxValidationMetrics(Protocol):
@@ -72,6 +75,20 @@ class EpochReport:
             "fitness": self.fitness,
             "learningRate": self.learning_rate,
         }
+
+    @classmethod
+    def from_json(cls, document: Mapping[str, Any]) -> EpochReport:
+        return cls(
+            epoch=int(document["epoch"]),
+            train=DetectionLosses(**document["train"]),
+            val=DetectionLosses(**document["val"]),
+            precision=float(document["precision"]),
+            recall=float(document["recall"]),
+            map50=float(document["map50"]),
+            map50_to_95=float(document["map50To95"]),
+            fitness=float(document["fitness"]),
+            learning_rate=float(document["learningRate"]),
+        )
 
 
 @dataclass(frozen=True)
@@ -196,6 +213,40 @@ def _file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _load_checkpoint(path: Path) -> Mapping[str, Any]:
+    from ultralytics.utils.patches import torch_load
+
+    return torch_load(path, map_location="cpu")
+
+
+def _completed_epochs(output: Path, epochs: int) -> tuple[EpochReport, ...]:
+    """The epochs an interrupted training in ``output`` resumes after.
+
+    Ultralytics saves ``last.pt`` with its optimizer after every epoch and strips
+    the optimizer once training ends; the journal holds the report of each epoch
+    the checkpoint covers. A finished, torn, or partly journaled training has
+    nothing to resume and starts over.
+    """
+    checkpoint = output / "weights" / "last.pt"
+    journal = output / EPOCH_JOURNAL
+    if not checkpoint.is_file() or not journal.is_file():
+        return ()
+    try:
+        state = _load_checkpoint(checkpoint)
+        completed = int(state["epoch"]) + 1
+        reports = tuple(
+            EpochReport.from_json(json.loads(line))
+            for line in journal.read_text(encoding="utf-8").splitlines()
+        )
+    except Exception:  # noqa: BLE001 - a torn checkpoint or journal starts over
+        return ()
+    if state.get("optimizer") is None or not 0 < completed < epochs:
+        return ()
+    if [report.epoch for report in reports] != list(range(1, completed + 1)):
+        return ()
+    return reports
+
+
 def train_yolo_detector(
     dataset: str | Path,
     output_dir: str | Path,
@@ -213,7 +264,9 @@ def train_yolo_detector(
     """Fine-tune, validate, and publish inference calibration for a YOLO detector.
 
     `parameters` are the Ultralytics training arguments the run fixes; they are
-    recorded verbatim in the published summary.
+    recorded verbatim in the published summary. `output_dir` belongs to this
+    training: one interrupted there resumes after its last completed epoch, and
+    `on_epoch` still sees every epoch from the first.
     """
     fixed_parameters = parse_training_parameters(parameters)
     data_path = Path(dataset).resolve()
@@ -226,42 +279,58 @@ def train_yolo_detector(
             f"{installed_runtime_version} != {runtime_version}"
         )
     output = Path(output_dir).resolve()
-    if output.exists():
-        raise FileExistsError(f"Output directory already exists: {output}")
+    completed = _completed_epochs(output, int(fixed_parameters["epochs"]))
+    if not completed and output.exists():
+        shutil.rmtree(output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    train_options: dict[str, object] = {
-        **fixed_parameters,
-        "data": str(data_path),
-        "project": str(output.parent),
-        "name": output.name,
-        "exist_ok": False,
-    }
+
+    # Raising, rather than setting `trainer.stop`, leaves the last completed
+    # epoch's checkpoint resumable: a stopped trainer validates and saves the
+    # partial epoch, then strips the optimizer from `last.pt`.
+    def stop_if_cancelled(_owner: object = None) -> None:
+        if cancelled and cancelled():
+            raise YoloTrainingInterruptedError("training interrupted")
+
+    yolo = load_yolo()
+    train_options: dict[str, object]
+    if completed:
+        # The checkpoint carries the arguments the run started with.
+        trainer_model = yolo(str(output / "weights" / "last.pt"))
+        train_options = {"resume": True, "data": str(data_path)}
+    else:
+        model_source = Path(_model_source(model, output.parent / "weights"))
+        trainer_model = yolo(str(model_source))
+        if not model_source.is_file() or _file_digest(model_source) != model_digest:
+            raise ValueError("Training base model failed digest verification")
+        train_options = {
+            **fixed_parameters,
+            "data": str(data_path),
+            "project": str(output.parent),
+            "name": output.name,
+            "exist_ok": False,
+        }
     if device is not None:
         train_options["device"] = device
 
-    yolo = load_yolo()
-    model_source = Path(_model_source(model, output.parent / "weights"))
-    trainer_model = yolo(str(model_source))
-    if not model_source.is_file() or _file_digest(model_source) != model_digest:
-        raise ValueError("Training base model failed digest verification")
-    if cancelled:
+    journal = output / EPOCH_JOURNAL
 
-        def stop_when_cancelled(trainer: Any) -> None:
-            if cancelled():
-                trainer.stop = True
+    def record_epoch(trainer: Any) -> None:
+        report = epoch_report(trainer)
+        with journal.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(report.to_json()) + "\n")
+        if on_epoch:
+            on_epoch(report)
 
-        trainer_model.add_callback("on_train_batch_end", stop_when_cancelled)
-    if on_epoch:
-
-        def report_epoch(trainer: Any) -> None:
-            on_epoch(epoch_report(trainer))
-
-        trainer_model.add_callback("on_model_save", report_epoch)
+    trainer_model.add_callback("on_train_batch_end", stop_if_cancelled)
+    trainer_model.add_callback("on_val_batch_end", stop_if_cancelled)
+    trainer_model.add_callback("on_model_save", record_epoch)
     if on_training_start:
         on_training_start()
+    if on_epoch:
+        for report in completed:
+            on_epoch(report)
     trainer_model.train(**train_options)
-    if cancelled and cancelled():
-        raise YoloTrainingInterruptedError("training interrupted")
+    stop_if_cancelled()
     trainer = trainer_model.trainer
     save_dir = Path(trainer.save_dir)
     best_weights = Path(trainer.best)
@@ -270,15 +339,8 @@ def train_yolo_detector(
 
     trained_args = trainer.args
     validator_model = yolo(str(best_weights))
-    if cancelled:
-
-        def interrupt_validation(_validator: Any) -> None:
-            if cancelled():
-                raise YoloTrainingInterruptedError("training interrupted")
-
-        validator_model.add_callback("on_val_batch_end", interrupt_validation)
-        if cancelled():
-            raise YoloTrainingInterruptedError("training interrupted")
+    validator_model.add_callback("on_val_batch_end", stop_if_cancelled)
+    stop_if_cancelled()
     if on_validation_start:
         on_validation_start()
     metrics = validator_model.val(
@@ -291,8 +353,7 @@ def train_yolo_detector(
         name="validation-one-to-many",
         exist_ok=False,
     )
-    if cancelled and cancelled():
-        raise YoloTrainingInterruptedError("training interrupted")
+    stop_if_cancelled()
     confidence = best_f1_confidence(metrics)
     metric_values = _validation_summary(metrics)
 

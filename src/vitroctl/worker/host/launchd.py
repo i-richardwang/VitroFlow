@@ -5,6 +5,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,9 @@ from vitroctl.worker.host.profiles import (
 )
 
 LABEL_PREFIX = "com.vitroflow.worker"
+# A stopping Worker leaves training at the next batch; the margin keeps it
+# from being killed while it writes an epoch checkpoint.
+EXIT_TIMEOUT_SECONDS = 60
 
 
 def service_label(name: str) -> str:
@@ -39,6 +43,7 @@ def launch_agent_document(name: str, executable: str | None = None) -> dict[str,
         # it was shut down or is no longer enrolled, stays down.
         "KeepAlive": {"SuccessfulExit": False},
         "ThrottleInterval": 10,
+        "ExitTimeOut": EXIT_TIMEOUT_SECONDS,
         "WorkingDirectory": str(directory),
         "EnvironmentVariables": {"VITROFLOW_HOME": str(worker_home())},
         "StandardOutPath": "/dev/null",
@@ -90,15 +95,20 @@ def start_service(name: str) -> None:
 
 
 def stop_service(name: str) -> None:
+    """Stop the Worker; `bootout` returns before launchd has let the process go."""
     require_launchd()
     load_profile(name)
-    if service_loaded(name):
-        _launchctl("bootout", _service_target(name))
+    if not service_loaded(name):
+        return
+    _launchctl("bootout", _service_target(name))
+    deadline = time.monotonic() + EXIT_TIMEOUT_SECONDS + 5
+    while service_loaded(name):
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"Worker {name} did not stop")
+        time.sleep(0.5)
 
 
 def restart_service(name: str) -> None:
-    path = install_launch_agent(name)
-    if service_loaded(name):
-        _launchctl("kickstart", "-k", _service_target(name))
-    else:
-        _launchctl("bootstrap", f"gui/{os.getuid()}", str(path))
+    """Replace the Worker with one that runs under its current definition."""
+    stop_service(name)
+    start_service(name)

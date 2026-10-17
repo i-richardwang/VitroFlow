@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
+import os
+import shutil
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -14,7 +16,7 @@ from vitroctl.detectors.ultralytics import (
     export_dataset_images,
     train_yolo_detector,
 )
-from vitroctl.io.image_io import CANONICAL_EXTENSION, verify_digest
+from vitroctl.io.image_io import CANONICAL_EXTENSION, image_digest, verify_digest
 from vitroctl.training.documents import (
     TrainingJob,
     TrainingPhase,
@@ -24,6 +26,11 @@ from vitroctl.training.documents import (
 from vitroctl.worker.session import LeaseLostError, WorkerClient, keep_lease
 
 LOGGER = logging.getLogger(__name__)
+
+# A run keeps its directory until it ends, so an interrupted run that this
+# machine claims again resumes from what it left there.
+RUNS_DIRECTORY = "training-runs"
+STALE_RUN_SECONDS = 7 * 24 * 60 * 60
 
 
 class TrainingArtifactRejectedError(RuntimeError):
@@ -140,6 +147,10 @@ def materialize_snapshot(
 ) -> Path:
     if cancelled and cancelled():
         raise YoloTrainingInterruptedError("training interrupted")
+    dataset = output / "dataset.yaml"
+    if dataset.is_file():
+        # The export publishes atomically, so a dataset that exists is complete.
+        return dataset
     snapshot = client.fetch_snapshot(job.run_id)
     if len(snapshot.images) < 2:
         raise ValueError("Training snapshot must contain at least two images")
@@ -150,7 +161,8 @@ def materialize_snapshot(
         if cancelled and cancelled():
             raise YoloTrainingInterruptedError("training interrupted")
         downloaded = downloads / f"{image.digest}{CANONICAL_EXTENSION}"
-        downloaded.write_bytes(client.download_image(job.run_id, image.digest))
+        if not downloaded.is_file() or image_digest(downloaded) != image.digest:
+            downloaded.write_bytes(client.download_image(job.run_id, image.digest))
         dataset_images.append(
             DatasetImage(
                 digest=image.digest,
@@ -162,7 +174,18 @@ def materialize_snapshot(
             )
         )
     export_dataset_images(dataset_images, snapshot.classes, output.parent, output)
-    return output / "dataset.yaml"
+    shutil.rmtree(downloads)
+    return dataset
+
+
+def _prune_stale_runs(runs: Path) -> None:
+    """Drop run directories no claim has touched for a week; those runs moved on."""
+    if not runs.is_dir():
+        return
+    horizon = time.time() - STALE_RUN_SECONDS
+    for directory in runs.iterdir():
+        if directory.is_dir() and directory.stat().st_mtime < horizon:
+            shutil.rmtree(directory, ignore_errors=True)
 
 
 def process_training_job(
@@ -176,52 +199,52 @@ def process_training_job(
         if stopped and stopped.is_set():
             raise YoloTrainingInterruptedError("training interrupted")
 
+    runs = work_root / RUNS_DIRECTORY
+    _prune_stale_runs(runs)
+    root = runs / job.run_id
+    root.mkdir(parents=True, exist_ok=True)
+    os.utime(root)  # a run ages from its latest claim
     try:
         recipe = job.recipe
-        with tempfile.TemporaryDirectory(
-            prefix="vitroflow-training-", dir=work_root
-        ) as temporary:
-            root = Path(temporary)
-            with keep_lease(
-                client.worker,
-                lambda: client.renew_lease(job.run_id),
-                cancelled=stopped.is_set if stopped else None,
-            ) as cancelled:
-                client.enter_phase(job.run_id, "preparing")
-                dataset = materialize_snapshot(
-                    client,
-                    job,
-                    root / "dataset",
-                    cancelled=cancelled,
-                )
-                result = train_yolo_detector(
-                    dataset,
-                    root / "run",
-                    parameters=recipe.parameters,
-                    model=recipe.base_model_reference,
-                    model_digest=recipe.base_model_digest,
-                    runtime_version=recipe.runtime_version,
-                    device=device,
-                    cancelled=cancelled,
-                    on_training_start=lambda: client.enter_phase(
-                        job.run_id, "training"
-                    ),
-                    on_epoch=lambda epoch: client.report_epoch(job.run_id, epoch),
-                    on_validation_start=lambda: client.enter_phase(
-                        job.run_id, "validating"
-                    ),
-                )
-            ensure_running()
-            if result.confidence is None:
-                raise RuntimeError(
-                    "Training completed without a usable validation signal"
-                )
-            client.publish_artifact(job.run_id, result.best_weights, result.summary)
+        with keep_lease(
+            client.worker,
+            lambda: client.renew_lease(job.run_id),
+            cancelled=stopped.is_set if stopped else None,
+        ) as cancelled:
+            client.enter_phase(job.run_id, "preparing")
+            dataset = materialize_snapshot(
+                client,
+                job,
+                root / "dataset",
+                cancelled=cancelled,
+            )
+            result = train_yolo_detector(
+                dataset,
+                root / "run",
+                parameters=recipe.parameters,
+                model=recipe.base_model_reference,
+                model_digest=recipe.base_model_digest,
+                runtime_version=recipe.runtime_version,
+                device=device,
+                cancelled=cancelled,
+                on_training_start=lambda: client.enter_phase(job.run_id, "training"),
+                on_epoch=lambda epoch: client.report_epoch(job.run_id, epoch),
+                on_validation_start=lambda: client.enter_phase(
+                    job.run_id, "validating"
+                ),
+            )
+        ensure_running()
+        if result.confidence is None:
+            raise RuntimeError("Training completed without a usable validation signal")
+        client.publish_artifact(job.run_id, result.best_weights, result.summary)
     except (YoloTrainingInterruptedError, LeaseLostError):
+        # An interruption is no outcome: the directory stays for the next claim.
         raise
     except Exception as error:
         try:
             client.report_failure(job.run_id, str(error) or type(error).__name__)
         except Exception:
             LOGGER.exception("failed to report training run failure")
+        shutil.rmtree(root, ignore_errors=True)
         raise
+    shutil.rmtree(root, ignore_errors=True)
