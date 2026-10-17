@@ -3,11 +3,8 @@ import type {
   TrainingRunSummary,
   VersionOverview,
 } from "../../domain/training/read-model";
-import {
-  listDatasetsForModel,
-  summarizeDataset,
-  type DatasetSummary,
-} from "../datasets/public";
+import type { DatasetSummary } from "../../domain/datasets/schema";
+import { listDatasetSummaries } from "../datasets/public";
 import { listAllModelVersions } from "../models/public";
 import {
   listTrainingRunSummaries,
@@ -37,11 +34,7 @@ export async function modelOverview(
   if (!entry) return null;
   const [versions, datasets, runs] = await Promise.all([
     listVersionOverviews(modelId),
-    listDatasetsForModel(modelId).then((datasets) =>
-      Promise.all(
-        datasets.map((dataset) => summarizeDataset(dataset.id, modelId)),
-      ),
-    ),
+    listDatasetSummaries(modelId),
     listTrainingRunSummaries({ modelId }),
   ]);
   return { ...entry, versions, datasets, runs };

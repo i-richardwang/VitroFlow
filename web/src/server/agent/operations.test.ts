@@ -8,7 +8,13 @@ import type {
 } from "../../domain/experiments/schema";
 import { type AgentCallResult, executeAgentOperation } from "./execution";
 import { agentOperations, describeAgentOperations } from "./operations";
-import { baselineVersion } from "../testing/fixtures";
+import { storeAnnotation } from "../annotations/documents";
+import { createModel } from "../models/public";
+import {
+  baselineVersion,
+  imageDigest,
+  observeImagesForModel,
+} from "../testing/fixtures";
 
 function output(result: AgentCallResult): unknown {
   if (!result.ok) throw new Error(`Operation failed: ${result.message}`);
@@ -43,6 +49,7 @@ describe("agent operations", () => {
       "list-models",
       "get-experiment",
       "get-unit",
+      "list-datasets",
     ]);
     const additive = new Set([
       "create-experiment",
@@ -52,6 +59,7 @@ describe("agent operations", () => {
       "create-observation",
       "create-model",
       "assign-images-to-observation",
+      "add-images-to-dataset",
     ]);
     const destructive = new Set([
       "update-experiment",
@@ -168,5 +176,70 @@ describe("agent operations", () => {
       }),
     ) as CultureEvent;
     expect(harvested.observation).toBe(observation.id);
+  });
+
+  test("reviewed experiment images join a dataset and list with their counts", async () => {
+    const model = await createModel({
+      id: "agent-dataset-task",
+      name: "Agent dataset task",
+      classes: ["shoot"],
+    });
+    const { images } = await observeImagesForModel(
+      "Agent dataset images",
+      ["agent-a", "agent-b", "agent-c"],
+      model.id,
+    );
+    await storeAnnotation(
+      { digest: await imageDigest("agent-b"), modelId: model.id },
+      [],
+      null,
+    );
+
+    expect(
+      output(
+        await executeAgentOperation("add-images-to-dataset", {
+          dataset: "agent-train",
+          images: images.slice(0, 2),
+        }),
+      ),
+    ).toEqual({
+      dataset: { id: "agent-train", modelId: model.id },
+      added: 2,
+      existing: 0,
+    });
+    expect(
+      output(
+        await executeAgentOperation("add-images-to-dataset", {
+          dataset: "agent-train",
+          images,
+        }),
+      ),
+    ).toMatchObject({ added: 1, existing: 2 });
+
+    expect(
+      output(
+        await executeAgentOperation("list-datasets", { modelId: model.id }),
+      ),
+    ).toEqual([
+      {
+        dataset: "agent-train",
+        modelId: model.id,
+        imageCount: 3,
+        reviewedCount: 1,
+      },
+    ]);
+
+    const version = await baselineVersion();
+    const mismatch = await executeAgentOperation("add-images-to-dataset", {
+      dataset: "agent-train",
+      images: (
+        await observeImagesForModel(
+          "Agent dataset other model",
+          ["agent-d"],
+          version.modelId,
+        )
+      ).images,
+    });
+    expect(failure(mismatch).code).toBe("conflict");
   });
 });

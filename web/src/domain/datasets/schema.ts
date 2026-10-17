@@ -40,3 +40,29 @@ export const datasetImageAdditionSchema = z.strictObject({
 });
 
 export type DatasetImageAddition = z.infer<typeof datasetImageAdditionSchema>;
+
+/** What an addition changed: images new to the dataset, and those already in it. */
+export const datasetImageAdditionResultSchema = z.strictObject({
+  dataset: datasetSchema,
+  added: z.number().int().nonnegative(),
+  existing: z.number().int().nonnegative(),
+});
+
+export type DatasetImageAdditionResult = z.infer<
+  typeof datasetImageAdditionResultSchema
+>;
+
+/** Optionally narrows a dataset listing to those training one model. */
+export const datasetListRequestSchema = z.strictObject({
+  modelId: resourceIdSchema.optional(),
+});
+
+/** A dataset with its size; only reviewed images are used for training. */
+export const datasetSummarySchema = z.strictObject({
+  dataset: datasetIdSchema,
+  modelId: resourceIdSchema,
+  imageCount: z.number().int().nonnegative(),
+  reviewedCount: z.number().int().nonnegative(),
+});
+
+export type DatasetSummary = z.infer<typeof datasetSummarySchema>;

@@ -10,13 +10,18 @@ import {
   inferenceOutcomes,
   annotations,
 } from "../infra/db/schema";
-import type { DatasetImageRef } from "../../domain/datasets/schema";
+import type {
+  DatasetImageRef,
+  DatasetSummary,
+} from "../../domain/datasets/schema";
 import type { AnnotationDocument } from "../../domain/annotation/schema";
 import type {
   DetectionQuality,
   DetectionResult,
 } from "../../domain/detection/schema";
 import {
+  listDatasets,
+  listDatasetsForModel,
   membershipOrder,
   toDatasetImage,
   type DatasetImage,
@@ -32,13 +37,6 @@ export interface ImageSummary extends DatasetImageRef {
   /** Boxes of the stored review, or null until someone has reviewed the image. */
   instanceCount: number | null;
   quality: DetectionQuality | null;
-}
-
-export interface DatasetSummary {
-  dataset: string;
-  modelId: string;
-  imageCount: number;
-  reviewedCount: number;
 }
 
 /**
@@ -172,15 +170,22 @@ export function countReviewed(records: ImageRecord[]): number {
   return records.filter((record) => record.annotation !== null).length;
 }
 
-export async function summarizeDataset(
-  datasetId: string,
-  modelId: string,
-): Promise<DatasetSummary> {
-  const records = await listImageRecords(datasetId);
-  return {
-    dataset: datasetId,
-    modelId,
-    imageCount: records.length,
-    reviewedCount: countReviewed(records),
-  };
+/** Every dataset, or those training one model, with its image and review counts. */
+export async function listDatasetSummaries(
+  modelId?: string,
+): Promise<DatasetSummary[]> {
+  const datasets = modelId
+    ? await listDatasetsForModel(modelId)
+    : await listDatasets();
+  return Promise.all(
+    datasets.map(async (dataset) => {
+      const records = await listImageRecords(dataset.id);
+      return {
+        dataset: dataset.id,
+        modelId: dataset.modelId,
+        imageCount: records.length,
+        reviewedCount: countReviewed(records),
+      };
+    }),
+  );
 }

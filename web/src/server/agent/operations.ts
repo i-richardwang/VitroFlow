@@ -36,6 +36,12 @@ import {
   unitUpdateSchema,
 } from "../../domain/experiments/schema";
 import {
+  datasetImageAdditionResultSchema,
+  datasetImageAdditionSchema,
+  datasetListRequestSchema,
+  datasetSummarySchema,
+} from "../../domain/datasets/schema";
+import {
   modelRefSchema,
   modelAnnotationRequestSchema,
   modelRequestSchema,
@@ -64,6 +70,10 @@ import {
   readUnit,
 } from "../experiments/public";
 
+import {
+  addExperimentObservationImages,
+  listDatasetSummaries,
+} from "../datasets/public";
 import {
   createModel,
   deleteModel,
@@ -359,6 +369,24 @@ const operations: readonly AgentOperation[] = [
     output: done,
     handler: (input, executor) =>
       retryObservationImageAnalysis(input, executor),
+  }),
+  query({
+    name: "list-datasets",
+    description:
+      "List the datasets that train each recognition task, optionally for one model, with how many images each holds and how many of those are reviewed; training uses only reviewed images",
+    input: datasetListRequestSchema,
+    output: z.array(datasetSummarySchema),
+    handler: ({ modelId }) => listDatasetSummaries(modelId),
+  }),
+  command({
+    name: "add-images-to-dataset",
+    description:
+      "Add experiment observation images to a dataset that trains their observation's model, creating the dataset when the name is new. All images must be observed for one model; images already in the dataset are counted as existing, so repeating a call is safe. Training splits are assigned when a snapshot is taken",
+    destructive: false,
+    input: datasetImageAdditionSchema,
+    output: datasetImageAdditionResultSchema,
+    handler: (input, executor) =>
+      addExperimentObservationImages(input, executor),
   }),
 ];
 

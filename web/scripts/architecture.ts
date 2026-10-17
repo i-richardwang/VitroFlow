@@ -22,7 +22,7 @@ const dependencies: Record<string, readonly string[]> = {
     "infra",
   ],
   training: ["datasets", "models", "workers", "infra"],
-  agent: ["experiments", "models", "infra"],
+  agent: ["datasets", "experiments", "models", "infra"],
   queries: [
     "readings",
     "annotations",

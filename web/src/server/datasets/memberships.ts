@@ -4,7 +4,7 @@ import {
 } from "../../domain/datasets/errors";
 import { and, asc, eq, or, type Column } from "drizzle-orm";
 
-import { database, transaction, type Executor } from "../infra/db/client";
+import { database, inTransaction, type Executor } from "../infra/db/client";
 import {
   datasetImages,
   datasets,
@@ -17,6 +17,7 @@ import {
   type Dataset,
   type DatasetImageRef,
   type DatasetImageAddition,
+  type DatasetImageAdditionResult,
 } from "../../domain/datasets/schema";
 import type { ObservationImageRef } from "../../domain/experiments/schema";
 import type { ImageSplit } from "../../domain/training/schema";
@@ -29,12 +30,6 @@ export interface DatasetImage extends DatasetImageRef {
   bytes: number;
   blobKey: string;
   split: ImageSplit | null;
-}
-
-interface DatasetImageAdditionResult {
-  dataset: Dataset;
-  added: number;
-  existing: number;
 }
 
 export type MembershipRow = {
@@ -158,10 +153,11 @@ function atObservationImage({
 /** Adds experiment images atomically to a dataset for their observation's model. */
 export async function addExperimentObservationImages(
   value: DatasetImageAddition,
+  executor?: Executor,
 ): Promise<DatasetImageAdditionResult> {
   const { dataset: datasetId, images } = value;
   const addedAt = new Date();
-  return transaction(async (tx) => {
+  return inTransaction(executor, async (tx) => {
     const observedImages = await tx
       .select({
         experimentId: experimentObservationImages.experimentId,

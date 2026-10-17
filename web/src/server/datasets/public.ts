@@ -9,12 +9,11 @@ export {
 } from "./memberships";
 export {
   countReviewed,
+  listDatasetSummaries,
   listImageRecords,
   listReviewedRecords,
   summarize,
-  summarizeDataset,
   type ImageRecord,
-  type DatasetSummary,
   type ImageSummary,
   type ReviewedRecord,
 } from "./records";

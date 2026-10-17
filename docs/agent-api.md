@@ -117,6 +117,16 @@ Entering one round of observation photos:
 
 Analysis needs no request: assigned images are queued for the newest version of their observation's model automatically, and `retry-observation-image-analysis` requeues one that failed. A model with no version queues nothing; its images wait for a reviewer, and `create-model` names such a model in the first place.
 
+## Training-set workflow
+
+Images that a reviewer has annotated become training material once they belong to a dataset for their observation's model:
+
+1. `get-experiment` reads the grid; each unit's image cell carries the observation image id that names it.
+2. `list-datasets` shows the datasets for a model, with how many images each holds and how many are reviewed. Training uses only reviewed images.
+3. `add-images-to-dataset` adds observation images to a dataset, creating it when the name is new. One call takes images observed for a single model; images already in the dataset are counted as `existing`, so repeating a call is safe.
+
+The train/validation split is not chosen here: a training snapshot gives each reviewed image a split it keeps from then on.
+
 ## Transactions
 
 A command runs in one database transaction: it either changes the record as a whole or leaves it untouched. Image upload only stages immutable content by digest; assigning that content to an observation is the command that changes the record.
