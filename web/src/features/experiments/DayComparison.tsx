@@ -34,7 +34,7 @@ export function referenceDay(
  * Two days of one unit side by side, the reference day on the left and the
  * day in view on the right, each named by the choice of it over its corner.
  * Both photographs are placed by one view, so zooming or panning either
- * shows the same part of the dish in both. The reference is chosen from the
+ * shows the same part of the dish in both. Either side is chosen from the
  * days the unit was photographed on.
  */
 export function DayComparison({
@@ -90,7 +90,10 @@ export function DayComparison({
               size="small"
               variant="borderless"
               popupWidth="content"
-              options={options(observations, reference)}
+              options={options(
+                observations.filter((item) => item.image || item === inView),
+                reference,
+              )}
               value={inView.observation.id}
               onChange={onInViewChange}
             />

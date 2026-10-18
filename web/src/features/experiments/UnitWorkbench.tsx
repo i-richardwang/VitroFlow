@@ -100,6 +100,12 @@ export function UnitWorkbench({
   );
 
   const photographed = series.observations.filter((item) => item.image);
+  // Only the days the unit was photographed on are chosen or stepped to. A
+  // step along the units can still land on a day this one was not
+  // photographed on; that day stays among them while it is in view.
+  const days = series.observations.filter(
+    (item) => item.image || item.observation.id === series.observation,
+  );
   const reference = series.observations.find(
     (item) => item.observation.id === compare,
   );
@@ -116,8 +122,8 @@ export function UnitWorkbench({
       params: { experiment: experiment.id, unit: target.id },
       search: { observation: series.observation ?? undefined, compare },
     });
-  const dayAt = observations.findIndex(
-    (item) => item.id === series.observation,
+  const dayAt = days.findIndex(
+    (item) => item.observation.id === series.observation,
   );
   const dayTarget = (observation: string | undefined) =>
     observation === undefined
@@ -130,8 +136,8 @@ export function UnitWorkbench({
   const neighbors = [
     unitTarget(navigation[at - 1]),
     unitTarget(navigation[at + 1]),
-    dayTarget(observations[dayAt - 1]?.id),
-    dayTarget(observations[dayAt + 1]?.id),
+    dayTarget(days[dayAt - 1]?.observation.id),
+    dayTarget(days[dayAt + 1]?.observation.id),
   ];
   // The four subjects an arrow key leads to are fetched while this one is read.
   const warmNeighbors = useEffectEvent(() => {
@@ -161,8 +167,8 @@ export function UnitWorkbench({
   useWorkbenchKeys({
     ArrowLeft: previousUnit,
     ArrowRight: nextUnit,
-    ArrowUp: toDay(observations[dayAt - 1]?.id),
-    ArrowDown: toDay(observations[dayAt + 1]?.id),
+    ArrowUp: toDay(days[dayAt - 1]?.observation.id),
+    ArrowDown: toDay(days[dayAt + 1]?.observation.id),
     c: toggleCompare,
   });
 
@@ -196,11 +202,20 @@ export function UnitWorkbench({
         </Text>
       ) : null}
       <span className="flex-1" />
-      {series.observations.length > 0 && !reference ? (
+      {reference ? null : days.length === 1 ? (
+        <Text
+          as="span"
+          size="sm"
+          type="secondary"
+          className="whitespace-nowrap"
+        >
+          {observationLabel(days[0].observation)}
+        </Text>
+      ) : days.length > 1 ? (
         <ToggleGroup
           aria-label={m.observations_label()}
           value={series.observation ?? undefined}
-          options={series.observations.map(({ observation, image }) => ({
+          options={days.map(({ observation, image }) => ({
             value: observation.id,
             label: observationLabel(observation),
             // Keyed by unit: another unit's standing is not this one's changing.
