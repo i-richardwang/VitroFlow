@@ -27,6 +27,7 @@ async function toolNames(response: Response): Promise<string[]> {
 const ANNOTATION_TOOLS = [
   "annotation_cancel",
   "annotation_context",
+  "annotation_find",
   "annotation_next",
   "annotation_pending",
   "annotation_preview",

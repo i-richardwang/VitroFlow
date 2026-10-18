@@ -26,7 +26,7 @@ import {
   submitProposal,
   type AnnotationPanel,
 } from "../../annotation-runs/public";
-import { listPendingAnnotations } from "../../queries/public";
+import { findImages, listPendingAnnotations } from "../../queries/public";
 import { guardMcpRequest, serveAuthorized } from "./access";
 
 const textContent = (value: unknown) => ({
@@ -96,6 +96,15 @@ function registerAnnotationTools(server: McpServer) {
     { readOnlyHint: true },
     async (args) => ({
       content: [textContent(await listPendingAnnotations(args.modelId))],
+    }),
+  );
+  register(
+    "annotation_find",
+    "Find the image a person means by what they see: its filename, with or without the extension, or a link to the workbench page showing it. Returns each match's ref for the other tools, once per model, with the places it is seen: an experiment, unit and observation day, or a dataset. Several matches mean the name is shared; ask the person which place they mean.",
+    z.strictObject({ image: z.string().min(1) }),
+    { readOnlyHint: true },
+    async (args) => ({
+      content: [textContent({ images: await findImages(args.image) })],
     }),
   );
   register(
@@ -192,7 +201,7 @@ function buildServer(): McpServer {
     { name: "vitroflow-annotation", version: packageJson.version },
     {
       instructions:
-        "Annotate images for a model by drawing boxes region by region. Find images with annotation_pending, read one with annotation_read, start or continue its run with annotation_start and annotation_next, then load annotation_context once per conversation and view, preview and submit each region until the run succeeds. Reuse context only while its contextId is unchanged and available; reload after context loss. Results are AI proposals a person reviews.",
+        "Annotate images for a model by drawing boxes region by region. When a person names an image by its filename or a page link, find it with annotation_find; never ask them for a digest or model id, and when several places match, ask which one by its experiment, unit and day or its dataset. Otherwise find images waiting for annotation with annotation_pending, read one with annotation_read, start or continue its run with annotation_start and annotation_next, then load annotation_context once per conversation and view, preview and submit each region until the run succeeds. Reuse context only while its contextId is unchanged and available; reload after context loss. Results are AI proposals a person reviews.",
     },
   );
   registerAnnotationTools(server);

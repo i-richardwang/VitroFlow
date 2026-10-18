@@ -584,7 +584,7 @@ export const datasetImages = pgTable(
     imageId: text("image_id")
       .notNull()
       .references(() => images.id),
-    /** The name the image was added under; shown, never matched. */
+    /** The name the image was added under; shown and searched, never its identity. */
     filename: text("filename").notNull(),
     addedAt: instant("added_at"),
     /** Assigned the first time the image enters a snapshot; stable afterwards. */
