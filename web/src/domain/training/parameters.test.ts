@@ -1,25 +1,35 @@
 import { expect, test } from "bun:test";
 
-import { YOLO26_SEED_SMALL_RECIPE } from "./recipes";
+import { YOLO26N_WHOLE_RECIPE } from "./recipes";
 import {
-  PARAMETER_FIELD_GROUPS,
   PARAMETER_FIELDS,
   PARAMETER_GROUPS,
 } from "../../features/training/parameter-fields";
 import {
-  trainingOverrides,
   trainingOverridesSchema,
   trainingParametersSchema,
 } from "./parameters";
 
-test("the Web boundary projects a full recipe into explicit overrides", () => {
+test("editable fields accept preset values without exposing model identity", () => {
   const parameters = trainingParametersSchema.parse(
-    YOLO26_SEED_SMALL_RECIPE.parameters,
+    YOLO26N_WHOLE_RECIPE.parameters,
   );
-  const overrides = trainingOverrides(parameters);
+  const overrides = Object.fromEntries(
+    Object.keys(trainingOverridesSchema.shape)
+      .filter((key) => key in parameters)
+      .map((key) => [key, parameters[key as keyof typeof parameters]]),
+  );
 
   expect(Object.keys(overrides).sort()).toEqual(
-    ["batch", "epochs", "imgsz", "lr0", "patience"].sort(),
+    [
+      "batch",
+      "epochs",
+      "imgsz",
+      "lr0",
+      "patience",
+      "warmup_epochs",
+      "nbs",
+    ].sort(),
   );
   expect(trainingOverridesSchema.parse(overrides)).toEqual(overrides);
   expect(() => trainingOverridesSchema.parse(parameters)).toThrow(
@@ -27,6 +37,7 @@ test("the Web boundary projects a full recipe into explicit overrides", () => {
   );
   for (const field of PARAMETER_FIELDS) {
     const value = overrides[field.key];
+    if (typeof value !== "number") continue;
     expect(value).toBeGreaterThanOrEqual(field.min);
     expect(value).toBeLessThanOrEqual(field.max);
     const steps = (value - field.min) / field.step;
@@ -41,9 +52,12 @@ test("every parameter belongs to exactly one group, and every editable one is of
   expect([...grouped].sort()).toEqual(
     Object.keys(trainingParametersSchema.shape).sort(),
   );
-  expect(
-    PARAMETER_FIELD_GROUPS.flatMap((group) => group.fields)
-      .map((field) => field.key)
-      .sort(),
-  ).toEqual(PARAMETER_FIELDS.map((field) => field.key).sort());
+  expect(Object.keys(trainingOverridesSchema.shape).sort()).toEqual(
+    PARAMETER_FIELDS.map((field) => field.key).sort(),
+  );
+});
+
+test("omitted accumulation settings retain runtime semantics without rewriting a recipe", () => {
+  const { nbs: _, ...parameters } = YOLO26N_WHOLE_RECIPE.parameters;
+  expect(trainingParametersSchema.parse(parameters)).toEqual(parameters);
 });

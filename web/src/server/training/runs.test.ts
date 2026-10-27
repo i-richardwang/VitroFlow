@@ -6,7 +6,7 @@ import { readTrainingCheckpoint, saveTrainingCheckpoint } from "./checkpoints";
 import { collectUnreferencedTrainingCheckpoints } from "./collection";
 import { expect, test } from "bun:test";
 
-import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
+import { YOLO26N_WHOLE_RECIPE } from "../../domain/training/recipes";
 import {
   blobExists,
   putImmutableBlob,
@@ -80,9 +80,9 @@ async function trainer(workerId: string) {
 }
 
 const recipe = {
-  ...YOLO26_SEED_SMALL_RECIPE,
+  ...YOLO26N_WHOLE_RECIPE,
   parameters: {
-    ...YOLO26_SEED_SMALL_RECIPE.parameters,
+    ...YOLO26N_WHOLE_RECIPE.parameters,
     epochs: 3,
     imgsz: 768,
     batch: 4,

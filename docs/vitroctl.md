@@ -37,6 +37,10 @@ vitroctl worker stop mac-studio
 
 `stop` and `restart` return once the Worker has exited; `restart` then loads the current LaunchAgent definition. Training runs in a supervised child process, so shutdown or detection of a revoked lease stops even a trainer blocked inside a GPU operation. The server revokes ownership immediately; the Worker detects revocation on its next training request or lease renewal. Each attempt uses a private directory that is removed when it exits.
 
+Training presets pin model weights, parameters, and the framework version. A run stores its resolved recipe; resuming does not consult the preset registry. The shared trainer limits validation to the actual per-device training batch and records effective execution parameters in the Worker profile log.
+
+Deploy parameter-contract extensions to all Workers, including inference Workers, before the Web server starts emitting them. Workers validate both training recipes and the training metadata in published model manifests. A framework version match alone does not establish application-contract compatibility.
+
 The training dialog assigns work automatically or to a specific enrolled Worker. On a run's page, **Pause** revokes the current attempt and releases the model immediately; **Cancel training** ends the task. A paused or failed task can resume on any training Worker, or explicitly restart from the beginning. A pinned task waits for its selected Worker rather than silently moving elsewhere.
 
 After each resumable epoch, the Worker uploads a checkpoint containing the optimizer state, last and best weights, and epoch journal to shared storage. Resume restores that checkpoint on the chosen machine with the recipe's pinned runtime. Work after the last uploaded checkpoint is discarded; without a checkpoint, resume starts from the beginning. An invalid checkpoint fails visibly instead of silently restarting. Checkpoints for paused and failed tasks remain available; cancelled, completed, superseded, and explicitly discarded checkpoints are collected by maintenance.

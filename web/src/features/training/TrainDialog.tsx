@@ -7,14 +7,17 @@ import { DialogSession, FormDialog } from "../../ui/FormDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { m } from "../../paraglide/messages";
 import type { TrainingSummary } from "../../domain/training/read-model";
-import type { TrainingRecipe } from "../../domain/training/schema";
+import type {
+  TrainingPreset,
+  TrainingPresetId,
+} from "../../domain/training/recipes";
 import { Alert } from "../../ui/kit/Alert";
 import { Form } from "../../ui/kit/Form";
-import { InputNumber } from "../../ui/kit/Input";
 import { toast } from "../../ui/kit/Toast";
-import { PARAMETER_FIELD_GROUPS } from "./parameter-fields";
+import { Select } from "../../ui/kit/Select";
+import { TrainingParametersForm } from "./TrainingParametersForm";
 import {
-  trainingOverrides,
+  type TrainingOverrides,
   trainingOverridesSchema,
 } from "../../domain/training/parameters";
 import { MIN_SNAPSHOT_IMAGES } from "../../domain/training/schema";
@@ -27,7 +30,8 @@ interface TrainingSet {
   dataset: string;
   /** How many of its images are reviewed, and so train. */
   reviewed: number;
-  recipe: TrainingRecipe;
+  trainingPresets: readonly TrainingPreset[];
+  defaultTrainingPresetId: TrainingPresetId;
   training: TrainingSummary;
 }
 
@@ -68,7 +72,7 @@ export function TrainDialog({
 }
 
 function TrainSession({
-  set: { dataset, recipe, training },
+  set: { dataset, trainingPresets, defaultTrainingPresetId, training },
   open,
   onClose,
   afterClose,
@@ -80,9 +84,12 @@ function TrainSession({
 }) {
   const router = useRouter();
   const action = useAsyncAction();
-  const [overrides, setOverrides] = useState(() =>
-    trainingOverrides(recipe.parameters),
-  );
+  const [presetId, setPresetId] = useState(defaultTrainingPresetId);
+  const [overrides, setOverrides] = useState<TrainingOverrides>({});
+  const preset = trainingPresets.find(
+    (candidate) => candidate.id === presetId,
+  )!;
+  const recipe = preset.recipe;
   const [targetWorkerId, setTargetWorkerId] = useState<string | null>(null);
   const valid = trainingOverridesSchema.safeParse(overrides).success;
 
@@ -90,7 +97,9 @@ function TrainSession({
     void action
       .run(
         () =>
-          startTrainingRun({ data: { dataset, overrides, targetWorkerId } }),
+          startTrainingRun({
+            data: { dataset, presetId, overrides, targetWorkerId },
+          }),
         m.train_not_started(),
       )
       .then(async (result) => {
@@ -125,7 +134,23 @@ function TrainSession({
           onChange={setTargetWorkerId}
           disabled={action.busy}
         />
-        <Form.Group title={m.train_dialog_recipe_title()}>
+        <Form.Group title={m.train_dialog_preset_title()}>
+          <Select
+            aria-label={m.train_dialog_preset_title()}
+            value={presetId}
+            disabled={action.busy}
+            options={trainingPresets.map((option) => ({
+              value: option.id,
+              label: PRESET_PRESENTATION[option.id].label(),
+            }))}
+            onChange={(id) => {
+              setPresetId(id);
+              setOverrides({});
+            }}
+          />
+          <Text size="sm" type="secondary">
+            {PRESET_PRESENTATION[presetId].description()}
+          </Text>
           <Text size="sm" type="secondary">
             {m.train_dialog_recipe({
               model: recipe.baseModel.reference,
@@ -134,30 +159,12 @@ function TrainSession({
             })}
           </Text>
         </Form.Group>
-        {PARAMETER_FIELD_GROUPS.map((group) => (
-          <Form.Group key={group.key} title={group.title()}>
-            <div className="grid gap-4 mobile:grid-cols-2">
-              {group.fields.map((field) => (
-                <Form.Field key={field.key} label={field.label()}>
-                  <InputNumber
-                    value={overrides[field.key]}
-                    min={field.min}
-                    max={field.max}
-                    step={field.step}
-                    format={{ maximumFractionDigits: 5 }}
-                    disabled={action.busy}
-                    onChange={(value) =>
-                      setOverrides((current) => ({
-                        ...current,
-                        [field.key]: value ?? Number.NaN,
-                      }))
-                    }
-                  />
-                </Form.Field>
-              ))}
-            </div>
-          </Form.Group>
-        ))}
+        <TrainingParametersForm
+          parameters={recipe.parameters}
+          overrides={overrides}
+          onChange={setOverrides}
+          disabled={action.busy}
+        />
         {training.workerMemoryBytes === null ? (
           <Alert type="warning" title={m.train_dialog_no_worker()} />
         ) : null}
@@ -165,3 +172,20 @@ function TrainSession({
     </FormDialog>
   );
 }
+
+const PRESET_PRESENTATION: Record<
+  TrainingPresetId,
+  {
+    label: () => string;
+    description: () => string;
+  }
+> = {
+  "yolo26n-whole-v1": {
+    label: m.train_preset_n,
+    description: m.train_preset_n_description,
+  },
+  "yolo26s-whole-2048-v1": {
+    label: m.train_preset_s,
+    description: m.train_preset_s_description,
+  },
+};

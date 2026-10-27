@@ -100,3 +100,29 @@ def test_supervisor_cleans_descendants_after_the_trainer_has_exited(
     size = heartbeat.stat().st_size
     time.sleep(0.1)
     assert heartbeat.stat().st_size == size
+
+
+def _diagnostic_trainer(_dataset, _output, *, on_execution, **_options):
+    on_execution({"batch": 1, "validationBatch": 1, "accumulate": 8})
+
+
+def test_supervisor_persists_child_execution_diagnostics_in_worker_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    context = multiprocessing.get_context("fork")
+    monkeypatch.setattr(
+        training_process.multiprocessing, "get_context", lambda _: context
+    )
+    monkeypatch.setattr(training_process, "train_yolo_detector", _diagnostic_trainer)
+    with caplog.at_level("INFO", logger=training_process.__name__):
+        training_process.run_training_process(
+            tmp_path / "dataset.yaml",
+            tmp_path / "run",
+            cancelled=lambda: False,
+            on_training_start=lambda: None,
+            on_epoch=lambda _: None,
+            on_checkpoint=lambda _: None,
+            on_validation_start=lambda: None,
+        )
+    assert '"validationBatch": 1' in caplog.text
+    assert '"accumulate": 8' in caplog.text

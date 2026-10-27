@@ -16,6 +16,14 @@ from vitroctl.detectors.ultralytics.training import (
     train_yolo_detector,
 )
 
+TRAINER = object()
+
+
+@pytest.fixture(autouse=True)
+def fake_training_adapter(monkeypatch):
+    monkeypatch.setattr(training, "load_training_trainer", lambda: TRAINER)
+
+
 PARAMETERS = {
     "epochs": 3,
     "patience": 20,
@@ -33,15 +41,18 @@ PARAMETERS = {
 }
 
 
-def test_seed_small_recipe_fixes_every_training_argument() -> None:
+def test_nano_recipe_fixes_every_training_argument() -> None:
     root = Path(__file__).resolve().parents[1]
-    manifest = json.loads((root / "configs/yolo26/seed-small.recipe.json").read_text())
+    manifest = json.loads(
+        (root / "configs/yolo26/yolo26n-whole-v1.recipe.json").read_text()
+    )
     assert manifest["schemaVersion"] == 1
     recipe = manifest["recipe"]
     assert recipe["baseModel"]["reference"] == "yolo26n.pt"
     assert recipe["runtime"] == {"framework": "ultralytics", "version": "8.4.131"}
     assert recipe["parameters"] == {
         "epochs": 50,
+        "nbs": 64,
         "patience": 20,
         "batch": 4,
         "imgsz": 1536,
@@ -100,6 +111,11 @@ def _trainer_after_epoch(
     metrics = _Metrics()
     return SimpleNamespace(
         epoch=epoch - 1,
+        args=SimpleNamespace(**PARAMETERS),
+        batch_size=4,
+        accumulate=16,
+        train_loader=SimpleNamespace(batch_size=4),
+        test_loader=SimpleNamespace(batch_size=4),
         loss_names=("box_loss", "cls_loss", regression_loss),
         tloss={"box_loss": 1.5, "cls_loss": 2.25, regression_loss: 1.0},
         metrics={
@@ -165,10 +181,11 @@ def test_training_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> None
             self.callbacks: dict[str, object] = {}
 
         def add_callback(self, event: str, callback) -> None:
-            self.callbacks[event] = callback
+            self.callbacks.setdefault(event, []).append(callback)
 
         def train(self, **_options: object) -> None:
-            self.callbacks["on_train_batch_end"](SimpleNamespace())
+            for callback in self.callbacks["on_train_batch_end"]:
+                callback(SimpleNamespace())
             pytest.fail("training must stop at the cancelled batch boundary")
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
@@ -203,7 +220,7 @@ def _checkpointing_yolo(monkeypatch: pytest.MonkeyPatch):
             FakeYolo.instances.append(self)
 
         def add_callback(self, event: str, callback) -> None:
-            self.callbacks[event] = callback
+            self.callbacks.setdefault(event, []).append(callback)
 
         def train(self, **options: object) -> None:
             self.train_options = options
@@ -224,13 +241,15 @@ def _checkpointing_yolo(monkeypatch: pytest.MonkeyPatch):
                     "optimizer": {},
                     "train_args": {"data": "old-machine/dataset.yaml"},
                 }
-                self.callbacks["on_model_save"](_trainer_after_epoch(epoch + 1))
+                for callback in self.callbacks["on_model_save"]:
+                    callback(_trainer_after_epoch(epoch + 1))
                 if epoch + 1 == FakeYolo.interrupt_after:
                     raise YoloTrainingInterruptedError("training interrupted")
             FakeYolo.checkpoints[last] = {"epoch": -1, "optimizer": None}
             self.trainer = SimpleNamespace(
                 save_dir=save_dir,
                 best=weights / "best.pt",
+                test_loader=SimpleNamespace(batch_size=4),
                 args=SimpleNamespace(imgsz=768, max_det=500, device="mps"),
             )
 
@@ -248,19 +267,22 @@ def _checkpointing_yolo(monkeypatch: pytest.MonkeyPatch):
     return FakeYolo
 
 
+@pytest.mark.parametrize("nbs", [None, 8])
 def test_interrupted_training_resumes_after_its_last_completed_epoch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, nbs
 ) -> None:
     yolo = _checkpointing_yolo(monkeypatch)
     model, digest = _base_model(tmp_path)
     dataset = _dataset(tmp_path)
     output = tmp_path / "run"
 
+    parameters = {**PARAMETERS, **({"nbs": nbs} if nbs is not None else {})}
+
     def train(reported: list[int]):
         return train_yolo_detector(
             dataset,
             output,
-            parameters=PARAMETERS,
+            parameters=parameters,
             model=model,
             model_digest=digest,
             runtime_version="8.4.131",
@@ -276,10 +298,15 @@ def test_interrupted_training_resumes_after_its_last_completed_epoch(
     yolo.interrupt_after = 0
     result = train(resumed)
 
+    assert yolo.instances[0].train_options.get("nbs") == nbs
+    assert (
+        json.loads(result.summary.read_text())["training"]["parameters"] == parameters
+    )
     assert first == [1, 2]
     assert resumed == [1, 2, 3]
     assert yolo.instances[1].source == output / "weights" / "last.pt"
     assert yolo.instances[1].train_options == {
+        "trainer": TRAINER,
         "resume": True,
         "data": str(dataset),
         "device": "mps",
@@ -325,7 +352,7 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
             instances.append(self)
 
         def add_callback(self, event: str, callback) -> None:
-            self.callbacks[event] = callback
+            self.callbacks.setdefault(event, []).append(callback)
 
         def train(self, **options: object) -> None:
             save_dir = Path(str(options["project"])) / str(options["name"])
@@ -335,11 +362,13 @@ def test_validation_stops_at_a_batch_boundary(tmp_path: Path, monkeypatch) -> No
             self.trainer = SimpleNamespace(
                 save_dir=save_dir,
                 best=weights / "best.pt",
+                test_loader=SimpleNamespace(batch_size=4),
                 args=SimpleNamespace(imgsz=768, max_det=500, device="cpu"),
             )
 
         def val(self, **_options: object) -> None:
-            self.callbacks["on_val_batch_end"](SimpleNamespace())
+            for callback in self.callbacks["on_val_batch_end"]:
+                callback(SimpleNamespace())
             pytest.fail("validation must stop at the cancelled batch boundary")
 
     checks = 0
@@ -382,7 +411,7 @@ def test_training_reports_epochs_and_publishes_validated_settings(
             instances.append(self)
 
         def add_callback(self, event: str, callback) -> None:
-            self.callbacks[event] = callback
+            self.callbacks.setdefault(event, []).append(callback)
 
         def train(self, **options: object) -> None:
             self.train_options = options
@@ -391,10 +420,12 @@ def test_training_reports_epochs_and_publishes_validated_settings(
             weights.mkdir(parents=True)
             (weights / "best.pt").write_bytes(b"weights")
             for epoch in (1, 2):
-                self.callbacks["on_model_save"](_trainer_after_epoch(epoch))
+                for callback in self.callbacks["on_model_save"]:
+                    callback(_trainer_after_epoch(epoch))
             self.trainer = SimpleNamespace(
                 save_dir=save_dir,
                 best=weights / "best.pt",
+                test_loader=SimpleNamespace(batch_size=4),
                 args=SimpleNamespace(imgsz=768, max_det=500, device="mps"),
             )
 
@@ -429,12 +460,18 @@ def test_training_reports_epochs_and_publishes_validated_settings(
     assert result.confidence == pytest.approx(0.2)
     assert instances[0].train_options == {
         **PARAMETERS,
+        "trainer": TRAINER,
         "data": str(dataset),
         "project": str(tmp_path),
         "name": "run",
         "exist_ok": False,
         "device": "mps",
     }
+    assert instances[1].val_options["batch"] == 4
+    execution = json.loads((output / "execution.json").read_text())
+    assert execution["validationBatch"] == 4
+    assert execution["accumulate"] == 16
+    assert "nbs" not in execution["parameters"]
     assert instances[1].val_options["end2end"] is False
     assert instances[1].val_options["device"] == "mps"
     assert json.loads(result.summary.read_text()) == {

@@ -18,6 +18,8 @@ export const trainingParametersSchema = z.strictObject({
   epochs: z.number().int().min(1).max(300),
   patience: z.number().int().min(0).max(300),
   batch: z.number().int().min(1).max(64),
+  // Omission delegates accumulation to the recipe's pinned runtime.
+  nbs: z.number().int().min(1).max(1024).optional(),
   imgsz: z
     .number()
     .int()
@@ -38,24 +40,16 @@ export const trainingParametersSchema = z.strictObject({
 export type TrainingParameters = z.infer<typeof trainingParametersSchema>;
 
 /** The parameters a run may change from the recipe; the rest stay as recorded. */
-export const trainingOverridesSchema = trainingParametersSchema.pick({
-  epochs: true,
-  imgsz: true,
-  batch: true,
-  patience: true,
-  lr0: true,
-});
+export const trainingOverridesSchema = trainingParametersSchema
+  .pick({
+    epochs: true,
+    imgsz: true,
+    batch: true,
+    patience: true,
+    lr0: true,
+    warmup_epochs: true,
+    nbs: true,
+  })
+  .partial();
 
 export type TrainingOverrides = z.infer<typeof trainingOverridesSchema>;
-
-export function trainingOverrides(
-  parameters: TrainingParameters,
-): TrainingOverrides {
-  return {
-    epochs: parameters.epochs,
-    imgsz: parameters.imgsz,
-    batch: parameters.batch,
-    patience: parameters.patience,
-    lr0: parameters.lr0,
-  };
-}

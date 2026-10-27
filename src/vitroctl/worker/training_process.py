@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import multiprocessing
 import os
 import signal
@@ -16,6 +18,8 @@ from vitroctl.detectors.ultralytics.training import (
     YoloTrainingResult,
     train_yolo_detector,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _train(
@@ -35,6 +39,7 @@ def _train(
             on_training_start=lambda: emit("training"),
             on_epoch=lambda report: emit("epoch", report),
             on_checkpoint=lambda epoch: emit("checkpoint", epoch),
+            on_execution=lambda execution: emit("execution", execution),
             on_validation_start=lambda: emit("validating"),
         )
         connection.send(("result", result))
@@ -89,6 +94,8 @@ def run_training_process(
                 on_epoch(value)
             elif kind == "checkpoint":
                 on_checkpoint(value)
+            elif kind == "execution":
+                LOGGER.info("Training execution: %s", json.dumps(value, default=str))
             elif kind == "validating":
                 on_validation_start()
             else:

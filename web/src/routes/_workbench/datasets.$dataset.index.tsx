@@ -116,7 +116,8 @@ function DatasetPage() {
     images,
     reviewedCount,
     training,
-    recipe,
+    trainingPresets,
+    defaultTrainingPresetId,
     runs,
   } = Route.useLoaderData();
   const [starting, setStarting] = useState(false);
@@ -334,7 +335,13 @@ function DatasetPage() {
         />
       </PageSection>
       <TrainDialog
-        set={{ dataset, reviewed: reviewedCount, recipe, training }}
+        set={{
+          dataset,
+          reviewed: reviewedCount,
+          trainingPresets,
+          defaultTrainingPresetId,
+          training,
+        }}
         open={starting}
         onClose={() => setStarting(false)}
       />

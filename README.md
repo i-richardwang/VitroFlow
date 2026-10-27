@@ -232,7 +232,16 @@ uv run python scripts/train_yolo.py \
   --device mps
 ```
 
-`configs/yolo26/seed-small.recipe.json` fixes the base-weight digest, Ultralytics version, and training arguments. `--epochs`, `--imgsz`, and `--batch` provide explicit local overrides.
+Training presets pin the base-weight SHA256, Ultralytics version, and training parameters. The Web dialog selects a preset and accepts parameter adjustments; the server validates and freezes the resolved recipe in the run. Resuming uses the run's recipe and checkpoint arguments.
+
+- `configs/yolo26/yolo26n-whole-v1.recipe.json` (default): YOLO26n, image size 1536, batch 4, nominal batch size 64, 50 epochs, patience 20, warmup 3.
+- `configs/yolo26/yolo26s-whole-2048-v1.recipe.json`: YOLO26s, image size 2048, batch 1, nominal batch size 8, 50 epochs, no warmup or early stopping.
+
+Both presets use AdamW with learning rate 0.001 and disable Mosaic, MixUp, and Copy-Paste. Other augmentation settings come from the pinned runtime. Use `--recipe` to select the same manifest locally; `--epochs`, `--imgsz`, and `--batch` override individual parameters. Epochs defines the learning-rate schedule; pausing a run does not shorten that schedule.
+
+Validation uses at most the actual per-device training batch, including after automatic batch reduction. The best checkpoint is calibrated with best-F1 confidence. `execution.json` records actual framework arguments, batch sizes, and gradient accumulation. Workers preserve these diagnostics in their profile log before removing the attempt directory.
+
+Preset IDs and filenames include a version. Change a preset by adding a new version, keeping the previous manifest unchanged. Parameter contracts are generated from the Web Zod schemas with `cd web && bun run contracts:generate`; `bun run contracts:check` verifies they are current. Worker update requirements are documented in [the operator guide](docs/vitroctl.md#workers).
 
 ## Publishing the Python packages
 

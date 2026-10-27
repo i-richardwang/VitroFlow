@@ -17,13 +17,14 @@ from vitroctl.detectors.ultralytics import export_yolo_dataset
 ultralytics = pytest.importorskip("ultralytics")
 
 
-def test_seed_recipe_parameters_are_accepted_ultralytics_arguments() -> None:
+@pytest.mark.parametrize(
+    "filename", ["yolo26n-whole-v1.recipe.json", "yolo26s-whole-2048-v1.recipe.json"]
+)
+def test_seed_recipe_parameters_are_accepted_ultralytics_arguments(filename) -> None:
     from ultralytics.cfg import get_cfg
 
     project_root = Path(__file__).resolve().parents[1]
-    manifest = json.loads(
-        (project_root / "configs/yolo26/seed-small.recipe.json").read_text()
-    )
+    manifest = json.loads((project_root / "configs/yolo26" / filename).read_text())
     parameters = manifest["recipe"]["parameters"]
 
     cfg = get_cfg(overrides=dict(parameters))
