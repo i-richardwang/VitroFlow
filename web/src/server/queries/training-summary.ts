@@ -10,6 +10,7 @@ import {
 import type { ImageRecord } from "../datasets/public";
 
 import { listOnlineTrainers } from "../workers/public";
+import { trainingWorkerOptions } from "./training-workers";
 
 /**
  * Reviews the last run did not train on: images reviewed since, and images
@@ -62,6 +63,7 @@ export async function trainingSummary(
   ]);
   return {
     active,
+    workers: await trainingWorkerOptions(at),
     reviewedSinceLastRun: await reviewedSinceLastRun(
       records,
       latest ?? undefined,

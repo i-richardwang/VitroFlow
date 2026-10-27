@@ -1,6 +1,16 @@
-import { DatasetNotFoundError } from "../../domain/datasets/errors";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, gt, inArray, not, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  not,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { database, transaction, type Executor } from "../infra/db/client";
 import {
@@ -8,6 +18,7 @@ import {
   datasets,
   trainingEpochs,
   trainingRuns,
+  trainingAttempts,
 } from "../infra/db/schema";
 import {
   ACTIVE_TRAINING_RUN_STATUSES,
@@ -20,17 +31,22 @@ import {
   type TrainingPhase,
   type TrainingRecipe,
   type TrainingRun,
+  type TrainingAttemptOwner,
 } from "../../domain/training/schema";
 import type { TrainingRunSummary } from "../../domain/training/read-model";
-import type { WorkerIdentity } from "../../domain/workers/schema";
+import { canTrain, type WorkerIdentity } from "../../domain/workers/schema";
+import { DatasetNotFoundError } from "../../domain/datasets/errors";
 import {
   TrainingRunConflictError,
   TrainingRunNotFoundError,
 } from "../../domain/training/errors";
 import { createDatasetSnapshot, readDatasetSnapshot } from "./snapshots";
+import { finishAttempt } from "./attempts";
 import { readDataset } from "../datasets/public";
 import {
   currentWorkerSession,
+  listEnrolledWorkers,
+  listWorkers,
   leaseIsHeld,
   lockWorkerSession,
   sessionIsCurrent,
@@ -71,6 +87,8 @@ export function requireTrainingRunRow(
 function toRun(row: Row): TrainingRun {
   const state = (() => {
     switch (row.status) {
+      case "paused":
+      case "cancelled":
       case "queued":
         return { status: row.status };
       case "running":
@@ -95,6 +113,9 @@ function toRun(row: Row): TrainingRun {
     datasetSnapshotId: row.datasetSnapshotId,
     createdAt: row.createdAt.toISOString(),
     attempt: row.attempt,
+    targetWorkerId: row.targetWorkerId,
+    lastProgressAt: row.lastProgressAt?.toISOString() ?? null,
+    checkpoint: row.checkpoint,
     recipe: row.recipe,
     state,
   });
@@ -147,6 +168,8 @@ function stateColumns(
     modelVersionId: null,
   };
   switch (state.status) {
+    case "paused":
+    case "cancelled":
     case "queued":
       return { ...cleared, status: state.status };
     case "running":
@@ -177,10 +200,39 @@ export async function transitionTrainingRun(
 ): Promise<TrainingRun> {
   const [row] = await db
     .update(trainingRuns)
-    .set(stateColumns(state))
+    .set({
+      ...stateColumns(state),
+      ...(state.status === "cancelled" || state.status === "succeeded"
+        ? { checkpoint: null }
+        : {}),
+    })
     .where(eq(trainingRuns.id, runId))
     .returning();
-  return requireTrainingRunRow(row, runId);
+  const run = requireTrainingRunRow(row, runId);
+  if (state.status !== "running" && state.status !== "queued") {
+    await finishAttempt(
+      run,
+      state.status,
+      db,
+      state.status === "failed" ? state.error : null,
+    );
+  }
+  return run;
+}
+
+export async function validateTrainingTarget(targetWorkerId: string | null) {
+  if (
+    targetWorkerId !== null &&
+    !(await listEnrolledWorkers()).includes(targetWorkerId)
+  ) {
+    throw new TrainingRunConflictError(`Unknown worker: ${targetWorkerId}`);
+  }
+  const worker = (await listWorkers()).find(
+    (worker) => worker.workerId === targetWorkerId,
+  );
+  if (worker && !canTrain(worker)) {
+    throw new TrainingRunConflictError(`Worker ${targetWorkerId} cannot train`);
+  }
 }
 
 /**
@@ -190,7 +242,7 @@ export async function transitionTrainingRun(
  */
 async function ownedTransition(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   state: TrainingRun["state"],
   db: Executor,
 ): Promise<TrainingRun> {
@@ -203,6 +255,8 @@ async function ownedTransition(
         eq(trainingRuns.status, "running"),
         eq(trainingRuns.workerId, owner.workerId),
         eq(trainingRuns.sessionId, owner.sessionId),
+        eq(trainingRuns.attempt, owner.attempt),
+        gt(trainingRuns.leaseExpiresAt, new Date()),
         sessionIsCurrent(owner),
       ),
     )
@@ -336,7 +390,9 @@ export async function activeTrainingRun(
 export async function createTrainingRun(
   datasetId: string,
   recipe: TrainingRecipe,
+  targetWorkerId: string | null = null,
 ): Promise<TrainingRun> {
+  await validateTrainingTarget(targetWorkerId);
   return transaction(async (tx) => {
     const dataset = await readDataset(datasetId, tx);
     if (!dataset)
@@ -356,6 +412,7 @@ export async function createTrainingRun(
         datasetSnapshotId: snapshot.id,
         createdAt: new Date(),
         attempt: 0,
+        targetWorkerId,
         recipe: trainingRecipeSchema.parse(recipe),
         ...stateColumns({ status: "queued" }),
       })
@@ -374,7 +431,8 @@ export async function claimTrainingRun(
   at: Date = new Date(),
 ): Promise<TrainingRun | null> {
   return transaction(async (tx) => {
-    await lockWorkerSession(owner, tx);
+    const worker = await lockWorkerSession(owner, tx);
+    if (!canTrain(worker)) return null;
     const [owned] = await tx
       .select()
       .from(trainingRuns)
@@ -391,11 +449,17 @@ export async function claimTrainingRun(
       .select()
       .from(trainingRuns)
       .where(
-        or(
-          eq(trainingRuns.status, "queued"),
-          and(
-            eq(trainingRuns.status, "running"),
-            not(leaseIsHeld(trainingRuns, at)),
+        and(
+          or(
+            isNull(trainingRuns.targetWorkerId),
+            eq(trainingRuns.targetWorkerId, owner.workerId),
+          ),
+          or(
+            eq(trainingRuns.status, "queued"),
+            and(
+              eq(trainingRuns.status, "running"),
+              not(leaseIsHeld(trainingRuns, at)),
+            ),
           ),
         ),
       )
@@ -403,10 +467,19 @@ export async function claimTrainingRun(
       .limit(1)
       .for("update", { skipLocked: true });
     if (!candidate) return null;
+    if (candidate.status === "running")
+      await finishAttempt(toRun(candidate), "expired", tx);
+    await tx.insert(trainingAttempts).values({
+      runId: candidate.id,
+      attempt: candidate.attempt + 1,
+      workerId: owner.workerId,
+      startedAt: at,
+    });
     const [row] = await tx
       .update(trainingRuns)
       .set({
         attempt: candidate.attempt + 1,
+        lastProgressAt: at,
         ...stateColumns({
           status: "running",
           workerId: owner.workerId,
@@ -423,30 +496,32 @@ export async function claimTrainingRun(
 }
 
 /** The run as its leaseholder sees it; any other caller gets a conflict. */
-async function ownedRunningRun(
+export async function lockOwnedTrainingRun(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   db: Executor,
 ): Promise<RunningTrainingRun> {
-  return requireOwnedRunningRun(
-    runId,
-    await readTrainingRun(runId, db),
-    owner,
-    db,
-  );
+  const [row] = await db
+    .select()
+    .from(trainingRuns)
+    .where(eq(trainingRuns.id, runId))
+    .for("update");
+  return requireOwnedRunningRun(runId, row ? toRun(row) : null, owner, db);
 }
 
 export async function requireOwnedRunningRun(
   runId: string,
   run: TrainingRun | null,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   db: Executor,
 ): Promise<RunningTrainingRun> {
   await currentWorkerSession(owner, db);
   if (
     run?.state.status !== "running" ||
     run.state.workerId !== owner.workerId ||
-    run.state.sessionId !== owner.sessionId
+    run.state.sessionId !== owner.sessionId ||
+    run.attempt !== owner.attempt ||
+    new Date(run.state.leaseExpiresAt) <= new Date()
   ) {
     throw new TrainingRunConflictError(
       `Training run ${runId} is not owned by ${owner.workerId}/${owner.sessionId}`,
@@ -458,7 +533,7 @@ export async function requireOwnedRunningRun(
 /** Renew ownership without changing the run's phase or business progress. */
 export async function renewTrainingLease(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
   const db = await database();
@@ -471,6 +546,8 @@ export async function renewTrainingLease(
         eq(trainingRuns.status, "running"),
         eq(trainingRuns.workerId, owner.workerId),
         eq(trainingRuns.sessionId, owner.sessionId),
+        eq(trainingRuns.attempt, owner.attempt),
+        gt(trainingRuns.leaseExpiresAt, new Date()),
         sessionIsCurrent(owner),
       ),
     )
@@ -486,33 +563,39 @@ export async function renewTrainingLease(
 /** Advance through the ordered execution phases; retries are idempotent. */
 export async function enterTrainingPhase(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   phase: TrainingPhase,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
-  const db = await database();
-  const current = await ownedRunningRun(runId, owner, db);
-  if (
-    phase !== current.state.phase &&
-    phase !== NEXT_PHASE[current.state.phase]
-  ) {
-    throw new TrainingRunConflictError(
-      `Training run ${runId} cannot move from ${current.state.phase} to ${phase}`,
+  return transaction(async (db) => {
+    const current = await lockOwnedTrainingRun(runId, owner, db);
+    if (
+      phase !== current.state.phase &&
+      phase !== NEXT_PHASE[current.state.phase]
+    ) {
+      throw new TrainingRunConflictError(
+        `Training run ${runId} cannot move from ${current.state.phase} to ${phase}`,
+      );
+    }
+    if (phase !== current.state.phase)
+      await db
+        .update(trainingRuns)
+        .set({ lastProgressAt: at })
+        .where(eq(trainingRuns.id, runId));
+    return ownedTransition(
+      runId,
+      owner,
+      {
+        status: "running",
+        workerId: owner.workerId,
+        sessionId: owner.sessionId,
+        leaseExpiresAt: leaseFrom(at),
+        phase,
+        progress: Math.max(current.state.progress, PHASE_PROGRESS[phase]),
+      },
+      db,
     );
-  }
-  return ownedTransition(
-    runId,
-    owner,
-    {
-      status: "running",
-      workerId: owner.workerId,
-      sessionId: owner.sessionId,
-      leaseExpiresAt: leaseFrom(at),
-      phase,
-      progress: Math.max(current.state.progress, PHASE_PROGRESS[phase]),
-    },
-    db,
-  );
+  });
 }
 
 /**
@@ -521,12 +604,12 @@ export async function enterTrainingPhase(
  */
 export async function recordTrainingEpoch(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   report: TrainingEpochReport,
   at: Date = new Date(),
 ): Promise<TrainingRun> {
   return transaction(async (tx) => {
-    const current = await ownedRunningRun(runId, owner, tx);
+    const current = await lockOwnedTrainingRun(runId, owner, tx);
     if (current.state.phase !== "training") {
       throw new TrainingRunConflictError(
         `Training run ${runId} cannot record epochs while ${current.state.phase}`,
@@ -538,6 +621,22 @@ export async function recordTrainingEpoch(
         `Training run ${runId} has ${total} epochs, not ${report.epoch}`,
       );
     }
+    const [previous] = await tx
+      .select({ epoch: trainingEpochs.epoch })
+      .from(trainingEpochs)
+      .where(
+        and(
+          eq(trainingEpochs.runId, runId),
+          eq(trainingEpochs.attempt, owner.attempt),
+        ),
+      )
+      .orderBy(desc(trainingEpochs.epoch))
+      .limit(1);
+    if (!previous || report.epoch > previous.epoch)
+      await tx
+        .update(trainingRuns)
+        .set({ lastProgressAt: at })
+        .where(eq(trainingRuns.id, runId));
     await tx
       .insert(trainingEpochs)
       .values({
@@ -626,20 +725,30 @@ export async function listTrainingEpochs(
 
 export async function failTrainingRun(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   error: string,
 ): Promise<TrainingRun> {
-  return ownedTransition(
-    runId,
-    owner,
-    { status: "failed", error: error.slice(0, 2000) },
-    await database(),
-  );
+  return transaction(async (tx) => {
+    await lockOwnedTrainingRun(runId, owner, tx);
+    return transitionTrainingRun(
+      runId,
+      { status: "failed", error: error.slice(0, 2000) },
+      tx,
+    );
+  });
 }
 
-export async function snapshotForRun(runId: string, owner: WorkerIdentity) {
+export async function snapshotForRun(
+  runId: string,
+  owner: TrainingAttemptOwner,
+) {
   const db = await database();
-  const run = await ownedRunningRun(runId, owner, db);
+  const run = await requireOwnedRunningRun(
+    runId,
+    await readTrainingRun(runId, db),
+    owner,
+    db,
+  );
   const snapshot = await readDatasetSnapshot(run.datasetSnapshotId, db);
   if (!snapshot) throw new Error(`Missing snapshot ${run.datasetSnapshotId}`);
   return snapshot;

@@ -1,7 +1,7 @@
 import type { Dataset, NamedDataset } from "../datasets/schema";
 import type { VersionComparison } from "../models/comparison";
 import type { Model, ModelVersion } from "../models/schema";
-import type { TrainingEpoch, TrainingRun } from "./schema";
+import type { TrainingAttempt, TrainingEpoch, TrainingRun } from "./schema";
 
 export interface TrainingRunSummary {
   dataset: NamedDataset;
@@ -17,6 +17,7 @@ export interface TrainingSummary {
   reviewedSinceLastRun: number;
   /** The least memory among the online trainers, or null when none is online. */
   workerMemoryBytes: number | null;
+  workers: TrainingWorkerOption[];
 }
 
 export interface VersionOverview {
@@ -38,7 +39,14 @@ export interface TrainingRunDetail {
   model: Model;
   run: TrainingRun;
   epochs: TrainingEpoch[];
+  attempts: TrainingAttempt[];
+  workers: TrainingWorkerOption[];
   version: ModelVersion | null;
   /** Whether the published version is the one that reads the model's images. */
   current: boolean;
+}
+
+export interface TrainingWorkerOption {
+  workerId: string;
+  online: boolean;
 }

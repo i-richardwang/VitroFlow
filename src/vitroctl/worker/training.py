@@ -15,7 +15,10 @@ from vitroctl.detectors.ultralytics import (
     EpochReport,
     YoloTrainingInterruptedError,
     export_dataset_images,
-    train_yolo_detector,
+)
+from vitroctl.detectors.ultralytics.checkpoints import (
+    pack_checkpoint,
+    unpack_checkpoint,
 )
 from vitroctl.io.image_io import verify_digest
 from vitroctl.training.documents import (
@@ -26,11 +29,10 @@ from vitroctl.training.documents import (
 )
 from vitroctl.worker.images import ImageCache, wait_for
 from vitroctl.worker.session import LeaseLostError, WorkerClient, keep_lease
+from vitroctl.worker.training_process import run_training_process
 
 LOGGER = logging.getLogger(__name__)
 
-# A run keeps its directory until it ends, so an interrupted run that this
-# machine claims again resumes from what it left there.
 RUNS_DIRECTORY = "training-runs"
 STALE_RUN_SECONDS = 7 * 24 * 60 * 60
 
@@ -45,15 +47,16 @@ class TrainingClient:
     def __init__(self, worker: WorkerClient) -> None:
         self.worker = worker
 
-    @property
-    def identity(self) -> dict[str, str]:
-        return self.worker.identity
+    def _identity(self, job: TrainingJob) -> dict[str, str | int]:
+        if job.session_id != self.worker.session.session_id:
+            raise ValueError("Training execution belongs to another worker session")
+        return {"sessionId": job.session_id, "attempt": job.attempt}
 
     def claim(self) -> TrainingJob | None:
         response = self.worker.request(
             "POST",
             "api/worker/training/claim",
-            json=self.identity,
+            json=self.worker.identity,
         )
         response.raise_for_status()
         document = as_object(response.json(), "training claim response")
@@ -65,56 +68,58 @@ class TrainingClient:
             raise ValueError("Training claim returned another session's lease")
         return job
 
-    def fetch_snapshot(self, run_id: str) -> TrainingSnapshot:
+    def fetch_snapshot(self, job: TrainingJob) -> TrainingSnapshot:
         response = self.worker.request(
             "GET",
-            f"api/worker/training/runs/{run_id}/snapshot",
-            params=self.identity,
+            f"api/worker/training/runs/{job.run_id}/snapshot",
+            params=self._identity(job),
         )
         self.worker.require_current_session(response)
         return parse_training_snapshot(response.json())
 
-    def enter_phase(self, run_id: str, phase: TrainingPhase) -> None:
+    def enter_phase(self, job: TrainingJob, phase: TrainingPhase) -> None:
         response = self.worker.request(
             "POST",
-            f"api/worker/training/runs/{run_id}/phase",
+            f"api/worker/training/runs/{job.run_id}/phase",
             json={
-                **self.identity,
+                **self._identity(job),
                 "phase": phase,
             },
         )
         self.worker.require_current_session(response)
 
-    def renew_lease(self, run_id: str) -> None:
+    def renew_lease(self, job: TrainingJob) -> None:
         response = self.worker.request(
             "POST",
-            f"api/worker/training/runs/{run_id}/lease",
-            json=self.identity,
+            f"api/worker/training/runs/{job.run_id}/lease",
+            json=self._identity(job),
         )
         self.worker.require_current_session(response)
 
-    def report_epoch(self, run_id: str, report: EpochReport) -> None:
+    def report_epoch(self, job: TrainingJob, report: EpochReport) -> None:
         response = self.worker.request(
             "POST",
-            f"api/worker/training/runs/{run_id}/epochs",
-            json={**self.identity, **report.to_json()},
+            f"api/worker/training/runs/{job.run_id}/epochs",
+            json={**self._identity(job), **report.to_json()},
         )
         self.worker.require_current_session(response)
 
-    def download_image(self, run_id: str, digest: str) -> bytes:
+    def download_image(self, job: TrainingJob, digest: str) -> bytes:
         response = self.worker.request(
             "GET",
-            f"api/worker/training/runs/{run_id}/images/{digest}",
-            params=self.identity,
+            f"api/worker/training/runs/{job.run_id}/images/{digest}",
+            params=self._identity(job),
         )
         self.worker.require_current_session(response)
         return verify_digest(response.content, digest)
 
-    def publish_artifact(self, run_id: str, weights: Path, inference: Path) -> None:
+    def publish_artifact(
+        self, job: TrainingJob, weights: Path, inference: Path
+    ) -> None:
         response = self.worker.request(
             "PUT",
-            f"api/worker/training/runs/{run_id}/artifact",
-            data=self.identity,
+            f"api/worker/training/runs/{job.run_id}/artifact",
+            data={key: str(value) for key, value in self._identity(job).items()},
             files={
                 "weights": ("best.pt", weights.read_bytes()),
                 "inference": (
@@ -123,21 +128,47 @@ class TrainingClient:
                     "application/json",
                 ),
             },
-            timeout=None,
+            timeout=120.0,
         )
         if response.status_code in {400, 422}:
             raise TrainingArtifactRejectedError(response.text)
         self.worker.require_current_session(response)
 
-    def report_failure(self, run_id: str, error: str) -> None:
+    def report_failure(self, job: TrainingJob, error: str) -> None:
         response = self.worker.request(
             "POST",
-            f"api/worker/training/runs/{run_id}/fail",
-            json={**self.identity, "error": error[:2000]},
+            f"api/worker/training/runs/{job.run_id}/fail",
+            json={**self._identity(job), "error": error[:2000]},
         )
         if response.status_code == 409:
             return
         response.raise_for_status()
+
+    def restore_checkpoint(self, job: TrainingJob, output: Path) -> None:
+        if job.checkpoint is None:
+            return
+        response = self.worker.request(
+            "GET",
+            f"api/worker/training/runs/{job.run_id}/checkpoint",
+            params=self._identity(job),
+        )
+        self.worker.require_current_session(response)
+        payload = verify_digest(response.content, job.checkpoint.digest)
+        if len(payload) != job.checkpoint.bytes:
+            raise ValueError("Training checkpoint size does not match its descriptor")
+        unpack_checkpoint(payload, output)
+
+    def save_checkpoint(self, job: TrainingJob, output: Path, epoch: int) -> None:
+        if epoch >= job.recipe.parameters["epochs"]:
+            return
+        response = self.worker.request(
+            "PUT",
+            f"api/worker/training/runs/{job.run_id}/checkpoint",
+            params={**self._identity(job), "epoch": epoch},
+            content=pack_checkpoint(output),
+            timeout=120.0,
+        )
+        self.worker.require_current_session(response)
 
 
 def materialize_snapshot(
@@ -160,13 +191,13 @@ def materialize_snapshot(
     if dataset.is_file():
         # The export publishes atomically, so a dataset that exists is complete.
         return dataset
-    snapshot = client.fetch_snapshot(job.run_id)
+    snapshot = client.fetch_snapshot(job)
     if len(snapshot.images) < 2:
         raise ValueError("Training snapshot must contain at least two images")
     started = time.monotonic()
     with images.holding(
         (image.digest for image in snapshot.images),
-        lambda digest: client.download_image(job.run_id, digest),
+        lambda digest: client.download_image(job, digest),
     ) as pending:
         dataset_images: list[DatasetImage] = []
         for image in snapshot.images:
@@ -224,17 +255,17 @@ def process_training_job(
 
     runs = work_root / RUNS_DIRECTORY
     _prune_stale_runs(runs)
-    root = runs / job.run_id
+    root = runs / f"{job.run_id}-{job.attempt}"
     root.mkdir(parents=True, exist_ok=True)
     os.utime(root)  # a run ages from its latest claim
     try:
         recipe = job.recipe
         with keep_lease(
             client.worker,
-            lambda: client.renew_lease(job.run_id),
+            lambda: client.renew_lease(job),
             cancelled=stopped.is_set if stopped else None,
         ) as cancelled:
-            client.enter_phase(job.run_id, "preparing")
+            client.enter_phase(job, "preparing")
             dataset = materialize_snapshot(
                 client,
                 job,
@@ -242,7 +273,9 @@ def process_training_job(
                 images=images,
                 cancelled=cancelled,
             )
-            result = train_yolo_detector(
+            client.restore_checkpoint(job, root / "run")
+
+            result = run_training_process(
                 dataset,
                 root / "run",
                 parameters=recipe.parameters,
@@ -251,24 +284,27 @@ def process_training_job(
                 runtime_version=recipe.runtime_version,
                 device=device,
                 cancelled=cancelled,
-                on_training_start=lambda: client.enter_phase(job.run_id, "training"),
-                on_epoch=lambda epoch: client.report_epoch(job.run_id, epoch),
-                on_validation_start=lambda: client.enter_phase(
-                    job.run_id, "validating"
+                on_training_start=lambda: client.enter_phase(job, "training"),
+                on_epoch=lambda epoch: client.report_epoch(job, epoch),
+                on_checkpoint=lambda epoch: client.save_checkpoint(
+                    job, root / "run", epoch
                 ),
+                resume_required=job.checkpoint is not None,
+                on_validation_start=lambda: client.enter_phase(job, "validating"),
             )
-        ensure_running()
-        if result.confidence is None:
-            raise RuntimeError("Training completed without a usable validation signal")
-        client.publish_artifact(job.run_id, result.best_weights, result.summary)
+            ensure_running()
+            if result.confidence is None:
+                raise RuntimeError(
+                    "Training completed without a usable validation signal"
+                )
+            client.publish_artifact(job, result.best_weights, result.summary)
     except (YoloTrainingInterruptedError, LeaseLostError):
-        # An interruption is no outcome: the directory stays for the next claim.
         raise
     except Exception as error:
         try:
-            client.report_failure(job.run_id, str(error) or type(error).__name__)
+            client.report_failure(job, str(error) or type(error).__name__)
         except Exception:
             LOGGER.exception("failed to report training run failure")
-        shutil.rmtree(root, ignore_errors=True)
         raise
-    shutil.rmtree(root, ignore_errors=True)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

@@ -20,6 +20,8 @@ export const TRAINING_RUN_STATUSES = [
   "running",
   "succeeded",
   "failed",
+  "paused",
+  "cancelled",
 ] as const;
 export const ACTIVE_TRAINING_RUN_STATUSES = ["queued", "running"] as const;
 const ACTIVE_TRAINING_RUN_STATUS_SET = new Set<string>(
@@ -131,6 +133,8 @@ export const trainingEpochSchema = trainingEpochReportSchema.extend({
 
 const trainingRunStateSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("queued") }),
+  z.strictObject({ status: z.literal("paused") }),
+  z.strictObject({ status: z.literal("cancelled") }),
   z.strictObject({
     status: z.literal("running"),
     workerId: resourceIdSchema,
@@ -149,6 +153,50 @@ const trainingRunStateSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+export const trainingAttemptOwnerSchema = z.strictObject({
+  sessionId: resourceIdSchema,
+  attempt: z.number().int().positive(),
+});
+export type TrainingAttemptOwner = z.infer<
+  typeof trainingAttemptOwnerSchema
+> & { workerId: string };
+
+export const trainingCheckpointSchema = z.strictObject({
+  attempt: z.number().int().positive(),
+  epoch: z.number().int().positive(),
+  digest: sha256Schema,
+  bytes: z.number().int().positive(),
+});
+export type TrainingCheckpoint = z.infer<typeof trainingCheckpointSchema>;
+
+export const trainingControlSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("pause") }),
+  z.strictObject({ action: z.literal("cancel") }),
+  z.strictObject({
+    action: z.literal("resume"),
+    targetWorkerId: resourceIdSchema.nullable(),
+    restart: z.boolean(),
+  }),
+]);
+export type TrainingControl = z.infer<typeof trainingControlSchema>;
+
+export const TRAINING_ATTEMPT_OUTCOMES = [
+  "succeeded",
+  "failed",
+  "paused",
+  "cancelled",
+  "expired",
+] as const;
+
+export interface TrainingAttempt {
+  attempt: number;
+  workerId: string;
+  startedAt: string;
+  finishedAt: string | null;
+  outcome: (typeof TRAINING_ATTEMPT_OUTCOMES)[number] | null;
+  error: string | null;
+}
+
 export const trainingRunSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: resourceIdSchema,
@@ -156,6 +204,9 @@ export const trainingRunSchema = z.strictObject({
   datasetSnapshotId: resourceIdSchema,
   createdAt: z.string().datetime({ offset: true }),
   attempt: z.number().int().nonnegative(),
+  targetWorkerId: resourceIdSchema.nullable(),
+  lastProgressAt: z.string().datetime({ offset: true }).nullable(),
+  checkpoint: trainingCheckpointSchema.nullable(),
   recipe: trainingRecipeSchema,
   state: trainingRunStateSchema,
 });

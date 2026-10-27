@@ -35,7 +35,13 @@ vitroctl worker stop mac-studio
 
 `launchd` restarts a Worker that crashes. A Worker whose machine is removed from the Workers page stops and stays stopped, and `worker list` shows why; enroll the machine again and rerun `setup --force` with the new token.
 
-`stop` and `restart` return once the Worker has exited; `restart` then loads the current LaunchAgent definition. A stopping Worker interrupts training at the next batch. The run keeps its directory under the profile's `work/training-runs/`, and when the same machine claims the run again, training resumes after the last completed epoch instead of starting over. A run that finishes or fails removes its directory; one untouched for a week is pruned.
+`stop` and `restart` return once the Worker has exited; `restart` then loads the current LaunchAgent definition. Training runs in a supervised child process, so shutdown or detection of a revoked lease stops even a trainer blocked inside a GPU operation. The server revokes ownership immediately; the Worker detects revocation on its next training request or lease renewal. Each attempt uses a private directory that is removed when it exits.
+
+The training dialog assigns work automatically or to a specific enrolled Worker. On a run's page, **Pause** revokes the current attempt and releases the model immediately; **Cancel training** ends the task. A paused or failed task can resume on any training Worker, or explicitly restart from the beginning. A pinned task waits for its selected Worker rather than silently moving elsewhere.
+
+After each resumable epoch, the Worker uploads a checkpoint containing the optimizer state, last and best weights, and epoch journal to shared storage. Resume restores that checkpoint on the chosen machine with the recipe's pinned runtime. Work after the last uploaded checkpoint is discarded; without a checkpoint, resume starts from the beginning. An invalid checkpoint fails visibly instead of silently restarting. Checkpoints for paused and failed tasks remain available; cancelled, completed, superseded, and explicitly discarded checkpoints are collected by maintenance.
+
+The run page shows execution history, its current Worker, the last progress time, and the saved checkpoint's epoch. Lease renewal does not count as training progress. A run without progress for 15 minutes shows a warning, and an expired lease is shown separately. Every training execution request carries the execution attempt as well as its session, so cancelled or superseded attempts cannot report progress or publish models.
 
 `vitroctl worker run <profile>` runs a Worker in the foreground without `launchd`.
 

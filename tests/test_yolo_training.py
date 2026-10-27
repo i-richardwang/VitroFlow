@@ -219,7 +219,11 @@ def _checkpointing_yolo(monkeypatch: pytest.MonkeyPatch):
             for epoch in range(first, PARAMETERS["epochs"]):
                 last.write_bytes(b"checkpoint")
                 (weights / "best.pt").write_bytes(b"weights")
-                FakeYolo.checkpoints[last] = {"epoch": epoch, "optimizer": {}}
+                FakeYolo.checkpoints[last] = {
+                    "epoch": epoch,
+                    "optimizer": {},
+                    "train_args": {"data": "old-machine/dataset.yaml"},
+                }
                 self.callbacks["on_model_save"](_trainer_after_epoch(epoch + 1))
                 if epoch + 1 == FakeYolo.interrupt_after:
                     raise YoloTrainingInterruptedError("training interrupted")
@@ -235,6 +239,11 @@ def _checkpointing_yolo(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(training, "load_yolo", lambda: FakeYolo)
     monkeypatch.setattr(training, "_load_checkpoint", FakeYolo.checkpoints.__getitem__)
+    monkeypatch.setattr(
+        training,
+        "_save_checkpoint",
+        lambda state, path: FakeYolo.checkpoints.__setitem__(path, state),
+    )
     monkeypatch.setattr(training, "version", lambda _: "8.4.131")
     return FakeYolo
 
@@ -451,3 +460,20 @@ def test_training_reports_epochs_and_publishes_validated_settings(
             "runtime": {"framework": "ultralytics", "version": "8.4.131"},
         },
     }
+
+
+def test_a_requested_resume_never_silently_discards_an_invalid_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(training, "version", lambda _: "8.4.131")
+    dataset = tmp_path / "dataset.yaml"
+    dataset.write_text("train: images/train\nval: images/val\n")
+    with pytest.raises(ValueError, match="not resumable"):
+        training.train_yolo_detector(
+            dataset,
+            tmp_path / "run",
+            parameters=PARAMETERS,
+            model_digest="a" * 64,
+            runtime_version="8.4.131",
+            resume_required=True,
+        )

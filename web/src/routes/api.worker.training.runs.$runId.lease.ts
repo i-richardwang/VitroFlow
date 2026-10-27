@@ -4,7 +4,7 @@ import {
   parseWorkerSessionJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { workerSessionSchema } from "../domain/workers/schema";
+import { trainingAttemptOwnerSchema } from "../domain/training/schema";
 
 export const Route = createFileRoute("/api/worker/training/runs/$runId/lease")({
   server: {
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/lease")({
         try {
           const owner = await parseWorkerSessionJson(
             request,
-            workerSessionSchema,
+            trainingAttemptOwnerSchema,
             context.workerId,
           );
           return Response.json(await renewTrainingLease(params.runId, owner));

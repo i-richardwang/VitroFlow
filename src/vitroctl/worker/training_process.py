@@ -1,0 +1,114 @@
+"""A disposable trainer process; the worker retains control even if a GPU call hangs."""
+
+from __future__ import annotations
+
+import multiprocessing
+import os
+import signal
+from collections.abc import Callable
+from contextlib import suppress
+from multiprocessing.connection import Connection
+from pathlib import Path
+from typing import Any
+
+from vitroctl.detectors.ultralytics import EpochReport, YoloTrainingInterruptedError
+from vitroctl.detectors.ultralytics.training import (
+    YoloTrainingResult,
+    train_yolo_detector,
+)
+
+
+def _train(
+    connection: Connection, dataset: Path, output: Path, options: dict[str, Any]
+) -> None:
+    os.setsid()
+
+    def emit(kind: str, value: Any = None) -> None:
+        connection.send((kind, value))
+        connection.recv()
+
+    try:
+        result = train_yolo_detector(
+            dataset,
+            output,
+            **options,
+            on_training_start=lambda: emit("training"),
+            on_epoch=lambda report: emit("epoch", report),
+            on_checkpoint=lambda epoch: emit("checkpoint", epoch),
+            on_validation_start=lambda: emit("validating"),
+        )
+        connection.send(("result", result))
+    except (BrokenPipeError, EOFError):
+        pass  # The supervisor revoked execution and closed its end of the pipe.
+    except Exception as error:  # noqa: BLE001 - forward trainer failures to the supervising worker
+        with suppress(BrokenPipeError, EOFError):
+            connection.send(("error", f"{type(error).__name__}: {error}"))
+    finally:
+        connection.close()
+
+
+def run_training_process(
+    dataset: Path,
+    output: Path,
+    *,
+    cancelled: Callable[[], bool],
+    on_training_start: Callable[[], None],
+    on_epoch: Callable[[EpochReport], None],
+    on_checkpoint: Callable[[int], None],
+    on_validation_start: Callable[[], None],
+    **options: Any,
+) -> YoloTrainingResult:
+    context = multiprocessing.get_context("spawn")
+    parent, child = context.Pipe()
+    process = context.Process(
+        target=_train, args=(child, dataset, output, options), name="vitroflow-trainer"
+    )
+    process.start()
+    pid = process.pid
+    assert pid is not None
+    child.close()
+    try:
+        while True:
+            if cancelled():
+                raise YoloTrainingInterruptedError("Training execution was revoked")
+            if not parent.poll(0.2):
+                if not process.is_alive():
+                    raise RuntimeError(f"Trainer exited with code {process.exitcode}")
+                continue
+            try:
+                kind, value = parent.recv()
+            except EOFError as error:
+                raise RuntimeError("Trainer exited without a result") from error
+            if kind == "result":
+                return value
+            if kind == "error":
+                raise RuntimeError(value)
+            if kind == "training":
+                on_training_start()
+            elif kind == "epoch":
+                on_epoch(value)
+            elif kind == "checkpoint":
+                on_checkpoint(value)
+            elif kind == "validating":
+                on_validation_start()
+            else:
+                raise RuntimeError(f"Unknown trainer event: {kind}")
+            parent.send(None)
+    finally:
+        parent.close()
+        process.join(timeout=0.2)
+        # The trainer may have exited while its data-loader children still exist.
+        # macOS may report EPERM for a group containing only exited descendants.
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            if process.is_alive():
+                process.terminate()
+        process.join(timeout=5)
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            if process.is_alive():
+                process.kill()
+        process.join(timeout=5)
+        process.close()

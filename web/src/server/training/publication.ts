@@ -11,8 +11,8 @@ import {
   inferencePublicationSchema,
   type InferencePublication,
   type TrainingRun,
+  type TrainingAttemptOwner,
 } from "../../domain/training/schema";
-import type { WorkerIdentity } from "../../domain/workers/schema";
 import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
@@ -114,7 +114,7 @@ async function assertPublishedVersion(
  */
 export async function publishTrainingArtifact(
   runId: string,
-  owner: WorkerIdentity,
+  owner: TrainingAttemptOwner,
   weights: Uint8Array,
   inference: unknown,
 ): Promise<TrainingRun> {
@@ -142,6 +142,8 @@ export async function publishTrainingArtifact(
     );
   }
   const version = trainedModelVersion(current, weights, publication);
+  if (current.attempt !== owner.attempt)
+    throw new TrainingRunConflictError("Training attempt was superseded");
   if (current.state.status === "succeeded") {
     return assertPublishedVersion(
       current,

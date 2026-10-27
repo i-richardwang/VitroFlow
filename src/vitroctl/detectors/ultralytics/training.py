@@ -11,11 +11,10 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from vitroctl.detectors.ultralytics.checkpoints import EPOCH_JOURNAL
 from vitroctl.detectors.ultralytics.runtime import load_yolo
 from vitroctl.io.files import write_text_atomically
 from vitroctl.training.parameters import parse_training_parameters
-
-EPOCH_JOURNAL = "epochs.jsonl"
 
 
 class BoxValidationMetrics(Protocol):
@@ -219,6 +218,12 @@ def _load_checkpoint(path: Path) -> Mapping[str, Any]:
     return torch_load(path, map_location="cpu")
 
 
+def _save_checkpoint(state: dict[str, Any], path: Path) -> None:
+    import torch
+
+    torch.save(state, path)
+
+
 def _completed_epochs(output: Path, epochs: int) -> tuple[EpochReport, ...]:
     """The epochs an interrupted training in ``output`` resumes after.
 
@@ -260,6 +265,8 @@ def train_yolo_detector(
     on_training_start: Callable[[], None] | None = None,
     on_epoch: Callable[[EpochReport], None] | None = None,
     on_validation_start: Callable[[], None] | None = None,
+    resume_required: bool = False,
+    on_checkpoint: Callable[[int], None] | None = None,
 ) -> YoloTrainingResult:
     """Fine-tune, validate, and publish inference calibration for a YOLO detector.
 
@@ -280,6 +287,10 @@ def train_yolo_detector(
         )
     output = Path(output_dir).resolve()
     completed = _completed_epochs(output, int(fixed_parameters["epochs"]))
+    if resume_required and not completed:
+        raise ValueError(
+            "Checkpoint is not resumable; explicitly restart training to discard it"
+        )
     if not completed and output.exists():
         shutil.rmtree(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -295,7 +306,18 @@ def train_yolo_detector(
     train_options: dict[str, object]
     if completed:
         # The checkpoint carries the arguments the run started with.
-        trainer_model = yolo(str(output / "weights" / "last.pt"))
+        checkpoint_path = output / "weights" / "last.pt"
+        state = dict(_load_checkpoint(checkpoint_path))
+        state["train_args"] = {
+            **state["train_args"],
+            "data": str(data_path),
+            "project": str(output.parent),
+            "name": output.name,
+            "save_dir": str(output),
+            "exist_ok": True,
+        }
+        _save_checkpoint(state, checkpoint_path)
+        trainer_model = yolo(str(checkpoint_path))
         train_options = {"resume": True, "data": str(data_path)}
     else:
         model_source = Path(_model_source(model, output.parent / "weights"))
@@ -320,6 +342,8 @@ def train_yolo_detector(
             stream.write(json.dumps(report.to_json()) + "\n")
         if on_epoch:
             on_epoch(report)
+        if on_checkpoint:
+            on_checkpoint(report.epoch)
 
     trainer_model.add_callback("on_train_batch_end", stop_if_cancelled)
     trainer_model.add_callback("on_val_batch_end", stop_if_cancelled)

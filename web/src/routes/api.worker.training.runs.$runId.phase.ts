@@ -7,9 +7,9 @@ import {
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import { TRAINING_PHASES } from "../domain/training/schema";
-import { workerSessionSchema } from "../domain/workers/schema";
+import { trainingAttemptOwnerSchema } from "../domain/training/schema";
 
-const bodySchema = workerSessionSchema.extend({
+const bodySchema = trainingAttemptOwnerSchema.extend({
   phase: z.enum(TRAINING_PHASES),
 });
 

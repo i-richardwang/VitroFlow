@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { resourceIdSchema } from "../domain/identifiers/schema";
-import type { WorkerIdentity } from "../domain/workers/schema";
+import {
+  trainingAttemptOwnerSchema,
+  type TrainingAttemptOwner,
+} from "../domain/training/schema";
 import { publishTrainingArtifact } from "../server/training/public";
 import {
   parseWorkerForm,
@@ -32,7 +34,7 @@ export const Route = createFileRoute(
         if (declaredLength > MAX_TRAINING_ARTIFACT_REQUEST_BYTES) {
           return payloadTooLarge("Training artifact request is too large");
         }
-        let owner: WorkerIdentity;
+        let owner: TrainingAttemptOwner;
         let weights: Uint8Array;
         let publication: unknown;
         try {
@@ -56,7 +58,11 @@ export const Route = createFileRoute(
           }
           owner = {
             workerId: context.workerId,
-            sessionId: parseWorkerValue(session, resourceIdSchema, "sessionId"),
+            ...parseWorkerValue(
+              { sessionId: session, attempt: Number(form.get("attempt")) },
+              trainingAttemptOwnerSchema,
+              "Training attempt",
+            ),
           };
           weights = new Uint8Array(await weightsFile.arrayBuffer());
           publication = parseWorkerJsonText(await inference.text());

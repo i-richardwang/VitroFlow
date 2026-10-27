@@ -1,0 +1,79 @@
+import { eq } from "drizzle-orm";
+import type {
+  TrainingControl,
+  TrainingRun,
+} from "../../domain/training/schema";
+import {
+  TrainingRunConflictError,
+  TrainingRunNotFoundError,
+} from "../../domain/training/errors";
+import { readDataset } from "../datasets/public";
+import { transaction } from "../infra/db/client";
+import { trainingRuns } from "../infra/db/schema";
+import {
+  activeTrainingRun,
+  requireTrainingRunRow,
+  transitionTrainingRun,
+  validateTrainingTarget,
+} from "./runs";
+import { readDatasetSnapshot } from "./snapshots";
+
+/** Control and worker writes serialize on the task, making revocation immediate. */
+export async function controlTrainingRun(
+  datasetId: string,
+  runId: string,
+  expectedAttempt: number,
+  control: TrainingControl,
+): Promise<TrainingRun> {
+  if (control.action === "resume")
+    await validateTrainingTarget(control.targetWorkerId);
+  return transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(trainingRuns)
+      .where(eq(trainingRuns.id, runId))
+      .for("update");
+    const run = requireTrainingRunRow(row, runId);
+    const dataset = await readDataset(datasetId, tx);
+    const snapshot = await readDatasetSnapshot(run.datasetSnapshotId, tx);
+    if (!dataset || snapshot?.datasetId !== dataset.id)
+      throw new TrainingRunNotFoundError(`Training run not found: ${runId}`);
+    if (run.attempt !== expectedAttempt)
+      throw new TrainingRunConflictError(
+        "Training changed; refresh before controlling it",
+      );
+    const status = run.state.status;
+    if (control.action === "resume") {
+      if (status !== "paused" && status !== "failed")
+        throw new TrainingRunConflictError(
+          "Only paused or failed training can resume",
+        );
+      const active = await activeTrainingRun(run.modelId, tx);
+      if (active)
+        throw new TrainingRunConflictError(
+          `Training run ${active.id} is still active for ${run.modelId}`,
+        );
+      await tx
+        .update(trainingRuns)
+        .set({
+          targetWorkerId: control.targetWorkerId,
+          ...(control.restart ? { checkpoint: null } : {}),
+          lastProgressAt: null,
+        })
+        .where(eq(trainingRuns.id, runId));
+      return transitionTrainingRun(runId, { status: "queued" }, tx);
+    }
+    const next = control.action === "pause" ? "paused" : "cancelled";
+    if (status === next) return run;
+    if (
+      status === "succeeded" ||
+      status === "cancelled" ||
+      (next === "paused" && status === "failed")
+    ) {
+      throw new TrainingRunConflictError(
+        `Cannot ${control.action} ${status} training`,
+      );
+    }
+    return transitionTrainingRun(runId, { status: next }, tx);
+  });
+}

@@ -18,6 +18,8 @@ const PHASE_LABELS = {
 
 const STATUS_LABELS = {
   queued: m.run_state_queued,
+  paused: m.run_state_paused,
+  cancelled: m.run_state_cancelled,
   succeeded: m.run_state_succeeded,
   failed: m.run_state_failed,
 } as const;
@@ -26,6 +28,8 @@ const LOOKS: Record<
   TrainingRun["state"]["status"],
   { tone: StatusTone; icon: LucideIcon }
 > = {
+  paused: { tone: "neutral", icon: Clock },
+  cancelled: { tone: "neutral", icon: CircleX },
   queued: { tone: "neutral", icon: Clock },
   running: { tone: "info", icon: LoaderCircle },
   succeeded: { tone: "success", icon: CircleCheck },
