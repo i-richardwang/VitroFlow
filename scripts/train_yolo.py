@@ -7,7 +7,7 @@ from vitroctl.detectors.ultralytics import EpochReport, train_yolo_detector
 from vitroctl.training.recipe import load_training_recipe_manifest
 
 DEFAULT_RECIPE_PATH = (
-    Path(__file__).resolve().parents[1] / "configs/yolo26/seed-small.recipe.json"
+    Path(__file__).resolve().parents[1] / "configs/yolo26/yolo26n-whole-v1.recipe.json"
 )
 
 

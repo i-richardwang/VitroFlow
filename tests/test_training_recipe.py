@@ -68,7 +68,7 @@ def test_training_recipe_requires_the_ultralytics_runtime() -> None:
 
 def test_project_recipe_loads_through_the_canonical_manifest_parser() -> None:
     root = Path(__file__).resolve().parents[1]
-    path = root / "configs/yolo26/seed-small.recipe.json"
+    path = root / "configs/yolo26/yolo26n-whole-v1.recipe.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
 
     recipe = load_training_recipe_manifest(path)

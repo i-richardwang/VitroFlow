@@ -93,7 +93,7 @@
       }
     }
   ],
-  "train_dialog_recipe_title": "Recipe",
+  "train_dialog_preset_title": "Training preset",
   "parameter_group_training": "Training",
   "parameter_group_augmentation": "Augmentation",
   "parameter_group_validation": "Validation and reproducibility",
@@ -119,5 +119,13 @@
   "training_attempts": "Execution history",
   "training_attempt_entry": "Attempt {attempt} · {worker}",
   "training_attempt_expired": "Lease expired",
-  "training_retry": "Retry"
+  "training_retry": "Retry",
+  "parameter_nbs": "Nominal batch size (nbs)",
+  "parameter_runtime_default": "Runtime default",
+  "train_advanced_parameters": "Advanced parameters",
+  "train_advanced_help": "Nominal batch size controls gradient accumulation; it is not the in-memory batch. Leave blank to use the preset. Patience 0 disables early stopping.",
+  "train_preset_n": "YOLO26n · Whole image",
+  "train_preset_s": "YOLO26s · Whole image 2048",
+  "train_preset_n_description": "Compact model for whole-image training. Switching presets resets parameter adjustments.",
+  "train_preset_s_description": "Larger model with higher-resolution input for small objects. Switching presets resets parameter adjustments."
 }

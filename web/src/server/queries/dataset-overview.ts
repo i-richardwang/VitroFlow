@@ -4,8 +4,12 @@ import type {
   TrainingRunSummary,
   TrainingSummary,
 } from "../../domain/training/read-model";
-import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
-import type { TrainingRecipe } from "../../domain/training/schema";
+import {
+  TRAINING_PRESETS,
+  DEFAULT_TRAINING_PRESET_ID,
+  type TrainingPreset,
+  type TrainingPresetId,
+} from "../../domain/training/recipes";
 import {
   readDataset,
   countReviewed,
@@ -29,7 +33,8 @@ interface DatasetOverview {
   images: ImageSummary[];
   reviewedCount: number;
   training: TrainingSummary;
-  recipe: TrainingRecipe;
+  trainingPresets: readonly TrainingPreset[];
+  defaultTrainingPresetId: TrainingPresetId;
   runs: TrainingRunSummary[];
 }
 
@@ -48,7 +53,8 @@ export async function datasetOverview(
     images: records.map(summarize),
     reviewedCount: countReviewed(records),
     training: await trainingSummary(dataset, records, at),
-    recipe: YOLO26_SEED_SMALL_RECIPE,
+    trainingPresets: TRAINING_PRESETS,
+    defaultTrainingPresetId: DEFAULT_TRAINING_PRESET_ID,
     runs: await listTrainingRunSummaries({ datasetId: dataset.id }),
   };
 }

@@ -93,7 +93,7 @@
       }
     }
   ],
-  "train_dialog_recipe_title": "配方",
+  "train_dialog_preset_title": "训练预设",
   "parameter_group_training": "训练",
   "parameter_group_augmentation": "数据增强",
   "parameter_group_validation": "验证与复现",
@@ -119,5 +119,13 @@
   "training_attempts": "执行记录",
   "training_attempt_entry": "第 {attempt} 次执行 · {worker}",
   "training_attempt_expired": "租约失效",
-  "training_retry": "重试"
+  "training_retry": "重试",
+  "parameter_nbs": "标称批大小（nbs）",
+  "parameter_runtime_default": "框架默认值",
+  "train_advanced_parameters": "高级参数",
+  "train_advanced_help": "标称批大小控制梯度累积，不是一次加载到显存的图片数。留空使用预设值；早停耐心为 0 时关闭早停。",
+  "train_preset_n": "YOLO26n · 整图",
+  "train_preset_s": "YOLO26s · 整图 2048",
+  "train_preset_n_description": "轻量模型，适用于整图训练。切换预设会重置参数调整。",
+  "train_preset_s_description": "较大模型，使用较高输入分辨率保留小目标细节。切换预设会重置参数调整。"
 }

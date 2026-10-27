@@ -12,7 +12,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from vitroctl.detectors.ultralytics.checkpoints import EPOCH_JOURNAL
-from vitroctl.detectors.ultralytics.runtime import load_yolo
+from vitroctl.detectors.ultralytics.runtime import load_training_trainer, load_yolo
 from vitroctl.io.files import write_text_atomically
 from vitroctl.training.parameters import parse_training_parameters
 
@@ -267,6 +267,7 @@ def train_yolo_detector(
     on_validation_start: Callable[[], None] | None = None,
     resume_required: bool = False,
     on_checkpoint: Callable[[int], None] | None = None,
+    on_execution: Callable[[dict[str, Any]], None] | None = None,
 ) -> YoloTrainingResult:
     """Fine-tune, validate, and publish inference calibration for a YOLO detector.
 
@@ -336,6 +337,30 @@ def train_yolo_detector(
 
     journal = output / EPOCH_JOURNAL
 
+    last_execution: dict[str, Any] | None = None
+
+    def record_execution(trainer: Any) -> None:
+        nonlocal last_execution
+        # Keep requested recipe identity intact. Record actual runtime settings
+        # separately, including OOM reductions and the pinned runtime defaults.
+        execution = {
+            "schemaVersion": 1,
+            "parameters": dict(vars(trainer.args)),
+            "batch": trainer.batch_size,
+            "trainBatchPerDevice": trainer.train_loader.batch_size,
+            "validationBatch": trainer.test_loader.batch_size,
+            "accumulate": trainer.accumulate,
+        }
+        if execution == last_execution:
+            return
+        last_execution = execution
+        write_text_atomically(
+            output / "execution.json",
+            json.dumps(execution, indent=2, default=str) + "\n",
+        )
+        if on_execution:
+            on_execution(execution)
+
     def record_epoch(trainer: Any) -> None:
         report = epoch_report(trainer)
         with journal.open("a", encoding="utf-8") as stream:
@@ -345,15 +370,17 @@ def train_yolo_detector(
         if on_checkpoint:
             on_checkpoint(report.epoch)
 
+    trainer_model.add_callback("on_train_start", record_execution)
     trainer_model.add_callback("on_train_batch_end", stop_if_cancelled)
     trainer_model.add_callback("on_val_batch_end", stop_if_cancelled)
+    trainer_model.add_callback("on_model_save", record_execution)
     trainer_model.add_callback("on_model_save", record_epoch)
     if on_training_start:
         on_training_start()
     if on_epoch:
         for report in completed:
             on_epoch(report)
-    trainer_model.train(**train_options)
+    trainer_model.train(trainer=load_training_trainer(), **train_options)
     stop_if_cancelled()
     trainer = trainer_model.trainer
     save_dir = Path(trainer.save_dir)
@@ -369,6 +396,7 @@ def train_yolo_detector(
         on_validation_start()
     metrics = validator_model.val(
         data=str(data_path),
+        batch=trainer.test_loader.batch_size,
         imgsz=trained_args.imgsz,
         max_det=trained_args.max_det,
         end2end=False,

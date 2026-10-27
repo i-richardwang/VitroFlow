@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 
-import { YOLO26_SEED_SMALL_RECIPE } from "../../../domain/training/recipes";
+import {
+  TRAINING_PRESETS,
+  resolveTrainingRecipe,
+} from "../../../domain/training/recipes";
 import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../../../domain/training/artifact";
 import { trainingRunSchema } from "../../../domain/training/schema";
 import { Route as HeartbeatRoute } from "../../../routes/api.worker.heartbeat";
@@ -30,219 +33,226 @@ test("the shared training claim fixture is the Web training contract", async () 
   expect(trainingRunSchema.parse(fixture.run)).toEqual(fixture.run);
 });
 
-test("training HTTP routes publish a version and serve its weights idempotently", async () => {
-  const { version: sourceVersion, dataset } = await reviewedDataset(
-    "training-api",
-    ["first", "second"],
-  );
+test.each([...TRAINING_PRESETS])(
+  "training HTTP routes publish $id and serve its weights idempotently",
+  async (preset) => {
+    const recipe = resolveTrainingRecipe(preset.id, {});
+    const { version: sourceVersion, dataset } = await reviewedDataset(
+      `training-api-${preset.id}`,
+      ["first", "second"],
+    );
 
-  const created = await createTrainingRun(dataset.id, YOLO26_SEED_SMALL_RECIPE);
-  const { token } = await enrollWorker("api-trainer");
-  const authorization = `Bearer ${token}`;
+    const created = await createTrainingRun(dataset.id, recipe);
+    const { token } = await enrollWorker(`api-trainer-${preset.id}`);
+    const authorization = `Bearer ${token}`;
 
-  const heartbeat = await workerRoute(
-    HeartbeatRoute,
-    "POST",
-  )({
-    request: new Request("http://localhost/api/worker/heartbeat", {
-      method: "POST",
-      headers: { authorization },
-      body: JSON.stringify({
-        ...SESSION,
-        startedAt: "2026-08-27T00:00:00.000Z",
-        runtimes: [ULTRALYTICS_RUNTIME],
-        memoryBytes: 24 * 1024 ** 3,
+    const heartbeat = await workerRoute(
+      HeartbeatRoute,
+      "POST",
+    )({
+      request: new Request("http://localhost/api/worker/heartbeat", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify({
+          ...SESSION,
+          startedAt: "2026-08-27T00:00:00.000Z",
+          runtimes: [ULTRALYTICS_RUNTIME],
+          memoryBytes: 24 * 1024 ** 3,
+        }),
       }),
-    }),
-  } as never);
-  expect(heartbeat.status).toBe(200);
+    } as never);
+    expect(heartbeat.status).toBe(200);
 
-  const claim = await workerRoute(
-    ClaimRoute,
-    "POST",
-  )({
-    request: new Request("http://localhost/api/worker/training/claim", {
-      method: "POST",
-      headers: { authorization },
-      body: JSON.stringify(SESSION),
-    }),
-  } as never);
-  const job = await claim.json();
-  expect(job.run.id).toBe(created.id);
-  expect(Object.keys(job)).toEqual(["run"]);
+    const claim = await workerRoute(
+      ClaimRoute,
+      "POST",
+    )({
+      request: new Request("http://localhost/api/worker/training/claim", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify(SESSION),
+      }),
+    } as never);
+    const job = await claim.json();
+    expect(job.run.id).toBe(created.id);
+    expect(job.run.recipe).toEqual(recipe);
+    expect(Object.keys(job)).toEqual(["run"]);
 
-  const snapshot = await workerRoute(
-    SnapshotRoute,
-    "GET",
-  )({
-    params: { runId: created.id },
-    request: new Request(
-      `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams({ ...SESSION, attempt: "1" })}`,
-      { headers: { authorization } },
-    ),
-  } as never);
-  const snapshotImages = (await snapshot.json()).images;
-  expect(snapshotImages).toHaveLength(2);
-  const digest = snapshotImages[0].digest;
+    const snapshot = await workerRoute(
+      SnapshotRoute,
+      "GET",
+    )({
+      params: { runId: created.id },
+      request: new Request(
+        `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams({ ...SESSION, attempt: "1" })}`,
+        { headers: { authorization } },
+      ),
+    } as never);
+    const snapshotImages = (await snapshot.json()).images;
+    expect(snapshotImages).toHaveLength(2);
+    const digest = snapshotImages[0].digest;
 
-  const image = await workerRoute(
-    ImageRoute,
-    "GET",
-  )({
-    params: { runId: created.id, digest },
-    request: new Request(
-      `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams({ ...SESSION, attempt: "1" })}`,
-      { headers: { authorization } },
-    ),
-  } as never);
-  expect(image.status).toBe(200);
-  expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(digest);
+    const image = await workerRoute(
+      ImageRoute,
+      "GET",
+    )({
+      params: { runId: created.id, digest },
+      request: new Request(
+        `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams({ ...SESSION, attempt: "1" })}`,
+        { headers: { authorization } },
+      ),
+    } as never);
+    expect(image.status).toBe(200);
+    expect(contentDigest(new Uint8Array(await image.arrayBuffer()))).toBe(
+      digest,
+    );
 
-  const trainingPhase = await workerRoute(
-    PhaseRoute,
-    "POST",
-  )({
-    params: { runId: created.id },
-    request: new Request("http://localhost/phase", {
-      method: "POST",
-      headers: { authorization },
-      body: JSON.stringify({ ...SESSION, attempt: 1, phase: "training" }),
-    }),
-  } as never);
-  expect(trainingPhase.status).toBe(200);
+    const trainingPhase = await workerRoute(
+      PhaseRoute,
+      "POST",
+    )({
+      params: { runId: created.id },
+      request: new Request("http://localhost/phase", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify({ ...SESSION, attempt: 1, phase: "training" }),
+      }),
+    } as never);
+    expect(trainingPhase.status).toBe(200);
 
-  const epoch = await workerRoute(
-    EpochsRoute,
-    "POST",
-  )({
-    params: { runId: created.id },
-    request: new Request("http://localhost/epochs", {
-      method: "POST",
-      headers: { authorization },
-      body: JSON.stringify({
-        ...SESSION,
-        attempt: 1,
-        epoch: 1,
-        train: { box: 1.2, classification: 2.4, regression: 1.1 },
-        val: { box: 1.3, classification: 2.5, regression: 1.2 },
+    const epoch = await workerRoute(
+      EpochsRoute,
+      "POST",
+    )({
+      params: { runId: created.id },
+      request: new Request("http://localhost/epochs", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify({
+          ...SESSION,
+          attempt: 1,
+          epoch: 1,
+          train: { box: 1.2, classification: 2.4, regression: 1.1 },
+          val: { box: 1.3, classification: 2.5, regression: 1.2 },
+          precision: 0.5,
+          recall: 0.4,
+          map50: 0.45,
+          map50To95: 0.2,
+          fitness: 0.225,
+          learningRate: 0.001,
+        }),
+      }),
+    } as never);
+    expect(epoch.status).toBe(200);
+    const reported = (await epoch.json()).state;
+    expect(reported.phase).toBe("training");
+    expect(reported.progress).toBeCloseTo(
+      0.05 + 0.85 / recipe.parameters.epochs,
+    );
+
+    const lease = await workerRoute(
+      LeaseRoute,
+      "POST",
+    )({
+      params: { runId: created.id },
+      request: new Request("http://localhost/lease", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify({ ...SESSION, attempt: 1 }),
+      }),
+    } as never);
+    expect(lease.status).toBe(200);
+    expect((await lease.json()).state.progress).toBeCloseTo(reported.progress);
+
+    const validationPhase = await workerRoute(
+      PhaseRoute,
+      "POST",
+    )({
+      params: { runId: created.id },
+      request: new Request("http://localhost/phase", {
+        method: "POST",
+        headers: { authorization },
+        body: JSON.stringify({ ...SESSION, attempt: 1, phase: "validating" }),
+      }),
+    } as never);
+    expect(validationPhase.status).toBe(200);
+    expect((await validationPhase.json()).state.progress).toBe(0.9);
+
+    const publication = {
+      schemaVersion: 1,
+      weights: "weights/best.pt",
+      inference: {
+        ready: true,
+        confidence: 0.42,
+        imageSize: 768,
+        maxDetections: 500,
+        endToEnd: false,
+      },
+      validation: {
         precision: 0.5,
         recall: 0.4,
         map50: 0.45,
         map50To95: 0.2,
         fitness: 0.225,
-        learningRate: 0.001,
+      },
+      training: {
+        baseModel: recipe.baseModel,
+        parameters: recipe.parameters,
+        runtime: recipe.runtime,
+      },
+    };
+    const form = new FormData();
+    form.append("sessionId", SESSION.sessionId);
+    form.append("attempt", "1");
+    form.append("weights", new File(["weights"], "best.pt"));
+    form.append(
+      "inference",
+      new File([JSON.stringify(publication)], "inference.json", {
+        type: "application/json",
       }),
-    }),
-  } as never);
-  expect(epoch.status).toBe(200);
-  const reported = (await epoch.json()).state;
-  expect(reported.phase).toBe("training");
-  expect(reported.progress).toBeCloseTo(
-    0.05 + 0.85 / YOLO26_SEED_SMALL_RECIPE.parameters.epochs,
-  );
+    );
+    const artifact = await workerRoute(
+      ArtifactRoute,
+      "PUT",
+    )({
+      params: { runId: created.id },
+      request: new Request("http://localhost/artifact", {
+        method: "PUT",
+        headers: { authorization, "content-length": "1000" },
+        body: form,
+      }),
+    } as never);
+    expect(artifact.status).toBe(200);
+    const published = await artifact.json();
+    expect(published.state.status).toBe("succeeded");
 
-  const lease = await workerRoute(
-    LeaseRoute,
-    "POST",
-  )({
-    params: { runId: created.id },
-    request: new Request("http://localhost/lease", {
-      method: "POST",
-      headers: { authorization },
-      body: JSON.stringify({ ...SESSION, attempt: 1 }),
-    }),
-  } as never);
-  expect(lease.status).toBe(200);
-  expect((await lease.json()).state.progress).toBeCloseTo(reported.progress);
+    const repeated = await workerRoute(
+      ArtifactRoute,
+      "PUT",
+    )({
+      params: { runId: created.id },
+      request: new Request("http://localhost/artifact", {
+        method: "PUT",
+        headers: { authorization, "content-length": "1000" },
+        body: form,
+      }),
+    } as never);
+    expect(await repeated.json()).toEqual(published);
+    expect(published.modelId).toBe(sourceVersion.modelId);
 
-  const validationPhase = await workerRoute(
-    PhaseRoute,
-    "POST",
-  )({
-    params: { runId: created.id },
-    request: new Request("http://localhost/phase", {
-      method: "POST",
-      headers: { authorization },
-      body: JSON.stringify({ ...SESSION, attempt: 1, phase: "validating" }),
-    }),
-  } as never);
-  expect(validationPhase.status).toBe(200);
-  expect((await validationPhase.json()).state.progress).toBe(0.9);
-
-  const publication = {
-    schemaVersion: 1,
-    weights: "weights/best.pt",
-    inference: {
-      ready: true,
-      confidence: 0.42,
-      imageSize: 768,
-      maxDetections: 500,
-      endToEnd: false,
-    },
-    validation: {
-      precision: 0.5,
-      recall: 0.4,
-      map50: 0.45,
-      map50To95: 0.2,
-      fitness: 0.225,
-    },
-    training: {
-      baseModel: YOLO26_SEED_SMALL_RECIPE.baseModel,
-      parameters: YOLO26_SEED_SMALL_RECIPE.parameters,
-      runtime: YOLO26_SEED_SMALL_RECIPE.runtime,
-    },
-  };
-  const form = new FormData();
-  form.append("sessionId", SESSION.sessionId);
-  form.append("attempt", "1");
-  form.append("weights", new File(["weights"], "best.pt"));
-  form.append(
-    "inference",
-    new File([JSON.stringify(publication)], "inference.json", {
-      type: "application/json",
-    }),
-  );
-  const artifact = await workerRoute(
-    ArtifactRoute,
-    "PUT",
-  )({
-    params: { runId: created.id },
-    request: new Request("http://localhost/artifact", {
-      method: "PUT",
-      headers: { authorization, "content-length": "1000" },
-      body: form,
-    }),
-  } as never);
-  expect(artifact.status).toBe(200);
-  const published = await artifact.json();
-  expect(published.state.status).toBe("succeeded");
-
-  const repeated = await workerRoute(
-    ArtifactRoute,
-    "PUT",
-  )({
-    params: { runId: created.id },
-    request: new Request("http://localhost/artifact", {
-      method: "PUT",
-      headers: { authorization, "content-length": "1000" },
-      body: form,
-    }),
-  } as never);
-  expect(await repeated.json()).toEqual(published);
-  expect(published.modelId).toBe(sourceVersion.modelId);
-
-  const versionId = published.state.modelVersionId;
-  const weights = await workerRoute(
-    WeightsRoute,
-    "GET",
-  )({
-    params: { versionId },
-    request: new Request("http://localhost/weights", {
-      headers: { authorization },
-    }),
-  });
-  expect(await weights.text()).toBe("weights");
-});
+    const versionId = published.state.modelVersionId;
+    const weights = await workerRoute(
+      WeightsRoute,
+      "GET",
+    )({
+      params: { versionId },
+      request: new Request("http://localhost/weights", {
+        headers: { authorization },
+      }),
+    });
+    expect(await weights.text()).toBe("weights");
+  },
+);
 
 test("training HTTP routes distinguish invalid requests from lease conflicts", async () => {
   const { token } = await enrollWorker("api-conflict-trainer");

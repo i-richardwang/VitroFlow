@@ -35,3 +35,10 @@ def release_accelerator() -> None:
         torch.cuda.empty_cache()
     if torch.backends.mps.is_available():
         torch.mps.empty_cache()
+
+
+def load_training_trainer() -> type:
+    """Load the detection adapter only when training is requested."""
+    from vitroctl.detectors.ultralytics.trainer import MemoryBoundedDetectionTrainer
+
+    return MemoryBoundedDetectionTrainer

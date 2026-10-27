@@ -18,7 +18,8 @@
       "copy_paste": 0.0,
       "max_det": 500,
       "seed": 0,
-      "deterministic": true
+      "deterministic": true,
+      "nbs": 64
     },
     "runtime": {
       "framework": "ultralytics",

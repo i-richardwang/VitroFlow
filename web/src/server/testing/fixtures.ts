@@ -53,7 +53,7 @@ import {
   registerModelVersion,
   setCurrentVersion,
 } from "../models/registry";
-import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
+import { YOLO26N_WHOLE_RECIPE } from "../../domain/training/recipes";
 import { database, transaction } from "../infra/db/client";
 import {
   datasetSnapshotImages,
@@ -153,7 +153,7 @@ export async function registerTrainedVersion(
         map50To95: 0.4,
         fitness: 0.44,
       },
-      training: YOLO26_SEED_SMALL_RECIPE,
+      training: YOLO26N_WHOLE_RECIPE,
     },
   };
   return transaction(async (tx) => {
@@ -172,7 +172,7 @@ export async function registerTrainedVersion(
         datasetSnapshotId: snapshotId,
         createdAt: new Date(value.createdAt),
         attempt: 1,
-        recipe: YOLO26_SEED_SMALL_RECIPE,
+        recipe: YOLO26N_WHOLE_RECIPE,
         status: "queued",
       })
       .onConflictDoNothing();

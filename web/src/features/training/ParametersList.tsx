@@ -52,7 +52,8 @@ function ParameterGroups({
   );
 }
 
-function formatParameter(value: number | string | boolean): string {
+function formatParameter(value: number | string | boolean | undefined): string {
+  if (value === undefined) return m.parameter_runtime_default();
   if (typeof value === "boolean")
     return value ? m.parameter_on() : m.parameter_off();
   return typeof value === "number" ? formatNumber(value) : value;

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { instancesFromDetection } from "../../domain/annotation/detection";
-import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
+import { YOLO26N_WHOLE_RECIPE } from "../../domain/training/recipes";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 import { seedInferenceOutcome } from "../testing/inference";
 import { datasetOverview } from "./dataset-overview";
@@ -53,6 +53,11 @@ test("the overview derives review progress and training readiness", async () => 
   let overview = await datasetOverview(dataset.id, at);
   if (!overview) throw new Error("missing overview");
   expect(overview.model.id).toBe(version.modelId);
+  expect(overview.defaultTrainingPresetId).toBe("yolo26n-whole-v1");
+  expect(overview.trainingPresets.map((preset) => preset.id)).toEqual([
+    "yolo26n-whole-v1",
+    "yolo26s-whole-2048-v1",
+  ]);
   expect(overview.reviewedCount).toBe(2);
   expect(overview.images.map((image) => image.detectionCount)).toEqual([
     0,
@@ -65,7 +70,7 @@ test("the overview derives review progress and training readiness", async () => 
     workerMemoryBytes: null,
   });
 
-  const run = await createTrainingRun(dataset.id, YOLO26_SEED_SMALL_RECIPE);
+  const run = await createTrainingRun(dataset.id, YOLO26N_WHOLE_RECIPE);
   overview = await datasetOverview(dataset.id, at);
   expect(overview?.training.active?.id).toBe(run.id);
   expect(overview?.training.reviewedSinceLastRun).toBe(0);

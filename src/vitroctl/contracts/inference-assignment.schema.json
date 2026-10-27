@@ -178,6 +178,11 @@
                           "minimum": 1,
                           "maximum": 64
                         },
+                        "nbs": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1024
+                        },
                         "imgsz": {
                           "type": "integer",
                           "minimum": 320,

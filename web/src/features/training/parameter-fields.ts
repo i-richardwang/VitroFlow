@@ -12,6 +12,7 @@ export const PARAMETER_LABELS: Record<keyof TrainingParameters, () => string> =
     epochs: m.parameter_epochs,
     patience: m.parameter_patience,
     batch: m.parameter_batch,
+    nbs: m.parameter_nbs,
     imgsz: m.parameter_imgsz,
     optimizer: m.parameter_optimizer,
     lr0: m.parameter_lr0,
@@ -43,6 +44,7 @@ export const PARAMETER_GROUPS: ParameterGroup[] = [
       "optimizer",
       "lr0",
       "warmup_epochs",
+      "nbs",
     ],
   },
   {
@@ -63,19 +65,25 @@ export interface ParameterField {
   min: number;
   max: number;
   step: number;
+  advanced: boolean;
 }
 
 /** The schema supplies validation bounds; only interaction steps are UI choices. */
 const properties = z.toJSONSchema(trainingOverridesSchema).properties!;
-const FIELD_STEPS = {
-  epochs: 1,
-  imgsz: 32,
-  batch: 1,
-  patience: 1,
-  lr0: 0.00001,
-} satisfies Record<keyof TrainingOverrides, number>;
+const FIELD_OPTIONS = {
+  epochs: { step: 1, advanced: false },
+  imgsz: { step: 32, advanced: false },
+  batch: { step: 1, advanced: false },
+  patience: { step: 1, advanced: false },
+  lr0: { step: 0.00001, advanced: false },
+  warmup_epochs: { step: 0.1, advanced: true },
+  nbs: { step: 1, advanced: true },
+} satisfies Record<
+  keyof TrainingOverrides,
+  { step: number; advanced: boolean }
+>;
 export const PARAMETER_FIELDS: ParameterField[] = (
-  Object.keys(FIELD_STEPS) as Array<keyof TrainingOverrides>
+  Object.keys(FIELD_OPTIONS) as Array<keyof TrainingOverrides>
 ).map((key) => {
   const property = properties[key]!;
   if (
@@ -89,15 +97,6 @@ export const PARAMETER_FIELDS: ParameterField[] = (
     label: PARAMETER_LABELS[key],
     min: property.minimum,
     max: property.maximum,
-    step: FIELD_STEPS[key],
+    ...FIELD_OPTIONS[key],
   };
 });
-
-/** The editable fields under the groups they belong to; groups with none are left out. */
-export const PARAMETER_FIELD_GROUPS = PARAMETER_GROUPS.map((group) => ({
-  key: group.key,
-  title: group.title,
-  fields: group.parameters.flatMap((key) =>
-    PARAMETER_FIELDS.filter((field) => field.key === key),
-  ),
-})).filter((group) => group.fields.length > 0);

@@ -4,7 +4,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { datasetRefSchema } from "../domain/datasets/schema";
 import { resourceIdSchema } from "../domain/identifiers/schema";
 import { trainingOverridesSchema } from "../domain/training/parameters";
-import { YOLO26_SEED_SMALL_RECIPE } from "../domain/training/recipes";
+import {
+  resolveTrainingRecipe,
+  trainingPresetIdSchema,
+} from "../domain/training/recipes";
 import { trainingControlSchema } from "../domain/training/schema";
 import { trainingRunDetail } from "../server/queries/public";
 import {
@@ -23,6 +26,7 @@ export const getTrainingRun = createServerFn({ method: "GET" })
 export const startTrainingRun = createServerFn({ method: "POST" })
   .validator(
     datasetRefSchema.extend({
+      presetId: trainingPresetIdSchema,
       overrides: trainingOverridesSchema,
       targetWorkerId: resourceIdSchema.nullable(),
     }),
@@ -30,13 +34,7 @@ export const startTrainingRun = createServerFn({ method: "POST" })
   .handler(({ data }) =>
     createTrainingRun(
       data.dataset,
-      {
-        ...YOLO26_SEED_SMALL_RECIPE,
-        parameters: {
-          ...YOLO26_SEED_SMALL_RECIPE.parameters,
-          ...data.overrides,
-        },
-      },
+      resolveTrainingRecipe(data.presetId, data.overrides),
       data.targetWorkerId,
     ),
   );
