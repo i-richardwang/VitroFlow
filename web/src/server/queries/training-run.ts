@@ -1,6 +1,7 @@
 import type { TrainingRunDetail } from "../../domain/training/read-model";
 import {
   listTrainingEpochs,
+  listTrainingAttempts,
   readDatasetSnapshot,
   readTrainingRun,
 } from "../training/public";
@@ -10,6 +11,7 @@ import {
   readModel,
   readModelVersion,
 } from "../models/public";
+import { trainingWorkerOptions } from "./training-workers";
 
 /** One run with its whole epoch history, the version it published, and whether that version reads. */
 export async function trainingRunDetail(
@@ -32,6 +34,8 @@ export async function trainingRunDetail(
     model,
     run,
     epochs: await listTrainingEpochs(runId),
+    attempts: await listTrainingAttempts(runId),
+    workers: await trainingWorkerOptions(),
     version,
     current:
       version !== null && (await readCurrentVersionId(model.id)) === version.id,

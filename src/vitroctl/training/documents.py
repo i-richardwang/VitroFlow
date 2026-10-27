@@ -27,6 +27,25 @@ TrainingPhase = Literal["preparing", "training", "validating"]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class TrainingCheckpoint:
+    attempt: int
+    epoch: int
+    digest: str
+    bytes: int
+
+    @classmethod
+    def parse(cls, value: Any, context: str) -> TrainingCheckpoint:
+        checkpoint = as_object(value, context)
+        expect_fields(checkpoint, {"attempt", "epoch", "digest", "bytes"}, context)
+        return cls(
+            attempt=as_integer(checkpoint["attempt"], f"{context}.attempt", minimum=1),
+            epoch=as_integer(checkpoint["epoch"], f"{context}.epoch", minimum=1),
+            digest=as_digest(checkpoint["digest"], f"{context}.digest"),
+            bytes=as_integer(checkpoint["bytes"], f"{context}.bytes", minimum=1),
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class TrainingJob:
     run_id: str
     model_id: str
@@ -39,6 +58,7 @@ class TrainingJob:
     lease_expires_at: datetime
     phase: TrainingPhase
     progress: float
+    checkpoint: TrainingCheckpoint | None
 
     @classmethod
     def parse(cls, value: Any, context: str = "training run") -> TrainingJob:
@@ -53,6 +73,9 @@ class TrainingJob:
                 "datasetSnapshotId",
                 "createdAt",
                 "attempt",
+                "targetWorkerId",
+                "lastProgressAt",
+                "checkpoint",
                 "recipe",
                 "state",
             },
@@ -97,6 +120,11 @@ class TrainingJob:
             ),
             phase=cast(TrainingPhase, phase),
             progress=progress,
+            checkpoint=TrainingCheckpoint.parse(
+                run["checkpoint"], f"{context}.checkpoint"
+            )
+            if run["checkpoint"] is not None
+            else None,
         )
 
 

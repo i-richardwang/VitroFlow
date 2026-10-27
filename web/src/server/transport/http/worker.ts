@@ -1,3 +1,7 @@
+import {
+  trainingAttemptOwnerSchema,
+  type TrainingAttemptOwner,
+} from "../../../domain/training/schema";
 import { createMiddleware } from "@tanstack/react-start";
 import type { ZodType } from "zod";
 
@@ -158,4 +162,22 @@ export function workerErrorResponse(
   if (status !== null) return new Response(message, { status });
   console.error(`${operation}: ${message}`);
   return new Response(operation, { status: 500 });
+}
+
+export function parseTrainingQuery(
+  request: Request,
+  workerId: string,
+): TrainingAttemptOwner {
+  const query = new URL(request.url).searchParams;
+  return {
+    workerId,
+    ...parseWorkerValue(
+      {
+        sessionId: query.get("sessionId"),
+        attempt: Number(query.get("attempt")),
+      },
+      trainingAttemptOwnerSchema,
+      "Training attempt",
+    ),
+  };
 }

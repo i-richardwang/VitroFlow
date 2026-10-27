@@ -46,8 +46,10 @@ import type {
 import {
   IMAGE_SPLITS,
   TRAINING_PHASES,
+  TRAINING_ATTEMPT_OUTCOMES,
   TRAINING_RUN_STATUSES,
   type TrainingRecipe,
+  type TrainingCheckpoint,
 } from "../../../domain/training/schema";
 
 /**
@@ -1054,6 +1056,12 @@ export const trainingRuns = pgTable(
     datasetSnapshotId: text("dataset_snapshot_id").notNull(),
     createdAt: instant("created_at"),
     attempt: integer("attempt").notNull(),
+    targetWorkerId: text("target_worker_id"),
+    lastProgressAt: timestamp("last_progress_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    checkpoint: jsonb("checkpoint").$type<TrainingCheckpoint>(),
     recipe: jsonb("recipe").$type<TrainingRecipe>().notNull(),
     status: text("status", { enum: TRAINING_RUN_STATUSES }).notNull(),
     workerId: text("worker_id"),
@@ -1100,6 +1108,8 @@ export const trainingRuns = pgTable(
       "training_runs_state_check",
       sql`case ${table.status}
         when 'queued' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
+        when 'paused' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
+        when 'cancelled' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is null
         when 'running' then ${table.workerId} is not null and ${table.sessionId} is not null and ${table.leaseExpiresAt} is not null and ${table.phase} in ('preparing', 'training', 'validating') and ${table.progress} is not null and ${table.progress} between 0 and 1 and ${table.error} is null and ${table.modelVersionId} is null
         when 'succeeded' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and ${table.error} is null and ${table.modelVersionId} is not null
         when 'failed' then ${table.workerId} is null and ${table.sessionId} is null and ${table.leaseExpiresAt} is null and ${table.phase} is null and ${table.progress} is null and length(${table.error}) between 1 and 2000 and ${table.modelVersionId} is null
@@ -1117,10 +1127,46 @@ export const trainingRuns = pgTable(
   ],
 );
 
-/**
- * Ultralytics' per-epoch record, kept per attempt: a reclaimed run trains from
- * scratch, and the earlier attempt's curve stays part of the run's history.
- */
+export const trainingAttempts = pgTable(
+  "training_attempts",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => trainingRuns.id),
+    attempt: integer("attempt").notNull(),
+    workerId: text("worker_id").notNull(),
+    startedAt: instant("started_at"),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    outcome: text("outcome", {
+      enum: TRAINING_ATTEMPT_OUTCOMES,
+    }),
+    error: text("error"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.attempt] }),
+    uniqueIndex("training_attempts_active_idx")
+      .on(table.runId)
+      .where(sql`${table.finishedAt} is null`),
+    check("training_attempts_number_check", sql`${table.attempt} >= 1`),
+    check(
+      "training_attempts_outcome_check",
+      sql`
+      (${table.finishedAt} is null and ${table.outcome} is null and ${table.error} is null)
+      or (${table.finishedAt} is not null and ${table.outcome} is not null and
+        case ${table.outcome}
+          when 'failed' then ${table.error} is not null and length(${table.error}) between 1 and 2000
+          when 'succeeded' then ${table.error} is null
+          when 'paused' then ${table.error} is null
+          when 'cancelled' then ${table.error} is null
+          when 'expired' then ${table.error} is null
+          else false
+        end)
+    `,
+    ),
+  ],
+);
+
+/** Epoch history belongs to the execution attempt that reported it. */
 export const trainingEpochs = pgTable(
   "training_epochs",
   {

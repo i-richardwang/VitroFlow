@@ -77,7 +77,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   )({
     params: { runId: created.id },
     request: new Request(
-      `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams(SESSION)}`,
+      `http://localhost/api/worker/training/runs/${created.id}/snapshot?${new URLSearchParams({ ...SESSION, attempt: "1" })}`,
       { headers: { authorization } },
     ),
   } as never);
@@ -91,7 +91,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   )({
     params: { runId: created.id, digest },
     request: new Request(
-      `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams(SESSION)}`,
+      `http://localhost/api/worker/training/runs/${created.id}/images/${digest}?${new URLSearchParams({ ...SESSION, attempt: "1" })}`,
       { headers: { authorization } },
     ),
   } as never);
@@ -106,7 +106,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     request: new Request("http://localhost/phase", {
       method: "POST",
       headers: { authorization },
-      body: JSON.stringify({ ...SESSION, phase: "training" }),
+      body: JSON.stringify({ ...SESSION, attempt: 1, phase: "training" }),
     }),
   } as never);
   expect(trainingPhase.status).toBe(200);
@@ -121,6 +121,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
       headers: { authorization },
       body: JSON.stringify({
         ...SESSION,
+        attempt: 1,
         epoch: 1,
         train: { box: 1.2, classification: 2.4, regression: 1.1 },
         val: { box: 1.3, classification: 2.5, regression: 1.2 },
@@ -148,7 +149,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     request: new Request("http://localhost/lease", {
       method: "POST",
       headers: { authorization },
-      body: JSON.stringify(SESSION),
+      body: JSON.stringify({ ...SESSION, attempt: 1 }),
     }),
   } as never);
   expect(lease.status).toBe(200);
@@ -162,7 +163,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
     request: new Request("http://localhost/phase", {
       method: "POST",
       headers: { authorization },
-      body: JSON.stringify({ ...SESSION, phase: "validating" }),
+      body: JSON.stringify({ ...SESSION, attempt: 1, phase: "validating" }),
     }),
   } as never);
   expect(validationPhase.status).toBe(200);
@@ -193,6 +194,7 @@ test("training HTTP routes publish a version and serve its weights idempotently"
   };
   const form = new FormData();
   form.append("sessionId", SESSION.sessionId);
+  form.append("attempt", "1");
   form.append("weights", new File(["weights"], "best.pt"));
   form.append(
     "inference",
@@ -269,7 +271,7 @@ test("training HTTP routes distinguish invalid requests from lease conflicts", a
     request: new Request("http://localhost/lease", {
       method: "POST",
       headers: { authorization },
-      body: JSON.stringify({ sessionId: "trainer-session" }),
+      body: JSON.stringify({ sessionId: "trainer-session", attempt: 1 }),
     }),
   } as never);
   expect(conflict.status).toBe(409);

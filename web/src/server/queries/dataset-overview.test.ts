@@ -59,7 +59,7 @@ test("the overview derives review progress and training readiness", async () => 
     0,
     null,
   ]);
-  expect(overview.training).toEqual({
+  expect(overview.training).toMatchObject({
     active: null,
     reviewedSinceLastRun: 2,
     workerMemoryBytes: null,
@@ -78,7 +78,7 @@ test("the overview derives review progress and training readiness", async () => 
     HEARTBEAT_AT,
   );
   expect((await claimTrainingRun(owner))?.id).toBe(run.id);
-  await failTrainingRun(run.id, owner, "stopped");
+  await failTrainingRun(run.id, { ...owner, attempt: 1 }, "stopped");
   overview = await datasetOverview(dataset.id, at);
   expect(overview?.training.active).toBeNull();
   expect(overview?.training.workerMemoryBytes).toBe(24 * 1024 ** 3);

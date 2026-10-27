@@ -1,3 +1,4 @@
+import { TrainingWorkerSelect } from "./TrainingWorkerSelect";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -82,12 +83,14 @@ function TrainSession({
   const [overrides, setOverrides] = useState(() =>
     trainingOverrides(recipe.parameters),
   );
+  const [targetWorkerId, setTargetWorkerId] = useState<string | null>(null);
   const valid = trainingOverridesSchema.safeParse(overrides).success;
 
   const submit = () => {
     void action
       .run(
-        () => startTrainingRun({ data: { dataset, overrides } }),
+        () =>
+          startTrainingRun({ data: { dataset, overrides, targetWorkerId } }),
         m.train_not_started(),
       )
       .then(async (result) => {
@@ -116,6 +119,12 @@ function TrainSession({
           submit();
         }}
       >
+        <TrainingWorkerSelect
+          workers={training.workers}
+          value={targetWorkerId}
+          onChange={setTargetWorkerId}
+          disabled={action.busy}
+        />
         <Form.Group title={m.train_dialog_recipe_title()}>
           <Text size="sm" type="secondary">
             {m.train_dialog_recipe({

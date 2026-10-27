@@ -17,6 +17,8 @@ import {
   ParametersList,
   ParametersListSkeleton,
 } from "../../features/training/ParametersList";
+import { TrainingRunActivity } from "../../features/training/TrainingRunActivity";
+import { TrainingControls } from "../../features/training/TrainingControls";
 import { TrainingRunState } from "../../features/training/TrainingRunState";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
@@ -88,7 +90,8 @@ export const Route = createFileRoute(
 });
 
 function TrainingRunPage() {
-  const { run, epochs, version, model, current } = Route.useLoaderData();
+  const detail = Route.useLoaderData();
+  const { run, epochs, version, model, current } = detail;
   const live = isTrainingRunActive(run);
 
   useRouteRefresh(10_000, live);
@@ -123,6 +126,15 @@ function TrainingRunPage() {
         <Timestamp key="created" value={run.createdAt} />,
       ]}
     >
+      <Card>
+        <div className="flex flex-col gap-4">
+          <TrainingRunActivity detail={detail} />
+          <TrainingControls
+            key={`${detail.run.id}:${detail.run.attempt}:${detail.run.targetWorkerId}`}
+            detail={detail}
+          />
+        </div>
+      </Card>
       <StatisticHero
         title={m.training_kpi_best_map()}
         value={<Metric value={best?.map50To95 ?? null} />}
@@ -160,7 +172,14 @@ function TrainingRunPage() {
           </Card>
         ) : run.state.status === "failed" ? null : (
           <EmptyPlace variant="outlined">
-            <Empty icon={ChartLine} title={m.training_waiting_first_epoch()} />
+            <Empty
+              icon={ChartLine}
+              title={
+                live
+                  ? m.training_waiting_first_epoch()
+                  : m.training_no_epochs_finished()
+              }
+            />
           </EmptyPlace>
         )}
       </PageSection>

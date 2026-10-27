@@ -6,9 +6,9 @@ import {
   parseWorkerSessionJson,
   workerErrorResponse,
 } from "../server/transport/http/worker";
-import { workerSessionSchema } from "../domain/workers/schema";
+import { trainingAttemptOwnerSchema } from "../domain/training/schema";
 
-const bodySchema = workerSessionSchema.extend({
+const bodySchema = trainingAttemptOwnerSchema.extend({
   error: z.string().min(1).max(2000),
 });
 
@@ -25,7 +25,11 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/fail")({
           return Response.json(
             await failTrainingRun(
               params.runId,
-              { workerId: body.workerId, sessionId: body.sessionId },
+              {
+                workerId: body.workerId,
+                sessionId: body.sessionId,
+                attempt: body.attempt,
+              },
               body.error,
             ),
           );

@@ -1,3 +1,4 @@
+import type { TrainingCheckpoint } from "../../domain/training/schema";
 import {
   resourceIdSchema,
   sha256Schema,
@@ -11,19 +12,30 @@ export function modelWeightsBlobKey(
   return `model-weights/${trainingRunId}/${trainingAttempt}/${digest}`;
 }
 
-interface ModelWeightsRef {
+interface TrainingArtifactRef {
   trainingRunId: string;
   trainingAttempt: number;
   digest: string;
 }
 
-export function parseModelWeightsKey(key: string): ModelWeightsRef | null {
+export function parseModelWeightsKey(key: string): TrainingArtifactRef | null {
+  return parseTrainingArtifactKey("model-weights", key);
+}
+
+export function parseCheckpointKey(key: string): TrainingArtifactRef | null {
+  return parseTrainingArtifactKey("training-checkpoints", key);
+}
+
+function parseTrainingArtifactKey(
+  expectedPrefix: string,
+  key: string,
+): TrainingArtifactRef | null {
   const [prefix, runIdValue, attemptValue, digestValue, extra] = key.split("/");
   const runId = resourceIdSchema.safeParse(runIdValue);
   const digest = sha256Schema.safeParse(digestValue);
   const trainingAttempt = Number(attemptValue);
   if (
-    prefix !== "model-weights" ||
+    prefix !== expectedPrefix ||
     extra !== undefined ||
     !runId.success ||
     !digest.success ||
@@ -38,11 +50,14 @@ export function parseModelWeightsKey(key: string): ModelWeightsRef | null {
     digest: digest.data,
   };
   return key ===
-    modelWeightsBlobKey(
-      reference.trainingRunId,
-      reference.trainingAttempt,
-      reference.digest,
-    )
+    `${expectedPrefix}/${reference.trainingRunId}/${reference.trainingAttempt}/${reference.digest}`
     ? reference
     : null;
+}
+
+export function checkpointBlobKey(
+  runId: string,
+  checkpoint: TrainingCheckpoint,
+): string {
+  return `training-checkpoints/${runId}/${checkpoint.attempt}/${checkpoint.digest}`;
 }

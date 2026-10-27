@@ -6,9 +6,11 @@ import {
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import { trainingEpochReportSchema } from "../domain/training/schema";
-import { workerSessionSchema } from "../domain/workers/schema";
+import { trainingAttemptOwnerSchema } from "../domain/training/schema";
 
-const bodySchema = workerSessionSchema.extend(trainingEpochReportSchema.shape);
+const bodySchema = trainingAttemptOwnerSchema.extend(
+  trainingEpochReportSchema.shape,
+);
 
 export const Route = createFileRoute("/api/worker/training/runs/$runId/epochs")(
   {
@@ -16,7 +18,7 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/epochs")(
       handlers: {
         POST: async ({ params, request, context }) => {
           try {
-            const { workerId, sessionId, ...report } =
+            const { workerId, sessionId, attempt, ...report } =
               await parseWorkerSessionJson(
                 request,
                 bodySchema,
@@ -25,7 +27,7 @@ export const Route = createFileRoute("/api/worker/training/runs/$runId/epochs")(
             return Response.json(
               await recordTrainingEpoch(
                 params.runId,
-                { workerId, sessionId },
+                { workerId, sessionId, attempt },
                 report,
               ),
             );

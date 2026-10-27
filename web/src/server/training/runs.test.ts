@@ -1,3 +1,9 @@
+import { checkpointBlobKey } from "./keys";
+import { readTrainingRun } from "./runs";
+import { controlTrainingRun } from "./control";
+import { listTrainingAttempts } from "./attempts";
+import { readTrainingCheckpoint, saveTrainingCheckpoint } from "./checkpoints";
+import { collectUnreferencedTrainingCheckpoints } from "./collection";
 import { expect, test } from "bun:test";
 
 import { YOLO26_SEED_SMALL_RECIPE } from "../../domain/training/recipes";
@@ -49,13 +55,18 @@ async function reviewedDataset(name: string) {
   return dataset;
 }
 
-function owner(workerId: string, sessionId = `${workerId}-session`) {
-  return { workerId, sessionId } satisfies WorkerIdentity;
+function owner(
+  workerId: string,
+  sessionId = `${workerId}-session`,
+  attempt = 1,
+) {
+  return { workerId, sessionId, attempt };
 }
 
 function heartbeat(identity: WorkerIdentity, startedAt: Date): WorkerHeartbeat {
   return {
-    ...identity,
+    workerId: identity.workerId,
+    sessionId: identity.sessionId,
     startedAt: startedAt.toISOString(),
     runtimes: [ULTRALYTICS_RUNTIME],
     memoryBytes: 24 * 1024 ** 3,
@@ -64,9 +75,7 @@ function heartbeat(identity: WorkerIdentity, startedAt: Date): WorkerHeartbeat {
 
 async function trainer(workerId: string) {
   const identity = owner(workerId);
-  await recordTestHeartbeat(
-    heartbeat(identity, new Date("2026-08-27T00:00:00.000Z")),
-  );
+  await recordTestHeartbeat(heartbeat(identity, new Date()));
   return identity;
 }
 
@@ -169,7 +178,11 @@ test("concurrent claims lease a run to exactly one worker", async () => {
   if (winner?.state.status !== "running") throw new Error("no lease");
   await failTrainingRun(
     run.id,
-    { workerId: winner.state.workerId, sessionId: winner.state.sessionId },
+    {
+      workerId: winner.state.workerId,
+      sessionId: winner.state.sessionId,
+      attempt: winner.attempt,
+    },
     "stopped",
   );
 });
@@ -279,7 +292,7 @@ test("an interrupted upload cannot constrain a reclaimed run", async () => {
   const run = await createTrainingRun(dataset.id, recipe);
   await trainer("original-publisher");
   await trainer("replacement-publisher");
-  const started = new Date("2026-08-27T00:00:00.000Z");
+  const started = new Date();
   const original = await claimTrainingRun(owner("original-publisher"), started);
   if (!original) throw new Error("run was not claimed");
 
@@ -290,14 +303,14 @@ test("an interrupted upload cannot constrain a reclaimed run", async () => {
   );
   const replacement = new TextEncoder().encode("replacement-weights");
   const reclaimed = await claimTrainingRun(
-    owner("replacement-publisher"),
+    owner("replacement-publisher", undefined, 2),
     new Date(started.getTime() + 6 * 60 * 1000),
   );
   expect(reclaimed?.id).toBe(run.id);
   if (!reclaimed) throw new Error("run was not reclaimed");
   const completed = await publishTrainingArtifact(
     run.id,
-    owner("replacement-publisher"),
+    owner("replacement-publisher", undefined, 2),
     replacement,
     publication,
   );
@@ -400,25 +413,26 @@ test("epochs carry the run's progress and a reclaimed attempt draws its own curv
   await expect(
     recordTrainingEpoch(
       run.id,
-      owner("epoch-successor"),
+      owner("epoch-successor", undefined, 2),
       epochReport(3),
       start,
     ),
   ).rejects.toThrow(/not owned/);
 
   const expired = new Date(start.getTime() + 10 * 60 * 1000);
-  expect((await claimTrainingRun(owner("epoch-successor"), expired))?.id).toBe(
-    run.id,
-  );
+  expect(
+    (await claimTrainingRun(owner("epoch-successor", undefined, 2), expired))
+      ?.id,
+  ).toBe(run.id);
   await enterTrainingPhase(
     run.id,
-    owner("epoch-successor"),
+    owner("epoch-successor", undefined, 2),
     "training",
     expired,
   );
   await recordTrainingEpoch(
     run.id,
-    owner("epoch-successor"),
+    owner("epoch-successor", undefined, 2),
     epochReport(1),
     expired,
   );
@@ -445,7 +459,7 @@ test("epochs carry the run's progress and a reclaimed attempt draws its own curv
   ]);
   const validating = await enterTrainingPhase(
     run.id,
-    owner("epoch-successor"),
+    owner("epoch-successor", undefined, 2),
     "validating",
     expired,
   );
@@ -455,17 +469,26 @@ test("epochs carry the run's progress and a reclaimed attempt draws its own curv
     progress: 0.9,
   });
   await expect(
-    enterTrainingPhase(run.id, owner("epoch-successor"), "training", expired),
+    enterTrainingPhase(
+      run.id,
+      owner("epoch-successor", undefined, 2),
+      "training",
+      expired,
+    ),
   ).rejects.toThrow(/cannot move/);
   await expect(
     recordTrainingEpoch(
       run.id,
-      owner("epoch-successor"),
+      owner("epoch-successor", undefined, 2),
       epochReport(2),
       expired,
     ),
   ).rejects.toThrow(/while validating/);
-  await failTrainingRun(run.id, owner("epoch-successor"), "stopped");
+  await failTrainingRun(
+    run.id,
+    owner("epoch-successor", undefined, 2),
+    "stopped",
+  );
 });
 
 test("a worker whose lease was reassigned can no longer report on the run", async () => {
@@ -478,24 +501,27 @@ test("a worker whose lease was reassigned can no longer report on the run", asyn
     run.id,
   );
   const expired = new Date(start.getTime() + 10 * 60 * 1000);
-  expect((await claimTrainingRun(owner("fast-trainer"), expired))?.id).toBe(
-    run.id,
-  );
+  expect(
+    (await claimTrainingRun(owner("fast-trainer", undefined, 2), expired))?.id,
+  ).toBe(run.id);
   await expect(
     renewTrainingLease(run.id, owner("slow-trainer")),
   ).rejects.toThrow(/not owned/);
   await expect(
     failTrainingRun(run.id, owner("slow-trainer"), "late"),
   ).rejects.toThrow(/not owned/);
-  await failTrainingRun(run.id, owner("fast-trainer"), "stopped");
+  await failTrainingRun(run.id, owner("fast-trainer", undefined, 2), "stopped");
 });
 
 test("a restarted worker reclaims its run as a new fenced attempt", async () => {
   const dataset = await reviewedDataset("restarted-worker");
   const run = await createTrainingRun(dataset.id, recipe);
   const oldSession = owner("restarting-trainer", "session-old");
-  const newSession = owner("restarting-trainer", "session-new");
-  const started = new Date("2026-08-28T00:00:00.000Z");
+  const newSession = {
+    ...owner("restarting-trainer", "session-new"),
+    attempt: 2,
+  };
+  const started = new Date();
   await recordTestHeartbeat(heartbeat(oldSession, started), started);
   expect((await claimTrainingRun(oldSession, started))?.attempt).toBe(1);
 
@@ -526,9 +552,159 @@ test("removing a worker frees its run for another worker at once", async () => {
     run.id,
   );
   await removeWorker("removed-trainer");
-  expect(await claimTrainingRun(owner("remaining-trainer"), at)).toMatchObject({
+  expect(
+    await claimTrainingRun(owner("remaining-trainer", undefined, 2), at),
+  ).toMatchObject({
     id: run.id,
     attempt: 2,
   });
-  await failTrainingRun(run.id, owner("remaining-trainer"), "stopped");
+  await failTrainingRun(
+    run.id,
+    owner("remaining-trainer", undefined, 2),
+    "stopped",
+  );
+});
+
+test("pause releases the model and fences the previous attempt even on the same worker session", async () => {
+  const dataset = await reviewedDataset("controlled-training");
+  const a = await trainer("controlled-a");
+  const b = await trainer("controlled-b");
+  const run = await createTrainingRun(dataset.id, recipe, a.workerId);
+  expect(await claimTrainingRun(b)).toBeNull();
+  expect((await claimTrainingRun(a))?.id).toBe(run.id);
+  await enterTrainingPhase(run.id, a, "training");
+  await recordTrainingEpoch(run.id, a, epochReport(1));
+  const before = await readTrainingRun(run.id);
+  await renewTrainingLease(run.id, a);
+  expect((await readTrainingRun(run.id))?.lastProgressAt).toBe(
+    before?.lastProgressAt,
+  );
+  const otherDataset = await reviewedDataset("other-controlled-training");
+  await expect(
+    controlTrainingRun(otherDataset.id, run.id, 1, { action: "pause" }),
+  ).rejects.toThrow(/not found/);
+  expect((await readTrainingRun(run.id))?.state.status).toBe("running");
+  await controlTrainingRun(dataset.id, run.id, 1, { action: "pause" });
+  expect(await activeTrainingRun(run.modelId)).toBeNull();
+  expect(await claimTrainingRun(b)).toBeNull();
+  await expect(recordTrainingEpoch(run.id, a, epochReport(2))).rejects.toThrow(
+    /not owned/,
+  );
+  await controlTrainingRun(dataset.id, run.id, 1, {
+    action: "resume",
+    targetWorkerId: a.workerId,
+    restart: false,
+  });
+  expect((await claimTrainingRun(a))?.attempt).toBe(2);
+  await expect(renewTrainingLease(run.id, a)).rejects.toThrow(/not owned/);
+  await expect(failTrainingRun(run.id, a, "late failure")).rejects.toThrow(
+    /not owned/,
+  );
+  await expect(
+    publishTrainingArtifact(run.id, a, new Uint8Array([1]), publication),
+  ).rejects.toThrow(/superseded/);
+  await expect(
+    controlTrainingRun(dataset.id, run.id, 1, { action: "cancel" }),
+  ).rejects.toThrow(/refresh/);
+  await controlTrainingRun(dataset.id, run.id, 2, { action: "cancel" });
+  expect(await listTrainingAttempts(run.id)).toMatchObject([
+    { attempt: 2, workerId: a.workerId, outcome: "cancelled" },
+    { attempt: 1, workerId: a.workerId, outcome: "paused" },
+  ]);
+  await expect(
+    controlTrainingRun(dataset.id, run.id, 2, {
+      action: "resume",
+      targetWorkerId: null,
+      restart: false,
+    }),
+  ).rejects.toThrow(/Only paused or failed/);
+});
+
+test("a durable checkpoint follows training to another worker and is collected after cancellation", async () => {
+  const dataset = await reviewedDataset("portable-training");
+  const a = await trainer("portable-a");
+  const b = await trainer("portable-b");
+  const run = await createTrainingRun(dataset.id, recipe, a.workerId);
+  await claimTrainingRun(a);
+  await enterTrainingPhase(run.id, a, "training");
+  await recordTrainingEpoch(run.id, a, epochReport(1));
+  const bytes = new Uint8Array([10, 20, 30]);
+  const checkpoint = await saveTrainingCheckpoint(run.id, a, 1, bytes);
+  const uploading = new Uint8Array([40, 50]);
+  const uploadingKey = checkpointBlobKey(run.id, {
+    ...checkpoint,
+    digest: contentDigest(uploading),
+  });
+  await putImmutableBlob(uploadingKey, uploading);
+  expect(await collectUnreferencedTrainingCheckpoints()).not.toContain(
+    uploadingKey,
+  );
+  await expect(saveTrainingCheckpoint(run.id, a, 2, bytes)).rejects.toThrow(
+    /reported/,
+  );
+  await controlTrainingRun(dataset.id, run.id, 1, { action: "pause" });
+  const collected = await collectUnreferencedTrainingCheckpoints();
+  expect(collected).not.toContain(checkpointBlobKey(run.id, checkpoint));
+  expect(collected).toContain(uploadingKey);
+  await controlTrainingRun(dataset.id, run.id, 1, {
+    action: "resume",
+    targetWorkerId: b.workerId,
+    restart: false,
+  });
+  expect(await claimTrainingRun(a)).toBeNull();
+  const next = await claimTrainingRun(b);
+  expect(next?.checkpoint).toEqual(checkpoint);
+  expect(await readTrainingCheckpoint(run.id, { ...b, attempt: 2 })).toEqual(
+    bytes,
+  );
+  await expect(saveTrainingCheckpoint(run.id, a, 1, bytes)).rejects.toThrow(
+    /not owned/,
+  );
+  await controlTrainingRun(dataset.id, run.id, 2, { action: "pause" });
+  await controlTrainingRun(dataset.id, run.id, 2, {
+    action: "resume",
+    targetWorkerId: b.workerId,
+    restart: true,
+  });
+  expect((await readTrainingRun(run.id))?.checkpoint).toBeNull();
+  expect(await collectUnreferencedTrainingCheckpoints()).toContain(
+    checkpointBlobKey(run.id, checkpoint),
+  );
+  await controlTrainingRun(dataset.id, run.id, 2, { action: "cancel" });
+});
+
+test("an expired lease cannot be renewed or publish before another worker claims it", async () => {
+  const dataset = await reviewedDataset("expired-authority");
+  const a = await trainer("expired-authority-worker");
+  const run = await createTrainingRun(dataset.id, recipe);
+  await claimTrainingRun(a, new Date(Date.now() - 6 * 60_000));
+  await expect(renewTrainingLease(run.id, a)).rejects.toThrow(/not owned/);
+  await expect(
+    publishTrainingArtifact(run.id, a, new Uint8Array([1]), publication),
+  ).rejects.toThrow(/not owned/);
+  await controlTrainingRun(dataset.id, run.id, 1, { action: "cancel" });
+});
+
+test("pausing and model publication serialize to one consistent outcome", async () => {
+  const dataset = await reviewedDataset("pause-publication");
+  const a = await trainer("pause-publication-worker");
+  const run = await createTrainingRun(dataset.id, recipe);
+  await claimTrainingRun(a);
+  const results = await Promise.allSettled([
+    controlTrainingRun(dataset.id, run.id, 1, { action: "pause" }),
+    publishTrainingArtifact(run.id, a, new Uint8Array([1]), publication),
+  ]);
+  expect(
+    results.filter((result) => result.status === "fulfilled"),
+  ).toHaveLength(1);
+  const current = await readTrainingRun(run.id);
+  if (
+    !current ||
+    (current.state.status !== "paused" && current.state.status !== "succeeded")
+  )
+    throw new Error("Unexpected training outcome");
+  expect((await listTrainingAttempts(run.id))[0]?.outcome).toBe(
+    current.state.status,
+  );
+  expect(await activeTrainingRun(run.modelId)).toBeNull();
 });
