@@ -2,7 +2,9 @@
   "manifest": {
     "schemaVersion": 1,
     "modelVersionId": "set.yolo-v1",
-    "classes": ["seed"],
+    "classes": [
+      "seed"
+    ],
     "artifact": {
       "kind": "ultralytics",
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -50,5 +52,9 @@
       }
     }
   },
-  "image": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  "image": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "attempt": 1,
+  "serverTime": "2026-10-27T00:00:00.000Z",
+  "leaseExpiresAt": "2026-10-27T00:01:30.000Z",
+  "deadlineAt": "2026-10-27T00:15:00.000Z"
 }

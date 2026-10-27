@@ -38,7 +38,10 @@ import { storeAnnotation } from "../annotations/documents";
 import { imageBlobKey } from "../images/keys";
 import { collectImages } from "../images/collection";
 import { blobExists } from "../infra/blobs/store";
-import { seedInferenceOutcome } from "../testing/inference";
+import {
+  seedDetectionResult,
+  seedInferenceTaskFailure,
+} from "../testing/inference";
 import {
   addReplicates,
   addTreatment,
@@ -483,7 +486,7 @@ describe("experiments", () => {
       });
 
     const found = resultFor(seeds, digest, 2);
-    await seedInferenceOutcome({ versionId: seeds.id, digest }, found, worker);
+    await seedDetectionResult({ versionId: seeds.id, digest }, found, worker);
     await storeAnnotation(
       { digest, modelId: seeds.modelId },
       instancesFromDetection(found),
@@ -534,7 +537,7 @@ describe("experiments", () => {
       experiment: experiment.id,
       observationImage: (await imageOf()).id,
     };
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: first.id, digest },
       resultFor(first, digest, 3),
       worker,
@@ -1601,15 +1604,14 @@ describe("experiments", () => {
       "pending",
     ]);
 
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: version.id, digest: d1 },
       resultFor(version, d1, 3),
       worker,
     );
-    await seedInferenceOutcome(
+    await seedInferenceTaskFailure(
       { versionId: version.id, digest: d2 },
-      failureFor(version, d2),
-      worker,
+      "no unit found",
     );
     const grid = await readExperimentGrid(experiment.id);
     const codes = new Map(grid!.units.map((unit) => [unit.id, unit.code]));
@@ -1873,7 +1875,7 @@ describe("experiments", () => {
       );
     expect(await states()).toEqual(["pending", "pending"]);
 
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: version.id, digest: digest! },
       resultFor(version, digest!, 1),
       worker,
@@ -1881,7 +1883,7 @@ describe("experiments", () => {
     expect(await states()).toEqual(["analyzed", "analyzed"]);
   });
 
-  test("the database binds failure documents to the registered artifact", async () => {
+  test("the database refuses execution failures in the detection results", async () => {
     const version = await trainedVersion("exp-failure-fk");
     const [digest] = await storeTexts(["failure-fk"]);
     const failure = failureFor(version, digest!);
@@ -1892,11 +1894,8 @@ describe("experiments", () => {
         modelVersionId: version.id,
         document: {
           ...failure,
-          producer: {
-            ...failure.producer,
-            artifactDigest: "f".repeat(64),
-          },
-        },
+          producer: failure.producer,
+        } as never,
         recordedAt: new Date(),
       });
     })();

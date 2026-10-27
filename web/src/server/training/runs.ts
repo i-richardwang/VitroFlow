@@ -1,3 +1,4 @@
+import { inferenceAttempts } from "../infra/db/schema";
 import { randomUUID } from "node:crypto";
 import {
   and,
@@ -433,6 +434,19 @@ export async function claimTrainingRun(
   return transaction(async (tx) => {
     const worker = await lockWorkerSession(owner, tx);
     if (!canTrain(worker)) return null;
+    const [inference] = await tx
+      .select({ attempt: inferenceAttempts.attempt })
+      .from(inferenceAttempts)
+      .where(
+        and(
+          eq(inferenceAttempts.workerId, owner.workerId),
+          eq(inferenceAttempts.status, "running"),
+          gt(inferenceAttempts.deadlineAt, at),
+          leaseIsHeld(inferenceAttempts, at),
+        ),
+      )
+      .limit(1);
+    if (inference) return null;
     const [owned] = await tx
       .select()
       .from(trainingRuns)

@@ -39,7 +39,7 @@ import { deploymentEndpoint } from "../infra/deployment";
 import type { McpServerName } from "../../domain/auth/integrations";
 import { storeImage } from "../images/store";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
-import { seedInferenceOutcome } from "./inference";
+import { seedDetectionResult } from "./inference";
 import type { DpopKey } from "./dpop";
 import {
   SEED_DETECTOR,
@@ -441,7 +441,7 @@ export async function reviewedDataset(
     };
     if (await readAnnotation(ref)) continue;
     const result = await resultFor(seeded.version, content);
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { digest: ref.digest, versionId: seeded.version.id },
       result,
       { runtimes: [result.producer.runtime] },

@@ -1,3 +1,4 @@
+import { completeInferenceClaim } from "../../inference/public";
 import { expect, test } from "bun:test";
 
 import { makeResult } from "../../../domain/annotation/testing";
@@ -116,6 +117,30 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       parsed.image === digest
     ) {
       assignment = parsed;
+    } else {
+      await completeInferenceClaim(
+        { versionId: parsed.manifest.modelVersionId, digest: parsed.image },
+        {
+          schemaVersion: 1,
+          image: {
+            digest: parsed.image,
+            width: FIXTURE_EDGE,
+            height: FIXTURE_EDGE,
+          },
+          producer: {
+            modelVersionId: parsed.manifest.modelVersionId,
+            artifactDigest: parsed.manifest.artifact.digest,
+            runtime,
+          },
+          instances: [],
+          quality: { status: "ok", warnings: [] },
+        },
+        {
+          workerId: "api-worker",
+          sessionId: "api-session",
+          attempt: parsed.attempt,
+        },
+      );
     }
   }
   if (!assignment) throw new Error("API test inference task was not claimed");
@@ -136,7 +161,10 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       {
         method: "POST",
         headers: { authorization },
-        body: JSON.stringify({ sessionId: "api-session" }),
+        body: JSON.stringify({
+          sessionId: "api-session",
+          attempt: assignment.attempt,
+        }),
       },
     ),
   } as never);
@@ -196,7 +224,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     )({
       params: target,
       request: new Request(
-        `http://localhost/api/worker/inference/results/${version.id}/${digest}?sessionId=${sessionId}`,
+        `http://localhost/api/worker/inference/results/${version.id}/${digest}?sessionId=${sessionId}&attempt=${assignment!.attempt}`,
         {
           method: "PUT",
           headers: { authorization },
@@ -211,7 +239,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
     )({
       params,
       request: new Request(
-        `http://localhost/api/worker/inference/results/${params.versionId}/${params.digest}?sessionId=api-session`,
+        `http://localhost/api/worker/inference/results/${params.versionId}/${params.digest}?sessionId=api-session&attempt=${assignment!.attempt}`,
         { method: "PUT", headers: { authorization }, body },
       ),
     } as never);
@@ -251,7 +279,7 @@ test("inference HTTP routes carry an image from upload to detection", async () =
       )
     )?.detection,
   ).toEqual(result);
-  expect((await put(result)).status).toBe(409);
+  expect((await put(result)).status).toBe(200);
   expect(
     (
       await put({

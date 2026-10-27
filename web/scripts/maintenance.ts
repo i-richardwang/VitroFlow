@@ -1,4 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
+import { maintainInferenceTasks } from "../src/server/inference/public";
 import sharp from "sharp";
 import { bootstrap } from "../src/server/bootstrap";
 import { closeDatabase } from "../src/server/infra/db/client";
@@ -41,6 +42,10 @@ async function repeat(
 
 try {
   await Promise.all([
+    repeat("Inference tasks", 10 * 1000, async () => {
+      const expired = await maintainInferenceTasks();
+      if (expired) console.log(`Recovered ${expired} inference attempt(s)`);
+    }),
     repeat("Blob collection", 60 * 60 * 1000, async () => {
       const { images, modelWeights } = await collectUnreferencedBlobs();
       console.log(

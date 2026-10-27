@@ -1,8 +1,7 @@
 """One Worker process: it heartbeats, then serves whatever the workbench holds.
 
-Training takes priority over inference. The process executes one assignment at
-a time, holding a few more inference tasks whose images download meanwhile; it
-releases those before it trains.
+Training takes priority over inference. One supervised execution uses the
+accelerator at a time; consecutive inference tasks reuse a warm child process.
 """
 
 from __future__ import annotations
@@ -16,8 +15,9 @@ import httpx
 from vitroctl.detectors.ultralytics import YoloTrainingInterruptedError
 from vitroctl.detectors.ultralytics.runtime import release_accelerator
 from vitroctl.worker.images import ImageCache
-from vitroctl.worker.inference import WORKER_ERRORS, InferenceClient, InferencePipeline
-from vitroctl.worker.model_store import ModelStore
+from vitroctl.worker.inference import WORKER_ERRORS, InferenceRunner
+from vitroctl.worker.inference_process import InferenceProcess
+from vitroctl.worker.inference_protocol import InferenceClient
 from vitroctl.worker.runtime import shutdown_signals
 from vitroctl.worker.session import WorkerClient, WorkerSession, WorkerSettings
 from vitroctl.worker.training import TrainingClient, process_training_job
@@ -43,16 +43,14 @@ class Worker:
         )
         self.inference = InferenceClient(self.client)
         self.training = TrainingClient(self.client)
-        self.store = ModelStore(self.inference, settings.work_dir, settings.device)
-        self.images = ImageCache(settings.work_dir / "images")
-        self.pipeline = InferencePipeline(self.inference, self.store, self.images)
+        self.runner = InferenceRunner(
+            self.inference, InferenceProcess(settings, self.client.session)
+        )
 
     def close(self) -> None:
         try:
-            self.pipeline.close()
+            self.runner.close()
         finally:
-            self.store.unload()
-            self.images.close()
             self.client.close()
 
     def serve_once(self, stopped: threading.Event) -> bool:
@@ -63,21 +61,22 @@ class Worker:
         if self.client.session.can_train:
             job = self.training.claim()
             if job is not None:
-                self.pipeline.release()
-                self.store.unload()
+                self.runner.close()
+                images = ImageCache(self.settings.work_dir / "images")
                 try:
                     process_training_job(
                         self.training,
                         job,
                         self.settings.work_dir,
                         self.settings.device,
-                        self.images,
+                        images,
                         stopped=stopped,
                     )
                 finally:
+                    images.close()
                     release_accelerator()
                 return True
-        return self.pipeline.run_once(stopped)
+        return self.runner.run_once(stopped)
 
 
 def run_worker(

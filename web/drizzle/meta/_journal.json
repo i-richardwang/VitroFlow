@@ -22,6 +22,13 @@
       "when": 1793098845024,
       "tag": "0002_model_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793111459324,
+      "tag": "0003_inference_execution",
+      "breakpoints": true
     }
   ]
 }

@@ -133,3 +133,7 @@ The train/validation split is not chosen here: a training snapshot gives each re
 ## Transactions
 
 A command runs in one database transaction: it either changes the record as a whole or leaves it untouched. Image upload only stages immutable content by digest; assigning that content to an observation is the command that changes the record.
+
+## Inference task control
+
+`get-inference-task` accepts `{ "versionId": "<model-version>", "digest": "<image-sha256>" }` and returns the durable task and its execution attempts, or null when no task has been materialized. Each attempt records its Worker, session, execution deadline, lease, final state and failure. `retry-inference-task` accepts the same target and resets a terminal failure's retry budget while retaining its attempt history. Successful results remain immutable. Experiment image reviews use the same retry operation internally.

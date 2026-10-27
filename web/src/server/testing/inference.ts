@@ -1,29 +1,54 @@
-import { and, eq } from "drizzle-orm";
-import type { InferenceOutcome } from "../../domain/detection/schema";
+import type { DetectionResult } from "../../domain/detection/schema";
 import type { Worker } from "../../domain/workers/schema";
 import { transaction } from "../infra/db/client";
-import { inferenceJobs } from "../infra/db/schema";
+import { inferenceTasks } from "../infra/db/schema";
 import {
   storeInferenceOutcome,
   type DetectionTarget,
 } from "../inference/outcomes";
 
-/** Seed a canonical outcome without acquiring a worker lease. */
-export async function seedInferenceOutcome(
+/** Seed a successful task and its canonical result without a worker lease. */
+export async function seedDetectionResult(
   target: DetectionTarget,
-  outcome: InferenceOutcome,
+  result: DetectionResult,
   worker: Pick<Worker, "runtimes">,
-): Promise<InferenceOutcome> {
+): Promise<DetectionResult> {
   return transaction(async (tx) => {
-    const stored = await storeInferenceOutcome(target, outcome, worker, tx);
+    const stored = await storeInferenceOutcome(target, result, worker, tx);
+    const at = new Date();
     await tx
-      .delete(inferenceJobs)
-      .where(
-        and(
-          eq(inferenceJobs.imageId, target.digest),
-          eq(inferenceJobs.modelVersionId, target.versionId),
-        ),
-      );
+      .insert(inferenceTasks)
+      .values({
+        imageId: target.digest,
+        modelVersionId: target.versionId,
+        status: "succeeded",
+        createdAt: at,
+        availableAt: at,
+        finishedAt: at,
+      })
+      .onConflictDoUpdate({
+        target: [inferenceTasks.imageId, inferenceTasks.modelVersionId],
+        set: { status: "succeeded", finishedAt: at, error: null },
+      });
     return stored;
+  });
+}
+
+/** Seed a terminal task failure, which has no detection document. */
+export async function seedInferenceTaskFailure(
+  target: DetectionTarget,
+  error: string,
+): Promise<void> {
+  await transaction(async (tx) => {
+    const at = new Date();
+    await tx.insert(inferenceTasks).values({
+      imageId: target.digest,
+      modelVersionId: target.versionId,
+      status: "failed",
+      createdAt: at,
+      availableAt: at,
+      finishedAt: at,
+      error,
+    });
   });
 }

@@ -22,7 +22,7 @@ import {
 
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
 
-import { seedInferenceOutcome } from "../testing/inference";
+import { seedDetectionResult } from "../testing/inference";
 import { listImageRecords } from "./records";
 import { collectImages } from "../images/collection";
 
@@ -64,7 +64,6 @@ async function storedDetection(target: { versionId: string; digest: string }) {
       and(
         eq(inferenceOutcomes.imageId, target.digest),
         eq(inferenceOutcomes.modelVersionId, target.versionId),
-        eq(inferenceOutcomes.status, "succeeded"),
       ),
     );
   return row?.document ?? null;
@@ -292,7 +291,7 @@ describe("removal", () => {
     const ref = { dataset: dataset.id, digest };
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "rm-bytes");
-    await seedInferenceOutcome(target, result, worker);
+    await seedDetectionResult(target, result, worker);
     await storeAnnotation(
       { digest, modelId: version.modelId },
       instancesFromDetection(result),

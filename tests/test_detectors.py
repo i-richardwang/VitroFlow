@@ -13,7 +13,7 @@ from vitroctl.detectors.contract import (
     DetectionResult,
     RuntimeDescriptor,
 )
-from vitroctl.detectors.documents import parse_inference_outcome
+from vitroctl.detectors.documents import parse_detection_result
 from vitroctl.detectors.traditional.config import DecisionConfig, PipelineConfig
 from vitroctl.detectors.traditional.detector import TraditionalDetector
 from vitroctl.detectors.traditional.scoring import DEFAULT_MODEL
@@ -50,14 +50,14 @@ def test_shared_detection_contract() -> None:
     ).to_dict()
     fixture = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     assert document == fixture
-    assert parse_inference_outcome(fixture).to_dict() == fixture
+    assert parse_detection_result(fixture).to_dict() == fixture
 
 
 def test_parser_rejects_unknown_contract_fields() -> None:
     document = json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8"))
     document["unexpected"] = True
-    with pytest.raises(ValueError, match="outcome.*shared contract"):
-        parse_inference_outcome(document)
+    with pytest.raises(ValueError, match="detection.*shared contract"):
+        parse_detection_result(document)
 
 
 def test_traditional_detector_adapts_detections_to_boxes(monkeypatch) -> None:
@@ -170,3 +170,14 @@ def test_result_rejects_duplicate_ids_and_out_of_bounds_boxes() -> None:
             (instance, instance),
             DetectionQuality("ok"),
         )
+
+
+def test_execution_failure_is_not_a_detection_document() -> None:
+    failure = {
+        "schemaVersion": 1,
+        "image": {"digest": "c" * 64},
+        "producer": PRODUCER.to_dict(),
+        "error": "transport failed",
+    }
+    with pytest.raises(ValueError, match="shared contract"):
+        parse_detection_result(failure)

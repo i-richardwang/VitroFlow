@@ -1,11 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Executor } from "../infra/db/client";
 import { images, inferenceOutcomes, modelVersions } from "../infra/db/schema";
-import {
-  isFailure,
-  type DetectionResult,
-  type InferenceOutcome,
-} from "../../domain/detection/schema";
+import type { DetectionResult } from "../../domain/detection/schema";
 import { sameRuntimeDescriptor } from "../../domain/inference/schema";
 import { canonicalJson } from "../../lib/json/canonical";
 import { assertInstanceClasses } from "../../domain/models/classes";
@@ -43,7 +39,7 @@ function sameDocument(left: DetectionResult, right: DetectionResult): boolean {
 
 async function assertProducer(
   target: DetectionTarget,
-  outcome: InferenceOutcome,
+  outcome: DetectionResult,
   worker: Pick<Worker, "runtimes">,
   tx: Executor,
 ): Promise<Model> {
@@ -93,17 +89,15 @@ async function assertProducer(
 }
 
 /**
- * Records what a worker found for the pair. A detection is written once:
- * the same result resubmitted is accepted, a different one is refused, and
- * a failure arriving after a detection is ignored. A detection replaces any
- * failure recorded before it.
+ * Records the successful detection for an image/version pair exactly once.
+ * Repeating an identical result is safe; a conflicting result is refused.
  */
 export async function storeInferenceOutcome(
   target: DetectionTarget,
-  outcome: InferenceOutcome,
+  outcome: DetectionResult,
   worker: Pick<Worker, "runtimes">,
   tx: Executor,
-): Promise<InferenceOutcome> {
+): Promise<DetectionResult> {
   await lockDetection(target.digest, target.versionId, tx);
   const [image] = await tx
     .select({ digest: images.id, width: images.width, height: images.height })
@@ -122,14 +116,12 @@ export async function storeInferenceOutcome(
     );
   }
   const model = await assertProducer(target, outcome, worker, tx);
-  if (!isFailure(outcome)) {
-    try {
-      assertInstanceClasses(model.classes, outcome.instances, "Outcome");
-    } catch (error) {
-      throw new InvalidDetectionOutcomeError(
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+  try {
+    assertInstanceClasses(model.classes, outcome.instances, "Outcome");
+  } catch (error) {
+    throw new InvalidDetectionOutcomeError(
+      error instanceof Error ? error.message : String(error),
+    );
   }
   const [stored] = await tx
     .select({ document: inferenceOutcomes.document })
@@ -141,56 +133,17 @@ export async function storeInferenceOutcome(
       ),
     );
   const existing = stored?.document;
-  if (isFailure(outcome)) {
-    if (existing && !isFailure(existing)) return existing;
-    const row = { document: outcome, recordedAt: new Date() };
-    await tx
-      .insert(inferenceOutcomes)
-      .values({
-        imageId: target.digest,
-        modelVersionId: target.versionId,
-        ...row,
-      })
-      .onConflictDoUpdate({
-        target: [inferenceOutcomes.imageId, inferenceOutcomes.modelVersionId],
-        set: row,
-      });
-    return outcome;
-  }
-  if (existing && !isFailure(existing)) {
+  if (existing) {
     if (!sameDocument(existing, outcome)) {
       throw new DetectionConflictError(target);
     }
     return existing;
   }
   const row = { document: outcome, recordedAt: new Date() };
-  await tx
-    .insert(inferenceOutcomes)
-    .values({
-      imageId: target.digest,
-      modelVersionId: target.versionId,
-      ...row,
-    })
-    .onConflictDoUpdate({
-      target: [inferenceOutcomes.imageId, inferenceOutcomes.modelVersionId],
-      set: row,
-    });
+  await tx.insert(inferenceOutcomes).values({
+    imageId: target.digest,
+    modelVersionId: target.versionId,
+    ...row,
+  });
   return outcome;
-}
-
-/** Removes one failed attempt while holding the pair lock in the caller's transaction. */
-export async function clearDetectionFailure(
-  target: DetectionTarget,
-  tx: Executor,
-): Promise<void> {
-  await lockDetection(target.digest, target.versionId, tx);
-  await tx
-    .delete(inferenceOutcomes)
-    .where(
-      and(
-        eq(inferenceOutcomes.imageId, target.digest),
-        eq(inferenceOutcomes.modelVersionId, target.versionId),
-        eq(inferenceOutcomes.status, "failed"),
-      ),
-    );
 }

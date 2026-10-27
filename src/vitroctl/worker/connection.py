@@ -66,10 +66,39 @@ class WorkerHttpClient:
     def close(self) -> None:
         self._client.close()
 
-    def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    def request(
+        self, method: str, url: str, *, deadline: float | None = None, **kwargs: Any
+    ) -> httpx.Response:
         for attempt in range(3):
             try:
-                response = self._client.request(method, url, **kwargs)
+                if deadline is None:
+                    response = self._client.request(method, url, **kwargs)
+                else:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise httpx.TimeoutException("Request deadline exceeded")
+                    bounded = {**kwargs, "timeout": min(5.0, remaining)}
+                    with self._client.stream(method, url, **bounded) as stream:
+                        chunks = []
+                        for chunk in stream.iter_bytes():
+                            if time.monotonic() >= deadline:
+                                raise httpx.TimeoutException(
+                                    "Response deadline exceeded"
+                                )
+                            chunks.append(chunk)
+                        response = httpx.Response(
+                            stream.status_code,
+                            headers=[
+                                (key, value)
+                                for key, value in stream.headers.multi_items()
+                                if key.lower()
+                                not in {"content-encoding", "content-length"}
+                            ],
+                            content=b"".join(chunks),
+                            request=stream.request,
+                        )
+                    if time.monotonic() >= deadline:
+                        raise httpx.TimeoutException("Request deadline exceeded")
             except httpx.TransportError:
                 if attempt == 2:
                     raise
@@ -80,5 +109,8 @@ class WorkerHttpClient:
                 if response.status_code not in RETRYABLE_STATUS_CODES or attempt == 2:
                     return response
                 response.close()
-            time.sleep(0.5 * 2**attempt)
+            delay = 0.5 * 2**attempt
+            if deadline is not None:
+                delay = min(delay, max(0, deadline - time.monotonic()))
+            time.sleep(delay)
         raise RuntimeError("HTTP retry loop ended without a response")

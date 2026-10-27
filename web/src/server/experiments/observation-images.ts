@@ -36,7 +36,7 @@ import {
 import { addObservation } from "./observations";
 import { readExperimentObservationImage } from "./queries";
 import { lockImage } from "../images/public";
-import { clearDetectionFailure } from "../inference/public";
+import { retryInferenceTask } from "../inference/public";
 
 /** Adds an observation day and matches the photographs taken on it to their units, together. */
 export async function recordObservation(
@@ -244,10 +244,10 @@ export async function retryObservationImageAnalysis(
       );
     }
     if (!image.failure) return;
-    await clearDetectionFailure(
+    await retryInferenceTask(
       {
         digest: image.review.ref.digest,
-        versionId: image.failure.producer.modelVersionId,
+        versionId: image.failure.versionId,
       },
       tx,
     );

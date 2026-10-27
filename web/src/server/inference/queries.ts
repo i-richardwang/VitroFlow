@@ -30,7 +30,6 @@ export function shownDetectingVersion(
       join models m on m.current_version_id = d.model_version_id
       where d.image_id = ${imageId}
         and m.id = ${modelId}
-        and d.status = 'succeeded'
     ),
     (
       select d.model_version_id
@@ -38,7 +37,6 @@ export function shownDetectingVersion(
       join model_versions v on v.id = d.model_version_id
       where d.image_id = ${imageId}
         and v.model_id = ${modelId}
-        and d.status = 'succeeded'
       order by v.created_at desc, v.id desc
       limit 1
     )

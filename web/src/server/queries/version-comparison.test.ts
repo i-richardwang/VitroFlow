@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { setCurrentVersion } from "../models/public";
-import { seedInferenceOutcome } from "../testing/inference";
+import { seedDetectionResult } from "../testing/inference";
 import {
   countedResult,
   registerTrainedVersion,
@@ -40,7 +40,7 @@ test("a candidate is scored against the reviewers' counts on the held-out images
       version.artifact.kind === "ultralytics"
         ? ULTRALYTICS_RUNTIME
         : TEST_RUNTIME;
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: version.id, digest },
       await countedResult(version, content, counted, runtime),
       { runtimes: [runtime] },

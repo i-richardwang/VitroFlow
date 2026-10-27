@@ -1,3 +1,4 @@
+import type { InferenceFailure } from "../../../domain/inference/tasks";
 import type { ModelBundle } from "../../../domain/models/bundle";
 import type { DishAnalysis } from "../../../domain/images/coverage";
 import type {
@@ -37,7 +38,7 @@ import {
   CULTURE_EVENT_TYPES,
   type TreatmentFactor,
 } from "../../../domain/experiments/schema";
-import type { InferenceOutcome } from "../../../domain/detection/schema";
+import type { DetectionResult } from "../../../domain/detection/schema";
 import type { RuntimeDescriptor } from "../../../domain/inference/schema";
 import type {
   ModelAnnotation,
@@ -634,13 +635,8 @@ export const inferenceOutcomes = pgTable(
       .notNull()
       .references(() => images.id, { onDelete: "cascade" }),
     modelVersionId: text("model_version_id").notNull(),
-    document: jsonb("document").$type<InferenceOutcome>().notNull(),
+    document: jsonb("document").$type<DetectionResult>().notNull(),
     recordedAt: instant("recorded_at"),
-    status: text("status", { enum: ["succeeded", "failed"] })
-      .notNull()
-      .generatedAlwaysAs(
-        sql`case when document ? 'instances' then 'succeeded' when document ? 'error' then 'failed' end`,
-      ),
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`document->'producer'->>'artifactDigest'`),
@@ -648,7 +644,6 @@ export const inferenceOutcomes = pgTable(
   (table) => [
     primaryKey({ columns: [table.imageId, table.modelVersionId] }),
     index("inference_outcomes_version_idx").on(table.modelVersionId),
-    index("inference_outcomes_status_idx").on(table.status, table.recordedAt),
     /** The document was produced by the registered artifact of its version. */
     foreignKey({
       columns: [table.modelVersionId, table.artifactDigest],
@@ -660,11 +655,7 @@ export const inferenceOutcomes = pgTable(
     ),
     check(
       "inference_outcomes_shape_check",
-      sql`case ${table.status}
-        when 'succeeded' then document ? 'instances' and not document ? 'error'
-        when 'failed' then document ? 'error' and not document ? 'instances'
-        else false
-      end`,
+      sql`document ? 'instances' and not document ? 'error'`,
     ),
   ],
 );
@@ -980,13 +971,9 @@ export const workerSessions = pgTable(
   (table) => [index("worker_sessions_seen_idx").on(table.lastSeenAt)],
 );
 
-/**
- * A bounded inference task leased to exactly one worker session. Demand is
- * materialized lazily when a worker claims work; the durable outcome remains
- * the source of truth and completing the task removes its lease.
- */
-export const inferenceJobs = pgTable(
-  "inference_jobs",
+/** Durable image/version work and the bounded attempts that execute it. */
+export const inferenceTasks = pgTable(
+  "inference_tasks",
   {
     imageId: text("image_id")
       .notNull()
@@ -994,21 +981,82 @@ export const inferenceJobs = pgTable(
     modelVersionId: text("model_version_id")
       .notNull()
       .references(() => modelVersions.id, { onDelete: "cascade" }),
-    workerId: text("worker_id")
-      .notNull()
-      .references(() => workers.id, { onDelete: "cascade" }),
-    sessionId: text("session_id").notNull(),
-    attempt: integer("attempt").notNull(),
-    leaseExpiresAt: timestamp("lease_expires_at", {
-      withTimezone: true,
-      mode: "date",
+    status: text("status", {
+      enum: ["queued", "running", "succeeded", "failed"],
     }).notNull(),
+    attempt: integer("attempt").notNull().default(0),
+    attemptsInCycle: integer("attempts_in_cycle").notNull().default(0),
+    createdAt: instant("created_at"),
+    availableAt: instant("available_at"),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    error: text("error"),
   },
-  (table) => [
-    primaryKey({ columns: [table.imageId, table.modelVersionId] }),
-    index("inference_jobs_claimable_idx").on(table.leaseExpiresAt),
-    index("inference_jobs_worker_idx").on(table.workerId, table.sessionId),
-    check("inference_jobs_attempt_check", sql`${table.attempt} >= 1`),
+  (t) => [
+    primaryKey({ columns: [t.imageId, t.modelVersionId] }),
+    index("inference_tasks_ready_idx").on(t.status, t.availableAt),
+    check(
+      "inference_tasks_attempt_check",
+      sql`${t.attempt} >= ${t.attemptsInCycle} and ${t.attemptsInCycle} >= 0`,
+    ),
+    check(
+      "inference_tasks_state_check",
+      sql`case ${t.status}
+    when 'queued' then ${t.finishedAt} is null
+    when 'running' then ${t.finishedAt} is null and ${t.attempt} > 0
+    when 'succeeded' then ${t.finishedAt} is not null and ${t.error} is null
+    when 'failed' then ${t.finishedAt} is not null and length(${t.error}) > 0
+    else false end`,
+    ),
+  ],
+);
+
+export const inferenceAttempts = pgTable(
+  "inference_attempts",
+  {
+    imageId: text("image_id").notNull(),
+    modelVersionId: text("model_version_id").notNull(),
+    attempt: integer("attempt").notNull(),
+    // History remains meaningful after a worker is unenrolled.
+    workerId: text("worker_id").notNull(),
+    sessionId: text("session_id").notNull(),
+    startedAt: instant("started_at"),
+    deadlineAt: instant("deadline_at"),
+    leaseExpiresAt: instant("lease_expires_at"),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    status: text("status", {
+      enum: ["running", "succeeded", "failed"],
+    }).notNull(),
+    failure: jsonb("failure").$type<InferenceFailure>(),
+    resultDigest: text("result_digest"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.imageId, t.modelVersionId, t.attempt] }),
+    foreignKey({
+      columns: [t.imageId, t.modelVersionId],
+      foreignColumns: [inferenceTasks.imageId, inferenceTasks.modelVersionId],
+    }).onDelete("cascade"),
+    uniqueIndex("inference_attempts_one_per_worker")
+      .on(t.workerId)
+      .where(sql`${t.status} = 'running'`),
+    uniqueIndex("inference_attempts_one_per_task")
+      .on(t.imageId, t.modelVersionId)
+      .where(sql`${t.status} = 'running'`),
+    index("inference_attempts_expiry_idx").on(t.status, t.leaseExpiresAt),
+    index("inference_attempts_worker_failure_idx")
+      .on(t.workerId, t.finishedAt)
+      .where(sql`${t.status} = 'failed'`),
+    check(
+      "inference_attempts_deadline_check",
+      sql`${t.attempt} > 0 and ${t.startedAt} < ${t.deadlineAt} and ${t.leaseExpiresAt} <= ${t.deadlineAt}`,
+    ),
+    check(
+      "inference_attempts_state_check",
+      sql`case ${t.status}
+    when 'running' then ${t.finishedAt} is null and ${t.failure} is null and ${t.resultDigest} is null
+    when 'succeeded' then ${t.finishedAt} is not null and ${t.failure} is null and ${t.resultDigest} is not null
+    when 'failed' then ${t.finishedAt} is not null and ${t.failure} is not null and ${t.resultDigest} is null
+    else false end`,
+    ),
   ],
 );
 

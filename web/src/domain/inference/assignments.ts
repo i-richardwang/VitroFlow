@@ -19,6 +19,10 @@ export const inferenceModelManifestSchema = z.strictObject({
 export const inferenceAssignmentSchema = z.strictObject({
   manifest: inferenceModelManifestSchema,
   image: imageDigestSchema,
+  attempt: z.number().int().positive(),
+  leaseExpiresAt: z.iso.datetime(),
+  deadlineAt: z.iso.datetime(),
+  serverTime: z.iso.datetime(),
 });
 
 export const inferenceTargetSchema = z.strictObject({
