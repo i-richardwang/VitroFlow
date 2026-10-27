@@ -71,6 +71,21 @@ export async function readModel(
   return row ? toModel(row) : null;
 }
 
+/** Bounded version discovery for one model, in deterministic newest-first order. */
+export async function listModelVersions(
+  modelId: string,
+): Promise<ModelVersion[]> {
+  const db = await database();
+  return (
+    await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.modelId, modelId))
+      .orderBy(desc(modelVersions.createdAt), desc(modelVersions.id))
+      .limit(100)
+  ).map(toModelVersion);
+}
+
 export async function readModelVersion(
   versionId: string,
   executor?: Executor,

@@ -1,7 +1,4 @@
-export {
-  collectUnreferencedModelWeights,
-  collectUnreferencedTrainingCheckpoints,
-} from "./collection";
+export { collectUnreferencedTrainingCheckpoints } from "./collection";
 export { publishTrainingArtifact } from "./publication";
 export {
   activeTrainingRun,
@@ -18,7 +15,6 @@ export {
   snapshotForRun,
 } from "./runs";
 export { readDatasetSnapshot, snapshotImageCounts } from "./snapshots";
-export { modelWeightsBlobKey } from "./keys";
 
 export { saveTrainingCheckpoint, readTrainingCheckpoint } from "./checkpoints";
 

@@ -35,6 +35,14 @@ export const trainingParametersSchema = z.strictObject({
   max_det: z.number().int().min(1).max(10000),
   seed: z.number().int().min(0),
   deterministic: z.boolean(),
+  scale: z.number().min(0).max(1).optional(),
+  degrees: z.number().min(0).max(180).optional(),
+  flipud: z.number().min(0).max(1).optional(),
+  fliplr: z.number().min(0).max(1).optional(),
+  translate: z.number().min(0).max(1).optional(),
+  hsv_h: z.number().min(0).max(1).optional(),
+  hsv_s: z.number().min(0).max(1).optional(),
+  hsv_v: z.number().min(0).max(1).optional(),
 });
 
 export type TrainingParameters = z.infer<typeof trainingParametersSchema>;

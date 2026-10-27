@@ -207,6 +207,10 @@ class UltralyticsDetector:
             self._model = model
         return self._model
 
+    def validate_weights(self) -> None:
+        """Load weights and verify their declared class ordering before delivery."""
+        self._predictor()
+
     def predict(
         self, image_path: Path, digest: str, producer: DetectionProducer
     ) -> DetectionResult:
@@ -216,6 +220,7 @@ class UltralyticsDetector:
             "imgsz": self.settings.image_size,
             "max_det": self.settings.max_detections,
             "end2end": self.settings.end_to_end,
+            "iou": 0.7,
             "verbose": False,
         }
         if self.device is not None:

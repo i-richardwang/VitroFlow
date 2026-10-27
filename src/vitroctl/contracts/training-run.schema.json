@@ -189,6 +189,46 @@
             },
             "deterministic": {
               "type": "boolean"
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "degrees": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 180
+            },
+            "flipud": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "fliplr": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "translate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "hsv_h": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "hsv_s": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "hsv_v": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
             }
           },
           "required": [

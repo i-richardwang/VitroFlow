@@ -15,6 +15,13 @@
       "when": 1793080679972,
       "tag": "0001_training_control",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793098845024,
+      "tag": "0002_model_registry",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,160 @@
+"""Training commands use the same recipe, exporter and trainer as a Worker."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+from vitroctl.cli.connection import client, connection_options
+from vitroctl.cli.output import json_output
+from vitroctl.datasets.annotations import load_annotations
+from vitroctl.datasets.manifest import load_dataset_manifest, manifest_path
+from vitroctl.detectors.ultralytics import export_yolo_dataset, train_yolo_detector
+from vitroctl.models.bundle import training_bundle, write_bundle
+from vitroctl.training.recipe import parse_training_recipe
+
+
+def run(args: argparse.Namespace) -> int:
+    spec = json.loads(Path(args.spec).read_text())
+    if not isinstance(spec, dict) or set(spec) != {"dataset", "recipe"}:
+        raise ValueError("Training spec must contain dataset and recipe")
+    recipe = parse_training_recipe(spec["recipe"])
+    if not args.local:
+        if args.resume or args.output or args.device:
+            raise ValueError(
+                "--resume, --output and --device apply only to --local; use training resume for managed tasks"
+            )
+        json_output(
+            client(args).call("start-training", {**spec, "targetWorkerId": args.worker})
+        )
+        return 0
+    if args.worker:
+        raise ValueError("--worker cannot be combined with --local")
+    if not args.output:
+        raise ValueError("Local training requires --output")
+    output = Path(args.output).resolve()
+    source = manifest_path(Path(args.data_root), spec["dataset"])
+    manifest = load_dataset_manifest(source)
+    identity = {"spec": spec, "dataset": manifest.to_dict()}
+    identity_text = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+    input_path = output / "input.json"
+    if output.exists():
+        if not args.resume:
+            raise ValueError(
+                "Training output exists; use --resume to continue its fixed inputs"
+            )
+        if not input_path.is_file() or input_path.read_text() != identity_text:
+            raise ValueError("Resume inputs differ from the saved recipe or dataset")
+    else:
+        if args.resume:
+            raise ValueError("Cannot resume a missing training directory")
+        output.mkdir(parents=True)
+        input_path.write_text(identity_text)
+    exported_path = output / "dataset"
+    if not (exported_path / "dataset.yaml").exists():
+        export_yolo_dataset(
+            load_annotations(source),
+            manifest.classes,
+            args.data_root,
+            exported_path,
+            seed=recipe.parameters["seed"],
+        )
+    result = train_yolo_detector(
+        exported_path / "dataset.yaml",
+        output / "training",
+        parameters=recipe.parameters,
+        model=recipe.base_model_reference,
+        model_digest=recipe.base_model_digest,
+        runtime_version=recipe.runtime_version,
+        device=args.device,
+        resume_required=args.resume,
+        on_epoch=lambda epoch: print(json.dumps(epoch.to_json()), flush=True),
+    )
+    exported = json.loads((exported_path / "manifest.json").read_text())
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {"input": identity, "export": exported},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    provenance = {
+        "dataset": {
+            "fingerprint": fingerprint,
+            "snapshotId": None,
+            "description": f"Pulled dataset {manifest.dataset}; exact input and exported splits in input.json and dataset/manifest.json",
+        },
+        "selectedEpoch": None,
+        "evaluation": {
+            "description": "Exported validation split",
+            "calibration": "Best F1 confidence on validation split",
+            "metrics": result.metrics,
+        },
+    }
+    document = training_bundle(
+        result.best_weights, result.summary, list(manifest.classes), provenance
+    )
+    print(write_bundle(result.best_weights, document, output / "bundle"))
+    return 0
+
+
+def remote(args: argparse.Namespace) -> int:
+    if args.training_command == "workers":
+        operation, arguments = "list-training-workers", {}
+    elif args.training_command == "list":
+        operation, arguments = "list-training", {"model": args.model}
+    elif args.training_command == "get":
+        operation, arguments = "get-training", {"runId": args.run}
+    else:
+        control: dict[str, Any] = {"action": args.training_command}
+        if args.training_command == "resume":
+            control.update(targetWorkerId=args.worker, restart=args.restart)
+        operation, arguments = (
+            "control-training",
+            {
+                "dataset": args.dataset,
+                "runId": args.run,
+                "attempt": args.attempt,
+                "control": control,
+            },
+        )
+    json_output(client(args).call(operation, arguments))
+    return 0
+
+
+def add_training_commands(commands: Any) -> None:
+    parser = commands.add_parser(
+        "training", help="Run local training or control workbench training"
+    )
+    sub = parser.add_subparsers(dest="training_command", required=True)
+    start = sub.add_parser("run")
+    start.add_argument(
+        "--spec",
+        required=True,
+        help="JSON with dataset and complete recipe; local mode uses a pulled dataset name, remote mode its workbench id",
+    )
+    start.add_argument("--local", action="store_true")
+    start.add_argument("--worker")
+    start.add_argument("--output")
+    start.add_argument("--data-root", default="data")
+    start.add_argument("--device")
+    start.add_argument("--resume", action="store_true")
+    connection_options(start)
+    start.set_defaults(handler=run)
+    for name in ("workers", "list", "get", "pause", "cancel", "resume"):
+        command = sub.add_parser(name)
+        if name == "list":
+            command.add_argument("--model", required=True)
+        elif name != "workers":
+            command.add_argument("run")
+        if name in {"pause", "cancel", "resume"}:
+            command.add_argument("--dataset", required=True)
+            command.add_argument("--attempt", type=int, required=True)
+        if name == "resume":
+            command.add_argument("--worker")
+            command.add_argument("--restart", action="store_true")
+        connection_options(command)
+        command.set_defaults(handler=remote)

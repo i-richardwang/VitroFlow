@@ -72,5 +72,7 @@
   "version_dialog_failed_cell": "Not read",
   "version_made_current": "{version} is now current",
   "version_not_made_current": "The version was not made current",
-  "versions_choose": "Make current…"
+  "versions_choose": "Make current…",
+  "version_imported": "Imported",
+  "version_imported_provenance": "External training: {description}"
 }

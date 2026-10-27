@@ -12,10 +12,10 @@ import {
   workerErrorResponse,
 } from "../server/transport/http/worker";
 import {
-  MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
-  MAX_TRAINING_MANIFEST_BYTES,
-  MAX_TRAINING_WEIGHTS_BYTES,
-} from "../domain/training/artifact";
+  MAX_MODEL_ARTIFACT_REQUEST_BYTES,
+  MAX_MODEL_MANIFEST_BYTES,
+  MAX_MODEL_WEIGHTS_BYTES,
+} from "../domain/models/transfer";
 
 function payloadTooLarge(message: string): Response {
   return new Response(message, { status: 413 });
@@ -31,7 +31,7 @@ export const Route = createFileRoute(
         if (!Number.isSafeInteger(declaredLength) || declaredLength <= 0) {
           return new Response("Content-Length is required", { status: 411 });
         }
-        if (declaredLength > MAX_TRAINING_ARTIFACT_REQUEST_BYTES) {
+        if (declaredLength > MAX_MODEL_ARTIFACT_REQUEST_BYTES) {
           return payloadTooLarge("Training artifact request is too large");
         }
         let owner: TrainingAttemptOwner;
@@ -41,19 +41,16 @@ export const Route = createFileRoute(
           const form = await parseWorkerForm(request);
           const session = form.get("sessionId");
           const weightsFile = form.get("weights");
-          const inference = form.get("inference");
-          if (!(weightsFile instanceof File) || !(inference instanceof File)) {
-            return new Response(
-              "sessionId, weights, and inference are required",
-              {
-                status: 400,
-              },
-            );
+          const bundle = form.get("bundle");
+          if (!(weightsFile instanceof File) || !(bundle instanceof File)) {
+            return new Response("sessionId, weights, and bundle are required", {
+              status: 400,
+            });
           }
-          if (weightsFile.size > MAX_TRAINING_WEIGHTS_BYTES) {
+          if (weightsFile.size > MAX_MODEL_WEIGHTS_BYTES) {
             return payloadTooLarge("Training weights exceed 512 MiB");
           }
-          if (inference.size > MAX_TRAINING_MANIFEST_BYTES) {
+          if (bundle.size > MAX_MODEL_MANIFEST_BYTES) {
             return payloadTooLarge("Training manifest exceeds 1 MiB");
           }
           owner = {
@@ -65,7 +62,7 @@ export const Route = createFileRoute(
             ),
           };
           weights = new Uint8Array(await weightsFile.arrayBuffer());
-          publication = parseWorkerJsonText(await inference.text());
+          publication = parseWorkerJsonText(await bundle.text());
         } catch (error) {
           return workerErrorResponse(
             error,

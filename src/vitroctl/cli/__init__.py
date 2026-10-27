@@ -9,6 +9,8 @@ from pathlib import Path
 
 import httpx
 
+from vitroctl.cli.models import add_model_commands
+from vitroctl.cli.training import add_training_commands
 from vitroctl.datasets.annotations import load_annotations
 from vitroctl.datasets.manifest import (
     DatasetManifest,
@@ -292,6 +294,8 @@ def _parser() -> argparse.ArgumentParser:
     export_yolo.add_argument("--seed", type=int, default=0)
     export_yolo.set_defaults(handler=_export_yolo)
 
+    add_model_commands(commands)
+    add_training_commands(commands)
     add_worker_commands(commands)
     return parser
 
@@ -309,7 +313,3 @@ def main(argv: list[str] | None = None) -> int:
     ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

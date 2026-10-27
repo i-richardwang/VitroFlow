@@ -64,6 +64,9 @@ export function VersionsTable({
             <TableCell cellSlot="title">
               <Flexbox horizontal align="center" gap={8}>
                 {version.id}
+                {version.source.kind === "import" ? (
+                  <Tag size="small">{m.version_imported()}</Tag>
+                ) : null}
                 {current ? (
                   <Tag size="small" color="info">
                     {m.versions_current()}

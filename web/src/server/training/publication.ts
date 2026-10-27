@@ -1,164 +1,59 @@
-import { createHash } from "node:crypto";
+import { modelBundleSchema } from "../../domain/models/bundle";
 import { eq } from "drizzle-orm";
-import { database, transaction, type Executor } from "../infra/db/client";
+import { database, transaction } from "../infra/db/client";
 import { trainingRuns } from "../infra/db/schema";
-import {
-  sameModelVersion,
-  type ModelVersion,
-} from "../../domain/models/schema";
 import { canonicalJson } from "../../lib/json/canonical";
-import {
-  inferencePublicationSchema,
-  type InferencePublication,
-  type TrainingRun,
-  type TrainingAttemptOwner,
-} from "../../domain/training/schema";
+import type { TrainingAttemptOwner } from "../../domain/training/schema";
 import {
   TrainingArtifactValidationError,
   TrainingRunConflictError,
   TrainingRunNotFoundError,
 } from "../../domain/training/errors";
-import { putImmutableBlob } from "../infra/blobs/store";
-import { contentDigest } from "../infra/digest";
-import { modelWeightsBlobKey } from "./keys";
-import { readModelVersion, registerModelVersion } from "../models/public";
+import {
+  prepareModelUpload,
+  uploadModelWeights,
+  registerUploadedModel,
+} from "../models/public";
 import {
   readTrainingRun,
   requireTrainingRunRow,
   requireOwnedRunningRun,
   transitionTrainingRun,
 } from "./runs";
+import { readDatasetSnapshot } from "./snapshots";
 
-function artifactDigest(
-  weights: Uint8Array,
-  publication: InferencePublication,
-): string {
-  // Digest input, shared with the Python inference adapter: weights, NUL, then
-  // the canonical inference settings (`ready` is publication state, not a setting).
-  const hash = createHash("sha256").update(weights).update("\0");
-  hash.update(
-    canonicalJson({
-      confidence: publication.inference.confidence,
-      endToEnd: publication.inference.endToEnd,
-      imageSize: publication.inference.imageSize,
-      maxDetections: publication.inference.maxDetections,
-    }),
-  );
-  return hash.digest("hex");
-}
-
-/**
- * A trained version is the run that produced it, so an attempt that publishes
- * twice publishes the same version both times.
- */
-function trainedModelVersion(
-  run: TrainingRun,
-  weights: Uint8Array,
-  publication: InferencePublication,
-): ModelVersion {
-  const weightsDigest = contentDigest(weights);
-  return {
-    schemaVersion: 1,
-    id: run.id,
-    modelId: run.modelId,
-    createdAt: run.createdAt,
-    source: {
-      kind: "training_run",
-      trainingRunId: run.id,
-      trainingAttempt: run.attempt,
-      datasetSnapshotId: run.datasetSnapshotId,
-    },
-    artifact: {
-      kind: "ultralytics",
-      digest: artifactDigest(weights, publication),
-      weights: { digest: weightsDigest, bytes: weights.byteLength },
-      inference: {
-        confidence: publication.inference.confidence,
-        imageSize: publication.inference.imageSize,
-        maxDetections: publication.inference.maxDetections,
-        endToEnd: publication.inference.endToEnd,
-      },
-      validation: publication.validation,
-      training: {
-        baseModel: {
-          reference: publication.training.baseModel.reference,
-          digest: publication.training.baseModel.digest,
-        },
-        parameters: publication.training.parameters,
-        runtime: publication.training.runtime,
-      },
-    },
-  };
-}
-
-async function assertPublishedVersion(
-  run: TrainingRun,
-  modelVersionId: string,
-  expected: ModelVersion,
-  db: Executor,
-): Promise<TrainingRun> {
-  const existing = await readModelVersion(modelVersionId, db);
-  if (!existing || !sameModelVersion(existing, expected)) {
-    throw new TrainingRunConflictError(
-      `Training run ${run.id} already has a different artifact`,
-    );
-  }
-  return run;
-}
-
-/**
- * Stores immutable weights under the current training attempt before a short
- * transaction makes the resulting version visible. Publication and garbage
- * collection serialize on the TrainingRun row, so an active attempt remains a
- * root until it either publishes a version or is superseded.
- */
+/** Training owns execution; the model registry owns its delivered artifact. */
 export async function publishTrainingArtifact(
   runId: string,
   owner: TrainingAttemptOwner,
   weights: Uint8Array,
-  inference: unknown,
-): Promise<TrainingRun> {
-  const parsed = inferencePublicationSchema.safeParse(inference);
-  if (!parsed.success) {
+  bundle: unknown,
+) {
+  const parsed = modelBundleSchema.safeParse(bundle);
+  if (!parsed.success)
     throw new TrainingArtifactValidationError(parsed.error.message);
-  }
-  const publication = parsed.data;
-  const weightsDigest = contentDigest(weights);
+  const document = parsed.data;
   const db = await database();
   const current = await readTrainingRun(runId, db);
-  if (!current) {
+  if (!current)
     throw new TrainingRunNotFoundError(`Unknown training run: ${runId}`);
-  }
-  if (
-    canonicalJson(publication.training) !==
-    canonicalJson({
-      baseModel: current.recipe.baseModel,
-      parameters: current.recipe.parameters,
-      runtime: current.recipe.runtime,
-    })
-  ) {
+  if (canonicalJson(document.training) !== canonicalJson(current.recipe))
     throw new TrainingArtifactValidationError(
       "Training artifact identity does not match the run recipe",
     );
-  }
-  const version = trainedModelVersion(current, weights, publication);
   if (current.attempt !== owner.attempt)
     throw new TrainingRunConflictError("Training attempt was superseded");
-  if (current.state.status === "succeeded") {
-    return assertPublishedVersion(
-      current,
-      current.state.modelVersionId,
-      version,
-      db,
+  if (current.state.status !== "succeeded")
+    await requireOwnedRunningRun(runId, current, owner, db);
+  const snapshot = await readDatasetSnapshot(current.datasetSnapshotId, db);
+  if (!snapshot)
+    throw new TrainingRunNotFoundError("Training snapshot is missing");
+  if (document.provenance.dataset.snapshotId !== snapshot.id)
+    throw new TrainingArtifactValidationError(
+      "Bundle does not describe this training snapshot",
     );
-  }
-  await requireOwnedRunningRun(runId, current, owner, db);
-  const trainingAttempt = current.attempt;
-  await putImmutableBlob(
-    modelWeightsBlobKey(runId, trainingAttempt, weightsDigest),
-    weights,
-  );
-
+  const upload = await prepareModelUpload(current.modelId, document);
+  await uploadModelWeights(upload.uploadId, weights);
   return transaction(async (tx) => {
     const [row] = await tx
       .select()
@@ -166,24 +61,30 @@ export async function publishTrainingArtifact(
       .where(eq(trainingRuns.id, runId))
       .for("update");
     const locked = requireTrainingRunRow(row, runId);
+    if (locked.attempt !== owner.attempt)
+      throw new TrainingRunConflictError("Training attempt was superseded");
+    if (locked.state.status !== "succeeded")
+      await requireOwnedRunningRun(runId, locked, owner, tx);
+    const version = await registerUploadedModel(
+      upload.uploadId,
+      {
+        kind: "training_run",
+        trainingRunId: runId,
+        trainingAttempt: owner.attempt,
+        datasetSnapshotId: snapshot.id,
+      },
+      tx,
+    );
     if (locked.state.status === "succeeded") {
-      return assertPublishedVersion(
-        locked,
-        locked.state.modelVersionId,
-        version,
-        tx,
-      );
+      if (locked.state.modelVersionId !== version.id)
+        throw new TrainingRunConflictError(
+          "Training already published different contents",
+        );
+      return locked;
     }
-    if (locked.attempt !== trainingAttempt) {
-      throw new TrainingRunConflictError(
-        `Training run ${runId} attempt ${trainingAttempt} was superseded`,
-      );
-    }
-    await requireOwnedRunningRun(runId, locked, owner, tx);
-    const registered = await registerModelVersion(version, tx);
     return transitionTrainingRun(
       runId,
-      { status: "succeeded", modelVersionId: registered.id },
+      { status: "succeeded", modelVersionId: version.id },
       tx,
     );
   });

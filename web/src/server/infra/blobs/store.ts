@@ -14,7 +14,8 @@ import {
  *
  *   images/<xx>/<sha256>                         images, by content digest
  *   image-regions/<sha256>/<recipe>/<region>.png  derived image evidence
- *   model-weights/<run-id>/<attempt>/<sha256>     one training attempt's weights
+ *   model-artifacts/<upload-id>/<sha256>         immutable model delivery
+ *   training-checkpoints/<run>/<attempt>/...    resumable execution state
  *
  * Images are content addressed, so identical uploads share one object and
  * snapshots reference images without copying them. Objects are immutable: a

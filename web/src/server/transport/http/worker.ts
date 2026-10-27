@@ -1,3 +1,4 @@
+import { DomainError } from "../../../domain/errors";
 import {
   trainingAttemptOwnerSchema,
   type TrainingAttemptOwner,
@@ -146,6 +147,12 @@ function statusOf(error: unknown): number | null {
     return 422;
   }
   if (error instanceof InvalidDetectionOutcomeError) return 400;
+  if (error instanceof DomainError)
+    return error.category === "not_found"
+      ? 404
+      : error.category === "conflict"
+        ? 409
+        : 422;
   return null;
 }
 

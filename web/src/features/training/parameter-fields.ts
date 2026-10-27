@@ -23,6 +23,14 @@ export const PARAMETER_LABELS: Record<keyof TrainingParameters, () => string> =
     max_det: m.parameter_max_det,
     seed: m.parameter_seed,
     deterministic: m.parameter_deterministic,
+    scale: m.parameter_scale,
+    degrees: m.parameter_degrees,
+    flipud: m.parameter_flipud,
+    fliplr: m.parameter_fliplr,
+    translate: m.parameter_translate,
+    hsv_h: m.parameter_hsv_h,
+    hsv_s: m.parameter_hsv_s,
+    hsv_v: m.parameter_hsv_v,
   };
 
 export interface ParameterGroup {
@@ -50,7 +58,19 @@ export const PARAMETER_GROUPS: ParameterGroup[] = [
   {
     key: "augmentation",
     title: m.parameter_group_augmentation,
-    parameters: ["mosaic", "mixup", "copy_paste"],
+    parameters: [
+      "mosaic",
+      "mixup",
+      "copy_paste",
+      "scale",
+      "degrees",
+      "flipud",
+      "fliplr",
+      "translate",
+      "hsv_h",
+      "hsv_s",
+      "hsv_v",
+    ],
   },
   {
     key: "validation",

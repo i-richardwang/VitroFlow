@@ -6,6 +6,8 @@ import {
   detectionValidationSchema,
   trainingRecipeSchema,
 } from "../training/schema";
+import { inferenceSettingsSchema } from "./inference";
+import { bundleProvenanceSchema } from "./bundle";
 import { classListSchema } from "./classes";
 import {
   annotationRegionSchema,
@@ -74,13 +76,6 @@ export const modelVersionRefSchema = z.strictObject({
   version: resourceIdSchema,
 });
 
-const inferenceSettingsSchema = z.strictObject({
-  confidence: z.number().finite().min(0).max(1),
-  imageSize: z.number().int().positive(),
-  maxDetections: z.number().int().positive(),
-  endToEnd: z.boolean(),
-});
-
 const traditionalArtifactSchema = z.strictObject({
   kind: z.literal("traditional"),
   digest: sha256Schema,
@@ -126,6 +121,15 @@ export const modelVersionSchema = z.union([
       trainingRunId: resourceIdSchema,
       trainingAttempt: z.number().int().positive(),
       datasetSnapshotId: resourceIdSchema,
+    }),
+    artifact: ultralyticsArtifactSchema,
+  }),
+  z.strictObject({
+    ...modelVersionIdentity,
+    source: z.strictObject({
+      kind: z.literal("import"),
+      bundleDigest: sha256Schema,
+      provenance: bundleProvenanceSchema,
     }),
     artifact: ultralyticsArtifactSchema,
   }),

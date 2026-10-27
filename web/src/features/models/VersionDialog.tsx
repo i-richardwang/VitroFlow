@@ -125,6 +125,13 @@ function VersionSession({
         }}
       >
         <Flexbox gap={16}>
+          {version.source.kind === "import" ? (
+            <Text type="secondary">
+              {m.version_imported_provenance({
+                description: version.source.provenance.dataset.description,
+              })}
+            </Text>
+          ) : null}
           {comparison ? (
             <Comparison model={model} comparison={comparison} />
           ) : (
