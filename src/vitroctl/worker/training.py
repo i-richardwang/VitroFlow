@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -21,6 +22,7 @@ from vitroctl.detectors.ultralytics.checkpoints import (
     unpack_checkpoint,
 )
 from vitroctl.io.image_io import verify_digest
+from vitroctl.models.bundle import training_bundle, write_bundle
 from vitroctl.training.documents import (
     TrainingJob,
     TrainingPhase,
@@ -113,18 +115,16 @@ class TrainingClient:
         self.worker.require_current_session(response)
         return verify_digest(response.content, digest)
 
-    def publish_artifact(
-        self, job: TrainingJob, weights: Path, inference: Path
-    ) -> None:
+    def publish_artifact(self, job: TrainingJob, weights: Path, bundle: Path) -> None:
         response = self.worker.request(
             "PUT",
             f"api/worker/training/runs/{job.run_id}/artifact",
             data={key: str(value) for key, value in self._identity(job).items()},
             files={
                 "weights": ("best.pt", weights.read_bytes()),
-                "inference": (
-                    "inference.json",
-                    inference.read_bytes(),
+                "bundle": (
+                    "bundle.json",
+                    bundle.read_bytes(),
                     "application/json",
                 ),
             },
@@ -237,7 +237,11 @@ def _prune_stale_runs(runs: Path) -> None:
         return
     horizon = time.time() - STALE_RUN_SECONDS
     for directory in runs.iterdir():
-        if directory.is_dir() and directory.stat().st_mtime < horizon:
+        if (
+            directory.is_dir()
+            and not (directory / "bundle").is_dir()
+            and directory.stat().st_mtime < horizon
+        ):
             shutil.rmtree(directory, ignore_errors=True)
 
 
@@ -297,7 +301,28 @@ def process_training_job(
                 raise RuntimeError(
                     "Training completed without a usable validation signal"
                 )
-            client.publish_artifact(job, result.best_weights, result.summary)
+            exported = json.loads((root / "dataset" / "manifest.json").read_text())
+            document = training_bundle(
+                result.best_weights,
+                result.summary,
+                exported["class_names"],
+                {
+                    "dataset": {
+                        "fingerprint": None,
+                        "snapshotId": job.dataset_snapshot_id,
+                        "description": "Reviewed training snapshot",
+                    },
+                    "selectedEpoch": None,
+                    "evaluation": {
+                        "description": "Validation split of the training snapshot",
+                        "calibration": "Best F1 confidence on validation split",
+                        "metrics": result.metrics,
+                    },
+                },
+            )
+            bundle = write_bundle(result.best_weights, document, root / "bundle")
+            client.publish_artifact(job, bundle / "weights.pt", bundle / "bundle.json")
+            shutil.rmtree(root)
     except (YoloTrainingInterruptedError, LeaseLostError):
         raise
     except Exception as error:
@@ -307,4 +332,7 @@ def process_training_job(
             LOGGER.exception("failed to report training run failure")
         raise
     finally:
-        shutil.rmtree(root, ignore_errors=True)
+        if (root / "bundle").is_dir():
+            LOGGER.info("Training bundle retained for delivery at %s", root / "bundle")
+        else:
+            shutil.rmtree(root, ignore_errors=True)

@@ -1,3 +1,4 @@
+import type { ModelBundle } from "../../../domain/models/bundle";
 import type { DishAnalysis } from "../../../domain/images/coverage";
 import type {
   Region,
@@ -439,6 +440,7 @@ export const modelVersions = pgTable(
     createdAt: instant("created_at"),
     source: jsonb("source").$type<ModelVersion["source"]>().notNull(),
     artifact: jsonb("artifact").$type<ModelArtifact>().notNull(),
+    weightsKey: text("weights_key"),
     artifactDigest: text("artifact_digest")
       .notNull()
       .generatedAlwaysAs(sql`artifact->>'digest'`),
@@ -486,11 +488,27 @@ export const modelVersions = pgTable(
       sql`case ${table.sourceKind}
         when 'builtin' then ${table.artifactKind} = 'traditional' and ${table.sourceTrainingRunId} is null and ${table.sourceTrainingAttempt} is null and ${table.sourceDatasetSnapshotId} is null and ${table.weightsDigest} is null and ${table.weightsBytes} is null
         when 'training_run' then ${table.artifactKind} = 'ultralytics' and ${table.sourceTrainingRunId} is not null and ${table.sourceTrainingAttempt} >= 1 and ${table.sourceDatasetSnapshotId} is not null and ${table.weightsDigest} ~ '^[0-9a-f]{64}$' and ${table.weightsBytes} > 0
+        when 'import' then ${table.artifactKind} = 'ultralytics' and ${table.sourceTrainingRunId} is null and ${table.sourceTrainingAttempt} is null and ${table.sourceDatasetSnapshotId} is null and ${table.weightsDigest} ~ '^[0-9a-f]{64}$' and ${table.weightsBytes} > 0
         else false
       end`,
     ),
   ],
 );
+
+export const modelUploads = pgTable("model_uploads", {
+  id: text("id").primaryKey(),
+  modelId: text("model_id")
+    .notNull()
+    .references(() => models.id),
+  bundle: jsonb("bundle").$type<ModelBundle>().notNull(),
+  weightsKey: text("weights_key").notNull(),
+  expiresAt: timestamp("expires_at", {
+    withTimezone: true,
+    mode: "date",
+  }).notNull(),
+  artifactDigest: text("artifact_digest"),
+  versionId: text("version_id").references(() => modelVersions.id),
+});
 
 /**
  * A training set for one model: the images whose reviews for that model

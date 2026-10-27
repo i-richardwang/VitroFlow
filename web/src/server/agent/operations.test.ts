@@ -46,6 +46,10 @@ describe("agent operations", () => {
 
   test("behavior hints classify every operation explicitly", () => {
     const readOnly = new Set([
+      "list-model-versions",
+      "list-training",
+      "list-training-workers",
+      "get-training",
       "list-experiments",
       "list-models",
       "get-experiment",
@@ -54,6 +58,9 @@ describe("agent operations", () => {
       "get-dataset",
     ]);
     const additive = new Set([
+      "prepare-model-upload",
+      "register-model-upload",
+      "start-training",
       "create-experiment",
       "create-treatment",
       "add-replicates",
@@ -65,6 +72,8 @@ describe("agent operations", () => {
       "add-images-to-dataset",
     ]);
     const destructive = new Set([
+      "use-model-version",
+      "control-training",
       "update-experiment",
       "delete-experiment",
       "update-treatment",

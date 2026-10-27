@@ -389,6 +389,18 @@ def train_yolo_detector(
         raise RuntimeError(f"Training did not produce {best_weights}")
 
     trained_args = trainer.args
+    context = {
+        "effectiveParameters": {
+            key: value
+            for key, value in vars(trained_args).items()
+            if value is None or isinstance(value, (str, int, float, bool))
+        },
+        "codeRevision": "sha256:"
+        + hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    }
+    write_text_atomically(
+        save_dir / "training-context.json", json.dumps(context, indent=2) + "\n"
+    )
     validator_model = yolo(str(best_weights))
     validator_model.add_callback("on_val_batch_end", stop_if_cancelled)
     stop_if_cancelled()

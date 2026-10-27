@@ -93,7 +93,6 @@
       }
     }
   ],
-  "train_dialog_preset_title": "Training preset",
   "parameter_group_training": "Training",
   "parameter_group_augmentation": "Augmentation",
   "parameter_group_validation": "Validation and reproducibility",
@@ -121,6 +120,15 @@
   "training_attempt_expired": "Lease expired",
   "training_retry": "Retry",
   "parameter_nbs": "Nominal batch size (nbs)",
+  "parameter_scale": "Scale augmentation",
+  "parameter_degrees": "Rotation degrees",
+  "parameter_flipud": "Vertical flip probability",
+  "parameter_fliplr": "Horizontal flip probability",
+  "parameter_translate": "Translation",
+  "parameter_hsv_h": "Hue augmentation",
+  "parameter_hsv_s": "Saturation augmentation",
+  "parameter_hsv_v": "Brightness augmentation",
+  "train_dialog_preset_title": "Training preset",
   "parameter_runtime_default": "Runtime default",
   "train_advanced_parameters": "Advanced parameters",
   "train_advanced_help": "Nominal batch size controls gradient accumulation; it is not the in-memory batch. Leave blank to use the preset. Patience 0 disables early stopping.",

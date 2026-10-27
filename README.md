@@ -27,7 +27,7 @@ Postgres is the source of truth for records. One S3-compatible bucket stores imm
 
 ## Domain rules
 
-A Model defines the classes detected in an image, and nothing more; what an experiment computes from them belongs to the experiment. A Model exists as soon as it is named, with or without a version: its images are then read by a reviewer, and those reviews are what its first version is trained on. Its identifier is how every record names it, so two Models cannot share one, and its classes are fixed at creation because every review stored for it was drawn from them. A Model is withdrawn only while nothing names it: versions, observations, reviews, datasets, and training runs each hold it in place. The built-in `seed-detector` (seed germination) recognizes `ungerminated` and `germinated` seeds. It begins with the bundled traditional model, which finds every seed and marks it `ungerminated` for reviewers to correct; training publishes additional versions of the same Model.
+A Model defines the classes detected in an image, and nothing more; what an experiment computes from them belongs to the experiment. A Model exists as soon as it is named, with or without a version: its images are then read by a reviewer, and those reviews are what its first version is trained on. Its identifier is how every record names it, so two Models cannot share one, and its classes are fixed at creation because every review stored for it was drawn from them. A Model is withdrawn only while nothing names it: versions, observations, reviews, datasets, and training runs each hold it in place. The built-in `seed-detector` (seed germination) recognizes `ungerminated` and `germinated` seeds. It begins with the bundled traditional model, which finds every seed and marks it `ungerminated` for reviewers to correct; training or importing a locally trained Model Bundle registers additional versions of the same Model. Registration does not change the selected version or repeat training; CLI, HTTP and MCP share the training and model operations documented in [vitroctl](docs/vitroctl.md#training-and-model-delivery).
 
 A Model's current version is the one a person chose to read its images, and only a person changes it. Training publishes a candidate, which reads nothing for experiments: it is compared with the current version on the validation images its snapshot held out, reviewed images it never trained on, by how far each counts from the reviewer per class and how often it counts exactly, scored only over the images both have read. Choosing a version makes every observation of the Model read anew by it; choosing the previous one back restores its detections at once, because detections are kept per image and version. Reviews and agent proposals are kept per image and Model, so neither choice changes them. The built-in Model starts with its traditional version current, and a Model of one's own has no current version until a person chooses one.
 
@@ -223,13 +223,12 @@ uv run vitroctl dataset export-yolo \
   --seed 42
 ```
 
-Fine-tune with the same pinned recipe and adapter a Worker uses:
+Train with the same pinned recipe and adapter a Worker uses, then register the exact result:
 
 ```bash
-uv run python scripts/train_yolo.py \
-  --data output/datasets/fixtures-yolo/dataset.yaml \
-  --output output/models/yolo-candidate \
-  --device mps
+uv run vitroctl training run --local --spec training.json \
+  --data-root data --output output/models/yolo-candidate --device mps
+uv run vitroctl models import output/models/yolo-candidate/bundle --model <model-id>
 ```
 
 Training presets pin the base-weight SHA256, Ultralytics version, and training parameters. The Web dialog selects a preset and accepts parameter adjustments; the server validates and freezes the resolved recipe in the run. Resuming uses the run's recipe and checkpoint arguments.
@@ -237,11 +236,13 @@ Training presets pin the base-weight SHA256, Ultralytics version, and training p
 - `configs/yolo26/yolo26n-whole-v1.recipe.json` (default): YOLO26n, image size 1536, batch 4, nominal batch size 64, 50 epochs, patience 20, warmup 3.
 - `configs/yolo26/yolo26s-whole-2048-v1.recipe.json`: YOLO26s, image size 2048, batch 1, nominal batch size 8, 50 epochs, no warmup or early stopping.
 
-Both presets use AdamW with learning rate 0.001 and disable Mosaic, MixUp, and Copy-Paste. Other augmentation settings come from the pinned runtime. Use `--recipe` to select the same manifest locally; `--epochs`, `--imgsz`, and `--batch` override individual parameters. Epochs defines the learning-rate schedule; pausing a run does not shorten that schedule.
+Both presets use AdamW with learning rate 0.001 and disable Mosaic, MixUp, and Copy-Paste. Other augmentation settings come from the pinned runtime. For local training, put the selected recipe and any deliberate parameter overrides in `training.json`. Epochs defines the learning-rate schedule; pausing a run does not shorten that schedule.
 
 Validation uses at most the actual per-device training batch, including after automatic batch reduction. The best checkpoint is calibrated with best-F1 confidence. `execution.json` records actual framework arguments, batch sizes, and gradient accumulation. Workers preserve these diagnostics in their profile log before removing the attempt directory.
 
 Preset IDs and filenames include a version. Change a preset by adding a new version, keeping the previous manifest unchanged. Parameter contracts are generated from the Web Zod schemas with `cd web && bun run contracts:generate`; `bun run contracts:check` verifies they are current. Worker update requirements are documented in [the operator guide](docs/vitroctl.md#workers).
+
+`training.json` contains `dataset` (the pulled dataset name) and `recipe` (the recipe object in `configs/yolo26/yolo26n-whole-v1.recipe.json`, with any deliberate overrides). The saved specification fixes the base-weight digest, Ultralytics version, and training arguments. See [training and model delivery](docs/vitroctl.md#training-and-model-delivery) for managed training, resume, existing-weight packaging, MCP, and explicit version selection.
 
 ## Publishing the Python packages
 

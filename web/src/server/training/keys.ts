@@ -4,22 +4,10 @@ import {
   sha256Schema,
 } from "../../domain/identifiers/schema";
 
-export function modelWeightsBlobKey(
-  trainingRunId: string,
-  trainingAttempt: number,
-  digest: string,
-): string {
-  return `model-weights/${trainingRunId}/${trainingAttempt}/${digest}`;
-}
-
 interface TrainingArtifactRef {
   trainingRunId: string;
   trainingAttempt: number;
   digest: string;
-}
-
-export function parseModelWeightsKey(key: string): TrainingArtifactRef | null {
-  return parseTrainingArtifactKey("model-weights", key);
 }
 
 export function parseCheckpointKey(key: string): TrainingArtifactRef | null {

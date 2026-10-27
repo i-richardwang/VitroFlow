@@ -17,3 +17,7 @@ export class ModelInUseError extends ConflictError {
 export class UnknownClassError extends ValidationError {
   readonly code = "unknown_class";
 }
+
+export class ModelPublicationError extends ValidationError {
+  readonly code = "model_publication_invalid";
+}

@@ -16,6 +16,7 @@ const modelRecordsSchema = z.strictObject({
   annotations: count,
   datasets: count,
   trainingRuns: count,
+  uploads: count,
 });
 
 export type ModelRecords = z.infer<typeof modelRecordsSchema>;

@@ -128,6 +128,7 @@ def test_ultralytics_detector_uses_published_inference_settings(
                 "imgsz": 768,
                 "max_det": 500,
                 "end2end": False,
+                "iou": 0.7,
                 "verbose": False,
                 "device": "mps",
             },

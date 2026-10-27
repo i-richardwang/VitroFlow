@@ -3,6 +3,7 @@ export {
   deleteModel,
   installBuiltinModels,
   listAllModelVersions,
+  listModelVersions,
   listModels,
   readCurrentVersionId,
   readModel,
@@ -14,3 +15,11 @@ export {
   toModelVersion,
 } from "./registry";
 export { modelRecordCounts, toModelRecords } from "./records";
+export {
+  prepareModelUpload,
+  uploadModelWeights,
+  registerUploadedModel,
+  importModelUpload,
+  openModelWeights,
+  collectUnreferencedModelWeights,
+} from "./publication";

@@ -1,10 +1,12 @@
+import { trainingBundle } from "../../testing/model-bundle";
+import { readDatasetSnapshot } from "../../training/public";
 import { expect, test } from "bun:test";
 
 import {
   TRAINING_PRESETS,
   resolveTrainingRecipe,
 } from "../../../domain/training/recipes";
-import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "../../../domain/training/artifact";
+import { MAX_MODEL_ARTIFACT_REQUEST_BYTES } from "../../../domain/models/transfer";
 import { trainingRunSchema } from "../../../domain/training/schema";
 import { Route as HeartbeatRoute } from "../../../routes/api.worker.heartbeat";
 import { Route as WeightsRoute } from "../../../routes/api.worker.inference.model-versions.$versionId.weights";
@@ -201,13 +203,20 @@ test.each([...TRAINING_PRESETS])(
         runtime: recipe.runtime,
       },
     };
+    const frozen = await readDatasetSnapshot(created.datasetSnapshotId);
+    const bundle = trainingBundle(
+      new TextEncoder().encode("weights"),
+      publication,
+      frozen!.classes,
+      frozen!.id,
+    );
     const form = new FormData();
     form.append("sessionId", SESSION.sessionId);
     form.append("attempt", "1");
     form.append("weights", new File(["weights"], "best.pt"));
     form.append(
-      "inference",
-      new File([JSON.stringify(publication)], "inference.json", {
+      "bundle",
+      new File([JSON.stringify(bundle)], "bundle.json", {
         type: "application/json",
       }),
     );
@@ -309,7 +318,7 @@ test("training artifact admission rejects unknown and excessive request sizes", 
       method: "PUT",
       headers: {
         authorization,
-        "content-length": String(MAX_TRAINING_ARTIFACT_REQUEST_BYTES + 1),
+        "content-length": String(MAX_MODEL_ARTIFACT_REQUEST_BYTES + 1),
       },
       body: new Uint8Array([1]),
     }),

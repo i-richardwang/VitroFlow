@@ -29,9 +29,9 @@ Modules use Drizzle directly. The shared foreign-key graph lives in one schema, 
 
 ## Agent control plane
 
-`agent/operations.ts` is a protocol-neutral catalog. An entry declares a query or command, whether a command is destructive, its input/output contracts, and its handler. `agent/execution.ts` is the production execution boundary for Agent calls: it parses input once, runs a command and validates its output in one transaction, and classifies failures after rollback. Queries use the same input and output contracts without a write transaction.
+`agent/operations.ts` assembles a protocol-neutral catalog; `agent/models.ts` owns model delivery operations and `agent/training.ts` owns training operations. Definitions live in `agent/definition.ts`. An entry declares a query or command, whether a command is destructive, its input/output contracts, its transaction ownership, and its handler. `agent/execution.ts` parses input, invokes the handler, validates output, and classifies failures. Commands that share an executor run inside an operation transaction. Services that own their transactions declare `transactional: false`, so uploads and multi-stage workflows are not wrapped in an outer database transaction. Queries do not open a write transaction.
 
-HTTP maps failure codes to status codes. MCP derives tool annotations and formats tool errors. Neither choice leaks back into the catalog. A failed command leaves the record as it was.
+HTTP maps failure codes to status codes. MCP derives tool annotations and formats tool errors. Neither choice leaks back into the catalog. Transaction owners enforce atomic state changes; staged model delivery uses idempotent upload reservations so an interrupted transfer can be retried.
 
 ## Worker control planes
 
@@ -39,7 +39,7 @@ An administrator enrolls each worker under a name, and the token issued then is 
 
 Inference is a queue, not a snapshot query. A worker atomically claims one demanded image/version pair in `inference_jobs` and renews its lease while loading and predicting. Completion atomically consumes an unexpired lease owned by the current worker session in the same transaction that stores the outcome. The immutable `inference_outcomes` row remains the business record.
 
-`inference/jobs.ts` owns claim orchestration and calls `inference/outcomes.ts` with the same executor when completing a job. Outcomes never depend on the queue orchestrator. `training/runs.ts` owns run state transitions; `training/publication.ts` validates and publishes artifacts using those transitions. Publication and collection remain under training because a training attempt determines the weight object's lifetime.
+`inference/jobs.ts` owns claim orchestration and calls `inference/outcomes.ts` with the same executor when completing a job. Outcomes never depend on the queue orchestrator. `training/runs.ts` owns run state transitions; `training/publication.ts` validates and publishes artifacts using those transitions. `models/publication.ts` owns portable model bundles, upload reservations, immutable version registration, weight delivery and collection. Training publication validates execution ownership and delegates registration within its short completion transaction. An external import uses the same registry without creating a training run.
 
 Production inference results enter through lease completion. Tests seed outcomes through `testing/inference.ts`; this fixture is outside the production module graph. Collection and outcome tests live alongside the image and inference modules that own those rules.
 
@@ -61,7 +61,7 @@ The framework server entry, maintenance tools, and the test preload call `bootst
 
 Database checks, foreign keys, uniqueness constraints, advisory locks, immutable blob keys, and digest verification are intentional last-line invariants. They protect alternate writers and concurrency and should not be replaced with request validation alone.
 
-The blob driver only knows object keys and immutable bytes. `images/keys.ts` and `training/keys.ts` own their respective key formats. `images/lock.ts` coordinates writes and references to each digest. `images/collection.ts` first expires unreferenced database rows, then sweeps objects under that lock; `training/collection.ts` checks the active attempt and published version under the run lock. `maintenance/collection.ts` invokes both collectors. Collection runs outside request handling and upload transactions.
+The blob driver only knows object keys and immutable bytes. `images/keys.ts` owns image keys, the model registry owns delivery keys, and `training/keys.ts` owns checkpoint keys. `images/lock.ts` coordinates writes and references to each digest. `images/collection.ts` first expires unreferenced database rows, then sweeps objects under that lock. Model upload and registration serialize on their reservation. Expired unregistered uploads are collected under that same lock; registered version locations are independent of execution. Object upload and hashing finish before a training completion transaction takes its run lock. `training/collection.ts` handles checkpoints under the run lock. `maintenance/collection.ts` invokes the image, model, and checkpoint collectors. Collection runs outside request handling and upload transactions.
 
 The images module owns canonical sources, their previews, dish analysis and
 regional evidence. `images/preview.ts` derives one small rendition of the whole

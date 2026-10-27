@@ -7,7 +7,7 @@ import { database } from "../infra/db/client";
 import { models } from "../infra/db/schema";
 import { ExperimentNotFoundError } from "../../domain/experiments/errors";
 import { type AgentCallResult, executeAgentOperation } from "./execution";
-import { type AgentOperation, command } from "./operations";
+import { type AgentOperation, command } from "./definition";
 import { DEFAULT_MODEL_ANNOTATION } from "../../domain/models/schema";
 
 function failure(result: AgentCallResult): { code: string; message: string } {

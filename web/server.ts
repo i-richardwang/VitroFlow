@@ -1,6 +1,6 @@
 import handler from "./dist/server/server.js";
 import { resolve } from "node:path";
-import { MAX_TRAINING_ARTIFACT_REQUEST_BYTES } from "./src/domain/training/artifact";
+import { MAX_MODEL_ARTIFACT_REQUEST_BYTES } from "./src/domain/models/transfer";
 
 process.env.VITROFLOW_IMAGE_ANALYSIS_URL ??= new URL(
   "./dish-thread.js",
@@ -19,7 +19,7 @@ if (!health.ok) {
 
 Bun.serve({
   port,
-  maxRequestBodySize: MAX_TRAINING_ARTIFACT_REQUEST_BYTES,
+  maxRequestBodySize: MAX_MODEL_ARTIFACT_REQUEST_BYTES,
   async fetch(request) {
     const { pathname } = new URL(request.url);
     if (request.method === "GET" || request.method === "HEAD") {

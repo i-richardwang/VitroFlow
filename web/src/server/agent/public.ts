@@ -1,6 +1,3 @@
 export { executeAgentOperation, type AgentFailureCode } from "./execution";
-export {
-  agentOperations,
-  describeAgentOperations,
-  type AgentOperation,
-} from "./operations";
+export { agentOperations, describeAgentOperations } from "./operations";
+export type { AgentOperation } from "./definition";

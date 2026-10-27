@@ -8,6 +8,7 @@ import logging
 import shutil
 import tempfile
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -96,6 +97,9 @@ class ModelStore:
     def _ultralytics_detector(
         self, version_id: str, classes: tuple[str, ...], artifact: dict[str, Any]
     ) -> UltralyticsDetector:
+        required_runtime = artifact["training"]["runtime"]["version"]
+        if version("ultralytics") != required_runtime:
+            raise ValueError(f"Model requires ultralytics {required_runtime}")
         expected_digest = artifact["digest"]
         destination = self._artifacts / version_id
         if destination.exists():

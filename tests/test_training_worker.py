@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -437,8 +438,9 @@ def test_lease_refresh_failure_cancels_training_and_surfaces_lease_loss(
         raise YoloTrainingInterruptedError("training interrupted")
 
 
+@pytest.mark.parametrize("delivery_fails", [False, True])
 def test_training_job_reports_each_epoch_and_publishes_the_artifact(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delivery_fails: bool
 ) -> None:
     posted: list[tuple[str, dict[str, object]]] = []
     artifacts: list[tuple[str, bytes, dict[str, object]]] = []
@@ -461,17 +463,23 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         def publish_artifact(
             self, job: TrainingJob, weights: Path, inference: Path
         ) -> None:
+            if delivery_fails:
+                raise RuntimeError("delivery unavailable")
             artifacts.append(
                 (job.run_id, weights.read_bytes(), json.loads(inference.read_text()))
             )
 
         def report_failure(self, job: TrainingJob, error: str) -> None:
-            pytest.fail(f"unexpected failure report: {error}")
+            if not delivery_fails:
+                pytest.fail(f"unexpected failure report: {error}")
 
     def materialize(_client, _job, output: Path, **_options) -> Path:
         output.mkdir(parents=True)
         dataset = output / "dataset.yaml"
         dataset.write_text("train: images/train\nval: images/val\n")
+        (output / "manifest.json").write_text(
+            json.dumps({"class_names": ["ungerminated", "germinated"]})
+        )
         return dataset
 
     def train(
@@ -492,8 +500,37 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
         output = Path(output_dir)
         (output / "weights").mkdir(parents=True)
         (output / "weights" / "best.pt").write_bytes(b"weights")
+        (output / "training-context.json").write_text(
+            json.dumps(
+                {
+                    "codeRevision": "sha256:" + "a" * 64,
+                    "effectiveParameters": parameters,
+                }
+            )
+        )
         summary = output / "inference.json"
-        summary.write_text(json.dumps({"schemaVersion": 1}))
+        summary.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "inference": {
+                        "ready": True,
+                        "confidence": 0.3,
+                        "imageSize": 768,
+                        "maxDetections": 500,
+                        "endToEnd": False,
+                    },
+                    "validation": {
+                        "precision": 0.5,
+                        "recall": 0.4,
+                        "map50": 0.45,
+                        "map50To95": 0.2,
+                        "fitness": 0.225,
+                    },
+                    "training": _run(parameters=parameters)["recipe"],
+                }
+            )
+        )
         on_training_start()
         for epoch in (1, 2):
             on_epoch(
@@ -521,9 +558,20 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     monkeypatch.setattr(training_worker, "run_training_process", train)
     job = TrainingJob.parse(_run(parameters=_parameters(epochs=2)))
 
-    training_worker.process_training_job(  # type: ignore[arg-type]
-        Client(), job, tmp_path, "mps", ImageCache(tmp_path / "images")
-    )
+    with (
+        pytest.raises(RuntimeError, match="delivery unavailable")
+        if delivery_fails
+        else nullcontext()
+    ):
+        training_worker.process_training_job(  # type: ignore[arg-type]
+            Client(), job, tmp_path, "mps", ImageCache(tmp_path / "images")
+        )
+    if delivery_fails:
+        from vitroctl.models.bundle import read_bundle
+
+        retained = tmp_path / "training-runs" / "train-one-1" / "bundle"
+        assert read_bundle(retained)[1].read_bytes() == b"weights"
+        return
 
     assert [entry["phase"] for _, entry in posted if "phase" in entry] == [
         "preparing",
@@ -532,7 +580,12 @@ def test_training_job_reports_each_epoch_and_publishes_the_artifact(
     ]
     assert [entry["epoch"] for _, entry in posted if "epoch" in entry] == [1, 2]
     assert [entry["lease"] for _, entry in posted if "lease" in entry] == ["renewed"]
-    assert artifacts == [("train-one", b"weights", {"schemaVersion": 1})]
+    assert len(artifacts) == 1
+    assert artifacts[0][:2] == ("train-one", b"weights")
+    assert artifacts[0][2]["classes"] == ["ungerminated", "germinated"]
+    from vitroctl.contracts.validation import validate_wire_contract
+
+    validate_wire_contract("model-bundle", artifacts[0][2], "published bundle")
     assert not (tmp_path / "training-runs" / "train-one-1").exists()
 
 

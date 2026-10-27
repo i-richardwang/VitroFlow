@@ -211,36 +211,11 @@ export const trainingRunSchema = z.strictObject({
   state: trainingRunStateSchema,
 });
 
-export const inferencePublicationSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  weights: z.literal("weights/best.pt"),
-  inference: z.strictObject({
-    ready: z.literal(true),
-    confidence: z.number().finite().min(0).max(1),
-    imageSize: z.number().int().positive(),
-    maxDetections: z.number().int().positive(),
-    endToEnd: z.boolean(),
-  }),
-  validation: detectionValidationSchema,
-  training: z.strictObject({
-    baseModel: z.strictObject({
-      reference: z.string().min(1),
-      digest: sha256Schema,
-    }),
-    parameters: trainingParametersSchema,
-    runtime: z.strictObject({
-      framework: z.literal("ultralytics"),
-      version: z.string().min(1),
-    }),
-  }),
-});
-
 export type DatasetSnapshot = z.infer<typeof datasetSnapshotSchema>;
 export type TrainingRecipe = z.infer<typeof trainingRecipeSchema>;
 export type TrainingRun = z.infer<typeof trainingRunSchema>;
 export type TrainingEpochReport = z.infer<typeof trainingEpochReportSchema>;
 export type TrainingEpoch = z.infer<typeof trainingEpochSchema>;
-export type InferencePublication = z.infer<typeof inferencePublicationSchema>;
 
 export function isTrainingRunActive(run: Pick<TrainingRun, "state">): boolean {
   return ACTIVE_TRAINING_RUN_STATUS_SET.has(run.state.status);

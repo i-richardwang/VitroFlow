@@ -8,3 +8,5 @@ export { listPendingAnnotations } from "./pending-annotations";
 export { getSystemStatus } from "./status";
 export { trainingRunDetail } from "./training-run";
 export { versionComparison } from "./version-comparison";
+
+export { trainingWorkerOptions } from "./training-workers";

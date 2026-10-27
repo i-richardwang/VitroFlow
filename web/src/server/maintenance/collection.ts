@@ -1,8 +1,6 @@
+import { collectUnreferencedModelWeights } from "../models/public";
 import { collectImages } from "../images/public";
-import {
-  collectUnreferencedModelWeights,
-  collectUnreferencedTrainingCheckpoints,
-} from "../training/public";
+import { collectUnreferencedTrainingCheckpoints } from "../training/public";
 
 interface CollectedBlobs {
   images: string[];

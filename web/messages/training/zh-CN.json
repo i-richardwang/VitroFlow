@@ -93,7 +93,6 @@
       }
     }
   ],
-  "train_dialog_preset_title": "训练预设",
   "parameter_group_training": "训练",
   "parameter_group_augmentation": "数据增强",
   "parameter_group_validation": "验证与复现",
@@ -121,6 +120,15 @@
   "training_attempt_expired": "租约失效",
   "training_retry": "重试",
   "parameter_nbs": "标称批大小（nbs）",
+  "parameter_scale": "随机缩放",
+  "parameter_degrees": "旋转角度",
+  "parameter_flipud": "垂直翻转概率",
+  "parameter_fliplr": "水平翻转概率",
+  "parameter_translate": "随机平移",
+  "parameter_hsv_h": "色相扰动",
+  "parameter_hsv_s": "饱和度扰动",
+  "parameter_hsv_v": "亮度扰动",
+  "train_dialog_preset_title": "训练预设",
   "parameter_runtime_default": "框架默认值",
   "train_advanced_parameters": "高级参数",
   "train_advanced_help": "标称批大小控制梯度累积，不是一次加载到显存的图片数。留空使用预设值；早停耐心为 0 时关闭早停。",

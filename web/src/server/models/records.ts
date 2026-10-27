@@ -12,6 +12,7 @@ import {
   datasets,
   experimentObservations,
   modelVersions,
+  modelUploads,
   trainingRuns,
 } from "../infra/db/schema";
 
@@ -22,6 +23,7 @@ import {
  */
 const MODEL_RECORD_COLUMNS: Record<ModelRecordKind, PgColumn> = {
   versions: modelVersions.modelId,
+  uploads: modelUploads.modelId,
   observations: experimentObservations.modelId,
   annotations: annotations.modelId,
   datasets: datasets.modelId,

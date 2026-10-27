@@ -1,8 +1,13 @@
 import { z } from "zod";
 
 import { transaction, type Executor } from "../infra/db/client";
-import { ConflictError, NotFoundError } from "../../domain/errors";
-import { type AgentOperation, agentOperations } from "./operations";
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../../domain/errors";
+import type { AgentOperation } from "./definition";
+import { agentOperations } from "./operations";
 
 export type AgentFailureCode =
   "invalid_request" | "not_found" | "conflict" | "internal_error";
@@ -57,9 +62,13 @@ export async function executeAgentOperation(
     const invoke = async (tx?: Executor) =>
       operation.output.parse((await operation.handler(parsed, tx)) ?? null);
     const output =
-      operation.kind === "query" ? await invoke() : await transaction(invoke);
+      operation.kind === "query" || operation.transactional === false
+        ? await invoke()
+        : await transaction(invoke);
     return { ok: true, output };
   } catch (error) {
+    if (error instanceof ValidationError)
+      return failure("invalid_request", error.message);
     if (error instanceof NotFoundError) {
       return failure("not_found", error.message);
     }
