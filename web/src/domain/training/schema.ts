@@ -226,10 +226,3 @@ const TRAINING_RUN_ID_PREFIX = "train-";
 export function trainingRunId(uuid: string): string {
   return `${TRAINING_RUN_ID_PREFIX}${uuid}`;
 }
-
-export function trainingRunLabel(run: Pick<TrainingRun, "id">): string {
-  const uuid = run.id.startsWith(TRAINING_RUN_ID_PREFIX)
-    ? run.id.slice(TRAINING_RUN_ID_PREFIX.length)
-    : run.id;
-  return uuid.slice(0, 8);
-}

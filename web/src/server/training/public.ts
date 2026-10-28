@@ -14,7 +14,7 @@ export {
   renewTrainingLease,
   snapshotForRun,
 } from "./runs";
-export { readDatasetSnapshot, snapshotImageCounts } from "./snapshots";
+export { readDatasetSnapshot, snapshotSummaries } from "./snapshots";
 
 export { saveTrainingCheckpoint, readTrainingCheckpoint } from "./checkpoints";
 

@@ -16,6 +16,7 @@ import { ProgressMeter } from "../../ui/kit/Progress";
 import { StatisticHero } from "../../ui/kit/Statistic";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { formatCount, formatNumber } from "../../ui/numbers";
+import { IdentifierName } from "../../ui/IdentifierName";
 import { Stepper } from "../../ui/Stepper";
 import { WorkbenchSection } from "../../ui/shell/Workbench";
 import { ClassLabel } from "./controls";
@@ -161,7 +162,7 @@ export function DetailsSection({
         </DescriptionsItem>
         {detection ? (
           <DescriptionsItem label={m.annotation_detection_version()}>
-            {detection.producer.modelVersionId}
+            <IdentifierName id={detection.producer.modelVersionId} />
           </DescriptionsItem>
         ) : null}
         {threshold === undefined ? null : (

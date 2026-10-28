@@ -1,4 +1,5 @@
 import type { ModelCatalogueEntry } from "../../domain/models/contracts";
+import type { ModelVersion } from "../../domain/models/schema";
 import type {
   TrainingRunSummary,
   VersionOverview,
@@ -8,7 +9,7 @@ import { listDatasetSummaries } from "../datasets/public";
 import { listAllModelVersions, readCurrentVersionId } from "../models/public";
 import {
   listTrainingRunSummaries,
-  snapshotImageCounts,
+  snapshotSummaries,
 } from "../training/public";
 import { modelCatalogue } from "./model-catalogue";
 import { versionComparisons } from "./version-comparison";
@@ -52,26 +53,38 @@ async function listVersionOverviews(
   const versions = (await listAllModelVersions()).filter(
     (version) => version.modelId === modelId,
   );
-  const [currentVersionId, comparisons] = await Promise.all([
+  const [currentVersionId, comparisons, snapshots] = await Promise.all([
     readCurrentVersionId(modelId),
     versionComparisons(modelId),
-  ]);
-  const trainingImages = await snapshotImageCounts(
-    versions.flatMap((version) =>
-      version.source.kind === "training_run"
-        ? [version.source.datasetSnapshotId]
-        : [],
+    snapshotSummaries(
+      versions.flatMap((version) =>
+        version.source.kind === "training_run"
+          ? [version.source.datasetSnapshotId]
+          : [],
+      ),
     ),
-  );
+  ]);
   return versions.map((version) => ({
     version,
-    trainingImages:
-      version.source.kind === "training_run"
-        ? (trainingImages.get(version.source.datasetSnapshotId) ?? null)
-        : null,
+    training: training(version, snapshots),
     current: version.id === currentVersionId,
     comparison: summary(comparisons.get(version.id)),
   }));
+}
+
+/** The run that trained a version, in the training set its snapshot was taken of. */
+function training(
+  version: ModelVersion,
+  snapshots: Map<string, { datasetId: string; images: number }>,
+): VersionOverview["training"] {
+  if (version.source.kind !== "training_run") return null;
+  const snapshot = snapshots.get(version.source.datasetSnapshotId);
+  if (!snapshot) return null;
+  return {
+    runId: version.source.trainingRunId,
+    datasetId: snapshot.datasetId,
+    images: snapshot.images,
+  };
 }
 
 /** A comparison without its images, which the page asks for one version at a time. */

@@ -24,8 +24,6 @@ export interface ComparedImage {
 export interface CountAccuracy {
   /** Mean absolute count error per image, for each class of the model. */
   meanError: Record<string, number>;
-  /** Images on which every class was counted exactly. */
-  exact: number;
 }
 
 export interface ReadProgress {
@@ -54,6 +52,13 @@ export interface VersionComparison {
 /** The comparison together with the images it was made on. */
 export interface VersionComparisonDetail extends VersionComparison {
   images: ComparedImage[];
+}
+
+/** Whether either version has held-out images still to read. */
+export function isReading(comparison: VersionComparison): boolean {
+  const { heldOut, candidate, current } = comparison;
+  const done = ({ read, failed }: ReadProgress) => read + failed >= heldOut;
+  return !done(candidate) || (current !== null && !done(current));
 }
 
 export function isCounted(reading: ComparedReading): reading is Tally {
@@ -98,9 +103,6 @@ function accuracy(
         ) / pairs.length,
       ]),
     ),
-    exact: pairs.filter(
-      ({ reviewed, reading }) => countError(classes, reviewed, reading) === 0,
-    ).length,
   };
 }
 

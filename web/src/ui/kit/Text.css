@@ -15,6 +15,10 @@
     color: var(--color-fg-quaternary);
   }
 
+  &[data-type="success"] {
+    color: var(--color-success);
+  }
+
   &[data-type="warning"] {
     color: var(--color-warning);
   }

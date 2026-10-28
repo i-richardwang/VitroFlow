@@ -170,16 +170,24 @@ export async function createDatasetSnapshot(
   return created;
 }
 
-/** How many reviewed images each snapshot froze. */
-export async function snapshotImageCounts(
+/** The training set each snapshot was taken of, and how many reviewed images it froze. */
+export async function snapshotSummaries(
   snapshotIds: string[],
-): Promise<Map<string, number>> {
+): Promise<Map<string, { datasetId: string; images: number }>> {
   if (snapshotIds.length === 0) return new Map();
   const db = await database();
   const rows = await db
-    .select({ id: datasetSnapshotImages.snapshotId, count: count() })
-    .from(datasetSnapshotImages)
-    .where(inArray(datasetSnapshotImages.snapshotId, snapshotIds))
-    .groupBy(datasetSnapshotImages.snapshotId);
-  return new Map(rows.map((row) => [row.id, row.count]));
+    .select({
+      id: datasetSnapshots.id,
+      datasetId: datasetSnapshots.datasetId,
+      images: count(datasetSnapshotImages.snapshotId),
+    })
+    .from(datasetSnapshots)
+    .leftJoin(
+      datasetSnapshotImages,
+      eq(datasetSnapshotImages.snapshotId, datasetSnapshots.id),
+    )
+    .where(inArray(datasetSnapshots.id, snapshotIds))
+    .groupBy(datasetSnapshots.id);
+  return new Map(rows.map(({ id, ...summary }) => [id, summary]));
 }
