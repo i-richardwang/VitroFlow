@@ -5,7 +5,7 @@ import { z, type ZodType } from "zod";
 import { trainingParametersSchema } from "../src/domain/training/parameters";
 import { annotationSchema } from "../src/domain/annotation/schema";
 import { datasetManifestSchema } from "../src/domain/datasets/manifest";
-import { inferenceOutcomeSchema } from "../src/domain/detection/schema";
+import { detectionResultSchema } from "../src/domain/detection/schema";
 import {
   inferenceAssignmentSchema,
   inferenceModelManifestSchema,
@@ -29,7 +29,7 @@ const contracts: ReadonlyArray<[string, ZodType]> = [
   ["dataset-manifest", datasetManifestSchema],
   ["inference-assignment", inferenceAssignmentSchema],
   ["inference-model-manifest", inferenceModelManifestSchema],
-  ["inference-outcome", inferenceOutcomeSchema],
+  ["detection-result", detectionResultSchema],
   ["training-run", trainingRunSchema],
   ["training-snapshot", datasetSnapshotSchema],
 ];

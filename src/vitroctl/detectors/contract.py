@@ -224,28 +224,6 @@ class DetectionResult:
         return document
 
 
-@dataclass(frozen=True)
-class DetectionFailure:
-    digest: str
-    producer: DetectionProducer
-    error: str
-
-    def __post_init__(self) -> None:
-        _validate_digest(self.digest)
-        if not self.error or len(self.error) > 2000:
-            raise ValueError(
-                "Detection failure error must contain 1 to 2000 characters"
-            )
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "schemaVersion": DETECTION_SCHEMA_VERSION,
-            "image": {"digest": self.digest},
-            "producer": self.producer.to_dict(),
-            "error": self.error,
-        }
-
-
 class Detector(Protocol):
     """An executable model version that emits the canonical detection contract."""
 

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { readDatasetImage } from "./dataset-image";
-import { seedInferenceOutcome } from "../testing/inference";
+import { seedDetectionResult } from "../testing/inference";
 import {
   imageDigest,
   resultFor,
@@ -19,7 +19,7 @@ test("a dataset image page steps through the dataset in its order", async () => 
     ["di-a", "di-b", "di-c"].map((name) => imageDigest(name)),
   );
   const result = await resultFor(version, "di-b");
-  await seedInferenceOutcome({ versionId: version.id, digest: b! }, result, {
+  await seedDetectionResult({ versionId: version.id, digest: b! }, result, {
     runtimes: testHeartbeat("di-worker").runtimes,
   });
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { instancesFromDetection } from "../../domain/annotation/detection";
 import type { AnnotationInstance } from "../../domain/annotation/schema";
-import { seedInferenceOutcome } from "../testing/inference";
+import { seedDetectionResult } from "../testing/inference";
 import {
   AnnotationConflictError,
   readAnnotation,
@@ -20,7 +20,7 @@ async function detected(name: string, worker: string) {
   const { version } = await observeImages(name, [name]);
   const digest = await imageDigest(name);
   const result = await resultFor(version, name);
-  await seedInferenceOutcome({ versionId: version.id, digest }, result, {
+  await seedDetectionResult({ versionId: version.id, digest }, result, {
     runtimes: testHeartbeat(worker).runtimes,
   });
   return {

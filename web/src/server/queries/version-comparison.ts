@@ -14,6 +14,7 @@ import {
   datasetSnapshotImages,
   datasetSnapshots,
   inferenceOutcomes,
+  inferenceTasks,
   modelVersions,
   models,
 } from "../infra/db/schema";
@@ -37,6 +38,8 @@ function heldOutImages(
   modelId: string,
   versionId: string | undefined,
 ) {
+  const candidateTask = alias(inferenceTasks, "candidate_task");
+  const currentTask = alias(inferenceTasks, "current_task");
   const candidateOutcome = alias(inferenceOutcomes, "candidate_outcome");
   const currentOutcome = alias(inferenceOutcomes, "current_outcome");
   return db
@@ -48,9 +51,13 @@ function heldOutImages(
       datasetId: datasetImages.datasetId,
       filename: datasetImages.filename,
       reviewed: documentTally(datasetSnapshotImages.annotation),
-      candidateStatus: candidateOutcome.status,
+      candidateStatus: sql<
+        "succeeded" | "failed" | null
+      >`case when ${candidateTask.status} = 'failed' then 'failed' when ${candidateOutcome.imageId} is not null then 'succeeded' else null end`,
       candidateTally: documentTally(candidateOutcome.document),
-      currentStatus: currentOutcome.status,
+      currentStatus: sql<
+        "succeeded" | "failed" | null
+      >`case when ${currentTask.status} = 'failed' then 'failed' when ${currentOutcome.imageId} is not null then 'succeeded' else null end`,
       currentTally: documentTally(currentOutcome.document),
     })
     .from(modelVersions)
@@ -88,6 +95,20 @@ function heldOutImages(
       and(
         eq(currentOutcome.imageId, datasetSnapshotImages.imageId),
         eq(currentOutcome.modelVersionId, models.currentVersionId),
+      ),
+    )
+    .leftJoin(
+      candidateTask,
+      and(
+        eq(candidateTask.imageId, datasetSnapshotImages.imageId),
+        eq(candidateTask.modelVersionId, modelVersions.id),
+      ),
+    )
+    .leftJoin(
+      currentTask,
+      and(
+        eq(currentTask.imageId, datasetSnapshotImages.imageId),
+        eq(currentTask.modelVersionId, models.currentVersionId),
       ),
     )
     .where(

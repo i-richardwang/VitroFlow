@@ -16,7 +16,6 @@ from vitroctl.contracts.validation import validate_wire_contract
 from vitroctl.detectors.contract import (
     DETECTION_SCHEMA_VERSION,
     DetectionDiagnostics,
-    DetectionFailure,
     DetectionInstance,
     DetectionProducer,
     DetectionQuality,
@@ -24,8 +23,6 @@ from vitroctl.detectors.contract import (
     DishGeometry,
     RuntimeDescriptor,
 )
-
-InferenceOutcome = DetectionResult | DetectionFailure
 
 
 def _runtime(value: Any, context: str) -> RuntimeDescriptor:
@@ -94,22 +91,13 @@ def _instance(value: Any, context: str) -> DetectionInstance:
     )
 
 
-def parse_inference_outcome(value: Any, context: str = "outcome") -> InferenceOutcome:
-    validate_wire_contract("inference-outcome", value, context)
+def parse_detection_result(value: Any, context: str = "detection") -> DetectionResult:
+    validate_wire_contract("detection-result", value, context)
     payload = as_object(value, context)
     expect_schema_version(payload, "schemaVersion", DETECTION_SCHEMA_VERSION, context)
     image_context = f"{context}.image"
     image = as_object(payload.get("image"), image_context)
     producer = _producer(payload.get("producer"), f"{context}.producer")
-
-    if "error" in payload:
-        expect_fields(payload, {"schemaVersion", "image", "producer", "error"}, context)
-        expect_fields(image, {"digest"}, image_context)
-        return DetectionFailure(
-            digest=as_string(image["digest"], f"{image_context}.digest"),
-            producer=producer,
-            error=as_string(payload["error"], f"{context}.error"),
-        )
 
     expect_fields(
         payload,

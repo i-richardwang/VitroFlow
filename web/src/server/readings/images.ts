@@ -102,7 +102,6 @@ export async function readReadings(
       and(
         eq(inferenceOutcomes.imageId, images.id),
         eq(inferenceOutcomes.modelVersionId, shown),
-        eq(inferenceOutcomes.status, "succeeded"),
       ),
     )
     .leftJoin(

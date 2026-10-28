@@ -109,8 +109,7 @@ def as_split(value: Any, context: str) -> str:
 
 
 def _image(value: Any, context: str) -> ManifestImage:
-    from vitroctl.detectors.contract import DetectionResult
-    from vitroctl.detectors.documents import parse_inference_outcome
+    from vitroctl.detectors.documents import parse_detection_result
 
     entry = as_object(value, context)
     expect_fields(
@@ -129,10 +128,7 @@ def _image(value: Any, context: str) -> ManifestImage:
     )
     detection = None
     if entry["detection"] is not None:
-        outcome = parse_inference_outcome(entry["detection"], f"{context}.detection")
-        if not isinstance(outcome, DetectionResult):
-            raise ValueError(f"{context}.detection must be a detection result")
-        detection = outcome
+        detection = parse_detection_result(entry["detection"], f"{context}.detection")
     annotation = (
         None
         if entry["annotation"] is None

@@ -99,7 +99,7 @@ def test_a_removed_worker_stops_instead_of_retrying(
     assert workbench.calls == ["/api/worker/heartbeat"]
 
 
-def test_training_releases_the_inference_claim_and_its_own_allocations(
+def test_training_stops_the_inference_process_and_releases_its_own_allocations(
     tmp_path: Path, monkeypatch
 ) -> None:
     from vitroctl.worker import service as worker
@@ -108,24 +108,23 @@ def test_training_releases_the_inference_claim_and_its_own_allocations(
     events: list[str] = []
     jobs = iter([None, object(), object()])
     monkeypatch.setattr(served.training, "claim", lambda: next(jobs))
-    monkeypatch.setattr(served.store, "unload", lambda: events.append("unload"))
     monkeypatch.setattr(
-        served.pipeline, "run_once", lambda _stopped: events.append("inference") or True
+        served.runner, "run_once", lambda _stopped: events.append("inference") or True
     )
     monkeypatch.setattr(
-        served.pipeline, "release", lambda: events.append("release claim")
+        served.runner, "close", lambda: events.append("close inference")
     )
     monkeypatch.setattr(worker, "release_accelerator", lambda: events.append("release"))
 
     def train(*args, **kwargs):
-        assert events[-1] == "unload"
+        assert events[-1] == "close inference"
         events.append("training")
 
     monkeypatch.setattr(worker, "process_training_job", train)
     try:
         assert served.serve_once(threading.Event()) is True
         assert served.serve_once(threading.Event()) is True
-        assert events == ["inference", "release claim", "unload", "training", "release"]
+        assert events == ["inference", "close inference", "training", "release"]
 
         def fail(*args, **kwargs):
             raise RuntimeError("training failed")
@@ -133,7 +132,7 @@ def test_training_releases_the_inference_claim_and_its_own_allocations(
         monkeypatch.setattr(worker, "process_training_job", fail)
         with pytest.raises(RuntimeError, match="training failed"):
             served.serve_once(threading.Event())
-        assert events[-2:] == ["unload", "release"]
+        assert events[-2:] == ["close inference", "release"]
     finally:
         served.close()
 

@@ -102,7 +102,6 @@ function recordQuery(db: Executor) {
           inferenceOutcomes.modelVersionId,
           shownDetectingVersion(datasetImages.imageId, datasets.modelId),
         ),
-        eq(inferenceOutcomes.status, "succeeded"),
       ),
     )
     .leftJoin(

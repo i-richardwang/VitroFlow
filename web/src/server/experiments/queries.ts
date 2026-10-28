@@ -10,6 +10,7 @@ import {
   experiments,
   images as storedImages,
   inferenceOutcomes,
+  inferenceTasks,
   modelVersions,
   models,
 } from "../infra/db/schema";
@@ -53,14 +54,18 @@ function observationImageGridQuery(db: Executor) {
   return db
     .select({
       observationImage: experimentObservationImages,
-      outcomeStatus: inferenceOutcomes.status,
+      outcomeStatus: sql<
+        "succeeded" | "failed" | null
+      >`case when ${inferenceTasks.status} = 'failed' then 'failed' when ${inferenceOutcomes.imageId} is not null then 'succeeded' else null end`,
       detectionTally: documentTally(inferenceOutcomes.document),
       proposalTally: documentTally(sql`${proposalRuns.result}->'document'`),
       annotationTally: documentTally(annotations.document),
       proposed: sql<boolean>`${proposalRuns.id} is not null`,
       reviewed: sql<boolean>`${annotations.imageId} is not null`,
       reader: modelVersions.id,
-      error: sql<string | null>`${inferenceOutcomes.document}->>'error'`,
+      error: sql<
+        string | null
+      >`case when ${inferenceTasks.status} = 'failed' then ${inferenceTasks.error} else null end`,
     })
     .from(experimentObservationImages)
     .innerJoin(experimentObservations, atImageObservation())
@@ -76,6 +81,13 @@ function observationImageGridQuery(db: Executor) {
       ),
     )
     .leftJoin(inferenceOutcomes, atImageOutcome())
+    .leftJoin(
+      inferenceTasks,
+      and(
+        eq(inferenceTasks.imageId, experimentObservationImages.imageId),
+        eq(inferenceTasks.modelVersionId, modelVersions.id),
+      ),
+    )
     .leftJoin(proposalRuns, atImageProposal());
 }
 
@@ -344,7 +356,9 @@ async function readObservationImage(
       experiment: experiments,
       unit: experimentUnits,
       model: models,
-      outcome: inferenceOutcomes.document,
+      taskStatus: inferenceTasks.status,
+      taskError: inferenceTasks.error,
+      versionId: modelVersions.id,
     })
     .from(experimentObservationImages)
     .innerJoin(
@@ -368,6 +382,13 @@ async function readObservationImage(
       ),
     )
     .leftJoin(inferenceOutcomes, atImageOutcome())
+    .leftJoin(
+      inferenceTasks,
+      and(
+        eq(inferenceTasks.imageId, experimentObservationImages.imageId),
+        eq(inferenceTasks.modelVersionId, modelVersions.id),
+      ),
+    )
     .where(atObservationImage(ref.experiment, ref.observationImage));
   if (!row) return null;
   const experiment = toExperiment(row.experiment);
@@ -393,6 +414,13 @@ async function readObservationImage(
     observation,
     model: toModel(row.model),
     review,
-    failure: row.outcome && "error" in row.outcome ? row.outcome : null,
+    failure:
+      row.taskStatus === "failed" && row.taskError && row.versionId
+        ? {
+            digest: row.observationImage.imageId,
+            versionId: row.versionId,
+            error: row.taskError,
+          }
+        : null,
   };
 }

@@ -1,15 +1,20 @@
 export {
-  InferenceClaimRejectedError,
   claimInferenceAssignment,
   completeInferenceClaim,
-  releaseInferenceClaim,
   renewInferenceClaim,
-} from "./jobs";
+  failInferenceAttempt,
+} from "./attempts";
+export {
+  InferenceAttemptConflictError,
+  maintainInferenceTasks,
+  readInferenceTask,
+  retryInferenceTask,
+  attemptIsActive,
+} from "./tasks";
 export {
   DetectionConflictError,
   DetectionImageNotFoundError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
-  clearDetectionFailure,
 } from "./outcomes";
 export { currentVersion, shownDetectingVersion } from "./queries";

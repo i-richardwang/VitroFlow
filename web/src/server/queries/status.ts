@@ -1,10 +1,11 @@
+import { attemptIsActive } from "../inference/public";
 import { eq } from "drizzle-orm";
 
 import { database } from "../infra/db/client";
 import {
   datasetSnapshots,
   datasets,
-  inferenceJobs,
+  inferenceAttempts,
   trainingRuns,
 } from "../infra/db/schema";
 import { workerPresence } from "../../domain/workers/presence";
@@ -26,9 +27,12 @@ async function inferenceActivity(
   const rows = await (
     await database()
   )
-    .select({ workerId: inferenceJobs.workerId, digest: inferenceJobs.imageId })
-    .from(inferenceJobs)
-    .where(leaseIsHeld(inferenceJobs, at));
+    .select({
+      workerId: inferenceAttempts.workerId,
+      digest: inferenceAttempts.imageId,
+    })
+    .from(inferenceAttempts)
+    .where(attemptIsActive(at));
   const filenames = await imageFilenames(rows.map((row) => row.digest));
   return new Map(
     rows.map((row) => [

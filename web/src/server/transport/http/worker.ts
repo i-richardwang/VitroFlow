@@ -1,3 +1,7 @@
+import {
+  inferenceAttemptOwnerSchema,
+  type InferenceAttemptOwner,
+} from "../../../domain/inference/tasks";
 import { DomainError } from "../../../domain/errors";
 import {
   trainingAttemptOwnerSchema,
@@ -17,15 +21,11 @@ import {
   TrainingRunNotFoundError,
 } from "../../../domain/training/errors";
 import {
-  workerSessionSchema,
-  type WorkerIdentity,
-} from "../../../domain/workers/schema";
-import {
   DetectionConflictError,
   DetectionImageNotFoundError,
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
-  InferenceClaimRejectedError,
+  InferenceAttemptConflictError,
 } from "../../inference/public";
 
 import { bearerToken } from "../../auth/public";
@@ -110,18 +110,6 @@ export function parseWorkerValue<T>(
   return parsed.data;
 }
 
-/** The worker session a request names in its query string. */
-export function parseWorkerQuery(
-  request: Request,
-  workerId: string,
-): WorkerIdentity {
-  const parsed = workerSessionSchema.safeParse({
-    sessionId: new URL(request.url).searchParams.get("sessionId"),
-  });
-  if (!parsed.success) throw new WorkerRequestError("sessionId is required");
-  return { workerId, ...parsed.data };
-}
-
 function statusOf(error: unknown): number | null {
   if (error instanceof AnnotationRunConflictError) return 409;
   if (error instanceof AnnotationRunNotFoundError) return 404;
@@ -135,7 +123,7 @@ function statusOf(error: unknown): number | null {
   if (
     error instanceof WorkerSessionConflictError ||
     error instanceof DetectionConflictError ||
-    error instanceof InferenceClaimRejectedError ||
+    error instanceof InferenceAttemptConflictError ||
     error instanceof TrainingRunConflictError
   ) {
     return 409;
@@ -185,6 +173,24 @@ export function parseTrainingQuery(
       },
       trainingAttemptOwnerSchema,
       "Training attempt",
+    ),
+  };
+}
+
+export function parseInferenceQuery(
+  request: Request,
+  workerId: string,
+): InferenceAttemptOwner {
+  const query = new URL(request.url).searchParams;
+  return {
+    workerId,
+    ...parseWorkerValue(
+      {
+        sessionId: query.get("sessionId"),
+        attempt: Number(query.get("attempt")),
+      },
+      inferenceAttemptOwnerSchema,
+      "Inference attempt",
     ),
   };
 }

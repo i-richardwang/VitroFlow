@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { database } from "../infra/db/client";
-import { seedInferenceOutcome } from "../testing/inference";
+import { seedDetectionResult } from "../testing/inference";
 import { instancesFromDetection } from "../../domain/annotation/detection";
 import { storeAnnotation } from "../annotations/documents";
 import { readReview } from "./images";
@@ -30,12 +30,12 @@ test("a review shows the current version's detection and the stored annotation",
   const ref = { digest, modelId: first.version.modelId };
   const older = await resultFor(first.version, "rv");
   const newer = await resultFor(next, "rv", ULTRALYTICS_RUNTIME);
-  await seedInferenceOutcome(
+  await seedDetectionResult(
     { versionId: first.version.id, digest },
     older,
     worker,
   );
-  await seedInferenceOutcome({ versionId: next.id, digest }, newer, worker);
+  await seedDetectionResult({ versionId: next.id, digest }, newer, worker);
   const db = await database();
 
   expect((await readReview(ref, "rv.jpg", db))?.detection).toEqual(older);

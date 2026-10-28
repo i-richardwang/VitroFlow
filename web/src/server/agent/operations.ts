@@ -1,3 +1,4 @@
+import { inferenceOperations } from "./inference";
 import { z } from "zod";
 
 import { command, query, type AgentOperation } from "./definition";
@@ -99,6 +100,7 @@ const nothing = z.strictObject({});
 const done = z.null();
 
 const operations: readonly AgentOperation[] = [
+  ...inferenceOperations,
   ...modelOperations,
   ...trainingOperations,
   query({

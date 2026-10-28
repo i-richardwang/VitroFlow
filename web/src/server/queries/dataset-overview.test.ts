@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { instancesFromDetection } from "../../domain/annotation/detection";
 import { YOLO26N_WHOLE_RECIPE } from "../../domain/training/recipes";
 import { readAnnotation, storeAnnotation } from "../annotations/documents";
-import { seedInferenceOutcome } from "../testing/inference";
+import { seedDetectionResult } from "../testing/inference";
 import { datasetOverview } from "./dataset-overview";
 import { modelOverview } from "./model-overview";
 import {
@@ -38,7 +38,7 @@ test("the overview derives review progress and training readiness", async () => 
   for (const name of ["ov-a", "ov-b"]) {
     const digest = await imageDigest(name);
     const result = await resultFor(version, name);
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: version.id, digest },
       result,
       worker,

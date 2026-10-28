@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { instancesFromDetection } from "../../domain/annotation/detection";
 import { database } from "../infra/db/client";
-import { inferenceOutcomes } from "../infra/db/schema";
+import { inferenceOutcomes, inferenceTasks } from "../infra/db/schema";
 
 import type { Worker } from "../../domain/workers/schema";
 
@@ -17,7 +17,10 @@ import {
   InvalidDetectionOutcomeError,
   ProducerMismatchError,
 } from "./outcomes";
-import { seedInferenceOutcome } from "../testing/inference";
+import {
+  seedDetectionResult,
+  seedInferenceTaskFailure,
+} from "../testing/inference";
 import { listImageRecords } from "../datasets/records";
 
 import {
@@ -50,7 +53,6 @@ async function storedDetection(target: { versionId: string; digest: string }) {
       and(
         eq(inferenceOutcomes.imageId, target.digest),
         eq(inferenceOutcomes.modelVersionId, target.versionId),
-        eq(inferenceOutcomes.status, "succeeded"),
       ),
     );
   return row?.document ?? null;
@@ -69,12 +71,13 @@ describe("detections", () => {
   async function pendingFor(versionId: string, digests: string[]) {
     const db = await database();
     const rows = await db
-      .select({ digest: inferenceOutcomes.imageId })
-      .from(inferenceOutcomes)
+      .select({ digest: inferenceTasks.imageId })
+      .from(inferenceTasks)
       .where(
         and(
-          eq(inferenceOutcomes.modelVersionId, versionId),
-          inArray(inferenceOutcomes.imageId, digests),
+          eq(inferenceTasks.modelVersionId, versionId),
+          inArray(inferenceTasks.imageId, digests),
+          inArray(inferenceTasks.status, ["succeeded", "failed"]),
         ),
       );
     const recorded = new Set(rows.map((row) => row.digest));
@@ -95,50 +98,32 @@ describe("detections", () => {
       expect.arrayContaining([a, b]),
     );
 
-    const original = await resultFor(version, "pend-b");
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       targetA,
       await resultFor(version, "pend-a"),
       worker,
     );
-    const failure = {
-      schemaVersion: 1 as const,
-      image: { digest: b },
-      producer: original.producer,
-      error: "boom",
-    };
-    await seedInferenceOutcome(targetB, failure, worker);
+    await seedInferenceTaskFailure(targetB, "boom");
     expect(await pendingFor(version.id, [a, b])).toEqual([]);
     const cells = await listObservationImageRefs(experiment.id);
     await retryObservationImageAnalysis(cells.get("pend-b")!);
     expect(await pendingFor(version.id, [a, b])).toEqual([b]);
   });
 
-  test("a detection is recorded once and a later failure defers to it", async () => {
+  test("a detection is immutable and identical writes are idempotent", async () => {
     const { version, digests } = await observeImages("once", ["once"]);
     const digest = digests[0]!;
     const target = { versionId: version.id, digest };
     const result = await resultFor(version, "once");
-    const failure = {
-      schemaVersion: 1 as const,
-      image: { digest },
-      producer: result.producer,
-      error: "first attempt",
-    };
-    expect(await seedInferenceOutcome(target, failure, worker)).toMatchObject({
-      error: "first attempt",
-    });
-
-    expect(await seedInferenceOutcome(target, result, worker)).toEqual(result);
-    expect(await seedInferenceOutcome(target, result, worker)).toEqual(result);
+    expect(await seedDetectionResult(target, result, worker)).toEqual(result);
+    expect(await seedDetectionResult(target, result, worker)).toEqual(result);
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         target,
         { ...result, quality: { status: "review_required", warnings: [] } },
         worker,
       ),
     ).rejects.toBeInstanceOf(DetectionConflictError);
-    expect(await seedInferenceOutcome(target, failure, worker)).toEqual(result);
     expect(await storedDetection(target)).toEqual(result);
   });
 
@@ -147,7 +132,7 @@ describe("detections", () => {
     const digest = digests[0]!;
     const target = { versionId: version.id, digest };
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         target,
         await resultFor(version, "elsewhere"),
         worker,
@@ -156,7 +141,7 @@ describe("detections", () => {
 
     const result = await resultFor(version, "mismatch");
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         target,
         {
           ...result,
@@ -173,7 +158,7 @@ describe("detections", () => {
       ),
     ).rejects.toBeInstanceOf(InvalidDetectionOutcomeError);
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         target,
         {
           ...result,
@@ -184,7 +169,7 @@ describe("detections", () => {
       ),
     ).rejects.toThrow(/1x1/);
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         {
           ...target,
           versionId: (await outcomeVersion("mismatch-v2")).id,
@@ -194,7 +179,7 @@ describe("detections", () => {
       ),
     ).rejects.toBeInstanceOf(ProducerMismatchError);
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         target,
         {
           ...result,
@@ -204,7 +189,7 @@ describe("detections", () => {
       ),
     ).rejects.toBeInstanceOf(ProducerMismatchError);
     await expect(
-      seedInferenceOutcome(target, result, {
+      seedDetectionResult(target, result, {
         runtimes: [{ adapter: "ultralytics", fingerprint: "c".repeat(64) }],
       }),
     ).rejects.toBeInstanceOf(ProducerMismatchError);
@@ -213,7 +198,7 @@ describe("detections", () => {
       fingerprint: "c".repeat(64),
     };
     await expect(
-      seedInferenceOutcome(
+      seedDetectionResult(
         target,
         { ...result, producer: { ...result.producer, runtime: wrongRuntime } },
         { runtimes: [wrongRuntime] },
@@ -242,7 +227,7 @@ describe("detections", () => {
     expect((await readImageRecord(ref))?.detection).toBeNull();
 
     const original = await resultFor(baseline, "shown");
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: baseline.id, digest },
       original,
       worker,
@@ -250,23 +235,16 @@ describe("detections", () => {
     expect((await readImageRecord(ref))?.detection).toEqual(original);
 
     const newer = await resultFor(next, "shown");
-    await seedInferenceOutcome({ versionId: next.id, digest }, newer, worker);
+    await seedDetectionResult({ versionId: next.id, digest }, newer, worker);
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
     const failedVersion = await outcomeVersion(
       "shown-v3",
       "2026-08-27T03:00:00.000Z",
     );
-    const failedShape = await resultFor(failedVersion, "shown");
-    await seedInferenceOutcome(
+    await seedInferenceTaskFailure(
       { versionId: failedVersion.id, digest },
-      {
-        schemaVersion: 1,
-        image: { digest },
-        producer: failedShape.producer,
-        error: "runtime failed",
-      },
-      worker,
+      "runtime failed",
     );
     expect((await readImageRecord(ref))?.detection).toEqual(newer);
 
@@ -292,7 +270,7 @@ describe("detections", () => {
     });
     const digest = digests[0]!;
     const result = await resultFor(version, "ctx");
-    await seedInferenceOutcome(
+    await seedDetectionResult(
       { versionId: version.id, digest },
       result,
       worker,

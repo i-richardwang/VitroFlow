@@ -75,25 +75,5 @@ export const detectionResultSchema = z
     });
   });
 
-export const detectionFailureSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  image: z.strictObject({ digest: imageDigestSchema }),
-  producer: detectionProducerSchema,
-  error: z.string().min(1).max(2000),
-});
-
-export const inferenceOutcomeSchema = z.union([
-  detectionResultSchema,
-  detectionFailureSchema,
-]);
-
 export type DetectionResult = z.infer<typeof detectionResultSchema>;
 export type DetectionQuality = z.infer<typeof detectionQualitySchema>;
-export type DetectionFailure = z.infer<typeof detectionFailureSchema>;
-export type InferenceOutcome = z.infer<typeof inferenceOutcomeSchema>;
-
-export function isFailure(
-  outcome: InferenceOutcome,
-): outcome is DetectionFailure {
-  return "error" in outcome;
-}

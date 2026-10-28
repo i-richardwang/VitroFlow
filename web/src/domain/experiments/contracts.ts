@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { reviewSchema } from "../annotation/review";
-import { detectionFailureSchema } from "../detection/schema";
+import { inferenceTaskFailureSchema } from "../inference/tasks";
 import { imageDigestSchema } from "../images/schema";
 import { tallySchema } from "../models/classes";
 import { modelSchema } from "../models/schema";
@@ -100,7 +100,7 @@ const experimentObservationImageSchema = z.strictObject({
   observation: experimentObservationSchema,
   model: modelSchema,
   review: reviewSchema,
-  failure: detectionFailureSchema.nullable(),
+  failure: inferenceTaskFailureSchema.nullable(),
 });
 
 export type ExperimentObservationImage = z.infer<
