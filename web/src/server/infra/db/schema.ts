@@ -773,8 +773,9 @@ export const experimentTreatments = pgTable(
 /**
  * One occasion on which the experiment was observed. The day it happened
  * places it in the series and, against the inoculation date, names it. The
- * observation names the model its images are read for; which of that model's
- * versions has read them, if any, is recorded per image.
+ * observation names the model its images are read for, and which of that
+ * model's classes the day counts; which of the model's versions has read
+ * them, if any, is recorded per image.
  */
 export const experimentObservations = pgTable(
   "experiment_observations",
@@ -787,6 +788,11 @@ export const experimentObservations = pgTable(
     modelId: text("model_id")
       .notNull()
       .references(() => models.id),
+    /**
+     * A tally keeps every class its image holds and the day's count sums only
+     * these, so changing them recounts the same readings.
+     */
+    countedClasses: jsonb("counted_classes").$type<string[]>().notNull(),
     createdAt: instant("created_at"),
   },
   (table) => [
@@ -814,6 +820,10 @@ export const experimentObservations = pgTable(
     check(
       "experiment_observations_date_check",
       sql`${table.observedOn} >= ${table.inoculatedOn}`,
+    ),
+    check(
+      "experiment_observations_counted_classes_check",
+      sql`jsonb_typeof(${table.countedClasses}) = 'array' and jsonb_array_length(${table.countedClasses}) > 0`,
     ),
   ],
 );

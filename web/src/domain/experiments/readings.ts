@@ -1,5 +1,6 @@
 import type { ReviewSource } from "../annotation/schema";
-import { count, type Tally } from "../models/classes";
+import { countClasses, type Tally } from "../models/classes";
+import { UnknownClassError } from "../models/errors";
 import type { ImageReview, ObservationImageCell } from "./contracts";
 import type { ExperimentObservation } from "./schema";
 
@@ -7,6 +8,32 @@ import type { ExperimentObservation } from "./schema";
 export interface Reading {
   count: number;
   source: ReviewSource;
+}
+
+/**
+ * The classes a day counts, in the order its model declares them: every class
+ * the model recognizes, unless the day names fewer of them.
+ */
+export function resolveCountedClasses(
+  modelClasses: readonly string[],
+  requested: readonly string[] | undefined,
+): string[] {
+  if (!requested) return [...modelClasses];
+  const unknown = requested.filter((name) => !modelClasses.includes(name));
+  if (unknown.length > 0) {
+    throw new UnknownClassError(
+      `The model does not recognize ${unknown.length === 1 ? "class" : "classes"}: ${unknown.join(", ")}`,
+    );
+  }
+  return modelClasses.filter((name) => requested.includes(name));
+}
+
+/** Whether a day counts all its model finds, or narrows the count to some classes. */
+export function countsEveryClass(
+  observation: Pick<ExperimentObservation, "countedClasses">,
+  modelClasses: readonly string[],
+): boolean {
+  return observation.countedClasses.length === modelClasses.length;
 }
 
 export function cellKey(unit: string, observation: string): string {
@@ -50,7 +77,10 @@ function cellReading(
   return null;
 }
 
-/** What a unit read on a day, or nothing while its image has no reading. */
+/**
+ * What a unit read on a day, counting the classes the day counts, or nothing
+ * while its image has no reading.
+ */
 export function unitReading(
   cells: ObservationCells,
   unit: string,
@@ -58,6 +88,9 @@ export function unitReading(
 ): Reading | null {
   const reading = cellReading(cells.get(cellKey(unit, observation.id)));
   return reading
-    ? { count: count(reading.tally), source: reading.source }
+    ? {
+        count: countClasses(reading.tally, observation.countedClasses),
+        source: reading.source,
+      }
     : null;
 }

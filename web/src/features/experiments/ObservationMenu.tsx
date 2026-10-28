@@ -16,7 +16,6 @@ import { confirmDestructive } from "../../ui/confirmDestructive";
 import type { DropdownItem } from "../../ui/kit/DropdownMenu";
 import { TableHeadMenu } from "../../ui/kit/Table";
 import { toast } from "../../ui/kit/Toast";
-import { modelName } from "../../ui/model-names";
 import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { AddPhotosDialog } from "./AddPhotosDialog";
 import { observationLabel } from "./labels";
@@ -27,14 +26,15 @@ type Action = "images" | "dataset" | "edit";
 
 /**
  * An observation day's column heading, opening what can be done to that day.
- * The day heads the column; `model`, when given, sits on a line under it.
+ * The day heads the column; what it asks, when that needs saying, sits on a
+ * line under it.
  */
 export function ObservationMenu({
   experiment,
   inoculatedOn,
   observation,
   observations,
-  model,
+  question,
   units,
   images,
   placed,
@@ -46,8 +46,8 @@ export function ObservationMenu({
   observation: ExperimentObservation;
   /** Every observation of the experiment, whose days this one cannot move to. */
   observations: readonly ExperimentObservation[];
-  /** The model the day reads for, named when the columns read for several. */
-  model: Model | undefined;
+  /** What the day asks of its photographs, or empty when nothing needs saying. */
+  question: string;
   /** The units that can still be photographed at this observation. */
   units: Unit[];
   /** The images taken at this observation. */
@@ -116,17 +116,17 @@ export function ObservationMenu({
     <>
       <TableHeadMenu
         aria-label={m.observation_actions({
-          observation: model
-            ? m.observation_heading({ day: name, model: modelName(model) })
+          observation: question
+            ? m.observation_heading({ day: name, question })
             : name,
         })}
         items={items}
       >
         <span className="flex flex-col items-start">
           {name}
-          {model ? (
+          {question ? (
             <Text as="span" size="xs" type="quaternary" weight="regular">
-              {modelName(model)}
+              {question}
             </Text>
           ) : null}
         </span>

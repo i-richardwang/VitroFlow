@@ -22,6 +22,7 @@ const observations: ExperimentObservation[] = [
     observedOn: "2026-08-08",
     note: "",
     modelId: "seed-detector",
+    countedClasses: ["ungerminated", "germinated"],
     hasRecords: true,
   },
   {
@@ -30,6 +31,7 @@ const observations: ExperimentObservation[] = [
     observedOn: "2026-08-15",
     note: "",
     modelId: "seed-detector",
+    countedClasses: ["ungerminated", "germinated"],
     hasRecords: false,
   },
 ];

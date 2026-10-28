@@ -42,6 +42,11 @@ export function count(counts: Tally): number {
   return Object.values(counts).reduce((sum, found) => sum + found, 0);
 }
 
+/** How many instances of the named classes a tally holds, together. */
+export function countClasses(counts: Tally, names: readonly string[]): number {
+  return names.reduce((sum, name) => sum + classCount(counts, name), 0);
+}
+
 /**
  * Each class keeps one color wherever its boxes are drawn, for the people who
  * review them and the agents that propose them alike, taken in the order

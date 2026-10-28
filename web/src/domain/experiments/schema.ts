@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
+import { classListSchema } from "../models/classes";
 
 export const experimentIdSchema = z.uuid();
 export const observationIdSchema = z.uuid();
@@ -299,9 +300,9 @@ export type CultureEventRef = z.infer<typeof cultureEventRefSchema>;
 
 /**
  * An observation is one day the units were photographed, and the question
- * asked of them: the model its images are read for. Which version answers is
- * the workbench's business, and until one is trained the answer is a
- * reviewer's own.
+ * asked of them: the model its images are read for, and which of that model's
+ * classes the day counts. Which version answers is the workbench's business,
+ * and until one is trained the answer is a reviewer's own.
  */
 export const experimentObservationSchema = z.strictObject({
   id: observationIdSchema,
@@ -309,6 +310,8 @@ export const experimentObservationSchema = z.strictObject({
   observedOn: calendarDaySchema,
   note: observationNoteSchema,
   modelId: resourceIdSchema,
+  /** Some of the model's classes, in the order the model declares them. */
+  countedClasses: classListSchema,
   hasRecords: z.boolean(),
 });
 
@@ -326,6 +329,8 @@ export const observationRequestSchema = z.strictObject({
   observedOn: calendarDaySchema,
   note: observationNoteSchema.default(""),
   modelId: resourceIdSchema,
+  /** Every class the model recognizes, unless the day counts fewer. */
+  countedClasses: classListSchema.optional(),
 });
 
 export type ObservationRequest = z.infer<typeof observationRequestSchema>;
@@ -334,6 +339,7 @@ export const observationUpdateSchema = observationRefSchema.extend({
   observedOn: calendarDaySchema,
   note: observationNoteSchema,
   modelId: resourceIdSchema,
+  countedClasses: classListSchema,
 });
 
 export type ObservationUpdate = z.infer<typeof observationUpdateSchema>;

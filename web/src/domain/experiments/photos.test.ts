@@ -47,6 +47,7 @@ describe("photographs an experiment holds", () => {
             observedOn: "2026-09-06",
             note: "",
             modelId: "seed",
+            countedClasses: ["seed"],
             hasRecords: true,
           },
         ],

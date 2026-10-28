@@ -8,7 +8,9 @@ import {
   ObservationNotFoundError,
   ObservationRejectedError,
 } from "../../domain/experiments/errors";
+import { resolveCountedClasses } from "../../domain/experiments/readings";
 import { ModelNotFoundError } from "../../domain/models/errors";
+import type { Model } from "../../domain/models/schema";
 import type {
   Experiment,
   ExperimentObservation,
@@ -58,25 +60,28 @@ async function rejectSameDay(
 }
 
 /** An observation asks a question the registry holds a model for. */
-async function rejectUnknownModel(
-  modelId: string,
-  tx: Executor,
-): Promise<void> {
-  if (!(await readModel(modelId, tx))) {
-    throw new ModelNotFoundError(`Unknown model: ${modelId}`);
-  }
+async function requireModel(modelId: string, tx: Executor): Promise<Model> {
+  const model = await readModel(modelId, tx);
+  if (!model) throw new ModelNotFoundError(`Unknown model: ${modelId}`);
+  return model;
 }
 
 export async function addObservation(
   value: ObservationRequest,
   executor?: Executor,
 ): Promise<ExperimentObservation> {
-  const { experiment: experimentId, observedOn, note, modelId } = value;
+  const {
+    experiment: experimentId,
+    observedOn,
+    note,
+    modelId,
+    countedClasses,
+  } = value;
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, null, tx);
-    await rejectUnknownModel(modelId, tx);
+    const model = await requireModel(modelId, tx);
     const [row] = await tx
       .insert(experimentObservations)
       .values({
@@ -86,6 +91,7 @@ export async function addObservation(
         observedOn,
         note,
         modelId,
+        countedClasses: resolveCountedClasses(model.classes, countedClasses),
         createdAt: new Date(),
       })
       .returning();
@@ -104,15 +110,21 @@ export async function updateObservation(
     observedOn,
     note,
     modelId,
+    countedClasses,
   } = value;
   return inTransaction(executor, async (tx) => {
     const experiment = await lockExperiment(experimentId, tx);
     rejectBeforeInoculation(experiment, observedOn);
     await rejectSameDay(experimentId, observedOn, observationId, tx);
-    await rejectUnknownModel(modelId, tx);
+    const model = await requireModel(modelId, tx);
     const [row] = await tx
       .update(experimentObservations)
-      .set({ observedOn, note, modelId })
+      .set({
+        observedOn,
+        note,
+        modelId,
+        countedClasses: resolveCountedClasses(model.classes, countedClasses),
+      })
       .where(atObservation(experimentId, observationId))
       .returning();
     if (!row) {
