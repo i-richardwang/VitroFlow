@@ -24,7 +24,7 @@ export const trainingParametersSchema = z.strictObject({
     .number()
     .int()
     .min(320)
-    .max(2048)
+    .max(3072)
     .multipleOf(32, "Image size must be a multiple of 32"),
   optimizer: z.enum(OPTIMIZERS),
   lr0: z.number().min(0.00001).max(0.1),

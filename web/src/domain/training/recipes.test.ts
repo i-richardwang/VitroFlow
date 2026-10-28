@@ -56,3 +56,17 @@ test("only supplied editable values override a preset", () => {
     ).toThrow();
   }
 });
+
+test("high-resolution recipes accept stride-aligned sizes up to 3072", () => {
+  for (const imgsz of [2560, 3072]) {
+    expect(
+      resolveTrainingRecipe("yolo26s-whole-2048-v1", { imgsz }).parameters
+        .imgsz,
+    ).toBe(imgsz);
+  }
+  for (const imgsz of [2561, 3104]) {
+    expect(() =>
+      resolveTrainingRecipe("yolo26s-whole-2048-v1", { imgsz }),
+    ).toThrow();
+  }
+});

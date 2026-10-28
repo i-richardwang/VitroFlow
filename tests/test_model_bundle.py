@@ -259,3 +259,17 @@ def test_local_training_produces_a_portable_bundle_once_and_refuses_changed_resu
             ["seed"],
             document["provenance"],
         )
+
+
+@pytest.mark.parametrize("size", [2560, 3072])
+def test_high_resolution_bundle_roundtrips(tmp_path, size):
+    weights = tmp_path / "last.pt"
+    weights.write_bytes(b"high resolution weights")
+    document = bundle(weights)
+    document["training"]["parameters"]["imgsz"] = size
+    document["inference"]["imageSize"] = size
+    target = write_bundle(weights, document, tmp_path / "bundle")
+    assert read_bundle(target)[0] == document
+    document["training"]["parameters"]["imgsz"] = 3104
+    with pytest.raises(ValueError, match="imgsz"):
+        validate_bundle(document, weights)
