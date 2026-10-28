@@ -61,3 +61,18 @@ export const trainingOverridesSchema = trainingParametersSchema
   .partial();
 
 export type TrainingOverrides = z.infer<typeof trainingOverridesSchema>;
+
+/**
+ * The overrides that change `parameters`: one that sets a parameter to the
+ * value it already has adjusts nothing.
+ */
+export function effectiveOverrides(
+  overrides: TrainingOverrides,
+  parameters: TrainingParameters,
+): TrainingOverrides {
+  return Object.fromEntries(
+    Object.entries(overrides).filter(
+      ([key, value]) => value !== parameters[key as keyof TrainingOverrides],
+    ),
+  );
+}

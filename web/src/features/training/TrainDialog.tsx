@@ -17,11 +17,11 @@ import { toast } from "../../ui/kit/Toast";
 import { Select } from "../../ui/kit/Select";
 import { TrainingParametersForm } from "./TrainingParametersForm";
 import {
+  effectiveOverrides,
   type TrainingOverrides,
   trainingOverridesSchema,
 } from "../../domain/training/parameters";
 import { MIN_SNAPSHOT_IMAGES } from "../../domain/training/schema";
-import { Text } from "../../ui/kit/Text";
 
 const FORM_ID = "train";
 
@@ -47,7 +47,7 @@ export function trainRefusal({
   return null;
 }
 
-/** The recipe's parameters, editable before a run is queued. */
+/** A new run's preset, its worker and its parameters, chosen before it is queued. */
 export function TrainDialog({
   set,
   open,
@@ -86,10 +86,9 @@ function TrainSession({
   const action = useAsyncAction();
   const [presetId, setPresetId] = useState(defaultTrainingPresetId);
   const [overrides, setOverrides] = useState<TrainingOverrides>({});
-  const preset = trainingPresets.find(
-    (candidate) => candidate.id === presetId,
-  )!;
-  const recipe = preset.recipe;
+  const presetOf = (id: TrainingPresetId) =>
+    trainingPresets.find((candidate) => candidate.id === id)!;
+  const preset = presetOf(presetId);
   const [targetWorkerId, setTargetWorkerId] = useState<string | null>(null);
   const valid = trainingOverridesSchema.safeParse(overrides).success;
 
@@ -128,15 +127,14 @@ function TrainSession({
           submit();
         }}
       >
-        <TrainingWorkerSelect
-          workers={training.workers}
-          value={targetWorkerId}
-          onChange={setTargetWorkerId}
-          disabled={action.busy}
-        />
-        <Form.Group title={m.train_dialog_preset_title()}>
+        {training.workerMemoryBytes === null ? (
+          <Alert type="warning" title={m.train_dialog_no_worker()} />
+        ) : null}
+        <Form.Field
+          label={m.train_preset()}
+          desc={PRESET_PRESENTATION[presetId].description()}
+        >
           <Select
-            aria-label={m.train_dialog_preset_title()}
             value={presetId}
             disabled={action.busy}
             options={trainingPresets.map((option) => ({
@@ -145,29 +143,26 @@ function TrainSession({
             }))}
             onChange={(id) => {
               setPresetId(id);
-              setOverrides({});
+              setOverrides(
+                effectiveOverrides(overrides, presetOf(id).recipe.parameters),
+              );
             }}
           />
-          <Text size="sm" type="secondary">
-            {PRESET_PRESENTATION[presetId].description()}
-          </Text>
-          <Text size="sm" type="secondary">
-            {m.train_dialog_recipe({
-              model: recipe.baseModel.reference,
-              framework: recipe.runtime.framework,
-              version: recipe.runtime.version,
-            })}
-          </Text>
-        </Form.Group>
+        </Form.Field>
+        <Form.Field label={m.training_worker()}>
+          <TrainingWorkerSelect
+            workers={training.workers}
+            value={targetWorkerId}
+            onChange={setTargetWorkerId}
+            disabled={action.busy}
+          />
+        </Form.Field>
         <TrainingParametersForm
-          parameters={recipe.parameters}
+          parameters={preset.recipe.parameters}
           overrides={overrides}
           onChange={setOverrides}
           disabled={action.busy}
         />
-        {training.workerMemoryBytes === null ? (
-          <Alert type="warning" title={m.train_dialog_no_worker()} />
-        ) : null}
       </Form>
     </FormDialog>
   );

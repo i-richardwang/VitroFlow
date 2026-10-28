@@ -13,6 +13,7 @@ export {
   recordTrainingEpoch,
   renewTrainingLease,
   snapshotForRun,
+  trainingLeaseHeld,
 } from "./runs";
 export { readDatasetSnapshot, snapshotSummaries } from "./snapshots";
 

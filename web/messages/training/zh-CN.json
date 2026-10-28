@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "training_run_page_title": "{dataset} 的训练 {run}",
+  "training_runtime": "{framework} {version}",
   "training_kpi_epochs": "轮次",
   "training_kpi_best_map": "最佳 mAP50-95",
   "training_kpi_published": "已发布 {version}",
@@ -9,6 +10,14 @@
       "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
       "match": {
         "epoch=*": "第 {formattedEpoch} 轮"
+      }
+    }
+  ],
+  "training_kpi_saved": [
+    {
+      "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
+      "match": {
+        "epoch=*": "已保存到第 {formattedEpoch} 轮"
       }
     }
   ],
@@ -57,6 +66,7 @@
   ],
   "parameter_epochs": "轮次",
   "parameter_patience": "早停耐心",
+  "parameter_patience_help": "设为 0 时关闭早停。",
   "parameter_batch": "批大小",
   "parameter_imgsz": "图片尺寸",
   "parameter_optimizer": "优化器",
@@ -79,7 +89,6 @@
       }
     }
   ],
-  "train_dialog_recipe": "{model} · {framework} {version}",
   "run_epochs_progress": [
     {
       "declarations": [
@@ -99,27 +108,77 @@
   "run_empty_description": "在训练集页面开始训练。",
   "run_state_paused": "已暂停",
   "run_state_cancelled": "已取消",
-  "training_worker": "训练 Worker",
+  "training_worker": "计算节点",
   "training_worker_auto": "自动分配",
   "training_worker_offline": "{worker} · 离线",
-  "training_running_worker": "正在 {worker} 上运行",
-  "training_waiting_worker": "等待 {worker} 领取训练",
-  "training_waiting_auto": "等待可用的训练 Worker",
-  "training_last_progress": "最后进展",
-  "training_lease_expired": "执行租约已过期，等待 Worker 接手",
-  "training_stalled": "训练已超过 15 分钟没有进展。可以暂停释放当前执行，再选择 Worker 恢复。",
-  "training_checkpoint_available": "可从已保存的第 {epoch} 轮恢复。暂停会舍弃此检查点之后未保存的进度。",
-  "training_checkpoint_none": "尚无已保存的检查点，恢复时将从头训练。",
+  "training_running_worker": "在 {worker} 上运行",
+  "training_waiting_worker": "等待 {worker} 领取",
+  "training_waiting_auto": "等待可用的计算节点",
+  "training_stall_worker_lost": "{worker} 已失去联系",
+  "training_stall_no_progress": [
+    {
+      "declarations": [
+        "input minutes",
+        "local formattedMinutes = minutes: number"
+      ],
+      "match": {
+        "minutes=*": "训练已超过 {formattedMinutes} 分钟没有进展"
+      }
+    }
+  ],
+  "training_stall_takeover": "训练会交给下一个空闲的计算节点。",
+  "training_stall_reconnect": "训练会等它重新连上；也可以先暂停，再换一个计算节点继续。",
+  "training_stall_move": "可以先暂停，再换一个计算节点继续。",
+  "training_blocked_title": "训练 {run} 正在进行",
+  "training_blocked_description": "它结束或暂停后，才能继续这次训练。",
+  "training_blocked_view": "查看训练",
   "training_pause": "暂停",
-  "training_resume": "恢复",
-  "training_restart": "从头重试",
-  "training_cancel": "取消训练",
-  "training_control_failed": "无法更新训练状态",
-  "training_attempts": "执行记录",
-  "training_attempt_entry": "第 {attempt} 次执行 · {worker}",
-  "training_attempt_expired": "租约失效",
+  "training_resume": "继续训练",
   "training_retry": "重试",
+  "training_menu_pause": "暂停训练",
+  "training_menu_resume": "继续训练…",
+  "training_menu_retry": "重试训练…",
+  "training_menu_cancel": "取消训练…",
+  "training_pause_failed": "未能暂停训练",
+  "training_resume_title": "继续训练 {run}",
+  "training_retry_title": "重试训练 {run}",
+  "training_resume_from": "从哪里开始",
+  "training_resume_from_saved": [
+    {
+      "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
+      "match": {
+        "epoch=*": "从第 {formattedEpoch} 轮继续"
+      }
+    }
+  ],
+  "training_resume_from_start": "从头开始",
+  "training_resume_no_progress": "还没有保存的进度，将从头开始训练。",
+  "training_resume_failed": "未能继续训练",
+  "training_cancel_title": "取消训练 {run}？",
+  "training_cancel_note": "已完成的轮次仍可查看，但这次训练不能再继续。",
+  "training_cancel_confirm": "取消训练",
+  "training_attempts": "执行记录",
+  "attempt_column_number": "次序",
+  "attempt_column_worker": "计算节点",
+  "attempt_column_started": "开始",
+  "attempt_column_result": "结果",
+  "attempt_column_reason": "原因",
+  "attempt_number": [
+    {
+      "declarations": [
+        "input attempt",
+        "local formattedAttempt = attempt: number"
+      ],
+      "match": {
+        "attempt=*": "第 {formattedAttempt} 次"
+      }
+    }
+  ],
+  "attempt_state_running": "进行中",
+  "attempt_state_expired": "失去联系",
+  "attempt_empty_title": "还没有计算节点领取这次训练",
   "parameter_nbs": "标称批大小（nbs）",
+  "parameter_nbs_help": "控制梯度累积，不是一次加载到显存的图片数。",
   "parameter_scale": "随机缩放",
   "parameter_degrees": "旋转角度",
   "parameter_flipud": "垂直翻转概率",
@@ -128,12 +187,13 @@
   "parameter_hsv_h": "色相扰动",
   "parameter_hsv_s": "饱和度扰动",
   "parameter_hsv_v": "亮度扰动",
-  "train_dialog_preset_title": "训练预设",
+  "train_preset": "训练预设",
   "parameter_runtime_default": "框架默认值",
+  "train_parameters": "训练参数",
   "train_advanced_parameters": "高级参数",
-  "train_advanced_help": "标称批大小控制梯度累积，不是一次加载到显存的图片数。留空使用预设值；早停耐心为 0 时关闭早停。",
+  "train_restore_preset": "恢复预设值",
   "train_preset_n": "YOLO26n · 整图",
   "train_preset_s": "YOLO26s · 整图 2048",
-  "train_preset_n_description": "轻量模型，适用于整图训练。切换预设会重置参数调整。",
-  "train_preset_s_description": "较大模型，使用较高输入分辨率保留小目标细节。切换预设会重置参数调整。"
+  "train_preset_n_description": "轻量模型，适用于整图训练。",
+  "train_preset_s_description": "较大模型，使用较高输入分辨率保留小目标细节。"
 }

@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "training_run_page_title": "{run} of {dataset}",
+  "training_runtime": "{framework} {version}",
   "training_kpi_epochs": "Epochs",
   "training_kpi_best_map": "Best mAP50-95",
   "training_kpi_published": "Published {version}",
@@ -9,6 +10,14 @@
       "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
       "match": {
         "epoch=*": "Epoch {formattedEpoch}"
+      }
+    }
+  ],
+  "training_kpi_saved": [
+    {
+      "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
+      "match": {
+        "epoch=*": "Saved through epoch {formattedEpoch}"
       }
     }
   ],
@@ -57,6 +66,7 @@
   ],
   "parameter_epochs": "Epochs",
   "parameter_patience": "Patience",
+  "parameter_patience_help": "0 turns early stopping off.",
   "parameter_batch": "Batch",
   "parameter_imgsz": "Image size",
   "parameter_optimizer": "Optimizer",
@@ -79,7 +89,6 @@
       }
     }
   ],
-  "train_dialog_recipe": "{model} · {framework} {version}",
   "run_epochs_progress": [
     {
       "declarations": [
@@ -103,23 +112,73 @@
   "training_worker_auto": "Automatic assignment",
   "training_worker_offline": "{worker} · offline",
   "training_running_worker": "Running on {worker}",
-  "training_waiting_worker": "Waiting for {worker} to claim this training",
-  "training_waiting_auto": "Waiting for an available training worker",
-  "training_last_progress": "Last progress",
-  "training_lease_expired": "Execution lease expired; waiting for a worker to take over",
-  "training_stalled": "No training progress for 15 minutes. Pause to release this execution, then choose a worker to resume.",
-  "training_checkpoint_available": "Resume from saved epoch {epoch}. Pausing discards work after this checkpoint.",
-  "training_checkpoint_none": "No saved checkpoint yet. Resuming starts from the beginning.",
+  "training_waiting_worker": "Waiting for {worker} to pick it up",
+  "training_waiting_auto": "Waiting for an available worker",
+  "training_stall_worker_lost": "{worker} lost contact",
+  "training_stall_no_progress": [
+    {
+      "declarations": [
+        "input minutes",
+        "local formattedMinutes = minutes: number"
+      ],
+      "match": {
+        "minutes=*": "No progress for over {formattedMinutes} minutes"
+      }
+    }
+  ],
+  "training_stall_takeover": "The next available worker will take it over.",
+  "training_stall_reconnect": "The run waits for it to reconnect, or pause it and continue on another worker.",
+  "training_stall_move": "Pause it, then continue on another worker.",
+  "training_blocked_title": "Run {run} is in progress",
+  "training_blocked_description": "This run can continue once it finishes or pauses.",
+  "training_blocked_view": "View run",
   "training_pause": "Pause",
-  "training_resume": "Resume",
-  "training_restart": "Restart from beginning",
-  "training_cancel": "Cancel training",
-  "training_control_failed": "Could not update training",
-  "training_attempts": "Execution history",
-  "training_attempt_entry": "Attempt {attempt} · {worker}",
-  "training_attempt_expired": "Lease expired",
+  "training_resume": "Continue training",
   "training_retry": "Retry",
+  "training_menu_pause": "Pause training",
+  "training_menu_resume": "Continue training…",
+  "training_menu_retry": "Retry training…",
+  "training_menu_cancel": "Cancel training…",
+  "training_pause_failed": "Could not pause training",
+  "training_resume_title": "Continue {run}",
+  "training_retry_title": "Retry {run}",
+  "training_resume_from": "Start from",
+  "training_resume_from_saved": [
+    {
+      "declarations": ["input epoch", "local formattedEpoch = epoch: number"],
+      "match": {
+        "epoch=*": "Continue from epoch {formattedEpoch}"
+      }
+    }
+  ],
+  "training_resume_from_start": "From the beginning",
+  "training_resume_no_progress": "No progress has been saved yet, so training starts from the beginning.",
+  "training_resume_failed": "Could not continue training",
+  "training_cancel_title": "Cancel {run}?",
+  "training_cancel_note": "Its finished epochs stay readable, but the run can't be continued.",
+  "training_cancel_confirm": "Cancel training",
+  "training_attempts": "Attempts",
+  "attempt_column_number": "Attempt",
+  "attempt_column_worker": "Worker",
+  "attempt_column_started": "Started",
+  "attempt_column_result": "Result",
+  "attempt_column_reason": "Reason",
+  "attempt_number": [
+    {
+      "declarations": [
+        "input attempt",
+        "local formattedAttempt = attempt: number"
+      ],
+      "match": {
+        "attempt=*": "#{formattedAttempt}"
+      }
+    }
+  ],
+  "attempt_state_running": "In progress",
+  "attempt_state_expired": "Lost contact",
+  "attempt_empty_title": "No worker has picked up this run yet",
   "parameter_nbs": "Nominal batch size (nbs)",
+  "parameter_nbs_help": "Controls gradient accumulation; it is not how many images are loaded into memory at once.",
   "parameter_scale": "Scale augmentation",
   "parameter_degrees": "Rotation degrees",
   "parameter_flipud": "Vertical flip probability",
@@ -128,12 +187,13 @@
   "parameter_hsv_h": "Hue augmentation",
   "parameter_hsv_s": "Saturation augmentation",
   "parameter_hsv_v": "Brightness augmentation",
-  "train_dialog_preset_title": "Training preset",
+  "train_preset": "Training preset",
   "parameter_runtime_default": "Runtime default",
+  "train_parameters": "Training parameters",
   "train_advanced_parameters": "Advanced parameters",
-  "train_advanced_help": "Nominal batch size controls gradient accumulation; it is not the in-memory batch. Leave blank to use the preset. Patience 0 disables early stopping.",
+  "train_restore_preset": "Restore preset values",
   "train_preset_n": "YOLO26n · Whole image",
   "train_preset_s": "YOLO26s · Whole image 2048",
-  "train_preset_n_description": "Compact model for whole-image training. Switching presets resets parameter adjustments.",
-  "train_preset_s_description": "Larger model with higher-resolution input for small objects. Switching presets resets parameter adjustments."
+  "train_preset_n_description": "Compact model for whole-image training.",
+  "train_preset_s_description": "Larger model with higher-resolution input for small objects."
 }

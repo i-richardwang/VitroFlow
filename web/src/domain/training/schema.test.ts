@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 
-import { datasetSnapshotSchema, isTrainingRunActive } from "./schema";
+import {
+  datasetSnapshotSchema,
+  isTrainingRunActive,
+  isTrainingRunResumable,
+} from "./schema";
 
 const DIGESTS = ["a".repeat(64), "b".repeat(64)];
 
@@ -39,6 +43,17 @@ test("only queued and running training states are active", () => {
   ).toBeFalse();
   expect(
     isTrainingRunActive({ state: { status: "failed", error: "failed" } }),
+  ).toBeFalse();
+});
+
+test("only paused and failed training states can resume", () => {
+  expect(isTrainingRunResumable({ state: { status: "paused" } })).toBeTrue();
+  expect(
+    isTrainingRunResumable({ state: { status: "failed", error: "failed" } }),
+  ).toBeTrue();
+  expect(isTrainingRunResumable({ state: { status: "queued" } })).toBeFalse();
+  expect(
+    isTrainingRunResumable({ state: { status: "cancelled" } }),
   ).toBeFalse();
 });
 

@@ -1,8 +1,17 @@
+import { Collapsible } from "@base-ui/react/collapsible";
 import { Field } from "@base-ui/react/field";
 import { Fieldset } from "@base-ui/react/fieldset";
 import { Form as BaseForm } from "@base-ui/react/form";
-import { cloneElement, isValidElement, type ReactNode, useId } from "react";
+import { ChevronRight } from "lucide-react";
+import {
+  cloneElement,
+  isValidElement,
+  type ReactNode,
+  useId,
+  useState,
+} from "react";
 import { cn } from "./cn";
+import { Icon } from "./Icon";
 
 /*
  * A native `<form>` built on Base UI Form. Fields are plain controls that carry
@@ -11,7 +20,7 @@ import { cn } from "./cn";
  * field name. Fields stack 16px apart, each with its label 8px above the
  * control; with `layout="horizontal"` the label starts the row and the
  * control ends it. `Form.Group` gathers related fields into a section under a
- * heading.
+ * heading, folded away when the reader seldom needs them.
  */
 
 export interface FormProps extends Omit<BaseForm.Props, "className"> {
@@ -118,34 +127,96 @@ function FormField({
   );
 }
 
+export interface FormGroupProps {
+  children: ReactNode;
+  /** Folds the group closed under its heading, for settings the reader seldom needs. */
+  collapsible?: boolean;
+  description?: ReactNode;
+  /** A small command at the end of the heading, such as restoring a preset's values; a folded group shows it only while open. */
+  extra?: ReactNode;
+  title: ReactNode;
+}
+
 /**
  * A section of a form: related fields under a heading, such as the culture of
  * an experiment or the augmentation settings of a run, with an optional line
  * of description under the heading. Fields inside stack as they do in the form.
+ * A collapsible group starts closed; its whole heading opens it, and its
+ * description folds away with its fields.
  */
 function FormGroup({
   children,
+  collapsible,
   description,
+  extra,
   title,
-}: {
-  children: ReactNode;
-  description?: ReactNode;
-  title: ReactNode;
-}) {
+}: FormGroupProps) {
+  const titleId = useId();
   const descriptionId = useId();
-  return (
-    <fieldset
-      aria-describedby={description != null ? descriptionId : undefined}
-      className="ui-form-group"
-    >
-      <legend className="ui-form-group-title">{title}</legend>
+  const [open, setOpen] = useState(false);
+  const shown = !collapsible || open;
+
+  const naming = {
+    "aria-describedby":
+      description != null && shown ? descriptionId : undefined,
+    "aria-labelledby": titleId,
+  };
+  const name = <span id={titleId}>{title}</span>;
+  const command =
+    extra != null && shown ? (
+      <span className="ui-form-group-extra">{extra}</span>
+    ) : null;
+  const content = (
+    <>
       {description != null ? (
         <p className="ui-form-group-description" id={descriptionId}>
           {description}
         </p>
       ) : null}
       <div className="ui-form-group-body">{children}</div>
-    </fieldset>
+    </>
+  );
+
+  if (!collapsible) {
+    return (
+      <fieldset {...naming} className="ui-form-group">
+        <legend className="ui-form-group-title">
+          <span className="ui-form-group-heading">
+            {name}
+            {command}
+          </span>
+        </legend>
+        {content}
+      </fieldset>
+    );
+  }
+
+  return (
+    <Collapsible.Root
+      {...naming}
+      className="ui-form-group ui-form-group-collapsible"
+      open={open}
+      onOpenChange={setOpen}
+      render={<fieldset />}
+    >
+      <legend className="ui-form-group-title">
+        <span className="ui-form-group-heading">
+          <Collapsible.Trigger className="ui-form-group-trigger">
+            {name}
+            <Icon
+              aria-hidden
+              className="ui-form-group-indicator"
+              icon={ChevronRight}
+              size={16}
+            />
+          </Collapsible.Trigger>
+          {command}
+        </span>
+      </legend>
+      <Collapsible.Panel className="ui-form-group-panel">
+        <div className="ui-form-group-panel-content">{content}</div>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 }
 

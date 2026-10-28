@@ -18,6 +18,7 @@ const BASE_UI_PROPERTIES = new Set([
   "--anchor-width",
   "--available-height",
   "--available-width",
+  "--collapsible-panel-height",
   "--popup-height",
   "--popup-width",
   "--positioner-height",

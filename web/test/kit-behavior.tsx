@@ -155,6 +155,46 @@ const scenarios: Record<string, () => Promise<void>> = {
     assert.equal(errorOf("Email"), "Already taken");
     assert.equal(errorOf("Name"), null, "other fields show no error");
   },
+
+  async formGroup() {
+    const { Form } = await import("../src/ui/kit/Form");
+    const { Input } = await import("../src/ui/kit/Input");
+    await render(
+      <Form onSubmit={() => {}}>
+        <Form.Group
+          title="Advanced"
+          description="Seldom needed"
+          extra={<button type="button">Restore</button>}
+          collapsible
+        >
+          <Form.Field label="Seed" name="seed">
+            <Input />
+          </Form.Field>
+        </Form.Group>
+      </Form>,
+    );
+    const trigger = body.querySelector("[aria-expanded]");
+    assert.ok(trigger, "the heading is the trigger");
+    const group = body.querySelector("fieldset");
+    const titled = group?.getAttribute("aria-labelledby");
+    assert.equal(
+      titled && browser.document.getElementById(titled)?.textContent,
+      "Advanced",
+      "the group is named by its title alone",
+    );
+    const shows = (text: string) => body.textContent?.includes(text) ?? false;
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.ok(!shows("Seed"), "a collapsible group starts closed");
+    assert.ok(!shows("Restore"), "a closed group hides its command");
+    await press(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.ok(shows("Seed") && shows("Seldom needed"), "opening shows it");
+    assert.ok(shows("Restore"), "an open group shows its command");
+    await press(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    await waitFor(() => !shows("Seed"), "closing folds the fields away");
+    assert.ok(!shows("Restore"), "closing hides the command");
+  },
 };
 
 const name = process.argv[2] ?? "";

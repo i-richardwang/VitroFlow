@@ -132,6 +132,8 @@ export interface InputNumberProps extends Omit<
 > {
   className?: string;
   onChange: (value: number | null) => void;
+  /** Stands in the field while it is empty, such as what an empty value falls back to. */
+  placeholder?: string;
 }
 
 /** A number field with increment and decrement buttons. */
@@ -139,6 +141,7 @@ export function InputNumber({
   "aria-label": ariaLabel,
   className,
   onChange,
+  placeholder,
   ...props
 }: InputNumberProps) {
   return (
@@ -150,6 +153,7 @@ export function InputNumber({
       <NumberField.Input
         aria-label={ariaLabel}
         className="ui-input-input ui-input-number-input"
+        placeholder={placeholder}
       />
       <div className="ui-input-number-controls">
         <NumberField.Increment
