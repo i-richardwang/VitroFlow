@@ -3,6 +3,7 @@ import { z } from "zod";
 import { reviewSchema } from "../annotation/review";
 import { inferenceTaskFailureSchema } from "../inference/tasks";
 import { imageDigestSchema } from "../images/schema";
+import { unclearMarkSchema } from "../images/unclear";
 import { tallySchema } from "../models/classes";
 import { modelSchema } from "../models/schema";
 import {
@@ -41,6 +42,8 @@ const observationImageCellSchema = z.strictObject({
   proposalTally: tallySchema.nullable(),
   annotationTally: tallySchema.nullable(),
   error: z.string().nullable(),
+  /** The photograph's mark when a person found it unclear; null while it is clear. */
+  unclear: unclearMarkSchema.nullable(),
 });
 
 export type ObservationImageCell = z.infer<typeof observationImageCellSchema>;
@@ -101,6 +104,7 @@ const experimentObservationImageSchema = z.strictObject({
   model: modelSchema,
   review: reviewSchema,
   failure: inferenceTaskFailureSchema.nullable(),
+  unclear: unclearMarkSchema.nullable(),
 });
 
 export type ExperimentObservationImage = z.infer<

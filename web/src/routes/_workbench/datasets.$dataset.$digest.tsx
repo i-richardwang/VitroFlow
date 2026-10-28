@@ -74,6 +74,7 @@ function DatasetImagePage() {
     dataset,
     model,
     review,
+    unclear,
     split,
     position,
     previous,
@@ -119,6 +120,7 @@ function DatasetImagePage() {
       title={m.image_title({ file: review.filename, dataset: dataset.name })}
       model={model}
       review={review}
+      unclear={unclear}
       source={show}
       onSourceChange={(show) =>
         void navigate({ search: (previous) => ({ ...previous, show }) })

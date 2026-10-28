@@ -9,6 +9,9 @@ import { sha256Schema } from "../identifiers/schema";
  */
 export const imageDigestSchema = sha256Schema;
 
-export const storedImageResponseSchema = z.strictObject({
+/** One stored image, by digest: what an upload answers, and what a request names. */
+export const imageRefSchema = z.strictObject({
   digest: imageDigestSchema,
 });
+
+export type ImageRef = z.infer<typeof imageRefSchema>;

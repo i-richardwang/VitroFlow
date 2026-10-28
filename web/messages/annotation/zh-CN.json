@@ -63,5 +63,22 @@
   "annotation_check_previous": "上一处待确认",
   "annotation_check_next": "下一处待确认",
   "annotation_details": "详情",
-  "annotation_file": "文件名"
+  "annotation_file": "文件名",
+  "unclear_label": "不清晰",
+  "unclear_section": "照片不清晰",
+  "unclear_switch_description": "无法看清，例如瓶盖起雾或培养皿失焦",
+  "unclear_counted_label": "仍纳入统计",
+  "unclear_note_label": "备注",
+  "unclear_note_placeholder": "哪里不清晰",
+  "unclear_not_counted": "照片不清晰，未纳入统计",
+  "unclear_counted": "照片不清晰，已纳入统计",
+  "unclear_not_saved": "标记未保存",
+  "unclear_menu_mark": "标记照片不清晰…",
+  "unclear_menu_edit": "编辑不清晰标记…",
+  "unclear_menu_clear": "清除不清晰标记",
+  "unclear_dialog_title": "标记 {file} 不清晰",
+  "unclear_dialog_edit_title": "{file} 的不清晰标记",
+  "unclear_dialog_save": "保存",
+  "unclear_marked": "已标记 {file} 不清晰",
+  "unclear_cleared": "{file} 已恢复为清晰"
 }

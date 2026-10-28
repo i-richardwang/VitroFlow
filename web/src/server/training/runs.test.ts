@@ -27,6 +27,7 @@ import {
 } from "./runs";
 import { publishTrainingArtifact as publishTrainingBundle } from "./publication";
 import { removeWorker } from "../workers/public";
+import { clearImageUnclear, markImageUnclear } from "../images/public";
 import {
   imageDigest,
   recordTestHeartbeat,
@@ -226,6 +227,33 @@ test("a training run owns an immutable self-contained snapshot", async () => {
     renewTrainingLease(run.id, owner("another-trainer")),
   ).rejects.toThrow(/not owned/);
   await failTrainingRun(run.id, owner("snapshot-trainer"), "stopped");
+});
+
+test("a snapshot leaves out an unclear photograph that is not counted", async () => {
+  const contents = ["clear-image", "fogged-image", "blurred-but-counted"];
+  const { dataset } = await reviewed(
+    "unclear-snapshot",
+    contents,
+    await traditionalVersion("training-detector", "training-v1"),
+  );
+  const [clear, fogged, counted] = await Promise.all(contents.map(imageDigest));
+  await markImageUnclear(
+    { digest: fogged!, counted: false, note: "Lid fogged" },
+    null,
+  );
+  await markImageUnclear({ digest: counted!, counted: true, note: "" }, null);
+
+  const run = await createTrainingRun(dataset.id, recipe);
+  await trainer("unclear-trainer");
+  const claimed = await claimTrainingRun(owner("unclear-trainer"));
+  if (!claimed) throw new Error("run was not claimed");
+  const snapshot = await readDatasetSnapshot(claimed.datasetSnapshotId);
+  expect(snapshot?.images.map((image) => image.digest)).toEqual(
+    [clear!, counted!].sort(),
+  );
+  await failTrainingRun(run.id, owner("unclear-trainer"), "stopped");
+  // The membership stays, so clearing the mark is all it takes to train on it.
+  expect((await clearImageUnclear({ digest: fogged! })).cleared).toBe(true);
 });
 
 test("publication registers one immutable version per training run", async () => {

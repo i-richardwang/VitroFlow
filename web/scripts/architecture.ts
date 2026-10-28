@@ -24,6 +24,7 @@ const dependencies: Record<string, readonly string[]> = {
   training: ["datasets", "models", "workers", "infra"],
   agent: [
     "inference",
+    "images",
     "datasets",
     "experiments",
     "models",

@@ -16,6 +16,7 @@ import {
   datasets,
   experimentObservationImages,
   experimentObservations,
+  unclearImages,
   type images as imageAssets,
 } from "../infra/db/schema";
 import {
@@ -276,10 +277,22 @@ async function insertMemberships(
     )
     .onConflictDoNothing()
     .returning({ imageId: datasetImages.imageId });
+  // An unclear photograph that is not counted joins all the same, so clearing
+  // its mark later is all it takes to train on it; it is reported, not dropped.
+  const unclear = await tx
+    .select({ imageId: unclearImages.imageId })
+    .from(unclearImages)
+    .where(
+      and(
+        inArray(unclearImages.imageId, sorted),
+        eq(unclearImages.counted, false),
+      ),
+    );
   return {
     dataset,
     added: created.length,
     existing: sorted.length - created.length,
+    unclear: unclear.length,
   };
 }
 

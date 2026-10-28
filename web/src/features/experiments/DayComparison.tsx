@@ -18,6 +18,7 @@ import {
   type ViewportLink,
 } from "../../ui/viewport/ImageViewport";
 import { FILL, type RelativeView } from "../../ui/viewport/viewport";
+import { UnclearAlert } from "../annotation/unclear";
 
 type UnitObservation = UnitSeries["observations"][number];
 
@@ -175,7 +176,10 @@ function ComparisonFrame({ start, end }: { start: ReactNode; end: ReactNode }) {
   );
 }
 
-/** One day's photograph, with the choice of the day over its corner. */
+/**
+ * One day's photograph, with the choice of the day over its corner, and its
+ * unclear mark over its foot when a person found it unclear.
+ */
 function ComparedDay({
   day,
   link,
@@ -205,6 +209,11 @@ function ComparedDay({
       >
         {children}
       </Toolbar>
+      {day.image?.unclear ? (
+        <div className="absolute right-3 bottom-3 left-3">
+          <UnclearAlert mark={day.image.unclear} />
+        </div>
+      ) : null}
     </>
   );
 }

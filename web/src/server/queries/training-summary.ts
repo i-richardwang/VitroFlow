@@ -7,14 +7,16 @@ import {
   activeTrainingRun,
   latestTrainingRun,
 } from "../training/public";
-import type { ImageRecord } from "../datasets/public";
+import { trainable, type ImageRecord } from "../datasets/public";
 
 import { listOnlineTrainers } from "../workers/public";
 import { trainingWorkerOptions } from "./training-workers";
 
 /**
  * Reviews the last run did not train on: images reviewed since, and images
- * whose review has changed since the snapshot froze it.
+ * whose review has changed since the snapshot froze it. A review a snapshot
+ * would not take, its photograph marked unclear and not counted, is not
+ * waiting.
  */
 async function reviewedSinceLastRun(
   records: ImageRecord[],
@@ -28,8 +30,9 @@ async function reviewedSinceLastRun(
       [],
   );
   return records.filter(
-    ({ image, annotation }) =>
-      annotation !== null && trained.get(image.digest) !== boxes(annotation),
+    (record) =>
+      trainable(record) &&
+      trained.get(record.image.digest) !== boxes(record.annotation),
   ).length;
 }
 

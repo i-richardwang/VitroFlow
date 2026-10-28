@@ -36,6 +36,13 @@
       "when": 1793175739105,
       "tag": "0004_observation_counted_classes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793200102857,
+      "tag": "0005_unclear_images",
+      "breakpoints": true
     }
   ]
 }

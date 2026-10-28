@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import { openChecks } from "../../domain/annotation/checks";
 import { availableSources, type Review } from "../../domain/annotation/review";
 import type { ReviewSource } from "../../domain/annotation/schema";
+import type { UnclearMark } from "../../domain/images/unclear";
 import { tally } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
@@ -38,6 +39,7 @@ import { setEditLocked, useEditLocked } from "./lock";
 import { useImageSession, type Standing } from "./session";
 import { EditTools, LayerControls } from "./tools";
 import type { ImageWorkbenchContext } from "./types";
+import { UnclearAlert, UnclearSection } from "./unclear";
 
 const STANDING: Record<Standing, { tone: StatusTone; label: () => string }> = {
   edited: { tone: "warning", label: m.annotation_standing_edited },
@@ -50,6 +52,8 @@ const STANDING: Record<Standing, { tone: StatusTone; label: () => string }> = {
 interface ImageSubjectProps {
   model: Model;
   review: Review;
+  /** The image's mark when a person found it unclear; null while it is clear. */
+  unclear: UnclearMark | null;
   source?: ReviewSource;
   /** Shows another reading; none returns to the best. */
   onSourceChange: (source: ReviewSource | undefined) => void;
@@ -116,12 +120,14 @@ export function ImageWorkbenchSkeleton({
  * stores the boxes as the image's review and stays: it saves edits, or
  * confirms a machine's reading taken as it is, as Mod+S does. On a reviewed image it leads
  * to the next one still to review. Where an AI proposal is on view, the places it
- * asks a person to check are outlined, counted and stepped through. Mounted
+ * asks a person to check are outlined, counted and stepped through. Whether
+ * the photograph is clear is said beside it and saved on its own. Mounted
  * under a key of its image, so nothing of one image carries into the next.
  */
 export function ImageSubject({
   model,
   review,
+  unclear,
   source,
   onSourceChange,
   onNext,
@@ -214,6 +220,11 @@ export function ImageSubject({
         </WorkbenchAlert>
       ) : null}
       {context.alert ? <WorkbenchAlert>{context.alert}</WorkbenchAlert> : null}
+      {unclear ? (
+        <WorkbenchAlert>
+          <UnclearAlert mark={unclear} />
+        </WorkbenchAlert>
+      ) : null}
       <WorkbenchToolbar label={m.annotation_tools()} inert={saving}>
         <ActionIcon
           icon={locked ? LockOpen : Lock}
@@ -259,6 +270,7 @@ export function ImageSubject({
           onStep={stepCheck}
         />
         {context.sections}
+        <UnclearSection digest={review.ref.digest} mark={unclear} />
         <DetailsSection review={review} facts={context.facts} />
       </WorkbenchInspector>
       <ImageViewport

@@ -66,6 +66,10 @@ mock.module("../src/functions/review", () => ({
     });
   },
 }));
+mock.module("../src/functions/images", () => ({
+  markUnclear: async () => {},
+  clearUnclear: async () => {},
+}));
 const { ImageWorkbench } =
   await import("../src/features/annotation/ImageWorkbench");
 const { SEED_DETECTOR } = await import("../src/domain/models/builtins");
@@ -117,6 +121,7 @@ const render = ({
       title: "Seed",
       model: SEED_DETECTOR,
       review,
+      unclear: null,
       source,
       onSourceChange(next) {
         sourceChanges++;

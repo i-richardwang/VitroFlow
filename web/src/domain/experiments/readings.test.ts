@@ -7,7 +7,9 @@ import {
   countChange,
   imageReading,
   observationCells,
+  readingIsTrusted,
   resolveCountedClasses,
+  unclearAt,
   unitReading,
 } from "./readings";
 
@@ -27,6 +29,7 @@ function cell(
     proposalTally: null,
     annotationTally: null,
     error: null,
+    unclear: null,
     ...overrides,
   };
 }
@@ -188,6 +191,27 @@ describe("how a unit's count changed between two days", () => {
       ),
     ).toBeNull();
   });
+
+  test("nothing from a photograph found unclear and not counted", () => {
+    const mark = (counted: boolean) => ({
+      counted,
+      note: "",
+      recordedAt: "2026-09-08T09:00:00.000Z",
+    });
+    expect(
+      countChange(
+        { observation: day0, image: { ...before, unclear: mark(false) } },
+        { observation: day7, image: after },
+      ),
+    ).toBeNull();
+    // Counted anyway, the number stands and the change is measured.
+    expect(
+      countChange(
+        { observation: day0, image: { ...before, unclear: mark(true) } },
+        { observation: day7, image: after },
+      ),
+    ).toBe(13);
+  });
 });
 
 describe("which classes a day counts", () => {
@@ -210,5 +234,49 @@ describe("which classes a day counts", () => {
     expect(() => resolveCountedClasses(SEED_CLASSES, ["shoot"])).toThrow(
       UnknownClassError,
     );
+  });
+});
+
+describe("an unclear photograph", () => {
+  const day0 = observation(1);
+  const day7 = observation(2);
+  const mark = (counted: boolean) => ({
+    counted,
+    note: "Lid fogged",
+    recordedAt: "2026-09-08T09:00:00.000Z",
+  });
+
+  test("not counted, leaves its own day without a trusted number", () => {
+    const cells = observationCells([
+      cell("dish", day0.id, {
+        detectionTally: { germinated: 4 },
+        unclear: mark(false),
+      }),
+      cell("dish", day7.id, { detectionTally: { germinated: 9 } }),
+    ]);
+    // The number is still read, and shown; it is not trusted.
+    expect(unitReading(cells, "dish", day0)).toEqual(unreviewed(4));
+    expect(readingIsTrusted(cells, "dish", day0)).toBe(false);
+    expect(unclearAt(cells, "dish", day0)?.note).toBe("Lid fogged");
+    // A one-day gap: the unit's later day reads as it is.
+    expect(readingIsTrusted(cells, "dish", day7)).toBe(true);
+    expect(unclearAt(cells, "dish", day7)).toBeNull();
+  });
+
+  test("counted anyway, is trusted and still carries its mark", () => {
+    const cells = observationCells([
+      cell("dish", day0.id, {
+        detectionTally: { germinated: 4 },
+        unclear: mark(true),
+      }),
+    ]);
+    expect(readingIsTrusted(cells, "dish", day0)).toBe(true);
+    expect(unclearAt(cells, "dish", day0)?.counted).toBe(true);
+  });
+
+  test("a clear photograph, or none, is trusted", () => {
+    const cells = observationCells([cell("dish", day0.id)]);
+    expect(readingIsTrusted(cells, "dish", day0)).toBe(true);
+    expect(readingIsTrusted(cells, "other", day0)).toBe(true);
   });
 });

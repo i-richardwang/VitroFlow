@@ -5,6 +5,7 @@ import { detectionResultSchema } from "../detection/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { MAX_IMAGE_BYTES } from "../images/canonical";
 import { imageDigestSchema } from "../images/schema";
+import { unclearMarkSchema } from "../images/unclear";
 import { classListSchema } from "../models/classes";
 import { IMAGE_SPLITS } from "../training/schema";
 import { datasetNameSchema } from "./schema";
@@ -18,9 +19,10 @@ export class DatasetManifestTooLargeError extends Error {}
 /**
  * A dataset as it travels between workbenches and data roots: the images by
  * digest, their membership, the reviews recorded for the model, and the
- * detection each image currently shows. Reviews and memberships are what an
- * importing workbench keeps; detections are what its own versions found and
- * are carried for readers of the manifest, never imported.
+ * detection each image currently shows. Reviews, memberships and the marks
+ * of photographs found unclear are what an importing workbench keeps;
+ * detections are what its own versions found and are carried for readers of
+ * the manifest, never imported. A clear image carries no mark.
  */
 const datasetManifestImageSchema = z
   .strictObject({
@@ -32,6 +34,7 @@ const datasetManifestImageSchema = z
     split: z.enum(IMAGE_SPLITS).nullable(),
     detection: detectionResultSchema.nullable(),
     annotation: annotationSchema.nullable(),
+    unclear: unclearMarkSchema.pick({ counted: true, note: true }).optional(),
   })
   .superRefine((image, context) => {
     for (const [field, document] of [

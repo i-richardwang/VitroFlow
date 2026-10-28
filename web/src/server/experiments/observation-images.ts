@@ -35,7 +35,7 @@ import {
 } from "./records";
 import { addObservation } from "./observations";
 import { readExperimentObservationImage } from "./queries";
-import { lockImage } from "../images/public";
+import { lockImage, markImagesUnclear } from "../images/public";
 import { retryInferenceTask } from "../inference/public";
 
 /** Adds an observation day and matches the photographs taken on it to their units, together. */
@@ -194,6 +194,19 @@ export async function assignObservationImages(
         imageId: assignment.digest,
         filename: assignment.filename,
       })),
+    );
+    // A photograph known to be unclear is marked in the same step that
+    // places it; the mark is the image's, so it stays if the image moves.
+    await markImagesUnclear(
+      new Map(
+        assignments.flatMap((assignment) =>
+          assignment.unclear
+            ? [[assignment.digest, assignment.unclear] as const]
+            : [],
+        ),
+      ),
+      null,
+      tx,
     );
     return {
       observation: requireObservation(
