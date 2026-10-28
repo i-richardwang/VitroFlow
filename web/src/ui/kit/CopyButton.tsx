@@ -4,11 +4,20 @@ import { m } from "../../paraglide/messages";
 import { ActionIcon } from "./ActionIcon";
 import { toast } from "./Toast";
 
-/* Writes `content` to the clipboard on press, then shows a check for a moment. */
+/*
+ * Writes `content` to the clipboard on press, then shows a check for a
+ * moment. `title` names what is copied when "Copy" alone would not.
+ */
 
 const COPIED_MS = 2000;
 
-export function CopyButton({ content }: { content: string }) {
+export function CopyButton({
+  content,
+  title = m.ui_copy_button_copy(),
+}: {
+  content: string;
+  title?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -19,7 +28,7 @@ export function CopyButton({ content }: { content: string }) {
 
   return (
     <ActionIcon
-      title={m.ui_copy_button_copy()}
+      title={title}
       size="small"
       active={copied}
       icon={copied ? Check : Copy}

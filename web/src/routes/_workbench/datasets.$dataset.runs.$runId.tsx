@@ -34,10 +34,8 @@ import { m } from "../../paraglide/messages";
 import type { TrainingRunDetail } from "../../domain/training/read-model";
 import { datasetCrumbs } from "../../features/models/crumbs";
 import { bestEpoch } from "../../domain/training/metrics";
-import {
-  isTrainingRunActive,
-  trainingRunLabel,
-} from "../../domain/training/schema";
+import { identifierLabel } from "../../domain/identifiers/schema";
+import { isTrainingRunActive } from "../../domain/training/schema";
 
 export const Route = createFileRoute(
   "/_workbench/datasets/$dataset/runs/$runId",
@@ -55,7 +53,7 @@ export const Route = createFileRoute(
         (loaderData as TrainingRunDetail).model,
         (loaderData as TrainingRunDetail).dataset,
       ),
-      { label: trainingRunLabel({ id: params.runId }) },
+      { label: identifierLabel(params.runId) },
     ],
   },
   head: ({ params, loaderData }) => ({
@@ -63,7 +61,7 @@ export const Route = createFileRoute(
       {
         title: documentTitle(
           m.training_run_page_title({
-            run: trainingRunLabel({ id: params.runId }),
+            run: identifierLabel(params.runId),
             dataset: loaderData?.dataset.name ?? "",
           }),
         ),
@@ -103,7 +101,7 @@ function TrainingRunPage() {
 
   return (
     <Page
-      title={trainingRunLabel(run)}
+      title={identifierLabel(run.id)}
       icon={ChartLine}
       status={<TrainingRunState run={run} />}
       action={

@@ -22,7 +22,11 @@ export interface TrainingSummary {
 
 export interface VersionOverview {
   version: ModelVersion;
-  trainingImages: number | null;
+  /**
+   * The run that trained the version, in its training set, and how many
+   * images it trained on; null for a built-in or imported version.
+   */
+  training: { runId: string; datasetId: string; images: number } | null;
   /** Whether this is the version that reads the model's images. */
   current: boolean;
   /**

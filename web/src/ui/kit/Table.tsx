@@ -49,6 +49,9 @@ import { Icon } from "./Icon";
  *   content is passing under.
  * - `numeric`: the column holds figures, set at the end edge in tabular digits
  *   so they line up; header and body cells of the column both take it.
+ * - Grouped columns: a second header row names the columns under each group,
+ *   whose head spans them (`colSpan`); the columns outside a group head both
+ *   rows (`rowSpan`).
  * - `narrow="cards"`: below 600px of table width each row becomes a card
  *   whose cells carry their `cellLabel` on the left; the default `"scroll"`
  *   scrolls horizontally when the table is wider than its box.

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { m } from "../../paraglide/messages";
 import type { TrainingRunSummary } from "../../domain/training/read-model";
-import { trainingRunLabel } from "../../domain/training/schema";
 import {
   Table,
   TableBody,
@@ -16,6 +15,7 @@ import { TextLink } from "../../ui/kit/TextLink";
 import { Progress } from "../../ui/kit/Progress";
 import { Tooltip } from "../../ui/kit/Tooltip";
 import { Absent } from "../../ui/Absent";
+import { IdentifierName } from "../../ui/IdentifierName";
 import { Metric } from "../../ui/Metric";
 import { TrainingRunState } from "./TrainingRunState";
 
@@ -59,16 +59,19 @@ export function TrainingRunsTable({
           <TableRow key={run.id} clickable>
             <TableCell cellSlot="title">
               <span className="flex items-center gap-2">
-                <TextLink
+                <IdentifierName
+                  id={run.id}
                   render={
-                    <Link
-                      to="/datasets/$dataset/runs/$runId"
-                      params={{ dataset: dataset.id, runId: run.id }}
+                    <TextLink
+                      render={
+                        <Link
+                          to="/datasets/$dataset/runs/$runId"
+                          params={{ dataset: dataset.id, runId: run.id }}
+                        />
+                      }
                     />
                   }
-                >
-                  {trainingRunLabel(run)}
-                </TextLink>
+                />
                 <Tooltip
                   title={run.state.status === "failed" ? run.state.error : null}
                 >
@@ -95,7 +98,7 @@ export function TrainingRunsTable({
             </TableCell>
             <TableCell cellLabel={m.run_column_version()}>
               {run.state.status === "succeeded" ? (
-                run.state.modelVersionId
+                <IdentifierName id={run.state.modelVersionId} />
               ) : (
                 <Absent />
               )}

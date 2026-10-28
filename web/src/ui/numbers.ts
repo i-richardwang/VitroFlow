@@ -31,3 +31,20 @@ export function formatNumber(value: number): string {
 export function formatPercent(ratio: number): string {
   return format(ratio, { style: "percent", maximumFractionDigits: 0 });
 }
+
+/** A change in a measured value, signed, to a fixed number of decimals. */
+export function formatDecimalChange(value: number, digits: number): string {
+  return format(value, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    signDisplay: "exceptZero",
+  });
+}
+
+/** A change in a count, whole and signed. */
+export function formatCountChange(value: number): string {
+  return format(value, {
+    maximumFractionDigits: 0,
+    signDisplay: "exceptZero",
+  });
+}

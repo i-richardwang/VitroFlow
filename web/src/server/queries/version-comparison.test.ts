@@ -63,8 +63,8 @@ test("a candidate is scored against the reviewers' counts on the held-out images
     current: { read: 2, failed: 0 },
     scored: 2,
     accuracy: {
-      candidate: { meanError: { ungerminated: 0.5, germinated: 0 }, exact: 1 },
-      current: { meanError: { ungerminated: 1.5, germinated: 1.5 }, exact: 1 },
+      candidate: { meanError: { ungerminated: 0.5, germinated: 0 } },
+      current: { meanError: { ungerminated: 1.5, germinated: 1.5 } },
     },
   });
   expect(comparison!.images.map((image) => image.digest)).not.toContain(
@@ -77,14 +77,24 @@ test("a candidate is scored against the reviewers' counts on the held-out images
 
   const versions = (await modelOverview(candidate.modelId))!.versions;
   expect(
-    versions.map(({ version, current, comparison }) => ({
+    versions.map(({ version, training, current, comparison }) => ({
       id: version.id,
+      training,
       current,
       scored: comparison?.scored ?? null,
     })),
   ).toEqual([
-    { id: candidate.id, current: false, scored: 2 },
-    { id: baseline.id, current: true, scored: null },
+    {
+      id: candidate.id,
+      training: {
+        runId: "compare-detector.compare-v2.run",
+        datasetId: expect.any(String),
+        images: 4,
+      },
+      current: false,
+      scored: 2,
+    },
+    { id: baseline.id, training: null, current: true, scored: null },
   ]);
 
   await setCurrentVersion({ model: candidate.modelId, version: candidate.id });

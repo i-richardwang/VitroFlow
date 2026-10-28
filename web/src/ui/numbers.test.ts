@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   formatCount,
+  formatCountChange,
   formatDecimal,
+  formatDecimalChange,
   formatNumber,
   formatPercent,
 } from "./numbers";
@@ -23,5 +25,11 @@ describe("formatting", () => {
 
   test("ratios read as whole percents", () => {
     expect(formatPercent(0.426)).toBe("43%");
+  });
+
+  test("changes carry their sign, and no change none", () => {
+    expect(formatDecimalChange(51.48, 2)).toBe("+51.48");
+    expect(formatCountChange(-158)).toBe("-158");
+    expect(formatCountChange(0)).toBe("0");
   });
 });
