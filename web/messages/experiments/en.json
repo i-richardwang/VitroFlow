@@ -198,6 +198,7 @@
   "unit_steps": "Units and observation days",
   "unit_compare": "Compare with another day",
   "unit_compare_reference": "Day to compare with",
+  "unit_compare_change": "Change",
   "unit_unreviewed_count": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],

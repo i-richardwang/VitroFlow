@@ -70,6 +70,7 @@ const { ImageWorkbench } =
   await import("../src/features/annotation/ImageWorkbench");
 const { SEED_DETECTOR } = await import("../src/domain/models/builtins");
 const { m } = await import("../src/paraglide/messages");
+const { className } = await import("../src/ui/model-names");
 const imageSize = { digest: "a".repeat(64), width: 1000, height: 800 };
 const annotation = {
   schemaVersion: 1 as const,
@@ -107,7 +108,10 @@ const review = {
 let source: "review" | "proposal" | "detection" | undefined;
 let sourceChanges = 0;
 let nexts = 0;
-const render = (onNext?: () => void) =>
+const render = ({
+  onNext,
+  counted,
+}: { onNext?: () => void; counted?: string[] } = {}) =>
   renderNode(
     createElement(ImageWorkbench, {
       title: "Seed",
@@ -119,6 +123,7 @@ const render = (onNext?: () => void) =>
         source = next;
       },
       onNext,
+      context: { counted },
     }),
   );
 /** A busy button stays focusable and shows it is busy. */
@@ -215,6 +220,23 @@ await render();
 assert.equal(boxes(), 1);
 assert.equal(checks(), 0, "the review outranks the agent's proposal");
 
+const countedOnly = m.annotation_counted_classes({
+  classes: className("germinated"),
+});
+assert.ok(!says(countedOnly), "an image counting every class names none");
+await render({ counted: ["germinated"] });
+assert.ok(says(countedOnly), "an image counting fewer classes names them");
+assert.ok(
+  button(
+    m.annotation_named_count({
+      name: m.annotation_source_proposal(),
+      count: 0,
+    }),
+  ),
+  "each reading offers the sum over the classes its subject counts",
+);
+await render();
+
 const initial = surface.style.transform;
 await act(async () => {
   frame.dispatchEvent(
@@ -303,7 +325,7 @@ assert.equal(source, undefined);
 assert.equal(boxes(), 2, "the saved boxes stay until fresh readings arrive");
 assert.ok(says(m.annotation_standing_reviewed()));
 
-await render(() => nexts++);
+await render({ onNext: () => nexts++ });
 assert.ok(
   button(m.annotation_next_unreviewed()),
   "a reviewed image leads on to the next to review",

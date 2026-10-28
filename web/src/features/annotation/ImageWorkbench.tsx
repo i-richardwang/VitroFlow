@@ -216,11 +216,10 @@ export function ImageSubject({
       {context.alert ? <WorkbenchAlert>{context.alert}</WorkbenchAlert> : null}
       <WorkbenchToolbar label={m.annotation_tools()} inert={saving}>
         <ActionIcon
-          icon={locked ? Lock : LockOpen}
+          icon={locked ? LockOpen : Lock}
           size="small"
           title={locked ? m.annotation_unlock() : m.annotation_lock()}
           tooltipProps={{ placement: "bottom" }}
-          aria-pressed={locked}
           onClick={() => {
             session.setSelectedId(null);
             setEditLocked(!locked);
@@ -246,6 +245,7 @@ export function ImageSubject({
       <WorkbenchInspector>
         <CountsSection
           classes={model.classes}
+          counted={context.counted ?? model.classes}
           counts={tally(instances)}
           review={review}
           sources={sources}

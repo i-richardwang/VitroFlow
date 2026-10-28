@@ -4,6 +4,8 @@ import type { ObservationImageCell } from "./contracts";
 import type { ExperimentObservation } from "./schema";
 import { UnknownClassError } from "../models/errors";
 import {
+  countChange,
+  imageReading,
   observationCells,
   resolveCountedClasses,
   unitReading,
@@ -34,13 +36,14 @@ const SEED_CLASSES = ["ungerminated", "germinated"];
 function observation(
   ordinal: number,
   counted: string[] = SEED_CLASSES,
+  modelId = "seed-detector",
 ): ExperimentObservation {
   return {
     id: `observation-${ordinal}`,
     ordinal,
     observedOn: "2026-09-01",
     note: "",
-    modelId: "seed-detector",
+    modelId,
     countedClasses: counted,
     hasRecords: false,
   };
@@ -108,6 +111,82 @@ describe("what a grid reads", () => {
     const cells = observationCells([cell("dish", day0.id)]);
     expect(unitReading(cells, "dish", day0)).toBeNull();
     expect(unitReading(cells, "other", day0)).toBeNull();
+  });
+});
+
+describe("what a day's photograph reads", () => {
+  test("the classes its day counts, from the best reading it has", () => {
+    const day7 = observation(2, ["germinated"]);
+    const image = cell("dish", day7.id, {
+      detectionTally: { ungerminated: 4, germinated: 9 },
+      proposalTally: { ungerminated: 3, germinated: 11 },
+    });
+    expect(imageReading(image, day7)).toEqual({
+      count: 11,
+      source: "proposal",
+    });
+  });
+
+  test("nothing without a photograph or a reading of it", () => {
+    expect(imageReading(null, observation(1))).toBeNull();
+    const unread = cell("dish", "observation-1");
+    expect(imageReading(unread, observation(1))).toBeNull();
+  });
+});
+
+describe("how a unit's count changed between two days", () => {
+  const day0 = observation(1, ["germinated"]);
+  const day7 = observation(2, ["germinated"]);
+  const before = cell("dish", day0.id, {
+    annotationTally: { ungerminated: 20, germinated: 2 },
+  });
+  const after = cell("dish", day7.id, {
+    detectionTally: { ungerminated: 6, germinated: 15 },
+  });
+
+  test("the later count less the earlier, whoever read each", () => {
+    expect(
+      countChange(
+        { observation: day0, image: before },
+        { observation: day7, image: after },
+      ),
+    ).toBe(13);
+    expect(
+      countChange(
+        { observation: day7, image: after },
+        { observation: day0, image: before },
+      ),
+    ).toBe(-13);
+  });
+
+  test("nothing when the days count different classes", () => {
+    expect(
+      countChange(
+        { observation: observation(1), image: before },
+        { observation: day7, image: after },
+      ),
+    ).toBeNull();
+  });
+
+  test("nothing when the days read with different models", () => {
+    expect(
+      countChange(
+        { observation: day0, image: before },
+        {
+          observation: observation(2, ["germinated"], "shoot-detector"),
+          image: after,
+        },
+      ),
+    ).toBeNull();
+  });
+
+  test("nothing while either day has no reading", () => {
+    expect(
+      countChange(
+        { observation: day0, image: null },
+        { observation: day7, image: after },
+      ),
+    ).toBeNull();
   });
 });
 

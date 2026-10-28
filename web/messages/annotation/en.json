@@ -3,6 +3,7 @@
   "annotation_source_review": "Review",
   "annotation_source_detected": "Model count",
   "annotation_counts": "Counts",
+  "annotation_counted_classes": "Only {classes}",
   "annotation_detection_version": "Version",
   "annotation_detection_threshold": "Threshold",
   "annotation_discard_confirm": "Discard unsaved changes?",

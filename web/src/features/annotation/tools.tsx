@@ -114,8 +114,7 @@ export function LayerControls({
         icon={LAYER_ICONS[key]}
         size="small"
         title={LAYER_LABELS[key]()}
-        active={on}
-        aria-pressed={on}
+        pressed={on}
         onClick={() => {
           const next = new Set(layers);
           if (on) next.delete(key);

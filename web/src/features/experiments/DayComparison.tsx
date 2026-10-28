@@ -2,12 +2,17 @@ import { ImageOff } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { observationLabel } from "./labels";
+import { UnitDayCount } from "./UnitDayCount";
 import type { UnitSeries } from "../../domain/experiments/contracts";
+import type { ExperimentObservation } from "../../domain/experiments/schema";
+import { countChange } from "../../domain/experiments/readings";
 import { m } from "../../paraglide/messages";
-import { Empty } from "../../ui/kit/Empty";
+import { Descriptions, DescriptionsItem } from "../../ui/kit/Descriptions";
 import { Select } from "../../ui/kit/Select";
 import { Skeleton } from "../../ui/kit/Skeleton";
 import { Toolbar } from "../../ui/kit/Toolbar";
+import { formatCountChange } from "../../ui/numbers";
+import { WorkbenchEmpty, WorkbenchSection } from "../../ui/shell/Workbench";
 import {
   ImageViewport,
   type ViewportLink,
@@ -99,10 +104,52 @@ export function DayComparison({
             />
           </ComparedDay>
         ) : (
-          <MissingPhoto />
+          <WorkbenchEmpty icon={ImageOff} title={m.unit_no_image_on_day()} />
         )
       }
     />
+  );
+}
+
+/**
+ * What the two days read, a row each in the order they stand, the reference
+ * day first, each read as the experiment's grid reads it. When both days
+ * count alike, the change between them follows, signed in the text color,
+ * since a count's rise is neither better nor worse.
+ */
+export function DayCountsSection({
+  reference,
+  inView,
+  included,
+}: {
+  reference: UnitObservation;
+  inView: UnitObservation | undefined;
+  /** Whether a day's count enters the analysis. */
+  included: (observation: ExperimentObservation) => boolean;
+}) {
+  const change = inView ? countChange(reference, inView) : null;
+  return (
+    <WorkbenchSection title={m.annotation_counts()}>
+      <Descriptions justified>
+        {[reference, ...(inView ? [inView] : [])].map((day) => (
+          <DescriptionsItem
+            key={day.observation.id}
+            label={observationLabel(day.observation)}
+          >
+            <UnitDayCount
+              image={day.image}
+              observation={day.observation}
+              included={included(day.observation)}
+            />
+          </DescriptionsItem>
+        ))}
+        {change === null ? null : (
+          <DescriptionsItem label={m.unit_compare_change()}>
+            {formatCountChange(change)}
+          </DescriptionsItem>
+        )}
+      </Descriptions>
+    </WorkbenchSection>
   );
 }
 
@@ -150,7 +197,7 @@ function ComparedDay({
           pending={pending}
         />
       ) : (
-        <MissingPhoto />
+        <WorkbenchEmpty icon={ImageOff} title={m.unit_no_image_on_day()} />
       )}
       <Toolbar
         aria-label={observationLabel(day.observation)}
@@ -159,13 +206,5 @@ function ComparedDay({
         {children}
       </Toolbar>
     </>
-  );
-}
-
-function MissingPhoto() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <Empty icon={ImageOff} title={m.unit_no_image_on_day()} />
-    </div>
   );
 }

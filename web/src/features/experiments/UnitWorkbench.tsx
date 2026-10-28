@@ -9,6 +9,7 @@ import type { ObservationImageRef } from "../../domain/experiments/schema";
 import {
   latestCultureEvent,
   observationOrdinals,
+  unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
@@ -50,6 +51,7 @@ import { useWorkbenchKeys } from "../annotation/keys";
 import {
   DayComparison,
   DayComparisonSkeleton,
+  DayCountsSection,
   referenceDay,
 } from "./DayComparison";
 import { CultureMenu, UnitMenu } from "./UnitMenu";
@@ -66,8 +68,8 @@ import { Text } from "../../ui/kit/Text";
  * With `compare`, the day in view stands beside another day of the same
  * unit instead of under its boxes, the other day on the left: the two
  * photographs zoom and pan as one, so a change in the dish is read in place.
- * Each side names and chooses its own day, in place of the footer's days;
- * steps keep both.
+ * Each side names and chooses its own day, in place of the footer's days,
+ * and the inspector leads with what both days read; steps keep both.
  */
 export function UnitWorkbench({
   series,
@@ -94,17 +96,18 @@ export function UnitWorkbench({
     experiment: experiment.name,
   });
   const observations = series.observations.map((item) => item.observation);
-  const latestEvent = latestCultureEvent(
-    unit.events,
-    observationOrdinals(observations),
-  );
+  const ordinals = observationOrdinals(observations);
+  const latestEvent = latestCultureEvent(unit.events, ordinals);
 
   const photographed = series.observations.filter((item) => item.image);
   // Only the days the unit was photographed on are chosen or stepped to. A
   // step along the units can still land on a day this one was not
-  // photographed on; that day stays among them while it is in view.
+  // photographed on; that day stays among them while it is in view. The day
+  // set beside it never is, so a step does not bring a day beside itself.
   const days = series.observations.filter(
-    (item) => item.image || item.observation.id === series.observation,
+    (item) =>
+      (item.image || item.observation.id === series.observation) &&
+      item.observation.id !== compare,
   );
   const reference = series.observations.find(
     (item) => item.observation.id === compare,
@@ -232,7 +235,7 @@ export function UnitWorkbench({
           size="small"
           title={m.unit_compare()}
           tooltipProps={{ hotkey: "c" }}
-          aria-pressed={reference !== undefined}
+          pressed={reference !== undefined}
           onClick={toggleCompare}
         />
       ) : null}
@@ -264,6 +267,13 @@ export function UnitWorkbench({
         {steps}
         <ShellActions>{menu}</ShellActions>
         <WorkbenchInspector>
+          <DayCountsSection
+            reference={reference}
+            inView={inView}
+            included={(observation) =>
+              unitIsIncludedInAnalysis(unit.events, observation, ordinals)
+            }
+          />
           {culture}
           <WorkbenchSection title={m.annotation_details()}>
             <Descriptions>
@@ -337,6 +347,7 @@ export function UnitWorkbench({
         stepping={pending}
         context={{
           menu,
+          counted: shown.observation.countedClasses,
           alert: shown.failure ? (
             <Alert
               type="error"
@@ -369,6 +380,9 @@ export function UnitWorkbenchSkeleton({
         actions={<Skeleton.Button icon />}
         subject={<DayComparisonSkeleton />}
       >
+        <WorkbenchSectionSkeleton>
+          <DescriptionsSkeleton justified rows={3} />
+        </WorkbenchSectionSkeleton>
         <WorkbenchSectionSkeleton>
           <Skeleton.Button size="small" />
         </WorkbenchSectionSkeleton>
