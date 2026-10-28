@@ -1,14 +1,13 @@
-import { classColor } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
 import { CheckboxGroup } from "../../ui/kit/Checkbox";
-import { ColorSwatch } from "../../ui/kit/ColorSwatch";
 import { Form } from "../../ui/kit/Form";
-import { className } from "../../ui/model-names";
+import { ClassLabel } from "../annotation/controls";
 
 /**
  * Which of its model's classes a day counts. A model with one class leaves
- * nothing to choose, and a day always counts at least one.
+ * nothing to choose, and a day always counts at least one, so the last class
+ * left checked holds.
  */
 export function CountedClassesField({
   disabled,
@@ -34,17 +33,12 @@ export function CountedClassesField({
         value={value}
         options={model.classes.map((name) => ({
           value: name,
-          label: (
-            <span className="inline-flex items-center gap-1.5">
-              <ColorSwatch color={classColor(model.classes, name).hex} />
-              {className(name)}
-            </span>
-          ),
+          label: <ClassLabel classes={model.classes} name={name} />,
+          disabled: value.length === 1 && value[0] === name,
         }))}
-        onChange={(next) => {
-          if (next.length === 0) return;
-          onChange(model.classes.filter((name) => next.includes(name)));
-        }}
+        onChange={(next) =>
+          onChange(model.classes.filter((name) => next.includes(name)))
+        }
       />
     </Form.Field>
   );

@@ -1,7 +1,8 @@
 /*
- * Block order: root, active, sizes. `&&` raises specificity to two classes so
- * the glyph color and size beat the button variant and size classes; active
- * comes after the root, so at the same specificity it wins, hovered or not.
+ * Block order: root and its pressed state, then sizes. `&&` raises
+ * specificity to two classes so the glyph color and size beat the button
+ * variant and size classes; the pressed state adds its attribute, so it wins,
+ * hovered or not.
  */
 
 .ui-action-icon {
@@ -16,15 +17,13 @@
   &&:active {
     color: var(--color-fg);
   }
-}
 
-.ui-action-icon-active {
-  && {
+  &&[aria-pressed="true"] {
     color: var(--color-fg);
     background: var(--color-fill-secondary);
   }
 
-  &&:hover {
+  &&[aria-pressed="true"]:hover {
     color: var(--color-fg);
     background: var(--color-fill);
   }

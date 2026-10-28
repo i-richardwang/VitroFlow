@@ -68,6 +68,8 @@ export function Checkbox({ children, ...rest }: CheckboxProps) {
 }
 
 export interface CheckboxGroupOption {
+  /** Holds the box as it is, such as the last box a group must keep checked. */
+  disabled?: boolean;
   label: ReactNode;
   value: string;
 }
@@ -94,7 +96,7 @@ export function CheckboxGroup({
       value={value}
     >
       {options.map((item) => (
-        <Checkbox key={item.value} value={item.value}>
+        <Checkbox key={item.value} value={item.value} disabled={item.disabled}>
           {item.label}
         </Checkbox>
       ))}

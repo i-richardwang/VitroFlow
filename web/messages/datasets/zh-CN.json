@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "datasets_empty": "还没有训练集",
   "dataset_download": "下载",
-  "dataset_rename": "重命名",
+  "dataset_rename": "重命名…",
   "dataset_rename_title": "重命名 {dataset}",
   "dataset_rename_save": "重命名",
   "dataset_rename_failed": "训练集未能重命名",

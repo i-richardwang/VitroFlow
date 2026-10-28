@@ -3,6 +3,7 @@
   "annotation_source_review": "复核",
   "annotation_source_detected": "模型计数",
   "annotation_counts": "计数",
+  "annotation_counted_classes": "只计{classes}",
   "annotation_detection_version": "版本",
   "annotation_detection_threshold": "阈值",
   "annotation_discard_confirm": "放弃未保存的修改？",

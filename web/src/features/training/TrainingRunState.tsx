@@ -1,14 +1,25 @@
 import {
   CircleCheck,
+  CirclePause,
+  CircleSlash,
   CircleX,
   Clock,
   LoaderCircle,
   type LucideIcon,
+  Unplug,
 } from "lucide-react";
 
 import { m } from "../../paraglide/messages";
-import type { TrainingRun } from "../../domain/training/schema";
+import type {
+  TrainingAttempt,
+  TrainingRun,
+} from "../../domain/training/schema";
 import { Status, type StatusProps, type StatusTone } from "../../ui/kit/Status";
+
+interface Look {
+  tone: StatusTone;
+  icon: LucideIcon;
+}
 
 const PHASE_LABELS = {
   preparing: m.run_state_preparing,
@@ -24,16 +35,24 @@ const STATUS_LABELS = {
   failed: m.run_state_failed,
 } as const;
 
-const LOOKS: Record<
-  TrainingRun["state"]["status"],
-  { tone: StatusTone; icon: LucideIcon }
-> = {
-  paused: { tone: "neutral", icon: Clock },
-  cancelled: { tone: "neutral", icon: CircleX },
+const LOOKS: Record<TrainingRun["state"]["status"], Look> = {
+  paused: { tone: "neutral", icon: CirclePause },
+  cancelled: { tone: "neutral", icon: CircleSlash },
   queued: { tone: "neutral", icon: Clock },
   running: { tone: "info", icon: LoaderCircle },
   succeeded: { tone: "success", icon: CircleCheck },
   failed: { tone: "error", icon: CircleX },
+};
+
+const OUTCOMES: Record<
+  NonNullable<TrainingAttempt["outcome"]>,
+  Look & { label: () => string }
+> = {
+  succeeded: { ...LOOKS.succeeded, label: m.run_state_succeeded },
+  failed: { ...LOOKS.failed, label: m.run_state_failed },
+  paused: { ...LOOKS.paused, label: m.run_state_paused },
+  cancelled: { ...LOOKS.cancelled, label: m.run_state_cancelled },
+  expired: { tone: "warning", icon: Unplug, label: m.attempt_state_expired },
 };
 
 /**
@@ -59,6 +78,29 @@ export function TrainingRunState({
       {state.status === "running"
         ? PHASE_LABELS[state.phase]()
         : STATUS_LABELS[state.status]()}
+    </Status>
+  );
+}
+
+/**
+ * How one attempt ended, in the looks of the run's own statuses; an attempt
+ * still under way reads as in progress and its glyph turns.
+ */
+export function TrainingAttemptState({
+  outcome,
+}: {
+  outcome: TrainingAttempt["outcome"];
+}) {
+  if (outcome === null)
+    return (
+      <Status tone={LOOKS.running.tone} icon={LOOKS.running.icon} spin>
+        {m.attempt_state_running()}
+      </Status>
+    );
+  const look = OUTCOMES[outcome];
+  return (
+    <Status tone={look.tone} icon={look.icon}>
+      {look.label()}
     </Status>
   );
 }

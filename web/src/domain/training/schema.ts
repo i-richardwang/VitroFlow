@@ -27,6 +27,7 @@ export const ACTIVE_TRAINING_RUN_STATUSES = ["queued", "running"] as const;
 const ACTIVE_TRAINING_RUN_STATUS_SET = new Set<string>(
   ACTIVE_TRAINING_RUN_STATUSES,
 );
+const RESUMABLE_TRAINING_RUN_STATUS_SET = new Set<string>(["paused", "failed"]);
 
 const snapshotImageSchema = z
   .strictObject({
@@ -219,6 +220,13 @@ export type TrainingEpoch = z.infer<typeof trainingEpochSchema>;
 
 export function isTrainingRunActive(run: Pick<TrainingRun, "state">): boolean {
   return ACTIVE_TRAINING_RUN_STATUS_SET.has(run.state.status);
+}
+
+/** A paused or failed run can be continued. */
+export function isTrainingRunResumable(
+  run: Pick<TrainingRun, "state">,
+): boolean {
+  return RESUMABLE_TRAINING_RUN_STATUS_SET.has(run.state.status);
 }
 
 const TRAINING_RUN_ID_PREFIX = "train-";

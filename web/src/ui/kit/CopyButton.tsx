@@ -30,7 +30,6 @@ export function CopyButton({
     <ActionIcon
       title={title}
       size="small"
-      active={copied}
       icon={copied ? Check : Copy}
       onClick={async () => {
         try {

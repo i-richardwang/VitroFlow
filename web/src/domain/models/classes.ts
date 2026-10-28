@@ -38,13 +38,31 @@ export function tally(instances: readonly { class: string }[]): Tally {
   return counts;
 }
 
-export function count(counts: Tally): number {
-  return Object.values(counts).reduce((sum, found) => sum + found, 0);
-}
-
 /** How many instances of the named classes a tally holds, together. */
 export function countClasses(counts: Tally, names: readonly string[]): number {
   return names.reduce((sum, name) => sum + classCount(counts, name), 0);
+}
+
+/** Whether two lists name the same classes in the same order. */
+export function sameClasses(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((name, index) => name === right[index])
+  );
+}
+
+/**
+ * Whether the classes a count sums are every class its model finds, or
+ * narrow it to some of them.
+ */
+export function countsEveryClass(
+  counted: readonly string[],
+  modelClasses: readonly string[],
+): boolean {
+  return counted.length === modelClasses.length;
 }
 
 /**

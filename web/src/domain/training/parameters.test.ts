@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
 
-import { YOLO26N_WHOLE_RECIPE } from "./recipes";
+import { YOLO26N_WHOLE_RECIPE, YOLO26S_WHOLE_RECIPE } from "./recipes";
 import {
   PARAMETER_FIELDS,
   PARAMETER_GROUPS,
 } from "../../features/training/parameter-fields";
 import {
+  effectiveOverrides,
   trainingOverridesSchema,
   trainingParametersSchema,
 } from "./parameters";
@@ -60,4 +61,13 @@ test("every parameter belongs to exactly one group, and every editable one is of
 test("omitted accumulation settings retain runtime semantics without rewriting a recipe", () => {
   const { nbs: _, ...parameters } = YOLO26N_WHOLE_RECIPE.parameters;
   expect(trainingParametersSchema.parse(parameters)).toEqual(parameters);
+});
+
+test("adjustments carried to another preset drop those it already makes", () => {
+  expect(
+    effectiveOverrides(
+      { batch: 1, epochs: 80, nbs: 8 },
+      YOLO26S_WHOLE_RECIPE.parameters,
+    ),
+  ).toEqual({ epochs: 80 });
 });

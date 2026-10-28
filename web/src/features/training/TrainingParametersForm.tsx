@@ -3,78 +3,102 @@ import type {
   TrainingParameters,
 } from "../../domain/training/parameters";
 import { m } from "../../paraglide/messages";
+import { Button } from "../../ui/kit/Button";
 import { Form } from "../../ui/kit/Form";
 import { InputNumber } from "../../ui/kit/Input";
-import { Text } from "../../ui/kit/Text";
 import { PARAMETER_FIELDS, type ParameterField } from "./parameter-fields";
 
-interface ParameterInputsProps {
+interface TrainingParametersFormProps {
   parameters: TrainingParameters;
   overrides: TrainingOverrides;
   onChange: (value: TrainingOverrides) => void;
   disabled: boolean;
 }
 
+const BASIC_FIELDS = PARAMETER_FIELDS.filter((field) => !field.advanced);
+const ADVANCED_FIELDS = PARAMETER_FIELDS.filter((field) => field.advanced);
+
 /** Display resolved values while retaining only the user's adjustments. */
-export function TrainingParametersForm(props: ParameterInputsProps) {
+export function TrainingParametersForm(props: TrainingParametersFormProps) {
   return (
     <>
-      <Form.Group title={m.parameter_group_training()}>
-        <ParameterInputs
-          {...props}
-          fields={PARAMETER_FIELDS.filter((field) => !field.advanced)}
-        />
-      </Form.Group>
-      <details>
-        <summary>{m.train_advanced_parameters()}</summary>
-        <Text size="sm" type="secondary">
-          {m.train_advanced_help()}
-        </Text>
-        <ParameterInputs
-          {...props}
-          fields={PARAMETER_FIELDS.filter((field) => field.advanced)}
-        />
-      </details>
+      <ParametersGroup
+        {...props}
+        title={m.train_parameters()}
+        fields={BASIC_FIELDS}
+      />
+      <ParametersGroup
+        {...props}
+        title={m.train_advanced_parameters()}
+        fields={ADVANCED_FIELDS}
+        collapsible
+      />
     </>
   );
 }
 
-function ParameterInputs({
+/** Fields under one heading, which restores its own fields to the preset's values. */
+function ParametersGroup({
   parameters,
   overrides,
   onChange,
   disabled,
+  title,
+  collapsible,
   fields,
-}: ParameterInputsProps & { fields: ParameterField[] }) {
+}: TrainingParametersFormProps & {
+  title: string;
+  collapsible?: boolean;
+  fields: ParameterField[];
+}) {
+  const adjusted = fields.some((field) => overrides[field.key] !== undefined);
   return (
-    <div className="grid gap-4 mobile:grid-cols-2">
-      {fields.map((field) => (
-        <Form.Field
-          key={field.key}
-          label={field.label()}
-          desc={
-            parameters[field.key] === undefined
-              ? m.parameter_runtime_default()
-              : undefined
-          }
-        >
-          <InputNumber
-            value={overrides[field.key] ?? parameters[field.key] ?? null}
-            min={field.min}
-            max={field.max}
-            step={field.step}
-            format={{ maximumFractionDigits: 5 }}
+    <Form.Group
+      title={title}
+      collapsible={collapsible}
+      extra={
+        adjusted ? (
+          <Button
+            size="small"
+            type="text"
             disabled={disabled}
-            onChange={(value) => {
+            onClick={() => {
               const next = { ...overrides };
-              if (value === null || value === parameters[field.key])
-                delete next[field.key];
-              else next[field.key] = value;
+              for (const field of fields) delete next[field.key];
               onChange(next);
             }}
-          />
-        </Form.Field>
-      ))}
-    </div>
+          >
+            {m.train_restore_preset()}
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="grid gap-4 mobile:grid-cols-2">
+        {fields.map((field) => (
+          <Form.Field
+            key={field.key}
+            label={field.label()}
+            desc={field.help?.()}
+          >
+            <InputNumber
+              value={overrides[field.key] ?? parameters[field.key] ?? null}
+              placeholder={m.parameter_runtime_default()}
+              min={field.min}
+              max={field.max}
+              step={field.step}
+              format={{ maximumFractionDigits: 5 }}
+              disabled={disabled}
+              onChange={(value) => {
+                const next = { ...overrides };
+                if (value === null || value === parameters[field.key])
+                  delete next[field.key];
+                else next[field.key] = value;
+                onChange(next);
+              }}
+            />
+          </Form.Field>
+        ))}
+      </div>
+    </Form.Group>
   );
 }

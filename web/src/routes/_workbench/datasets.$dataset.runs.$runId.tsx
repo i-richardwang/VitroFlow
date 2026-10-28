@@ -17,16 +17,16 @@ import {
   ParametersList,
   ParametersListSkeleton,
 } from "../../features/training/ParametersList";
-import { TrainingRunActivity } from "../../features/training/TrainingRunActivity";
-import { TrainingControls } from "../../features/training/TrainingControls";
-import { TrainingRunState } from "../../features/training/TrainingRunState";
+import { ResumeTrainingDialog } from "../../features/training/ResumeTrainingDialog";
+import { TrainingAttempts } from "../../features/training/TrainingAttempts";
+import { TrainingRunMenu } from "../../features/training/TrainingRunMenu";
+import { useTrainingRunControl } from "../../features/training/run-control";
 import { getTrainingRun } from "../../functions/training";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
-import { Alert } from "../../ui/kit/Alert";
 import { Button } from "../../ui/kit/Button";
 import { Card } from "../../ui/kit/Card";
 import { Empty, EmptyPlace } from "../../ui/kit/Empty";
-import { PageHeaderSkeleton } from "../../ui/kit/PageSkeleton";
+import { PageHeaderSkeleton, TableSkeleton } from "../../ui/kit/PageSkeleton";
 import { ProgressMeter } from "../../ui/kit/Progress";
 import { StatisticHero, StatisticHeroSkeleton } from "../../ui/kit/Statistic";
 import { documentTitle } from "../../ui/documentTitle";
@@ -35,7 +35,11 @@ import type { TrainingRunDetail } from "../../domain/training/read-model";
 import { datasetCrumbs } from "../../features/models/crumbs";
 import { bestEpoch } from "../../domain/training/metrics";
 import { identifierLabel } from "../../domain/identifiers/schema";
-import { isTrainingRunActive } from "../../domain/training/schema";
+import {
+  isTrainingRunActive,
+  isTrainingRunResumable,
+  type TrainingRun,
+} from "../../domain/training/schema";
 
 export const Route = createFileRoute(
   "/_workbench/datasets/$dataset/runs/$runId",
@@ -78,6 +82,9 @@ export const Route = createFileRoute(
         </Card>
       </PageSectionSkeleton>
       <PageSectionSkeleton>
+        <TableSkeleton rows={2} />
+      </PageSectionSkeleton>
+      <PageSectionSkeleton>
         <Card>
           <ParametersListSkeleton />
         </Card>
@@ -91,19 +98,37 @@ function TrainingRunPage() {
   const detail = Route.useLoaderData();
   const { run, epochs, version, model, current } = detail;
   const live = isTrainingRunActive(run);
+  const control = useTrainingRunControl(detail);
 
-  useRouteRefresh(10_000, live);
+  // A run waiting for another of its model reads again as that one moves.
+  useRouteRefresh(10_000, live || detail.blockedBy !== null);
 
   const best = bestEpoch(epochs);
   const total = run.recipe.parameters.epochs;
   const published =
     version && version.artifact.kind === "ultralytics" ? version : null;
+  const placement = runPlacement(run);
+  const lead = published
+    ? m.training_kpi_published({ version: identifierLabel(published.id) })
+    : best
+      ? m.training_kpi_best_epoch({ epoch: best.epoch })
+      : null;
+  const saved =
+    run.checkpoint && (live || isTrainingRunResumable(run))
+      ? m.training_kpi_saved({ epoch: run.checkpoint.epoch })
+      : null;
 
   return (
     <Page
       title={identifierLabel(run.id)}
       icon={ChartLine}
-      status={<TrainingRunState run={run} />}
+      status={
+        <TrainingRunMenu
+          run={run}
+          blocked={detail.blockedBy !== null}
+          control={control}
+        />
+      }
       action={
         published && !current ? (
           <Button
@@ -121,28 +146,18 @@ function TrainingRunPage() {
       }
       meta={[
         run.recipe.baseModel.reference,
+        m.training_runtime({
+          framework: run.recipe.runtime.framework,
+          version: run.recipe.runtime.version,
+        }),
         <Timestamp key="created" value={run.createdAt} />,
+        ...(placement ? [placement] : []),
       ]}
     >
-      <Card>
-        <div className="flex flex-col gap-4">
-          <TrainingRunActivity detail={detail} />
-          <TrainingControls
-            key={`${detail.run.id}:${detail.run.attempt}:${detail.run.targetWorkerId}`}
-            detail={detail}
-          />
-        </div>
-      </Card>
       <StatisticHero
         title={m.training_kpi_best_map()}
         value={<Metric value={best?.map50To95 ?? null} />}
-        facts={
-          published
-            ? [m.training_kpi_published({ version: published.id })]
-            : best
-              ? [m.training_kpi_best_epoch({ epoch: best.epoch })]
-              : undefined
-        }
+        facts={[lead, saved].filter((fact) => fact !== null)}
         aside={
           <ProgressMeter
             label={m.training_kpi_epochs()}
@@ -154,21 +169,11 @@ function TrainingRunPage() {
       />
 
       <PageSection title={m.training_curves()}>
-        {run.state.status === "failed" ? (
-          <Alert
-            type="error"
-            title={m.training_failed_title()}
-            description={
-              epochs.length === 0 ? m.training_no_epochs_finished() : undefined
-            }
-            detail={run.state.error}
-          />
-        ) : null}
         {epochs.length > 0 ? (
           <Card>
             <EpochCharts epochs={epochs} total={total} best={best} />
           </Card>
-        ) : run.state.status === "failed" ? null : (
+        ) : (
           <EmptyPlace variant="outlined">
             <Empty
               icon={ChartLine}
@@ -182,11 +187,32 @@ function TrainingRunPage() {
         )}
       </PageSection>
 
+      <PageSection title={m.training_attempts()}>
+        <TrainingAttempts detail={detail} control={control} />
+      </PageSection>
+
       <PageSection title={m.training_parameters()}>
         <Card>
           <ParametersList parameters={run.recipe.parameters} />
         </Card>
       </PageSection>
+      {isTrainingRunResumable(run) ? (
+        <ResumeTrainingDialog
+          detail={detail}
+          open={control.resuming}
+          onClose={control.closeResume}
+        />
+      ) : null}
     </Page>
   );
+}
+
+/** Where a queued or running run runs, or will. */
+function runPlacement({ state, targetWorkerId }: TrainingRun) {
+  if (state.status === "running")
+    return m.training_running_worker({ worker: state.workerId });
+  if (state.status !== "queued") return null;
+  return targetWorkerId
+    ? m.training_waiting_worker({ worker: targetWorkerId })
+    : m.training_waiting_auto();
 }

@@ -289,6 +289,23 @@ export async function readTrainingRun(
   return row ? toRun(row) : null;
 }
 
+/**
+ * Whether a run's worker still holds it at `at`, judged as a claim judges
+ * it; a run nobody runs is held by no one.
+ */
+export async function trainingLeaseHeld(
+  runId: string,
+  at: Date,
+): Promise<boolean> {
+  const [row] = await (
+    await database()
+  )
+    .select({ held: leaseIsHeld(trainingRuns, at) })
+    .from(trainingRuns)
+    .where(eq(trainingRuns.id, runId));
+  return row?.held === true;
+}
+
 /** The newest runs, of one training set or of every set training one model. */
 export async function listTrainingRunSummaries(
   of: { datasetId: string } | { modelId: string },

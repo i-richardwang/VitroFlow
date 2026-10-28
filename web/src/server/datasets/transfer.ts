@@ -7,6 +7,7 @@ import {
   type DatasetManifest,
 } from "../../domain/datasets/manifest";
 import type { Dataset } from "../../domain/datasets/schema";
+import { sameClasses } from "../../domain/models/classes";
 import { transaction } from "../infra/db/client";
 import { isUniqueViolation } from "../infra/db/errors";
 import {
@@ -62,11 +63,6 @@ export async function datasetManifest(
       annotation,
     })),
   });
-}
-
-/** Why this workbench cannot hold the dataset a manifest describes. */
-function sameClasses(left: readonly string[], right: readonly string[]) {
-  return left.length === right.length && left.every((c, i) => c === right[i]);
 }
 
 function listed(digests: string[]): string {

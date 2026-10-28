@@ -1,8 +1,8 @@
 import type { TrainingWorkerOption } from "../../domain/training/read-model";
 import { m } from "../../paraglide/messages";
-import { Form } from "../../ui/kit/Form";
 import { Select } from "../../ui/kit/Select";
 
+/** The worker a run goes to, or any that is free, named by the field that holds it. */
 export function TrainingWorkerSelect({
   workers,
   value,
@@ -15,21 +15,19 @@ export function TrainingWorkerSelect({
   disabled: boolean;
 }) {
   return (
-    <Form.Field label={m.training_worker()}>
-      <Select
-        value={value ?? ""}
-        disabled={disabled}
-        onChange={(id) => onChange(id || null)}
-        options={[
-          { value: "", label: m.training_worker_auto() },
-          ...workers.map((worker) => ({
-            value: worker.workerId,
-            label: worker.online
-              ? worker.workerId
-              : m.training_worker_offline({ worker: worker.workerId }),
-          })),
-        ]}
-      />
-    </Form.Field>
+    <Select
+      value={value ?? ""}
+      disabled={disabled}
+      onChange={(id) => onChange(id || null)}
+      options={[
+        { value: "", label: m.training_worker_auto() },
+        ...workers.map((worker) => ({
+          value: worker.workerId,
+          label: worker.online
+            ? worker.workerId
+            : m.training_worker_offline({ worker: worker.workerId }),
+        })),
+      ]}
+    />
   );
 }

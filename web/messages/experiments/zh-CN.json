@@ -180,6 +180,7 @@
   "unit_steps": "试验单元与观测日",
   "unit_compare": "与另一天并排对比",
   "unit_compare_reference": "对照的观测日",
+  "unit_compare_change": "变化",
   "unit_unreviewed_count": [
     {
       "declarations": ["input count", "local formattedCount = count: number"],

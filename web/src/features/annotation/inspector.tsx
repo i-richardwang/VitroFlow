@@ -5,7 +5,8 @@ import { sourceInstances } from "../../domain/annotation/review";
 import type { ReviewSource } from "../../domain/annotation/schema";
 import {
   classCount,
-  count,
+  countClasses,
+  countsEveryClass,
   tally,
   type Tally,
 } from "../../domain/models/classes";
@@ -17,6 +18,7 @@ import { StatisticHero } from "../../ui/kit/Statistic";
 import { ToggleGroup } from "../../ui/kit/ToggleGroup";
 import { formatCount, formatNumber } from "../../ui/numbers";
 import { IdentifierName } from "../../ui/IdentifierName";
+import { countedClassesName } from "../../ui/model-names";
 import { Stepper } from "../../ui/Stepper";
 import { WorkbenchSection } from "../../ui/shell/Workbench";
 import { ClassLabel } from "./controls";
@@ -24,13 +26,16 @@ import { sourceLabels } from "./labels";
 import { Text } from "../../ui/kit/Text";
 
 /**
- * How many of each class the boxes on view hold, and their total, which is
- * the number the image gives its unit. When the image has more than one
- * reading, they are offered side by side with their totals; picking one
+ * How many of each class the boxes on view hold, and the number the image
+ * gives its subject: their sum over the classes the subject counts, which
+ * the figure names when they are fewer than the model finds. A class left
+ * out of the sum is struck through. When the image has more than one
+ * reading, they are offered side by side with the same sum; picking one
  * shows its boxes.
  */
 export function CountsSection({
   classes,
+  counted,
   counts,
   review,
   sources,
@@ -38,6 +43,7 @@ export function CountsSection({
   onSourceChange,
 }: {
   classes: string[];
+  counted: readonly string[];
   counts: Tally;
   review: Review;
   sources: ReviewSource[];
@@ -49,7 +55,16 @@ export function CountsSection({
       <StatisticHero
         size="compact"
         title={m.annotation_counts()}
-        value={formatCount(count(counts))}
+        value={formatCount(countClasses(counts, counted))}
+        facts={
+          countsEveryClass(counted, classes)
+            ? undefined
+            : [
+                m.annotation_counted_classes({
+                  classes: countedClassesName(counted),
+                }),
+              ]
+        }
       />
       {classes.length > 1 ? (
         <Descriptions justified>
@@ -58,7 +73,13 @@ export function CountsSection({
               key={name}
               label={<ClassLabel classes={classes} name={name} />}
             >
-              {formatCount(classCount(counts, name))}
+              {counted.includes(name) ? (
+                formatCount(classCount(counts, name))
+              ) : (
+                <Text as="span" type="quaternary" className="line-through">
+                  {formatCount(classCount(counts, name))}
+                </Text>
+              )}
             </DescriptionsItem>
           ))}
         </Descriptions>
@@ -73,7 +94,10 @@ export function CountsSection({
               value: source,
               label: m.annotation_named_count({
                 name: sourceLabels[source](),
-                count: count(tally(sourceInstances(review, source) ?? [])),
+                count: countClasses(
+                  tally(sourceInstances(review, source) ?? []),
+                  counted,
+                ),
               }),
             }))}
             onChange={onSourceChange}

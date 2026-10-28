@@ -155,6 +155,104 @@ const scenarios: Record<string, () => Promise<void>> = {
     assert.equal(errorOf("Email"), "Already taken");
     assert.equal(errorOf("Name"), null, "other fields show no error");
   },
+
+  async formGroup() {
+    const { Form } = await import("../src/ui/kit/Form");
+    const { Input } = await import("../src/ui/kit/Input");
+    await render(
+      <Form onSubmit={() => {}}>
+        <Form.Group
+          title="Advanced"
+          description="Seldom needed"
+          extra={<button type="button">Restore</button>}
+          collapsible
+        >
+          <Form.Field label="Seed" name="seed">
+            <Input />
+          </Form.Field>
+        </Form.Group>
+      </Form>,
+    );
+    const trigger = body.querySelector("[aria-expanded]");
+    assert.ok(trigger, "the heading is the trigger");
+    const group = body.querySelector("fieldset");
+    const titled = group?.getAttribute("aria-labelledby");
+    assert.equal(
+      titled && browser.document.getElementById(titled)?.textContent,
+      "Advanced",
+      "the group is named by its title alone",
+    );
+    const shows = (text: string) => body.textContent?.includes(text) ?? false;
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.ok(!shows("Seed"), "a collapsible group starts closed");
+    assert.ok(!shows("Restore"), "a closed group hides its command");
+    await press(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.ok(shows("Seed") && shows("Seldom needed"), "opening shows it");
+    assert.ok(shows("Restore"), "an open group shows its command");
+    await press(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    await waitFor(() => !shows("Seed"), "closing folds the fields away");
+    assert.ok(!shows("Restore"), "closing hides the command");
+  },
+
+  async checkboxGroup() {
+    const { CheckboxGroup } = await import("../src/ui/kit/Checkbox");
+    const changes: string[][] = [];
+    await render(
+      <CheckboxGroup
+        value={["a", "b"]}
+        options={[
+          { label: "Alpha", value: "a", disabled: true },
+          { label: "Beta", value: "b" },
+        ]}
+        onChange={(next) => changes.push(next)}
+      />,
+    );
+    const [alpha, beta] = byRole("checkbox");
+    assert.ok(alpha?.hasAttribute("data-disabled"), "an option can be held");
+    assert.ok(!beta?.hasAttribute("data-disabled"), "the others stay free");
+    /** Presses an option by its text, as a reader does. */
+    const pressText = (text: string) =>
+      press(
+        Array.from(body.querySelectorAll("label span")).find(
+          (element) => element.textContent === text,
+        ),
+      );
+    await pressText("Alpha");
+    assert.deepEqual(changes, [], "a held option does not change");
+    await pressText("Beta");
+    assert.deepEqual(changes, [["a"]], "a free option changes");
+  },
+
+  async actionIcon() {
+    const { ActionIcon } = await import("../src/ui/kit/ActionIcon");
+    const { Hash, Lock } = await import("lucide-react");
+    await render(
+      <>
+        <ActionIcon icon={Hash} title="Numbers" pressed />
+        <ActionIcon icon={Lock} title="Lock editing" />
+      </>,
+    );
+    const named = (label: string) =>
+      body.querySelector(`button[aria-label="${label}"]`);
+    const numbers = named("Numbers");
+    assert.equal(
+      numbers?.getAttribute("aria-pressed"),
+      "true",
+      "a pressed toggle says so",
+    );
+    assert.ok(
+      !named("Lock editing")?.hasAttribute("aria-pressed"),
+      "a command is no toggle",
+    );
+    await render(<ActionIcon icon={Hash} title="Numbers" pressed={false} />);
+    assert.equal(
+      named("Numbers")?.getAttribute("aria-pressed"),
+      "false",
+      "a toggle let go keeps its name and says it is off",
+    );
+  },
 };
 
 const name = process.argv[2] ?? "";

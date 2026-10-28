@@ -1,5 +1,5 @@
 import type { ReviewSource } from "../annotation/schema";
-import { countClasses, type Tally } from "../models/classes";
+import { countClasses, sameClasses, type Tally } from "../models/classes";
 import { UnknownClassError } from "../models/errors";
 import type { ImageReview, ObservationImageCell } from "./contracts";
 import type { ExperimentObservation } from "./schema";
@@ -28,14 +28,6 @@ export function resolveCountedClasses(
   return modelClasses.filter((name) => requested.includes(name));
 }
 
-/** Whether a day counts all its model finds, or narrows the count to some classes. */
-export function countsEveryClass(
-  observation: Pick<ExperimentObservation, "countedClasses">,
-  modelClasses: readonly string[],
-): boolean {
-  return observation.countedClasses.length === modelClasses.length;
-}
-
 export function cellKey(unit: string, observation: string): string {
   return `${unit}:${observation}`;
 }
@@ -62,7 +54,7 @@ export function imageReview(image: ObservationImageCell): ImageReview {
  * waiting or failed reads by nothing.
  */
 function cellReading(
-  image: ObservationImageCell | undefined,
+  image: ObservationImageCell | null | undefined,
 ): { tally: Tally; source: ReviewSource } | null {
   if (!image) return null;
   if (image.annotationTally) {
@@ -78,19 +70,48 @@ function cellReading(
 }
 
 /**
- * What a unit read on a day, counting the classes the day counts, or nothing
- * while its image has no reading.
+ * What a day's photograph reads, counting the classes the day counts, or
+ * nothing while there is no photograph or it has no reading.
  */
-export function unitReading(
-  cells: ObservationCells,
-  unit: string,
-  observation: ExperimentObservation,
+export function imageReading(
+  image: ObservationImageCell | null | undefined,
+  observation: Pick<ExperimentObservation, "countedClasses">,
 ): Reading | null {
-  const reading = cellReading(cells.get(cellKey(unit, observation.id)));
+  const reading = cellReading(image);
   return reading
     ? {
         count: countClasses(reading.tally, observation.countedClasses),
         source: reading.source,
       }
     : null;
+}
+
+/** What a unit read on a day, or nothing while its image has no reading. */
+export function unitReading(
+  cells: ObservationCells,
+  unit: string,
+  observation: ExperimentObservation,
+): Reading | null {
+  return imageReading(cells.get(cellKey(unit, observation.id)), observation);
+}
+
+/** A unit's day: the observation and the unit's photograph of it, if any. */
+interface UnitDay {
+  observation: Pick<ExperimentObservation, "modelId" | "countedClasses">;
+  image: ObservationImageCell | null;
+}
+
+/**
+ * How much a unit's count rose from one day to another, or nothing unless
+ * both days read and count alike: by one model, over the same classes.
+ * Counts taken any other way measure different things.
+ */
+export function countChange(from: UnitDay, to: UnitDay): number | null {
+  const alike =
+    from.observation.modelId === to.observation.modelId &&
+    sameClasses(from.observation.countedClasses, to.observation.countedClasses);
+  if (!alike) return null;
+  const before = imageReading(from.image, from.observation);
+  const after = imageReading(to.image, to.observation);
+  return before && after ? after.count - before.count : null;
 }

@@ -1,34 +1,22 @@
 import { Link } from "@tanstack/react-router";
-import { FlaskConical, ImageIcon, Plus } from "lucide-react";
-import { useState, type ReactElement } from "react";
+import { FlaskConical, Plus } from "lucide-react";
+import { useState } from "react";
 
-import type {
-  ObservationImageCell,
-  Unit,
-} from "../../domain/experiments/contracts";
+import type { Unit } from "../../domain/experiments/contracts";
 import {
   observationOrdinals,
   unitIsAvailableAt,
   unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
 import { placedPhotos } from "../../domain/experiments/photos";
-import {
-  cellKey,
-  observationCells,
-  unitReading,
-  type Reading,
-} from "../../domain/experiments/readings";
+import { cellKey, observationCells } from "../../domain/experiments/readings";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
-import { Absent } from "../../ui/Absent";
 import { formatDay } from "../../ui/Day";
 import { useRouteRefresh } from "../../ui/hooks/useRouteRefresh";
 import { Button } from "../../ui/kit/Button";
-import { cn } from "../../ui/kit/cn";
-import { Icon } from "../../ui/kit/Icon";
 import { Select } from "../../ui/kit/Select";
-import { Status } from "../../ui/kit/Status";
 import {
   Table,
   TableBody,
@@ -40,16 +28,14 @@ import {
   TableSelectionHead,
 } from "../../ui/kit/Table";
 import { Tabs } from "../../ui/kit/Tabs";
-import { Text } from "../../ui/kit/Text";
 import { TextLink } from "../../ui/kit/TextLink";
-import { Tooltip } from "../../ui/kit/Tooltip";
 import { Page } from "../../ui/Page";
-import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
 import { observationQuestion } from "./labels";
 import { RecordObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
 import { TreatmentName, TreatmentsTable } from "./TreatmentsTable";
+import { UnitDayCount } from "./UnitDayCount";
 import { UnitSelectionBar } from "./UnitSelectionBar";
 
 /**
@@ -233,10 +219,10 @@ export function ExperimentGridView({
                 </TableCell>
                 {observations.map((observation) => (
                   <TableCell key={observation.id}>
-                    <UnitCell
+                    <UnitDayCount
                       image={cells.get(cellKey(unit.id, observation.id))}
-                      reading={unitReading(cells, unit.id, observation)}
-                      counted={unitIsIncludedInAnalysis(
+                      observation={observation}
+                      included={unitIsIncludedInAnalysis(
                         unit.events,
                         observation,
                         ordinals,
@@ -319,90 +305,5 @@ export function ExperimentGridView({
         onClose={() => setRecording(false)}
       />
     </Page>
-  );
-}
-
-/**
- * A unit's count on one day, or why there is none. A count nobody has
- * reviewed yet is shown provisional; a photograph not yet counted shows as a
- * photograph, no photograph as absent, and only a failed count asks for
- * attention.
- */
-function UnitCell({
-  image,
-  reading,
-  counted,
-  link,
-}: {
-  image: ObservationImageCell | undefined;
-  reading: Reading | null;
-  counted: boolean;
-  link: (content: ReactElement) => ReactElement;
-}) {
-  if (!image) return <Absent />;
-  if (reading) {
-    const notes: string[] = [];
-    if (reading.source !== "review") notes.push(m.experiment_cell_unreviewed());
-    if (!counted) notes.push(m.experiment_cell_excluded());
-    return explain(
-      notes,
-      link(
-        <Text
-          as="span"
-          type={
-            !counted
-              ? "quaternary"
-              : reading.source === "review"
-                ? undefined
-                : "tertiary"
-          }
-          weight={reading.source === "review" ? "medium" : undefined}
-          className={cn("tabular-nums", !counted && "line-through")}
-        >
-          {formatCount(reading.count)}
-        </Text>,
-      ),
-    );
-  }
-  if (image.state === "failed") {
-    return explain(
-      image.error ? [image.error] : [],
-      link(<Status tone="error">{m.experiment_cell_failed()}</Status>),
-    );
-  }
-  const waiting =
-    image.state === "unread"
-      ? m.experiment_cell_unread()
-      : m.experiment_cell_waiting();
-  return explain(
-    [waiting],
-    link(
-      <Text as="span" type="tertiary">
-        <Icon
-          icon={ImageIcon}
-          size={14}
-          aria-label={waiting}
-          className="align-middle"
-        />
-      </Text>,
-    ),
-  );
-}
-
-/** A cell's notes, one per line, in a tooltip over it. */
-function explain(notes: readonly string[], control: ReactElement) {
-  if (notes.length === 0) return control;
-  return (
-    <Tooltip
-      title={
-        <span className="flex max-w-xs flex-col">
-          {notes.map((note) => (
-            <span key={note}>{note}</span>
-          ))}
-        </span>
-      }
-    >
-      {control}
-    </Tooltip>
   );
 }

@@ -1,5 +1,6 @@
 import { m } from "../paraglide/messages";
 import type { Model } from "../domain/models/schema";
+import { formatList } from "./lists";
 
 /**
  * What the product ships is named by the product, in the reader's language;
@@ -23,7 +24,7 @@ export function className(name: string): string {
   return BUILTIN_CLASS_NAMES.get(name)?.() ?? name;
 }
 
-/** The classes a count sums, each named as the reader knows it. */
+/** The classes a count sums, each named as the reader knows it, in a list of the reader's language. */
 export function countedClassesName(names: readonly string[]): string {
-  return names.map(className).join(" + ");
+  return formatList(names.map(className));
 }

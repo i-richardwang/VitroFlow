@@ -86,6 +86,8 @@ export interface ParameterField {
   max: number;
   step: number;
   advanced: boolean;
+  /** What the value does that its label does not say. */
+  help?: () => string;
 }
 
 /** The schema supplies validation bounds; only interaction steps are UI choices. */
@@ -94,13 +96,13 @@ const FIELD_OPTIONS = {
   epochs: { step: 1, advanced: false },
   imgsz: { step: 32, advanced: false },
   batch: { step: 1, advanced: false },
-  patience: { step: 1, advanced: false },
+  patience: { step: 1, advanced: false, help: m.parameter_patience_help },
   lr0: { step: 0.00001, advanced: false },
   warmup_epochs: { step: 0.1, advanced: true },
-  nbs: { step: 1, advanced: true },
+  nbs: { step: 1, advanced: true, help: m.parameter_nbs_help },
 } satisfies Record<
   keyof TrainingOverrides,
-  { step: number; advanced: boolean }
+  Pick<ParameterField, "step" | "advanced" | "help">
 >;
 export const PARAMETER_FIELDS: ParameterField[] = (
   Object.keys(FIELD_OPTIONS) as Array<keyof TrainingOverrides>

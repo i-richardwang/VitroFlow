@@ -8,16 +8,19 @@ import { Tooltip, type TooltipProps } from "./Tooltip";
  * `middle` are Button's sizes, 24 and 32, with glyphs 14 and 16; `header`,
  * 28 with glyph 16, sits in the shell's top bar; `bar`, 36 with glyph 20,
  * stands alone in floating toolbars. A `title` wraps it in a tooltip.
+ * `pressed` makes it a toggle, on or off under one name: it sets
+ * `aria-pressed` and draws the pressed state. Without it the icon is a
+ * command.
  */
 
 export type ActionIconSize = "small" | "middle" | "header" | "bar";
 
 export interface ActionIconProps extends Omit<
   ButtonProps,
-  "children" | "icon" | "size" | "type" | "title" | "danger"
+  "children" | "icon" | "size" | "type" | "title" | "danger" | "aria-pressed"
 > {
-  active?: boolean;
   icon: IconProps["icon"];
+  pressed?: boolean;
   size?: ActionIconSize;
   title?: TooltipProps["title"];
   tooltipProps?: Omit<TooltipProps, "children" | "title">;
@@ -31,10 +34,10 @@ const SIZE = {
 } as const;
 
 export function ActionIcon({
-  active,
   className,
   disabled,
   icon,
+  pressed,
   size = "bar",
   title,
   tooltipProps,
@@ -48,12 +51,8 @@ export function ActionIcon({
     <Button
       {...props}
       aria-label={ariaLabel}
-      className={cn(
-        "ui-action-icon",
-        preset.className,
-        active && "ui-action-icon-active",
-        className,
-      )}
+      aria-pressed={pressed}
+      className={cn("ui-action-icon", preset.className, className)}
       disabled={disabled}
       htmlType="button"
       icon={

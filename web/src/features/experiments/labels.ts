@@ -1,11 +1,11 @@
 import { m } from "../../paraglide/messages";
 import { formatDay } from "../../ui/Day";
 import { countedClassesName, modelName } from "../../ui/model-names";
-import { countsEveryClass } from "../../domain/experiments/readings";
 import type {
   ExperimentObservation,
   CultureEventType,
 } from "../../domain/experiments/schema";
+import { countsEveryClass } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";
 
 /** An observation is named by the day it was made. */
@@ -26,7 +26,7 @@ export function observationQuestion(
   if (!model) return "";
   return joinFacts([
     ...(nameModel ? [modelName(model)] : []),
-    ...(countsEveryClass(observation, model.classes)
+    ...(countsEveryClass(observation.countedClasses, model.classes)
       ? []
       : [countedClassesName(observation.countedClasses)]),
   ]);

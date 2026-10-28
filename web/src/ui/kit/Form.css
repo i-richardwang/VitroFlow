@@ -128,6 +128,110 @@ fieldset.ui-form-field {
   &:has(+ .ui-form-group-description) {
     margin-block-end: 8px;
   }
+
+  /* A folding group's panel carries the space under the heading, so it folds too. */
+  .ui-form-group-collapsible > & {
+    margin-block-end: 0;
+  }
+}
+
+/*
+ * The heading's row: the name, then the command, then, in a folding group,
+ * its chevron. A folding group's trigger spans the whole row on the row's
+ * own columns, so the row opens it wherever it is pressed but on the command.
+ */
+.ui-form-group-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+
+  .ui-form-group-collapsible & {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+}
+
+.ui-form-group-trigger {
+  cursor: pointer;
+
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template-columns: subgrid;
+  align-items: center;
+
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+
+  font: inherit;
+  color: inherit;
+  text-align: start;
+
+  background: none;
+
+  @apply focus-ring;
+
+  &:hover .ui-form-group-indicator {
+    color: var(--color-fg-secondary);
+  }
+}
+
+/* The chevron turns as the group opens. */
+.ui-form-group-indicator {
+  grid-column: 3;
+  color: var(--color-fg-tertiary);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+
+  [data-panel-open] > & {
+    transform: rotate(90deg);
+  }
+}
+
+/* A command does not heighten the heading, so the heading holds still as it comes and goes. */
+.ui-form-group-extra {
+  position: relative;
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  margin-block: -4px;
+}
+
+/*
+ * A folding group's panel follows the height Base UI measures. It reaches a
+ * focus ring past the fields on each side but the top, so clipping the fold
+ * leaves their rings whole, and gives that reach back as it folds.
+ */
+.ui-form-group-panel {
+  --ui-form-group-reach: calc(
+    var(--focus-ring-width) + var(--focus-ring-offset)
+  );
+
+  overflow: hidden;
+  height: var(--collapsible-panel-height);
+  margin-inline: calc(-1 * var(--ui-form-group-reach));
+  margin-block-end: calc(-1 * var(--ui-form-group-reach));
+
+  transition:
+    height var(--duration-slow) var(--ease-out),
+    margin-block-end var(--duration-slow) var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+    margin-block-end: 0;
+  }
+}
+
+.ui-form-group-panel-content {
+  padding: 16px var(--ui-form-group-reach) var(--ui-form-group-reach);
+
+  &:has(> .ui-form-group-description) {
+    padding-block-start: 8px;
+  }
 }
 
 .ui-form-group-description {

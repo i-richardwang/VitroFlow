@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
-import type {
-  TrainingControl,
-  TrainingRun,
+import {
+  isTrainingRunResumable,
+  type TrainingControl,
+  type TrainingRun,
 } from "../../domain/training/schema";
 import {
   TrainingRunConflictError,
@@ -44,7 +45,7 @@ export async function controlTrainingRun(
       );
     const status = run.state.status;
     if (control.action === "resume") {
-      if (status !== "paused" && status !== "failed")
+      if (!isTrainingRunResumable(run))
         throw new TrainingRunConflictError(
           "Only paused or failed training can resume",
         );
