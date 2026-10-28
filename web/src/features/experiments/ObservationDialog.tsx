@@ -19,6 +19,7 @@ import { DialogSession, FormDialog } from "../../ui/FormDialog";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
 import { Form } from "../../ui/kit/Form";
 import { Input } from "../../ui/kit/Input";
+import { CountedClassesField } from "./CountedClassesField";
 import { DayField } from "./DayField";
 import { ModelField } from "./ModelField";
 import {
@@ -32,6 +33,7 @@ const FORM_ID = "observation";
 interface ObservationValue {
   observedOn: CalendarDay;
   modelId: string;
+  countedClasses: string[];
   note: string;
 }
 
@@ -45,7 +47,7 @@ export function RecordObservationDialog(props: {
   experiment: string;
   inoculatedOn: CalendarDay;
   models: readonly Model[];
-  /** The newest observation, whose model a new one reads for by default. */
+  /** The newest observation, whose question a new one asks by default. */
   previous: ExperimentObservation | undefined;
   observations: readonly ExperimentObservation[];
   units: readonly Unit[];
@@ -82,6 +84,7 @@ function RecordObservationSession({
   const [value, setValue] = useState<ObservationValue>(() => ({
     observedOn: today(),
     modelId: previous?.modelId ?? models[0]!.id,
+    countedClasses: previous?.countedClasses ?? models[0]!.classes,
     note: "",
   }));
   const photos = useObservationPhotos({
@@ -143,7 +146,7 @@ function RecordObservationSession({
   );
 }
 
-/** Changes an observation day's date, model or note. */
+/** Changes an observation day's date, model, the classes it counts, or note. */
 export function EditObservationDialog({
   experiment,
   inoculatedOn,
@@ -205,6 +208,7 @@ function EditObservationForm({
   const [value, setValue] = useState<ObservationValue>(() => ({
     observedOn: observation.observedOn,
     modelId: observation.modelId,
+    countedClasses: observation.countedClasses,
     note: observation.note,
   }));
   return (
@@ -257,6 +261,7 @@ function ObservationFields({
   models: readonly Model[];
   disabled: boolean;
 }) {
+  const modelOf = (id: string) => models.find((model) => model.id === id)!;
   return (
     <>
       <DayField
@@ -274,7 +279,21 @@ function ObservationFields({
         disabled={disabled}
         models={models}
         value={value.modelId}
-        onChange={(modelId) => onChange({ ...value, modelId })}
+        // Another model recognizes other classes, so the day counts all of them
+        // until told otherwise.
+        onChange={(modelId) =>
+          onChange({
+            ...value,
+            modelId,
+            countedClasses: modelOf(modelId).classes,
+          })
+        }
+      />
+      <CountedClassesField
+        disabled={disabled}
+        model={modelOf(value.modelId)}
+        value={value.countedClasses}
+        onChange={(countedClasses) => onChange({ ...value, countedClasses })}
       />
       <Form.Field label={m.observation_note_label()}>
         <Input

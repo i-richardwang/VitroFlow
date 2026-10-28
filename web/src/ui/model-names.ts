@@ -22,3 +22,8 @@ export function modelName(model: Pick<Model, "id" | "name">): string {
 export function className(name: string): string {
   return BUILTIN_CLASS_NAMES.get(name)?.() ?? name;
 }
+
+/** The classes a count sums, each named as the reader knows it. */
+export function countedClassesName(names: readonly string[]): string {
+  return names.map(className).join(" + ");
+}

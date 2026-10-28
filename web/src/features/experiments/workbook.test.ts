@@ -55,6 +55,7 @@ const SOWN: ExperimentObservation = {
   observedOn: "2026-09-01",
   note: "",
   modelId: SEEDS.id,
+  countedClasses: SEEDS.classes,
   hasRecords: true,
 };
 
@@ -64,6 +65,17 @@ const ROOTED: ExperimentObservation = {
   observedOn: "2026-09-15",
   note: "",
   modelId: ROOTS.id,
+  countedClasses: ROOTS.classes,
+  hasRecords: true,
+};
+
+const GERMINATED: ExperimentObservation = {
+  id: "germinated",
+  ordinal: 2,
+  observedOn: "2026-09-08",
+  note: "",
+  modelId: SEEDS.id,
+  countedClasses: ["germinated"],
   hasRecords: true,
 };
 
@@ -175,6 +187,26 @@ describe("the experiment workbook", () => {
     expect(models?.slice(3)).toEqual([
       { kind: "text", text: "Seed germination" },
       { kind: "text", text: "Rooting" },
+    ]);
+  });
+
+  test("a day that counts some of its model's classes names them too", () => {
+    const workbook = trial({
+      observations: [SOWN, GERMINATED],
+      images: [
+        image("A1", SOWN.id, { ungerminated: 20 }),
+        image("A1", GERMINATED.id, { ungerminated: 4, germinated: 15 }),
+      ],
+    });
+    const [, questions] = heading(workbook);
+    expect(questions?.slice(3)).toEqual([
+      { kind: "text", text: "Seed germination" },
+      { kind: "text", text: "Seed germination · Germinated" },
+    ]);
+    const [first] = readings(workbook);
+    expect(first?.slice(3)).toEqual([
+      { kind: "count", count: 20 },
+      { kind: "count", count: 15 },
     ]);
   });
 

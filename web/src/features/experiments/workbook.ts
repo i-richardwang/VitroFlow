@@ -30,8 +30,7 @@ import {
   type Treatment,
 } from "../../domain/experiments/schema";
 import type { Model } from "../../domain/models/schema";
-import { cultureEventLabel } from "./labels";
-import { modelName } from "../../ui/model-names";
+import { cultureEventLabel, observationQuestion } from "./labels";
 import { m } from "../../paraglide/messages";
 
 export type ExperimentWorkbookSource = ExperimentGrid & {
@@ -40,7 +39,7 @@ export type ExperimentWorkbookSource = ExperimentGrid & {
 
 interface Day {
   observation: ExperimentObservation;
-  model: Model | null;
+  model: Model | undefined;
 }
 
 const DESIGN_COLUMNS = [{ width: 22 }, { width: 16 }, { width: 14 }];
@@ -70,7 +69,7 @@ export function experimentWorkbook(
   const ordinals = observationOrdinals(observations);
   const days = observations.map((observation): Day => ({
     observation,
-    model: models.find((model) => model.id === observation.modelId) ?? null,
+    model: models.find((model) => model.id === observation.modelId),
   }));
 
   const rows: WorkbookCell[][] = [
@@ -134,9 +133,12 @@ function heading(days: readonly Day[]): WorkbookCell[][] {
     ],
     [
       ...DESIGN_COLUMNS.map(() => blankCell),
-      // A file outlives its workbench, so a day names the model it was read for.
+      // A file outlives its workbench, so a day names the model it was read
+      // for, and the classes it counts when they are fewer than the model finds.
       ...days.map((day) =>
-        day.model ? textCell(modelName(day.model)) : blankCell,
+        fieldCell(
+          observationQuestion(day.observation, day.model, { nameModel: true }),
+        ),
       ),
     ],
   ];

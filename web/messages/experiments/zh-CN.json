@@ -157,6 +157,8 @@
   "treatment_unit_label": "单位",
   "treatment_unit_placeholder": "mg/L",
   "observation_model_label": "模型",
+  "observation_counted_classes_label": "计数类别",
+  "observation_counted_classes_description": "每个单元格显示所选类别的数量之和",
   "experiments_empty_description": "新建实验，布置处理与试验单元。",
   "treatment_deleted": "已删除 {name}",
   "experiment_selection_count": [
@@ -168,7 +170,7 @@
     }
   ],
   "experiment_facts_joined": "{first} · {second}",
-  "observation_heading": "{day} · {model}",
+  "observation_heading": "{day} · {question}",
   "culture_event_at": "{event} · {observation}",
   "unit_no_image_description": "在实验表格中，从某个观测日把照片对应到这个试验单元。",
   "unit_open_experiment": "打开实验",

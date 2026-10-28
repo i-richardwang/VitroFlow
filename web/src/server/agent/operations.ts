@@ -277,7 +277,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "create-observation",
     description:
-      "Add an observation to an experiment: the date and the recognition task its images are read for; it may be planned before images exist",
+      "Add an observation to an experiment: the date, the recognition task its images are read for, and which of that model's classes its count sums (every class when omitted); it may be planned before images exist",
     destructive: false,
     input: observationRequestSchema,
     output: experimentObservationSchema,
@@ -286,7 +286,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "update-observation",
     description:
-      "Correct an observation's date, note, or recognition task; images already taken are read again for the new one",
+      "Correct an observation's date, note, recognition task, or the classes its count sums; images already taken are read again for a new task, and a change of classes recounts them without reading again",
     destructive: true,
     input: observationUpdateSchema,
     output: experimentObservationSchema,

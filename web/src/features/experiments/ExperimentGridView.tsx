@@ -18,6 +18,7 @@ import {
   unitReading,
   type Reading,
 } from "../../domain/experiments/readings";
+import type { ExperimentObservation } from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
@@ -45,6 +46,7 @@ import { Tooltip } from "../../ui/kit/Tooltip";
 import { Page } from "../../ui/Page";
 import { formatCount } from "../../ui/numbers";
 import { ExperimentMenu } from "./ExperimentMenu";
+import { observationQuestion } from "./labels";
 import { RecordObservationDialog } from "./ObservationDialog";
 import { ObservationMenu } from "./ObservationMenu";
 import { TreatmentName, TreatmentsTable } from "./TreatmentsTable";
@@ -121,11 +123,16 @@ export function ExperimentGridView({
   });
 
   // A column is one day; it names its model too when the days read for more
-  // than one, since values compare within a column and columns may ask
+  // than one, and the classes it counts when it counts fewer than its model
+  // finds, since values compare within a column and columns may ask
   // different questions.
   const asked = new Set(observations.map((item) => item.modelId));
-  const namedModel = (modelId: string) =>
-    asked.size > 1 ? models.find((item) => item.id === modelId) : undefined;
+  const question = (observation: ExperimentObservation) =>
+    observationQuestion(
+      observation,
+      models.find((item) => item.id === observation.modelId),
+      { nameModel: asked.size > 1 },
+    );
 
   const unitsTab = (
     <>
@@ -182,7 +189,7 @@ export function ExperimentGridView({
                   inoculatedOn={experiment.inoculatedOn}
                   observation={observation}
                   observations={observations}
-                  model={namedModel(observation.modelId)}
+                  question={question(observation)}
                   units={units.filter((unit) =>
                     unitIsAvailableAt(unit.events, observation, ordinals),
                   )}

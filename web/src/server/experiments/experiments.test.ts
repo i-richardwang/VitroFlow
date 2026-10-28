@@ -81,7 +81,11 @@ import {
   SEED_DETECTOR_BASELINE_VERSION_ID,
   SEED_DETECTOR_MODEL_ID,
 } from "../../domain/models/builtins";
-import { ModelNotFoundError } from "../../domain/models/errors";
+import {
+  ModelNotFoundError,
+  UnknownClassError,
+} from "../../domain/models/errors";
+import { readModel } from "../models/public";
 import { listAllModelVersions } from "../models/registry";
 import {
   FIXTURE_EDGE,
@@ -359,6 +363,7 @@ describe("experiments", () => {
       observedOn: observation.observedOn,
       note: observation.note,
       modelId: traditional.modelId,
+      countedClasses: (await readModel(traditional.modelId))!.classes,
     });
     expect(reread.modelId).toBe(traditional.modelId);
 
@@ -371,6 +376,59 @@ describe("experiments", () => {
         .where(eq(experimentObservations.id, observation.id));
     })();
     await expect(unknownModel).rejects.toThrow();
+  });
+
+  test("an observation counts the classes it names, in its model's order", async () => {
+    const version = await trainedVersion("exp-counted");
+    const experiment = await createExperiment({
+      name: "Counted",
+      inoculatedOn: INOCULATED,
+    });
+    const sown = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-01",
+      note: "",
+      ...reading(version),
+    });
+    expect(sown.countedClasses).toEqual([...SEED_DETECTOR.classes]);
+
+    await expect(
+      addObservation({
+        experiment: experiment.id,
+        observedOn: "2026-08-08",
+        note: "",
+        ...reading(version),
+        countedClasses: ["germinated", "shoot"],
+      }),
+    ).rejects.toThrow(UnknownClassError);
+    const germinated = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+      ...reading(version),
+      countedClasses: ["germinated"],
+    });
+    expect(germinated.countedClasses).toEqual(["germinated"]);
+
+    const reordered = await updateObservation({
+      experiment: experiment.id,
+      observation: sown.id,
+      observedOn: sown.observedOn,
+      note: sown.note,
+      ...reading(version),
+      countedClasses: ["germinated", "ungerminated"],
+    });
+    expect(reordered.countedClasses).toEqual([...SEED_DETECTOR.classes]);
+
+    const empty = (async () => {
+      await (
+        await database()
+      )
+        .update(experimentObservations)
+        .set({ countedClasses: [] })
+        .where(eq(experimentObservations.id, germinated.id));
+    })();
+    await expect(empty).rejects.toThrow();
   });
 
   test("an untrained model is observed and read by a reviewer alone", async () => {
@@ -483,6 +541,7 @@ describe("experiments", () => {
         observedOn: day14.observedOn,
         note: day14.note,
         modelId,
+        countedClasses: (await readModel(modelId))!.classes,
       });
 
     const found = resultFor(seeds, digest, 2);
@@ -995,6 +1054,7 @@ describe("experiments", () => {
           inoculatedOn: INOCULATED,
           observedOn: "2026-07-31",
           ...reading(version),
+          countedClasses: [...SEED_DETECTOR.classes],
           note: "",
           createdAt: new Date(),
         });
@@ -1774,6 +1834,7 @@ describe("experiments", () => {
         observedOn: "2026-08-08",
         note: "",
         ...reading(version),
+        countedClasses: day14.countedClasses,
       }),
     ).rejects.toThrow(ObservationRejectedError);
     const redatedEmpty = await updateObservation({
@@ -1782,6 +1843,7 @@ describe("experiments", () => {
       observedOn: "2026-08-29",
       note: "Final count",
       ...reading(version),
+      countedClasses: day14.countedClasses,
     });
     expect([redatedEmpty.observedOn, redatedEmpty.note]).toEqual([
       "2026-08-29",
@@ -1793,6 +1855,7 @@ describe("experiments", () => {
       observedOn: "2026-08-09",
       note: "Images checked",
       ...reading(version),
+      countedClasses: day7.countedClasses,
     });
     expect([redatedRecorded.observedOn, redatedRecorded.note]).toEqual([
       "2026-08-09",

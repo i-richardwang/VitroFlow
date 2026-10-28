@@ -23,12 +23,19 @@ reviewer, and those reviews are what a first version is eventually trained on.
 
 ## What an observation declares
 
-An observation declares the date it was made and the model its photographs are
-read for. Which version has read an image is recorded with that image's
-detection, and the version that reads for a model is the one a person made
-current: a model with none leaves its images for a reviewer, a newly trained
-version waits as a candidate until someone chooses it, and choosing another
-version reads them all afresh.
+An observation declares the date it was made, the model its photographs are
+read for, and which of that model's classes the day counts. Which version has
+read an image is recorded with that image's detection, and the version that
+reads for a model is the one a person made current: a model with none leaves
+its images for a reviewer, a newly trained version waits as a candidate until
+someone chooses it, and choosing another version reads them all afresh.
+
+What a day counts is the experiment's question, not the model's. A germination
+trial photographs its dishes before anything has germinated and counts every
+seed, `ungerminated` and `germinated` alike; later days count `germinated`
+alone, since grown seedlings hide the seeds that have not germinated and the
+photograph no longer shows them all. A day counts every class its model
+recognizes unless it names fewer, and it always counts at least one.
 
 ## Where the numbers come from
 
@@ -40,14 +47,16 @@ counts because an agent that sees the photograph reads it better than the
 detector, but it is still a machine's reading; only a review marks the
 image reviewed, and the grid shows the difference.
 
-**A count** is how many instances a unit's reading found, across every class it
-recognizes.
+**A count** is how many instances of the classes its day counts a unit's
+reading found. The tally keeps every class whatever the day counts, so changing
+the classes recounts the same readings, and nothing is read again.
 
 ## What the grid shows
 
-A row is a unit, beside the treatment it belongs to. A column is the day, and
-names the model as well only when the days do not all read for the same one. A
-cell shows the unit's count.
+A row is a unit, beside the treatment it belongs to. A column is the day. Under
+the date it names the model only when the days do not all read for the same
+one, and the classes it counts only when they are fewer than its model
+recognizes. A cell shows the unit's count.
 
 ## What the spreadsheet carries
 
@@ -55,7 +64,9 @@ An experiment exports as one sheet. The block at the top names the experiment,
 its plant material, explant type and base medium, the day it was inoculated and
 the day the file was taken. Below that the design repeats down every row —
 treatment, factor, unit — so the table sorts, filters and pivots on it, and each
-observation heads the column of counts it read, one row per unit.
+observation heads the column of counts it read, one row per unit. Under its date
+a day names its model, and the classes it counts when they are fewer than the
+model recognizes.
 
 Quantities stay quantities and days stay days. A count is a number, and a day is
 the day a spreadsheet counts rather than the text of one, so whatever opens the

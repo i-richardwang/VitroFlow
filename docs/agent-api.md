@@ -37,7 +37,7 @@ POST /api/agent/create-observation HTTP/1.1
 Authorization: Bearer vf_…
 Content-Type: application/json
 
-{"experiment":"…","observedOn":"2026-09-02"}
+{"experiment":"…","observedOn":"2026-09-02","modelId":"seed-detector"}
 ```
 
 Every record an agent can create is named by something it already knows: an experiment by its name, a treatment by its name within the experiment, an observation by its date, a unit by its code, a dataset by its name, an image by its digest. Repeating a create therefore answers 409 rather than making a second record, so a call whose response was lost is safe to send again.
@@ -110,7 +110,7 @@ Image bytes do not travel through MCP. Upload them to `POST /api/agent/images` a
 Entering one round of observation photos:
 
 1. `get-experiment` reads the experiment grid: treatments, units with their codes, and existing observations.
-2. `create-observation` adds the observation date, unless the grid already holds it.
+2. `create-observation` adds the observation date, unless the grid already holds it. Its `countedClasses` names which of the model's classes the day's count sums, every class when omitted; a germination trial's later days count `["germinated"]`.
 3. `POST /api/agent/images` stores each photo and returns its digest.
 4. `assign-images-to-observation` attaches the digests to units in that observation, keeping each source filename for traceability. A cell that already has an image is given the new one. Filenames may suggest unit codes, but the unit id in the assignment is authoritative.
 5. `record-culture-event` records contamination or loss observed while photographing. Contaminated, discarded, and missing exclude the unit from analysis from that observation on; nonviable and harvested keep it included. `remove-culture-event` erases an event recorded by mistake.

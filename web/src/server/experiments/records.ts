@@ -84,6 +84,7 @@ function toObservation(
     observedOn: row.observedOn,
     note: row.note,
     modelId: row.modelId,
+    countedClasses: row.countedClasses,
     hasRecords,
   });
 }

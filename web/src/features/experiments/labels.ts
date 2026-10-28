@@ -1,13 +1,35 @@
 import { m } from "../../paraglide/messages";
 import { formatDay } from "../../ui/Day";
+import { countedClassesName, modelName } from "../../ui/model-names";
+import { countsEveryClass } from "../../domain/experiments/readings";
 import type {
   ExperimentObservation,
   CultureEventType,
 } from "../../domain/experiments/schema";
+import type { Model } from "../../domain/models/schema";
 
 /** An observation is named by the day it was made. */
 export function observationLabel(observation: ExperimentObservation): string {
   return formatDay(observation.observedOn);
+}
+
+/**
+ * What a day asks of its photographs, said under its date: the model when
+ * `nameModel`, and the classes the day counts when they are fewer than the
+ * model finds. Empty when neither needs saying.
+ */
+export function observationQuestion(
+  observation: ExperimentObservation,
+  model: Model | undefined,
+  { nameModel }: { nameModel: boolean },
+): string {
+  if (!model) return "";
+  return joinFacts([
+    ...(nameModel ? [modelName(model)] : []),
+    ...(countsEveryClass(observation, model.classes)
+      ? []
+      : [countedClassesName(observation.countedClasses)]),
+  ]);
 }
 
 const CULTURE_EVENT_LABELS: Record<CultureEventType, () => string> = {
