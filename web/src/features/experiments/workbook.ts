@@ -19,6 +19,7 @@ import {
 } from "../../domain/experiments/culture-events";
 import {
   observationCells,
+  readingIsTrusted,
   unitReading,
   type ObservationCells,
 } from "../../domain/experiments/readings";
@@ -57,7 +58,8 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
  *
  * The sheet records what the dish did rather than what the workbench is doing.
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
- * event took out of the analysis is named by that event in place of its count.
+ * event took out of the analysis is named by that event in place of its count,
+ * and a photograph found unclear and not counted says so in place of its own.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,
@@ -173,6 +175,9 @@ function unitCell(
 ): WorkbookCell {
   const excluded = exclusionAt(unit.events, day.observation, ordinals);
   if (excluded) return textCell(cultureEventLabel(excluded.type));
+  if (!readingIsTrusted(cells, unit.id, day.observation)) {
+    return textCell(m.unclear_label());
+  }
   const reading = unitReading(cells, unit.id, day.observation);
   return reading ? countCell(reading.count) : blankCell;
 }

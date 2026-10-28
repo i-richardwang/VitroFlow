@@ -3,6 +3,8 @@ import {
   ChevronDown,
   CircleMinus,
   ClipboardPen,
+  Eye,
+  EyeOff,
   FolderPlus,
   ImageMinus,
   ImageUp,
@@ -25,12 +27,14 @@ import {
   removeUnit,
   unassignObservationImage,
 } from "../../functions/experiments";
+import { clearUnclear } from "../../functions/images";
 import { m } from "../../paraglide/messages";
 import { useNavigateAfterWrite } from "../../ui/hooks/useNavigateAfterWrite";
 import { PageMenu } from "../../ui/ActionsMenu";
 import { confirmDestructive } from "../../ui/confirmDestructive";
 import { FormDialog } from "../../ui/FormDialog";
 import {
+  runAction,
   useAsyncAction,
   type AsyncAction,
 } from "../../ui/hooks/useAsyncAction";
@@ -43,10 +47,11 @@ import { AddToDatasetDialog } from "../datasets/AddToDatasetDialog";
 import { cultureEventLabel, observationLabel } from "./labels";
 import { RecordCultureEventDialog } from "./RecordCultureEventDialog";
 import { ReplaceObservationImageDialog } from "./ReplaceObservationImageDialog";
+import { UnclearDialog } from "./UnclearDialog";
 import { UnitDialog } from "./UnitDialog";
 import { Text } from "../../ui/kit/Text";
 
-type Action = "replace" | "edit" | "dataset";
+type Action = "replace" | "edit" | "dataset" | "unclear";
 
 const REMOVE_EVENT_FORM = "remove-culture-event";
 
@@ -88,6 +93,31 @@ export function UnitMenu({
       label: m.dataset_add_menu(),
       onClick: () => setOpen("dataset"),
     });
+    // Whether the photograph could be read clearly; a marked one can be
+    // edited or cleared, which only changes what counts.
+    items.push({
+      key: "unclear",
+      icon: EyeOff,
+      label: image.unclear ? m.unclear_menu_edit() : m.unclear_menu_mark(),
+      onClick: () => setOpen("unclear"),
+    });
+    if (image.unclear) {
+      const file = image.review.filename;
+      items.push({
+        key: "clear-unclear",
+        icon: Eye,
+        label: m.unclear_menu_clear(),
+        onClick: async () => {
+          const result = await runAction(
+            () => clearUnclear({ data: { digest: image.review.ref.digest } }),
+            m.unclear_not_saved(),
+          );
+          if (!result.ok) return;
+          toast.success(m.unclear_cleared({ file }));
+          await router.invalidate();
+        },
+      });
+    }
   }
   items.push({
     key: "edit",
@@ -163,6 +193,13 @@ export function UnitMenu({
             open={open === "dataset"}
             images={[image.ref]}
             datasets={datasets}
+            onClose={close}
+          />
+          <UnclearDialog
+            digest={image.review.ref.digest}
+            filename={image.review.filename}
+            mark={image.unclear}
+            open={open === "unclear"}
             onClose={close}
           />
         </>

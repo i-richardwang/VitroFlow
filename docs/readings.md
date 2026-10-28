@@ -51,12 +51,24 @@ image reviewed, and the grid shows the difference.
 reading found. The tally keeps every class whatever the day counts, so changing
 the classes recounts the same readings, and nothing is read again.
 
+**An unclear photograph** is one a person could not read clearly, a fogged lid
+or a dish out of focus. The mark is the image's, wherever it is shown, and says
+whether its number is still counted, which it is not unless the person says
+so, with a note on what is unclear. A photograph not counted is still read and
+its number still shown, but it is not trusted: the unit has no number for that
+day, and that day only. Treatment summaries leave it out, as they leave out a
+unit an event excluded, and no training snapshot takes the photograph. A
+photograph counted anyway is used as it stands. Marking, changing or clearing
+the mark reads nothing again; it only changes what counts.
+
 ## What the grid shows
 
 A row is a unit, beside the treatment it belongs to. A column is the day. Under
 the date it names the model only when the days do not all read for the same
 one, and the classes it counts only when they are fewer than its model
-recognizes. A cell shows the unit's count.
+recognizes. A cell shows the unit's count. The count of an unclear photograph
+not counted is struck through, as an excluded unit's is, and one counted anyway
+carries a small mark; hovering says which, with the note.
 
 ## What the spreadsheet carries
 
@@ -72,8 +84,9 @@ Quantities stay quantities and days stay days. A count is a number, and a day is
 the day a spreadsheet counts rather than the text of one, so whatever opens the
 file can sort, chart and compute on it. The sheet records what the dish did
 rather than what the workbench is doing: a reading still to come leaves its
-cell empty, and a unit an event took out of the analysis carries the name of
-that event where its number would be.
+cell empty, a unit an event took out of the analysis carries the name of
+that event where its number would be, and an unclear photograph not counted
+carries the word for unclear.
 
 ## Culture events
 

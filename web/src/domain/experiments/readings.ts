@@ -1,6 +1,7 @@
 import type { ReviewSource } from "../annotation/schema";
 import { countClasses, sameClasses, type Tally } from "../models/classes";
 import { UnknownClassError } from "../models/errors";
+import { numberTrusted, type UnclearMark } from "../images/unclear";
 import type { ImageReview, ObservationImageCell } from "./contracts";
 import type { ExperimentObservation } from "./schema";
 
@@ -103,15 +104,46 @@ interface UnitDay {
 
 /**
  * How much a unit's count rose from one day to another, or nothing unless
- * both days read and count alike: by one model, over the same classes.
- * Counts taken any other way measure different things.
+ * both days read and count alike: by one model, over the same classes, from
+ * photographs whose numbers are trusted. Counts taken any other way measure
+ * different things.
  */
 export function countChange(from: UnitDay, to: UnitDay): number | null {
   const alike =
     from.observation.modelId === to.observation.modelId &&
     sameClasses(from.observation.countedClasses, to.observation.countedClasses);
   if (!alike) return null;
+  if (
+    !numberTrusted(from.image?.unclear ?? null) ||
+    !numberTrusted(to.image?.unclear ?? null)
+  ) {
+    return null;
+  }
   const before = imageReading(from.image, from.observation);
   const after = imageReading(to.image, to.observation);
   return before && after ? after.count - before.count : null;
+}
+
+/** The mark on a unit's photograph of a day, when a person found it unclear. */
+export function unclearAt(
+  cells: ObservationCells,
+  unit: string,
+  observation: ExperimentObservation,
+): UnclearMark | null {
+  return cells.get(cellKey(unit, observation.id))?.unclear ?? null;
+}
+
+/**
+ * Whether a unit's number of a day can be trusted. A photograph marked
+ * unclear and not counted leaves that day, and only that day, without a
+ * trusted number for the unit: the number is still shown, but no summary,
+ * spreadsheet or comparison takes it, and the unit's other days read as
+ * they are.
+ */
+export function readingIsTrusted(
+  cells: ObservationCells,
+  unit: string,
+  observation: ExperimentObservation,
+): boolean {
+  return numberTrusted(unclearAt(cells, unit, observation));
 }

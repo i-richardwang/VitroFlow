@@ -36,6 +36,17 @@ SPLITS = frozenset({"train", "val"})
 
 
 @dataclass(frozen=True)
+class UnclearMark:
+    """A person found the photograph unclear; ``counted`` says its reading still counts."""
+
+    counted: bool
+    note: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {"counted": self.counted, "note": self.note}
+
+
+@dataclass(frozen=True)
 class ManifestImage:
     digest: str
     width: int
@@ -45,9 +56,10 @@ class ManifestImage:
     split: str | None
     detection: DetectionResult | None
     annotation: AnnotationDocument | None
+    unclear: UnclearMark | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "digest": self.digest,
             "width": self.width,
             "height": self.height,
@@ -59,6 +71,10 @@ class ManifestImage:
                 None if self.annotation is None else self.annotation.to_dict()
             ),
         }
+        # The workbench writes the mark only for images that carry one.
+        if self.unclear is not None:
+            document["unclear"] = self.unclear.to_dict()
+        return document
 
 
 @dataclass(frozen=True)
@@ -125,6 +141,7 @@ def _image(value: Any, context: str) -> ManifestImage:
             "annotation",
         },
         context,
+        optional={"unclear"},
     )
     detection = None
     if entry["detection"] is not None:
@@ -150,7 +167,22 @@ def _image(value: Any, context: str) -> ManifestImage:
         ),
         detection=detection,
         annotation=annotation,
+        unclear=(
+            None
+            if "unclear" not in entry
+            else _unclear(entry["unclear"], f"{context}.unclear")
+        ),
     )
+
+
+def _unclear(value: Any, context: str) -> UnclearMark:
+    mark = as_object(value, context)
+    expect_fields(mark, {"counted", "note"}, context)
+    if not isinstance(mark["counted"], bool):
+        raise TypeError(f"{context}.counted must be a boolean")
+    if not isinstance(mark["note"], str):
+        raise TypeError(f"{context}.note must be a string")
+    return UnclearMark(counted=mark["counted"], note=mark["note"])
 
 
 def parse_dataset_manifest(value: Any, context: str = "manifest") -> DatasetManifest:

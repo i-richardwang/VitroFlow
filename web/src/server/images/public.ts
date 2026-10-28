@@ -15,3 +15,10 @@ export {
   IMAGE_ANALYSIS_RETRY_MS,
 } from "./analysis-maintenance";
 export { resolveDishCoverage } from "./analysis";
+export {
+  clearImageUnclear,
+  markImageUnclear,
+  markImagesUnclear,
+  readUnclearMarks,
+  toUnclearMark,
+} from "./unclear";

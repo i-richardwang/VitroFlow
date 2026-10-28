@@ -15,6 +15,7 @@ import {
   baselineVersion,
   imageDigest,
   observeImagesForModel,
+  storeTexts,
 } from "../testing/fixtures";
 
 function output(result: AgentCallResult): unknown {
@@ -87,6 +88,8 @@ describe("agent operations", () => {
       "delete-observation",
       "unassign-observation-image",
       "retry-observation-image-analysis",
+      "mark-image-unclear",
+      "clear-image-unclear",
       "update-model-annotation",
       "delete-model",
       "update-dataset",
@@ -194,6 +197,97 @@ describe("agent operations", () => {
     expect(harvested.observation).toBe(observation.id);
   });
 
+  test("a photograph is marked unclear by digest, or as it is assigned", async () => {
+    const version = await baselineVersion();
+    const experiment = output(
+      await executeAgentOperation("create-experiment", {
+        name: "Agent unclear",
+        inoculatedOn: "2026-08-01",
+        treatments: [{ name: "T1", replicates: 2 }],
+      }),
+    ) as Experiment;
+    const observation = output(
+      await executeAgentOperation("create-observation", {
+        experiment: experiment.id,
+        observedOn: "2026-08-10",
+        modelId: version.modelId,
+      }),
+    ) as ExperimentObservation;
+    const { units } = output(
+      await executeAgentOperation("get-experiment", {
+        experiment: experiment.id,
+      }),
+    ) as ExperimentGrid;
+    const [fogged, blurred] = await storeTexts(["agent-fogged", "agent-blur"]);
+    output(
+      await executeAgentOperation("assign-images-to-observation", {
+        experiment: experiment.id,
+        observation: observation.id,
+        images: [
+          {
+            unit: units[0]!.id,
+            digest: fogged,
+            filename: "fogged.jpg",
+            unclear: { note: "  Lid fogged " },
+          },
+          { unit: units[1]!.id, digest: blurred, filename: "blurred.jpg" },
+        ],
+      }),
+    );
+    const cells = async () =>
+      new Map(
+        (
+          output(
+            await executeAgentOperation("get-experiment", {
+              experiment: experiment.id,
+            }),
+          ) as ExperimentGrid
+        ).images.map((image) => [image.digest, image.unclear]),
+      );
+    // Not counted unless the mark says so, and the note is trimmed.
+    expect((await cells()).get(fogged!)).toMatchObject({
+      counted: false,
+      note: "Lid fogged",
+    });
+    expect((await cells()).get(blurred!)).toBeNull();
+
+    const marked = { digest: blurred, counted: true, note: "Slightly soft" };
+    for (let call = 0; call < 2; call++) {
+      expect(
+        output(await executeAgentOperation("mark-image-unclear", marked)),
+      ).toMatchObject(marked);
+    }
+    expect((await cells()).get(blurred!)?.counted).toBe(true);
+
+    expect(
+      output(
+        await executeAgentOperation("clear-image-unclear", { digest: fogged }),
+      ),
+    ).toEqual({ digest: fogged, cleared: true });
+    expect(
+      output(
+        await executeAgentOperation("clear-image-unclear", { digest: fogged }),
+      ),
+    ).toEqual({ digest: fogged, cleared: false });
+    expect((await cells()).get(fogged!)).toBeNull();
+
+    expect(
+      failure(
+        await executeAgentOperation("mark-image-unclear", {
+          digest: "f".repeat(64),
+        }),
+      ).code,
+    ).toBe("not_found");
+    expect(
+      failure(
+        await executeAgentOperation("mark-image-unclear", {
+          digest: fogged,
+          note: "x".repeat(501),
+        }),
+      ).code,
+    ).toBe("invalid_request");
+  });
+
   test("experiment images join and leave a dataset, keeping their reviews", async () => {
     const model = await createModel({
       id: "agent-dataset-task",
@@ -233,6 +327,7 @@ describe("agent operations", () => {
       dataset: train,
       added: 2,
       existing: 0,
+      unclear: 0,
     });
     expect(
       output(
@@ -247,7 +342,9 @@ describe("agent operations", () => {
       output(
         await executeAgentOperation("list-datasets", { modelId: model.id }),
       ),
-    ).toEqual([{ dataset: train, imageCount: 3, reviewedCount: 1 }]);
+    ).toEqual([
+      { dataset: train, imageCount: 3, reviewedCount: 1, trainableCount: 1 },
+    ]);
 
     const [a, b, c] = await Promise.all(
       ["agent-a", "agent-b", "agent-c"].map(imageDigest),
@@ -311,6 +408,7 @@ describe("agent operations", () => {
         dataset: { ...train, name: "agent-trained" },
         imageCount: 3,
         reviewedCount: 1,
+        trainableCount: 1,
       },
     ]);
     const taken = await executeAgentOperation("create-dataset", {

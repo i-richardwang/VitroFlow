@@ -1,6 +1,6 @@
 # Agent API
 
-The agent interface lets an AI agent maintain experiment records: design, observation dates, culture events, and image entry. It exposes the workbench domain layer directly, so every request is validated by the same schemas and rejected by the same invariants as the workbench UI.
+The agent interface lets an AI agent maintain experiment records: design, observation dates, culture events, image entry, and which photographs are unclear. It exposes the workbench domain layer directly, so every request is validated by the same schemas and rejected by the same invariants as the workbench UI.
 
 One operation registry (`web/src/server/agent/operations.ts`) defines the interface. The HTTP surface and the MCP tool list are both projections of it; an operation name is part of the public contract.
 
@@ -113,7 +113,8 @@ Entering one round of observation photos:
 2. `create-observation` adds the observation date, unless the grid already holds it. Its `countedClasses` names which of the model's classes the day's count sums, every class when omitted; a germination trial's later days count `["germinated"]`.
 3. `POST /api/agent/images` stores each photo and returns its digest.
 4. `assign-images-to-observation` attaches the digests to units in that observation, keeping each source filename for traceability. A cell that already has an image is given the new one. Filenames may suggest unit codes, but the unit id in the assignment is authoritative.
-5. `record-culture-event` records contamination or loss observed while photographing. Contaminated, discarded, and missing exclude the unit from analysis from that observation on; nonviable and harvested keep it included. `remove-culture-event` erases an event recorded by mistake.
+5. A photograph that cannot be read clearly, a fogged lid or a dish out of focus, is marked unclear by digest with `mark-image-unclear` (`{"digest":"…","counted":false,"note":"Lid fogged"}`), or in the same step as its assignment by giving the entry `"unclear": {"counted": false, "note": "…"}`. `counted` defaults to false: the unit then has no trusted number that day, and that day only; summaries and the spreadsheet leave it out and no training snapshot takes the photograph, which is still read and shown. With `counted: true` the number is used as it stands. The mark belongs to the image wherever it is observed, marking again replaces it, and `clear-image-unclear` removes it, answering `cleared: false` when there was none, so both are safe to repeat. Neither reads anything again. The workbench records which account marks a photograph from its pages; the operation catalog runs without an identity, so a mark made through this interface names no account.
+6. `record-culture-event` records contamination or loss observed while photographing. Contaminated, discarded, and missing exclude the unit from analysis from that observation on; nonviable and harvested keep it included. `remove-culture-event` erases an event recorded by mistake.
 
 Analysis needs no request: assigned images are queued for the current version of their observation's model automatically, and `retry-observation-image-analysis` requeues one that failed. A trained version is a candidate until a person makes it current on the model's page; agents do not choose versions. A model with no current version queues nothing; its images wait for a reviewer, and `create-model` names such a model in the first place.
 
@@ -122,10 +123,10 @@ Analysis needs no request: assigned images are queued for the current version of
 Images that a reviewer has annotated become training material once they belong to a dataset for their observation's model:
 
 1. `get-experiment` reads the grid; each unit's image cell carries the observation image id that names it.
-2. `list-datasets` shows the datasets for a model by id and name, with how many images each holds and how many are reviewed. Training uses only reviewed images.
+2. `list-datasets` shows the datasets for a model by id and name, with how many images each holds, how many are reviewed, and how many a snapshot would take: the reviewed ones less any marked unclear and not counted.
 3. `create-dataset` names a new, empty dataset for a model. The name is unique whatever its case and stays filename-safe, because transfer and `vitroctl` data roots know a dataset by name; `update-dataset` renames it later without touching its images, splits, snapshots, or runs. Every other dataset tool addresses the dataset by its id.
-4. `add-images-to-dataset` adds observation images to a dataset. One call takes images observed for the dataset's model; images already in the dataset are counted as `existing`, so repeating a call is safe.
-5. `get-dataset` lists a dataset's images by digest, each with whether it is reviewed and its training split; the digests match the image cells of `get-experiment`.
+4. `add-images-to-dataset` adds observation images to a dataset. One call takes images observed for the dataset's model; images already in the dataset are counted as `existing`, so repeating a call is safe. Images marked unclear and not counted join all the same and are counted as `unclear`: no snapshot takes them until the mark is cleared.
+5. `get-dataset` lists a dataset's images by digest, each with whether it is reviewed, its `unclear` mark when a person gave it one, and its training split; the digests match the image cells of `get-experiment`.
 6. `remove-images-from-dataset` takes images out by digest, for example a blurred photo or a unit found contaminated. The images and their reviews remain, and snapshots already taken keep what they froze; digests not in the dataset are counted as `absent`, so repeating a call is safe.
 
 The train/validation split is not chosen here: a training snapshot gives each reviewed image a split it keeps from then on.

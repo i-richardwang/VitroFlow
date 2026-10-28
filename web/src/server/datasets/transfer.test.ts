@@ -13,6 +13,11 @@ import { storeCanonicalImage } from "../images/store";
 import { handleCanonicalImageUpload } from "../transport/http/image-upload";
 import { listImageRecords } from "./records";
 import {
+  clearImageUnclear,
+  markImageUnclear,
+  readUnclearMarks,
+} from "../images/unclear";
+import {
   imageBytes,
   imageDigest,
   reviewedDataset,
@@ -134,6 +139,53 @@ describe("dataset transfer", () => {
 
     const again = await readDatasetManifest("transfer-copy");
     expect(again?.images[0]?.annotation).toEqual(fresh.images[0]!.annotation!);
+  });
+
+  test("a manifest carries unclear marks, and an import keeps marks made here", async () => {
+    const source = await uploadTexts("transfer-unclear-source", [
+      "tu-fogged",
+      "tu-clear",
+      "tu-local",
+    ]);
+    const [fogged, clear, local] = source.digests;
+    await markImageUnclear(
+      { digest: fogged!, counted: false, note: "Lid fogged" },
+      null,
+    );
+    const manifest = await readDatasetManifest("transfer-unclear-source");
+    if (!manifest) throw new Error("no manifest");
+    const entry = (digest: string) =>
+      manifest.images.find((image) => image.digest === digest)!;
+    expect(entry(fogged!).unclear).toEqual({
+      counted: false,
+      note: "Lid fogged",
+    });
+    // A clear image carries no mark at all.
+    expect("unclear" in entry(clear!)).toBe(false);
+
+    // As another workbench would hold them: the first unmarked, the last
+    // already marked by someone there.
+    await clearImageUnclear({ digest: fogged! });
+    await markImageUnclear(
+      { digest: local!, counted: true, note: "Here" },
+      null,
+    );
+    await importDataset({
+      ...manifest,
+      dataset: "transfer-unclear-copy",
+      images: manifest.images.map((image) =>
+        image.digest === local
+          ? { ...image, unclear: { counted: false, note: "There" } }
+          : image,
+      ),
+    });
+    const marks = await readUnclearMarks([fogged!, clear!, local!]);
+    expect(marks.get(fogged!)).toMatchObject({
+      counted: false,
+      note: "Lid fogged",
+    });
+    expect(marks.has(clear!)).toBe(false);
+    expect(marks.get(local!)).toMatchObject({ counted: true, note: "Here" });
   });
 
   test("a manifest the workbench cannot hold changes nothing", async () => {

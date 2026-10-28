@@ -104,6 +104,7 @@ function image(
   unitId: string,
   observation: string,
   tally: Record<string, number>,
+  unclear: ObservationImageCell["unclear"] = null,
 ): ObservationImageCell {
   return {
     id: `${unitId}-${observation}`,
@@ -116,6 +117,7 @@ function image(
     proposalTally: null,
     annotationTally: null,
     error: null,
+    unclear,
   };
 }
 
@@ -236,6 +238,37 @@ describe("the experiment workbook", () => {
     expect(second?.slice(3)).toEqual([
       { kind: "count", count: 20 },
       { kind: "text", text: "Contaminated" },
+    ]);
+  });
+
+  test("an unclear photograph not counted says so, for that day alone", () => {
+    const fogged = {
+      counted: false,
+      note: "Lid fogged",
+      recordedAt: "2026-09-02T00:00:00.000Z",
+    };
+    const workbook = trial({
+      images: [
+        image("A1", SOWN.id, { ungerminated: 20 }, fogged),
+        image(
+          "A2",
+          SOWN.id,
+          { ungerminated: 20 },
+          { ...fogged, counted: true },
+        ),
+        image("A1", ROOTED.id, { rooted: 15 }),
+        image("A2", ROOTED.id, { rooted: 10 }),
+      ],
+    });
+    const [first, second] = readings(workbook);
+    expect(first?.slice(3)).toEqual([
+      { kind: "text", text: "Unclear" },
+      { kind: "count", count: 15 },
+    ]);
+    // Counted anyway, the number stands.
+    expect(second?.slice(3)).toEqual([
+      { kind: "count", count: 20 },
+      { kind: "count", count: 10 },
     ]);
   });
 

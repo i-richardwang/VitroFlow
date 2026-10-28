@@ -341,6 +341,7 @@ export function UnitWorkbench({
         key={`${shown.model.id}:${shown.review.ref.digest}`}
         model={shown.model}
         review={shown.review}
+        unclear={shown.unclear}
         source={source}
         onSourceChange={onSourceChange}
         onNext={toUnit(toReview[0])}

@@ -71,8 +71,9 @@ Database checks, foreign keys, uniqueness constraints, advisory locks, immutable
 
 The blob driver only knows object keys and immutable bytes. `images/keys.ts` owns image keys, the model registry owns delivery keys, and `training/keys.ts` owns checkpoint keys. `images/lock.ts` coordinates writes and references to each digest. `images/collection.ts` first expires unreferenced database rows, then sweeps objects under that lock. Model upload and registration serialize on their reservation. Expired unregistered uploads are collected under that same lock; registered version locations are independent of execution. Object upload and hashing finish before a training completion transaction takes its run lock. `training/collection.ts` handles checkpoints under the run lock. `maintenance/collection.ts` invokes the image, model, and checkpoint collectors. Collection runs outside request handling and upload transactions.
 
-The images module owns canonical sources, their previews, dish analysis and
-regional evidence. `images/preview.ts` derives one small rendition of the whole
+The images module owns canonical sources, their previews, dish analysis,
+regional evidence and the unclear marks people give them; experiments,
+datasets and the agent catalog read and write marks through its public entry. `images/preview.ts` derives one small rendition of the whole
 frame per image; ingestion prepares it once the Image row is committed, a read
 prepares one that is missing, and collection removes it with its image.
 `images/dish.ts` owns one lazy compute thread per process for bounded OpenCV.js

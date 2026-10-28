@@ -17,14 +17,19 @@ import {
   images,
 } from "../infra/db/schema";
 import { readDatasetByName } from "./memberships";
-import { lockImage } from "../images/public";
+import {
+  lockImage,
+  markImagesUnclear,
+  readUnclearMarks,
+} from "../images/public";
 import { readModel } from "../models/public";
 import { listImageRecords } from "./records";
 
 /**
  * A dataset leaves and enters the workbench as a manifest and the images it
  * names. The manifest carries what the workbench keeps for the dataset: the
- * memberships and the reviews recorded for its model. Images travel by digest
+ * memberships, the reviews recorded for its model, and which photographs a
+ * person found unclear. Images travel by digest
  * ahead of the manifest, so importing it is one atomic step that either
  * creates the whole dataset or nothing.
  */
@@ -52,7 +57,7 @@ export async function datasetManifest(
     schemaVersion: 1,
     dataset: dataset.name,
     model: { id: model.id, classes: model.classes },
-    images: records.map(({ image, detection, annotation }) => ({
+    images: records.map(({ image, detection, annotation, unclear }) => ({
       digest: image.digest,
       width: image.width,
       height: image.height,
@@ -61,6 +66,9 @@ export async function datasetManifest(
       split: image.split,
       detection,
       annotation,
+      ...(unclear
+        ? { unclear: { counted: unclear.counted, note: unclear.note } }
+        : {}),
     })),
   });
 }
@@ -74,8 +82,10 @@ function listed(digests: string[]): string {
  * manifest's model with the same classes, must hold every image it names as
  * the bytes it describes, and must have no dataset of that name and no review
  * of those images for that model: a manifest adds to a workbench, never
- * changes what a reviewer decided here. Detections in the manifest are what
- * another workbench's versions found and are not recorded.
+ * changes what a reviewer decided here. For the same reason an image already
+ * marked unclear here keeps its mark, and the manifest marks only the others.
+ * Detections in the manifest are what another workbench's versions found and
+ * are not recorded.
  */
 export async function importDataset(
   manifest: DatasetManifest,
@@ -163,6 +173,22 @@ export async function importDataset(
           split: image.split,
           addedAt,
         })),
+      );
+    }
+    const marking = manifest.images.filter((image) => image.unclear);
+    if (marking.length > 0) {
+      const marked = await readUnclearMarks(
+        marking.map((image) => image.digest),
+        tx,
+      );
+      await markImagesUnclear(
+        new Map(
+          marking
+            .filter((image) => !marked.has(image.digest))
+            .map((image) => [image.digest, image.unclear!]),
+        ),
+        null,
+        tx,
       );
     }
     if (reviewing.length > 0) {

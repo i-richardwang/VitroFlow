@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
+import { unclearDecisionSchema } from "../images/unclear";
 import { classListSchema } from "../models/classes";
 
 export const experimentIdSchema = z.uuid();
@@ -362,11 +363,15 @@ const imageFilenameSchema = z
     "Invalid image filename",
   );
 
-/** A stored photograph and the unit it shows. */
+/**
+ * A stored photograph and the unit it shows, with the mark to give it when
+ * the person who took it already knows it is unclear.
+ */
 const unitPhotoSchema = z.strictObject({
   unit: unitIdSchema,
   digest: imageDigestSchema,
   filename: imageFilenameSchema,
+  unclear: unclearDecisionSchema.optional(),
 });
 
 export type UnitPhoto = z.infer<typeof unitPhotoSchema>;

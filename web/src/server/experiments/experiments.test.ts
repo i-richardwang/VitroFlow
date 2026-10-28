@@ -86,6 +86,8 @@ import {
   UnknownClassError,
 } from "../../domain/models/errors";
 import { readModel } from "../models/public";
+import { ImageNotFoundError } from "../../domain/images/errors";
+import { clearImageUnclear, markImageUnclear } from "../images/unclear";
 import { listAllModelVersions } from "../models/registry";
 import {
   FIXTURE_EDGE,
@@ -1350,6 +1352,112 @@ describe("experiments", () => {
     );
     expect(afterByUnit.get(units.get("A-1")!)?.digest).toBe(third);
     expect(afterByUnit.get(units.get("A-2")!)?.digest).toBe(first);
+  });
+
+  test("a photograph found unclear is marked on its image, wherever it is shown", async () => {
+    const version = await trainedVersion("exp-unclear");
+    const experiment = await createExperiment({
+      name: "Unclear",
+      inoculatedOn: INOCULATED,
+      treatments: [{ name: "A", replicates: 2 }],
+    });
+    const units = await unitsOf(experiment.id);
+    const day7 = await addObservation({
+      experiment: experiment.id,
+      observedOn: "2026-08-08",
+      note: "",
+      ...reading(version),
+    });
+    const [fogged, clear] = await storeTexts(["u-a1", "u-a2"]);
+    // A photograph known to be unclear is marked as it is placed.
+    await assignObservationImages({
+      experiment: experiment.id,
+      observation: day7.id,
+      images: [
+        {
+          unit: units.get("A-1")!,
+          digest: fogged!,
+          filename: "fogged.jpg",
+          unclear: { counted: false, note: "Lid fogged" },
+        },
+        { unit: units.get("A-2")!, digest: clear!, filename: "clear.jpg" },
+      ],
+    });
+    const cellOf = async (id: string, unit: string) =>
+      (await readExperimentGrid(id))!.images.find(
+        (image) => image.unit === unit,
+      )!;
+    expect((await cellOf(experiment.id, units.get("A-1")!)).unclear).toEqual({
+      counted: false,
+      note: "Lid fogged",
+      recordedAt: expect.any(String),
+    });
+    expect((await cellOf(experiment.id, units.get("A-2")!)).unclear).toBeNull();
+    const page = await readUnit({
+      experiment: experiment.id,
+      unit: units.get("A-1")!,
+    });
+    expect(page?.shown?.unclear?.note).toBe("Lid fogged");
+    expect(page?.observations[0]?.image?.unclear?.counted).toBe(false);
+
+    // Marking again replaces the mark; the image is not read again.
+    const counted = await markImageUnclear(
+      { digest: clear!, counted: true, note: "" },
+      null,
+    );
+    expect(counted).toMatchObject({ digest: clear, counted: true, note: "" });
+    expect(
+      (await cellOf(experiment.id, units.get("A-2")!)).unclear?.counted,
+    ).toBe(true);
+
+    // The mark is the image's: another experiment showing it shows the mark.
+    const other = await createExperiment({
+      name: "Unclear elsewhere",
+      inoculatedOn: INOCULATED,
+    });
+    const otherUnits = await unitsOf(other.id);
+    const otherDay = await addObservation({
+      experiment: other.id,
+      observedOn: "2026-08-09",
+      note: "",
+      ...reading(version),
+    });
+    await assignObservationImages({
+      experiment: other.id,
+      observation: otherDay.id,
+      images: [
+        { unit: otherUnits.get("A-1")!, digest: fogged!, filename: "f.jpg" },
+      ],
+    });
+    expect((await cellOf(other.id, otherUnits.get("A-1")!)).unclear?.note).toBe(
+      "Lid fogged",
+    );
+
+    // Clearing makes it clear again, and clearing twice is harmless.
+    expect(await clearImageUnclear({ digest: fogged! })).toEqual({
+      digest: fogged,
+      cleared: true,
+    });
+    expect(await clearImageUnclear({ digest: fogged! })).toEqual({
+      digest: fogged,
+      cleared: false,
+    });
+    expect((await cellOf(experiment.id, units.get("A-1")!)).unclear).toBeNull();
+
+    const unknown = "f".repeat(64);
+    await expect(
+      markImageUnclear({ digest: unknown, counted: false, note: "" }, null),
+    ).rejects.toThrow(ImageNotFoundError);
+    await expect(clearImageUnclear({ digest: unknown })).rejects.toThrow(
+      ImageNotFoundError,
+    );
+  });
+
+  test("an unclear mark keeps no image alive", async () => {
+    const [loose] = await storeTexts(["unclear-loose"]);
+    await markImageUnclear({ digest: loose!, counted: false, note: "" }, null);
+    const later = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    expect(await collectImages(later)).toContain(loose!);
   });
 
   test("an assignment can be unassigned and the image given to another unit", async () => {

@@ -1,5 +1,5 @@
 import { parseHttpJson } from "../../lib/http/json";
-import { storedImageResponseSchema } from "../../domain/images/schema";
+import { imageRefSchema } from "../../domain/images/schema";
 
 export function storeImage(
   file: File,
@@ -21,11 +21,7 @@ export function storeImage(
       signal.removeEventListener("abort", abort);
       try {
         resolve(
-          parseHttpJson(
-            request.responseText,
-            request.status,
-            storedImageResponseSchema,
-          ),
+          parseHttpJson(request.responseText, request.status, imageRefSchema),
         );
       } catch (error) {
         reject(error);

@@ -375,6 +375,23 @@
                 "type": "null"
               }
             ]
+          },
+          "unclear": {
+            "type": "object",
+            "properties": {
+              "counted": {
+                "type": "boolean"
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "counted",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

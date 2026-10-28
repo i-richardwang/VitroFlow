@@ -11,7 +11,9 @@ import { useState } from "react";
 import { z } from "zod";
 
 import { QualityTags } from "../../ui/DetectionQuality";
+import { UnclearTag } from "../../features/annotation/unclear";
 import { Absent } from "../../ui/Absent";
+import { Flexbox } from "../../ui/kit/Flex";
 import {
   Page,
   PageColumnSkeleton,
@@ -114,14 +116,16 @@ function DatasetPage() {
   const {
     dataset: { name },
     images,
-    reviewedCount,
+    trainableCount,
+    unclearCount,
     training,
     trainingPresets,
     defaultTrainingPresetId,
     runs,
   } = Route.useLoaderData();
   const [starting, setStarting] = useState(false);
-  const refusal = trainRefusal({ reviewed: reviewedCount, training });
+  // Reviewed images marked unclear and not counted stay out of training.
+  const refusal = trainRefusal({ reviewed: trainableCount, training });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
@@ -173,10 +177,13 @@ function DatasetPage() {
       }
     >
       <StatisticHero
-        value={formatCount(reviewedCount)}
+        value={formatCount(trainableCount)}
         title={m.dataset_hero_reviewed()}
         facts={[
           m.dataset_hero_images({ count: images.length }),
+          ...(unclearCount > 0
+            ? [m.dataset_hero_unclear({ count: unclearCount })]
+            : []),
           ...(training.reviewedSinceLastRun > 0
             ? [
                 m.dataset_reviewed_since_last_run({
@@ -303,11 +310,7 @@ function DatasetPage() {
                     </Status>
                   </TableCell>
                   <TableCell cellLabel={m.dataset_column_quality()}>
-                    {image.quality && image.quality.status !== "ok" ? (
-                      <QualityTags quality={image.quality} />
-                    ) : (
-                      <Absent />
-                    )}
+                    <ImageQuality image={image} />
                   </TableCell>
                   <TableCell cellLabel={m.dataset_column_boxes()} numeric>
                     <BoxCount
@@ -337,7 +340,7 @@ function DatasetPage() {
       <TrainDialog
         set={{
           dataset,
-          reviewed: reviewedCount,
+          reviewed: trainableCount,
           trainingPresets,
           defaultTrainingPresetId,
           training,
@@ -375,9 +378,9 @@ function ImagePreview({
             boxes={image.instanceCount}
           />
         </DescriptionsItem>
-        {image.quality && image.quality.status !== "ok" ? (
+        {hasQualityNotes(image) ? (
           <DescriptionsItem label={m.dataset_preview_quality()}>
-            <QualityTags quality={image.quality} />
+            <ImageQuality image={image} />
           </DescriptionsItem>
         ) : null}
       </Descriptions>
@@ -395,6 +398,27 @@ function ImagePreview({
         {m.dataset_preview_open()}
       </Button>
     </>
+  );
+}
+
+/** Whether anything is said against the image: the detector's warnings, or a person's mark. */
+function hasQualityNotes(image: DatasetOverviewImage): boolean {
+  return (
+    (image.quality !== null && image.quality.status !== "ok") ||
+    image.unclear !== null
+  );
+}
+
+/** What is said against the image, or nothing. */
+function ImageQuality({ image }: { image: DatasetOverviewImage }) {
+  if (!hasQualityNotes(image)) return <Absent />;
+  return (
+    <Flexbox horizontal gap={4} wrap="wrap">
+      {image.unclear ? <UnclearTag mark={image.unclear} /> : null}
+      {image.quality && image.quality.status !== "ok" ? (
+        <QualityTags quality={image.quality} />
+      ) : null}
+    </Flexbox>
   );
 }
 
