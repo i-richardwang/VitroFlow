@@ -273,6 +273,7 @@ export function UnitWorkbench({
             included={(observation) =>
               unitIsIncludedInAnalysis(unit.events, observation, ordinals)
             }
+            countsUnclear={experiment.countsUnclear}
           />
           {culture}
           <WorkbenchSection title={m.annotation_details()}>

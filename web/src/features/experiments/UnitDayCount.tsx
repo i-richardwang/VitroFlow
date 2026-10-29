@@ -2,9 +2,8 @@ import { EyeOff, ImageIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import type { ObservationImageCell } from "../../domain/experiments/contracts";
-import { imageReading } from "../../domain/experiments/readings";
+import { imageReading, numberTrusted } from "../../domain/experiments/readings";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
-import { numberTrusted, type UnclearMark } from "../../domain/images/unclear";
 import { m } from "../../paraglide/messages";
 import { Absent } from "../../ui/Absent";
 import { cn } from "../../ui/kit/cn";
@@ -20,27 +19,32 @@ import { formatCount } from "../../ui/numbers";
  * left out of the analysis struck through; a photograph not yet counted
  * shows as a photograph, no photograph as absent, and only a failed count
  * asks for attention. A photograph found unclear keeps its number in view:
- * struck through when it is not counted, marked when it is counted anyway.
- * `link` wraps what is shown in a way to the photograph.
+ * struck through where the experiment does not count unclear photographs,
+ * marked where it does. `link` wraps what is shown in a way to the photograph.
  */
 export function UnitDayCount({
   image,
   observation,
   included,
+  countsUnclear,
   link = (content) => content,
 }: {
   image: ObservationImageCell | null | undefined;
   observation: Pick<ExperimentObservation, "countedClasses">;
   /** Whether the day's count enters the analysis. */
   included: boolean;
+  /** Whether the experiment counts photographs marked unclear. */
+  countsUnclear: boolean;
   link?: (content: ReactElement) => ReactElement;
 }) {
   if (!image) return <Absent />;
-  const unclear = unclearNotes(image.unclear);
+  const unclearNote = image.unclear
+    ? [countsUnclear ? m.unclear_counted() : m.unclear_not_counted()]
+    : [];
   const reading = imageReading(image, observation);
   if (reading) {
-    const trusted = included && numberTrusted(image.unclear);
-    const notes: string[] = [...unclear];
+    const trusted = included && numberTrusted(image, { countsUnclear });
+    const notes: string[] = [...unclearNote];
     if (reading.source !== "review") notes.push(m.experiment_cell_unreviewed());
     if (!included) notes.push(m.experiment_cell_excluded());
     return explain(
@@ -62,7 +66,7 @@ export function UnitDayCount({
           )}
         >
           {formatCount(reading.count)}
-          {image.unclear?.counted ? (
+          {image.unclear && countsUnclear ? (
             <Icon icon={EyeOff} size={12} aria-label={m.unclear_counted()} />
           ) : null}
         </Text>,
@@ -71,7 +75,7 @@ export function UnitDayCount({
   }
   if (image.state === "failed") {
     return explain(
-      [...unclear, ...(image.error ? [image.error] : [])],
+      [...unclearNote, ...(image.error ? [image.error] : [])],
       link(<Status tone="error">{m.experiment_cell_failed()}</Status>),
     );
   }
@@ -80,7 +84,7 @@ export function UnitDayCount({
       ? m.experiment_cell_unread()
       : m.experiment_cell_waiting();
   return explain(
-    [...unclear, waiting],
+    [...unclearNote, waiting],
     link(
       <Text as="span" type="tertiary">
         <Icon
@@ -92,15 +96,6 @@ export function UnitDayCount({
       </Text>,
     ),
   );
-}
-
-/** What a count says of its photograph's unclear mark: the verdict, then the note. */
-function unclearNotes(mark: UnclearMark | null): string[] {
-  if (!mark) return [];
-  return [
-    mark.counted ? m.unclear_counted() : m.unclear_not_counted(),
-    ...(mark.note ? [mark.note] : []),
-  ];
 }
 
 /** A count's notes, one per line, in a tooltip over it. */

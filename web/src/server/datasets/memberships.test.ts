@@ -110,7 +110,7 @@ describe("datasets", () => {
         name: "crop",
         images,
       });
-    expect(counts).toEqual({ added: 2, existing: 0, unclear: 0 });
+    expect(counts).toEqual({ added: 2, existing: 0 });
     const listed = await listImageRecords(dataset.id);
     expect(listed.map(({ image }) => image.digest).sort()).toEqual(
       [...digests].sort(),
@@ -137,38 +137,25 @@ describe("datasets", () => {
     ).toMatchObject({ added: 0, existing: 1 });
   });
 
-  test("an unclear photograph joins all the same, and is counted as unclear", async () => {
+  test("an unclear photograph joins like any other and shows its mark", async () => {
     const { images, digests } = await observeImages("Unclear joining", [
       "uj-fogged",
-      "uj-counted",
       "uj-clear",
     ]);
-    const [fogged, counted] = digests;
-    await markImageUnclear(
-      { digest: fogged!, counted: false, note: "Lid fogged" },
-      null,
-    );
-    await markImageUnclear({ digest: counted!, counted: true, note: "" }, null);
+    const [fogged, clear] = digests;
+    await markImageUnclear({ digest: fogged! });
     const { dataset, ...counts } =
       await addExperimentObservationImagesToNewDataset({
         name: "unclear-joining",
         images,
       });
-    // Only a mark that is not counted keeps an image out of training.
-    expect(counts).toEqual({ added: 3, existing: 0, unclear: 1 });
-    expect(
-      await addExperimentObservationImages({ dataset: dataset.id, images }),
-    ).toMatchObject({ added: 0, existing: 3, unclear: 1 });
+    expect(counts).toEqual({ added: 2, existing: 0 });
     const contents = await readDatasetContents(dataset.id);
     const marks = new Map(
       contents!.images.map((image) => [image.digest, image.unclear]),
     );
-    expect(marks.get(fogged!)).toMatchObject({
-      counted: false,
-      note: "Lid fogged",
-    });
-    expect(marks.get(counted!)).toMatchObject({ counted: true });
-    expect(marks.get(digests[2]!)).toBeNull();
+    expect(marks.get(fogged!)).toBe(true);
+    expect(marks.get(clear!)).toBe(false);
   });
 
   test("an untrained model's reviewed images become the set it trains on", async () => {

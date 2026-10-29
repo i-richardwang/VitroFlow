@@ -301,6 +301,7 @@ export async function observeImagesForModel(
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
+    countsUnclear: false,
     treatments: [
       { name: "Test", factor: null, note: "", replicates: contents.length },
     ],

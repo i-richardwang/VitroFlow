@@ -13,9 +13,6 @@ export {
 } from "./memberships";
 export {
   countReviewed,
-  countTrainable,
-  countUnclear,
-  trainable,
   listDatasetSummaries,
   listImageRecords,
   listReviewedRecords,

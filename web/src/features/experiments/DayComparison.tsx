@@ -122,13 +122,18 @@ export function DayCountsSection({
   reference,
   inView,
   included,
+  countsUnclear,
 }: {
   reference: UnitObservation;
   inView: UnitObservation | undefined;
   /** Whether a day's count enters the analysis. */
   included: (observation: ExperimentObservation) => boolean;
+  /** Whether the experiment counts photographs marked unclear. */
+  countsUnclear: boolean;
 }) {
-  const change = inView ? countChange(reference, inView) : null;
+  const change = inView
+    ? countChange(reference, inView, { countsUnclear })
+    : null;
   return (
     <WorkbenchSection title={m.annotation_counts()}>
       <Descriptions justified>
@@ -141,6 +146,7 @@ export function DayCountsSection({
               image={day.image}
               observation={day.observation}
               included={included(day.observation)}
+              countsUnclear={countsUnclear}
             />
           </DescriptionsItem>
         ))}
@@ -211,7 +217,7 @@ function ComparedDay({
       </Toolbar>
       {day.image?.unclear ? (
         <div className="absolute right-3 bottom-3 left-3">
-          <UnclearAlert mark={day.image.unclear} />
+          <UnclearAlert />
         </div>
       ) : null}
     </>

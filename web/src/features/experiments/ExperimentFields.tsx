@@ -1,6 +1,7 @@
 import type { CalendarDay, Experiment } from "../../domain/experiments/schema";
 import { Form } from "../../ui/kit/Form";
 import { Input, TextArea } from "../../ui/kit/Input";
+import { Switch } from "../../ui/kit/Switch";
 import { m } from "../../paraglide/messages";
 import { DayField } from "./DayField";
 
@@ -22,18 +23,23 @@ export function readExperimentFields(form: FormData): NotebookPage {
 
 /**
  * The notebook page of an experiment, read from the form by field name: its
- * name and free notes, then the culture it starts from as a section.
+ * name and free notes, then the culture it starts from as a section, and
+ * last how its numbers are read.
  */
 export function ExperimentFields({
   disabled,
   defaults,
   inoculatedOn,
   onInoculatedOnChange,
+  countsUnclear,
+  onCountsUnclearChange,
 }: {
   disabled: boolean;
   defaults?: NotebookPage;
   inoculatedOn: CalendarDay;
   onInoculatedOnChange: (value: CalendarDay) => void;
+  countsUnclear: boolean;
+  onCountsUnclearChange: (value: boolean) => void;
 }) {
   return (
     <>
@@ -94,6 +100,20 @@ export function ExperimentFields({
           value={inoculatedOn}
           onChange={onInoculatedOnChange}
         />
+      </Form.Group>
+      <Form.Group title={m.experiment_group_analysis()}>
+        <Form.Field
+          layout="horizontal"
+          label={m.experiment_field_counts_unclear()}
+          desc={m.experiment_field_counts_unclear_description()}
+        >
+          <Switch
+            size="small"
+            checked={countsUnclear}
+            disabled={disabled}
+            onChange={onCountsUnclearChange}
+          />
+        </Form.Field>
       </Form.Group>
     </>
   );

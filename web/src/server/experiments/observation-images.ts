@@ -198,14 +198,9 @@ export async function assignObservationImages(
     // A photograph known to be unclear is marked in the same step that
     // places it; the mark is the image's, so it stays if the image moves.
     await markImagesUnclear(
-      new Map(
-        assignments.flatMap((assignment) =>
-          assignment.unclear
-            ? [[assignment.digest, assignment.unclear] as const]
-            : [],
-        ),
-      ),
-      null,
+      assignments
+        .filter((assignment) => assignment.unclear)
+        .map((assignment) => assignment.digest),
       tx,
     );
     return {

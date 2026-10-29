@@ -1098,6 +1098,7 @@ describe("experiments", () => {
       baseMedium: "B5",
       notes: experiment.notes,
       inoculatedOn: experiment.inoculatedOn,
+      countsUnclear: experiment.countsUnclear,
     });
     expect(protocol.baseMedium).toBe("B5");
     await expect(
@@ -1109,6 +1110,7 @@ describe("experiments", () => {
         baseMedium: "B5",
         notes: experiment.notes,
         inoculatedOn: "2026-08-09",
+        countsUnclear: experiment.countsUnclear,
       }),
     ).rejects.toThrow(ObservationRejectedError);
 
@@ -1120,10 +1122,12 @@ describe("experiments", () => {
       baseMedium: "B5",
       notes: "Protocol note corrected",
       inoculatedOn: experiment.inoculatedOn,
+      countsUnclear: true,
     });
-    expect([annotated.name, annotated.notes]).toEqual([
+    expect([annotated.name, annotated.notes, annotated.countsUnclear]).toEqual([
       "Notebook, first run",
       "Protocol note corrected",
+      true,
     ]);
 
     const treatment = (await readExperimentGrid(experiment.id))!.treatments[0]!;
@@ -1361,6 +1365,8 @@ describe("experiments", () => {
       inoculatedOn: INOCULATED,
       treatments: [{ name: "A", replicates: 2 }],
     });
+    // Unclear photographs do not count unless the experiment says so.
+    expect(experiment.countsUnclear).toBe(false);
     const units = await unitsOf(experiment.id);
     const day7 = await addObservation({
       experiment: experiment.id,
@@ -1378,7 +1384,7 @@ describe("experiments", () => {
           unit: units.get("A-1")!,
           digest: fogged!,
           filename: "fogged.jpg",
-          unclear: { counted: false, note: "Lid fogged" },
+          unclear: true,
         },
         { unit: units.get("A-2")!, digest: clear!, filename: "clear.jpg" },
       ],
@@ -1387,34 +1393,30 @@ describe("experiments", () => {
       (await readExperimentGrid(id))!.images.find(
         (image) => image.unit === unit,
       )!;
-    expect((await cellOf(experiment.id, units.get("A-1")!)).unclear).toEqual({
-      counted: false,
-      note: "Lid fogged",
-      recordedAt: expect.any(String),
-    });
-    expect((await cellOf(experiment.id, units.get("A-2")!)).unclear).toBeNull();
+    expect((await cellOf(experiment.id, units.get("A-1")!)).unclear).toBe(true);
+    expect((await cellOf(experiment.id, units.get("A-2")!)).unclear).toBe(
+      false,
+    );
     const page = await readUnit({
       experiment: experiment.id,
       unit: units.get("A-1")!,
     });
-    expect(page?.shown?.unclear?.note).toBe("Lid fogged");
-    expect(page?.observations[0]?.image?.unclear?.counted).toBe(false);
+    expect(page?.shown?.unclear).toBe(true);
+    expect(page?.observations[0]?.image?.unclear).toBe(true);
 
-    // Marking again replaces the mark; the image is not read again.
-    const counted = await markImageUnclear(
-      { digest: clear!, counted: true, note: "" },
-      null,
-    );
-    expect(counted).toMatchObject({ digest: clear, counted: true, note: "" });
-    expect(
-      (await cellOf(experiment.id, units.get("A-2")!)).unclear?.counted,
-    ).toBe(true);
+    // Marking again is harmless; the image is not read again.
+    expect(await markImageUnclear({ digest: fogged! })).toEqual({
+      digest: fogged,
+      marked: false,
+    });
 
     // The mark is the image's: another experiment showing it shows the mark.
     const other = await createExperiment({
       name: "Unclear elsewhere",
       inoculatedOn: INOCULATED,
+      countsUnclear: true,
     });
+    expect(other.countsUnclear).toBe(true);
     const otherUnits = await unitsOf(other.id);
     const otherDay = await addObservation({
       experiment: other.id,
@@ -1429,9 +1431,7 @@ describe("experiments", () => {
         { unit: otherUnits.get("A-1")!, digest: fogged!, filename: "f.jpg" },
       ],
     });
-    expect((await cellOf(other.id, otherUnits.get("A-1")!)).unclear?.note).toBe(
-      "Lid fogged",
-    );
+    expect((await cellOf(other.id, otherUnits.get("A-1")!)).unclear).toBe(true);
 
     // Clearing makes it clear again, and clearing twice is harmless.
     expect(await clearImageUnclear({ digest: fogged! })).toEqual({
@@ -1442,12 +1442,14 @@ describe("experiments", () => {
       digest: fogged,
       cleared: false,
     });
-    expect((await cellOf(experiment.id, units.get("A-1")!)).unclear).toBeNull();
+    expect((await cellOf(experiment.id, units.get("A-1")!)).unclear).toBe(
+      false,
+    );
 
     const unknown = "f".repeat(64);
-    await expect(
-      markImageUnclear({ digest: unknown, counted: false, note: "" }, null),
-    ).rejects.toThrow(ImageNotFoundError);
+    await expect(markImageUnclear({ digest: unknown })).rejects.toThrow(
+      ImageNotFoundError,
+    );
     await expect(clearImageUnclear({ digest: unknown })).rejects.toThrow(
       ImageNotFoundError,
     );
@@ -1455,7 +1457,7 @@ describe("experiments", () => {
 
   test("an unclear mark keeps no image alive", async () => {
     const [loose] = await storeTexts(["unclear-loose"]);
-    await markImageUnclear({ digest: loose!, counted: false, note: "" }, null);
+    await markImageUnclear({ digest: loose! });
     const later = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
     expect(await collectImages(later)).toContain(loose!);
   });
@@ -1913,6 +1915,7 @@ describe("experiments", () => {
       baseMedium: "MS + 3% sucrose",
       notes: "Draft protocol",
       inoculatedOn: "2026-08-02",
+      countsUnclear: false,
     });
     expect([revised.name, revised.inoculatedOn]).toEqual([
       "Final",

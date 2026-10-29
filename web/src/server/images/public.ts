@@ -19,6 +19,6 @@ export {
   clearImageUnclear,
   markImageUnclear,
   markImagesUnclear,
-  readUnclearMarks,
-  toUnclearMark,
+  markedUnclear,
+  readUnclearImages,
 } from "./unclear";

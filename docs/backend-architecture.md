@@ -73,7 +73,8 @@ The blob driver only knows object keys and immutable bytes. `images/keys.ts` own
 
 The images module owns canonical sources, their previews, dish analysis,
 regional evidence and the unclear marks people give them; experiments,
-datasets and the agent catalog read and write marks through its public entry. `images/preview.ts` derives one small rendition of the whole
+datasets and the agent catalog read and write marks through its public entry,
+and each experiment decides whether its unclear photographs count. `images/preview.ts` derives one small rendition of the whole
 frame per image; ingestion prepares it once the Image row is committed, a read
 prepares one that is missing, and collection removes it with its image.
 `images/dish.ts` owns one lazy compute thread per process for bounded OpenCV.js

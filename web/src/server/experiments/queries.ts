@@ -13,7 +13,6 @@ import {
   inferenceTasks,
   modelVersions,
   models,
-  unclearImages,
 } from "../infra/db/schema";
 import type {
   ExperimentGrid,
@@ -50,7 +49,7 @@ import {
   proposalRuns,
 } from "../readings/public";
 import { currentVersion } from "../inference/public";
-import { toUnclearMark } from "../images/public";
+import { markedUnclear } from "../images/public";
 
 function observationImageGridQuery(db: Executor) {
   return db
@@ -68,11 +67,10 @@ function observationImageGridQuery(db: Executor) {
       error: sql<
         string | null
       >`case when ${inferenceTasks.status} = 'failed' then ${inferenceTasks.error} else null end`,
-      unclear: unclearImages,
+      unclear: markedUnclear(experimentObservationImages.imageId),
     })
     .from(experimentObservationImages)
     .innerJoin(experimentObservations, atImageObservation())
-    .leftJoin(unclearImages, atImageUnclear())
     .leftJoin(
       modelVersions,
       eq(modelVersions.id, currentVersion(experimentObservations.modelId)),
@@ -104,11 +102,6 @@ function atImageObservation() {
     ),
     eq(experimentObservations.id, experimentObservationImages.observationId),
   );
-}
-
-/** The mark on the image, when a person found it unclear. */
-function atImageUnclear() {
-  return eq(unclearImages.imageId, experimentObservationImages.imageId);
 }
 
 /** The newest agent proposal for the image under the observation's model. */
@@ -156,7 +149,7 @@ function toCell(row: ObservationImageGridRow): ObservationImageCell {
     proposalTally: row.proposed ? row.proposalTally : null,
     annotationTally: row.reviewed ? row.annotationTally : null,
     error: row.error,
-    unclear: toUnclearMark(row.unclear),
+    unclear: row.unclear,
   };
 }
 
@@ -369,7 +362,7 @@ async function readObservationImage(
       taskStatus: inferenceTasks.status,
       taskError: inferenceTasks.error,
       versionId: modelVersions.id,
-      unclear: unclearImages,
+      unclear: markedUnclear(experimentObservationImages.imageId),
     })
     .from(experimentObservationImages)
     .innerJoin(
@@ -400,7 +393,6 @@ async function readObservationImage(
         eq(inferenceTasks.modelVersionId, modelVersions.id),
       ),
     )
-    .leftJoin(unclearImages, atImageUnclear())
     .where(atObservationImage(ref.experiment, ref.observationImage));
   if (!row) return null;
   const experiment = toExperiment(row.experiment);
@@ -434,6 +426,6 @@ async function readObservationImage(
             error: row.taskError,
           }
         : null,
-    unclear: toUnclearMark(row.unclear),
+    unclear: row.unclear,
   };
 }

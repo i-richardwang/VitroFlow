@@ -121,7 +121,7 @@ const render = ({
       title: "Seed",
       model: SEED_DETECTOR,
       review,
-      unclear: null,
+      unclear: false,
       source,
       onSourceChange(next) {
         sourceChanges++;

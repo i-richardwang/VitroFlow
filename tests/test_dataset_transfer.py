@@ -57,24 +57,23 @@ def _manifest() -> dict[str, object]:
     )
 
 
-def test_manifest_carries_an_unclear_mark_only_where_one_exists() -> None:
+def test_manifest_says_which_photographs_are_unclear() -> None:
     document = _manifest()
-    document["images"][0]["unclear"] = {"counted": False, "note": "lid fogged"}
+    document["images"][0]["unclear"] = True
+    # A manifest that does not say reads as clear, and says so when written.
+    del document["images"][1]["unclear"]
 
     manifest = parse_dataset_manifest(document)
-    marked, clear = manifest.images
+    marked, unsaid = manifest.images
 
-    assert marked.unclear is not None
-    assert marked.unclear.counted is False
-    assert marked.unclear.note == "lid fogged"
-    assert clear.unclear is None
+    assert marked.unclear is True
+    assert unsaid.unclear is False
 
     encoded = json.loads(encode_dataset_manifest(manifest))
-    assert encoded["images"][0]["unclear"] == {"counted": False, "note": "lid fogged"}
-    assert "unclear" not in encoded["images"][1]
+    assert [image["unclear"] for image in encoded["images"]] == [True, False]
 
     malformed = _manifest()
-    malformed["images"][0]["unclear"] = {"counted": "no", "note": ""}
+    malformed["images"][0]["unclear"] = "yes"
     with pytest.raises((ValueError, TypeError), match=r"manifest.images\[0\].unclear"):
         parse_dataset_manifest(malformed)
 

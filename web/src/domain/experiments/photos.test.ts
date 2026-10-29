@@ -63,7 +63,7 @@ describe("photographs an experiment holds", () => {
             proposalTally: null,
             annotationTally: null,
             error: null,
-            unclear: null,
+            unclear: false,
           },
         ],
       }),

@@ -17,11 +17,7 @@ import {
   images,
 } from "../infra/db/schema";
 import { readDatasetByName } from "./memberships";
-import {
-  lockImage,
-  markImagesUnclear,
-  readUnclearMarks,
-} from "../images/public";
+import { lockImage, markImagesUnclear } from "../images/public";
 import { readModel } from "../models/public";
 import { listImageRecords } from "./records";
 
@@ -29,9 +25,9 @@ import { listImageRecords } from "./records";
  * A dataset leaves and enters the workbench as a manifest and the images it
  * names. The manifest carries what the workbench keeps for the dataset: the
  * memberships, the reviews recorded for its model, and which photographs a
- * person found unclear. Images travel by digest
- * ahead of the manifest, so importing it is one atomic step that either
- * creates the whole dataset or nothing.
+ * person found unclear. Images travel by digest ahead of the manifest, so
+ * importing it is one atomic step that either creates the whole dataset or
+ * nothing.
  */
 
 /**
@@ -66,9 +62,7 @@ export async function datasetManifest(
       split: image.split,
       detection,
       annotation,
-      ...(unclear
-        ? { unclear: { counted: unclear.counted, note: unclear.note } }
-        : {}),
+      unclear,
     })),
   });
 }
@@ -82,8 +76,8 @@ function listed(digests: string[]): string {
  * manifest's model with the same classes, must hold every image it names as
  * the bytes it describes, and must have no dataset of that name and no review
  * of those images for that model: a manifest adds to a workbench, never
- * changes what a reviewer decided here. For the same reason an image already
- * marked unclear here keeps its mark, and the manifest marks only the others.
+ * changes what a reviewer decided here. For the same reason the manifest
+ * only adds marks of unclear photographs and never clears one made here.
  * Detections in the manifest are what another workbench's versions found and
  * are not recorded.
  */
@@ -175,22 +169,12 @@ export async function importDataset(
         })),
       );
     }
-    const marking = manifest.images.filter((image) => image.unclear);
-    if (marking.length > 0) {
-      const marked = await readUnclearMarks(
-        marking.map((image) => image.digest),
-        tx,
-      );
-      await markImagesUnclear(
-        new Map(
-          marking
-            .filter((image) => !marked.has(image.digest))
-            .map((image) => [image.digest, image.unclear!]),
-        ),
-        null,
-        tx,
-      );
-    }
+    await markImagesUnclear(
+      manifest.images
+        .filter((image) => image.unclear)
+        .map((image) => image.digest),
+      tx,
+    );
     if (reviewing.length > 0) {
       await tx.insert(annotations).values(
         reviewing.map((image) => ({

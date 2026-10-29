@@ -599,28 +599,15 @@ export const images = pgTable(
 /**
  * A photograph a person could not read clearly. The mark is the canonical
  * image's, whichever experiment or dataset shows it, and no row means the
- * photograph is clear. Unless `counted`, the day it was taken has no trusted
- * reading for its unit and no snapshot trains on it. A mark roots nothing:
- * an image that is collected takes its mark with it.
+ * photograph is clear. Each experiment decides whether its unclear
+ * photographs count. A mark roots nothing: an image that is collected takes
+ * its mark with it.
  */
-export const unclearImages = pgTable(
-  "unclear_images",
-  {
-    imageId: text("image_id")
-      .primaryKey()
-      .references(() => images.id, { onDelete: "cascade" }),
-    counted: boolean("counted").notNull().default(false),
-    note: text("note").notNull().default(""),
-    /** The account that marked it; none when an agent or an import did. */
-    recordedBy: text("recorded_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    recordedAt: instant("recorded_at"),
-  },
-  (table) => [
-    check("unclear_images_note_check", sql`char_length(${table.note}) <= 500`),
-  ],
-);
+export const unclearImages = pgTable("unclear_images", {
+  imageId: text("image_id")
+    .primaryKey()
+    .references(() => images.id, { onDelete: "cascade" }),
+});
 
 export const datasetImages = pgTable(
   "dataset_images",
@@ -725,6 +712,8 @@ export const experiments = pgTable(
     baseMedium: text("base_medium").notNull(),
     notes: text("notes").notNull(),
     inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
+    /** Whether a photograph marked unclear still gives its unit that day's number. */
+    countsUnclear: boolean("counts_unclear").notNull().default(false),
     createdAt: instant("created_at"),
   },
   (table) => [
