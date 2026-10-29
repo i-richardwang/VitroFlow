@@ -129,8 +129,8 @@ export const experimentSchema = z.strictObject({
   notes: experimentNotesSchema,
   inoculatedOn: calendarDaySchema,
   /**
-   * Whether a photograph marked unclear still gives its unit that day's
-   * number. Unless it does, the unit has no trusted number on that day.
+   * Whether a unit with a photograph marked unclear stays in the analysis.
+   * Unless it does, the unit is out of it on every day.
    */
   countsUnclear: z.boolean(),
   createdAt: z.string().datetime({ offset: true }),

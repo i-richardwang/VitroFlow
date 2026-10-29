@@ -712,7 +712,7 @@ export const experiments = pgTable(
     baseMedium: text("base_medium").notNull(),
     notes: text("notes").notNull(),
     inoculatedOn: date("inoculated_on", { mode: "string" }).notNull(),
-    /** Whether a photograph marked unclear still gives its unit that day's number. */
+    /** Whether a unit with a photograph marked unclear stays in the analysis. */
     countsUnclear: boolean("counts_unclear").notNull().default(false),
     createdAt: instant("created_at"),
   },

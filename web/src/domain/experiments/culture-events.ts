@@ -108,12 +108,13 @@ export function unitIsAvailableOn(
 }
 
 /**
- * What took the unit out of this analysis, when something has. An exclusion
- * starts in its recorded observation; leaving the bench also takes the unit
- * out of every later denominator. The earliest such event is the one that
- * decided it, and the one worth naming.
+ * The culture event that takes the unit out of the analysis on this
+ * observation, when one does. An exclusion starts in its recorded
+ * observation; leaving the bench also takes the unit out of every later
+ * denominator. The earliest such event is the one that decided it, and the
+ * one worth naming.
  */
-export function exclusionAt(
+export function excludingEvent(
   events: readonly CultureEvent[],
   observation: ExperimentObservation,
   ordinals: ObservationOrdinals,
@@ -128,14 +129,6 @@ export function exclusionAt(
     if (!decided) return event;
     return ordinal < eventOrdinal(decided, ordinals) ? event : decided;
   }, null);
-}
-
-export function unitIsIncludedInAnalysis(
-  events: readonly CultureEvent[],
-  observation: ExperimentObservation,
-  ordinals: ObservationOrdinals,
-): boolean {
-  return exclusionAt(events, observation, ordinals) === null;
 }
 
 /** The latest biological event, regardless of when it was entered. */

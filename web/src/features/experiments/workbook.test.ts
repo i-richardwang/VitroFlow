@@ -242,24 +242,71 @@ describe("the experiment workbook", () => {
     ]);
   });
 
-  test("an unclear photograph says so, for that day alone, unless the experiment counts it", () => {
+  test("a unit with an unclear photograph says so on every day, unless the experiment counts it", () => {
     const images = [
-      image("A1", SOWN.id, { ungerminated: 20 }, true),
+      image("A1", SOWN.id, { ungerminated: 20 }),
       image("A2", SOWN.id, { ungerminated: 20 }),
-      image("A1", ROOTED.id, { rooted: 15 }),
+      image("A1", ROOTED.id, { rooted: 15 }, true),
       image("A2", ROOTED.id, { rooted: 10 }),
     ];
-    const [first] = readings(trial({ images }));
+    const [first, second] = readings(trial({ images }));
+    // The record of the dish is in doubt, not one day of it.
     expect(first?.slice(3)).toEqual([
       { kind: "text", text: "Unclear" },
-      { kind: "count", count: 15 },
+      { kind: "text", text: "Unclear" },
     ]);
-    // Where unclear photographs count, the number stands.
+    expect(second?.slice(3)).toEqual([
+      { kind: "count", count: 20 },
+      { kind: "count", count: 10 },
+    ]);
+    // Where unclear photographs count, the numbers stand.
     const [counted] = readings(
       trial({ experiment: { ...EXPERIMENT, countsUnclear: true }, images }),
     );
     expect(counted?.slice(3)).toEqual([
       { kind: "count", count: 20 },
+      { kind: "count", count: 15 },
+    ]);
+  });
+
+  test("a day an event takes out names the event, even in a unit out for an unclear photograph", () => {
+    const [first] = readings(
+      trial({
+        units: [unit("A1", CONTAMINATED), unit("A2")],
+        images: [
+          image("A1", SOWN.id, { ungerminated: 20 }, true),
+          image("A1", ROOTED.id, { rooted: 15 }),
+        ],
+      }),
+    );
+    expect(first?.slice(3)).toEqual([
+      { kind: "text", text: "Unclear" },
+      { kind: "text", text: "Contaminated" },
+    ]);
+  });
+
+  test("an unclear photograph on a day an event already took out leaves the earlier days", () => {
+    const [first] = readings(
+      trial({
+        units: [unit("A1", CONTAMINATED), unit("A2")],
+        images: [
+          image("A1", SOWN.id, { ungerminated: 20 }),
+          image("A1", ROOTED.id, { rooted: 15 }, true),
+        ],
+      }),
+    );
+    expect(first?.slice(3)).toEqual([
+      { kind: "count", count: 20 },
+      { kind: "text", text: "Contaminated" },
+    ]);
+  });
+
+  test("a day with no photograph is only that day without a number", () => {
+    const [first] = readings(
+      trial({ images: [image("A1", ROOTED.id, { rooted: 15 })] }),
+    );
+    expect(first?.slice(3)).toEqual([
+      { kind: "blank" },
       { kind: "count", count: 15 },
     ]);
   });

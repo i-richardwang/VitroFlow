@@ -7,7 +7,6 @@ import {
   countChange,
   imageReading,
   observationCells,
-  readingIsTrusted,
   resolveCountedClasses,
   unitReading,
 } from "./readings";
@@ -145,21 +144,18 @@ describe("how a unit's count changed between two days", () => {
   const after = cell("dish", day7.id, {
     detectionTally: { ungerminated: 6, germinated: 15 },
   });
-  const rule = { countsUnclear: false };
 
   test("the later count less the earlier, whoever read each", () => {
     expect(
       countChange(
         { observation: day0, image: before },
         { observation: day7, image: after },
-        rule,
       ),
     ).toBe(13);
     expect(
       countChange(
         { observation: day7, image: after },
         { observation: day0, image: before },
-        rule,
       ),
     ).toBe(-13);
   });
@@ -169,7 +165,6 @@ describe("how a unit's count changed between two days", () => {
       countChange(
         { observation: observation(1), image: before },
         { observation: day7, image: after },
-        rule,
       ),
     ).toBeNull();
   });
@@ -182,7 +177,6 @@ describe("how a unit's count changed between two days", () => {
           observation: observation(2, ["germinated"], "shoot-detector"),
           image: after,
         },
-        rule,
       ),
     ).toBeNull();
   });
@@ -192,27 +186,8 @@ describe("how a unit's count changed between two days", () => {
       countChange(
         { observation: day0, image: null },
         { observation: day7, image: after },
-        rule,
       ),
     ).toBeNull();
-  });
-
-  test("nothing from an unclear photograph, unless the experiment counts it", () => {
-    const fogged = { ...before, unclear: true };
-    expect(
-      countChange(
-        { observation: day0, image: fogged },
-        { observation: day7, image: after },
-        rule,
-      ),
-    ).toBeNull();
-    expect(
-      countChange(
-        { observation: day0, image: fogged },
-        { observation: day7, image: after },
-        { countsUnclear: true },
-      ),
-    ).toBe(13);
   });
 });
 
@@ -236,38 +211,5 @@ describe("which classes a day counts", () => {
     expect(() => resolveCountedClasses(SEED_CLASSES, ["shoot"])).toThrow(
       UnknownClassError,
     );
-  });
-});
-
-describe("an unclear photograph", () => {
-  const day0 = observation(1);
-  const day7 = observation(2);
-  const cells = observationCells([
-    cell("dish", day0.id, {
-      detectionTally: { germinated: 4 },
-      unclear: true,
-    }),
-    cell("dish", day7.id, { detectionTally: { germinated: 9 } }),
-  ]);
-
-  test("where unclear photographs do not count, leaves its own day without a trusted number", () => {
-    const rule = { countsUnclear: false };
-    // The number is still read, and shown; it is not trusted.
-    expect(unitReading(cells, "dish", day0)).toEqual(unreviewed(4));
-    expect(readingIsTrusted(cells, "dish", day0, rule)).toBe(false);
-    // A one-day gap: the unit's later day reads as it is.
-    expect(readingIsTrusted(cells, "dish", day7, rule)).toBe(true);
-  });
-
-  test("where unclear photographs count, is trusted", () => {
-    expect(readingIsTrusted(cells, "dish", day0, { countsUnclear: true })).toBe(
-      true,
-    );
-  });
-
-  test("a clear photograph, or none, is trusted", () => {
-    const rule = { countsUnclear: false };
-    expect(readingIsTrusted(cells, "dish", day7, rule)).toBe(true);
-    expect(readingIsTrusted(cells, "other", day0, rule)).toBe(true);
   });
 });

@@ -51,25 +51,14 @@ image reviewed, and the grid shows the difference.
 reading found. The tally keeps every class whatever the day counts, so changing
 the classes recounts the same readings, and nothing is read again.
 
-**An unclear photograph** is one a person could not read clearly, a fogged lid
-or a dish out of focus. The mark is the image's, wherever it is shown.
-Whether an unclear photograph counts is each experiment's setting, and it does
-not unless someone turns the setting on. Where it does not count,
-the photograph is still read and its number still shown, but it is not
-trusted: the unit has no number for that day, and that day only. Where it
-counts, the number is used as it stands. Datasets train on it either way.
-Marking, clearing or changing the setting reads nothing again; it only changes
-what counts.
-
 ## What the grid shows
 
 A row is a unit, beside the treatment it belongs to. A column is the day. Under
 the date it names the model only when the days do not all read for the same
 one, and the classes it counts only when they are fewer than its model
-recognizes. A cell shows the unit's count. Where the experiment does not count
-unclear photographs, an unclear photograph's count is struck through, as an
-excluded unit's is; where it does, the count carries a small mark. Hovering
-says which.
+recognizes. A cell shows the unit's count. A day out of the analysis is struck
+through, and an unclear photograph carries a small mark whether or not it
+counts, so a unit struck through for one shows which. Hovering says why.
 
 ## What the spreadsheet carries
 
@@ -84,15 +73,37 @@ model recognizes.
 Quantities stay quantities and days stay days. A count is a number, and a day is
 the day a spreadsheet counts rather than the text of one, so whatever opens the
 file can sort, chart and compute on it. The sheet records what the dish did
-rather than what the workbench is doing: a reading still to come leaves its
-cell empty, a unit an event took out of the analysis carries the name of
-that event where its number would be, and an unclear photograph the experiment
-does not count carries the word for unclear.
+rather than what the workbench is doing: a reading still to come, or a day with
+no photograph, leaves its cell empty, and a day out of the analysis carries why
+in place of its number: the name of the event that took it out, or else the
+word for unclear.
 
-## Culture events
+## What takes a unit out of the analysis
 
-A culture event decides whether a unit's reading enters an analysis:
-contaminated, discarded, and missing exclude the unit from the observation that
-records the event onwards. Nonviable does not exclude a unit. Harvested keeps
+A unit out of the analysis on a day contributes to no treatment summary that
+day, and no day comparison measures a change across it. Two things take a
+unit out.
+
+**A culture event** takes it out from the observation that records it:
+contaminated, discarded, and missing do. Nonviable does not. Harvested keeps
 it included on the recorded observation and excludes it from later ones, when
-the unit has left the bench. An excluded unit contributes to no treatment summary.
+the unit has left the bench. What came before the event still happened, so
+the earlier days stand.
+
+**An unclear photograph** is one a person could not read clearly, a fogged lid
+or a dish out of focus. The mark is the image's, wherever it is shown.
+Whether an unclear photograph counts is each experiment's setting, and it does
+not unless someone turns the setting on. Where it does not, the photograph
+takes its whole unit out, every day of it: marking it says the dish's record
+cannot be trusted, and that is said of the dish, not of one day. Only a
+photograph on a day the unit's events still keep in can do so; a dish already
+contaminated is out from that day on whatever is photographed later. A day an
+event takes out names the event. Where unclear photographs count, the number
+is used as it stands. Either way the photograph is still read and shown, and
+datasets train on it.
+
+A day with no photograph takes nothing out: the unit has no number that day,
+and its other days count as they are.
+
+Marking, clearing, recording an event or changing the setting reads nothing
+again; it only changes what counts.

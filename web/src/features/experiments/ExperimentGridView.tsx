@@ -2,14 +2,18 @@ import { Link } from "@tanstack/react-router";
 import { FlaskConical, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { unitExclusions } from "../../domain/experiments/analysis";
 import type { Unit } from "../../domain/experiments/contracts";
 import {
   observationOrdinals,
   unitIsAvailableAt,
-  unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
 import { placedPhotos } from "../../domain/experiments/photos";
-import { cellKey, observationCells } from "../../domain/experiments/readings";
+import {
+  cellKey,
+  observationCells,
+  unitDays,
+} from "../../domain/experiments/readings";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
 import type { getExperimentGrid } from "../../functions/experiments";
 import { m } from "../../paraglide/messages";
@@ -197,6 +201,12 @@ export function ExperimentGridView({
         <TableBody>
           {rows.map((unit) => {
             const owner = treatmentOf.get(unit.treatment);
+            const exclusion = unitExclusions(
+              unit.events,
+              unitDays(cells, unit.id, observations),
+              ordinals,
+              experiment,
+            );
             return (
               <TableRow
                 key={unit.id}
@@ -222,12 +232,7 @@ export function ExperimentGridView({
                     <UnitDayCount
                       image={cells.get(cellKey(unit.id, observation.id))}
                       observation={observation}
-                      included={unitIsIncludedInAnalysis(
-                        unit.events,
-                        observation,
-                        ordinals,
-                      )}
-                      countsUnclear={experiment.countsUnclear}
+                      exclusion={exclusion(observation)}
                       link={(content) => (
                         <TextLink
                           render={<Link {...unitHref(unit, observation.id)} />}
