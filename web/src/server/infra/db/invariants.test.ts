@@ -31,6 +31,7 @@ test("the database rejects a second terminal event", async () => {
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
+    countsUnclear: false,
     treatments: [{ name: "Control", factor: null, note: "", replicates: 1 }],
   });
   const [unit] = await listUnits(experiment.id, await database());
@@ -116,6 +117,7 @@ test("the database compares experiment, treatment and unit names without case", 
     baseMedium: "",
     notes: "",
     inoculatedOn: "2026-08-01",
+    countsUnclear: false,
     treatments: [{ name: "Control", factor: null, note: "", replicates: 1 }],
   });
   const db = await database();

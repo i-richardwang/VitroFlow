@@ -122,6 +122,7 @@ function EditExperimentForm({
 }) {
   const router = useRouter();
   const [inoculatedOn, setInoculatedOn] = useState(experiment.inoculatedOn);
+  const [countsUnclear, setCountsUnclear] = useState(experiment.countsUnclear);
   return (
     <Form
       id={EDIT_FORM}
@@ -136,6 +137,7 @@ function EditExperimentForm({
                   experiment: experiment.id,
                   ...fields,
                   inoculatedOn,
+                  countsUnclear,
                 },
               }),
             m.experiment_not_saved(),
@@ -152,6 +154,8 @@ function EditExperimentForm({
         defaults={experiment}
         inoculatedOn={inoculatedOn}
         onInoculatedOnChange={setInoculatedOn}
+        countsUnclear={countsUnclear}
+        onCountsUnclearChange={setCountsUnclear}
       />
     </Form>
   );

@@ -227,6 +227,7 @@ export function ExperimentGridView({
                         observation,
                         ordinals,
                       )}
+                      countsUnclear={experiment.countsUnclear}
                       link={(content) => (
                         <TextLink
                           render={<Link {...unitHref(unit, observation.id)} />}

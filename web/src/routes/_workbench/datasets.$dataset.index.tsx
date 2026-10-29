@@ -116,16 +116,14 @@ function DatasetPage() {
   const {
     dataset: { name },
     images,
-    trainableCount,
-    unclearCount,
+    reviewedCount,
     training,
     trainingPresets,
     defaultTrainingPresetId,
     runs,
   } = Route.useLoaderData();
   const [starting, setStarting] = useState(false);
-  // Reviewed images marked unclear and not counted stay out of training.
-  const refusal = trainRefusal({ reviewed: trainableCount, training });
+  const refusal = trainRefusal({ reviewed: reviewedCount, training });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
@@ -177,13 +175,10 @@ function DatasetPage() {
       }
     >
       <StatisticHero
-        value={formatCount(trainableCount)}
+        value={formatCount(reviewedCount)}
         title={m.dataset_hero_reviewed()}
         facts={[
           m.dataset_hero_images({ count: images.length }),
-          ...(unclearCount > 0
-            ? [m.dataset_hero_unclear({ count: unclearCount })]
-            : []),
           ...(training.reviewedSinceLastRun > 0
             ? [
                 m.dataset_reviewed_since_last_run({
@@ -340,7 +335,7 @@ function DatasetPage() {
       <TrainDialog
         set={{
           dataset,
-          reviewed: trainableCount,
+          reviewed: reviewedCount,
           trainingPresets,
           defaultTrainingPresetId,
           training,
@@ -404,8 +399,7 @@ function ImagePreview({
 /** Whether anything is said against the image: the detector's warnings, or a person's mark. */
 function hasQualityNotes(image: DatasetOverviewImage): boolean {
   return (
-    (image.quality !== null && image.quality.status !== "ok") ||
-    image.unclear !== null
+    (image.quality !== null && image.quality.status !== "ok") || image.unclear
   );
 }
 
@@ -414,7 +408,7 @@ function ImageQuality({ image }: { image: DatasetOverviewImage }) {
   if (!hasQualityNotes(image)) return <Absent />;
   return (
     <Flexbox horizontal gap={4} wrap="wrap">
-      {image.unclear ? <UnclearTag mark={image.unclear} /> : null}
+      {image.unclear ? <UnclearTag /> : null}
       {image.quality && image.quality.status !== "ok" ? (
         <QualityTags quality={image.quality} />
       ) : null}

@@ -41,6 +41,7 @@ function NewExperimentSession({
   const navigateAfterWrite = useNavigateAfterWrite();
   const action = useAsyncAction();
   const [inoculatedOn, setInoculatedOn] = useState(today);
+  const [countsUnclear, setCountsUnclear] = useState(false);
   const [design, setDesign] = useState<DesignRow[]>(initialDesign);
   const treatments = submittedDesign(design);
 
@@ -69,6 +70,7 @@ function NewExperimentSession({
                   data: {
                     ...readExperimentFields(form),
                     inoculatedOn,
+                    countsUnclear,
                     treatments,
                   },
                 }),
@@ -88,6 +90,8 @@ function NewExperimentSession({
           disabled={action.busy}
           inoculatedOn={inoculatedOn}
           onInoculatedOnChange={setInoculatedOn}
+          countsUnclear={countsUnclear}
+          onCountsUnclearChange={setCountsUnclear}
         />
         <DesignField
           disabled={action.busy}

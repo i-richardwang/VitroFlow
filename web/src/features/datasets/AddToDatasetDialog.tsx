@@ -78,22 +78,13 @@ function AddToDatasetForm({
       m.dataset_add_nothing_added(),
     ).then(async (result) => {
       if (!result.ok) return;
-      const { added, existing, unclear } = result.value;
+      const { added, existing } = result.value;
       const dataset = result.value.dataset.name;
       onDone();
-      const summary =
+      toast.success(
         existing > 0
           ? m.dataset_add_result_existing({ added, dataset, existing })
-          : m.dataset_add_result({ added, dataset });
-      // Unclear photographs join all the same; the person adding them should
-      // know they will not train until their mark is cleared.
-      toast.success(
-        unclear > 0
-          ? {
-              title: summary,
-              description: m.dataset_add_result_unclear({ count: unclear }),
-            }
-          : summary,
+          : m.dataset_add_result({ added, dataset }),
       );
       await router.invalidate();
     });

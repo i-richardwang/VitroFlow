@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { unclearDecisionSchema } from "../images/unclear";
 import { classListSchema } from "../models/classes";
 
 export const experimentIdSchema = z.uuid();
@@ -129,6 +128,11 @@ export const experimentSchema = z.strictObject({
   baseMedium: baseMediumSchema,
   notes: experimentNotesSchema,
   inoculatedOn: calendarDaySchema,
+  /**
+   * Whether a photograph marked unclear still gives its unit that day's
+   * number. Unless it does, the unit has no trusted number on that day.
+   */
+  countsUnclear: z.boolean(),
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -166,6 +170,7 @@ export const experimentRequestSchema = z.strictObject({
   baseMedium: baseMediumSchema.default(""),
   notes: experimentNotesSchema.default(""),
   inoculatedOn: calendarDaySchema,
+  countsUnclear: z.boolean().default(false),
   treatments: z
     .array(treatmentDesignSchema)
     .min(1, "An experiment needs at least one treatment")
@@ -184,6 +189,7 @@ export const experimentUpdateSchema = z.strictObject({
   baseMedium: baseMediumSchema,
   notes: experimentNotesSchema,
   inoculatedOn: calendarDaySchema,
+  countsUnclear: z.boolean(),
 });
 
 export type ExperimentUpdate = z.infer<typeof experimentUpdateSchema>;
@@ -364,14 +370,15 @@ const imageFilenameSchema = z
   );
 
 /**
- * A stored photograph and the unit it shows, with the mark to give it when
- * the person who took it already knows it is unclear.
+ * A stored photograph and the unit it shows. `unclear` marks it unclear in the
+ * same step, when the person who took it already knows; it never clears a
+ * mark the photograph has.
  */
 const unitPhotoSchema = z.strictObject({
   unit: unitIdSchema,
   digest: imageDigestSchema,
   filename: imageFilenameSchema,
-  unclear: unclearDecisionSchema.optional(),
+  unclear: z.boolean().optional(),
 });
 
 export type UnitPhoto = z.infer<typeof unitPhotoSchema>;

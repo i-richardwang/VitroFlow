@@ -131,21 +131,5 @@
   "dataset_preview_open": "打开标注",
   "image_steps": "图片",
   "dataset_hero_reviewed": "张已复核，可用于训练",
-  "dataset_images": "图片",
-  "dataset_add_result_unclear": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "其中 {formattedCount} 张照片不清晰且未纳入统计，清除标记后才会用于训练"
-      }
-    }
-  ],
-  "dataset_hero_unclear": [
-    {
-      "declarations": ["input count", "local formattedCount = count: number"],
-      "match": {
-        "count=*": "{formattedCount} 张不清晰，不用于训练"
-      }
-    }
-  ]
+  "dataset_images": "图片"
 }

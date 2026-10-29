@@ -10,7 +10,7 @@ import type { DatasetImageRef } from "../../domain/datasets/schema";
 import { membershipOrder, readDataset } from "../datasets/public";
 import { readModel } from "../models/public";
 import { readReview } from "../readings/public";
-import { readUnclearMarks } from "../images/public";
+import { readUnclearImages } from "../images/public";
 
 export async function readDatasetImage(
   ref: DatasetImageRef,
@@ -46,7 +46,7 @@ export async function readDatasetImage(
     db,
   );
   if (!review) return null;
-  const unclear = await readUnclearMarks([ref.digest], db);
+  const unclear = await readUnclearImages([ref.digest], db);
   const toStep = (
     neighbour: (typeof members)[number] | undefined,
   ): DatasetImageStep | null =>
@@ -58,7 +58,7 @@ export async function readDatasetImage(
     dataset,
     model,
     review,
-    unclear: unclear.get(ref.digest) ?? null,
+    unclear: unclear.has(ref.digest),
     split: member.split,
     position: { index: at + 1, total: members.length },
     previous: toStep(members[at - 1]),

@@ -68,6 +68,7 @@ def manifest_entry(
     split: str | None = None,
     detection: dict[str, Any] | None = None,
     annotation: dict[str, Any] | None = None,
+    unclear: bool = False,
 ) -> dict[str, Any]:
     return {
         "digest": digest,
@@ -78,6 +79,7 @@ def manifest_entry(
         "split": split,
         "detection": detection,
         "annotation": annotation,
+        "unclear": unclear,
     }
 
 

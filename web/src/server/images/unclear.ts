@@ -1,36 +1,25 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql, type Column, type SQL } from "drizzle-orm";
 
 import { database, inTransaction, type Executor } from "../infra/db/client";
 import { images, unclearImages } from "../infra/db/schema";
 import { ImageNotFoundError } from "../../domain/images/errors";
 import type { ImageRef } from "../../domain/images/schema";
-import {
-  unclearMarkSchema,
-  type UnclearCleared,
-  type UnclearDecision,
-  type UnclearImage,
-  type UnclearImageRequest,
-  type UnclearMark,
+import type {
+  UnclearCleared,
+  UnclearMarked,
 } from "../../domain/images/unclear";
 import { lockImage } from "./lock";
 
 /**
  * Whether a photograph could be read clearly is said of the canonical image,
  * wherever it is shown. Marking or clearing it changes no reading: the grid,
- * the spreadsheet and training read the mark beside the readings they have.
+ * the spreadsheet and the dataset pages read the mark beside the readings
+ * they have.
  */
 
-/** A stored mark as every reader carries it; a row left-joined and absent is no mark. */
-export function toUnclearMark(
-  row: typeof unclearImages.$inferSelect | null,
-): UnclearMark | null {
-  return row
-    ? unclearMarkSchema.parse({
-        counted: row.counted,
-        note: row.note,
-        recordedAt: row.recordedAt.toISOString(),
-      })
-    : null;
+/** Whether the image a query names is marked unclear, as a column of that query. */
+export function markedUnclear(imageId: Column): SQL<boolean> {
+  return sql<boolean>`exists (select 1 from ${unclearImages} where ${unclearImages.imageId} = ${imageId})`;
 }
 
 async function requireStoredImage(digest: string, tx: Executor) {
@@ -41,44 +30,30 @@ async function requireStoredImage(digest: string, tx: Executor) {
   if (!stored) throw new ImageNotFoundError(`Unknown image: ${digest}`);
 }
 
-/**
- * Marks the image unclear, or replaces the mark it has, as `recordedBy` says:
- * the account behind a workbench session, or none for an agent or an import.
- * Marking again with the same decision changes nothing but who and when.
- */
+/** Marks the image unclear. Marking one already marked is harmless. */
 export async function markImageUnclear(
-  { digest, counted, note }: UnclearImageRequest,
-  recordedBy: string | null,
+  { digest }: ImageRef,
   executor?: Executor,
-): Promise<UnclearImage> {
+): Promise<UnclearMarked> {
   return inTransaction(executor, async (tx) => {
     await lockImage(digest, tx);
     await requireStoredImage(digest, tx);
-    const recordedAt = new Date();
-    const [row] = await tx
+    const added = await tx
       .insert(unclearImages)
-      .values({ imageId: digest, counted, note, recordedBy, recordedAt })
-      .onConflictDoUpdate({
-        target: unclearImages.imageId,
-        set: { counted, note, recordedBy, recordedAt },
-      })
-      .returning();
-    if (!row) throw new Error("Unclear mark was not recorded");
-    return { digest, ...toUnclearMark(row)! };
+      .values({ imageId: digest })
+      .onConflictDoNothing()
+      .returning({ imageId: unclearImages.imageId });
+    return { digest, marked: added.length > 0 };
   });
 }
 
-/**
- * Marks several images unclear in one transaction, each with its own decision.
- * Digests are locked in sorted order.
- */
+/** Marks several images unclear in one transaction, locking digests in sorted order. */
 export async function markImagesUnclear(
-  marks: ReadonlyMap<string, UnclearDecision>,
-  recordedBy: string | null,
+  digests: readonly string[],
   tx: Executor,
 ): Promise<void> {
-  for (const digest of [...marks.keys()].sort()) {
-    await markImageUnclear({ digest, ...marks.get(digest)! }, recordedBy, tx);
+  for (const digest of [...new Set(digests)].sort()) {
+    await markImageUnclear({ digest }, tx);
   }
 }
 
@@ -98,16 +73,16 @@ export async function clearImageUnclear(
   });
 }
 
-/** The marks the named images carry; an image with none is clear. */
-export async function readUnclearMarks(
+/** Which of the named images are marked unclear. */
+export async function readUnclearImages(
   digests: readonly string[],
   executor?: Executor,
-): Promise<Map<string, UnclearMark>> {
-  if (digests.length === 0) return new Map();
+): Promise<Set<string>> {
+  if (digests.length === 0) return new Set();
   const db = executor ?? (await database());
   const rows = await db
-    .select()
+    .select({ imageId: unclearImages.imageId })
     .from(unclearImages)
     .where(inArray(unclearImages.imageId, [...new Set(digests)]));
-  return new Map(rows.map((row) => [row.imageId, toUnclearMark(row)!]));
+  return new Set(rows.map((row) => row.imageId));
 }

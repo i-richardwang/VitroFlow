@@ -55,8 +55,7 @@ import {
 import { imageRefSchema } from "../../domain/images/schema";
 import {
   unclearClearedSchema,
-  unclearImageRequestSchema,
-  unclearImageSchema,
+  unclearMarkedSchema,
 } from "../../domain/images/unclear";
 import {
   modelRefSchema,
@@ -187,7 +186,8 @@ const operations: readonly AgentOperation[] = [
   }),
   command({
     name: "create-experiment",
-    description: "Create an experiment with its design",
+    description:
+      "Create an experiment with its design. countsUnclear says whether a photograph marked unclear still gives its unit that day's number; it does not by default",
     destructive: false,
     input: experimentRequestSchema,
     output: experimentSchema,
@@ -196,7 +196,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "update-experiment",
     description:
-      "Correct an experiment's name, protocol fields, notes, or inoculation date",
+      "Correct an experiment's name, protocol fields, notes, inoculation date, or whether its unclear photographs count; changing countsUnclear reads nothing again",
     destructive: true,
     input: experimentUpdateSchema,
     output: experimentSchema,
@@ -311,7 +311,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "assign-images-to-observation",
     description:
-      "Assign stored images to units in one observation; a cell that already has an image is given the new one; upload bytes first to obtain each digest. An entry's unclear marks a photograph that cannot be read clearly in the same step, not counted unless it says counted",
+      "Assign stored images to units in one observation; a cell that already has an image is given the new one; upload bytes first to obtain each digest. An entry with unclear true marks its photograph unclear in the same step; a mark the photograph has is never cleared here",
     destructive: false,
     input: observationImageAssignmentSchema,
     output: observationImageAssignmentResultSchema,
@@ -338,16 +338,16 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "mark-image-unclear",
     description:
-      "Mark a stored photograph unclear by digest, such as a fogged lid or a dish out of focus, wherever it is observed. Unless counted, its unit has no trusted number that day: summaries and the spreadsheet leave it out and no training snapshot takes it, while it is still read and shown. Marking again replaces the mark, so repeating a call is safe",
+      "Mark a stored photograph unclear by digest, such as a fogged lid or a dish out of focus, wherever it is observed. In an experiment that does not count unclear photographs, its unit has no trusted number that day: the spreadsheet and comparisons leave it out, while it is still read and shown. Datasets train on it as on any other. marked is false when it was already marked, so repeating a call is safe",
     destructive: true,
-    input: unclearImageRequestSchema,
-    output: unclearImageSchema,
-    handler: (input, executor) => markImageUnclear(input, null, executor),
+    input: imageRefSchema,
+    output: unclearMarkedSchema,
+    handler: (input, executor) => markImageUnclear(input, executor),
   }),
   command({
     name: "clear-image-unclear",
     description:
-      "Clear a photograph's unclear mark by digest, so its number counts and it trains again; nothing is read again. cleared is false when it had no mark, so repeating a call is safe",
+      "Clear a photograph's unclear mark by digest, so it reads as clear again; nothing is read again. cleared is false when it had no mark, so repeating a call is safe",
     destructive: true,
     input: imageRefSchema,
     output: unclearClearedSchema,
@@ -356,7 +356,7 @@ const operations: readonly AgentOperation[] = [
   query({
     name: "list-datasets",
     description:
-      "List the datasets that train each recognition task, optionally for one model, with each one's id and name, how many images it holds, how many of those are reviewed, and how many a snapshot would take: the reviewed ones less any marked unclear and not counted",
+      "List the datasets that train each recognition task, optionally for one model, with each one's id and name, how many images it holds, and how many of those are reviewed; training uses only reviewed images",
     input: datasetListRequestSchema,
     output: z.array(datasetSummarySchema),
     handler: ({ modelId }) => listDatasetSummaries(modelId),
@@ -382,7 +382,7 @@ const operations: readonly AgentOperation[] = [
   query({
     name: "get-dataset",
     description:
-      "Read one dataset's images by digest, each with whether it is reviewed, its unclear mark if a person gave it one (no snapshot takes it unless counted), and the training split a snapshot gave it; match digests against get-experiment's image cells to see where an image was observed",
+      "Read one dataset's images by digest, each with whether it is reviewed, whether a person marked it unclear, and the training split a snapshot gave it; match digests against get-experiment's image cells to see where an image was observed",
     input: datasetRefSchema,
     output: datasetContentsSchema,
     handler: async ({ dataset }) => {
@@ -396,7 +396,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "add-images-to-dataset",
     description:
-      "Add experiment observation images to a dataset that trains their observation's model. All images must be observed for that model; images already in the dataset are counted as existing, so repeating a call is safe. Images marked unclear and not counted join too and are counted as unclear: no snapshot takes them until the mark is cleared. Training splits are assigned when a snapshot is taken",
+      "Add experiment observation images to a dataset that trains their observation's model. All images must be observed for that model; images already in the dataset are counted as existing, so repeating a call is safe. Training splits are assigned when a snapshot is taken",
     destructive: false,
     input: datasetImageAdditionSchema,
     output: datasetImageAdditionResultSchema,

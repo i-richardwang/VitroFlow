@@ -3,7 +3,6 @@ import { z } from "zod";
 import { observationImageRefSchema } from "../experiments/schema";
 import { resourceIdSchema } from "../identifiers/schema";
 import { imageDigestSchema } from "../images/schema";
-import { unclearMarkSchema } from "../images/unclear";
 import { IMAGE_SPLITS } from "../training/schema";
 
 export const datasetIdSchema = z.uuid();
@@ -80,16 +79,11 @@ export const datasetImageAdditionSchema = z.strictObject({
 
 export type DatasetImageAddition = z.infer<typeof datasetImageAdditionSchema>;
 
-/**
- * What an addition changed: images new to the dataset, and those already in
- * it. Of the images named, `unclear` are marked unclear and not counted: they
- * are members all the same, and no snapshot takes them while the mark stands.
- */
+/** What an addition changed: images new to the dataset, and those already in it. */
 export const datasetImageAdditionResultSchema = z.strictObject({
   dataset: datasetSchema,
   added: z.number().int().nonnegative(),
   existing: z.number().int().nonnegative(),
-  unclear: z.number().int().nonnegative(),
 });
 
 export type DatasetImageAdditionResult = z.infer<
@@ -125,8 +119,8 @@ export const datasetContentsSchema = z.strictObject({
       reviewed: z.boolean(),
       /** Assigned when the image first enters a snapshot. */
       split: z.enum(IMAGE_SPLITS).nullable(),
-      /** The mark when a person found it unclear; unless counted, no snapshot takes it. */
-      unclear: unclearMarkSchema.nullable(),
+      /** Whether a person marked the photograph unclear; it trains all the same. */
+      unclear: z.boolean(),
     }),
   ),
 });
@@ -138,16 +132,11 @@ export const datasetListRequestSchema = z.strictObject({
   modelId: resourceIdSchema.optional(),
 });
 
-/**
- * A dataset with its size: how many images it holds, how many are reviewed,
- * and how many of those a snapshot would take, which is the reviewed ones
- * less any marked unclear and not counted.
- */
+/** A dataset with its size; only reviewed images are used for training. */
 export const datasetSummarySchema = z.strictObject({
   dataset: datasetSchema,
   imageCount: z.number().int().nonnegative(),
   reviewedCount: z.number().int().nonnegative(),
-  trainableCount: z.number().int().nonnegative(),
 });
 
 export type DatasetSummary = z.infer<typeof datasetSummarySchema>;

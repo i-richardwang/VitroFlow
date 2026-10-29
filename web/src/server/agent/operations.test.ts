@@ -228,7 +228,7 @@ describe("agent operations", () => {
             unit: units[0]!.id,
             digest: fogged,
             filename: "fogged.jpg",
-            unclear: { note: "  Lid fogged " },
+            unclear: true,
           },
           { unit: units[1]!.id, digest: blurred, filename: "blurred.jpg" },
         ],
@@ -244,20 +244,22 @@ describe("agent operations", () => {
           ) as ExperimentGrid
         ).images.map((image) => [image.digest, image.unclear]),
       );
-    // Not counted unless the mark says so, and the note is trimmed.
-    expect((await cells()).get(fogged!)).toMatchObject({
-      counted: false,
-      note: "Lid fogged",
-    });
-    expect((await cells()).get(blurred!)).toBeNull();
+    expect((await cells()).get(fogged!)).toBe(true);
+    expect((await cells()).get(blurred!)).toBe(false);
+    // The experiment does not count unclear photographs unless it says so.
+    expect(experiment.countsUnclear).toBe(false);
 
-    const marked = { digest: blurred, counted: true, note: "Slightly soft" };
-    for (let call = 0; call < 2; call++) {
+    // Marking twice is harmless: the second call finds the mark there.
+    for (const marked of [true, false]) {
       expect(
-        output(await executeAgentOperation("mark-image-unclear", marked)),
-      ).toMatchObject(marked);
+        output(
+          await executeAgentOperation("mark-image-unclear", {
+            digest: blurred,
+          }),
+        ),
+      ).toEqual({ digest: blurred, marked });
     }
-    expect((await cells()).get(blurred!)?.counted).toBe(true);
+    expect((await cells()).get(blurred!)).toBe(true);
 
     expect(
       output(
@@ -269,7 +271,7 @@ describe("agent operations", () => {
         await executeAgentOperation("clear-image-unclear", { digest: fogged }),
       ),
     ).toEqual({ digest: fogged, cleared: false });
-    expect((await cells()).get(fogged!)).toBeNull();
+    expect((await cells()).get(fogged!)).toBe(false);
 
     expect(
       failure(
@@ -281,8 +283,7 @@ describe("agent operations", () => {
     expect(
       failure(
         await executeAgentOperation("mark-image-unclear", {
-          digest: fogged,
-          note: "x".repeat(501),
+          digest: "not-a-digest",
         }),
       ).code,
     ).toBe("invalid_request");
@@ -327,7 +328,6 @@ describe("agent operations", () => {
       dataset: train,
       added: 2,
       existing: 0,
-      unclear: 0,
     });
     expect(
       output(
@@ -342,9 +342,7 @@ describe("agent operations", () => {
       output(
         await executeAgentOperation("list-datasets", { modelId: model.id }),
       ),
-    ).toEqual([
-      { dataset: train, imageCount: 3, reviewedCount: 1, trainableCount: 1 },
-    ]);
+    ).toEqual([{ dataset: train, imageCount: 3, reviewedCount: 1 }]);
 
     const [a, b, c] = await Promise.all(
       ["agent-a", "agent-b", "agent-c"].map(imageDigest),
@@ -408,7 +406,6 @@ describe("agent operations", () => {
         dataset: { ...train, name: "agent-trained" },
         imageCount: 3,
         reviewedCount: 1,
-        trainableCount: 1,
       },
     ]);
     const taken = await executeAgentOperation("create-dataset", {

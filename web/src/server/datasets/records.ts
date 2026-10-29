@@ -1,6 +1,6 @@
 import { shownDetectingVersion } from "../inference/public";
 import { proposalRunId, proposalRuns } from "../readings/public";
-import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 
 import { database, type Executor } from "../infra/db/client";
 import {
@@ -9,7 +9,6 @@ import {
   images,
   inferenceOutcomes,
   annotations,
-  unclearImages,
 } from "../infra/db/schema";
 import type {
   DatasetContents,
@@ -17,8 +16,7 @@ import type {
   DatasetSummary,
 } from "../../domain/datasets/schema";
 import type { AnnotationDocument } from "../../domain/annotation/schema";
-import { numberTrusted, type UnclearMark } from "../../domain/images/unclear";
-import { toUnclearMark } from "../images/public";
+import { markedUnclear } from "../images/public";
 import type {
   DetectionQuality,
   DetectionResult,
@@ -42,8 +40,8 @@ export interface ImageSummary extends DatasetImageRef {
   /** Boxes of the stored review, or null until someone has reviewed the image. */
   instanceCount: number | null;
   quality: DetectionQuality | null;
-  /** The mark when a person found it unclear; unless counted, no snapshot takes it. */
-  unclear: UnclearMark | null;
+  /** Whether a person marked the photograph unclear; it trains all the same. */
+  unclear: boolean;
 }
 
 /**
@@ -58,8 +56,8 @@ export interface ImageRecord {
   detection: DetectionResult | null;
   proposal: AnnotationDocument | null;
   annotation: AnnotationDocument | null;
-  /** The mark when a person found the photograph unclear; null while it is clear. */
-  unclear: UnclearMark | null;
+  /** Whether a person marked the photograph unclear. */
+  unclear: boolean;
 }
 
 /** An image that has been reviewed; the annotation is present by construction. */
@@ -91,7 +89,7 @@ function recordQuery(db: Executor) {
       detection: sql<DetectionResult | null>`${inferenceOutcomes.document}`,
       proposal: sql<AnnotationDocument | null>`${proposalRuns.result}->'document'`,
       annotation: annotations.document,
-      unclear: unclearImages,
+      unclear: markedUnclear(datasetImages.imageId),
     })
     .from(datasetImages)
     .innerJoin(images, eq(images.id, datasetImages.imageId))
@@ -119,8 +117,7 @@ function recordQuery(db: Executor) {
         proposalRuns.id,
         proposalRunId(datasetImages.imageId, datasets.modelId),
       ),
-    )
-    .leftJoin(unclearImages, eq(unclearImages.imageId, datasetImages.imageId));
+    );
 }
 
 function toRecord(
@@ -129,7 +126,7 @@ function toRecord(
     detection: DetectionResult | null;
     proposal: AnnotationDocument | null;
     annotation: AnnotationDocument | null;
-    unclear: typeof unclearImages.$inferSelect | null;
+    unclear: boolean;
   },
 ): ImageRecord {
   return {
@@ -138,7 +135,7 @@ function toRecord(
     detection: row.detection,
     proposal: row.proposal,
     annotation: row.annotation,
-    unclear: toUnclearMark(row.unclear),
+    unclear: row.unclear,
   };
 }
 
@@ -152,9 +149,9 @@ export async function listImageRecords(
 }
 
 /**
- * Images that have been reviewed and are not marked unclear without being
- * counted, the only ones training may use. With `lock`, the memberships are
- * share-locked so a removal waits for the caller's transaction.
+ * Images that have been reviewed, the only ones training may use. With
+ * `lock`, the memberships are share-locked so a removal waits for the
+ * caller's transaction.
  */
 export async function listReviewedRecords(
   datasetId: string,
@@ -166,7 +163,6 @@ export async function listReviewedRecords(
       and(
         eq(datasetImages.datasetId, datasetId),
         isNotNull(annotations.imageId),
-        or(isNull(unclearImages.imageId), eq(unclearImages.counted, true)),
       ),
     )
     .orderBy(...membershipOrder());
@@ -184,21 +180,6 @@ export function countReviewed(records: ImageRecord[]): number {
   return records.filter((record) => record.annotation !== null).length;
 }
 
-/** Images marked unclear and not counted, which stay members but do not train. */
-export function countUnclear(records: ImageRecord[]): number {
-  return records.filter((record) => !numberTrusted(record.unclear)).length;
-}
-
-/** Whether a snapshot would take the image: reviewed, and not left out as unclear. */
-export function trainable(record: ImageRecord): record is ReviewedRecord {
-  return record.annotation !== null && numberTrusted(record.unclear);
-}
-
-/** Reviewed images a snapshot would take. */
-export function countTrainable(records: ImageRecord[]): number {
-  return records.filter(trainable).length;
-}
-
 /** Every dataset, or those training one model, with its image and review counts. */
 export async function listDatasetSummaries(
   modelId?: string,
@@ -213,7 +194,6 @@ export async function listDatasetSummaries(
         dataset,
         imageCount: records.length,
         reviewedCount: countReviewed(records),
-        trainableCount: countTrainable(records),
       };
     }),
   );

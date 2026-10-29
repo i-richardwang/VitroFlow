@@ -59,7 +59,8 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
  * The sheet records what the dish did rather than what the workbench is doing.
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
  * event took out of the analysis is named by that event in place of its count,
- * and a photograph found unclear and not counted says so in place of its own.
+ * and a photograph found unclear, where the experiment does not count such
+ * photographs, says so in place of its own.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,
@@ -85,7 +86,7 @@ export function experimentWorkbook(
     for (const unit of units.filter(
       (item) => item.treatment === treatment.id,
     )) {
-      rows.push(unitRow(treatment, unit, days, cells, ordinals));
+      rows.push(unitRow(experiment, treatment, unit, days, cells, ordinals));
     }
   }
 
@@ -153,6 +154,7 @@ function factorCell(treatment: Treatment): WorkbookCell {
 }
 
 function unitRow(
+  experiment: Experiment,
   treatment: Treatment,
   unit: Unit,
   days: readonly Day[],
@@ -163,11 +165,12 @@ function unitRow(
     textCell(treatment.name),
     factorCell(treatment),
     textCell(unit.code),
-    ...days.map((day) => unitCell(unit, day, cells, ordinals)),
+    ...days.map((day) => unitCell(experiment, unit, day, cells, ordinals)),
   ];
 }
 
 function unitCell(
+  experiment: Experiment,
   unit: Unit,
   day: Day,
   cells: ObservationCells,
@@ -175,7 +178,7 @@ function unitCell(
 ): WorkbookCell {
   const excluded = exclusionAt(unit.events, day.observation, ordinals);
   if (excluded) return textCell(cultureEventLabel(excluded.type));
-  if (!readingIsTrusted(cells, unit.id, day.observation)) {
+  if (!readingIsTrusted(cells, unit.id, day.observation, experiment)) {
     return textCell(m.unclear_label());
   }
   const reading = unitReading(cells, unit.id, day.observation);

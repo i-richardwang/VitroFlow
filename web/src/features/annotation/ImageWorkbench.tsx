@@ -4,7 +4,6 @@ import { type ReactNode, useState } from "react";
 import { openChecks } from "../../domain/annotation/checks";
 import { availableSources, type Review } from "../../domain/annotation/review";
 import type { ReviewSource } from "../../domain/annotation/schema";
-import type { UnclearMark } from "../../domain/images/unclear";
 import { tally } from "../../domain/models/classes";
 import type { Model } from "../../domain/models/schema";
 import { m } from "../../paraglide/messages";
@@ -52,8 +51,8 @@ const STANDING: Record<Standing, { tone: StatusTone; label: () => string }> = {
 interface ImageSubjectProps {
   model: Model;
   review: Review;
-  /** The image's mark when a person found it unclear; null while it is clear. */
-  unclear: UnclearMark | null;
+  /** Whether a person marked the photograph unclear. */
+  unclear: boolean;
   source?: ReviewSource;
   /** Shows another reading; none returns to the best. */
   onSourceChange: (source: ReviewSource | undefined) => void;
@@ -222,7 +221,7 @@ export function ImageSubject({
       {context.alert ? <WorkbenchAlert>{context.alert}</WorkbenchAlert> : null}
       {unclear ? (
         <WorkbenchAlert>
-          <UnclearAlert mark={unclear} />
+          <UnclearAlert />
         </WorkbenchAlert>
       ) : null}
       <WorkbenchToolbar label={m.annotation_tools()} inert={saving}>
@@ -270,7 +269,7 @@ export function ImageSubject({
           onStep={stepCheck}
         />
         {context.sections}
-        <UnclearSection digest={review.ref.digest} mark={unclear} />
+        <UnclearSection digest={review.ref.digest} unclear={unclear} />
         <DetailsSection review={review} facts={context.facts} />
       </WorkbenchInspector>
       <ImageViewport

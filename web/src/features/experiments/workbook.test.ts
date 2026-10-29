@@ -46,6 +46,7 @@ const EXPERIMENT: Experiment = {
   baseMedium: "MS",
   notes: "",
   inoculatedOn: "2026-09-01",
+  countsUnclear: false,
   createdAt: "2026-09-01T00:00:00.000Z",
 };
 
@@ -104,7 +105,7 @@ function image(
   unitId: string,
   observation: string,
   tally: Record<string, number>,
-  unclear: ObservationImageCell["unclear"] = null,
+  unclear = false,
 ): ObservationImageCell {
   return {
     id: `${unitId}-${observation}`,
@@ -241,34 +242,25 @@ describe("the experiment workbook", () => {
     ]);
   });
 
-  test("an unclear photograph not counted says so, for that day alone", () => {
-    const fogged = {
-      counted: false,
-      note: "Lid fogged",
-      recordedAt: "2026-09-02T00:00:00.000Z",
-    };
-    const workbook = trial({
-      images: [
-        image("A1", SOWN.id, { ungerminated: 20 }, fogged),
-        image(
-          "A2",
-          SOWN.id,
-          { ungerminated: 20 },
-          { ...fogged, counted: true },
-        ),
-        image("A1", ROOTED.id, { rooted: 15 }),
-        image("A2", ROOTED.id, { rooted: 10 }),
-      ],
-    });
-    const [first, second] = readings(workbook);
+  test("an unclear photograph says so, for that day alone, unless the experiment counts it", () => {
+    const images = [
+      image("A1", SOWN.id, { ungerminated: 20 }, true),
+      image("A2", SOWN.id, { ungerminated: 20 }),
+      image("A1", ROOTED.id, { rooted: 15 }),
+      image("A2", ROOTED.id, { rooted: 10 }),
+    ];
+    const [first] = readings(trial({ images }));
     expect(first?.slice(3)).toEqual([
       { kind: "text", text: "Unclear" },
       { kind: "count", count: 15 },
     ]);
-    // Counted anyway, the number stands.
-    expect(second?.slice(3)).toEqual([
+    // Where unclear photographs count, the number stands.
+    const [counted] = readings(
+      trial({ experiment: { ...EXPERIMENT, countsUnclear: true }, images }),
+    );
+    expect(counted?.slice(3)).toEqual([
       { kind: "count", count: 20 },
-      { kind: "count", count: 10 },
+      { kind: "count", count: 15 },
     ]);
   });
 

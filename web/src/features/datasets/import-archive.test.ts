@@ -71,6 +71,7 @@ test("an archive contains each declared image exactly once", async () => {
     split: null,
     detection: null,
     annotation: null,
+    unclear: false,
   };
   try {
     await expect(

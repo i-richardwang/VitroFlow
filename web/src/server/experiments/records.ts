@@ -34,6 +34,7 @@ export function toExperiment(row: typeof experiments.$inferSelect): Experiment {
     baseMedium: row.baseMedium,
     notes: row.notes,
     inoculatedOn: row.inoculatedOn,
+    countsUnclear: row.countsUnclear,
     createdAt: row.createdAt.toISOString(),
   });
 }

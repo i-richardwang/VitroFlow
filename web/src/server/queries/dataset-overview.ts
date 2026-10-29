@@ -13,8 +13,6 @@ import {
 import {
   readDataset,
   countReviewed,
-  countTrainable,
-  countUnclear,
   listImageRecords,
   summarize,
   type ImageSummary,
@@ -34,10 +32,6 @@ interface DatasetOverview {
   model: Model;
   images: ImageSummary[];
   reviewedCount: number;
-  /** Reviewed images a snapshot would take: those not left out as unclear. */
-  trainableCount: number;
-  /** Images marked unclear and not counted, left out of training. */
-  unclearCount: number;
   training: TrainingSummary;
   trainingPresets: readonly TrainingPreset[];
   defaultTrainingPresetId: TrainingPresetId;
@@ -58,8 +52,6 @@ export async function datasetOverview(
     model,
     images: records.map(summarize),
     reviewedCount: countReviewed(records),
-    trainableCount: countTrainable(records),
-    unclearCount: countUnclear(records),
     training: await trainingSummary(dataset, records, at),
     trainingPresets: TRAINING_PRESETS,
     defaultTrainingPresetId: DEFAULT_TRAINING_PRESET_ID,
