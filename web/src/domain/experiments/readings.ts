@@ -2,7 +2,7 @@ import type { ReviewSource } from "../annotation/schema";
 import { countClasses, sameClasses, type Tally } from "../models/classes";
 import { UnknownClassError } from "../models/errors";
 import type { ImageReview, ObservationImageCell } from "./contracts";
-import type { Experiment, ExperimentObservation } from "./schema";
+import type { ExperimentObservation } from "./schema";
 
 /** What a unit read on a day: the individuals found, and who stood behind the number. */
 export interface Reading {
@@ -96,57 +96,34 @@ export function unitReading(
 }
 
 /** A unit's day: the observation and the unit's photograph of it, if any. */
-interface UnitDay {
-  observation: Pick<ExperimentObservation, "modelId" | "countedClasses">;
+export interface UnitDay {
+  observation: ExperimentObservation;
   image: ObservationImageCell | null;
 }
 
-/** The experiment's rule for photographs marked unclear. */
-type UnclearRule = Pick<Experiment, "countsUnclear">;
-
-/**
- * Whether a photograph's number can be trusted. A clear photograph's can; an
- * unclear one's only where the experiment counts unclear photographs. One
- * not counted leaves its unit without a trusted number on that day, and only
- * that day: the number is still shown, but no spreadsheet or comparison
- * takes it, and the unit's other days read as they are.
- */
-export function numberTrusted(
-  image: Pick<ObservationImageCell, "unclear"> | null | undefined,
-  rule: UnclearRule,
-): boolean {
-  return !image?.unclear || rule.countsUnclear;
+/** A unit's days in the experiment's order. */
+export function unitDays(
+  cells: ObservationCells,
+  unit: string,
+  observations: readonly ExperimentObservation[],
+): UnitDay[] {
+  return observations.map((observation) => ({
+    observation,
+    image: cells.get(cellKey(unit, observation.id)) ?? null,
+  }));
 }
 
 /**
  * How much a unit's count rose from one day to another, or nothing unless
- * both days read and count alike: by one model, over the same classes, from
- * photographs whose numbers are trusted. Counts taken any other way measure
- * different things.
+ * both days read and count alike: by one model, over the same classes. Counts
+ * taken any other way measure different things.
  */
-export function countChange(
-  from: UnitDay,
-  to: UnitDay,
-  rule: UnclearRule,
-): number | null {
+export function countChange(from: UnitDay, to: UnitDay): number | null {
   const alike =
     from.observation.modelId === to.observation.modelId &&
     sameClasses(from.observation.countedClasses, to.observation.countedClasses);
   if (!alike) return null;
-  if (!numberTrusted(from.image, rule) || !numberTrusted(to.image, rule)) {
-    return null;
-  }
   const before = imageReading(from.image, from.observation);
   const after = imageReading(to.image, to.observation);
   return before && after ? after.count - before.count : null;
-}
-
-/** Whether a unit's number of a day can be trusted under the experiment's rule. */
-export function readingIsTrusted(
-  cells: ObservationCells,
-  unit: string,
-  observation: ExperimentObservation,
-  rule: UnclearRule,
-): boolean {
-  return numberTrusted(cells.get(cellKey(unit, observation.id)), rule);
 }

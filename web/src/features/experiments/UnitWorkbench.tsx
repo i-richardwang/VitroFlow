@@ -6,10 +6,10 @@ import type { NamedDataset } from "../../domain/datasets/schema";
 import { observationLabel, cultureEventLabel } from "./labels";
 import type { ReviewSource } from "../../domain/annotation/schema";
 import type { ObservationImageRef } from "../../domain/experiments/schema";
+import { unitExclusions } from "../../domain/experiments/analysis";
 import {
   latestCultureEvent,
   observationOrdinals,
-  unitIsIncludedInAnalysis,
 } from "../../domain/experiments/culture-events";
 import { retryObservationImageAnalysis } from "../../functions/experiments";
 import { useAsyncAction } from "../../ui/hooks/useAsyncAction";
@@ -270,10 +270,12 @@ export function UnitWorkbench({
           <DayCountsSection
             reference={reference}
             inView={inView}
-            included={(observation) =>
-              unitIsIncludedInAnalysis(unit.events, observation, ordinals)
-            }
-            countsUnclear={experiment.countsUnclear}
+            exclusion={unitExclusions(
+              unit.events,
+              series.observations,
+              ordinals,
+              experiment,
+            )}
           />
           {culture}
           <WorkbenchSection title={m.annotation_details()}>

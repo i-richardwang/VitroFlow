@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 
 import { observationLabel } from "./labels";
 import { UnitDayCount } from "./UnitDayCount";
+import type { Exclusion } from "../../domain/experiments/analysis";
 import type { UnitSeries } from "../../domain/experiments/contracts";
 import type { ExperimentObservation } from "../../domain/experiments/schema";
 import { countChange } from "../../domain/experiments/readings";
@@ -115,25 +116,25 @@ export function DayComparison({
 /**
  * What the two days read, a row each in the order they stand, the reference
  * day first, each read as the experiment's grid reads it. When both days
- * count alike, the change between them follows, signed in the text color,
- * since a count's rise is neither better nor worse.
+ * enter the analysis and count alike, the change between them follows,
+ * signed in the text color, since a count's rise is neither better nor worse.
  */
 export function DayCountsSection({
   reference,
   inView,
-  included,
-  countsUnclear,
+  exclusion,
 }: {
   reference: UnitObservation;
   inView: UnitObservation | undefined;
-  /** Whether a day's count enters the analysis. */
-  included: (observation: ExperimentObservation) => boolean;
-  /** Whether the experiment counts photographs marked unclear. */
-  countsUnclear: boolean;
+  /** Why a day stays out of the analysis, or nothing when it enters it. */
+  exclusion: (observation: ExperimentObservation) => Exclusion | null;
 }) {
-  const change = inView
-    ? countChange(reference, inView, { countsUnclear })
-    : null;
+  const change =
+    inView &&
+    exclusion(reference.observation) === null &&
+    exclusion(inView.observation) === null
+      ? countChange(reference, inView)
+      : null;
   return (
     <WorkbenchSection title={m.annotation_counts()}>
       <Descriptions justified>
@@ -145,8 +146,7 @@ export function DayCountsSection({
             <UnitDayCount
               image={day.image}
               observation={day.observation}
-              included={included(day.observation)}
-              countsUnclear={countsUnclear}
+              exclusion={exclusion(day.observation)}
             />
           </DescriptionsItem>
         ))}

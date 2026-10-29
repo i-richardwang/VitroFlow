@@ -187,7 +187,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "create-experiment",
     description:
-      "Create an experiment with its design. countsUnclear says whether a photograph marked unclear still gives its unit that day's number; it does not by default",
+      "Create an experiment with its design. countsUnclear says whether a unit with a photograph marked unclear stays in the analysis; by default it does not, and the unit is out on every day",
     destructive: false,
     input: experimentRequestSchema,
     output: experimentSchema,
@@ -338,7 +338,7 @@ const operations: readonly AgentOperation[] = [
   command({
     name: "mark-image-unclear",
     description:
-      "Mark a stored photograph unclear by digest, such as a fogged lid or a dish out of focus, wherever it is observed. In an experiment that does not count unclear photographs, its unit has no trusted number that day: the spreadsheet and comparisons leave it out, while it is still read and shown. Datasets train on it as on any other. marked is false when it was already marked, so repeating a call is safe",
+      "Mark a stored photograph unclear by digest, such as a fogged lid or a dish out of focus, wherever it is observed. In an experiment that does not count unclear photographs, its unit leaves the analysis on every day: the spreadsheet and comparisons leave it out, while it is still read and shown. Datasets train on it as on any other. marked is false when it was already marked, so repeating a call is safe",
     destructive: true,
     input: imageRefSchema,
     output: unclearMarkedSchema,

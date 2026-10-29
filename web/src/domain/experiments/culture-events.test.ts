@@ -8,11 +8,10 @@ import {
 import {
   cultureEventExcludesFromAnalysis,
   cultureEventIsTerminal,
-  exclusionAt,
+  excludingEvent,
   latestCultureEvent,
   unitIsAvailableAt,
   unitIsAvailableOn,
-  unitIsIncludedInAnalysis,
 } from "./culture-events";
 
 const observations: ExperimentObservation[] = [
@@ -71,13 +70,9 @@ describe("unit event effects", () => {
     const events = [event({ type: "harvested" })];
 
     expect(unitIsAvailableAt(events, observations[0]!, ordinals)).toBeTrue();
-    expect(
-      unitIsIncludedInAnalysis(events, observations[0]!, ordinals),
-    ).toBeTrue();
+    expect(excludingEvent(events, observations[0]!, ordinals)).toBeNull();
     expect(unitIsAvailableAt(events, observations[1]!, ordinals)).toBeFalse();
-    expect(
-      unitIsIncludedInAnalysis(events, observations[1]!, ordinals),
-    ).toBeFalse();
+    expect(excludingEvent(events, observations[1]!, ordinals)).not.toBeNull();
   });
 
   test("a day not yet recorded follows the same rule by its date", () => {
@@ -104,12 +99,8 @@ describe("unit event effects", () => {
     const events = [event({ type: "contaminated" })];
 
     expect(unitIsAvailableAt(events, observations[0]!, ordinals)).toBeTrue();
-    expect(
-      unitIsIncludedInAnalysis(events, observations[0]!, ordinals),
-    ).toBeFalse();
-    expect(
-      unitIsIncludedInAnalysis(events, observations[1]!, ordinals),
-    ).toBeFalse();
+    expect(excludingEvent(events, observations[0]!, ordinals)).not.toBeNull();
+    expect(excludingEvent(events, observations[1]!, ordinals)).not.toBeNull();
   });
 
   test("the earliest event to exclude a unit is the one that decided it", () => {
@@ -121,9 +112,9 @@ describe("unit event effects", () => {
     });
 
     expect(
-      exclusionAt([discarded, contaminated], observations[1]!, ordinals),
+      excludingEvent([discarded, contaminated], observations[1]!, ordinals),
     ).toBe(contaminated);
-    expect(exclusionAt([discarded], observations[0]!, ordinals)).toBeNull();
+    expect(excludingEvent([discarded], observations[0]!, ordinals)).toBeNull();
   });
 
   test("current state follows observation time rather than entry time", () => {

@@ -11,15 +11,18 @@ import {
   type Workbook,
   type WorkbookCell,
 } from "../../lib/spreadsheet/workbook";
+import {
+  unitExclusions,
+  type Exclusion,
+} from "../../domain/experiments/analysis";
 import type { ExperimentGrid, Unit } from "../../domain/experiments/contracts";
 import {
-  exclusionAt,
   observationOrdinals,
   type ObservationOrdinals,
 } from "../../domain/experiments/culture-events";
 import {
   observationCells,
-  readingIsTrusted,
+  unitDays,
   unitReading,
   type ObservationCells,
 } from "../../domain/experiments/readings";
@@ -59,8 +62,8 @@ export function experimentWorkbookFilename(experiment: Experiment): string {
  * The sheet records what the dish did rather than what the workbench is doing.
  * A reading still waiting, or one that failed, leaves its cell empty; a unit an
  * event took out of the analysis is named by that event in place of its count,
- * and a photograph found unclear, where the experiment does not count such
- * photographs, says so in place of its own.
+ * and a unit with a photograph found unclear, where the experiment does not
+ * count such photographs, says so in place of every count it has.
  */
 export function experimentWorkbook(
   source: ExperimentWorkbookSource,
@@ -161,26 +164,39 @@ function unitRow(
   cells: ObservationCells,
   ordinals: ObservationOrdinals,
 ): WorkbookCell[] {
+  const exclusion = unitExclusions(
+    unit.events,
+    unitDays(
+      cells,
+      unit.id,
+      days.map((day) => day.observation),
+    ),
+    ordinals,
+    experiment,
+  );
   return [
     textCell(treatment.name),
     factorCell(treatment),
     textCell(unit.code),
-    ...days.map((day) => unitCell(experiment, unit, day, cells, ordinals)),
+    ...days.map((day) =>
+      unitCell(unit, day, cells, exclusion(day.observation)),
+    ),
   ];
 }
 
 function unitCell(
-  experiment: Experiment,
   unit: Unit,
   day: Day,
   cells: ObservationCells,
-  ordinals: ObservationOrdinals,
+  exclusion: Exclusion | null,
 ): WorkbookCell {
-  const excluded = exclusionAt(unit.events, day.observation, ordinals);
-  if (excluded) return textCell(cultureEventLabel(excluded.type));
-  if (!readingIsTrusted(cells, unit.id, day.observation, experiment)) {
-    return textCell(m.unclear_label());
-  }
+  if (exclusion) return textCell(exclusionLabel(exclusion));
   const reading = unitReading(cells, unit.id, day.observation);
   return reading ? countCell(reading.count) : blankCell;
+}
+
+function exclusionLabel(exclusion: Exclusion): string {
+  return exclusion.reason === "event"
+    ? cultureEventLabel(exclusion.event.type)
+    : m.unclear_label();
 }
